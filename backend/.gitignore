@@ -1,0 +1,6 @@
+node_modules/
+.env
+.env.*
+*.log
+check_login.js
+reset_pin.js
