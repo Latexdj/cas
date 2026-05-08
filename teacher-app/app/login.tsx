@@ -45,16 +45,22 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <Text style={styles.logo}>🏫</Text>
-          <Text style={styles.title}>CAS Teacher</Text>
-          <Text style={styles.subtitle}>Classroom Attendance System</Text>
+
+        {/* Top band */}
+        <View style={styles.topBand}>
+          <View style={styles.logoMark}>
+            <Text style={styles.logoLetter}>C</Text>
+          </View>
+          <Text style={styles.appName}>CAS Teacher</Text>
+          <Text style={styles.tagline}>Classroom Attendance System</Text>
         </View>
 
-        <View style={styles.form}>
+        {/* Form card */}
+        <View style={styles.card}>
+          <Text style={styles.cardHeading}>Sign in</Text>
           <Input
             label="School ID"
-            placeholder="Paste your school UUID"
+            placeholder="Paste your school code"
             value={schoolId}
             onChangeText={setSchoolId}
             autoCapitalize="none"
@@ -69,7 +75,7 @@ export default function LoginScreen() {
           />
           <Input
             label="PIN"
-            placeholder="Enter your 4-digit PIN"
+            placeholder="4-digit PIN"
             value={pin}
             onChangeText={setPin}
             keyboardType="number-pad"
@@ -80,28 +86,57 @@ export default function LoginScreen() {
             label="Sign In"
             onPress={handleLogin}
             loading={loading}
+            size="lg"
             style={styles.loginBtn}
           />
         </View>
 
-        <Text style={styles.hint}>
-          Don't have a PIN? Ask your school administrator.
-        </Text>
+        <Text style={styles.hint}>No PIN? Contact your school administrator.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  flex:      { flex: 1, backgroundColor: Colors.bg },
-  container: { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  header:    { alignItems: 'center', marginBottom: 40 },
-  logo:      { fontSize: 56, marginBottom: 12 },
-  title:     { fontSize: 28, fontWeight: '700', color: Colors.text },
-  subtitle:  { fontSize: 15, color: Colors.muted, marginTop: 4 },
-  form:      { backgroundColor: Colors.white, borderRadius: 16, padding: 20, marginBottom: 24,
-               shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07,
-               shadowRadius: 8, elevation: 3 },
-  loginBtn:  { marginTop: 8 },
-  hint:      { textAlign: 'center', fontSize: 13, color: Colors.muted },
+  flex:        { flex: 1, backgroundColor: Colors.bg },
+  container:   { flexGrow: 1, paddingBottom: 40 },
+
+  topBand:     {
+    backgroundColor: Colors.primary,
+    paddingTop: 80,
+    paddingBottom: 48,
+    alignItems: 'center',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    marginBottom: 32,
+  },
+  logoMark:    {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: Colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  logoLetter:  { fontSize: 30, fontWeight: '800', color: '#fff' },
+  appName:     { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -0.5 },
+  tagline:     { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 5 },
+
+  card:        {
+    backgroundColor: Colors.surface,
+    marginHorizontal: 20,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#1C1208',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  cardHeading: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 22, letterSpacing: -0.3 },
+  loginBtn:    { marginTop: 4 },
+  hint:        { textAlign: 'center', fontSize: 13, color: Colors.muted, marginTop: 24 },
 });

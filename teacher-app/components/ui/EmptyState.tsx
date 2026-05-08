@@ -11,7 +11,9 @@ interface Props {
 export function EmptyState({ icon = '📭', title, subtitle }: Props) {
   return (
     <View style={styles.container}>
-      <Text style={styles.icon}>{icon}</Text>
+      <View style={styles.iconWrap}>
+        <Text style={styles.icon}>{icon}</Text>
+      </View>
       <Text style={styles.title}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
@@ -19,8 +21,9 @@ export function EmptyState({ icon = '📭', title, subtitle }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  icon:      { fontSize: 48, marginBottom: 16 },
-  title:     { fontSize: 17, fontWeight: '600', color: Colors.text, textAlign: 'center' },
-  subtitle:  { fontSize: 14, color: Colors.muted, marginTop: 8, textAlign: 'center', lineHeight: 20 },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  iconWrap:  { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.primaryLight, justifyContent: 'center', alignItems: 'center', marginBottom: 18 },
+  icon:      { fontSize: 34 },
+  title:     { fontSize: 17, fontWeight: '700', color: Colors.text, textAlign: 'center' },
+  subtitle:  { fontSize: 14, color: Colors.muted, marginTop: 8, textAlign: 'center', lineHeight: 22 },
 });

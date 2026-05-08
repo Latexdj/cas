@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -11,9 +11,9 @@ import { TimetableSlot, AttendanceRecord } from '@/types/api';
 
 export default function HomeScreen() {
   const { user } = useAuth();
-  const [slots,     setSlots]     = useState<TimetableSlot[]>([]);
-  const [submitted, setSubmitted] = useState<AttendanceRecord[]>([]);
-  const [loading,   setLoading]   = useState(true);
+  const [slots,      setSlots]      = useState<TimetableSlot[]>([]);
+  const [submitted,  setSubmitted]  = useState<AttendanceRecord[]>([]);
+  const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
@@ -26,7 +26,7 @@ export default function HomeScreen() {
       setSlots(ttRes.data);
       setSubmitted(attRes.data);
     } catch {
-      // silently fail — user sees empty state
+      // silently fail
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -34,35 +34,45 @@ export default function HomeScreen() {
   }, [user]);
 
   useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
-
   const onRefresh = () => { setRefreshing(true); load(); };
 
-  const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const today    = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const pending  = slots.length - submitted.length;
+  const firstName = user?.name?.split(' ')[0] ?? '';
 
-  if (!user)   return <Spinner message="Redirecting…" />;
+  if (!user)   return <Spinner message="Loading…" />;
   if (loading) return <Spinner />;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.greeting}>
-        <Text style={styles.name}>Hello, {user?.name?.split(' ')[0]} 👋</Text>
-        <Text style={styles.date}>{today}</Text>
+    <View style={styles.root}>
+      {/* Header band */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.greeting}>Good day, {firstName}</Text>
+          <Text style={styles.date}>{today}</Text>
+        </View>
+        <View style={styles.avatarSmall}>
+          <Text style={styles.avatarLetter}>{firstName.charAt(0)}</Text>
+        </View>
       </View>
 
-      <View style={styles.summary}>
-        <View style={styles.pill}>
-          <Text style={styles.pillNum}>{slots.length}</Text>
-          <Text style={styles.pillLabel}>Lessons</Text>
+      {/* Stats strip */}
+      <View style={styles.statsRow}>
+        <View style={styles.stat}>
+          <Text style={styles.statNum}>{slots.length}</Text>
+          <Text style={styles.statLabel}>Lessons</Text>
         </View>
-        <View style={[styles.pill, { backgroundColor: '#D1FAE5' }]}>
-          <Text style={[styles.pillNum, { color: Colors.success }]}>{submitted.length}</Text>
-          <Text style={styles.pillLabel}>Submitted</Text>
+        <View style={[styles.stat, styles.statDivider]}>
+          <Text style={[styles.statNum, { color: Colors.success }]}>{submitted.length}</Text>
+          <Text style={styles.statLabel}>Submitted</Text>
         </View>
-        <View style={[styles.pill, { backgroundColor: '#FEE2E2' }]}>
-          <Text style={[styles.pillNum, { color: Colors.danger }]}>{slots.length - submitted.length}</Text>
-          <Text style={styles.pillLabel}>Pending</Text>
+        <View style={[styles.stat, styles.statDivider]}>
+          <Text style={[styles.statNum, { color: pending > 0 ? Colors.danger : Colors.muted }]}>{pending}</Text>
+          <Text style={styles.statLabel}>Pending</Text>
         </View>
       </View>
+
+      <Text style={styles.sectionLabel}>Today's Timetable</Text>
 
       <FlatList
         data={slots}
@@ -71,25 +81,57 @@ export default function HomeScreen() {
           <TimetableSlotCard
             slot={item}
             submitted={submitted}
-            onPress={() => router.push({ pathname: '/(tabs)/submit', params: { slotId: item.id, subject: item.subject, className: item.class_name, periods: item.periods } })}
+            onPress={() => router.push({
+              pathname: '/(tabs)/submit',
+              params: { slotId: item.id, subject: item.subject, className: item.class_name, periods: item.periods },
+            })}
           />
         )}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
-        ListEmptyComponent={<EmptyState icon="📅" title="No lessons today" subtitle="You have no timetable entries for today." />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />}
+        ListEmptyComponent={<EmptyState icon="📅" title="No lessons today" subtitle="Your timetable has no entries for today." />}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container:  { flex: 1, backgroundColor: Colors.bg },
-  greeting:   { backgroundColor: Colors.primary, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20 },
-  name:       { fontSize: 22, fontWeight: '700', color: '#fff' },
-  date:       { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
-  summary:    { flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 4 },
-  pill:       { flex: 1, backgroundColor: '#EFF6FF', borderRadius: 12, padding: 12, alignItems: 'center' },
-  pillNum:    { fontSize: 22, fontWeight: '700', color: Colors.primary },
-  pillLabel:  { fontSize: 12, color: Colors.muted, marginTop: 2 },
-  list:       { padding: 16, paddingTop: 8, flexGrow: 1 },
+  root:         { flex: 1, backgroundColor: Colors.bg },
+
+  header:       {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  greeting:     { fontSize: 21, fontWeight: '800', color: '#fff', letterSpacing: -0.3 },
+  date:         { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
+  avatarSmall:  { width: 42, height: 42, borderRadius: 21, backgroundColor: Colors.accent, justifyContent: 'center', alignItems: 'center' },
+  avatarLetter: { fontSize: 18, fontWeight: '800', color: '#fff' },
+
+  statsRow:     {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    marginHorizontal: 16,
+    marginTop: -16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#1C1208',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    marginBottom: 20,
+  },
+  stat:         { flex: 1, alignItems: 'center', paddingVertical: 14 },
+  statDivider:  { borderLeftWidth: 1, borderLeftColor: Colors.border },
+  statNum:      { fontSize: 24, fontWeight: '800', color: Colors.text },
+  statLabel:    { fontSize: 11, color: Colors.muted, marginTop: 3, fontWeight: '600', letterSpacing: 0.3 },
+
+  sectionLabel: { fontSize: 12, fontWeight: '700', color: Colors.muted, letterSpacing: 0.5, textTransform: 'uppercase', paddingHorizontal: 20, marginBottom: 8 },
+  list:         { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
 });

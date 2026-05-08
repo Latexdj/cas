@@ -6,26 +6,34 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor:   Colors.primary,
-        tabBarInactiveTintColor: Colors.muted,
-        tabBarStyle:             { backgroundColor: Colors.white, borderTopColor: Colors.border },
-        headerStyle:             { backgroundColor: Colors.primary },
-        headerTintColor:         '#fff',
-        headerTitleStyle:        { fontWeight: '700' },
+        tabBarActiveTintColor:    Colors.tabActive,
+        tabBarInactiveTintColor:  Colors.tabInactive,
+        tabBarStyle: {
+          backgroundColor: Colors.surface,
+          borderTopColor:  Colors.border,
+          borderTopWidth:  1,
+          height:          60,
+          paddingBottom:   8,
+        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        headerStyle:      { backgroundColor: Colors.primary },
+        headerTintColor:  '#fff',
+        headerTitleStyle: { fontWeight: '800', letterSpacing: -0.3 },
+        headerShadowVisible: false,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Today',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="today-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="submit"
         options={{
           title: 'Submit',
-          tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-circle-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-done-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -47,7 +55,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Ionicons name="person-circle-outline" size={size} color={color} />,
         }}
       />
     </Tabs>
