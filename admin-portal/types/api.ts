@@ -100,6 +100,16 @@ export interface AdminStats {
   pending_remedials: number;
 }
 
+export interface TeacherAttendanceSummary {
+  id: string;
+  name: string;
+  department: string;
+  present_periods: number;
+  absent_periods: number;
+  total_scheduled: number;
+  attendance_pct: number | null;
+}
+
 export interface ClassroomStatus {
   slot_id: string;
   class_name: string;

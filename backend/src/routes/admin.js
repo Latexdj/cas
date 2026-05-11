@@ -203,4 +203,53 @@ router.patch('/settings', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/admin/reports/teacher-summary
+// Returns per-teacher attendance stats for the current academic year
+router.get('/reports/teacher-summary', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        t.id,
+        t.name,
+        COALESCE(t.department, '—') AS department,
+        COALESCE(SUM(a.periods), 0)::int        AS present_periods,
+        COUNT(DISTINCT ab.id)::int              AS absent_periods,
+        (COALESCE(SUM(a.periods), 0) + COUNT(DISTINCT ab.id))::int AS total_scheduled,
+        CASE
+          WHEN (COALESCE(SUM(a.periods), 0) + COUNT(DISTINCT ab.id)) = 0 THEN NULL
+          ELSE ROUND(
+            100.0 * COALESCE(SUM(a.periods), 0) /
+            NULLIF(COALESCE(SUM(a.periods), 0) + COUNT(DISTINCT ab.id), 0), 1
+          )
+        END AS attendance_pct
+      FROM teachers t
+      LEFT JOIN attendance a
+        ON  a.teacher_id       = t.id
+        AND a.school_id        = $1
+        AND a.academic_year_id = (
+              SELECT id FROM academic_years
+              WHERE school_id = $1 AND is_current = true
+              LIMIT 1
+            )
+      LEFT JOIN absences ab
+        ON  ab.teacher_id = t.id
+        AND ab.school_id  = $1
+        AND ab.date >= COALESCE(
+              (SELECT MIN(a2.date) FROM attendance a2
+               WHERE  a2.school_id        = $1
+               AND    a2.academic_year_id = (
+                        SELECT id FROM academic_years
+                        WHERE school_id = $1 AND is_current = true
+                        LIMIT 1
+                      )),
+              CURRENT_DATE - INTERVAL '365 days'
+            )
+      WHERE t.school_id = $1 AND t.status = 'Active'
+      GROUP BY t.id, t.name, t.department
+      ORDER BY attendance_pct ASC NULLS LAST, t.name
+    `, [req.schoolId]);
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
