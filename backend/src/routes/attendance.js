@@ -27,7 +27,7 @@ router.post('/submit', async (req, res, next) => {
     const {
       teacherId, subject, classNames, periods, topic,
       gpsCoordinates, imageBase64, locationName,
-      academicYearId, semester,
+      academicYearId, semester, photoSizeKb,
     } = req.body;
 
     const missing = ['teacherId','subject','classNames','periods','imageBase64'].filter(f => !req.body[f]);
@@ -92,14 +92,14 @@ router.post('/submit', async (req, res, next) => {
          (school_id, date, academic_year_id, semester, teacher_id,
           subject, class_names, periods, topic, gps_coordinates,
           photo_url, week_number, location_id, location_name,
-          location_verified, location_verification_message)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+          location_verified, location_verification_message, photo_size_kb)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
        RETURNING *`,
       [
         req.schoolId, today, yearId, sem, teacherId,
         subject, classNames, periods, topic||null, gpsCoordinates||null,
         photoUrl, weekNumber, locationId, locationName||null,
-        locationVerified, locationMsg,
+        locationVerified, locationMsg, photoSizeKb||null,
       ]
     );
     res.status(201).json({ message: 'Attendance recorded', record: rows[0], locationMessage: locationMsg });
@@ -124,7 +124,7 @@ router.get('/', adminOnly, async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT a.id, a.date, a.submitted_at, a.semester, a.subject, a.class_names,
               a.periods, a.topic, a.photo_url, a.week_number,
-              a.location_name, a.location_verified,
+              a.location_name, a.location_verified, a.gps_coordinates, a.photo_size_kb,
               te.id AS teacher_id, te.name AS teacher_name,
               ay.name AS academic_year
        FROM attendance a

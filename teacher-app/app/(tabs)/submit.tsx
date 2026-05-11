@@ -3,6 +3,7 @@ import {
   Alert, Platform, ScrollView, StyleSheet, Text,
   TouchableOpacity, View, Modal, FlatList, Image,
 } from 'react-native';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
@@ -30,6 +31,7 @@ export default function SubmitScreen() {
   const [gps,         setGps]         = useState('');
   const [photoUri,    setPhotoUri]    = useState<string | null>(null);
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [photoSizeKb, setPhotoSizeKb] = useState<number | null>(null);
   const [submitting,  setSubmitting]  = useState(false);
   const [showLocPicker, setShowLocPicker] = useState(false);
 
@@ -87,6 +89,7 @@ export default function SubmitScreen() {
       Alert.alert('Camera not available', 'On web, please enter a placeholder photo. Use the real mobile app to capture classroom photos.');
       setPhotoUri('web-placeholder');
       setPhotoBase64('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+      setPhotoSizeKb(1);
       return;
     }
     if (!camPermission?.granted) {
@@ -98,12 +101,30 @@ export default function SubmitScreen() {
 
   async function takePhoto() {
     try {
-      const photo = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.6 });
-      if (photo) {
-        setPhotoUri(photo.uri);
-        setPhotoBase64(`data:image/jpeg;base64,${photo.base64}`);
-        setShowCamera(false);
+      const photo = await cameraRef.current?.takePictureAsync({ base64: false, quality: 1 });
+      if (!photo) return;
+
+      // Compress to ~30 KB: resize to max width 640px, then reduce quality iteratively
+      let compressed = await ImageManipulator.manipulateAsync(
+        photo.uri,
+        [{ resize: { width: 640 } }],
+        { compress: 0.4, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+      );
+
+      // If still too large, compress further
+      if (compressed.base64 && compressed.base64.length * 0.75 > 40 * 1024) {
+        compressed = await ImageManipulator.manipulateAsync(
+          photo.uri,
+          [{ resize: { width: 480 } }],
+          { compress: 0.25, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+        );
       }
+
+      const sizeKb = Math.round((compressed.base64!.length * 0.75) / 1024);
+      setPhotoUri(compressed.uri);
+      setPhotoBase64(`data:image/jpeg;base64,${compressed.base64}`);
+      setPhotoSizeKb(sizeKb);
+      setShowCamera(false);
     } catch (err) {
       Alert.alert('Error', 'Could not capture photo.');
     }
@@ -125,6 +146,7 @@ export default function SubmitScreen() {
         gpsCoordinates: gps || undefined,
         locationName: locationName || undefined,
         imageBase64:  photoBase64,
+        photoSizeKb:  photoSizeKb ?? undefined,
       });
       Alert.alert('✅ Submitted', 'Attendance recorded successfully.');
       resetForm();
@@ -137,7 +159,7 @@ export default function SubmitScreen() {
 
   function resetForm() {
     setSubject(''); setClassNames(''); setPeriods('');
-    setTopic(''); setLocationName(''); setPhotoUri(null); setPhotoBase64(null);
+    setTopic(''); setLocationName(''); setPhotoUri(null); setPhotoBase64(null); setPhotoSizeKb(null);
   }
 
   function fillFromSlot(slot: TimetableSlot) {

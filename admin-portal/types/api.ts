@@ -51,6 +51,8 @@ export interface AttendanceRecord {
   week_number: number;
   location_name: string | null;
   location_verified: boolean;
+  gps_coordinates: string | null;
+  photo_size_kb: number | null;
   teacher_id: string;
   teacher_name: string;
   academic_year: string;
