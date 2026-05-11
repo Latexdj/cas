@@ -1,38 +1,30 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert, KeyboardAvoidingView, Platform, ScrollView,
   StyleSheet, Text, View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
-import { storage } from '@/lib/storage';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Colors } from '@/constants/colors';
 
+const SCHOOL_ID = process.env.EXPO_PUBLIC_SCHOOL_ID ?? '';
+
 export default function LoginScreen() {
-  const { login, user } = useAuth();
-  const [schoolId, setSchoolId] = useState('');
-  const [name,     setName]     = useState('');
-  const [pin,      setPin]      = useState('');
+  const { login } = useAuth();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loading,  setLoading]  = useState(false);
 
-  useEffect(() => {
-    if (user) router.replace('/(tabs)');
-  }, [user]);
-
-  useEffect(() => {
-    storage.getSchoolId().then((id) => { if (id) setSchoolId(id); });
-  }, []);
-
   async function handleLogin() {
-    if (!schoolId.trim() || !name.trim() || !pin.trim()) {
-      Alert.alert('Missing fields', 'Please fill in all fields.');
+    if (!username.trim() || !password.trim()) {
+      Alert.alert('Missing fields', 'Please enter your username and password.');
       return;
     }
     setLoading(true);
     try {
-      await login({ type: 'teacher', name: name.trim(), pin, schoolId: schoolId.trim() });
+      await login({ type: 'teacher', username: username.trim(), password, schoolId: SCHOOL_ID });
       router.replace('/(tabs)');
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Login failed. Check your details.';
@@ -46,7 +38,6 @@ export default function LoginScreen() {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
 
-        {/* Top band */}
         <View style={styles.topBand}>
           <View style={styles.logoMark}>
             <Text style={styles.logoLetter}>C</Text>
@@ -55,32 +46,22 @@ export default function LoginScreen() {
           <Text style={styles.tagline}>Classroom Attendance System</Text>
         </View>
 
-        {/* Form card */}
         <View style={styles.card}>
           <Text style={styles.cardHeading}>Sign in</Text>
           <Input
-            label="School ID"
-            placeholder="Paste your school code"
-            value={schoolId}
-            onChangeText={setSchoolId}
-            autoCapitalize="none"
+            label="Username"
+            placeholder="Your registered name"
+            value={username}
+            onChangeText={setUsername}
+            autoCapitalize="words"
             autoCorrect={false}
           />
           <Input
-            label="Your Name"
-            placeholder="e.g. Kwame Mensah"
-            value={name}
-            onChangeText={setName}
-            autoCapitalize="words"
-          />
-          <Input
-            label="PIN"
-            placeholder="4-digit PIN"
-            value={pin}
-            onChangeText={setPin}
-            keyboardType="number-pad"
+            label="Password"
+            placeholder="Enter your password"
+            value={password}
+            onChangeText={setPassword}
             secureTextEntry
-            maxLength={8}
           />
           <Button
             label="Sign In"
@@ -91,7 +72,7 @@ export default function LoginScreen() {
           />
         </View>
 
-        <Text style={styles.hint}>No PIN? Contact your school administrator.</Text>
+        <Text style={styles.hint}>Forgot your password? Contact your school administrator.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -110,15 +91,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 32,
     marginBottom: 32,
   },
-  logoMark:    {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    backgroundColor: Colors.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
+  logoMark:    { width: 64, height: 64, borderRadius: 20, backgroundColor: Colors.accent, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
   logoLetter:  { fontSize: 30, fontWeight: '800', color: '#fff' },
   appName:     { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -0.5 },
   tagline:     { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 5 },
@@ -138,5 +111,5 @@ const styles = StyleSheet.create({
   },
   cardHeading: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 22, letterSpacing: -0.3 },
   loginBtn:    { marginTop: 4 },
-  hint:        { textAlign: 'center', fontSize: 13, color: Colors.muted, marginTop: 24 },
+  hint:        { textAlign: 'center', fontSize: 13, color: Colors.muted, marginTop: 24, paddingHorizontal: 32 },
 });

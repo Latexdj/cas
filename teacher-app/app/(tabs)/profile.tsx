@@ -9,22 +9,22 @@ import { Colors } from '@/constants/colors';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
-  const [currentPin, setCurrentPin] = useState('');
-  const [newPin,     setNewPin]     = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
-  const [changing,   setChanging]   = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword,     setNewPassword]     = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changing,        setChanging]        = useState(false);
 
-  async function handleChangePin() {
-    if (!currentPin || !newPin || !confirmPin) { Alert.alert('Fill in all PIN fields'); return; }
-    if (newPin !== confirmPin) { Alert.alert('PINs do not match'); return; }
-    if (newPin.length < 4)    { Alert.alert('PIN must be at least 4 digits'); return; }
+  async function handleChangePassword() {
+    if (!currentPassword || !newPassword || !confirmPassword) { Alert.alert('Fill in all fields'); return; }
+    if (newPassword !== confirmPassword) { Alert.alert('Passwords do not match'); return; }
+    if (newPassword.length < 4) { Alert.alert('Password must be at least 4 characters'); return; }
     setChanging(true);
     try {
-      await api.post('/api/auth/change-pin', { currentPin, newPin });
-      Alert.alert('PIN Changed', 'Your PIN has been updated successfully.');
-      setCurrentPin(''); setNewPin(''); setConfirmPin('');
+      await api.post('/api/auth/change-password', { currentPassword, newPassword });
+      Alert.alert('Password Changed', 'Your password has been updated successfully.');
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.error ?? 'Could not change PIN.');
+      Alert.alert('Error', err?.response?.data?.error ?? 'Could not change password.');
     } finally { setChanging(false); }
   }
 
@@ -67,12 +67,12 @@ export default function ProfileScreen() {
 
       {/* Change PIN */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Change PIN</Text>
+        <Text style={styles.sectionLabel}>Change Password</Text>
         <View style={styles.infoCard}>
-          <Input label="Current PIN" value={currentPin} onChangeText={setCurrentPin} secureTextEntry keyboardType="number-pad" maxLength={8} placeholder="••••" />
-          <Input label="New PIN"     value={newPin}     onChangeText={setNewPin}     secureTextEntry keyboardType="number-pad" maxLength={8} placeholder="Min 4 digits" />
-          <Input label="Confirm PIN" value={confirmPin} onChangeText={setConfirmPin} secureTextEntry keyboardType="number-pad" maxLength={8} placeholder="Repeat new PIN" />
-          <Button label="Update PIN" onPress={handleChangePin} loading={changing} />
+          <Input label="Current Password" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry placeholder="Current password" />
+          <Input label="New Password"     value={newPassword}     onChangeText={setNewPassword}     secureTextEntry placeholder="Min 4 characters" />
+          <Input label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry placeholder="Repeat new password" />
+          <Button label="Update Password" onPress={handleChangePassword} loading={changing} />
         </View>
       </View>
 
