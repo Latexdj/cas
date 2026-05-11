@@ -34,7 +34,8 @@ export default function SubmitScreen() {
   const [showLocPicker, setShowLocPicker] = useState(false);
 
   // Camera state
-  const [showCamera, setShowCamera] = useState(false);
+  const [showCamera,    setShowCamera]    = useState(false);
+  const [facing,        setFacing]        = useState<'back' | 'front'>('front');
   const [camPermission, requestCamPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
@@ -147,7 +148,7 @@ export default function SubmitScreen() {
   if (showCamera) {
     return (
       <View style={styles.cameraContainer}>
-        <CameraView ref={cameraRef} style={styles.camera} facing="back" />
+        <CameraView ref={cameraRef} style={styles.camera} facing={facing} />
         <View style={styles.cameraControls}>
           <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowCamera(false)}>
             <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -155,7 +156,9 @@ export default function SubmitScreen() {
           <TouchableOpacity style={styles.captureBtn} onPress={takePhoto}>
             <View style={styles.captureBtnInner} />
           </TouchableOpacity>
-          <View style={{ width: 72 }} />
+          <TouchableOpacity style={styles.flipBtn} onPress={() => setFacing(f => f === 'back' ? 'front' : 'back')}>
+            <Text style={styles.flipBtnText}>⇄</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -275,6 +278,8 @@ const styles = StyleSheet.create({
   captureBtnInner:    { width: 56, height: 56, borderRadius: 28, backgroundColor: '#fff' },
   cancelBtn:          { width: 72, alignItems: 'center' },
   cancelBtnText:      { color: '#fff', fontSize: 15, fontWeight: '600' },
+  flipBtn:            { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  flipBtnText:        { color: '#fff', fontSize: 28, fontWeight: '700' },
   // Location modal
   modalOverlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet:         { backgroundColor: Colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', padding: 20 },
