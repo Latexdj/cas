@@ -107,9 +107,9 @@ export default function AcademicYearsPage() {
           <Input label="Year Name *" placeholder="2025/2026" value={form.name}
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
           <div>
-            <label className="text-sm font-medium text-gray-700">Current Semester</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current Semester</label>
             <select value={form.current_semester} onChange={e => setForm(f => ({ ...f, current_semester: e.target.value }))}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600">
               <option value="1">Semester 1</option>
               <option value="2">Semester 2</option>
             </select>

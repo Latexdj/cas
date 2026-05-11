@@ -24,3 +24,25 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Consistent styling for all select and textarea elements */
+select,
+textarea {
+  color: #0F172A;
+  background-color: #FAFAFA;
+  font-size: 0.875rem;
+}
+
+select option {
+  color: #0F172A;
+  background-color: #ffffff;
+}
+
+/* Remove the dark-mode override that would wash out text */
+@media (prefers-color-scheme: dark) {
+  select,
+  textarea {
+    color: #0F172A;
+    background-color: #FAFAFA;
+  }
+}

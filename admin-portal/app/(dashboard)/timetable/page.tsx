@@ -75,12 +75,12 @@ export default function TimetablePage() {
     <div className="space-y-4">
       <div className="flex items-center gap-3 flex-wrap">
         <select value={filterDay} onChange={e => setFilterDay(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600">
           <option value="0">All Days</option>
           {DAYS.slice(1,7).map((d,i) => <option key={d} value={i+1}>{d}</option>)}
         </select>
         <select value={filterTeacher} onChange={e => setFilterTeacher(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600">
           <option value="">All Teachers</option>
           {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
@@ -126,17 +126,17 @@ export default function TimetablePage() {
       <Modal open={modal !== null} onClose={() => setModal(null)} title={modal === 'create' ? 'Add Timetable Slot' : 'Edit Timetable Slot'}>
         <div className="space-y-3">
           <div>
-            <label className="text-sm font-medium text-gray-700">Teacher *</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Teacher *</label>
             <select value={form.teacher_id} onChange={f('teacher_id')}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600">
               <option value="">Select teacher…</option>
               {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-sm font-medium text-gray-700">Day *</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Day *</label>
             <select value={form.day_of_week} onChange={f('day_of_week')}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600">
               {DAYS.slice(1,7).map((d,i) => <option key={d} value={i+1}>{d}</option>)}
             </select>
           </div>

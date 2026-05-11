@@ -60,17 +60,17 @@ export default function RemedialsPage() {
     <div className="space-y-4">
       <form onSubmit={filter} className="flex items-end gap-3 flex-wrap">
         <div>
-          <label className="text-sm font-medium text-gray-700">Teacher</label>
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Teacher</label>
           <select value={teacherId} onChange={e => setTeacherId(e.target.value)}
-            className="mt-1 w-44 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            className="mt-1 w-44 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600">
             <option value="">All</option>
             {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-sm font-medium text-gray-700">Status</label>
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</label>
           <select value={status} onChange={e => setStatus(e.target.value)}
-            className="mt-1 w-44 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            className="mt-1 w-44 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600">
             <option value="">All</option>
             <option value="Scheduled">Scheduled</option>
             <option value="Completed">Completed</option>
@@ -137,9 +137,9 @@ export default function RemedialsPage() {
               Scheduled: {notesModal.remedial_date} at {notesModal.remedial_time}
             </p>
             <div>
-              <label className="text-sm font-medium text-gray-700">Verification Notes (optional)</label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verification Notes (optional)</label>
               <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
                 placeholder="Add verification notes…" />
             </div>
             <div className="flex justify-end gap-2 pt-2">

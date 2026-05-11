@@ -147,9 +147,9 @@ export default function AttendancePage() {
           <Input label="From" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
           <Input label="To"   type="date" value={dateTo}   onChange={e => setDateTo(e.target.value)}   className="w-40" />
           <div>
-            <label className="text-sm font-medium text-gray-700">Teacher</label>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Teacher</label>
             <select value={teacherId} onChange={e => setTeacherId(e.target.value)}
-              className="mt-1 w-48 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              className="mt-1 w-48 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600">
               <option value="">All</option>
               {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
