@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Colors } from '@/constants/colors';
 
 export default function ProfileScreen() {
+  const Colors = useTheme();
   const { user, logout } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword,     setNewPassword]     = useState('');
@@ -39,9 +40,8 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      {/* Avatar hero */}
-      <View style={styles.hero}>
-        <View style={styles.avatar}>
+      <View style={[styles.hero, { backgroundColor: Colors.primary }]}>
+        <View style={[styles.avatar, { backgroundColor: Colors.accent }]}>
           <Text style={styles.avatarText}>{initial}</Text>
         </View>
         <Text style={styles.name}>{user?.name}</Text>
@@ -50,7 +50,6 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Info rows */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Account</Text>
         <View style={styles.infoCard}>
@@ -65,7 +64,6 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Change PIN */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Change Password</Text>
         <View style={styles.infoCard}>
@@ -82,24 +80,20 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  root:         { flex: 1, backgroundColor: Colors.bg },
+  root:         { flex: 1, backgroundColor: '#F4EFE6' },
   content:      { paddingBottom: 48 },
-
-  hero:         { backgroundColor: Colors.primary, alignItems: 'center', paddingTop: 36, paddingBottom: 40, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 24 },
-  avatar:       { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.accent, justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
+  hero:         { alignItems: 'center', paddingTop: 36, paddingBottom: 40, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 24 },
+  avatar:       { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 14 },
   avatarText:   { fontSize: 34, fontWeight: '800', color: '#fff' },
   name:         { fontSize: 22, fontWeight: '800', color: '#fff', letterSpacing: -0.3, marginBottom: 8 },
   rolePill:     { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20 },
   roleText:     { fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
-
   section:      { paddingHorizontal: 16, marginBottom: 20 },
-  sectionLabel: { fontSize: 11, fontWeight: '700', color: Colors.muted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 10 },
-  infoCard:     { backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', padding: 16 },
-
-  row:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  sectionLabel: { fontSize: 11, fontWeight: '700', color: '#8C7E6E', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 10 },
+  infoCard:     { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', overflow: 'hidden', padding: 16 },
+  row:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#E2D9CC' },
   rowLast:      { borderBottomWidth: 0, paddingBottom: 0 },
-  rowLabel:     { fontSize: 14, color: Colors.muted },
-  rowValue:     { fontSize: 14, fontWeight: '600', color: Colors.text, maxWidth: '55%', textAlign: 'right' },
-
+  rowLabel:     { fontSize: 14, color: '#8C7E6E' },
+  rowValue:     { fontSize: 14, fontWeight: '600', color: '#1C1208', maxWidth: '55%', textAlign: 'right' },
   logout:       { marginHorizontal: 16, marginTop: 8 },
 });

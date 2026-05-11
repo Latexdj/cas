@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { api, registerUnauthorizedHandler } from '@/lib/api';
 import { storage } from '@/lib/storage';
+import { useUpdateTheme } from '@/context/ThemeContext';
 import { User } from '@/types/api';
 
 interface AuthState {
@@ -13,8 +14,9 @@ interface AuthState {
 const AuthContext = createContext<AuthState>({} as AuthState);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser]       = useState<User | null>(null);
+  const [user, setUser]           = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const updateTheme               = useUpdateTheme();
 
   useEffect(() => {
     rehydrate();
@@ -41,6 +43,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function login(params: Parameters<AuthState['login']>[0]) {
     const { data } = await api.post('/api/auth/login', params);
     await storage.saveSession(data.token, data.id, data.name, data.role, data.schoolId ?? '');
+    if (data.primary_color && data.accent_color) {
+      await updateTheme(data.primary_color, data.accent_color);
+    }
     setUser({ id: data.id, name: data.name, role: data.role, schoolId: data.schoolId ?? '' });
   }
 

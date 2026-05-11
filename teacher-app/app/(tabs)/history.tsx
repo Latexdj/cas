@@ -6,12 +6,13 @@ import { api } from '@/lib/api';
 import { AttendanceCard } from '@/components/AttendanceCard';
 import { Spinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/context/ThemeContext';
 import { AttendanceRecord } from '@/types/api';
 
 const PAGE_SIZE = 30;
 
 export default function HistoryScreen() {
+  const Colors = useTheme();
   const { user }  = useAuth();
   const [records,    setRecords]    = useState<AttendanceRecord[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -63,6 +64,6 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bg },
+  container: { flex: 1, backgroundColor: '#F4EFE6' },
   list:      { padding: 16, flexGrow: 1 },
 });

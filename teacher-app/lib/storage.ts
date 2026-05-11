@@ -1,12 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEYS = {
-  token:      'cas_token',
-  userId:     'cas_user_id',
-  userName:   'cas_user_name',
-  userRole:   'cas_user_role',
-  schoolId:   'cas_school_id',
-  schoolCode: 'cas_school_code',
+  token:        'cas_token',
+  userId:       'cas_user_id',
+  userName:     'cas_user_name',
+  userRole:     'cas_user_role',
+  schoolId:     'cas_school_id',
+  schoolCode:   'cas_school_code',
+  primaryColor: 'cas_primary_color',
+  accentColor:  'cas_accent_color',
 };
 
 export const storage = {
@@ -15,10 +17,19 @@ export const storage = {
   async getUserName()   { return AsyncStorage.getItem(KEYS.userName); },
   async getUserRole()   { return AsyncStorage.getItem(KEYS.userRole); },
   async getSchoolId()   { return AsyncStorage.getItem(KEYS.schoolId); },
-  async getSchoolCode() { return AsyncStorage.getItem(KEYS.schoolCode); },
+  async getSchoolCode()  { return AsyncStorage.getItem(KEYS.schoolCode); },
+  async getPrimaryColor() { return AsyncStorage.getItem(KEYS.primaryColor); },
+  async getAccentColor()  { return AsyncStorage.getItem(KEYS.accentColor); },
 
   async saveSchoolCode(code: string) {
     await AsyncStorage.setItem(KEYS.schoolCode, code.toUpperCase().trim());
+  },
+
+  async saveTheme(primary: string, accent: string) {
+    await AsyncStorage.multiSet([
+      [KEYS.primaryColor, primary],
+      [KEYS.accentColor,  accent],
+    ]);
   },
 
   async saveSession(token: string, id: string, name: string, role: string, schoolId: string) {

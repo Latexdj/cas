@@ -11,13 +11,14 @@ import { RemedialCard } from '@/components/RemedialCard';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/context/ThemeContext';
 import { AbsenceRecord, RemedialLesson } from '@/types/api';
 
 type ListItem = AbsenceRecord | RemedialLesson;
 type Section  = { title: string; type: 'absences' | 'remedials'; data: ListItem[] };
 
 export default function AbsencesScreen() {
+  const Colors = useTheme();
   const { user } = useAuth();
   const [absences,    setAbsences]    = useState<AbsenceRecord[]>([]);
   const [remedials,   setRemedials]   = useState<RemedialLesson[]>([]);
@@ -120,7 +121,7 @@ export default function AbsencesScreen() {
             <TextInput
               style={styles.reasonInput}
               placeholder="Explain why you were absent…"
-              placeholderTextColor={Colors.muted}
+              placeholderTextColor="#8C7E6E"
               value={reason}
               onChangeText={setReason}
               multiline
@@ -139,17 +140,17 @@ export default function AbsencesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: Colors.bg },
-  list:           { padding: 16, paddingTop: 8, flexGrow: 1 },
-  sectionHeader:  { paddingVertical: 10, paddingTop: 16 },
-  sectionTitle:   { fontSize: 13, fontWeight: '700', color: Colors.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
-  emptySection:   { backgroundColor: Colors.white, borderRadius: 12, padding: 16, marginBottom: 8, alignItems: 'center' },
-  emptySectionText: { fontSize: 14, color: Colors.muted },
-  overlay:        { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet:          { backgroundColor: Colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
-  sheetTitle:     { fontSize: 18, fontWeight: '700', color: Colors.text, marginBottom: 4 },
-  sheetSub:       { fontSize: 14, color: Colors.muted, marginBottom: 16 },
-  reasonInput:    { backgroundColor: Colors.bg, borderRadius: 10, padding: 14, fontSize: 15, color: Colors.text, minHeight: 100, textAlignVertical: 'top', marginBottom: 16 },
-  sheetActions:   { flexDirection: 'row', gap: 10 },
-  halfBtn:        { flex: 1 },
+  container:        { flex: 1, backgroundColor: '#F4EFE6' },
+  list:             { padding: 16, paddingTop: 8, flexGrow: 1 },
+  sectionHeader:    { paddingVertical: 10, paddingTop: 16 },
+  sectionTitle:     { fontSize: 13, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5 },
+  emptySection:     { backgroundColor: '#FFFFFF', borderRadius: 12, padding: 16, marginBottom: 8, alignItems: 'center' },
+  emptySectionText: { fontSize: 14, color: '#8C7E6E' },
+  overlay:          { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  sheet:            { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
+  sheetTitle:       { fontSize: 18, fontWeight: '700', color: '#1C1208', marginBottom: 4 },
+  sheetSub:         { fontSize: 14, color: '#8C7E6E', marginBottom: 16 },
+  reasonInput:      { backgroundColor: '#F4EFE6', borderRadius: 10, padding: 14, fontSize: 15, color: '#1C1208', minHeight: 100, textAlignVertical: 'top', marginBottom: 16 },
+  sheetActions:     { flexDirection: 'row', gap: 10 },
+  halfBtn:          { flex: 1 },
 });

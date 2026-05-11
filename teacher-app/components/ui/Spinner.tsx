@@ -1,8 +1,9 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/context/ThemeContext';
 
 export function Spinner({ message }: { message?: string }) {
+  const Colors = useTheme();
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color={Colors.accent} />
@@ -12,6 +13,6 @@ export function Spinner({ message }: { message?: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.bg },
-  msg:       { marginTop: 14, color: Colors.muted, fontSize: 14, fontWeight: '500' },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F4EFE6' },
+  msg:       { marginTop: 14, color: '#8C7E6E', fontSize: 14, fontWeight: '500' },
 });

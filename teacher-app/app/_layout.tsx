@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { ThemeProvider } from '@/context/ThemeContext';
 import { Spinner } from '@/components/ui/Spinner';
 import { storage } from '@/lib/storage';
 
@@ -51,9 +52,11 @@ function InitialLayout() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <InitialLayout />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <InitialLayout />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

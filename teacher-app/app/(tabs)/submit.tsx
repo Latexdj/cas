@@ -12,7 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/context/ThemeContext';
 import { TimetableSlot, Location as LocationType } from '@/types/api';
 
 export default function SubmitScreen() {
@@ -32,6 +32,8 @@ export default function SubmitScreen() {
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
   const [submitting,  setSubmitting]  = useState(false);
   const [showLocPicker, setShowLocPicker] = useState(false);
+
+  const Colors = useTheme();
 
   // Camera state
   const [showCamera,    setShowCamera]    = useState(false);
@@ -195,7 +197,7 @@ export default function SubmitScreen() {
       <Text style={styles.fieldLabel}>GPS</Text>
       <View style={styles.gpsRow}>
         <Text style={gps ? styles.gpsValue : styles.gpsMuted}>{gps || 'Acquiring location…'}</Text>
-        <TouchableOpacity onPress={grabGps}><Text style={styles.gpsRefresh}>↻ Refresh</Text></TouchableOpacity>
+        <TouchableOpacity onPress={grabGps}><Text style={[styles.gpsRefresh, { color: Colors.primary }]}>↻ Refresh</Text></TouchableOpacity>
       </View>
 
       {/* Photo */}
@@ -205,12 +207,12 @@ export default function SubmitScreen() {
           {IS_WEB
             ? <View style={[styles.photoPreview, { backgroundColor: '#D1FAE5', justifyContent: 'center', alignItems: 'center' }]}>
                 <Text style={{ fontSize: 32 }}>✅</Text>
-                <Text style={{ color: Colors.success, fontWeight: '600', marginTop: 8 }}>Photo placeholder set (web mode)</Text>
+                <Text style={{ color: '#2D7A4F', fontWeight: '600', marginTop: 8 }}>Photo placeholder set (web mode)</Text>
               </View>
             : <Image source={{ uri: photoUri }} style={styles.photoPreview} />
           }
           <TouchableOpacity style={styles.retakeBtn} onPress={openCamera}>
-            <Text style={styles.retakeBtnText}>{IS_WEB ? 'Reset' : 'Retake Photo'}</Text>
+            <Text style={[styles.retakeBtnText, { color: Colors.primary }]}>{IS_WEB ? 'Reset' : 'Retake Photo'}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -245,45 +247,43 @@ export default function SubmitScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:          { flex: 1, backgroundColor: Colors.bg },
-  content:            { padding: 16, paddingBottom: 40 },
-  sectionTitle:       { fontSize: 13, fontWeight: '700', color: Colors.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 12 },
-  slotScroll:         { marginBottom: 16 },
-  slotChip:           { backgroundColor: Colors.white, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginRight: 8, borderWidth: 1, borderColor: Colors.border, minWidth: 100 },
-  slotChipText:       { fontSize: 13, fontWeight: '600', color: Colors.text },
-  slotChipSub:        { fontSize: 11, color: Colors.muted, marginTop: 2 },
-  fieldLabel:         { fontSize: 13, fontWeight: '600', color: Colors.text, marginBottom: 6 },
-  picker:             { backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
-  pickerValue:        { fontSize: 15, color: Colors.text },
-  pickerPlaceholder:  { fontSize: 15, color: Colors.muted },
-  pickerArrow:        { color: Colors.muted, fontSize: 16 },
-  gpsRow:             { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14 },
-  gpsValue:           { fontSize: 13, color: Colors.text, flex: 1 },
-  gpsMuted:           { fontSize: 13, color: Colors.muted, flex: 1, fontStyle: 'italic' },
-  gpsRefresh:         { fontSize: 13, color: Colors.primary, fontWeight: '600' },
-  cameraPlaceholder:  { backgroundColor: Colors.white, borderWidth: 2, borderColor: Colors.border, borderStyle: 'dashed', borderRadius: 12, height: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  cameraIcon:         { fontSize: 40 },
-  cameraPlaceholderText: { fontSize: 15, color: Colors.muted, marginTop: 8 },
-  webNote:               { fontSize: 12, color: Colors.muted, marginTop: 6, textAlign: 'center', paddingHorizontal: 16 },
-  photoPreviewWrap:   { marginBottom: 20 },
-  photoPreview:       { width: '100%', height: 200, borderRadius: 12 },
-  retakeBtn:          { marginTop: 8, alignItems: 'center' },
-  retakeBtnText:      { color: Colors.primary, fontWeight: '600', fontSize: 14 },
-  submitBtn:          { marginTop: 8 },
-  // Camera fullscreen
-  cameraContainer:    { flex: 1, backgroundColor: '#000' },
-  camera:             { flex: 1 },
-  cameraControls:     { position: 'absolute', bottom: 48, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
-  captureBtn:         { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center' },
-  captureBtnInner:    { width: 56, height: 56, borderRadius: 28, backgroundColor: '#fff' },
-  cancelBtn:          { width: 72, alignItems: 'center' },
-  cancelBtnText:      { color: '#fff', fontSize: 15, fontWeight: '600' },
-  flipBtn:            { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-  flipBtnText:        { color: '#fff', fontSize: 28, fontWeight: '700' },
-  // Location modal
-  modalOverlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalSheet:         { backgroundColor: Colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', padding: 20 },
-  modalTitle:         { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 16 },
-  locItem:            { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  locItemText:        { fontSize: 15, color: Colors.text },
+  container:             { flex: 1, backgroundColor: '#F4EFE6' },
+  content:               { padding: 16, paddingBottom: 40 },
+  sectionTitle:          { fontSize: 13, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 12 },
+  slotScroll:            { marginBottom: 16 },
+  slotChip:              { backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginRight: 8, borderWidth: 1, borderColor: '#E2D9CC', minWidth: 100 },
+  slotChipText:          { fontSize: 13, fontWeight: '600', color: '#1C1208' },
+  slotChipSub:           { fontSize: 11, color: '#8C7E6E', marginTop: 2 },
+  fieldLabel:            { fontSize: 13, fontWeight: '600', color: '#1C1208', marginBottom: 6 },
+  picker:                { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
+  pickerValue:           { fontSize: 15, color: '#1C1208' },
+  pickerPlaceholder:     { fontSize: 15, color: '#8C7E6E' },
+  pickerArrow:           { color: '#8C7E6E', fontSize: 16 },
+  gpsRow:                { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14 },
+  gpsValue:              { fontSize: 13, color: '#1C1208', flex: 1 },
+  gpsMuted:              { fontSize: 13, color: '#8C7E6E', flex: 1, fontStyle: 'italic' },
+  gpsRefresh:            { fontSize: 13, fontWeight: '600' },
+  cameraPlaceholder:     { backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#E2D9CC', borderStyle: 'dashed', borderRadius: 12, height: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  cameraIcon:            { fontSize: 40 },
+  cameraPlaceholderText: { fontSize: 15, color: '#8C7E6E', marginTop: 8 },
+  webNote:               { fontSize: 12, color: '#8C7E6E', marginTop: 6, textAlign: 'center', paddingHorizontal: 16 },
+  photoPreviewWrap:      { marginBottom: 20 },
+  photoPreview:          { width: '100%', height: 200, borderRadius: 12 },
+  retakeBtn:             { marginTop: 8, alignItems: 'center' },
+  retakeBtnText:         { fontWeight: '600', fontSize: 14 },
+  submitBtn:             { marginTop: 8 },
+  cameraContainer:       { flex: 1, backgroundColor: '#000' },
+  camera:                { flex: 1 },
+  cameraControls:        { position: 'absolute', bottom: 48, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
+  captureBtn:            { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.3)', justifyContent: 'center', alignItems: 'center' },
+  captureBtnInner:       { width: 56, height: 56, borderRadius: 28, backgroundColor: '#fff' },
+  cancelBtn:             { width: 72, alignItems: 'center' },
+  cancelBtnText:         { color: '#fff', fontSize: 15, fontWeight: '600' },
+  flipBtn:               { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  flipBtnText:           { color: '#fff', fontSize: 28, fontWeight: '700' },
+  modalOverlay:          { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalSheet:            { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', padding: 20 },
+  modalTitle:            { fontSize: 17, fontWeight: '700', color: '#1C1208', marginBottom: 16 },
+  locItem:               { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#E2D9CC' },
+  locItemText:           { fontSize: 15, color: '#1C1208' },
 });

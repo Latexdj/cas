@@ -168,4 +168,36 @@ router.post('/run-absence-check', async (req, res, next) => {
   }
 });
 
+// GET /api/admin/settings — return school info + theme colors
+router.get('/settings', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT name, email, phone, address, code, primary_color, accent_color FROM schools WHERE id = $1`,
+      [req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'School not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/admin/settings — update school theme colors
+router.patch('/settings', async (req, res, next) => {
+  try {
+    const { primary_color, accent_color } = req.body;
+    if (!primary_color || !accent_color)
+      return res.status(400).json({ error: 'primary_color and accent_color required' });
+    // Validate hex color format
+    const hexRe = /^#[0-9A-Fa-f]{6}$/;
+    if (!hexRe.test(primary_color) || !hexRe.test(accent_color))
+      return res.status(400).json({ error: 'Colors must be valid hex codes (e.g. #1A2B3C)' });
+
+    const { rows } = await pool.query(
+      `UPDATE schools SET primary_color = $1, accent_color = $2, updated_at = now()
+       WHERE id = $3 RETURNING primary_color, accent_color`,
+      [primary_color, accent_color, req.schoolId]
+    );
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

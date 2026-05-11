@@ -1,16 +1,17 @@
 import { Tabs } from 'expo-router';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function TabsLayout() {
+  const Colors = useTheme();
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor:    Colors.tabActive,
-        tabBarInactiveTintColor:  Colors.tabInactive,
+        tabBarActiveTintColor:   Colors.primary,
+        tabBarInactiveTintColor: '#A09282',
         tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor:  Colors.border,
+          backgroundColor: '#FFFFFF',
+          borderTopColor:  '#E2D9CC',
           borderTopWidth:  1,
           height:          60,
           paddingBottom:   8,
@@ -22,42 +23,11 @@ export default function TabsLayout() {
         headerShadowVisible: false,
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Today',
-          tabBarIcon: ({ color, size }) => <Ionicons name="today-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="submit"
-        options={{
-          title: 'Submit',
-          tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-done-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="absences"
-        options={{
-          title: 'Absences',
-          tabBarIcon: ({ color, size }) => <Ionicons name="alert-circle-outline" size={size} color={color} />,
-          href: '/absences',
-        }}
-      />
-      <Tabs.Screen
-        name="history"
-        options={{
-          title: 'History',
-          tabBarIcon: ({ color, size }) => <Ionicons name="time-outline" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-circle-outline" size={size} color={color} />,
-        }}
-      />
+      <Tabs.Screen name="index"   options={{ title: 'Today',    tabBarIcon: ({ color, size }) => <Ionicons name="today-outline"          size={size} color={color} /> }} />
+      <Tabs.Screen name="submit"  options={{ title: 'Submit',   tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-done-outline" size={size} color={color} /> }} />
+      <Tabs.Screen name="absences" options={{ title: 'Absences', tabBarIcon: ({ color, size }) => <Ionicons name="alert-circle-outline"   size={size} color={color} />, href: '/absences' }} />
+      <Tabs.Screen name="history" options={{ title: 'History',  tabBarIcon: ({ color, size }) => <Ionicons name="time-outline"           size={size} color={color} /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile',  tabBarIcon: ({ color, size }) => <Ionicons name="person-circle-outline"  size={size} color={color} /> }} />
     </Tabs>
   );
 }

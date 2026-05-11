@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, TouchableOpacityProps } from 'react-native';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/context/ThemeContext';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'accent';
 type Size    = 'sm' | 'md' | 'lg';
@@ -12,27 +12,6 @@ interface Props extends TouchableOpacityProps {
   loading?: boolean;
 }
 
-const bg: Record<Variant, string> = {
-  primary:   Colors.primaryMid,
-  secondary: Colors.surface,
-  danger:    Colors.danger,
-  ghost:     'transparent',
-  accent:    Colors.accent,
-};
-const textColor: Record<Variant, string> = {
-  primary:   '#FFFFFF',
-  secondary: Colors.text,
-  danger:    '#FFFFFF',
-  ghost:     Colors.primary,
-  accent:    '#FFFFFF',
-};
-const border: Record<Variant, string | undefined> = {
-  primary:   undefined,
-  secondary: Colors.border,
-  danger:    undefined,
-  ghost:     undefined,
-  accent:    undefined,
-};
 const pad: Record<Size, { py: number; px: number; fontSize: number }> = {
   sm: { py: 9,  px: 16, fontSize: 13 },
   md: { py: 14, px: 22, fontSize: 15 },
@@ -40,6 +19,30 @@ const pad: Record<Size, { py: number; px: number; fontSize: number }> = {
 };
 
 export function Button({ label, variant = 'primary', size = 'md', loading, disabled, style, ...rest }: Props) {
+  const Colors = useTheme();
+
+  const bg: Record<Variant, string> = {
+    primary:   Colors.primaryMid,
+    secondary: Colors.surface,
+    danger:    Colors.danger,
+    ghost:     'transparent',
+    accent:    Colors.accent,
+  };
+  const textColor: Record<Variant, string> = {
+    primary:   '#FFFFFF',
+    secondary: Colors.text,
+    danger:    '#FFFFFF',
+    ghost:     Colors.primary,
+    accent:    '#FFFFFF',
+  };
+  const border: Record<Variant, string | undefined> = {
+    primary:   undefined,
+    secondary: Colors.border,
+    danger:    undefined,
+    ghost:     undefined,
+    accent:    undefined,
+  };
+
   return (
     <TouchableOpacity
       activeOpacity={0.72}

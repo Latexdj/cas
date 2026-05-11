@@ -11,11 +11,11 @@ function signToken(payload, expiresIn) {
 router.get('/school/:code', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name FROM schools WHERE UPPER(code) = UPPER($1)`,
+      `SELECT id, name, primary_color, accent_color FROM schools WHERE UPPER(code) = UPPER($1)`,
       [req.params.code.trim()]
     );
     if (!rows.length) return res.status(404).json({ error: 'School not found' });
-    res.json({ id: rows[0].id, name: rows[0].name });
+    res.json({ id: rows[0].id, name: rows[0].name, primary_color: rows[0].primary_color, accent_color: rows[0].accent_color });
   } catch (err) {
     next(err);
   }
@@ -97,7 +97,16 @@ router.post('/login', async (req, res, next) => {
         { id: teacher.id, name: teacher.name, role, schoolId },
         '8h'
       );
-      return res.json({ token, role, id: teacher.id, name: teacher.name, schoolId });
+      // Include school colors so the app can update its theme
+      const { rows: colorRows } = await pool.query(
+        `SELECT primary_color, accent_color FROM schools WHERE id = $1`, [schoolId]
+      );
+      const schoolColors = colorRows[0] ?? {};
+      return res.json({
+        token, role, id: teacher.id, name: teacher.name, schoolId,
+        primary_color: schoolColors.primary_color ?? '#0B3D2E',
+        accent_color:  schoolColors.accent_color  ?? '#C8973A',
+      });
     }
 
     res.status(400).json({ error: 'Invalid login type' });
