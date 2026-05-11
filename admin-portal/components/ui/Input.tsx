@@ -7,16 +7,26 @@ interface Props extends InputHTMLAttributes<HTMLInputElement> {
 
 export function Input({ label, error, className = '', ...rest }: Props) {
   return (
-    <div className="flex flex-col gap-1">
-      {label && <label className="text-sm font-medium text-gray-700">{label}</label>}
+    <div className="flex flex-col gap-1.5">
+      {label && (
+        <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>
+          {label}
+        </label>
+      )}
       <input
-        className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400
-          focus:outline-none focus:ring-2 focus:ring-blue-500
-          ${error ? 'border-red-400' : 'border-gray-300'}
-          ${className}`}
+        className={`w-full rounded-lg px-3 py-2.5 text-sm transition-shadow ${className}`}
+        style={{
+          border: error ? '1px solid #EF4444' : '1px solid #E2E8F0',
+          outline: 'none',
+          color: '#0F172A',
+          backgroundColor: '#FAFAFA',
+          boxShadow: 'none',
+        }}
+        onFocus={e => { e.currentTarget.style.border = '1px solid #15803D'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(21,128,61,0.1)'; }}
+        onBlur={e  => { e.currentTarget.style.border = error ? '1px solid #EF4444' : '1px solid #E2E8F0'; e.currentTarget.style.boxShadow = 'none'; }}
         {...rest}
       />
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs" style={{ color: '#EF4444' }}>{error}</p>}
     </div>
   );
 }

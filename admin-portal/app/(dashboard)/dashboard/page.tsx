@@ -42,7 +42,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
+        <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -52,7 +52,10 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">{today}, {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        <div>
+          <h2 className="text-lg font-bold" style={{ color: '#0F172A' }}>Overview</h2>
+          <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>{today} · live snapshot</p>
+        </div>
         <Button variant="secondary" size="sm" loading={running} onClick={runAbsenceCheck}>
           Run Absence Check
         </Button>
@@ -70,36 +73,39 @@ export default function DashboardPage() {
       )}
 
       <div>
-        <h2 className="text-base font-semibold text-gray-900 mb-3">Today's Classroom Status</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: '#64748B' }}>Today&apos;s Classroom Status</h2>
         {classes.length === 0 ? (
-          <p className="text-sm text-gray-500">No timetable slots for today.</p>
+          <div className="bg-white rounded-xl p-8 text-center" style={{ border: '1px solid #F1F5F9' }}>
+            <p className="text-sm" style={{ color: '#94A3B8' }}>No timetable slots for today.</p>
+          </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  {['Time', 'Class', 'Subject', 'Teacher', 'Status', 'Photo'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {classes.map((row) => (
-                  <tr key={row.slot_id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{row.start_time}–{row.end_time}</td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{row.class_name}</td>
-                    <td className="px-4 py-3 text-gray-700">{row.subject}</td>
-                    <td className="px-4 py-3 text-gray-700">{row.teacher_name}</td>
-                    <td className="px-4 py-3"><Badge status={row.status} /></td>
-                    <td className="px-4 py-3 text-xs text-gray-400">
-                      {row.location_verified === true && '✓ GPS'}
-                      {row.location_verified === false && '✗ GPS'}
-                      {row.location_verified === null && '—'}
-                    </td>
+          <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+                    {['Time', 'Class', 'Subject', 'Teacher', 'Status', 'GPS'].map((h) => (
+                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {classes.map((row, i) => (
+                    <tr key={row.slot_id} style={{ borderBottom: i < classes.length - 1 ? '1px solid #F8FAFC' : 'none' }}
+                      className="transition-colors hover:bg-slate-50">
+                      <td className="px-5 py-3.5 whitespace-nowrap font-mono text-xs" style={{ color: '#64748B' }}>{row.start_time}–{row.end_time}</td>
+                      <td className="px-5 py-3.5 font-semibold text-sm" style={{ color: '#0F172A' }}>{row.class_name}</td>
+                      <td className="px-5 py-3.5 text-sm" style={{ color: '#475569' }}>{row.subject}</td>
+                      <td className="px-5 py-3.5 text-sm" style={{ color: '#475569' }}>{row.teacher_name}</td>
+                      <td className="px-5 py-3.5"><Badge status={row.status} /></td>
+                      <td className="px-5 py-3.5 text-xs font-medium" style={{ color: row.location_verified === true ? '#16A34A' : row.location_verified === false ? '#DC2626' : '#CBD5E1' }}>
+                        {row.location_verified === true ? '✓ Verified' : row.location_verified === false ? '✗ Failed' : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

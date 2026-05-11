@@ -1,25 +1,29 @@
-const palette: Record<string, string> = {
-  present:              'bg-green-100 text-green-700',
-  Verified:             'bg-green-100 text-green-700',
-  'Made Up':            'bg-green-100 text-green-700',
-  Completed:            'bg-green-100 text-green-700',
-  Active:               'bg-green-100 text-green-700',
-  upcoming:             'bg-blue-100 text-blue-700',
-  Scheduled:            'bg-blue-100 text-blue-700',
-  in_session:           'bg-yellow-100 text-yellow-700',
-  'Remedial Scheduled': 'bg-yellow-100 text-yellow-700',
-  Absent:               'bg-red-100 text-red-700',
-  Cancelled:            'bg-gray-100 text-gray-500',
-  Cleared:              'bg-gray-100 text-gray-500',
-  Inactive:             'bg-gray-100 text-gray-500',
-  absent:               'bg-red-100 text-red-700',
+const palette: Record<string, { bg: string; text: string; dot: string }> = {
+  present:              { bg: '#F0FDF4', text: '#16A34A', dot: '#16A34A' },
+  Verified:             { bg: '#F0FDF4', text: '#16A34A', dot: '#16A34A' },
+  'Made Up':            { bg: '#F0FDF4', text: '#16A34A', dot: '#16A34A' },
+  Completed:            { bg: '#F0FDF4', text: '#16A34A', dot: '#16A34A' },
+  Active:               { bg: '#F0FDF4', text: '#16A34A', dot: '#16A34A' },
+  upcoming:             { bg: '#EFF6FF', text: '#2563EB', dot: '#2563EB' },
+  Scheduled:            { bg: '#EFF6FF', text: '#2563EB', dot: '#2563EB' },
+  in_session:           { bg: '#FFFBEB', text: '#D97706', dot: '#D97706' },
+  'Remedial Scheduled': { bg: '#FFFBEB', text: '#D97706', dot: '#D97706' },
+  Absent:               { bg: '#FEF2F2', text: '#DC2626', dot: '#DC2626' },
+  absent:               { bg: '#FEF2F2', text: '#DC2626', dot: '#DC2626' },
+  Cancelled:            { bg: '#F8FAFC', text: '#94A3B8', dot: '#CBD5E1' },
+  Cleared:              { bg: '#F8FAFC', text: '#94A3B8', dot: '#CBD5E1' },
+  Inactive:             { bg: '#F8FAFC', text: '#94A3B8', dot: '#CBD5E1' },
 };
 
 export function Badge({ status }: { status: string }) {
-  const cls = palette[status] ?? 'bg-gray-100 text-gray-500';
+  const cfg = palette[status] ?? { bg: '#F8FAFC', text: '#64748B', dot: '#CBD5E1' };
   const label = status === 'in_session' ? 'In Session' : status;
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${cls}`}>
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+      style={{ backgroundColor: cfg.bg, color: cfg.text }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.dot }} />
       {label}
     </span>
   );
