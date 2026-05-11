@@ -96,8 +96,16 @@ export default function SettingsPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg ?? 'Failed to save.');
+      const err = e as { response?: { status?: number; data?: { error?: string; message?: string } }; message?: string };
+      const status = err.response?.status;
+      const serverMsg = err.response?.data?.error || err.response?.data?.message;
+      if (status === 401) {
+        setError('Session expired — please log out and log back in.');
+      } else if (serverMsg) {
+        setError(`${serverMsg}${status ? ` (${status})` : ''}`);
+      } else {
+        setError(`Failed to save. ${err.message ?? ''}`.trim());
+      }
     } finally { setSaving(false); }
   }
 

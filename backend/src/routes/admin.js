@@ -3,6 +3,9 @@ const pool = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { runAbsenceCheck } = require('../jobs/absenceCheck');
 
+// Public deployment-check endpoint (no auth needed)
+router.get('/version', (_req, res) => res.json({ version: '2', has_settings: true }));
+
 router.use(authenticate, requireActiveSubscription, adminOnly);
 
 // GET /api/admin/stats — dashboard counters
