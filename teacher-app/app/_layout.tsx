@@ -11,9 +11,10 @@ function InitialLayout() {
   const segments = useSegments();
   const [schoolCode, setSchoolCode] = useState<string | null | undefined>(undefined);
 
+  // Re-read school code from storage every time navigation changes
   useEffect(() => {
     storage.getSchoolCode().then(c => setSchoolCode(c));
-  }, []);
+  }, [segments]);
 
   useEffect(() => {
     if (isLoading || schoolCode === undefined) return;
