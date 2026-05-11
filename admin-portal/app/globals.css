@@ -25,24 +25,16 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Consistent styling for all select and textarea elements */
+/* Force dark text on all form controls — prevents faint/washed-out text */
 select,
 textarea {
-  color: #0F172A;
-  background-color: #FAFAFA;
+  color: #0F172A !important;
+  background-color: #ffffff !important;
   font-size: 0.875rem;
+  color-scheme: light;
 }
 
 select option {
   color: #0F172A;
   background-color: #ffffff;
-}
-
-/* Remove the dark-mode override that would wash out text */
-@media (prefers-color-scheme: dark) {
-  select,
-  textarea {
-    color: #0F172A;
-    background-color: #FAFAFA;
-  }
 }

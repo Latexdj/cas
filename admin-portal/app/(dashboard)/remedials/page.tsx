@@ -62,7 +62,7 @@ export default function RemedialsPage() {
         <div>
           <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Teacher</label>
           <select value={teacherId} onChange={e => setTeacherId(e.target.value)}
-            className="mt-1 w-44 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600">
+            className="mt-1 w-44 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600">
             <option value="">All</option>
             {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
@@ -70,7 +70,7 @@ export default function RemedialsPage() {
         <div>
           <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</label>
           <select value={status} onChange={e => setStatus(e.target.value)}
-            className="mt-1 w-44 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600">
+            className="mt-1 w-44 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600">
             <option value="">All</option>
             <option value="Scheduled">Scheduled</option>
             <option value="Completed">Completed</option>
@@ -139,7 +139,7 @@ export default function RemedialsPage() {
             <div>
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verification Notes (optional)</label>
               <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600"
                 placeholder="Add verification notes…" />
             </div>
             <div className="flex justify-end gap-2 pt-2">

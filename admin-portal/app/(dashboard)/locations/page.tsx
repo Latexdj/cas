@@ -121,7 +121,7 @@ export default function LocationsPage() {
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Type</label>
             <select value={form.type} onChange={f('type')}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600">
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600">
               <option value="classroom">Classroom</option>
               <option value="lab">Lab</option>
               <option value="hall">Hall</option>
