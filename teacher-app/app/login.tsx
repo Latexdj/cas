@@ -1,21 +1,25 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert, KeyboardAvoidingView, Platform, ScrollView,
   StyleSheet, Text, View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
+import { storage } from '@/lib/storage';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Colors } from '@/constants/colors';
 
-const SCHOOL_ID = process.env.EXPO_PUBLIC_SCHOOL_ID ?? '';
-
 export default function LoginScreen() {
   const { login } = useAuth();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading,  setLoading]  = useState(false);
+  const [username,   setUsername]   = useState('');
+  const [password,   setPassword]   = useState('');
+  const [loading,    setLoading]    = useState(false);
+  const [schoolCode, setSchoolCode] = useState('');
+
+  useEffect(() => {
+    storage.getSchoolCode().then(c => setSchoolCode(c ?? ''));
+  }, []);
 
   async function handleLogin() {
     if (!username.trim() || !password.trim()) {
@@ -24,7 +28,7 @@ export default function LoginScreen() {
     }
     setLoading(true);
     try {
-      await login({ type: 'teacher', username: username.trim(), password, schoolId: SCHOOL_ID });
+      await login({ type: 'teacher', username: username.trim(), password, schoolCode });
       router.replace('/(tabs)');
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Login failed. Check your details.';

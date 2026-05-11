@@ -7,8 +7,22 @@ function signToken(payload, expiresIn) {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
 }
 
+// GET /api/auth/school/:code — public, resolves a school code to its name
+router.get('/school/:code', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name FROM schools WHERE UPPER(code) = UPPER($1)`,
+      [req.params.code.trim()]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'School not found' });
+    res.json({ id: rows[0].id, name: rows[0].name });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/auth/login
-// Body: { type: 'teacher'|'admin', username, password, schoolId }
+// Body: { type: 'teacher'|'admin', username, password, schoolId|schoolCode }
 //   or: { type: 'super_admin', username, password }
 router.post('/login', async (req, res, next) => {
   try {
@@ -30,12 +44,24 @@ router.post('/login', async (req, res, next) => {
     // ── Teacher / School admin ───────────────────────────────
     if (type === 'teacher' || type === 'admin') {
       // Accept both new (username/password) and legacy (name/pin) field names
-      const username  = req.body.username  || req.body.name;
-      const password  = req.body.password  || req.body.pin;
-      const schoolId  = req.body.schoolId;
+      const username   = req.body.username  || req.body.name;
+      const password   = req.body.password  || req.body.pin;
+      const schoolCode = req.body.schoolCode; // e.g. "CAS001"
+      let   schoolId   = req.body.schoolId;
 
-      if (!username || !password || !schoolId)
-        return res.status(400).json({ error: 'username, password and schoolId required' });
+      if (!username || !password || (!schoolId && !schoolCode))
+        return res.status(400).json({ error: 'username, password and schoolCode required' });
+
+      // Resolve schoolCode → schoolId UUID
+      if (schoolCode && !schoolId) {
+        const { rows: codeRows } = await pool.query(
+          `SELECT id FROM schools WHERE UPPER(code) = UPPER($1)`,
+          [schoolCode.trim()]
+        );
+        if (!codeRows.length)
+          return res.status(404).json({ error: 'School code not found' });
+        schoolId = codeRows[0].id;
+      }
 
       const { rows: schoolRows } = await pool.query(
         `SELECT s.id FROM schools s

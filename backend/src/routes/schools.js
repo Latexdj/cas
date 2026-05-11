@@ -67,11 +67,16 @@ router.post('/', async (req, res, next) => {
     try {
       await client.query('BEGIN');
 
+      // Generate next school code: CAS001, CAS002, …
+      const { rows: countRows } = await client.query(`SELECT COUNT(*) FROM schools`);
+      const nextNum  = parseInt(countRows[0].count) + 1;
+      const schoolCode = 'CAS' + String(nextNum).padStart(3, '0');
+
       // Create school
       const { rows: schoolRows } = await client.query(
-        `INSERT INTO schools (name, email, phone, address)
-         VALUES ($1,$2,$3,$4) RETURNING *`,
-        [name.trim(), email.trim(), phone || null, address || null]
+        `INSERT INTO schools (name, email, phone, address, code)
+         VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+        [name.trim(), email.trim(), phone || null, address || null, schoolCode]
       );
       const school = schoolRows[0];
 

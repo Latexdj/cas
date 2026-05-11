@@ -6,7 +6,7 @@ import { User } from '@/types/api';
 interface AuthState {
   user: User | null;
   isLoading: boolean;
-  login: (params: { type: string; name?: string; username?: string; pin?: string; password?: string; schoolId?: string }) => Promise<void>;
+  login: (params: { type: string; name?: string; username?: string; pin?: string; password?: string; schoolId?: string; schoolCode?: string }) => Promise<void>;
   logout: () => Promise<void>;
 }
 
