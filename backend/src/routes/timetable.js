@@ -108,12 +108,20 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     const hasHeader = firstRow.some(c => ['teacher', 'day', 'subject', 'class', 'time'].some(k => c.includes(k)));
     const dataRows  = hasHeader ? rows.slice(1) : rows;
 
-    // Load teachers for this school
+    // Load teachers for this school — detect duplicate names
     const { rows: teachers } = await pool.query(
       `SELECT id, LOWER(TRIM(name)) AS name_lower FROM teachers WHERE school_id = $1`,
       [req.schoolId]
     );
-    const teacherMap = new Map(teachers.map(t => [t.name_lower, t.id]));
+    // Build map: name → [id, id, ...] to catch duplicates
+    const teacherIdsByName = new Map();
+    for (const t of teachers) {
+      if (!teacherIdsByName.has(t.name_lower)) teacherIdsByName.set(t.name_lower, []);
+      teacherIdsByName.get(t.name_lower).push(t.id);
+    }
+    // Names with exactly one match are safe; duplicates will produce a row error
+    const teacherMap     = new Map([...teacherIdsByName.entries()].filter(([, ids]) => ids.length === 1).map(([n, ids]) => [n, ids[0]]));
+    const ambiguousNames = new Set([...teacherIdsByName.entries()].filter(([, ids]) => ids.length > 1).map(([n]) => n));
 
     // Parse and validate rows
     const valid  = [];
@@ -133,7 +141,12 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       // Skip blank rows
       if (!teacherName && !dayRaw && !subject) continue;
 
-      const teacherId = teacherMap.get(teacherName.toLowerCase());
+      const nameLower = teacherName.toLowerCase();
+      if (ambiguousNames.has(nameLower)) {
+        errors.push({ row: rowNum, message: `Teacher "${teacherName}" is ambiguous — multiple teachers share this name. Rename one in the Teachers page first.` });
+        continue;
+      }
+      const teacherId = teacherMap.get(nameLower);
       if (!teacherId) {
         errors.push({ row: rowNum, message: `Teacher "${teacherName}" not found — check spelling matches the Teachers list` });
         continue;
