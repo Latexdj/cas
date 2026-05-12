@@ -2,9 +2,9 @@ const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 
-router.use(authenticate, requireActiveSubscription, adminOnly);
+router.use(authenticate, requireActiveSubscription);
 
-// GET /api/school-calendar?year=2026&month=5
+// GET /api/school-calendar?year=2026&month=5  — all authenticated users (teachers read-only)
 router.get('/', async (req, res, next) => {
   try {
     const conditions = ['school_id = $1'];
@@ -38,8 +38,8 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/school-calendar
-router.post('/', async (req, res, next) => {
+// POST /api/school-calendar — admin only
+router.post('/', adminOnly, async (req, res, next) => {
   try {
     const { date, name, type, notes } = req.body;
     const valid = ['Holiday', 'School Event', 'Closed Day'];
@@ -60,8 +60,8 @@ router.post('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/school-calendar/:id
-router.delete('/:id', async (req, res, next) => {
+// DELETE /api/school-calendar/:id — admin only
+router.delete('/:id', adminOnly, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query(
       `DELETE FROM school_calendar WHERE id = $1 AND school_id = $2`,
