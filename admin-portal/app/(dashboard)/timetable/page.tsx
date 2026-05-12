@@ -10,18 +10,6 @@ const EMPTY_FORM = { teacher_id: '', day_of_week: '1', start_time: '08:00', end_
 
 interface UploadResult { inserted: number; errors: { row: number; message: string }[] }
 
-function downloadTemplate() {
-  const csv = [
-    'Teacher,Day,Start Time,End Time,Subject,Classes',
-    'John Smith,Monday,08:00,09:00,MATHEMATICS,"1A, 1B"',
-    'Jane Doe,Monday,08:00,09:00,ENGLISH LANGUAGE,2A',
-    'John Smith,Tuesday,09:00,10:00,BIOLOGY,"3A, 3B, 3C"',
-  ].join('\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-  a.download = 'timetable_template.csv'; a.click();
-}
-
 export default function TimetablePage() {
   const [entries,   setEntries]   = useState<TimetableEntry[]>([]);
   const [teachers,  setTeachers]  = useState<Teacher[]>([]);
@@ -63,6 +51,15 @@ export default function TimetablePage() {
   }
 
   function openUpload() { setUploadErr(''); setUploadResult(null); setReplaceAll(false); setModal('upload'); }
+
+  async function downloadTemplate() {
+    try {
+      const { data } = await api.get('/api/timetable/upload/template', { responseType: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(data as Blob);
+      a.download = 'timetable_template.csv'; a.click();
+    } catch { alert('Could not download template.'); }
+  }
 
   async function handleUpload() {
     const file = fileRef.current?.files?.[0];
@@ -203,15 +200,15 @@ export default function TimetablePage() {
               ))}
             </div>
             <ul className="text-xs text-slate-400 space-y-0.5 mt-1">
-              <li>• Teacher must match a name in your Teachers list (case-insensitive)</li>
-              <li>• Day: Monday/Tuesday… or 1–7</li>
-              <li>• Times: HH:MM (e.g. 08:00) — Excel time cells are also accepted</li>
+              <li>• <strong className="text-slate-600">Column A</strong> accepts a Teacher ID <span className="text-green-600">(recommended)</span> or a teacher name</li>
+              <li>• Using IDs avoids issues with duplicate names — download the template to see your teachers&apos; IDs</li>
+              <li>• Day: Monday/Tuesday… or 1–7 &nbsp;·&nbsp; Times: HH:MM or Excel time cells</li>
               <li>• Classes: comma-separated (e.g. <code>1A, 1B</code>). New classes are auto-created.</li>
             </ul>
           </div>
 
           <button onClick={downloadTemplate} className="text-sm font-semibold text-green-700 hover:underline">
-            ↓ Download template CSV
+            ↓ Download template (pre-filled with your teachers&apos; IDs)
           </button>
 
           <div>

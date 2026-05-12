@@ -91,6 +91,25 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/** Download a CSV template pre-filled with the school's teacher IDs and names */
+router.get('/upload/template', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name FROM teachers WHERE school_id = $1 AND status = 'Active' ORDER BY name`,
+      [req.schoolId]
+    );
+    const header = 'Teacher ID,Teacher Name,Day,Start Time,End Time,Subject,Classes';
+    const examples = rows.length
+      ? rows.slice(0, 5).map(t => `${t.id},${t.name},Monday,08:00,09:00,SUBJECT NAME,"1A, 1B"`)
+      : ['<paste-teacher-id-here>,Teacher Name,Monday,08:00,09:00,SUBJECT NAME,"1A, 1B"'];
+    const note = '# Tip: Column A accepts either the Teacher ID (recommended) or the Teacher Name.';
+    const csv = [note, header, ...examples].join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="timetable_template.csv"');
+    res.send(csv);
+  } catch (err) { next(err); }
+});
+
 router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) => {
   const client = await pool.connect();
   try {
@@ -108,20 +127,35 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     const hasHeader = firstRow.some(c => ['teacher', 'day', 'subject', 'class', 'time'].some(k => c.includes(k)));
     const dataRows  = hasHeader ? rows.slice(1) : rows;
 
-    // Load teachers for this school — detect duplicate names
+    // Load teachers for this school
     const { rows: teachers } = await pool.query(
       `SELECT id, LOWER(TRIM(name)) AS name_lower FROM teachers WHERE school_id = $1`,
       [req.schoolId]
     );
-    // Build map: name → [id, id, ...] to catch duplicates
+    const teacherById   = new Map(teachers.map(t => [t.id, t.id]));          // UUID → UUID (existence check)
     const teacherIdsByName = new Map();
     for (const t of teachers) {
       if (!teacherIdsByName.has(t.name_lower)) teacherIdsByName.set(t.name_lower, []);
       teacherIdsByName.get(t.name_lower).push(t.id);
     }
-    // Names with exactly one match are safe; duplicates will produce a row error
-    const teacherMap     = new Map([...teacherIdsByName.entries()].filter(([, ids]) => ids.length === 1).map(([n, ids]) => [n, ids[0]]));
+    const teacherByName  = new Map([...teacherIdsByName.entries()].filter(([, ids]) => ids.length === 1).map(([n, ids]) => [n, ids[0]]));
     const ambiguousNames = new Set([...teacherIdsByName.entries()].filter(([, ids]) => ids.length > 1).map(([n]) => n));
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    function resolveTeacher(raw) {
+      const val = String(raw ?? '').trim();
+      if (UUID_RE.test(val)) {
+        return teacherById.has(val)
+          ? { id: val }
+          : { error: `Teacher ID "${val}" not found in this school` };
+      }
+      const lower = val.toLowerCase();
+      if (ambiguousNames.has(lower))
+        return { error: `Teacher "${val}" is ambiguous — multiple teachers share this name. Use their Teacher ID instead (download the template to see IDs).` };
+      const id = teacherByName.get(lower);
+      return id ? { id } : { error: `Teacher "${val}" not found — check spelling or use a Teacher ID` };
+    }
 
     // Parse and validate rows
     const valid  = [];
@@ -131,7 +165,6 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       const row    = dataRows[i];
       const rowNum = i + (hasHeader ? 2 : 1);
 
-      const teacherName = String(row[0] ?? '').trim();
       const dayRaw      = String(row[1] ?? '').trim();
       const startRaw    = row[2];
       const endRaw      = row[3];
@@ -141,16 +174,9 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       // Skip blank rows
       if (!teacherName && !dayRaw && !subject) continue;
 
-      const nameLower = teacherName.toLowerCase();
-      if (ambiguousNames.has(nameLower)) {
-        errors.push({ row: rowNum, message: `Teacher "${teacherName}" is ambiguous — multiple teachers share this name. Rename one in the Teachers page first.` });
-        continue;
-      }
-      const teacherId = teacherMap.get(nameLower);
-      if (!teacherId) {
-        errors.push({ row: rowNum, message: `Teacher "${teacherName}" not found — check spelling matches the Teachers list` });
-        continue;
-      }
+      const resolved = resolveTeacher(row[0]);
+      if (resolved.error) { errors.push({ row: rowNum, message: resolved.error }); continue; }
+      const teacherId = resolved.id;
 
       const dayOfWeek = DAY_MAP[dayRaw.toLowerCase()];
       if (!dayOfWeek) {
