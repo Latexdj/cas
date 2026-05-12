@@ -19,7 +19,7 @@ export interface TimetableSlot {
   start_time: string;
   end_time: string;
   subject: string;
-  class_name: string;
+  class_names: string;
   periods?: number;
 }
 

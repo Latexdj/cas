@@ -52,7 +52,7 @@ router.get('/classroom-status', async (req, res, next) => {
     const { rows } = await pool.query(`
       SELECT
         tt.id                   AS slot_id,
-        tt.class_name,
+        tt.class_names,
         tt.subject,
         tt.start_time::text,
         tt.end_time::text,
@@ -74,10 +74,10 @@ router.get('/classroom-status', async (req, res, next) => {
         AND a.date       = $3
         AND LOWER(a.subject) = LOWER(tt.subject)
         AND (
-          LOWER(a.class_names) = LOWER(tt.class_name)
-          OR LOWER(a.class_names) LIKE LOWER(tt.class_name || ',%')
-          OR LOWER(a.class_names) LIKE LOWER('%,' || tt.class_name)
-          OR LOWER(a.class_names) LIKE LOWER('%,' || tt.class_name || ',%')
+          LOWER(a.class_names) = LOWER(tt.class_names)
+          OR LOWER(a.class_names) LIKE LOWER(tt.class_names || ',%')
+          OR LOWER(a.class_names) LIKE LOWER('%,' || tt.class_names)
+          OR LOWER(a.class_names) LIKE LOWER('%,' || tt.class_names || ',%')
         )
       WHERE tt.school_id = $1 AND tt.day_of_week = $2
       ORDER BY tt.start_time, tt.class_name
@@ -278,7 +278,7 @@ router.post('/attendance', async (req, res, next) => {
   try {
     const { teacherId, subject, classNames, periods, date, topic, locationName } = req.body;
 
-    const missing = ['teacherId', 'subject', 'classNames', 'periods', 'date'].filter(f => !req.body[f]);
+    const missing = ['teacherId', 'subject', 'classNames', 'periods', 'date', 'topic'].filter(f => !req.body[f]);
     if (missing.length) return res.status(400).json({ error: `Missing: ${missing.join(', ')}` });
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date))

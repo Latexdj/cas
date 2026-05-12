@@ -27,13 +27,24 @@ export interface Location {
   has_coordinates: boolean;
 }
 
+export interface Subject {
+  id: string;
+  name: string;
+  code: string | null;
+}
+
+export interface ClassItem {
+  id: string;
+  name: string;
+}
+
 export interface TimetableEntry {
   id: string;
   day_of_week: number;
   start_time: string;
   end_time: string;
   subject: string;
-  class_name: string;
+  class_names: string;
   teacher_id: string;
   teacher_name: string;
 }
@@ -112,7 +123,7 @@ export interface TeacherAttendanceSummary {
 
 export interface ClassroomStatus {
   slot_id: string;
-  class_name: string;
+  class_names: string;
   subject: string;
   start_time: string;
   end_time: string;

@@ -30,7 +30,7 @@ router.post('/submit', async (req, res, next) => {
       academicYearId, semester, photoSizeKb,
     } = req.body;
 
-    const missing = ['teacherId','subject','classNames','periods','imageBase64'].filter(f => !req.body[f]);
+    const missing = ['teacherId','subject','classNames','periods','imageBase64','topic'].filter(f => !req.body[f]);
     if (missing.length) return res.status(400).json({ error: `Missing: ${missing.join(', ')}` });
 
     if (req.user.role === 'teacher' && req.user.id !== teacherId) {

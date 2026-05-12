@@ -81,7 +81,7 @@ export default function HomeScreen() {
             submitted={submitted}
             onPress={() => router.push({
               pathname: '/(tabs)/submit',
-              params: { slotId: item.id, subject: item.subject, className: item.class_name, periods: item.periods },
+              params: { slotId: item.id },
             })}
           />
         )}

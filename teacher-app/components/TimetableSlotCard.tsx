@@ -13,8 +13,9 @@ interface Props {
 function isSubmitted(slot: TimetableSlot, submitted: AttendanceRecord[]) {
   return submitted.some((a) => {
     const subjectMatch = a.subject.toLowerCase() === slot.subject.toLowerCase();
-    const classes = a.class_names.split(',').map((c) => c.trim().toLowerCase());
-    return subjectMatch && classes.includes(slot.class_name.toLowerCase());
+    const slotClasses = slot.class_names.split(',').map((c) => c.trim().toLowerCase());
+    const attClasses  = a.class_names.split(',').map((c) => c.trim().toLowerCase());
+    return subjectMatch && slotClasses.some((sc) => attClasses.includes(sc));
   });
 }
 
@@ -31,7 +32,7 @@ export function TimetableSlotCard({ slot, submitted, onPress }: Props) {
           <Text style={styles.time}>{slot.start_time?.slice(0, 5)} – {slot.end_time?.slice(0, 5)}</Text>
         </View>
         <Text style={styles.subject}>{slot.subject}</Text>
-        <Text style={styles.className}>{slot.class_name}</Text>
+        <Text style={styles.className}>{slot.class_names}</Text>
       </View>
       <View style={[styles.statusPill, { backgroundColor: done ? '#E4F4EB' : Colors.accentLight }]}>
         {done

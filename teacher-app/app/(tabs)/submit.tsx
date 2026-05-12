@@ -1,72 +1,76 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
-  Alert, Platform, ScrollView, StyleSheet, Text,
-  TouchableOpacity, View, Modal, FlatList, Image,
+  Alert, Image, Modal, FlatList, Platform, ScrollView,
+  StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import NetInfo from '@react-native-community/netinfo';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
+import { Ionicons } from '@expo/vector-icons';
 
 const IS_WEB = Platform.OS === 'web';
+
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { offlineQueue } from '@/lib/offlineQueue';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useTheme } from '@/context/ThemeContext';
-import { TimetableSlot, Location as LocationType } from '@/types/api';
+import { TimetableSlot, Location as LocationType, AttendanceRecord } from '@/types/api';
 
 export default function SubmitScreen() {
   const { user } = useAuth();
-  const params = useLocalSearchParams<{ slotId?: string; subject?: string; className?: string; periods?: string }>();
-
-  // Form state
-  const [slots,       setSlots]       = useState<TimetableSlot[]>([]);
-  const [locations,   setLocations]   = useState<LocationType[]>([]);
-  const [subject,     setSubject]     = useState('');
-  const [classNames,  setClassNames]  = useState('');
-  const [periods,     setPeriods]     = useState('');
-  const [topic,       setTopic]       = useState('');
-  const [locationName, setLocationName] = useState('');
-  const [gps,         setGps]         = useState('');
-  const [photoUri,    setPhotoUri]    = useState<string | null>(null);
-  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
-  const [photoSizeKb, setPhotoSizeKb] = useState<number | null>(null);
-  const [submitting,  setSubmitting]  = useState(false);
-  const [showLocPicker, setShowLocPicker] = useState(false);
-
+  const params = useLocalSearchParams<{ slotId?: string }>();
   const Colors = useTheme();
 
-  // Camera state
+  const [slots,         setSlots]         = useState<TimetableSlot[]>([]);
+  const [submitted,     setSubmitted]     = useState<AttendanceRecord[]>([]);
+  const [locations,     setLocations]     = useState<LocationType[]>([]);
+  const [selectedSlot,  setSelectedSlot]  = useState<TimetableSlot | null>(null);
+  const [topic,         setTopic]         = useState('');
+  const [locationName,  setLocationName]  = useState('');
+  const [gps,           setGps]           = useState('');
+  const [photoUri,      setPhotoUri]      = useState<string | null>(null);
+  const [photoBase64,   setPhotoBase64]   = useState<string | null>(null);
+  const [photoSizeKb,   setPhotoSizeKb]   = useState<number | null>(null);
+  const [submitting,    setSubmitting]    = useState(false);
+  const [showLocPicker, setShowLocPicker] = useState(false);
+  const [loading,       setLoading]       = useState(true);
+
   const [showCamera,    setShowCamera]    = useState(false);
   const [facing,        setFacing]        = useState<'back' | 'front'>('front');
   const [camPermission, requestCamPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
-  // Pre-fill from timetable tap on home screen
-  useEffect(() => {
-    if (params.subject)   setSubject(params.subject);
-    if (params.className) setClassNames(params.className);
-    if (params.periods)   setPeriods(params.periods);
-  }, [params.subject, params.className, params.periods]);
-
   useFocusEffect(useCallback(() => {
     loadData();
     grabGps();
-  }, []));
+  }, [user]));
 
   async function loadData() {
     if (!user) return;
+    setLoading(true);
     try {
-      const [ttRes, locRes] = await Promise.all([
-        api.get(`/api/timetable/today/${user.id}`),
-        api.get('/api/locations'),
+      const [ttRes, attRes, locRes] = await Promise.all([
+        api.get<TimetableSlot[]>(`/api/timetable/today/${user.id}`),
+        api.get<AttendanceRecord[]>(`/api/attendance/today/${user.id}`),
+        api.get<LocationType[]>('/api/locations'),
       ]);
       setSlots(ttRes.data);
+      setSubmitted(attRes.data);
       setLocations(locRes.data);
-    } catch {}
+
+      // Auto-select slot if navigated from home with slotId
+      if (params.slotId && ttRes.data.length > 0) {
+        const match = ttRes.data.find(s => s.id === params.slotId);
+        if (match) setSelectedSlot(match);
+      }
+    } catch {
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function grabGps() {
@@ -86,9 +90,17 @@ export default function SubmitScreen() {
     } catch {}
   }
 
+  function isSlotSubmitted(slot: TimetableSlot) {
+    return submitted.some((a) => {
+      const subjectMatch = a.subject.toLowerCase() === slot.subject.toLowerCase();
+      const slotClasses  = slot.class_names.split(',').map(c => c.trim().toLowerCase());
+      const attClasses   = a.class_names.split(',').map(c => c.trim().toLowerCase());
+      return subjectMatch && slotClasses.some(sc => attClasses.includes(sc));
+    });
+  }
+
   async function openCamera() {
     if (IS_WEB) {
-      Alert.alert('Camera not available', 'On web, please enter a placeholder photo. Use the real mobile app to capture classroom photos.');
       setPhotoUri('web-placeholder');
       setPhotoBase64('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
       setPhotoSizeKb(1);
@@ -106,14 +118,11 @@ export default function SubmitScreen() {
       const photo = await cameraRef.current?.takePictureAsync({ base64: false, quality: 1 });
       if (!photo) return;
 
-      // Compress to ~30 KB: resize to max width 640px, then reduce quality iteratively
       let compressed = await ImageManipulator.manipulateAsync(
         photo.uri,
         [{ resize: { width: 640 } }],
         { compress: 0.4, format: ImageManipulator.SaveFormat.JPEG, base64: true },
       );
-
-      // If still too large, compress further
       if (compressed.base64 && compressed.base64.length * 0.75 > 40 * 1024) {
         compressed = await ImageManipulator.manipulateAsync(
           photo.uri,
@@ -127,14 +136,22 @@ export default function SubmitScreen() {
       setPhotoBase64(`data:image/jpeg;base64,${compressed.base64}`);
       setPhotoSizeKb(sizeKb);
       setShowCamera(false);
-    } catch (err) {
+    } catch {
       Alert.alert('Error', 'Could not capture photo.');
     }
   }
 
   async function handleSubmit() {
-    if (!subject.trim() || !classNames.trim() || !periods || !photoBase64) {
-      Alert.alert('Missing fields', 'Subject, class names, periods and a photo are required.');
+    if (!selectedSlot) {
+      Alert.alert('No slot selected', 'Please select a timetable slot first.');
+      return;
+    }
+    if (!topic.trim()) {
+      Alert.alert('Topic required', 'Please enter the lesson topic.');
+      return;
+    }
+    if (!photoBase64) {
+      Alert.alert('Photo required', 'Please take a classroom photo before submitting.');
       return;
     }
     setSubmitting(true);
@@ -142,10 +159,10 @@ export default function SubmitScreen() {
       const netState = await NetInfo.fetch();
       const payload = {
         teacherId:      user!.id,
-        subject:        subject.trim(),
-        classNames:     classNames.trim(),
-        periods:        parseInt(periods, 10),
-        topic:          topic.trim() || undefined,
+        subject:        selectedSlot.subject,
+        classNames:     selectedSlot.class_names,
+        periods:        selectedSlot.periods ?? 1,
+        topic:          topic.trim(),
         gpsCoordinates: gps || undefined,
         locationName:   locationName || undefined,
         imageBase64:    photoBase64,
@@ -154,7 +171,7 @@ export default function SubmitScreen() {
 
       if (!netState.isConnected) {
         await offlineQueue.enqueue(payload);
-        Alert.alert('Saved Offline', 'No internet connection. Your submission has been saved and will sync automatically when you reconnect.');
+        Alert.alert('Saved Offline', 'No internet connection. Your submission has been saved and will sync when you reconnect.');
         resetForm();
         return;
       }
@@ -162,6 +179,7 @@ export default function SubmitScreen() {
       await api.post('/api/attendance/submit', payload);
       Alert.alert('✅ Submitted', 'Attendance recorded successfully.');
       resetForm();
+      await loadData();
     } catch (err: any) {
       Alert.alert('Error', err?.response?.data?.error ?? 'Submission failed.');
     } finally {
@@ -170,14 +188,12 @@ export default function SubmitScreen() {
   }
 
   function resetForm() {
-    setSubject(''); setClassNames(''); setPeriods('');
-    setTopic(''); setLocationName(''); setPhotoUri(null); setPhotoBase64(null); setPhotoSizeKb(null);
-  }
-
-  function fillFromSlot(slot: TimetableSlot) {
-    setSubject(slot.subject);
-    setClassNames(slot.class_name);
-    if (slot.periods) setPeriods(String(slot.periods));
+    setSelectedSlot(null);
+    setTopic('');
+    setLocationName('');
+    setPhotoUri(null);
+    setPhotoBase64(null);
+    setPhotoSizeKb(null);
   }
 
   // ── CAMERA VIEW ──────────────────────────────────────────────
@@ -200,64 +216,136 @@ export default function SubmitScreen() {
     );
   }
 
+  // ── NO SCHEDULE ──────────────────────────────────────────────
+  if (!loading && slots.length === 0) {
+    return (
+      <View style={styles.emptyRoot}>
+        <View style={[styles.emptyIconWrap, { backgroundColor: Colors.accentLight }]}>
+          <Ionicons name="calendar-outline" size={48} color={Colors.primary} />
+        </View>
+        <Text style={styles.emptyTitle}>No schedule today</Text>
+        <Text style={styles.emptySub}>You have no timetable slots for today. If you taught a class that isn&apos;t scheduled, you can log a remedial lesson.</Text>
+        <TouchableOpacity style={[styles.remedialBtn, { backgroundColor: Colors.primary }]}
+          onPress={() => router.push('/(tabs)/absences')}>
+          <Text style={styles.remedialBtnText}>Schedule a Remedial Lesson</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const allDone = slots.length > 0 && slots.every(s => isSlotSubmitted(s));
+
+  // ── MAIN FORM ────────────────────────────────────────────────
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <Text style={styles.sectionTitle}>Quick Fill from Timetable</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotScroll}>
-        {slots.map((s) => (
-          <TouchableOpacity key={s.id} style={styles.slotChip} onPress={() => fillFromSlot(s)}>
-            <Text style={styles.slotChipText}>{s.subject}</Text>
-            <Text style={styles.slotChipSub}>{s.class_name}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
 
-      <Text style={styles.sectionTitle}>Attendance Details</Text>
-      <Input label="Subject *" value={subject} onChangeText={setSubject} placeholder="e.g. Mathematics" />
-      <Input label="Class Name(s) *" value={classNames} onChangeText={setClassNames} placeholder="e.g. Form 1A, Form 1B" />
-      <Input label="Periods *" value={periods} onChangeText={setPeriods} keyboardType="number-pad" placeholder="e.g. 2" maxLength={2} />
-      <Input label="Topic" value={topic} onChangeText={setTopic} placeholder="Optional lesson topic" />
-
-      {/* Location picker */}
-      <Text style={styles.fieldLabel}>Location</Text>
-      <TouchableOpacity style={styles.picker} onPress={() => setShowLocPicker(true)}>
-        <Text style={locationName ? styles.pickerValue : styles.pickerPlaceholder}>
-          {locationName || 'Select classroom location'}
-        </Text>
-        <Text style={styles.pickerArrow}>▾</Text>
-      </TouchableOpacity>
-
-      {/* GPS */}
-      <Text style={styles.fieldLabel}>GPS</Text>
-      <View style={styles.gpsRow}>
-        <Text style={gps ? styles.gpsValue : styles.gpsMuted}>{gps || 'Acquiring location…'}</Text>
-        <TouchableOpacity onPress={grabGps}><Text style={[styles.gpsRefresh, { color: Colors.primary }]}>↻ Refresh</Text></TouchableOpacity>
-      </View>
-
-      {/* Photo */}
-      <Text style={styles.sectionTitle}>Classroom Photo *</Text>
-      {photoUri ? (
-        <View style={styles.photoPreviewWrap}>
-          {IS_WEB
-            ? <View style={[styles.photoPreview, { backgroundColor: '#D1FAE5', justifyContent: 'center', alignItems: 'center' }]}>
-                <Text style={{ fontSize: 32 }}>✅</Text>
-                <Text style={{ color: '#2D7A4F', fontWeight: '600', marginTop: 8 }}>Photo placeholder set (web mode)</Text>
-              </View>
-            : <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-          }
-          <TouchableOpacity style={styles.retakeBtn} onPress={openCamera}>
-            <Text style={[styles.retakeBtnText, { color: Colors.primary }]}>{IS_WEB ? 'Reset' : 'Retake Photo'}</Text>
-          </TouchableOpacity>
+      {/* Slot picker */}
+      <Text style={styles.sectionTitle}>Select Lesson *</Text>
+      {allDone && (
+        <View style={styles.allDoneBanner}>
+          <Ionicons name="checkmark-circle" size={16} color="#2D7A4F" />
+          <Text style={styles.allDoneText}>All lessons submitted for today!</Text>
         </View>
-      ) : (
-        <TouchableOpacity style={styles.cameraPlaceholder} onPress={openCamera}>
-          <Text style={styles.cameraIcon}>{IS_WEB ? '🖥️' : '📷'}</Text>
-          <Text style={styles.cameraPlaceholderText}>{IS_WEB ? 'Tap to set photo (web mode)' : 'Tap to take photo'}</Text>
-          {IS_WEB && <Text style={styles.webNote}>Camera works on mobile — this sets a placeholder for testing</Text>}
-        </TouchableOpacity>
       )}
+      {slots.map((slot) => {
+        const done     = isSlotSubmitted(slot);
+        const selected = selectedSlot?.id === slot.id;
+        return (
+          <TouchableOpacity
+            key={slot.id}
+            style={[styles.slotRow, selected && styles.slotRowSelected, done && styles.slotRowDone]}
+            onPress={() => { if (!done) { setSelectedSlot(slot); setTopic(''); } }}
+            activeOpacity={done ? 1 : 0.7}
+          >
+            <View style={styles.slotRowLeft}>
+              <Text style={styles.slotTime}>{slot.start_time.slice(0,5)} – {slot.end_time.slice(0,5)}</Text>
+              <Text style={[styles.slotSubject, selected && { color: Colors.primary }]}>{slot.subject}</Text>
+              <Text style={styles.slotClass}>{slot.class_names}</Text>
+            </View>
+            <View style={styles.slotRowRight}>
+              {done
+                ? <Ionicons name="checkmark-circle" size={22} color="#2D7A4F" />
+                : selected
+                  ? <Ionicons name="radio-button-on" size={22} color={Colors.primary} />
+                  : <Ionicons name="radio-button-off" size={22} color="#C0B8AF" />
+              }
+            </View>
+          </TouchableOpacity>
+        );
+      })}
 
-      <Button label="Submit Attendance" onPress={handleSubmit} loading={submitting} style={styles.submitBtn} />
+      {selectedSlot && (
+        <>
+          {/* Locked info */}
+          <Text style={styles.sectionTitle}>Lesson Details</Text>
+          <View style={styles.lockedCard}>
+            <View style={styles.lockedRow}>
+              <Text style={styles.lockedLabel}>Subject</Text>
+              <Text style={styles.lockedValue}>{selectedSlot.subject}</Text>
+            </View>
+            <View style={[styles.lockedRow, { borderTopWidth: 1, borderTopColor: '#E2D9CC' }]}>
+              <Text style={styles.lockedLabel}>Class(es)</Text>
+              <Text style={styles.lockedValue}>{selectedSlot.class_names}</Text>
+            </View>
+            <View style={[styles.lockedRow, { borderTopWidth: 1, borderTopColor: '#E2D9CC' }]}>
+              <Text style={styles.lockedLabel}>Periods</Text>
+              <Text style={styles.lockedValue}>{selectedSlot.periods ?? 1}</Text>
+            </View>
+          </View>
+
+          {/* Topic — required */}
+          <Input
+            label="Topic *"
+            value={topic}
+            onChangeText={setTopic}
+            placeholder="What was taught in this lesson?"
+          />
+
+          {/* Location picker */}
+          <Text style={styles.fieldLabel}>Location</Text>
+          <TouchableOpacity style={styles.picker} onPress={() => setShowLocPicker(true)}>
+            <Text style={locationName ? styles.pickerValue : styles.pickerPlaceholder}>
+              {locationName || 'Select classroom location'}
+            </Text>
+            <Text style={styles.pickerArrow}>▾</Text>
+          </TouchableOpacity>
+
+          {/* GPS */}
+          <Text style={styles.fieldLabel}>GPS</Text>
+          <View style={styles.gpsRow}>
+            <Text style={gps ? styles.gpsValue : styles.gpsMuted}>{gps || 'Acquiring location…'}</Text>
+            <TouchableOpacity onPress={grabGps}>
+              <Text style={[styles.gpsRefresh, { color: Colors.primary }]}>↻ Refresh</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Photo */}
+          <Text style={styles.sectionTitle}>Classroom Photo *</Text>
+          {photoUri ? (
+            <View style={styles.photoPreviewWrap}>
+              {IS_WEB
+                ? <View style={[styles.photoPreview, { backgroundColor: '#D1FAE5', justifyContent: 'center', alignItems: 'center' }]}>
+                    <Text style={{ fontSize: 32 }}>✅</Text>
+                    <Text style={{ color: '#2D7A4F', fontWeight: '600', marginTop: 8 }}>Photo placeholder set (web mode)</Text>
+                  </View>
+                : <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+              }
+              {photoSizeKb && <Text style={styles.photoSize}>{photoSizeKb} KB</Text>}
+              <TouchableOpacity style={styles.retakeBtn} onPress={openCamera}>
+                <Text style={[styles.retakeBtnText, { color: Colors.primary }]}>{IS_WEB ? 'Reset' : 'Retake Photo'}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.cameraPlaceholder} onPress={openCamera}>
+              <Text style={styles.cameraIcon}>{IS_WEB ? '🖥️' : '📷'}</Text>
+              <Text style={styles.cameraPlaceholderText}>{IS_WEB ? 'Tap to set photo (web mode)' : 'Tap to take photo'}</Text>
+              {IS_WEB && <Text style={styles.webNote}>Camera works on mobile — this sets a placeholder for testing</Text>}
+            </TouchableOpacity>
+          )}
+
+          <Button label="Submit Attendance" onPress={handleSubmit} loading={submitting} style={styles.submitBtn} />
+        </>
+      )}
 
       {/* Location picker modal */}
       <Modal visible={showLocPicker} transparent animationType="slide">
@@ -268,7 +356,10 @@ export default function SubmitScreen() {
               data={[{ id: '', name: 'Not specified', type: '', has_coordinates: false }, ...locations]}
               keyExtractor={(l) => l.id || 'none'}
               renderItem={({ item }) => (
-                <TouchableOpacity style={styles.locItem} onPress={() => { setLocationName(item.name === 'Not specified' ? '' : item.name); setShowLocPicker(false); }}>
+                <TouchableOpacity style={styles.locItem} onPress={() => {
+                  setLocationName(item.name === 'Not specified' ? '' : item.name);
+                  setShowLocPicker(false);
+                }}>
                   <Text style={styles.locItemText}>{item.name}</Text>
                 </TouchableOpacity>
               )}
@@ -283,11 +374,32 @@ export default function SubmitScreen() {
 const styles = StyleSheet.create({
   container:             { flex: 1, backgroundColor: '#F4EFE6' },
   content:               { padding: 16, paddingBottom: 40 },
-  sectionTitle:          { fontSize: 13, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 12 },
-  slotScroll:            { marginBottom: 16 },
-  slotChip:              { backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginRight: 8, borderWidth: 1, borderColor: '#E2D9CC', minWidth: 100 },
-  slotChipText:          { fontSize: 13, fontWeight: '600', color: '#1C1208' },
-  slotChipSub:           { fontSize: 11, color: '#8C7E6E', marginTop: 2 },
+  sectionTitle:          { fontSize: 13, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 16 },
+  // Empty state
+  emptyRoot:             { flex: 1, backgroundColor: '#F4EFE6', justifyContent: 'center', alignItems: 'center', padding: 32 },
+  emptyIconWrap:         { width: 96, height: 96, borderRadius: 48, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyTitle:            { fontSize: 22, fontWeight: '800', color: '#1C1208', marginBottom: 10, textAlign: 'center' },
+  emptySub:              { fontSize: 14, color: '#8C7E6E', textAlign: 'center', lineHeight: 22, marginBottom: 28 },
+  remedialBtn:           { paddingHorizontal: 24, paddingVertical: 14, borderRadius: 14 },
+  remedialBtnText:       { fontSize: 15, fontWeight: '700', color: '#fff' },
+  // All-done banner
+  allDoneBanner:         { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#E4F4EB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12 },
+  allDoneText:           { fontSize: 13, color: '#2D7A4F', fontWeight: '600' },
+  // Slot rows
+  slotRow:               { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, marginBottom: 8, padding: 14, borderWidth: 1.5, borderColor: '#E2D9CC' },
+  slotRowSelected:       { borderColor: '#2D7A4F', backgroundColor: '#F0FAF4' },
+  slotRowDone:           { opacity: 0.55 },
+  slotRowLeft:           { flex: 1 },
+  slotRowRight:          { marginLeft: 12 },
+  slotTime:              { fontSize: 11, color: '#8C7E6E', fontWeight: '600', marginBottom: 3 },
+  slotSubject:           { fontSize: 15, fontWeight: '700', color: '#1C1208' },
+  slotClass:             { fontSize: 12, color: '#4A3F32', marginTop: 2 },
+  // Locked card
+  lockedCard:            { backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#E2D9CC', marginBottom: 16, overflow: 'hidden' },
+  lockedRow:             { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12 },
+  lockedLabel:           { fontSize: 12, color: '#8C7E6E', fontWeight: '600' },
+  lockedValue:           { fontSize: 14, color: '#1C1208', fontWeight: '600', flex: 1, textAlign: 'right' },
+  // Fields
   fieldLabel:            { fontSize: 13, fontWeight: '600', color: '#1C1208', marginBottom: 6 },
   picker:                { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
   pickerValue:           { fontSize: 15, color: '#1C1208' },
@@ -297,15 +409,18 @@ const styles = StyleSheet.create({
   gpsValue:              { fontSize: 13, color: '#1C1208', flex: 1 },
   gpsMuted:              { fontSize: 13, color: '#8C7E6E', flex: 1, fontStyle: 'italic' },
   gpsRefresh:            { fontSize: 13, fontWeight: '600' },
+  // Photo
+  photoPreviewWrap:      { marginBottom: 20 },
+  photoPreview:          { width: '100%', height: 200, borderRadius: 12 },
+  photoSize:             { fontSize: 11, color: '#8C7E6E', textAlign: 'right', marginTop: 4 },
+  retakeBtn:             { marginTop: 8, alignItems: 'center' },
+  retakeBtnText:         { fontWeight: '600', fontSize: 14 },
   cameraPlaceholder:     { backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#E2D9CC', borderStyle: 'dashed', borderRadius: 12, height: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   cameraIcon:            { fontSize: 40 },
   cameraPlaceholderText: { fontSize: 15, color: '#8C7E6E', marginTop: 8 },
   webNote:               { fontSize: 12, color: '#8C7E6E', marginTop: 6, textAlign: 'center', paddingHorizontal: 16 },
-  photoPreviewWrap:      { marginBottom: 20 },
-  photoPreview:          { width: '100%', height: 200, borderRadius: 12 },
-  retakeBtn:             { marginTop: 8, alignItems: 'center' },
-  retakeBtnText:         { fontWeight: '600', fontSize: 14 },
   submitBtn:             { marginTop: 8 },
+  // Camera
   cameraContainer:       { flex: 1, backgroundColor: '#000' },
   camera:                { flex: 1 },
   cameraControls:        { position: 'absolute', bottom: 48, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
@@ -315,6 +430,7 @@ const styles = StyleSheet.create({
   cancelBtnText:         { color: '#fff', fontSize: 15, fontWeight: '600' },
   flipBtn:               { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
   flipBtnText:           { color: '#fff', fontSize: 28, fontWeight: '700' },
+  // Location modal
   modalOverlay:          { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet:            { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', padding: 20 },
   modalTitle:            { fontSize: 17, fontWeight: '700', color: '#1C1208', marginBottom: 16 },

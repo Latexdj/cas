@@ -7,7 +7,7 @@ router.use(authenticate, requireActiveSubscription);
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(`
-      SELECT tt.id, tt.day_of_week, tt.start_time, tt.end_time, tt.subject, tt.class_name,
+      SELECT tt.id, tt.day_of_week, tt.start_time, tt.end_time, tt.subject, tt.class_names,
              te.id AS teacher_id, te.name AS teacher_name
       FROM timetable tt
       JOIN teachers te ON te.id = tt.teacher_id
@@ -25,7 +25,7 @@ router.get('/today/:teacherId', async (req, res, next) => {
     const dayOfWeek = jsDay === 0 ? 7 : jsDay;
 
     const { rows } = await pool.query(`
-      SELECT id, day_of_week, start_time, end_time, subject, class_name,
+      SELECT id, day_of_week, start_time, end_time, subject, class_names,
              EXTRACT(EPOCH FROM (end_time - start_time)) / 3600 AS duration_hours
       FROM timetable
       WHERE school_id = $1 AND teacher_id = $2 AND day_of_week = $3
@@ -40,7 +40,7 @@ router.get('/today/:teacherId', async (req, res, next) => {
 router.get('/teacher/:teacherId', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, day_of_week, start_time, end_time, subject, class_name
+      `SELECT id, day_of_week, start_time, end_time, subject, class_names
        FROM timetable WHERE school_id = $1 AND teacher_id = $2
        ORDER BY day_of_week, start_time`,
       [req.schoolId, req.params.teacherId]
@@ -51,14 +51,14 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
 
 router.post('/', adminOnly, async (req, res, next) => {
   try {
-    const { day_of_week, start_time, end_time, teacher_id, subject, class_name } = req.body;
-    if (!day_of_week || !start_time || !end_time || !teacher_id || !subject || !class_name) {
+    const { day_of_week, start_time, end_time, teacher_id, subject, class_names } = req.body;
+    if (!day_of_week || !start_time || !end_time || !teacher_id || !subject || !class_names) {
       return res.status(400).json({ error: 'All fields are required' });
     }
     const { rows } = await pool.query(
-      `INSERT INTO timetable (school_id, day_of_week, start_time, end_time, teacher_id, subject, class_name)
+      `INSERT INTO timetable (school_id, day_of_week, start_time, end_time, teacher_id, subject, class_names)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [req.schoolId, day_of_week, start_time, end_time, teacher_id, subject.trim(), class_name.trim()]
+      [req.schoolId, day_of_week, start_time, end_time, teacher_id, subject.trim(), class_names.trim()]
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
@@ -66,7 +66,7 @@ router.post('/', adminOnly, async (req, res, next) => {
 
 router.put('/:id', adminOnly, async (req, res, next) => {
   try {
-    const { day_of_week, start_time, end_time, teacher_id, subject, class_name } = req.body;
+    const { day_of_week, start_time, end_time, teacher_id, subject, class_names } = req.body;
     const { rows } = await pool.query(
       `UPDATE timetable
        SET day_of_week = COALESCE($1, day_of_week),
@@ -74,11 +74,11 @@ router.put('/:id', adminOnly, async (req, res, next) => {
            end_time    = COALESCE($3, end_time),
            teacher_id  = COALESCE($4, teacher_id),
            subject     = COALESCE($5, subject),
-           class_name  = COALESCE($6, class_name),
+           class_names = COALESCE($6, class_names),
            updated_at  = now()
        WHERE id = $7 AND school_id = $8 RETURNING *`,
       [day_of_week||null, start_time||null, end_time||null,
-       teacher_id||null, subject||null, class_name||null, req.params.id, req.schoolId]
+       teacher_id||null, subject||null, class_names||null, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Timetable entry not found' });
     res.json(rows[0]);

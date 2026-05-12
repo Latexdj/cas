@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import type { Teacher, Location } from '@/types/api';
+import type { Teacher, Location, Subject, ClassItem } from '@/types/api';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -9,7 +9,6 @@ const EMPTY = {
   teacherId:   '',
   date:        today(),
   subject:     '',
-  classNames:  '',
   periods:     '1',
   topic:       '',
   locationName:'',
@@ -18,6 +17,9 @@ const EMPTY = {
 export default function ManualEntryPage() {
   const [teachers,  setTeachers]  = useState<Teacher[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [subjects,  setSubjects]  = useState<Subject[]>([]);
+  const [classes,   setClasses]   = useState<ClassItem[]>([]);
+  const [selCls,    setSelCls]    = useState<Set<string>>(new Set());
   const [form,      setForm]      = useState(EMPTY);
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState('');
@@ -26,7 +28,14 @@ export default function ManualEntryPage() {
   useEffect(() => {
     api.get<Teacher[]>('/api/teachers').then(r => setTeachers(r.data.filter(t => t.status === 'Active')));
     api.get<Location[]>('/api/locations').then(r => setLocations(r.data));
+    api.get<Subject[]>('/api/subjects').then(r => setSubjects(r.data));
+    api.get<ClassItem[]>('/api/classes').then(r => setClasses(r.data));
   }, []);
+
+  function toggleClass(name: string) {
+    setSelCls(prev => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n; });
+    setError(''); setSuccess('');
+  }
 
   function set(field: keyof typeof EMPTY, value: string) {
     setForm(f => ({ ...f, [field]: value }));
@@ -35,8 +44,8 @@ export default function ManualEntryPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.teacherId || !form.subject.trim() || !form.classNames.trim() || !form.date) {
-      setError('Teacher, date, subject and class names are required.');
+    if (!form.teacherId || !form.subject || selCls.size === 0 || !form.date || !form.topic.trim()) {
+      setError('Teacher, date, subject, at least one class, and topic are all required.');
       return;
     }
     setSaving(true); setError(''); setSuccess('');
@@ -44,15 +53,16 @@ export default function ManualEntryPage() {
       await api.post('/api/admin/attendance', {
         teacherId:    form.teacherId,
         date:         form.date,
-        subject:      form.subject.trim(),
-        classNames:   form.classNames.trim(),
+        subject:      form.subject,
+        classNames:   Array.from(selCls).join(', '),
         periods:      parseInt(form.periods, 10) || 1,
-        topic:        form.topic.trim() || undefined,
+        topic:        form.topic.trim(),
         locationName: form.locationName || undefined,
       });
       const teacher = teachers.find(t => t.id === form.teacherId);
       setSuccess(`Attendance recorded for ${teacher?.name ?? 'teacher'} on ${form.date}.`);
-      setForm({ ...EMPTY, date: form.date }); // keep date for quick consecutive entries
+      setForm({ ...EMPTY, date: form.date });
+      setSelCls(new Set());
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? 'Failed to record attendance.');
@@ -66,7 +76,6 @@ export default function ManualEntryPage() {
 
   return (
     <div className="max-w-xl mx-auto">
-      {/* Header */}
       <div className="mb-6">
         <h1 className="text-xl font-bold text-slate-900">Manual Attendance Entry</h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -74,9 +83,8 @@ export default function ManualEntryPage() {
         </p>
       </div>
 
-      {/* Info banner */}
       <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-        <strong>No photo required.</strong> This entry will be marked as "Manual entry by admin" in the attendance log.
+        <strong>No photo required.</strong> This entry will be marked as &quot;Manual entry by admin&quot; in the attendance log.
       </div>
 
       {error && (
@@ -95,17 +103,10 @@ export default function ManualEntryPage() {
         {/* Teacher */}
         <div>
           <label className={labelCls}>Teacher *</label>
-          <select
-            className={inputCls}
-            value={form.teacherId}
-            onChange={e => set('teacherId', e.target.value)}
-            required
-          >
+          <select className={inputCls} value={form.teacherId} onChange={e => set('teacherId', e.target.value)} required>
             <option value="">— Select teacher —</option>
             {teachers.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.name}{t.department ? ` (${t.department})` : ''}
-              </option>
+              <option key={t.id} value={t.id}>{t.name}{t.department ? ` (${t.department})` : ''}</option>
             ))}
           </select>
         </div>
@@ -113,76 +114,69 @@ export default function ManualEntryPage() {
         {/* Date */}
         <div>
           <label className={labelCls}>Date *</label>
-          <input
-            type="date"
-            className={inputCls}
-            value={form.date}
-            max={today()}
-            onChange={e => set('date', e.target.value)}
-            required
-          />
+          <input type="date" className={inputCls} value={form.date} max={today()} onChange={e => set('date', e.target.value)} required />
         </div>
 
         {/* Subject */}
         <div>
           <label className={labelCls}>Subject *</label>
-          <input
-            type="text"
-            className={inputCls}
-            placeholder="e.g. Mathematics"
-            value={form.subject}
-            onChange={e => set('subject', e.target.value)}
-            required
-          />
+          {subjects.length > 0 ? (
+            <select className={inputCls} value={form.subject} onChange={e => set('subject', e.target.value)} required>
+              <option value="">— Select subject —</option>
+              {subjects.map(s => (
+                <option key={s.id} value={s.name}>{s.name}{s.code ? ` (${s.code})` : ''}</option>
+              ))}
+            </select>
+          ) : (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              No subjects defined. Add subjects in the <strong>Subjects</strong> section first.
+            </p>
+          )}
         </div>
 
-        {/* Class Names */}
+        {/* Classes multi-picker */}
         <div>
-          <label className={labelCls}>Class Name(s) *</label>
-          <input
-            type="text"
-            className={inputCls}
-            placeholder="e.g. Form 1A, Form 1B"
-            value={form.classNames}
-            onChange={e => set('classNames', e.target.value)}
-            required
-          />
-          <p className="mt-1 text-xs text-slate-400">Separate multiple classes with commas.</p>
+          <label className={labelCls}>
+            Class(es) *
+            {selCls.size > 0 && (
+              <span className="ml-2 text-green-600 font-normal text-xs">({Array.from(selCls).join(', ')})</span>
+            )}
+          </label>
+          {classes.length > 0 ? (
+            <div className="border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto space-y-0.5">
+              {classes.map(c => (
+                <label key={c.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 rounded px-2 py-1.5">
+                  <input type="checkbox" checked={selCls.has(c.name)} onChange={() => toggleClass(c.name)}
+                    className="w-4 h-4 accent-green-600" />
+                  <span className="text-sm text-slate-900 font-medium">{c.name}</span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              No classes defined. Add classes in the <strong>Classes</strong> section first.
+            </p>
+          )}
         </div>
 
         {/* Periods */}
         <div>
           <label className={labelCls}>Periods *</label>
-          <input
-            type="number"
-            className={inputCls}
-            min={1} max={10}
-            value={form.periods}
-            onChange={e => set('periods', e.target.value)}
-            required
-          />
+          <input type="number" className={inputCls} min={1} max={10} value={form.periods}
+            onChange={e => set('periods', e.target.value)} required />
         </div>
 
         {/* Topic */}
         <div>
-          <label className={labelCls}>Topic <span className="text-slate-400 font-normal">(optional)</span></label>
-          <input
-            type="text"
-            className={inputCls}
-            placeholder="e.g. Quadratic equations"
-            value={form.topic}
-            onChange={e => set('topic', e.target.value)}
-          />
+          <label className={labelCls}>Topic *</label>
+          <input type="text" className={inputCls} placeholder="e.g. Quadratic equations"
+            value={form.topic} onChange={e => set('topic', e.target.value)} required />
         </div>
 
         {/* Location */}
         <div>
           <label className={labelCls}>Location <span className="text-slate-400 font-normal">(optional)</span></label>
-          <select
-            className={inputCls}
-            value={form.locationName}
-            onChange={e => set('locationName', e.target.value)}
-          >
+          <select className={inputCls} value={form.locationName} onChange={e => set('locationName', e.target.value)}>
             <option value="">— Not specified —</option>
             {locations.map(l => (
               <option key={l.id} value={l.name}>{l.name}</option>
@@ -190,12 +184,9 @@ export default function ManualEntryPage() {
           </select>
         </div>
 
-        <button
-          type="submit"
-          disabled={saving}
+        <button type="submit" disabled={saving}
           className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity disabled:opacity-60"
-          style={{ backgroundColor: '#15803D' }}
-        >
+          style={{ backgroundColor: '#15803D' }}>
           {saving ? 'Recording…' : 'Record Attendance'}
         </button>
       </form>
