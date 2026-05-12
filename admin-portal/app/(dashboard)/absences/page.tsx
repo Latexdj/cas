@@ -382,8 +382,9 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
       setForm({ teacherId: '', dateFrom: '', dateTo: '', type: 'Official Duty', reason: '' });
       await load();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setFormError(msg ?? 'Failed to save.');
+      const e = err as { response?: { data?: { error?: string } | string }; message?: string };
+      const serverMsg = typeof e.response?.data === 'object' ? e.response?.data?.error : e.response?.data as string;
+      setFormError(serverMsg ?? e.message ?? 'Failed to save.');
     } finally { setSaving(false); }
   }
 

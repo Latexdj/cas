@@ -73,8 +73,8 @@ router.post('/', async (req, res, next) => {
 
     const isAdmin  = req.user.role === 'admin' || req.user.role === 'super_admin';
     const status   = isAdmin ? 'Approved' : 'Pending';
-    const approver = isAdmin ? req.user.id : null;
-    const approvedAt = isAdmin ? 'now()' : null;
+    // super_admin JWT has no id; only regular admins (teachers with is_admin=true) can be stored as approver
+    const approver = (isAdmin && req.user.id) ? req.user.id : null;
 
     const { rows } = await pool.query(
       `INSERT INTO teacher_excuses
@@ -90,12 +90,13 @@ router.post('/', async (req, res, next) => {
 // PATCH /api/teacher-excuses/:id/approve
 router.patch('/:id/approve', adminOnly, async (req, res, next) => {
   try {
+    const approver = req.user.id || null;
     const { rows } = await pool.query(
       `UPDATE teacher_excuses
        SET status = 'Approved', approved_by = $1, approved_at = now(), updated_at = now()
        WHERE id = $2 AND school_id = $3
        RETURNING id, status`,
-      [req.user.id, req.params.id, req.schoolId]
+      [approver, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Excuse not found' });
     res.json(rows[0]);
@@ -105,12 +106,13 @@ router.patch('/:id/approve', adminOnly, async (req, res, next) => {
 // PATCH /api/teacher-excuses/:id/reject
 router.patch('/:id/reject', adminOnly, async (req, res, next) => {
   try {
+    const approver = req.user.id || null;
     const { rows } = await pool.query(
       `UPDATE teacher_excuses
        SET status = 'Rejected', approved_by = $1, approved_at = now(), updated_at = now()
        WHERE id = $2 AND school_id = $3
        RETURNING id, status`,
-      [req.user.id, req.params.id, req.schoolId]
+      [approver, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Excuse not found' });
     res.json(rows[0]);
