@@ -14,6 +14,7 @@ const pageTitles: Record<string, string> = {
   '/attendance':      'Attendance Records',
   '/absences':        'Absences',
   '/remedials':       'Remedial Lessons',
+  '/manual-entry':    'Manual Attendance Entry',
   '/settings':        'Settings',
 };
 

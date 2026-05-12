@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { runAbsenceCheck } = require('../jobs/absenceCheck');
+const { getWeekNumber } = require('../services/geo.service');
 
 // Public deployment-check endpoint (no auth needed)
 router.get('/version', (_req, res) => res.json({ version: '2', has_settings: true }));
@@ -249,6 +250,66 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
       ORDER BY attendance_pct ASC NULLS LAST, t.name
     `, [req.schoolId]);
     res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/admin/attendance — manually record attendance on behalf of a teacher
+router.post('/attendance', async (req, res, next) => {
+  try {
+    const { teacherId, subject, classNames, periods, date, topic, locationName } = req.body;
+
+    const missing = ['teacherId', 'subject', 'classNames', 'periods', 'date'].filter(f => !req.body[f]);
+    if (missing.length) return res.status(400).json({ error: `Missing: ${missing.join(', ')}` });
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+      return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+
+    // Resolve current academic year
+    const { rows: ayRows } = await pool.query(
+      `SELECT id, current_semester FROM academic_years
+       WHERE school_id = $1 AND is_current = true LIMIT 1`,
+      [req.schoolId]
+    );
+    if (!ayRows.length) return res.status(400).json({ error: 'No current academic year configured' });
+    const { id: yearId, current_semester: sem } = ayRows[0];
+
+    // Check for exact duplicate (same teacher + subject + date)
+    const { rows: dupRows } = await pool.query(
+      `SELECT id FROM attendance
+       WHERE school_id = $1 AND date = $2 AND teacher_id = $3 AND LOWER(subject) = LOWER($4)`,
+      [req.schoolId, date, teacherId, subject]
+    );
+    if (dupRows.length)
+      return res.status(409).json({ error: 'Attendance already recorded for this teacher and subject on that date' });
+
+    // Resolve location id if name provided
+    let locationId = null;
+    if (locationName) {
+      const { rows: locRows } = await pool.query(
+        `SELECT id FROM locations WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
+        [req.schoolId, locationName]
+      );
+      if (locRows.length) locationId = locRows[0].id;
+    }
+
+    const weekNumber = getWeekNumber(new Date(date + 'T12:00:00'));
+
+    const { rows } = await pool.query(
+      `INSERT INTO attendance
+         (school_id, date, academic_year_id, semester, teacher_id,
+          subject, class_names, periods, topic, gps_coordinates,
+          photo_url, week_number, location_id, location_name,
+          location_verified, location_verification_message, photo_size_kb)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+       RETURNING id`,
+      [
+        req.schoolId, date, yearId, sem, teacherId,
+        subject, classNames, parseInt(periods, 10), topic || null, null,
+        null, weekNumber, locationId, locationName || null,
+        false, 'Manual entry by admin', null,
+      ]
+    );
+    res.status(201).json({ message: 'Attendance recorded manually', id: rows[0].id });
   } catch (err) { next(err); }
 });
 
