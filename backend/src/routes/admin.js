@@ -42,52 +42,74 @@ router.get('/stats', async (req, res, next) => {
 });
 
 // GET /api/admin/classroom-status
-// Shows every timetable slot for today, marked present/absent based on attendance.
+// Real-time classroom occupancy: one entry per distinct class_names in timetable.
+// occupied = scheduled right now AND attendance submitted
+// vacant   = everything else
 router.get('/classroom-status', async (req, res, next) => {
   try {
-    const jsDay    = new Date().getDay();
+    const jsDay     = new Date().getDay();
     const dayOfWeek = jsDay === 0 ? 7 : jsDay;
-    const today    = new Date().toISOString().slice(0, 10);
-    const nowTime  = new Date().toTimeString().slice(0, 5);
+    const nowTime   = new Date().toTimeString().slice(0, 5);
 
     const { rows } = await pool.query(`
+      WITH
+      all_classrooms AS (
+        SELECT DISTINCT class_names
+        FROM timetable
+        WHERE school_id = $1
+      ),
+      active_now AS (
+        SELECT DISTINCT ON (tt.class_names)
+          tt.class_names,
+          tt.subject,
+          tt.start_time::text,
+          tt.end_time::text,
+          te.name  AS teacher_name,
+          a.id     AS attendance_id,
+          a.submitted_at
+        FROM timetable tt
+        JOIN teachers te ON te.id = tt.teacher_id AND te.status = 'Active'
+        LEFT JOIN attendance a
+          ON  a.school_id  = $1
+          AND a.teacher_id = tt.teacher_id
+          AND a.date       = CURRENT_DATE
+          AND LOWER(a.subject) = LOWER(tt.subject)
+          AND (
+            LOWER(a.class_names) = LOWER(tt.class_names)
+            OR LOWER(a.class_names) LIKE LOWER(tt.class_names || ',%')
+            OR LOWER(a.class_names) LIKE LOWER('%,' || tt.class_names)
+            OR LOWER(a.class_names) LIKE LOWER('%,' || tt.class_names || ',%')
+          )
+        WHERE tt.school_id  = $1
+          AND tt.day_of_week = $2
+          AND $3::time BETWEEN tt.start_time AND tt.end_time
+        ORDER BY tt.class_names, tt.start_time
+      )
       SELECT
-        tt.id                   AS slot_id,
-        tt.class_names,
-        tt.subject,
-        tt.start_time::text,
-        tt.end_time::text,
-        te.name                 AS teacher_name,
-        te.id                   AS teacher_id,
+        ac.class_names                                     AS class_name,
         CASE
-          WHEN a.id IS NOT NULL THEN 'present'
-          WHEN $4 BETWEEN tt.start_time AND tt.end_time THEN 'in_session'
-          WHEN $4 > tt.end_time THEN 'absent'
-          ELSE 'upcoming'
-        END                     AS status,
-        a.submitted_at,
-        a.location_verified
-      FROM timetable tt
-      JOIN teachers te ON te.id = tt.teacher_id
-      LEFT JOIN attendance a
-        ON  a.teacher_id = tt.teacher_id
-        AND a.school_id  = $1
-        AND a.date       = $3
-        AND LOWER(a.subject) = LOWER(tt.subject)
-        AND (
-          LOWER(a.class_names) = LOWER(tt.class_names)
-          OR LOWER(a.class_names) LIKE LOWER(tt.class_names || ',%')
-          OR LOWER(a.class_names) LIKE LOWER('%,' || tt.class_names)
-          OR LOWER(a.class_names) LIKE LOWER('%,' || tt.class_names || ',%')
-        )
-      WHERE tt.school_id = $1 AND tt.day_of_week = $2
-      ORDER BY tt.start_time, tt.class_names
-    `, [req.schoolId, dayOfWeek, today, nowTime]);
+          WHEN an.attendance_id IS NOT NULL THEN 'occupied'
+          ELSE 'vacant'
+        END                                                AS status,
+        (an.class_names IS NOT NULL)                       AS in_current_period,
+        an.subject,
+        an.start_time,
+        an.end_time,
+        an.teacher_name,
+        an.submitted_at
+      FROM all_classrooms ac
+      LEFT JOIN active_now an ON an.class_names = ac.class_names
+      ORDER BY
+        CASE
+          WHEN an.attendance_id IS NOT NULL THEN 1
+          WHEN an.class_names   IS NOT NULL THEN 2
+          ELSE 3
+        END,
+        ac.class_names
+    `, [req.schoolId, dayOfWeek, nowTime]);
 
     res.json(rows);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 // GET /api/admin/reports/absences?from=YYYY-MM-DD&to=YYYY-MM-DD

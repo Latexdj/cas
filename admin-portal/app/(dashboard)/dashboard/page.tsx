@@ -9,14 +9,7 @@ import type { AdminStats, ClassroomStatus, TeacherAttendanceSummary } from '@/ty
 
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
-const statusCfg: Record<ClassroomStatus['status'], { bg: string; border: string; dot: string; label: string }> = {
-  present:    { bg: '#F0FDF4', border: '#16A34A', dot: '#16A34A', label: 'Present'    },
-  in_session: { bg: '#FFFBEB', border: '#D97706', dot: '#D97706', label: 'In Session' },
-  absent:     { bg: '#FEF2F2', border: '#DC2626', dot: '#DC2626', label: 'Absent'     },
-  upcoming:   { bg: '#F8FAFC', border: '#CBD5E1', dot: '#94A3B8', label: 'Upcoming'   },
-};
-
-const legendStatuses = ['present', 'in_session', 'upcoming'] as const;
+type OccupancyFilter = 'all' | 'occupied' | 'vacant' | 'current';
 
 function attendanceStatus(pct: number | null): { label: string; color: string; bg: string } {
   if (pct === null) return { label: 'No Data',         color: '#94A3B8', bg: '#F8FAFC' };
@@ -26,57 +19,44 @@ function attendanceStatus(pct: number | null): { label: string; color: string; b
   return               { label: 'Critical',        color: '#DC2626', bg: '#FEF2F2' };
 }
 
+function cardCfg(row: ClassroomStatus) {
+  if (row.status === 'occupied')
+    return { bg: '#F0FDF4', border: '#16A34A', dot: '#16A34A', label: 'OCCUPIED' };
+  if (row.in_current_period)
+    return { bg: '#FFFBEB', border: '#F59E0B', dot: '#D97706', label: 'SCHEDULED' };
+  return   { bg: '#F8FAFC', border: '#E2E8F0', dot: '#CBD5E1', label: 'FREE' };
+}
+
 // ── sub-components ───────────────────────────────────────────────────────────
 
 function ClassroomCard({ row }: { row: ClassroomStatus }) {
-  const cfg = statusCfg[row.status];
+  const cfg = cardCfg(row);
   return (
     <div
-      className="rounded-xl p-4 relative overflow-hidden"
+      className="rounded-xl p-4"
       style={{ backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`, borderLeft: `4px solid ${cfg.border}` }}
     >
-      {/* status dot */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: cfg.dot }}>
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="text-xs font-bold uppercase tracking-wide" style={{ color: cfg.dot }}>
           {cfg.label}
         </span>
         <span
-          className="inline-block w-2.5 h-2.5 rounded-full"
+          className="w-2 h-2 rounded-full flex-shrink-0"
           style={{
             backgroundColor: cfg.dot,
-            boxShadow: row.status === 'in_session' ? `0 0 0 3px ${cfg.dot}30` : undefined,
+            boxShadow: row.status === 'occupied' ? `0 0 0 3px ${cfg.dot}30` : undefined,
           }}
         />
       </div>
 
-      <p className="text-base font-bold mb-0.5" style={{ color: '#0F172A' }}>{row.class_names}</p>
-      <p className="text-sm font-medium" style={{ color: '#475569' }}>{row.subject}</p>
-      <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>{row.teacher_name}</p>
-      <p className="text-xs font-mono mt-0.5" style={{ color: '#94A3B8' }}>
-        {row.start_time}–{row.end_time}
-      </p>
-
-      {row.status === 'present' && row.location_verified !== null && (
-        <span
-          className="absolute bottom-3 right-3 text-xs font-semibold"
-          style={{ color: row.location_verified ? '#16A34A' : '#DC2626' }}
-        >
-          {row.location_verified ? '✓ GPS' : '✗ GPS'}
-        </span>
+      <p className="text-base font-bold mb-1 leading-tight" style={{ color: '#0F172A' }}>{row.class_name}</p>
+      <p className="text-sm" style={{ color: '#475569' }}>{row.subject ?? '—'}</p>
+      <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>{row.teacher_name ?? '—'}</p>
+      {row.start_time && row.end_time && (
+        <p className="text-xs font-mono mt-0.5" style={{ color: '#94A3B8' }}>
+          {row.start_time}–{row.end_time}
+        </p>
       )}
-    </div>
-  );
-}
-
-function Legend() {
-  return (
-    <div className="flex flex-wrap gap-4 mb-4">
-      {legendStatuses.map(key => (
-        <div key={key} className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: statusCfg[key].dot }} />
-          <span className="text-xs font-medium" style={{ color: '#64748B' }}>{statusCfg[key].label}</span>
-        </div>
-      ))}
     </div>
   );
 }
@@ -89,6 +69,7 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState<TeacherAttendanceSummary[]>([]);
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [filter,  setFilter]  = useState<OccupancyFilter>('all');
 
   const load = useCallback(async () => {
     try {
@@ -132,11 +113,18 @@ export default function DashboardPage() {
 
   const today = DAYS[new Date().getDay()];
 
-  // counts by status for the grid header
-  const counts = classes.reduce<Record<string, number>>((acc, r) => {
-    acc[r.status] = (acc[r.status] || 0) + 1;
-    return acc;
-  }, {});
+  // classroom occupancy stats
+  const totalClassrooms   = classes.length;
+  const occupiedCount     = classes.filter(r => r.status === 'occupied').length;
+  const vacantCount       = classes.filter(r => r.status === 'vacant').length;
+  const currentPeriodCount = classes.filter(r => r.in_current_period).length;
+
+  const filteredClasses = classes.filter(r => {
+    if (filter === 'occupied') return r.status === 'occupied';
+    if (filter === 'vacant')   return r.status === 'vacant';
+    if (filter === 'current')  return r.in_current_period;
+    return true;
+  });
 
   // school-wide totals for the summary footer
   const totals = summary.reduce(
@@ -151,6 +139,10 @@ export default function DashboardPage() {
   const schoolPct = totals.scheduled > 0
     ? Math.round(100 * totals.present / totals.scheduled)
     : null;
+
+  const filterLabels: Record<OccupancyFilter, string> = {
+    all: 'All', occupied: 'Occupied', vacant: 'Vacant', current: 'Current Period',
+  };
 
   return (
     <div className="space-y-8">
@@ -178,69 +170,66 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── classroom status visualization ── */}
+      {/* ── classroom occupancy ── */}
       <section>
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>
-            Today&apos;s Classroom Status
+            Classroom Occupancy
           </h2>
-          <div className="flex gap-3 text-xs" style={{ color: '#94A3B8' }}>
-            {counts.present    ? <span><strong style={{ color: '#16A34A' }}>{counts.present}</strong> present</span>    : null}
-            {counts.in_session ? <span><strong style={{ color: '#D97706' }}>{counts.in_session}</strong> in session</span> : null}
-            {counts.upcoming   ? <span><strong style={{ color: '#94A3B8' }}>{counts.upcoming}</strong> upcoming</span>  : null}
+          <p className="text-xs" style={{ color: '#94A3B8' }}>Live · updates every 60 s</p>
+        </div>
+
+        {/* occupancy stats bar */}
+        <div className="grid grid-cols-4 gap-3 mb-4">
+          <div className="rounded-xl p-4 text-center bg-white" style={{ border: '1px solid #F1F5F9' }}>
+            <p className="text-2xl font-bold" style={{ color: '#0F172A' }}>{totalClassrooms}</p>
+            <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>Total</p>
+          </div>
+          <div className="rounded-xl p-4 text-center" style={{ border: '1px solid #BBF7D0', backgroundColor: '#F0FDF4' }}>
+            <p className="text-2xl font-bold" style={{ color: '#16A34A' }}>{occupiedCount}</p>
+            <p className="text-xs mt-0.5" style={{ color: '#16A34A' }}>Occupied</p>
+          </div>
+          <div className="rounded-xl p-4 text-center" style={{ border: '1px solid #FCA5A5', backgroundColor: '#FEF2F2' }}>
+            <p className="text-2xl font-bold" style={{ color: '#DC2626' }}>{vacantCount}</p>
+            <p className="text-xs mt-0.5" style={{ color: '#DC2626' }}>Vacant</p>
+          </div>
+          <div className="rounded-xl p-4 text-center" style={{ border: '1px solid #BFDBFE', backgroundColor: '#EFF6FF' }}>
+            <p className="text-2xl font-bold" style={{ color: '#2563EB' }}>{currentPeriodCount}</p>
+            <p className="text-xs mt-0.5" style={{ color: '#2563EB' }}>Current Period</p>
           </div>
         </div>
 
-        <Legend />
+        {/* filter buttons */}
+        <div className="flex gap-2 mb-4">
+          {(['all', 'occupied', 'vacant', 'current'] as OccupancyFilter[]).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className="px-4 py-1.5 rounded-full text-xs font-semibold transition-colors"
+              style={{
+                backgroundColor: filter === f ? '#0F172A' : '#F1F5F9',
+                color:           filter === f ? '#FFFFFF' : '#64748B',
+              }}
+            >
+              {filterLabels[f]}
+            </button>
+          ))}
+        </div>
 
-        {classes.filter(r => r.status !== 'absent').length === 0 ? (
+        {/* card grid */}
+        {classes.length === 0 ? (
           <div className="bg-white rounded-xl p-8 text-center" style={{ border: '1px solid #F1F5F9' }}>
-            <p className="text-sm" style={{ color: '#94A3B8' }}>No timetable slots for today.</p>
+            <p className="text-sm" style={{ color: '#94A3B8' }}>No classrooms found in the timetable.</p>
+          </div>
+        ) : filteredClasses.length === 0 ? (
+          <div className="bg-white rounded-xl p-8 text-center" style={{ border: '1px solid #F1F5F9' }}>
+            <p className="text-sm" style={{ color: '#94A3B8' }}>No classrooms match this filter.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {[...classes]
-              .filter(r => r.status !== 'absent')
-              .sort((a, b) => {
-                const order = { in_session: 0, present: 1, upcoming: 2 };
-                return (order[a.status as keyof typeof order] ?? 9) - (order[b.status as keyof typeof order] ?? 9);
-              })
-              .map(row => <ClassroomCard key={row.slot_id} row={row} />)
-            }
-          </div>
-        )}
-
-        {/* ── today's absences table ── */}
-        {classes.filter(r => r.status === 'absent').length > 0 && (
-          <div className="mt-5">
-            <h3 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#DC2626' }}>
-              Today&apos;s Absences ({classes.filter(r => r.status === 'absent').length})
-            </h3>
-            <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #FCA5A5', boxShadow: '0 1px 4px rgba(220,38,38,0.06)' }}>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #FEE2E2', backgroundColor: '#FEF2F2' }}>
-                    {['Class', 'Subject', 'Teacher', 'Scheduled Time'].map(h => (
-                      <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#DC2626' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {classes
-                    .filter(r => r.status === 'absent')
-                    .sort((a, b) => a.start_time.localeCompare(b.start_time))
-                    .map((row, i, arr) => (
-                      <tr key={row.slot_id} style={{ borderBottom: i < arr.length - 1 ? '1px solid #FEF2F2' : 'none' }}>
-                        <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{row.class_names}</td>
-                        <td className="px-4 py-3" style={{ color: '#475569' }}>{row.subject}</td>
-                        <td className="px-4 py-3" style={{ color: '#475569' }}>{row.teacher_name}</td>
-                        <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{row.start_time}–{row.end_time}</td>
-                      </tr>
-                    ))
-                  }
-                </tbody>
-              </table>
-            </div>
+            {filteredClasses.map(row => (
+              <ClassroomCard key={row.class_name} row={row} />
+            ))}
           </div>
         )}
       </section>

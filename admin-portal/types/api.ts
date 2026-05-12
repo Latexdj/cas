@@ -179,14 +179,12 @@ export interface TeacherAttendanceSummary {
 }
 
 export interface ClassroomStatus {
-  slot_id: string;
-  class_names: string;
-  subject: string;
-  start_time: string;
-  end_time: string;
-  teacher_name: string;
-  teacher_id: string;
-  status: 'present' | 'absent' | 'in_session' | 'upcoming';
+  class_name: string;
+  status: 'occupied' | 'vacant';
+  in_current_period: boolean;
+  subject: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  teacher_name: string | null;
   submitted_at: string | null;
-  location_verified: boolean | null;
 }
