@@ -39,6 +39,28 @@ async function runAbsenceCheck(schoolId) {
 
   console.log(`[AbsenceCheck] school=${schoolId} date=${today} day=${dayOfWeek} time=${now}`);
 
+  // Skip entirely if today is a school holiday or event
+  const { rows: calRows } = await pool.query(
+    `SELECT name, type FROM school_calendar WHERE school_id = $1 AND date = $2 LIMIT 1`,
+    [schoolId, today]
+  );
+  if (calRows.length) {
+    console.log(`[AbsenceCheck] Skipping — ${calRows[0].type}: "${calRows[0].name}"`);
+    return { date: today, schoolId, newAbsences: 0, skipped: calRows[0].name };
+  }
+
+  // Fetch approved teacher excuses covering today
+  const { rows: excuseRows } = await pool.query(
+    `SELECT DISTINCT teacher_id FROM teacher_excuses
+     WHERE school_id = $1 AND status = 'Approved'
+       AND date_from <= $2 AND date_to >= $2`,
+    [schoolId, today]
+  );
+  const excusedTeacherIds = new Set(excuseRows.map(r => r.teacher_id));
+  if (excusedTeacherIds.size) {
+    console.log(`[AbsenceCheck] ${excusedTeacherIds.size} teacher(s) excused today`);
+  }
+
   const { rows: lessons } = await pool.query(`
     SELECT
       tt.id       AS slot_id,
@@ -60,6 +82,12 @@ async function runAbsenceCheck(schoolId) {
 
   for (const lesson of lessons) {
     try {
+      // Skip if this teacher has an approved excuse for today
+      if (excusedTeacherIds.has(lesson.teacher_id)) {
+        console.log(`[AbsenceCheck] Excused: ${lesson.teacher_name}`);
+        continue;
+      }
+
       const present = await hasAttendance(schoolId, lesson.teacher_id, lesson.subject, lesson.class_name, today);
 
       if (present) continue;

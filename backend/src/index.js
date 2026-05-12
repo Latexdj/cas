@@ -18,6 +18,8 @@ const remedialRoutes = require('./routes/remedial');
 const adminRoutes = require('./routes/admin');
 const studentRoutes = require('./routes/students');
 const studentAttendanceRoutes = require('./routes/student-attendance');
+const schoolCalendarRoutes = require('./routes/school-calendar');
+const teacherExcusesRoutes = require('./routes/teacher-excuses');
 const { startAbsenceCheckJob } = require('./jobs/absenceCheck');
 
 const app = express();
@@ -43,6 +45,8 @@ app.use('/api/remedial', remedialRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/student-attendance', studentAttendanceRoutes);
+app.use('/api/school-calendar', schoolCalendarRoutes);
+app.use('/api/teacher-excuses', teacherExcusesRoutes);
 
 app.use(errorHandler);
 

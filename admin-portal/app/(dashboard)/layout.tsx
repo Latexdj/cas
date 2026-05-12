@@ -16,6 +16,7 @@ const pageTitles: Record<string, string> = {
   '/timetable':          'Timetable',
   '/academic-years':     'Academic Years',
   '/curriculum':         'Curriculum',
+  '/school-calendar':    'School Calendar',
   '/locations':          'Locations',
   '/settings':           'Settings',
 };

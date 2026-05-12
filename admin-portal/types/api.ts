@@ -135,6 +135,29 @@ export interface StudentAttendanceRecord {
   class_name: string;
 }
 
+export interface SchoolCalendarEntry {
+  id: string;
+  date: string;
+  name: string;
+  type: 'Holiday' | 'School Event' | 'Closed Day';
+  notes: string | null;
+  created_at: string;
+}
+
+export interface TeacherExcuse {
+  id: string;
+  teacher_id: string;
+  teacher_name: string;
+  date_from: string;
+  date_to: string;
+  type: 'Official Duty' | 'Permission' | 'Sick Leave' | 'Other';
+  reason: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  approved_by_name: string | null;
+  approved_at: string | null;
+  created_at: string;
+}
+
 export interface AdminStats {
   today_attendance: number;
   today_absences: number;
