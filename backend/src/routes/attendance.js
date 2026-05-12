@@ -30,8 +30,8 @@ router.post('/submit', async (req, res, next) => {
       academicYearId, semester, photoSizeKb,
     } = req.body;
 
-    const missing = ['teacherId','subject','classNames','periods','imageBase64','topic'].filter(f => !req.body[f]);
-    if (missing.length) return res.status(400).json({ error: `Missing: ${missing.join(', ')}` });
+    const missing = ['teacherId','subject','classNames','periods','imageBase64','topic','gpsCoordinates','locationName'].filter(f => !req.body[f]);
+    if (missing.length) return res.status(400).json({ error: `Missing required fields: ${missing.join(', ')}` });
 
     if (req.user.role === 'teacher' && req.user.id !== teacherId) {
       return res.status(403).json({ error: 'You can only submit attendance for yourself' });
@@ -58,27 +58,30 @@ router.post('/submit', async (req, res, next) => {
       return res.status(409).json({ error: `Attendance already recorded for: ${overlap.join(', ')} today` });
     }
 
-    // GPS / location verification
+    // GPS / location verification — both required
     let locationId = null, locationVerified = false, locationMsg = 'Location not verified';
-    if (locationName && locationName !== 'Not specified') {
-      const { rows: locRows } = await pool.query(
-        `SELECT * FROM locations WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
-        [req.schoolId, locationName]
-      );
-      if (locRows.length) {
-        locationId = locRows[0].id;
-        if (gpsCoordinates) {
-          const [lat, lng] = gpsCoordinates.split(',').map(Number);
-          if (!isNaN(lat) && !isNaN(lng)) {
-            const result = verifyLocation(locRows[0], lat, lng);
-            if (!result.valid) {
-              return res.status(400).json({ error: `Location verification failed: ${result.message}` });
-            }
-            locationVerified = result.verified;
-            locationMsg      = result.message;
-          }
-        }
+    const { rows: locRows } = await pool.query(
+      `SELECT * FROM locations WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
+      [req.schoolId, locationName]
+    );
+    if (!locRows.length) {
+      return res.status(400).json({ error: `Location "${locationName}" not found. Please select a valid classroom location.` });
+    }
+    locationId = locRows[0].id;
+    if (locRows[0].has_coordinates) {
+      const [lat, lng] = gpsCoordinates.split(',').map(Number);
+      if (isNaN(lat) || isNaN(lng)) {
+        return res.status(400).json({ error: 'Invalid GPS coordinates. Please refresh your location and try again.' });
       }
+      const result = verifyLocation(locRows[0], lat, lng);
+      if (!result.valid) {
+        return res.status(400).json({ error: `You do not appear to be in ${locationName}. ${result.message}` });
+      }
+      locationVerified = result.verified;
+      locationMsg      = result.message;
+    } else {
+      locationVerified = false;
+      locationMsg      = 'Location recorded (no GPS reference configured for this location).';
     }
 
     // Upload photo

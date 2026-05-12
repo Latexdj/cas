@@ -38,6 +38,8 @@ export default function SubmitScreen() {
   const [submitting,    setSubmitting]    = useState(false);
   const [showLocPicker, setShowLocPicker] = useState(false);
   const [loading,       setLoading]       = useState(true);
+  const [gpsAcquiring,  setGpsAcquiring]  = useState(true);
+  const [gpsError,      setGpsError]      = useState('');
 
   const [showCamera,    setShowCamera]    = useState(false);
   const [facing,        setFacing]        = useState<'back' | 'front'>('front');
@@ -74,20 +76,41 @@ export default function SubmitScreen() {
   }
 
   async function grabGps() {
+    setGpsAcquiring(true);
+    setGpsError('');
     if (IS_WEB) {
-      if (!navigator.geolocation) return;
+      if (!navigator.geolocation) {
+        setGpsError('GPS not available in this browser.');
+        setGpsAcquiring(false);
+        return;
+      }
       navigator.geolocation.getCurrentPosition(
-        (pos) => setGps(`${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`),
-        () => {}
+        (pos) => {
+          setGps(`${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`);
+          setGpsAcquiring(false);
+        },
+        () => {
+          setGpsError('GPS unavailable. Tap Refresh to retry.');
+          setGpsAcquiring(false);
+        },
+        { timeout: 15000 }
       );
       return;
     }
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
+      if (status !== 'granted') {
+        setGpsError('GPS permission denied. Enable location access in your device settings.');
+        setGpsAcquiring(false);
+        return;
+      }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       setGps(`${loc.coords.latitude.toFixed(6)},${loc.coords.longitude.toFixed(6)}`);
-    } catch {}
+      setGpsAcquiring(false);
+    } catch {
+      setGpsError('GPS unavailable. Tap Refresh to retry.');
+      setGpsAcquiring(false);
+    }
   }
 
   function isSlotSubmitted(slot: TimetableSlot) {
@@ -148,6 +171,18 @@ export default function SubmitScreen() {
     }
     if (!topic.trim()) {
       Alert.alert('Topic required', 'Please enter the lesson topic.');
+      return;
+    }
+    if (!locationName) {
+      Alert.alert('Location required', 'Please select your classroom location before submitting.');
+      return;
+    }
+    if (gpsAcquiring) {
+      Alert.alert('GPS acquiring', 'Your GPS location is still being determined. Please wait a moment.');
+      return;
+    }
+    if (!gps) {
+      Alert.alert('GPS required', gpsError || 'GPS coordinates are required. Tap Refresh to retry.');
       return;
     }
     if (!photoBase64) {
@@ -302,20 +337,32 @@ export default function SubmitScreen() {
           />
 
           {/* Location picker */}
-          <Text style={styles.fieldLabel}>Location</Text>
-          <TouchableOpacity style={styles.picker} onPress={() => setShowLocPicker(true)}>
-            <Text style={locationName ? styles.pickerValue : styles.pickerPlaceholder}>
-              {locationName || 'Select classroom location'}
-            </Text>
-            <Text style={styles.pickerArrow}>▾</Text>
-          </TouchableOpacity>
+          <Text style={styles.fieldLabel}>Location *</Text>
+          {locations.length === 0 ? (
+            <View style={styles.gpsErrorBox}>
+              <Text style={styles.gpsErrorText}>No classroom locations configured. Ask your administrator to add locations.</Text>
+            </View>
+          ) : (
+            <TouchableOpacity style={[styles.picker, !locationName && styles.pickerRequired]} onPress={() => setShowLocPicker(true)}>
+              <Text style={locationName ? styles.pickerValue : styles.pickerPlaceholder}>
+                {locationName || 'Select classroom location'}
+              </Text>
+              <Text style={styles.pickerArrow}>▾</Text>
+            </TouchableOpacity>
+          )}
 
           {/* GPS */}
-          <Text style={styles.fieldLabel}>GPS</Text>
-          <View style={styles.gpsRow}>
-            <Text style={gps ? styles.gpsValue : styles.gpsMuted}>{gps || 'Acquiring location…'}</Text>
-            <TouchableOpacity onPress={grabGps}>
-              <Text style={[styles.gpsRefresh, { color: Colors.primary }]}>↻ Refresh</Text>
+          <Text style={styles.fieldLabel}>GPS Coordinates *</Text>
+          <View style={[styles.gpsRow, (!gps && !gpsAcquiring) && styles.gpsRowError]}>
+            {gpsAcquiring ? (
+              <Text style={styles.gpsMuted}>Acquiring your location…</Text>
+            ) : gps ? (
+              <Text style={styles.gpsValue}>{gps}</Text>
+            ) : (
+              <Text style={styles.gpsErrorText}>{gpsError || 'GPS unavailable'}</Text>
+            )}
+            <TouchableOpacity onPress={grabGps} disabled={gpsAcquiring}>
+              <Text style={[styles.gpsRefresh, { color: gpsAcquiring ? '#C0B8AF' : Colors.primary }]}>↻ Refresh</Text>
             </TouchableOpacity>
           </View>
 
@@ -353,14 +400,19 @@ export default function SubmitScreen() {
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Select Location</Text>
             <FlatList
-              data={[{ id: '', name: 'Not specified', type: '', has_coordinates: false }, ...locations]}
-              keyExtractor={(l) => l.id || 'none'}
+              data={locations}
+              keyExtractor={(l) => l.id}
               renderItem={({ item }) => (
                 <TouchableOpacity style={styles.locItem} onPress={() => {
-                  setLocationName(item.name === 'Not specified' ? '' : item.name);
+                  setLocationName(item.name);
                   setShowLocPicker(false);
                 }}>
-                  <Text style={styles.locItemText}>{item.name}</Text>
+                  <View style={styles.locItemRow}>
+                    <Text style={styles.locItemText}>{item.name}</Text>
+                    {item.has_coordinates && (
+                      <Text style={styles.locItemGpsBadge}>GPS</Text>
+                    )}
+                  </View>
                 </TouchableOpacity>
               )}
             />
@@ -402,12 +454,16 @@ const styles = StyleSheet.create({
   // Fields
   fieldLabel:            { fontSize: 13, fontWeight: '600', color: '#1C1208', marginBottom: 6 },
   picker:                { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
+  pickerRequired:        { borderColor: '#E8A020' },
   pickerValue:           { fontSize: 15, color: '#1C1208' },
   pickerPlaceholder:     { fontSize: 15, color: '#8C7E6E' },
   pickerArrow:           { color: '#8C7E6E', fontSize: 16 },
   gpsRow:                { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14 },
+  gpsRowError:           { borderColor: '#E8A020', backgroundColor: '#FFFBF2' },
   gpsValue:              { fontSize: 13, color: '#1C1208', flex: 1 },
   gpsMuted:              { fontSize: 13, color: '#8C7E6E', flex: 1, fontStyle: 'italic' },
+  gpsErrorText:          { fontSize: 13, color: '#B45309', flex: 1 },
+  gpsErrorBox:           { backgroundColor: '#FFFBF2', borderWidth: 1, borderColor: '#E8A020', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14 },
   gpsRefresh:            { fontSize: 13, fontWeight: '600' },
   // Photo
   photoPreviewWrap:      { marginBottom: 20 },
@@ -435,5 +491,7 @@ const styles = StyleSheet.create({
   modalSheet:            { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', padding: 20 },
   modalTitle:            { fontSize: 17, fontWeight: '700', color: '#1C1208', marginBottom: 16 },
   locItem:               { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#E2D9CC' },
-  locItemText:           { fontSize: 15, color: '#1C1208' },
+  locItemRow:            { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  locItemText:           { fontSize: 15, color: '#1C1208', flex: 1 },
+  locItemGpsBadge:       { fontSize: 11, fontWeight: '700', color: '#2D7A4F', backgroundColor: '#E4F4EB', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
 });
