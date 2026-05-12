@@ -54,11 +54,11 @@ export default function LoginScreen() {
         <View style={styles.card}>
           <Text style={styles.cardHeading}>Sign in</Text>
           <Input
-            label="Username"
-            placeholder="Your registered name"
+            label="Teacher ID"
+            placeholder="e.g. T001"
             value={username}
-            onChangeText={setUsername}
-            autoCapitalize="words"
+            onChangeText={t => setUsername(t.toUpperCase())}
+            autoCapitalize="characters"
             autoCorrect={false}
           />
           <Input

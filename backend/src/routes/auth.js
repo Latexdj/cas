@@ -77,16 +77,16 @@ router.post('/login', async (req, res, next) => {
 
       const isAdminLogin = type === 'admin';
       const { rows } = await pool.query(
-        `SELECT id, name, pin_hash, is_admin
+        `SELECT id, name, teacher_code, pin_hash, is_admin
          FROM teachers
          WHERE school_id = $1
-           AND LOWER(name) = LOWER($2)
+           AND UPPER(teacher_code) = UPPER($2)
            AND status = 'Active'
            ${isAdminLogin ? 'AND is_admin = true' : ''}`,
         [schoolId, username.trim()]
       );
       if (!rows.length)
-        return res.status(401).json({ error: 'Invalid username or password' });
+        return res.status(401).json({ error: 'Invalid Teacher ID or password' });
 
       const teacher = rows[0];
       const valid   = await bcrypt.compare(String(password), teacher.pin_hash);

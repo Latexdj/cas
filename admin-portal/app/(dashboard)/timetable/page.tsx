@@ -200,8 +200,8 @@ export default function TimetablePage() {
               ))}
             </div>
             <ul className="text-xs text-slate-400 space-y-0.5 mt-1">
-              <li>• <strong className="text-slate-600">Column A</strong> accepts a Teacher ID <span className="text-green-600">(recommended)</span> or a teacher name</li>
-              <li>• Using IDs avoids issues with duplicate names — download the template to see your teachers&apos; IDs</li>
+              <li>• <strong className="text-slate-600">Column A</strong> accepts a Teacher ID like <code>T001</code> <span className="text-green-600">(recommended)</span> or a teacher name</li>
+              <li>• IDs are unambiguous even when two teachers share the same name — download the template to get a pre-filled list</li>
               <li>• Day: Monday/Tuesday… or 1–7 &nbsp;·&nbsp; Times: HH:MM or Excel time cells</li>
               <li>• Classes: comma-separated (e.g. <code>1A, 1B</code>). New classes are auto-created.</li>
             </ul>

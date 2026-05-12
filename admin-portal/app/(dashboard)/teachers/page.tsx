@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import type { Teacher } from '@/types/api';
 
 const EMPTY: Partial<Teacher & { password: string }> = {
-  name: '', email: '', phone: '', department: '', status: 'Active', is_admin: false, notes: '', password: '',
+  teacher_code: '', name: '', email: '', phone: '', department: '', status: 'Active', is_admin: false, notes: '', password: '',
 };
 
 export default function TeachersPage() {
@@ -41,8 +41,8 @@ export default function TeachersPage() {
     setForm(EMPTY); setError(''); setEditId(null); setModal('create');
   }
   function openEdit(t: Teacher) {
-    setForm({ name: t.name, email: t.email ?? '', phone: t.phone ?? '', department: t.department ?? '',
-      status: t.status, is_admin: t.is_admin, notes: t.notes ?? '', password: '' });
+    setForm({ teacher_code: t.teacher_code, name: t.name, email: t.email ?? '', phone: t.phone ?? '',
+      department: t.department ?? '', status: t.status, is_admin: t.is_admin, notes: t.notes ?? '', password: '' });
     setEditId(t.id); setError(''); setModal('edit');
   }
 
@@ -95,6 +95,7 @@ export default function TeachersPage() {
 
   const filtered = teachers.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase()) ||
+    t.teacher_code.toLowerCase().includes(search.toLowerCase()) ||
     (t.email ?? '').toLowerCase().includes(search.toLowerCase()) ||
     (t.department ?? '').toLowerCase().includes(search.toLowerCase())
   );
@@ -120,7 +121,7 @@ export default function TeachersPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {['Name','Email','Phone','Department','Periods','Role','Status',''].map(h => (
+                {['ID','Name','Email','Dept','Periods','Role','Status',''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -128,9 +129,11 @@ export default function TeachersPage() {
             <tbody className="divide-y divide-gray-50">
               {filtered.map(t => (
                 <tr key={t.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <span className="font-mono font-bold text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5 text-xs">{t.teacher_code}</span>
+                  </td>
                   <td className="px-4 py-3 font-medium text-gray-900">{t.name}</td>
                   <td className="px-4 py-3 text-gray-600">{t.email ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{t.phone ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{t.department ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{t.total_periods}</td>
                   <td className="px-4 py-3 text-gray-600">{t.is_admin ? 'Admin' : 'Teacher'}</td>
@@ -143,7 +146,7 @@ export default function TeachersPage() {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No teachers found.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No teachers found.</td></tr>
               )}
             </tbody>
           </table>
@@ -198,7 +201,24 @@ export default function TeachersPage() {
 
       <Modal open={modal !== null} onClose={() => setModal(null)} title={modal === 'create' ? 'Add Teacher' : 'Edit Teacher'} maxWidth="max-w-lg">
         <div className="space-y-3">
-          <Input label="Full Name *" value={form.name ?? ''} onChange={field('name')} required />
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Teacher ID {modal === 'create' && <span className="text-slate-400 font-normal">(auto if blank)</span>}
+              </label>
+              <input
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-bold text-green-700 uppercase focus:outline-none focus:ring-2 focus:ring-green-600"
+                value={form.teacher_code ?? ''}
+                onChange={e => setForm(f => ({ ...f, teacher_code: e.target.value.toUpperCase() }))}
+                placeholder="e.g. T001"
+                maxLength={10}
+              />
+              <p className="mt-1 text-xs text-slate-400">Used to log in to the teacher app.</p>
+            </div>
+            <div className="col-span-2">
+              <Input label="Full Name *" value={form.name ?? ''} onChange={field('name')} required />
+            </div>
+          </div>
           <Input label="Email" type="email" value={form.email ?? ''} onChange={field('email')} />
           <Input label="Phone" value={form.phone ?? ''} onChange={field('phone')} />
           <Input label="Department" value={form.department ?? ''} onChange={field('department')} />

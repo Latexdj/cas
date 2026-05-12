@@ -91,19 +91,19 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/** Download a CSV template pre-filled with the school's teacher IDs and names */
+/** Download a CSV template pre-filled with the school's teacher codes and names */
 router.get('/upload/template', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name FROM teachers WHERE school_id = $1 AND status = 'Active' ORDER BY name`,
+      `SELECT teacher_code, name FROM teachers WHERE school_id = $1 AND status = 'Active' ORDER BY teacher_code`,
       [req.schoolId]
     );
     const header = 'Teacher ID,Teacher Name,Day,Start Time,End Time,Subject,Classes';
-    const examples = rows.length
-      ? rows.slice(0, 5).map(t => `${t.id},${t.name},Monday,08:00,09:00,SUBJECT NAME,"1A, 1B"`)
-      : ['<paste-teacher-id-here>,Teacher Name,Monday,08:00,09:00,SUBJECT NAME,"1A, 1B"'];
-    const note = '# Tip: Column A accepts either the Teacher ID (recommended) or the Teacher Name.';
-    const csv = [note, header, ...examples].join('\n');
+    const note   = '# Column A = Teacher ID (e.g. T001). Column B is for reference only and is ignored on import.';
+    const lines  = rows.length
+      ? rows.map(t => `${t.teacher_code},${t.name},Monday,08:00,09:00,SUBJECT NAME,"1A, 1B"`)
+      : ['T001,Teacher Name,Monday,08:00,09:00,SUBJECT NAME,"1A, 1B"'];
+    const csv = [note, header, ...lines].join('\n');
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="timetable_template.csv"');
     res.send(csv);
@@ -129,10 +129,11 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
 
     // Load teachers for this school
     const { rows: teachers } = await pool.query(
-      `SELECT id, LOWER(TRIM(name)) AS name_lower FROM teachers WHERE school_id = $1`,
+      `SELECT id, UPPER(TRIM(teacher_code)) AS code, LOWER(TRIM(name)) AS name_lower FROM teachers WHERE school_id = $1`,
       [req.schoolId]
     );
-    const teacherById   = new Map(teachers.map(t => [t.id, t.id]));          // UUID → UUID (existence check)
+    const teacherByCode  = new Map(teachers.map(t => [t.code, t.id]));       // T001 → UUID
+    const teacherById    = new Map(teachers.map(t => [t.id,   t.id]));       // UUID → UUID
     const teacherIdsByName = new Map();
     for (const t of teachers) {
       if (!teacherIdsByName.has(t.name_lower)) teacherIdsByName.set(t.name_lower, []);
@@ -145,16 +146,20 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
 
     function resolveTeacher(raw) {
       const val = String(raw ?? '').trim();
+      // 1. Short teacher code (T001, T002…) — preferred
+      const byCode = teacherByCode.get(val.toUpperCase());
+      if (byCode) return { id: byCode };
+      // 2. Full UUID — backward compat
       if (UUID_RE.test(val)) {
-        return teacherById.has(val)
-          ? { id: val }
+        return teacherById.has(val) ? { id: val }
           : { error: `Teacher ID "${val}" not found in this school` };
       }
+      // 3. Name fallback — warn about duplicates
       const lower = val.toLowerCase();
       if (ambiguousNames.has(lower))
-        return { error: `Teacher "${val}" is ambiguous — multiple teachers share this name. Use their Teacher ID instead (download the template to see IDs).` };
+        return { error: `Teacher "${val}" is ambiguous — multiple teachers share this name. Use their Teacher ID (e.g. T001) from the template instead.` };
       const id = teacherByName.get(lower);
-      return id ? { id } : { error: `Teacher "${val}" not found — check spelling or use a Teacher ID` };
+      return id ? { id } : { error: `"${val}" not found — use the Teacher ID (e.g. T001) from the downloaded template` };
     }
 
     // Parse and validate rows

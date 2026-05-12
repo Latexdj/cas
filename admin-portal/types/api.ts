@@ -1,5 +1,6 @@
 export interface Teacher {
   id: string;
+  teacher_code: string;
   name: string;
   email: string | null;
   phone: string | null;
