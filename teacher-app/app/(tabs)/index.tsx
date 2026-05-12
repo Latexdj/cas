@@ -23,7 +23,8 @@ function UpcomingEventsSection({ events }: { events: SchoolCalendarEntry[] }) {
       <Text style={eventStyles.header}>Upcoming School Events</Text>
       {events.map(e => {
         const cfg  = EVENT_COLORS[e.type] ?? { bg: '#F0EDE8', text: Colors.muted };
-        const date = new Date(e.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+        const [ey, em, ed] = e.date.slice(0, 10).split('-').map(Number);
+        const date = new Date(ey, em - 1, ed).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
         return (
           <View key={e.id} style={eventStyles.card}>
             <View style={[eventStyles.typePill, { backgroundColor: cfg.bg }]}>

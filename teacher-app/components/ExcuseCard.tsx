@@ -10,10 +10,12 @@ interface Props {
 }
 
 export function ExcuseCard({ excuse }: Props) {
-  const fmt = (d: string) =>
-    new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const fmt = (d: string) => {
+    const [y, m, day] = d.slice(0, 10).split('-').map(Number);
+    return new Date(y, m - 1, day).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
 
-  const dateLabel = excuse.date_from === excuse.date_to
+  const dateLabel = excuse.date_from.slice(0, 10) === excuse.date_to.slice(0, 10)
     ? fmt(excuse.date_from)
     : `${fmt(excuse.date_from)} – ${fmt(excuse.date_to)}`;
 
