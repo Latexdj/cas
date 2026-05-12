@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import NetInfo from '@react-native-community/netinfo';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { Spinner } from '@/components/ui/Spinner';
 import { storage } from '@/lib/storage';
+import { offlineQueue } from '@/lib/offlineQueue';
+import { api } from '@/lib/api';
 
 function InitialLayout() {
   const { user, isLoading } = useAuth();
@@ -51,6 +54,16 @@ function InitialLayout() {
 }
 
 export default function RootLayout() {
+  // Auto-sync queued submissions whenever the device comes online
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener(state => {
+      if (state.isConnected) {
+        offlineQueue.syncAll((path, data) => api.post(path, data)).catch(() => {});
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   return (
     <ThemeProvider>
       <AuthProvider>

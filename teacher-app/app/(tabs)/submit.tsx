@@ -4,6 +4,7 @@ import {
   TouchableOpacity, View, Modal, FlatList, Image,
 } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
+import NetInfo from '@react-native-community/netinfo';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
@@ -11,6 +12,7 @@ import * as Location from 'expo-location';
 const IS_WEB = Platform.OS === 'web';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { offlineQueue } from '@/lib/offlineQueue';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useTheme } from '@/context/ThemeContext';
@@ -137,17 +139,27 @@ export default function SubmitScreen() {
     }
     setSubmitting(true);
     try {
-      await api.post('/api/attendance/submit', {
-        teacherId:    user!.id,
-        subject:      subject.trim(),
-        classNames:   classNames.trim(),
-        periods:      parseInt(periods, 10),
-        topic:        topic.trim() || undefined,
+      const netState = await NetInfo.fetch();
+      const payload = {
+        teacherId:      user!.id,
+        subject:        subject.trim(),
+        classNames:     classNames.trim(),
+        periods:        parseInt(periods, 10),
+        topic:          topic.trim() || undefined,
         gpsCoordinates: gps || undefined,
-        locationName: locationName || undefined,
-        imageBase64:  photoBase64,
-        photoSizeKb:  photoSizeKb ?? undefined,
-      });
+        locationName:   locationName || undefined,
+        imageBase64:    photoBase64,
+        photoSizeKb:    photoSizeKb ?? undefined,
+      };
+
+      if (!netState.isConnected) {
+        await offlineQueue.enqueue(payload);
+        Alert.alert('Saved Offline', 'No internet connection. Your submission has been saved and will sync automatically when you reconnect.');
+        resetForm();
+        return;
+      }
+
+      await api.post('/api/attendance/submit', payload);
       Alert.alert('✅ Submitted', 'Attendance recorded successfully.');
       resetForm();
     } catch (err: any) {
