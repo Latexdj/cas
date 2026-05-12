@@ -20,7 +20,8 @@ router.get('/stats', async (req, res, next) => {
         (SELECT COUNT(*) FROM attendance
           WHERE school_id = $2 AND date = $1)::int          AS today_attendance,
         (SELECT COUNT(*) FROM absences
-          WHERE school_id = $2 AND date = $1)::int          AS today_absences,
+          WHERE school_id = $2 AND date = $1
+            AND status != 'Excused')::int                   AS today_absences,
         (SELECT COUNT(*) FROM teachers
           WHERE school_id = $2 AND status = 'Active')::int  AS total_teachers,
         (SELECT COUNT(*) FROM attendance
@@ -214,14 +215,20 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
         t.id,
         t.name,
         COALESCE(t.department, '—') AS department,
-        COALESCE(SUM(a.periods), 0)::int        AS present_periods,
-        COUNT(DISTINCT ab.id)::int              AS absent_periods,
-        (COALESCE(SUM(a.periods), 0) + COUNT(DISTINCT ab.id))::int AS total_scheduled,
+        COALESCE(SUM(a.periods), 0)::int AS present_periods,
+        COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused')::int AS absent_periods,
+        COUNT(DISTINCT ab.id) FILTER (WHERE ab.status  = 'Excused')::int AS excused_periods,
+        (COALESCE(SUM(a.periods), 0)
+          + COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused'))::int AS total_scheduled,
         CASE
-          WHEN (COALESCE(SUM(a.periods), 0) + COUNT(DISTINCT ab.id)) = 0 THEN NULL
+          WHEN (COALESCE(SUM(a.periods), 0)
+                + COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused')) = 0 THEN NULL
           ELSE ROUND(
             100.0 * COALESCE(SUM(a.periods), 0) /
-            NULLIF(COALESCE(SUM(a.periods), 0) + COUNT(DISTINCT ab.id), 0), 1
+            NULLIF(
+              COALESCE(SUM(a.periods), 0)
+                + COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused'),
+            0), 1
           )
         END AS attendance_pct
       FROM teachers t

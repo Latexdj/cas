@@ -143,9 +143,10 @@ export default function DashboardPage() {
     (acc, r) => ({
       present:   acc.present   + r.present_periods,
       absent:    acc.absent    + r.absent_periods,
+      excused:   acc.excused   + (r.excused_periods ?? 0),
       scheduled: acc.scheduled + r.total_scheduled,
     }),
-    { present: 0, absent: 0, scheduled: 0 }
+    { present: 0, absent: 0, excused: 0, scheduled: 0 }
   );
   const schoolPct = totals.scheduled > 0
     ? Math.round(100 * totals.present / totals.scheduled)
@@ -260,7 +261,7 @@ export default function DashboardPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
-                    {['Teacher','Department','Scheduled','Present','Absent','Attendance %','Status'].map(h => (
+                    {['Teacher','Department','Scheduled','Present','Absent','Excused','Attendance %','Status'].map(h => (
                       <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
                     ))}
                   </tr>
@@ -277,6 +278,7 @@ export default function DashboardPage() {
                         <td className="px-5 py-3.5 font-mono text-center" style={{ color: '#475569' }}>{row.total_scheduled}</td>
                         <td className="px-5 py-3.5 font-mono text-center font-semibold" style={{ color: '#16A34A' }}>{row.present_periods}</td>
                         <td className="px-5 py-3.5 font-mono text-center font-semibold" style={{ color: row.absent_periods > 0 ? '#DC2626' : '#94A3B8' }}>{row.absent_periods}</td>
+                        <td className="px-5 py-3.5 font-mono text-center font-semibold" style={{ color: (row.excused_periods ?? 0) > 0 ? '#7C3AED' : '#94A3B8' }}>{row.excused_periods ?? 0}</td>
                         <td className="px-5 py-3.5 min-w-36">
                           <div className="flex items-center gap-2">
                             <div className="flex-1 h-1.5 rounded-full" style={{ backgroundColor: '#F1F5F9' }}>
@@ -308,6 +310,7 @@ export default function DashboardPage() {
                     <td className="px-5 py-3 font-mono text-center font-bold" style={{ color: '#0F172A' }}>{totals.scheduled}</td>
                     <td className="px-5 py-3 font-mono text-center font-bold" style={{ color: '#16A34A' }}>{totals.present}</td>
                     <td className="px-5 py-3 font-mono text-center font-bold" style={{ color: totals.absent > 0 ? '#DC2626' : '#94A3B8' }}>{totals.absent}</td>
+                    <td className="px-5 py-3 font-mono text-center font-bold" style={{ color: totals.excused > 0 ? '#7C3AED' : '#94A3B8' }}>{totals.excused}</td>
                     <td className="px-5 py-3">
                       {schoolPct !== null && (
                         <div className="flex items-center gap-2">

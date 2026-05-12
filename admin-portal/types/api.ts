@@ -173,6 +173,7 @@ export interface TeacherAttendanceSummary {
   department: string;
   present_periods: number;
   absent_periods: number;
+  excused_periods: number;
   total_scheduled: number;
   attendance_pct: number | null;
 }
