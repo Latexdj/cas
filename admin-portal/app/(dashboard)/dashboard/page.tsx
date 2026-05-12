@@ -49,7 +49,7 @@ function ClassroomCard({ row }: { row: ClassroomStatus }) {
         />
       </div>
 
-      <p className="text-base font-bold mb-0.5" style={{ color: '#0F172A' }}>{row.class_name}</p>
+      <p className="text-base font-bold mb-0.5" style={{ color: '#0F172A' }}>{row.class_names}</p>
       <p className="text-sm font-medium" style={{ color: '#475569' }}>{row.subject}</p>
       <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>{row.teacher_name}</p>
       <p className="text-xs font-mono mt-0.5" style={{ color: '#94A3B8' }}>
@@ -230,7 +230,7 @@ export default function DashboardPage() {
                     .sort((a, b) => a.start_time.localeCompare(b.start_time))
                     .map((row, i, arr) => (
                       <tr key={row.slot_id} style={{ borderBottom: i < arr.length - 1 ? '1px solid #FEF2F2' : 'none' }}>
-                        <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{row.class_name}</td>
+                        <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{row.class_names}</td>
                         <td className="px-4 py-3" style={{ color: '#475569' }}>{row.subject}</td>
                         <td className="px-4 py-3" style={{ color: '#475569' }}>{row.teacher_name}</td>
                         <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{row.start_time}–{row.end_time}</td>
