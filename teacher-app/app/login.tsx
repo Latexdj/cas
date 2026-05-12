@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, KeyboardAvoidingView, Platform, ScrollView,
+  KeyboardAvoidingView, Platform, ScrollView,
   StyleSheet, Text, View,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -16,6 +16,7 @@ export default function LoginScreen() {
   const [username,   setUsername]   = useState('');
   const [password,   setPassword]   = useState('');
   const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState('');
   const [schoolCode, setSchoolCode] = useState('');
 
   useEffect(() => {
@@ -24,16 +25,17 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     if (!username.trim() || !password.trim()) {
-      Alert.alert('Missing fields', 'Please enter your username and password.');
+      setError('Please enter your username and password.');
       return;
     }
+    setError('');
     setLoading(true);
     try {
       await login({ type: 'teacher', username: username.trim(), password, schoolCode });
       router.replace('/(tabs)');
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Login failed. Check your details.';
-      Alert.alert('Login Failed', msg);
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -68,6 +70,7 @@ export default function LoginScreen() {
             onChangeText={setPassword}
             secureTextEntry
           />
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
           <Button
             label="Sign In"
             onPress={handleLogin}
@@ -94,5 +97,6 @@ const styles = StyleSheet.create({
   card:        { backgroundColor: '#FFFFFF', marginHorizontal: 20, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#E2D9CC', shadowColor: '#1C1208', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
   cardHeading: { fontSize: 20, fontWeight: '800', color: '#1C1208', marginBottom: 22, letterSpacing: -0.3 },
   loginBtn:    { marginTop: 4 },
+  errorText:   { fontSize: 13, color: '#B83232', marginBottom: 10, fontWeight: '600' },
   hint:        { textAlign: 'center', fontSize: 13, color: '#8C7E6E', marginTop: 24, paddingHorizontal: 32 },
 });
