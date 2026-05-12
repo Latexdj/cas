@@ -16,6 +16,8 @@ const statusCfg: Record<ClassroomStatus['status'], { bg: string; border: string;
   upcoming:   { bg: '#F8FAFC', border: '#CBD5E1', dot: '#94A3B8', label: 'Upcoming'   },
 };
 
+const legendStatuses = ['present', 'in_session', 'upcoming'] as const;
+
 function attendanceStatus(pct: number | null): { label: string; color: string; bg: string } {
   if (pct === null) return { label: 'No Data',         color: '#94A3B8', bg: '#F8FAFC' };
   if (pct >= 90)   return { label: 'Excellent',        color: '#16A34A', bg: '#F0FDF4' };
@@ -69,10 +71,10 @@ function ClassroomCard({ row }: { row: ClassroomStatus }) {
 function Legend() {
   return (
     <div className="flex flex-wrap gap-4 mb-4">
-      {Object.entries(statusCfg).map(([key, cfg]) => (
+      {legendStatuses.map(key => (
         <div key={key} className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.dot }} />
-          <span className="text-xs font-medium" style={{ color: '#64748B' }}>{cfg.label}</span>
+          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: statusCfg[key].dot }} />
+          <span className="text-xs font-medium" style={{ color: '#64748B' }}>{statusCfg[key].label}</span>
         </div>
       ))}
     </div>
@@ -184,27 +186,60 @@ export default function DashboardPage() {
           <div className="flex gap-3 text-xs" style={{ color: '#94A3B8' }}>
             {counts.present    ? <span><strong style={{ color: '#16A34A' }}>{counts.present}</strong> present</span>    : null}
             {counts.in_session ? <span><strong style={{ color: '#D97706' }}>{counts.in_session}</strong> in session</span> : null}
-            {counts.absent     ? <span><strong style={{ color: '#DC2626' }}>{counts.absent}</strong> absent</span>     : null}
             {counts.upcoming   ? <span><strong style={{ color: '#94A3B8' }}>{counts.upcoming}</strong> upcoming</span>  : null}
           </div>
         </div>
 
         <Legend />
 
-        {classes.length === 0 ? (
+        {classes.filter(r => r.status !== 'absent').length === 0 ? (
           <div className="bg-white rounded-xl p-8 text-center" style={{ border: '1px solid #F1F5F9' }}>
             <p className="text-sm" style={{ color: '#94A3B8' }}>No timetable slots for today.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {/* absent first so they're most visible */}
             {[...classes]
+              .filter(r => r.status !== 'absent')
               .sort((a, b) => {
-                const order = { absent: 0, in_session: 1, present: 2, upcoming: 3 };
-                return (order[a.status] ?? 9) - (order[b.status] ?? 9);
+                const order = { in_session: 0, present: 1, upcoming: 2 };
+                return (order[a.status as keyof typeof order] ?? 9) - (order[b.status as keyof typeof order] ?? 9);
               })
               .map(row => <ClassroomCard key={row.slot_id} row={row} />)
             }
+          </div>
+        )}
+
+        {/* ── today's absences table ── */}
+        {classes.filter(r => r.status === 'absent').length > 0 && (
+          <div className="mt-5">
+            <h3 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#DC2626' }}>
+              Today&apos;s Absences ({classes.filter(r => r.status === 'absent').length})
+            </h3>
+            <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #FCA5A5', boxShadow: '0 1px 4px rgba(220,38,38,0.06)' }}>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #FEE2E2', backgroundColor: '#FEF2F2' }}>
+                    {['Class', 'Subject', 'Teacher', 'Scheduled Time'].map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#DC2626' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {classes
+                    .filter(r => r.status === 'absent')
+                    .sort((a, b) => a.start_time.localeCompare(b.start_time))
+                    .map((row, i, arr) => (
+                      <tr key={row.slot_id} style={{ borderBottom: i < arr.length - 1 ? '1px solid #FEF2F2' : 'none' }}>
+                        <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{row.class_name}</td>
+                        <td className="px-4 py-3" style={{ color: '#475569' }}>{row.subject}</td>
+                        <td className="px-4 py-3" style={{ color: '#475569' }}>{row.teacher_name}</td>
+                        <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{row.start_time}–{row.end_time}</td>
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </section>
