@@ -21,6 +21,13 @@ export default function TeachersPage() {
   const [error, setError]       = useState('');
   const [editId, setEditId]     = useState<string | null>(null);
 
+  // Reset PIN state
+  const [pinTarget,    setPinTarget]    = useState<Teacher | null>(null);
+  const [pinInput,     setPinInput]     = useState('');
+  const [pinResetting, setPinResetting] = useState(false);
+  const [pinError,     setPinError]     = useState('');
+  const [pinConfirmed, setPinConfirmed] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       const { data } = await api.get<Teacher[]>('/api/teachers');
@@ -60,6 +67,30 @@ export default function TeachersPage() {
     if (!confirm(`Delete teacher "${name}"? This cannot be undone.`)) return;
     await api.delete(`/api/teachers/${id}`);
     await load();
+  }
+
+  function openResetPin(t: Teacher) {
+    setPinTarget(t); setPinInput(''); setPinError(''); setPinConfirmed(null);
+  }
+
+  async function doResetPin() {
+    if (!pinTarget) return;
+    if (pinInput && !/^\d{4,8}$/.test(pinInput)) {
+      setPinError('PIN must be 4–8 digits (numbers only).'); return;
+    }
+    setPinResetting(true); setPinError('');
+    try {
+      const { data } = await api.patch<{ pin: string }>(
+        `/api/admin/teachers/${pinTarget.id}/reset-pin`,
+        pinInput ? { pin: pinInput } : {}
+      );
+      setPinConfirmed(data.pin);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setPinError(msg ?? 'Failed to reset PIN.');
+    } finally {
+      setPinResetting(false);
+    }
   }
 
   const filtered = teachers.filter(t =>
@@ -106,6 +137,7 @@ export default function TeachersPage() {
                   <td className="px-4 py-3"><Badge status={t.status} /></td>
                   <td className="px-4 py-3 flex gap-2">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(t)}>Edit</Button>
+                    <Button variant="ghost" size="sm" onClick={() => openResetPin(t)} title="Reset PIN">🔑 PIN</Button>
                     <Button variant="danger" size="sm" onClick={() => deleteTeacher(t.id, t.name)}>Del</Button>
                   </td>
                 </tr>
@@ -117,6 +149,52 @@ export default function TeachersPage() {
           </table>
         </div>
       )}
+
+      {/* ── Reset PIN modal ── */}
+      <Modal open={pinTarget !== null} onClose={() => setPinTarget(null)} title="Reset Teacher PIN" maxWidth="max-w-sm">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            Resetting PIN for <span className="font-semibold text-slate-900">{pinTarget?.name}</span>.
+          </p>
+
+          {pinConfirmed ? (
+            <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-4 text-center">
+              <p className="text-sm text-green-700 mb-2">PIN has been reset. Give this PIN to the teacher:</p>
+              <p className="text-4xl font-bold tracking-widest text-green-800 font-mono">{pinConfirmed}</p>
+              <p className="text-xs text-green-600 mt-2">The teacher can now log in with this PIN.</p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  New PIN <span className="text-slate-400 font-normal">(leave blank to use default)</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={8}
+                  placeholder="e.g. 5678  —  or leave blank for default"
+                  value={pinInput}
+                  onChange={e => { setPinInput(e.target.value.replace(/\D/g, '')); setPinError(''); }}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono tracking-widest"
+                />
+                <p className="mt-1 text-xs text-slate-400">4–8 digits. Blank resets to the school default PIN.</p>
+              </div>
+              {pinError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{pinError}</p>}
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="secondary" onClick={() => setPinTarget(null)}>Cancel</Button>
+                <Button onClick={doResetPin} loading={pinResetting}>Reset PIN</Button>
+              </div>
+            </>
+          )}
+
+          {pinConfirmed && (
+            <div className="flex justify-end">
+              <Button onClick={() => setPinTarget(null)}>Done</Button>
+            </div>
+          )}
+        </div>
+      </Modal>
 
       <Modal open={modal !== null} onClose={() => setModal(null)} title={modal === 'create' ? 'Add Teacher' : 'Edit Teacher'} maxWidth="max-w-lg">
         <div className="space-y-3">

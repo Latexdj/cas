@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const bcrypt = require('bcrypt');
 const pool = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { runAbsenceCheck } = require('../jobs/absenceCheck');
@@ -250,6 +251,25 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
       ORDER BY attendance_pct ASC NULLS LAST, t.name
     `, [req.schoolId]);
     res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/admin/teachers/:id/reset-pin — set a new PIN for a teacher
+router.patch('/teachers/:id/reset-pin', async (req, res, next) => {
+  try {
+    const rawPin = req.body.pin ? String(req.body.pin).trim() : null;
+    if (rawPin && !/^\d{4,8}$/.test(rawPin))
+      return res.status(400).json({ error: 'PIN must be 4–8 digits' });
+
+    const newPin = rawPin || (process.env.DEFAULT_TEACHER_PIN || '1234');
+    const pinHash = await bcrypt.hash(newPin, 12);
+
+    const { rowCount } = await pool.query(
+      `UPDATE teachers SET pin_hash = $1, updated_at = now() WHERE id = $2 AND school_id = $3`,
+      [pinHash, req.params.id, req.schoolId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Teacher not found' });
+    res.json({ message: 'PIN reset successfully', pin: newPin });
   } catch (err) { next(err); }
 });
 
