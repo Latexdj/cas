@@ -6,18 +6,18 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 
 const pageTitles: Record<string, string> = {
-  '/dashboard':       'Dashboard',
-  '/teachers':        'Teachers',
-  '/timetable':       'Timetable',
-  '/locations':       'Locations',
-  '/academic-years':  'Academic Years',
-  '/attendance':      'Attendance Records',
-  '/absences':        'Absences',
-  '/remedials':       'Remedial Lessons',
-  '/subjects':        'Subjects',
-  '/classes':         'Classes',
-  '/manual-entry':    'Manual Attendance Entry',
-  '/settings':        'Settings',
+  '/dashboard':          'Dashboard',
+  '/teachers':           'Teachers',
+  '/students':           'Students',
+  '/attendance':         'Teacher Attendance',
+  '/student-attendance': 'Student Attendance',
+  '/absences':           'Absences & Remedials',
+  '/manual-entry':       'Manual Attendance Entry',
+  '/timetable':          'Timetable',
+  '/academic-years':     'Academic Years',
+  '/curriculum':         'Curriculum',
+  '/locations':          'Locations',
+  '/settings':           'Settings',
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
