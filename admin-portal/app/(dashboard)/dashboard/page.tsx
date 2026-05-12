@@ -92,14 +92,14 @@ export default function DashboardPage() {
 
   const load = useCallback(async () => {
     try {
-      const [s, c, t] = await Promise.all([
+      const [s, c, t] = await Promise.allSettled([
         api.get<AdminStats>('/api/admin/stats'),
         api.get<ClassroomStatus[]>('/api/admin/classroom-status'),
         api.get<TeacherAttendanceSummary[]>('/api/admin/reports/teacher-summary'),
       ]);
-      setStats(s.data);
-      setClasses(c.data);
-      setSummary(t.data);
+      if (s.status === 'fulfilled') setStats(s.value.data);
+      if (c.status === 'fulfilled') setClasses(c.value.data);
+      if (t.status === 'fulfilled') setSummary(t.value.data);
     } finally {
       setLoading(false);
     }

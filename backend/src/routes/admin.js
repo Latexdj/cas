@@ -80,7 +80,7 @@ router.get('/classroom-status', async (req, res, next) => {
           OR LOWER(a.class_names) LIKE LOWER('%,' || tt.class_names || ',%')
         )
       WHERE tt.school_id = $1 AND tt.day_of_week = $2
-      ORDER BY tt.start_time, tt.class_name
+      ORDER BY tt.start_time, tt.class_names
     `, [req.schoolId, dayOfWeek, today, nowTime]);
 
     res.json(rows);
