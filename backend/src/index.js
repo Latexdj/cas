@@ -16,6 +16,8 @@ const attendanceRoutes = require('./routes/attendance');
 const absenceRoutes = require('./routes/absences');
 const remedialRoutes = require('./routes/remedial');
 const adminRoutes = require('./routes/admin');
+const studentRoutes = require('./routes/students');
+const studentAttendanceRoutes = require('./routes/student-attendance');
 const { startAbsenceCheckJob } = require('./jobs/absenceCheck');
 
 const app = express();
@@ -39,6 +41,8 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/absences', absenceRoutes);
 app.use('/api/remedial', remedialRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/students', studentRoutes);
+app.use('/api/student-attendance', studentAttendanceRoutes);
 
 app.use(errorHandler);
 

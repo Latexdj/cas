@@ -69,3 +69,20 @@ export interface Location {
   type: string;
   has_coordinates: boolean;
 }
+
+export interface Student {
+  id: string;
+  student_code: string;
+  name: string;
+  class_name: string;
+  status: 'Active' | 'Graduated' | 'Inactive';
+}
+
+export interface StudentSession {
+  id: string;
+  subject: string;
+  class_name: string;
+  total: number;
+  present: number;
+  absent: number;
+}

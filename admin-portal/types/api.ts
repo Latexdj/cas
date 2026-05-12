@@ -103,6 +103,38 @@ export interface RemedialLesson {
   created_at: string;
 }
 
+export interface Student {
+  id: string;
+  student_code: string;
+  name: string;
+  class_name: string;
+  status: 'Active' | 'Graduated' | 'Inactive';
+  notes: string | null;
+}
+
+export interface StudentAttendanceSession {
+  id: string;
+  date: string;
+  subject: string;
+  class_name: string;
+  teacher_name: string;
+  total: number;
+  present: number;
+  absent: number;
+  late: number;
+  created_at: string;
+}
+
+export interface StudentAttendanceRecord {
+  id: string;
+  status: 'Present' | 'Absent' | 'Late';
+  updated_at: string;
+  student_id: string;
+  student_code: string;
+  name: string;
+  class_name: string;
+}
+
 export interface AdminStats {
   today_attendance: number;
   today_absences: number;
