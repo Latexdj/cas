@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -8,13 +8,27 @@ import type { TimetableEntry, Teacher, Subject, ClassItem } from '@/types/api';
 const DAYS = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const EMPTY_FORM = { teacher_id: '', day_of_week: '1', start_time: '08:00', end_time: '09:00', subject: '' };
 
+interface UploadResult { inserted: number; errors: { row: number; message: string }[] }
+
+function downloadTemplate() {
+  const csv = [
+    'Teacher,Day,Start Time,End Time,Subject,Classes',
+    'John Smith,Monday,08:00,09:00,MATHEMATICS,"1A, 1B"',
+    'Jane Doe,Monday,08:00,09:00,ENGLISH LANGUAGE,2A',
+    'John Smith,Tuesday,09:00,10:00,BIOLOGY,"3A, 3B, 3C"',
+  ].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'timetable_template.csv'; a.click();
+}
+
 export default function TimetablePage() {
   const [entries,   setEntries]   = useState<TimetableEntry[]>([]);
   const [teachers,  setTeachers]  = useState<Teacher[]>([]);
   const [subjects,  setSubjects]  = useState<Subject[]>([]);
   const [classes,   setClasses]   = useState<ClassItem[]>([]);
   const [loading,   setLoading]   = useState(true);
-  const [modal,     setModal]     = useState<'create' | 'edit' | null>(null);
+  const [modal,     setModal]     = useState<'create' | 'edit' | 'upload' | null>(null);
   const [form,      setForm]      = useState(EMPTY_FORM);
   const [selCls,    setSelCls]    = useState<Set<string>>(new Set());
   const [editId,    setEditId]    = useState<string | null>(null);
@@ -22,6 +36,13 @@ export default function TimetablePage() {
   const [error,     setError]     = useState('');
   const [filterDay, setFilterDay] = useState('0');
   const [filterTch, setFilterTch] = useState('');
+
+  // Upload state
+  const fileRef                   = useRef<HTMLInputElement>(null);
+  const [replaceAll,  setReplaceAll]  = useState(false);
+  const [uploading,   setUploading]   = useState(false);
+  const [uploadErr,   setUploadErr]   = useState('');
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -39,6 +60,27 @@ export default function TimetablePage() {
 
   function toggleClass(name: string) {
     setSelCls(prev => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n; });
+  }
+
+  function openUpload() { setUploadErr(''); setUploadResult(null); setReplaceAll(false); setModal('upload'); }
+
+  async function handleUpload() {
+    const file = fileRef.current?.files?.[0];
+    if (!file) { setUploadErr('Please select a file.'); return; }
+    setUploading(true); setUploadErr(''); setUploadResult(null);
+    try {
+      const fd = new FormData(); fd.append('file', file);
+      const { data } = await api.post<UploadResult>(
+        `/api/timetable/upload?replace=${replaceAll}`, fd,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      setUploadResult(data);
+      await load();
+      if (fileRef.current) fileRef.current.value = '';
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setUploadErr(msg ?? 'Upload failed.');
+    } finally { setUploading(false); }
   }
 
   function openCreate() {
@@ -102,7 +144,10 @@ export default function TimetablePage() {
           <option value="">All Teachers</option>
           {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
-        <Button onClick={openCreate} className="ml-auto">+ Add Slot</Button>
+        <div className="ml-auto flex gap-2">
+          <Button variant="secondary" onClick={openUpload}>↑ Upload Excel</Button>
+          <Button onClick={openCreate}>+ Add Slot</Button>
+        </div>
       </div>
 
       {loading ? (
@@ -147,7 +192,73 @@ export default function TimetablePage() {
         </div>
       )}
 
-      <Modal open={modal !== null} onClose={() => setModal(null)}
+      {/* Upload modal */}
+      <Modal open={modal === 'upload'} onClose={() => setModal(null)} title="Upload Timetable from Excel" maxWidth="max-w-lg">
+        <div className="space-y-4">
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-600 space-y-1.5">
+            <p className="font-semibold text-slate-700">Expected columns (row 1 = optional header):</p>
+            <div className="grid grid-cols-6 gap-1 text-xs font-mono">
+              {['A: Teacher', 'B: Day', 'C: Start', 'D: End', 'E: Subject', 'F: Classes'].map(c => (
+                <span key={c} className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-center">{c}</span>
+              ))}
+            </div>
+            <ul className="text-xs text-slate-400 space-y-0.5 mt-1">
+              <li>• Teacher must match a name in your Teachers list (case-insensitive)</li>
+              <li>• Day: Monday/Tuesday… or 1–7</li>
+              <li>• Times: HH:MM (e.g. 08:00) — Excel time cells are also accepted</li>
+              <li>• Classes: comma-separated (e.g. <code>1A, 1B</code>). New classes are auto-created.</li>
+            </ul>
+          </div>
+
+          <button onClick={downloadTemplate} className="text-sm font-semibold text-green-700 hover:underline">
+            ↓ Download template CSV
+          </button>
+
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">
+              Select file (.xlsx, .xls, .csv)
+            </label>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv"
+              className="w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-green-600 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-green-700 cursor-pointer" />
+          </div>
+
+          <label className="flex items-start gap-3 cursor-pointer rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <input type="checkbox" checked={replaceAll} onChange={e => setReplaceAll(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-amber-600 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Replace existing timetable</p>
+              <p className="text-xs text-amber-600 mt-0.5">If checked, all current timetable entries are deleted before importing. Leave unchecked to append rows.</p>
+            </div>
+          </label>
+
+          {uploadErr && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{uploadErr}</p>}
+
+          {uploadResult && (
+            <div className="space-y-2">
+              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+                <span className="font-semibold">{uploadResult.inserted}</span> row{uploadResult.inserted !== 1 ? 's' : ''} imported successfully
+                {replaceAll && <span className="ml-2 text-green-600">(previous timetable replaced)</span>}
+              </div>
+              {uploadResult.errors.length > 0 && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 space-y-1 max-h-48 overflow-y-auto">
+                  <p className="font-semibold">{uploadResult.errors.length} row{uploadResult.errors.length !== 1 ? 's' : ''} skipped:</p>
+                  {uploadResult.errors.map((e, i) => (
+                    <p key={i} className="text-xs">Row {e.row}: {e.message}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" onClick={() => setModal(null)}>Close</Button>
+            <Button onClick={handleUpload} loading={uploading}>Import</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add / Edit modal */}
+      <Modal open={modal === 'create' || modal === 'edit'} onClose={() => { setModal(null); }}
         title={modal === 'create' ? 'Add Timetable Slot' : 'Edit Timetable Slot'} maxWidth="max-w-lg">
         <div className="space-y-3">
           {/* Teacher */}
