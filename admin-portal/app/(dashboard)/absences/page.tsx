@@ -99,7 +99,7 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
           <select value={status} onChange={e => setStatus(e.target.value)}
             className="mt-1 w-44 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}>
             <option value="">All</option>
-            {['Absent','Remedial Scheduled','Completed','Verified','Made Up','Cleared'].map(s => (
+            {['Absent','Excused','Remedial Scheduled','Completed','Verified','Made Up','Cleared'].map(s => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>

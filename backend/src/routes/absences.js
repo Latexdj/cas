@@ -140,7 +140,7 @@ router.patch('/:id/reason', async (req, res, next) => {
 router.patch('/:id/status', adminOnly, async (req, res, next) => {
   try {
     const { status } = req.body;
-    const valid = ['Absent', 'Remedial Scheduled', 'Made Up', 'Cleared', 'Verified'];
+    const valid = ['Absent', 'Remedial Scheduled', 'Made Up', 'Cleared', 'Verified', 'Excused'];
     if (!valid.includes(status)) {
       return res.status(400).json({ error: `status must be one of: ${valid.join(', ')}` });
     }

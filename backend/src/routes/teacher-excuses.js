@@ -4,6 +4,22 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 
 router.use(authenticate, requireActiveSubscription);
 
+// Marks any auto-generated 'Absent' records in the given date range as 'Excused'.
+// Called whenever an excuse is approved (immediately on admin-create, or on explicit approve).
+async function excuseExistingAbsences(schoolId, teacherId, dateFrom, dateTo) {
+  const { rowCount } = await pool.query(
+    `UPDATE absences
+     SET status = 'Excused', updated_at = now()
+     WHERE school_id = $1
+       AND teacher_id = $2
+       AND date BETWEEN $3 AND $4
+       AND status = 'Absent'
+       AND is_auto_generated = true`,
+    [schoolId, teacherId, dateFrom, dateTo]
+  );
+  return rowCount;
+}
+
 // GET /api/teacher-excuses  — admin sees all; teacher sees own
 router.get('/', async (req, res, next) => {
   try {
@@ -66,14 +82,12 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'dateTo must be on or after dateFrom' });
     }
 
-    // Teachers can only create excuses for themselves
     if (req.user.role === 'teacher' && req.user.id !== teacherId) {
       return res.status(403).json({ error: 'You can only submit excuses for yourself' });
     }
 
     const isAdmin  = req.user.role === 'admin' || req.user.role === 'super_admin';
     const status   = isAdmin ? 'Approved' : 'Pending';
-    // super_admin JWT has no id; only regular admins (teachers with is_admin=true) can be stored as approver
     const approver = (isAdmin && req.user.id) ? req.user.id : null;
 
     const { rows } = await pool.query(
@@ -83,6 +97,15 @@ router.post('/', async (req, res, next) => {
        RETURNING *`,
       [req.schoolId, teacherId, dateFrom, dateTo, type, reason.trim(), status, approver]
     );
+
+    // Admin-created excuses are immediately approved — retroactively excuses any existing absences
+    if (isAdmin) {
+      const updated = await excuseExistingAbsences(req.schoolId, teacherId, dateFrom, dateTo);
+      if (updated > 0) {
+        console.log(`[Excuses] Retroactively excused ${updated} absence record(s) for teacher ${teacherId}`);
+      }
+    }
+
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -95,11 +118,19 @@ router.patch('/:id/approve', adminOnly, async (req, res, next) => {
       `UPDATE teacher_excuses
        SET status = 'Approved', approved_by = $1, approved_at = now(), updated_at = now()
        WHERE id = $2 AND school_id = $3
-       RETURNING id, status`,
+       RETURNING id, status, teacher_id, date_from, date_to`,
       [approver, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Excuse not found' });
-    res.json(rows[0]);
+
+    // Retroactively excuse any absences that were recorded before this approval
+    const { teacher_id, date_from, date_to } = rows[0];
+    const updated = await excuseExistingAbsences(req.schoolId, teacher_id, date_from, date_to);
+    if (updated > 0) {
+      console.log(`[Excuses] Retroactively excused ${updated} absence record(s) on approval`);
+    }
+
+    res.json({ id: rows[0].id, status: rows[0].status, absences_excused: updated });
   } catch (err) { next(err); }
 });
 

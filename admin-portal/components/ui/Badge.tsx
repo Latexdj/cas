@@ -10,6 +10,7 @@ const palette: Record<string, { bg: string; text: string; dot: string }> = {
   'Remedial Scheduled': { bg: '#FFFBEB', text: '#D97706', dot: '#D97706' },
   Absent:               { bg: '#FEF2F2', text: '#DC2626', dot: '#DC2626' },
   absent:               { bg: '#FEF2F2', text: '#DC2626', dot: '#DC2626' },
+  Excused:              { bg: '#F5F3FF', text: '#7C3AED', dot: '#7C3AED' },
   Cancelled:            { bg: '#F8FAFC', text: '#94A3B8', dot: '#CBD5E1' },
   Cleared:              { bg: '#F8FAFC', text: '#94A3B8', dot: '#CBD5E1' },
   Inactive:             { bg: '#F8FAFC', text: '#94A3B8', dot: '#CBD5E1' },
