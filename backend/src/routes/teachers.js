@@ -1,7 +1,11 @@
 const router = require('express').Router();
 const bcrypt = require('bcrypt');
+const multer = require('multer');
+const XLSX   = require('xlsx');
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -17,6 +21,89 @@ async function nextTeacherCode(schoolId) {
   }, 0);
   return 'T' + String(max + 1).padStart(3, '0');
 }
+
+/** GET /api/teachers/upload/template — CSV pre-filled with column headers + example row */
+router.get('/upload/template', adminOnly, async (req, res, next) => {
+  try {
+    const note   = '# Leave "Teacher ID" blank to auto-generate. Default PIN is assigned to all new teachers.';
+    const header = 'Teacher ID,Name,Email,Phone,Department,Is Admin (Yes/No),Notes';
+    const example = ',Jane Doe,jane@school.com,555-1234,Mathematics,No,';
+    const csv = [note, header, example].join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="teachers_template.csv"');
+    res.send(csv);
+  } catch (err) { next(err); }
+});
+
+/** POST /api/teachers/upload — bulk-import teachers from Excel/CSV */
+router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const wb   = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const ws   = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+    if (!rows.length) return res.status(400).json({ error: 'File is empty' });
+
+    // Skip header / comment rows
+    const firstCell = String(rows[0][0] ?? '').trim();
+    const hasHeader = firstCell.startsWith('#') ||
+      firstCell.toLowerCase().includes('teacher') ||
+      firstCell.toLowerCase().includes('name') ||
+      firstCell.toLowerCase().includes('id');
+    const dataRows = hasHeader ? rows.slice(1) : rows;
+
+    const defaultPin = process.env.DEFAULT_TEACHER_PIN || '1234';
+    const pinHash    = await bcrypt.hash(defaultPin, 12);
+
+    let inserted = 0;
+    const errors = [];
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row    = dataRows[i];
+      const rowNum = i + (hasHeader ? 2 : 1);
+
+      const teacherCode = String(row[0] ?? '').trim().toUpperCase() || null;
+      const name        = String(row[1] ?? '').trim();
+      const email       = String(row[2] ?? '').trim() || null;
+      const phone       = String(row[3] ?? '').trim() || null;
+      const department  = String(row[4] ?? '').trim() || null;
+      const isAdminRaw  = String(row[5] ?? '').trim().toLowerCase();
+      const notes       = String(row[6] ?? '').trim() || null;
+
+      // Skip entirely blank rows
+      if (!name && !teacherCode) continue;
+      if (!name) { errors.push({ row: rowNum, message: 'Name is required' }); continue; }
+
+      const isAdmin = ['yes', 'true', '1', 'y'].includes(isAdminRaw);
+
+      // Use provided code or auto-generate
+      const code = teacherCode || await nextTeacherCode(req.schoolId);
+
+      try {
+        await pool.query(
+          `INSERT INTO teachers
+             (school_id, teacher_code, name, email, phone, department, status, is_admin, notes, pin_hash)
+           VALUES ($1,$2,$3,$4,$5,$6,'Active',$7,$8,$9)`,
+          [req.schoolId, code, name, email, phone, department, isAdmin, notes, pinHash]
+        );
+        inserted++;
+      } catch (err) {
+        if (err.code === '23505') {
+          const detail = err.constraint?.includes('code')
+            ? `Teacher ID "${code}" already exists`
+            : `A teacher named "${name}" already exists`;
+          errors.push({ row: rowNum, message: detail });
+        } else {
+          errors.push({ row: rowNum, message: err.message });
+        }
+      }
+    }
+
+    res.json({ inserted, errors });
+  } catch (err) { next(err); }
+});
 
 router.get('/', async (req, res, next) => {
   try {

@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -11,13 +11,21 @@ const EMPTY: Partial<Teacher & { password: string }> = {
   teacher_code: '', name: '', email: '', phone: '', department: '', status: 'Active', is_admin: false, notes: '', password: '',
 };
 
+interface UploadResult { inserted: number; errors: { row: number; message: string }[] }
+
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
-  const [modal, setModal]       = useState<'create' | 'edit' | null>(null);
+  const [modal, setModal]       = useState<'create' | 'edit' | 'upload' | null>(null);
   const [form, setForm]         = useState<typeof EMPTY>(EMPTY);
   const [saving, setSaving]     = useState(false);
+
+  // Upload state
+  const fileRef                       = useRef<HTMLInputElement>(null);
+  const [uploading,     setUploading]     = useState(false);
+  const [uploadErr,     setUploadErr]     = useState('');
+  const [uploadResult,  setUploadResult]  = useState<UploadResult | null>(null);
   const [error, setError]       = useState('');
   const [editId, setEditId]     = useState<string | null>(null);
 
@@ -36,6 +44,35 @@ export default function TeachersPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  function openUpload() { setUploadErr(''); setUploadResult(null); setModal('upload'); }
+
+  async function downloadTemplate() {
+    try {
+      const { data } = await api.get('/api/teachers/upload/template', { responseType: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(data as Blob);
+      a.download = 'teachers_template.csv'; a.click();
+    } catch { alert('Could not download template.'); }
+  }
+
+  async function handleUpload() {
+    const file = fileRef.current?.files?.[0];
+    if (!file) { setUploadErr('Please select a file.'); return; }
+    setUploading(true); setUploadErr(''); setUploadResult(null);
+    try {
+      const fd = new FormData(); fd.append('file', file);
+      const { data } = await api.post<UploadResult>('/api/teachers/upload', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setUploadResult(data);
+      await load();
+      if (fileRef.current) fileRef.current.value = '';
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setUploadErr(msg ?? 'Upload failed.');
+    } finally { setUploading(false); }
+  }
 
   function openCreate() {
     setForm(EMPTY); setError(''); setEditId(null); setModal('create');
@@ -107,9 +144,12 @@ export default function TeachersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Input placeholder="Search teachers…" value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs" />
-        <Button onClick={openCreate}>+ Add Teacher</Button>
+      <div className="flex items-center gap-3 flex-wrap">
+        <Input placeholder="Search by name, ID, email…" value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs" />
+        <div className="ml-auto flex gap-2">
+          <Button variant="secondary" onClick={openUpload}>↑ Upload Excel</Button>
+          <Button onClick={openCreate}>+ Add Teacher</Button>
+        </div>
       </div>
 
       {loading ? (
@@ -152,6 +192,63 @@ export default function TeachersPage() {
           </table>
         </div>
       )}
+
+      {/* ── Upload modal ── */}
+      <Modal open={modal === 'upload'} onClose={() => setModal(null)} title="Bulk Upload Teachers" maxWidth="max-w-lg">
+        <div className="space-y-4">
+
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-600 space-y-2">
+            <p className="font-semibold text-slate-700">Expected columns (row 1 = optional header):</p>
+            <div className="grid grid-cols-7 gap-1 text-xs font-mono">
+              {['A: ID', 'B: Name*', 'C: Email', 'D: Phone', 'E: Dept', 'F: Admin?', 'G: Notes'].map(c => (
+                <span key={c} className="bg-white border border-slate-200 rounded px-1 py-0.5 text-center leading-tight">{c}</span>
+              ))}
+            </div>
+            <ul className="text-xs text-slate-400 space-y-0.5">
+              <li>• <strong className="text-slate-600">Teacher ID</strong> (Column A): leave blank to auto-generate T001, T002…</li>
+              <li>• <strong className="text-slate-600">Name</strong> (Column B): required</li>
+              <li>• <strong className="text-slate-600">Is Admin</strong> (Column F): Yes / No (default No)</li>
+              <li>• All new teachers get the school default PIN — share their Teacher ID + PIN with them</li>
+              <li>• Existing Teacher IDs are skipped with an error — edit those individually</li>
+            </ul>
+          </div>
+
+          <button onClick={downloadTemplate} className="text-sm font-semibold text-green-700 hover:underline">
+            ↓ Download template CSV
+          </button>
+
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">
+              Select file (.xlsx, .xls, .csv)
+            </label>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv"
+              className="w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-green-600 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-green-700 cursor-pointer" />
+          </div>
+
+          {uploadErr && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{uploadErr}</p>}
+
+          {uploadResult && (
+            <div className="space-y-2">
+              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+                <span className="font-semibold">{uploadResult.inserted}</span> teacher{uploadResult.inserted !== 1 ? 's' : ''} added successfully
+              </div>
+              {uploadResult.errors.length > 0 && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 space-y-1 max-h-48 overflow-y-auto">
+                  <p className="font-semibold">{uploadResult.errors.length} row{uploadResult.errors.length !== 1 ? 's' : ''} skipped:</p>
+                  {uploadResult.errors.map((e, i) => (
+                    <p key={i} className="text-xs">Row {e.row}: {e.message}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" onClick={() => setModal(null)}>Close</Button>
+            <Button onClick={handleUpload} loading={uploading}>Import</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* ── Reset PIN modal ── */}
       <Modal open={pinTarget !== null} onClose={() => setPinTarget(null)} title="Reset Teacher PIN" maxWidth="max-w-sm">
