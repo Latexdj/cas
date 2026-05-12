@@ -131,9 +131,43 @@ export default function SubmitScreen() {
 
   async function openCamera() {
     if (IS_WEB) {
-      setPhotoUri('web-placeholder');
-      setPhotoBase64('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
-      setPhotoSizeKb(1);
+      // Use browser file input with camera capture — works on iOS Safari and Android Chrome
+      await new Promise<void>((resolve) => {
+        const input = (document as any).createElement('input') as HTMLInputElement;
+        input.type   = 'file';
+        input.accept = 'image/*';
+        (input as any).capture = 'environment';
+        input.style.display = 'none';
+        (document as any).body.appendChild(input);
+        input.onchange = () => {
+          const file = input.files?.[0];
+          (document as any).body.removeChild(input);
+          if (!file) { resolve(); return; }
+          const img = (document as any).createElement('img') as HTMLImageElement;
+          const url = URL.createObjectURL(file);
+          img.onload = () => {
+            // Compress to ≤ 40 KB via Canvas — mirror native ImageManipulator logic
+            const compress = (w: number, q: number) => {
+              const c = (document as any).createElement('canvas') as HTMLCanvasElement;
+              const scale = Math.min(1, w / img.width);
+              c.width  = Math.round(img.width  * scale);
+              c.height = Math.round(img.height * scale);
+              c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
+              return c.toDataURL('image/jpeg', q);
+            };
+            URL.revokeObjectURL(url);
+            let dataUrl = compress(640, 0.4);
+            if (dataUrl.length * 0.75 > 40 * 1024) dataUrl = compress(480, 0.25);
+            const sizeKb = Math.round(dataUrl.length * 0.75 / 1024);
+            setPhotoUri(dataUrl);
+            setPhotoBase64(dataUrl);
+            setPhotoSizeKb(sizeKb);
+            resolve();
+          };
+          img.src = url;
+        };
+        input.click();
+      });
       return;
     }
     if (!camPermission?.granted) {
@@ -514,13 +548,7 @@ export default function SubmitScreen() {
           <Text style={styles.sectionTitle}>Classroom Photo *</Text>
           {photoUri ? (
             <View style={styles.photoPreviewWrap}>
-              {IS_WEB
-                ? <View style={[styles.photoPreview, { backgroundColor: '#D1FAE5', justifyContent: 'center', alignItems: 'center' }]}>
-                    <Text style={{ fontSize: 32 }}>✅</Text>
-                    <Text style={{ color: '#2D7A4F', fontWeight: '600', marginTop: 8 }}>Photo set (web mode)</Text>
-                  </View>
-                : <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-              }
+                  <Image source={{ uri: photoUri }} style={styles.photoPreview} />
               {photoSizeKb && <Text style={styles.photoSize}>{photoSizeKb} KB</Text>}
               <TouchableOpacity style={styles.retakeBtn} onPress={openCamera}>
                 <Text style={[styles.retakeBtnText, { color: Colors.primary }]}>{IS_WEB ? 'Reset' : 'Retake Photo'}</Text>
@@ -529,7 +557,7 @@ export default function SubmitScreen() {
           ) : (
             <TouchableOpacity style={styles.cameraPlaceholder} onPress={openCamera}>
               <Text style={styles.cameraIcon}>{IS_WEB ? '🖥️' : '📷'}</Text>
-              <Text style={styles.cameraPlaceholderText}>{IS_WEB ? 'Tap to set photo (web mode)' : 'Tap to take photo'}</Text>
+              <Text style={styles.cameraPlaceholderText}>Tap to take photo</Text>
             </TouchableOpacity>
           )}
 
