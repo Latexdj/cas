@@ -2,6 +2,7 @@
   "buildCommand": "npx expo export --platform web",
   "outputDirectory": "dist",
   "framework": null,
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "env": {
     "EXPO_PUBLIC_API_URL": "https://cas-backend-20rn.onrender.com"
   }
