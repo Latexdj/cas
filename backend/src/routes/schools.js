@@ -199,6 +199,43 @@ router.post('/:id/activate', async (req, res, next) => {
   }
 });
 
+// ── POST /api/schools/:id/revert-to-trial — undo accidental paid activation ──
+router.post('/:id/revert-to-trial', async (req, res, next) => {
+  try {
+    const days = parseInt(req.body.days) || 14;
+    const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.params.id]);
+    if (!schoolRows.length) return res.status(404).json({ error: 'School not found' });
+
+    const { rows: planRows } = await pool.query(`SELECT id FROM plans WHERE name = 'trial' LIMIT 1`);
+    const trialPlanId = planRows[0].id;
+    const trialEnd    = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+    // Expire the current active subscription
+    await pool.query(
+      `UPDATE subscriptions SET status = 'expired', updated_at = now()
+       WHERE school_id = $1 AND status = 'active'`,
+      [req.params.id]
+    );
+
+    // Create a fresh trial subscription
+    const { rows } = await pool.query(
+      `INSERT INTO subscriptions (school_id, plan_id, status, ends_at)
+       VALUES ($1, $2, 'trial', $3) RETURNING *`,
+      [req.params.id, trialPlanId, trialEnd]
+    );
+
+    await auditLog('reverted_to_trial', 'school', req.params.id, schoolRows[0].name, {
+      days,
+      trial_ends: trialEnd,
+      message: 'Reverted from paid to trial',
+    });
+
+    res.json({ message: `Reverted to trial. Ends ${trialEnd.toDateString()}.`, subscription: rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── POST /api/schools/:id/extend-trial — extend trial by N days ──
 router.post('/:id/extend-trial', async (req, res, next) => {
   try {
