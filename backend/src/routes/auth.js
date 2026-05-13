@@ -34,11 +34,17 @@ router.post('/login', async (req, res, next) => {
       if (!username || !password)
         return res.status(400).json({ error: 'username and password required' });
       // Check DB credentials first (allows password change), fall back to env
-      const { rows: credRows } = await pool.query(
-        `SELECT username, password_hash FROM super_admin_credentials WHERE id = 1`
-      );
-      const storedUsername = credRows.length ? credRows[0].username : process.env.ADMIN_USERNAME;
-      const storedHash     = credRows.length ? credRows[0].password_hash : process.env.ADMIN_PASSWORD_HASH;
+      let storedUsername = process.env.ADMIN_USERNAME || 'admin';
+      let storedHash     = process.env.ADMIN_PASSWORD_HASH;
+      try {
+        const { rows: credRows } = await pool.query(
+          `SELECT username, password_hash FROM super_admin_credentials WHERE id = 1`
+        );
+        if (credRows.length) {
+          storedUsername = credRows[0].username;
+          storedHash     = credRows[0].password_hash;
+        }
+      } catch { /* table may not exist yet — fall back to env */ }
       if (username !== storedUsername)
         return res.status(401).json({ error: 'Invalid credentials' });
       const valid = storedHash ? await bcrypt.compare(password, storedHash) : false;
