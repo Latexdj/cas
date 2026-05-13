@@ -1,0 +1,6 @@
+{
+  "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_API_URL": "https://cas-backend-20rn.onrender.com"
+  }
+}
