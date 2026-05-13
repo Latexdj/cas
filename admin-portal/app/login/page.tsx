@@ -8,11 +8,11 @@ import { Input } from '@/components/ui/Input';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [schoolId, setSchoolId] = useState('');
-  const [name,     setName]     = useState('');
-  const [pin,      setPin]      = useState('');
-  const [error,    setError]    = useState('');
-  const [loading,  setLoading]  = useState(false);
+  const [schoolCode, setSchoolCode] = useState('');
+  const [name,       setName]       = useState('');
+  const [pin,        setPin]        = useState('');
+  const [error,      setError]      = useState('');
+  const [loading,    setLoading]    = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -23,7 +23,7 @@ export default function LoginPage() {
         type: 'admin',
         name: name.trim(),
         pin,
-        schoolId: schoolId.trim(),
+        schoolCode: schoolCode.trim().toUpperCase(),
       });
       saveUser({ id: data.id, name: data.name, role: data.role, schoolId: data.schoolId, token: data.token });
       router.replace('/dashboard');
@@ -99,10 +99,10 @@ export default function LoginPage() {
           <div className="bg-white rounded-2xl p-8" style={{ border: '1px solid #E2E8F0', boxShadow: '0 4px 24px rgba(15,23,42,0.08)' }}>
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
               <Input
-                label="School ID"
-                placeholder="Paste your school UUID"
-                value={schoolId}
-                onChange={e => setSchoolId(e.target.value)}
+                label="School Code"
+                placeholder="e.g. CAS001"
+                value={schoolCode}
+                onChange={e => setSchoolCode(e.target.value.toUpperCase())}
                 required
                 autoComplete="off"
               />
