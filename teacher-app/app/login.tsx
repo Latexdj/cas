@@ -32,6 +32,10 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login({ type: 'teacher', username: username.trim(), password, schoolCode });
+      if (Platform.OS === 'web') {
+        (window as any).location.href = '/';
+        return;
+      }
       router.replace('/(tabs)');
     } catch (err: any) {
       const msg = err?.response?.data?.error ?? 'Login failed. Check your details.';

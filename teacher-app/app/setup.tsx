@@ -49,6 +49,12 @@ export default function SetupScreen() {
       if (schoolData.primary_color && schoolData.accent_color) {
         await updateTheme(schoolData.primary_color, schoolData.accent_color);
       }
+      // On web, hard-navigate so _layout re-reads localStorage from scratch,
+      // avoiding the async-state race that keeps redirecting back to setup.
+      if (Platform.OS === 'web') {
+        (window as any).location.href = '/';
+        return;
+      }
       router.replace('/login');
     } finally {
       setLoading(false);
