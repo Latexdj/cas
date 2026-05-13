@@ -33,9 +33,15 @@ router.post('/login', async (req, res, next) => {
       const { username, password } = req.body;
       if (!username || !password)
         return res.status(400).json({ error: 'username and password required' });
-      if (username !== process.env.ADMIN_USERNAME)
+      // Check DB credentials first (allows password change), fall back to env
+      const { rows: credRows } = await pool.query(
+        `SELECT username, password_hash FROM super_admin_credentials WHERE id = 1`
+      );
+      const storedUsername = credRows.length ? credRows[0].username : process.env.ADMIN_USERNAME;
+      const storedHash     = credRows.length ? credRows[0].password_hash : process.env.ADMIN_PASSWORD_HASH;
+      if (username !== storedUsername)
         return res.status(401).json({ error: 'Invalid credentials' });
-      const valid = await bcrypt.compare(password, process.env.ADMIN_PASSWORD_HASH);
+      const valid = storedHash ? await bcrypt.compare(password, storedHash) : false;
       if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
       const token = signToken({ role: 'super_admin', name: 'Super Admin' }, '24h');
       return res.json({ token, role: 'super_admin', name: 'Super Admin' });

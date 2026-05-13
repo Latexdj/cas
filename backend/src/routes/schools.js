@@ -2,6 +2,7 @@ const router  = require('express').Router();
 const bcrypt  = require('bcrypt');
 const pool    = require('../config/db');
 const { authenticate, superAdminOnly } = require('../middleware/auth');
+const { auditLog } = require('../utils/audit');
 
 // All routes here are super-admin only
 router.use(authenticate, superAdminOnly);
@@ -11,13 +12,14 @@ router.get('/', async (_req, res, next) => {
   try {
     const { rows } = await pool.query(`
       SELECT
-        s.id, s.name, s.email, s.phone, s.address, s.created_at,
+        s.id, s.name, s.email, s.phone, s.address, s.code, s.notes, s.created_at,
         sub.status          AS subscription_status,
         sub.starts_at,
         sub.ends_at,
         p.display_name      AS plan_name,
         (SELECT COUNT(*) FROM teachers t WHERE t.school_id = s.id AND t.status = 'Active')::int AS active_teachers,
-        (SELECT COUNT(*) FROM attendance a WHERE a.school_id = s.id)::int AS total_attendance
+        (SELECT COUNT(*) FROM attendance a WHERE a.school_id = s.id)::int AS total_attendance,
+        (SELECT MAX(a2.date)::text FROM attendance a2 WHERE a2.school_id = s.id) AS last_submission
       FROM schools s
       LEFT JOIN subscriptions sub
         ON sub.id = (
@@ -40,12 +42,16 @@ router.get('/:id', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT s.*,
          sub.status AS subscription_status, sub.starts_at, sub.ends_at,
-         p.name AS plan_name, p.display_name
+         p.name AS plan_name, p.display_name,
+         (SELECT COUNT(*)::int FROM teachers t WHERE t.school_id = s.id AND t.status = 'Active') AS active_teachers,
+         (SELECT COUNT(*)::int FROM attendance a WHERE a.school_id = s.id) AS total_attendance,
+         (SELECT MAX(a2.date)::text FROM attendance a2 WHERE a2.school_id = s.id) AS last_submission
        FROM schools s
-       LEFT JOIN subscriptions sub ON sub.school_id = s.id
+       LEFT JOIN subscriptions sub ON sub.id = (
+         SELECT id FROM subscriptions WHERE school_id = s.id ORDER BY created_at DESC LIMIT 1
+       )
        LEFT JOIN plans p ON p.id = sub.plan_id
-       WHERE s.id = $1
-       ORDER BY sub.created_at DESC`,
+       WHERE s.id = $1`,
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'School not found' });
@@ -69,7 +75,7 @@ router.post('/', async (req, res, next) => {
 
       // Generate next school code: CAS001, CAS002, …
       const { rows: countRows } = await client.query(`SELECT COUNT(*) FROM schools`);
-      const nextNum  = parseInt(countRows[0].count) + 1;
+      const nextNum    = parseInt(countRows[0].count) + 1;
       const schoolCode = 'CAS' + String(nextNum).padStart(3, '0');
 
       // Create school
@@ -105,6 +111,13 @@ router.post('/', async (req, res, next) => {
 
       await client.query('COMMIT');
 
+      await auditLog('school_created', 'school', school.id, school.name, {
+        email: school.email,
+        code: schoolCode,
+        admin: adminName,
+        trial_ends: trialEnd,
+      });
+
       res.status(201).json({
         school,
         admin: adminRows[0],
@@ -128,18 +141,24 @@ router.post('/', async (req, res, next) => {
 // ── PUT /api/schools/:id — update school details ──
 router.put('/:id', async (req, res, next) => {
   try {
-    const { name, email, phone, address } = req.body;
+    const { name, email, phone, address, notes } = req.body;
     const { rows } = await pool.query(
       `UPDATE schools
        SET name    = COALESCE($1, name),
            email   = COALESCE($2, email),
            phone   = COALESCE($3, phone),
            address = COALESCE($4, address),
+           notes   = COALESCE($5, notes),
            updated_at = now()
-       WHERE id = $5 RETURNING *`,
-      [name || null, email || null, phone || null, address || null, req.params.id]
+       WHERE id = $6 RETURNING *`,
+      [name || null, email || null, phone || null, address || null, notes !== undefined ? notes : null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'School not found' });
+
+    await auditLog('school_updated', 'school', rows[0].id, rows[0].name, {
+      fields: Object.keys(req.body).filter(k => req.body[k] !== undefined),
+    });
+
     res.json(rows[0]);
   } catch (err) {
     next(err);
@@ -149,12 +168,14 @@ router.put('/:id', async (req, res, next) => {
 // ── POST /api/schools/:id/activate — move school to paid plan ──
 router.post('/:id/activate', async (req, res, next) => {
   try {
+    const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.params.id]);
+    if (!schoolRows.length) return res.status(404).json({ error: 'School not found' });
+
     const { rows: planRows } = await pool.query(
       `SELECT id FROM plans WHERE name = 'paid' LIMIT 1`
     );
     const paidPlanId = planRows[0].id;
 
-    // Expire any existing subscriptions
     await pool.query(
       `UPDATE subscriptions SET status = 'expired', updated_at = now()
        WHERE school_id = $1 AND status IN ('trial','active')`,
@@ -166,6 +187,12 @@ router.post('/:id/activate', async (req, res, next) => {
        VALUES ($1,$2,'active',NULL) RETURNING *`,
       [req.params.id, paidPlanId]
     );
+
+    await auditLog('school_activated', 'school', req.params.id, schoolRows[0].name, {
+      plan: 'paid',
+      message: 'Activated on paid plan',
+    });
+
     res.json({ message: 'School activated on paid plan', subscription: rows[0] });
   } catch (err) {
     next(err);
@@ -176,6 +203,9 @@ router.post('/:id/activate', async (req, res, next) => {
 router.post('/:id/extend-trial', async (req, res, next) => {
   try {
     const days = parseInt(req.body.days) || 14;
+    const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.params.id]);
+    if (!schoolRows.length) return res.status(404).json({ error: 'School not found' });
+
     const { rows } = await pool.query(
       `UPDATE subscriptions
        SET ends_at    = ends_at + ($1 || ' days')::interval,
@@ -188,7 +218,45 @@ router.post('/:id/extend-trial', async (req, res, next) => {
       [days, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'No trial subscription found' });
+
+    await auditLog('trial_extended', 'school', req.params.id, schoolRows[0].name, {
+      days_added: days,
+      new_ends_at: rows[0].ends_at,
+    });
+
     res.json({ message: `Trial extended by ${days} days`, ends_at: rows[0].ends_at });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/schools/:id/reset-admin-pin ──
+router.post('/:id/reset-admin-pin', async (req, res, next) => {
+  try {
+    const { pin } = req.body;
+    if (!pin || String(pin).length < 4)
+      return res.status(400).json({ error: 'PIN must be at least 4 characters' });
+
+    const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.params.id]);
+    if (!schoolRows.length) return res.status(404).json({ error: 'School not found' });
+
+    const { rows: teacherRows } = await pool.query(
+      `SELECT id FROM teachers WHERE school_id = $1 AND is_admin = true ORDER BY created_at ASC LIMIT 1`,
+      [req.params.id]
+    );
+    if (!teacherRows.length) return res.status(404).json({ error: 'Admin teacher not found' });
+
+    const pinHash = await bcrypt.hash(String(pin), 12);
+    await pool.query(
+      `UPDATE teachers SET pin_hash = $1, updated_at = now() WHERE id = $2`,
+      [pinHash, teacherRows[0].id]
+    );
+
+    await auditLog('admin_pin_reset', 'school', req.params.id, schoolRows[0].name, {
+      message: 'Admin PIN was reset',
+    });
+
+    res.json({ message: 'Admin PIN reset successfully' });
   } catch (err) {
     next(err);
   }
@@ -197,10 +265,19 @@ router.post('/:id/extend-trial', async (req, res, next) => {
 // ── DELETE /api/schools/:id ──
 router.delete('/:id', async (req, res, next) => {
   try {
+    const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.params.id]);
+    if (!schoolRows.length) return res.status(404).json({ error: 'School not found' });
+    const schoolName = schoolRows[0].name;
+
     const { rowCount } = await pool.query(
       `DELETE FROM schools WHERE id = $1`, [req.params.id]
     );
     if (!rowCount) return res.status(404).json({ error: 'School not found' });
+
+    await auditLog('school_deleted', 'school', req.params.id, schoolName, {
+      message: 'School and all data permanently deleted',
+    });
+
     res.json({ message: 'School and all related data deleted' });
   } catch (err) {
     next(err);
