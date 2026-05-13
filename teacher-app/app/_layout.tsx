@@ -15,8 +15,11 @@ function InitialLayout() {
   const segments = useSegments();
   const [schoolCode, setSchoolCode] = useState<string | null | undefined>(undefined);
 
-  // Re-read school code from storage every time navigation changes
+  // Re-read school code from storage every time navigation changes.
+  // Reset to undefined first so the loading overlay blocks navigation
+  // logic during the async read (prevents redirect-back-to-setup race).
   useEffect(() => {
+    setSchoolCode(undefined);
     storage.getSchoolCode().then(c => setSchoolCode(c));
   }, [segments]);
 
