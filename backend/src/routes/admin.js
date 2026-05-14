@@ -54,12 +54,15 @@ router.get('/classroom-status', async (req, res, next) => {
     const { rows } = await pool.query(`
       WITH
       all_classrooms AS (
-        SELECT DISTINCT class_names
-        FROM timetable
+        -- Split every timetable entry's class_names to get unique individual classrooms
+        SELECT DISTINCT TRIM(cls) AS class_name
+        FROM timetable,
+             LATERAL unnest(string_to_array(class_names, ',')) AS cls
         WHERE school_id = $1
       ),
-      active_now AS (
-        SELECT DISTINCT ON (tt.class_names)
+      active_now_entries AS (
+        -- Timetable entries running right now, with their attendance status
+        SELECT DISTINCT ON (tt.id)
           tt.class_names,
           tt.subject,
           tt.start_time::text,
@@ -74,38 +77,46 @@ router.get('/classroom-status', async (req, res, next) => {
           AND a.teacher_id = tt.teacher_id
           AND a.date       = CURRENT_DATE
           AND LOWER(a.subject) = LOWER(tt.subject)
-          AND (
-            LOWER(a.class_names) = LOWER(tt.class_names)
-            OR LOWER(a.class_names) LIKE LOWER(tt.class_names || ',%')
-            OR LOWER(a.class_names) LIKE LOWER('%,' || tt.class_names)
-            OR LOWER(a.class_names) LIKE LOWER('%,' || tt.class_names || ',%')
-          )
+          AND LOWER(REPLACE(a.class_names, ' ', '')) = LOWER(REPLACE(tt.class_names, ' ', ''))
         WHERE tt.school_id  = $1
           AND tt.day_of_week = $2
           AND $3::time BETWEEN tt.start_time AND tt.end_time
-        ORDER BY tt.class_names, tt.start_time
+      ),
+      active_now AS (
+        -- Explode active entries so each individual classroom gets its own row
+        SELECT DISTINCT ON (TRIM(cls))
+          TRIM(cls)       AS class_name,
+          ane.subject,
+          ane.start_time,
+          ane.end_time,
+          ane.teacher_name,
+          ane.attendance_id,
+          ane.submitted_at
+        FROM active_now_entries ane,
+             LATERAL unnest(string_to_array(ane.class_names, ',')) AS cls
+        ORDER BY TRIM(cls), ane.start_time
       )
       SELECT
-        ac.class_names                                     AS class_name,
+        ac.class_name,
         CASE
           WHEN an.attendance_id IS NOT NULL THEN 'occupied'
           ELSE 'vacant'
-        END                                                AS status,
-        (an.class_names IS NOT NULL)                       AS in_current_period,
+        END                           AS status,
+        (an.class_name IS NOT NULL)   AS in_current_period,
         an.subject,
         an.start_time,
         an.end_time,
         an.teacher_name,
         an.submitted_at
       FROM all_classrooms ac
-      LEFT JOIN active_now an ON an.class_names = ac.class_names
+      LEFT JOIN active_now an ON an.class_name = ac.class_name
       ORDER BY
         CASE
           WHEN an.attendance_id IS NOT NULL THEN 1
-          WHEN an.class_names   IS NOT NULL THEN 2
+          WHEN an.class_name    IS NOT NULL THEN 2
           ELSE 3
         END,
-        ac.class_names
+        ac.class_name
     `, [req.schoolId, dayOfWeek, nowTime]);
 
     res.json(rows);
