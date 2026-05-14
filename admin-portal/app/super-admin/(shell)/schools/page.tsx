@@ -36,6 +36,24 @@ function daysUntil(iso: string | null) {
   return Math.round((end.getTime() - now.getTime()) / 86400000);
 }
 
+function renderPeriod(s: School) {
+  if (!s.ends_at) {
+    return <span className="text-slate-500">{s.subscription_status === 'active' ? '∞ No expiry set' : '—'}</span>;
+  }
+  const days = daysUntil(s.ends_at) ?? 0;
+  const expired = days < 0;
+  return (
+    <div>
+      <p className={expired ? 'text-red-400' : 'text-slate-300'}>
+        {s.starts_at ? `${fmtDate(s.starts_at)} → ` : ''}{fmtDate(s.ends_at)}
+      </p>
+      <p className={`text-xs ${expired ? 'text-red-500' : days <= 7 ? 'text-yellow-400' : 'text-slate-500'}`}>
+        {expired ? `Expired ${Math.abs(days)} days ago` : `${days} days left`}
+      </p>
+    </div>
+  );
+}
+
 function statusBadge(status: string) {
   if (status === 'active') return { label: 'Paid',    bg: '#14532d', color: '#4ade80' };
   if (status === 'trial')  return { label: 'Trial',   bg: '#78350f', color: '#fbbf24' };
@@ -246,29 +264,10 @@ export default function SchoolsListPage() {
                           {badge.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm">
-                        {s.ends_at ? (() => {
-                          const days = daysUntil(s.ends_at);
-                          const expired = days !== null && days < 0;
-                          return (
-                            <div>
-                              <p className={expired ? 'text-red-400' : 'text-slate-300'}>
-                                {s.starts_at ? `${fmtDate(s.starts_at)} → ` : ''}{fmtDate(s.ends_at)}
-                              </p>
-                              <p className={`text-xs ${expired ? 'text-red-500' : days !== null && days <= 7 ? 'text-yellow-400' : 'text-slate-500'}`}>
-                                {expired ? `Expired ${Math.abs(days!)} days ago` : `${days} days left`}
-                              </p>
-                            </div>
-                          );
-                        })() : (
-                          <span className="text-slate-500">
-                            {s.subscription_status === 'active' ? '∞ No expiry set' : '—'}
-                          </span>
-                        )}
-                      </td>
+                      <td className="px-4 py-3 text-sm">{renderPeriod(s)}</td>
                       <td className="px-4 py-3 text-right">
-                        <span className={s.active_teachers >= s.teacher_limit ? 'text-red-400 font-semibold' : 'text-slate-300'}>
-                          {s.active_teachers}/{s.teacher_limit}
+                        <span className={(s.active_teachers ?? 0) >= (s.teacher_limit ?? 10) ? 'text-red-400 font-semibold' : 'text-slate-300'}>
+                          {s.active_teachers ?? 0}/{s.teacher_limit ?? '?'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right text-slate-300">{s.total_attendance.toLocaleString()}</td>
