@@ -11,9 +11,11 @@ interface School {
   email: string;
   phone: string | null;
   subscription_status: string;
+  starts_at: string | null;
   ends_at: string | null;
   plan_name: string | null;
   active_teachers: number;
+  teacher_limit: number;
   total_attendance: number;
   last_submission: string | null;
   created_at: string;
@@ -27,6 +29,13 @@ function fmtDate(iso: string | null) {
   return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function daysUntil(iso: string | null) {
+  if (!iso) return null;
+  const now = new Date(); now.setHours(0,0,0,0);
+  const end = new Date(iso); end.setHours(0,0,0,0);
+  return Math.round((end.getTime() - now.getTime()) / 86400000);
+}
+
 function statusBadge(status: string) {
   if (status === 'active') return { label: 'Paid',    bg: '#14532d', color: '#4ade80' };
   if (status === 'trial')  return { label: 'Trial',   bg: '#78350f', color: '#fbbf24' };
@@ -34,13 +43,17 @@ function statusBadge(status: string) {
 }
 
 function exportCSV(schools: School[]) {
-  const header = ['Code', 'Name', 'Email', 'Phone', 'Status', 'Trial Ends', 'Teachers', 'Attendance', 'Last Submission', 'Created'];
-  const rows = schools.map(s => [
-    s.code, s.name, s.email, s.phone ?? '',
-    s.subscription_status, fmtDate(s.ends_at),
-    s.active_teachers, s.total_attendance,
-    fmtDate(s.last_submission), fmtDate(s.created_at),
-  ]);
+  const header = ['Code', 'Name', 'Email', 'Phone', 'Status', 'Starts', 'Expires', 'Days Left', 'Teachers', 'Teacher Limit', 'Attendance', 'Last Submission', 'Created'];
+  const rows = schools.map(s => {
+    const days = daysUntil(s.ends_at);
+    return [
+      s.code, s.name, s.email, s.phone ?? '',
+      s.subscription_status, fmtDate(s.starts_at), fmtDate(s.ends_at),
+      days !== null ? days : '',
+      s.active_teachers, s.teacher_limit, s.total_attendance,
+      fmtDate(s.last_submission), fmtDate(s.created_at),
+    ];
+  });
   const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url  = URL.createObjectURL(blob);
@@ -206,7 +219,7 @@ export default function SchoolsListPage() {
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">School</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Expires</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Subscription Period</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wide">Teachers</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wide">Attendance</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Last Activity</th>
@@ -233,10 +246,31 @@ export default function SchoolsListPage() {
                           {badge.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-300">
-                        {s.subscription_status === 'active' ? '∞ Never' : fmtDate(s.ends_at)}
+                      <td className="px-4 py-3 text-sm">
+                        {s.ends_at ? (() => {
+                          const days = daysUntil(s.ends_at);
+                          const expired = days !== null && days < 0;
+                          return (
+                            <div>
+                              <p className={expired ? 'text-red-400' : 'text-slate-300'}>
+                                {s.starts_at ? `${fmtDate(s.starts_at)} → ` : ''}{fmtDate(s.ends_at)}
+                              </p>
+                              <p className={`text-xs ${expired ? 'text-red-500' : days !== null && days <= 7 ? 'text-yellow-400' : 'text-slate-500'}`}>
+                                {expired ? `Expired ${Math.abs(days!)} days ago` : `${days} days left`}
+                              </p>
+                            </div>
+                          );
+                        })() : (
+                          <span className="text-slate-500">
+                            {s.subscription_status === 'active' ? '∞ No expiry set' : '—'}
+                          </span>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-right text-slate-300">{s.active_teachers}</td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={s.active_teachers >= s.teacher_limit ? 'text-red-400 font-semibold' : 'text-slate-300'}>
+                          {s.active_teachers}/{s.teacher_limit}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-right text-slate-300">{s.total_attendance.toLocaleString()}</td>
                       <td className="px-4 py-3 text-sm text-slate-400">{fmtDate(s.last_submission)}</td>
                     </tr>
