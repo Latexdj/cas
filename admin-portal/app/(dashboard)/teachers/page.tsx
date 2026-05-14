@@ -294,7 +294,7 @@ export default function TeachersPage() {
         </div>
       </Modal>
 
-      <Modal open={modal !== null} onClose={() => setModal(null)} title={modal === 'create' ? 'Add Teacher' : 'Edit Teacher'} maxWidth="max-w-lg">
+      <Modal open={modal === 'create' || modal === 'edit'} onClose={() => setModal(null)} title={modal === 'create' ? 'Add Teacher' : 'Edit Teacher'} maxWidth="max-w-lg">
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-3">
             <div>
