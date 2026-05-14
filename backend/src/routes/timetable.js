@@ -170,14 +170,14 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       const row    = dataRows[i];
       const rowNum = i + (hasHeader ? 2 : 1);
 
-      const dayRaw      = String(row[1] ?? '').trim();
-      const startRaw    = row[2];
-      const endRaw      = row[3];
-      const subject     = String(row[4] ?? '').trim();
-      const classNames  = String(row[5] ?? '').trim();
+      const dayRaw      = String(row[2] ?? '').trim();
+      const startRaw    = row[3];
+      const endRaw      = row[4];
+      const subject     = String(row[5] ?? '').trim();
+      const classNames  = String(row[6] ?? '').trim();
 
       // Skip blank rows
-      if (!teacherName && !dayRaw && !subject) continue;
+      if (!row[0] && !dayRaw && !subject) continue;
 
       const resolved = resolveTeacher(row[0]);
       if (resolved.error) { errors.push({ row: rowNum, message: resolved.error }); continue; }
