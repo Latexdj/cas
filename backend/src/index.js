@@ -58,6 +58,7 @@ async function runMigrations() {
     const pool = require('./config/db');
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS notes TEXT`);
     await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS teacher_limit INTEGER NOT NULL DEFAULT 10`);
+    await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

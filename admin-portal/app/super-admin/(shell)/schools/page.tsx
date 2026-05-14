@@ -88,12 +88,15 @@ export default function SchoolsListPage() {
   const [bulkDays, setBulkDays] = useState('14');
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkMsg,  setBulkMsg]  = useState('');
+  const [loadErr,  setLoadErr]  = useState('');
 
   const load = useCallback(async () => {
-    setLoading(true);
+    setLoading(true); setLoadErr('');
     try {
       const res = await saApi.get('/api/schools');
       setSchools(Array.isArray(res.data) ? res.data : []);
+    } catch (err: unknown) {
+      setLoadErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to load schools. The backend may need redeploying.');
     } finally { setLoading(false); }
   }, []);
 
@@ -220,7 +223,9 @@ export default function SchoolsListPage() {
 
       {/* Table */}
       <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
-        {loading ? (
+        {loadErr ? (
+          <div className="text-center py-16 text-red-400 text-sm px-6">{loadErr}</div>
+        ) : loading ? (
           <div className="space-y-px">
             {[1,2,3,4,5].map(i => <div key={i} className="h-14 bg-slate-800 border-b border-slate-700/50 animate-pulse" />)}
           </div>
