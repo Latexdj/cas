@@ -62,9 +62,7 @@ export default function TeachersPage() {
     setUploading(true); setUploadErr(''); setUploadResult(null);
     try {
       const fd = new FormData(); fd.append('file', file);
-      const { data } = await api.post<UploadResult>('/api/teachers/upload', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const { data } = await api.post<UploadResult>('/api/teachers/upload', fd);
       setUploadResult(data);
       await load();
       if (fileRef.current) fileRef.current.value = '';
