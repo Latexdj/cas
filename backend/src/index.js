@@ -21,7 +21,8 @@ const studentAttendanceRoutes = require('./routes/student-attendance');
 const schoolCalendarRoutes    = require('./routes/school-calendar');
 const teacherExcusesRoutes    = require('./routes/teacher-excuses');
 const superAdminRoutes        = require('./routes/superAdmin');
-const { startAbsenceCheckJob } = require('./jobs/absenceCheck');
+const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
+const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
 const app = express();
 
@@ -87,4 +88,5 @@ app.listen(PORT, async () => {
   console.log(`CAS backend running on port ${PORT}`);
   await runMigrations();
   startAbsenceCheckJob();
+  startSubscriptionExpiryJob();
 });

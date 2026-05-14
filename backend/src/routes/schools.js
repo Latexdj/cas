@@ -193,15 +193,23 @@ router.post('/:id/activate', async (req, res, next) => {
       [req.params.id]
     );
 
+    const startsAt = req.body.startsAt ? new Date(req.body.startsAt) : new Date();
+    const endsAt   = req.body.endsAt   ? new Date(req.body.endsAt)   : null;
+
     const { rows } = await pool.query(
-      `INSERT INTO subscriptions (school_id, plan_id, status, ends_at, teacher_limit)
-       VALUES ($1,$2,'active',NULL,$3) RETURNING *`,
-      [req.params.id, paidPlanId, teacherLimit]
+      `INSERT INTO subscriptions (school_id, plan_id, status, starts_at, ends_at, teacher_limit)
+       VALUES ($1,$2,'active',$3,$4,$5) RETURNING *`,
+      [req.params.id, paidPlanId, startsAt, endsAt, teacherLimit]
     );
 
     await auditLog('school_activated', 'school', req.params.id, schoolRows[0].name, {
       plan: 'paid',
-      message: 'Activated on paid plan',
+      starts_at: startsAt,
+      ends_at: endsAt,
+      teacher_limit: teacherLimit,
+      message: endsAt
+        ? `Activated on paid plan until ${endsAt.toDateString()}`
+        : 'Activated on paid plan (no expiry)',
     });
 
     res.json({ message: 'School activated on paid plan', subscription: rows[0] });

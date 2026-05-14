@@ -16,6 +16,7 @@ interface SchoolDetail {
   subscription_status: string;
   plan_name: string | null;
   display_name: string | null;
+  starts_at: string | null;
   ends_at: string | null;
   active_teachers: number;
   teacher_limit: number;
@@ -60,11 +61,15 @@ export default function SchoolDetailPage() {
   const [saveErr,     setSaveErr]     = useState('');
 
   // Subscription actions
-  const [trialDays,    setTrialDays]    = useState('14');
-  const [activateLimit,setActivateLimit]= useState('');
-  const [subLoading,   setSubLoading]   = useState(false);
-  const [subMsg,       setSubMsg]       = useState('');
-  const [subErr,       setSubErr]       = useState('');
+  const today = new Date().toISOString().slice(0, 10);
+  const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const [trialDays,     setTrialDays]     = useState('14');
+  const [activateLimit, setActivateLimit] = useState('');
+  const [activateStart, setActivateStart] = useState(today);
+  const [activateEnd,   setActivateEnd]   = useState(oneYearLater);
+  const [subLoading,    setSubLoading]    = useState(false);
+  const [subMsg,        setSubMsg]        = useState('');
+  const [subErr,        setSubErr]        = useState('');
 
   // Reset PIN
   const [newPin,      setNewPin]      = useState('');
@@ -118,13 +123,25 @@ export default function SchoolDetailPage() {
     } finally { setSaving(false); }
   }
 
+  function applyDuration(months: number) {
+    const start = activateStart || new Date().toISOString().slice(0, 10);
+    const end   = new Date(new Date(start).setMonth(new Date(start).getMonth() + months));
+    setActivateEnd(end.toISOString().slice(0, 10));
+  }
+
   async function handleActivate() {
     const limit = parseInt(activateLimit);
     if (!limit || limit < 10) { setSubErr('Teacher limit must be at least 10.'); return; }
+    if (!activateEnd)          { setSubErr('Subscription end date is required.'); return; }
+    if (activateEnd <= activateStart) { setSubErr('End date must be after start date.'); return; }
     setSubLoading(true); setSubMsg(''); setSubErr('');
     try {
-      await saApi.post(`/api/schools/${id}/activate`, { teacherLimit: limit });
-      setSubMsg(`School activated on paid plan (${limit} teacher limit).`);
+      await saApi.post(`/api/schools/${id}/activate`, {
+        teacherLimit: limit,
+        startsAt: activateStart,
+        endsAt:   activateEnd,
+      });
+      setSubMsg(`Activated on paid plan · ${activateStart} → ${activateEnd} · ${limit} teachers.`);
       await load();
     } catch (err: unknown) {
       setSubErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed.');
@@ -302,39 +319,80 @@ export default function SchoolDetailPage() {
             <p className="text-sm font-semibold text-white">{school.display_name ?? school.plan_name ?? 'No plan'}</p>
             <p className="text-xs text-slate-400">
               {school.subscription_status === 'active'
-                ? 'Paid — never expires'
+                ? school.ends_at
+                  ? `Paid · ${fmtDate(school.starts_at)} → ${fmtDate(school.ends_at)} (${daysUntil(school.ends_at)} days left)`
+                  : `Paid · started ${fmtDate(school.starts_at)} · no expiry set`
                 : school.ends_at
                   ? `${school.subscription_status === 'trial' ? 'Trial' : 'Expired'} · ends ${fmtDate(school.ends_at)} (${daysUntil(school.ends_at)} days)`
                   : 'No subscription'}
             </p>
           </div>
           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${badge}`}>
-            {school.subscription_status}
+            {school.subscription_status === 'active' ? 'Paid' : school.subscription_status === 'trial' ? 'Trial' : 'Expired'}
           </span>
         </div>
 
         <div className="space-y-3">
+          {/* ── Activate paid plan ── */}
           {school.subscription_status !== 'active' && (
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <label className="text-[10px] text-slate-500 block mb-1">Teacher limit for paid plan</label>
+            <div className="bg-slate-900/60 rounded-xl p-4 space-y-3 border border-slate-600">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Activate Paid Plan</p>
+
+              {/* Duration quick-select */}
+              <div>
+                <p className="text-[10px] text-slate-500 mb-1.5">Quick duration</p>
+                <div className="flex gap-1.5 flex-wrap">
+                  {[['1 mo', 1], ['3 mo', 3], ['6 mo', 6], ['1 yr', 12]].map(([label, months]) => (
+                    <button key={label as string} type="button"
+                      onClick={() => applyDuration(months as number)}
+                      className="px-3 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-slate-200 transition-colors">
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Start / end dates */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[10px] text-slate-500 block mb-1">Start date</label>
+                  <input type="date" value={activateStart}
+                    onChange={e => { setActivateStart(e.target.value); setSubErr(''); }}
+                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-green-500" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-500 block mb-1">End date</label>
+                  <input type="date" value={activateEnd}
+                    onChange={e => { setActivateEnd(e.target.value); setSubErr(''); }}
+                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-green-500" />
+                </div>
+              </div>
+
+              {/* Teacher limit */}
+              <div>
+                <label className="text-[10px] text-slate-500 block mb-1">Teacher limit</label>
                 <input type="number" value={activateLimit}
                   onChange={e => { setActivateLimit(e.target.value); setSubErr(''); }}
-                  min="10" placeholder="Min 10"
-                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white text-center focus:outline-none focus:border-green-500" />
+                  min="10" placeholder={`Current: ${school.teacher_limit}`}
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-green-500" />
               </div>
+
               <button onClick={handleActivate} disabled={subLoading}
-                className="mt-4 px-4 py-2 rounded-xl bg-green-700 hover:bg-green-600 text-white text-xs font-semibold disabled:opacity-40 transition-colors whitespace-nowrap">
-                Activate Paid Plan
+                className="w-full py-2 rounded-xl bg-green-700 hover:bg-green-600 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
+                {subLoading ? 'Activating...' : 'Activate Paid Plan'}
               </button>
             </div>
           )}
+
+          {/* ── Revert to trial (paid → trial) ── */}
           {school.subscription_status === 'active' && (
             <button onClick={handleRevertToTrial} disabled={subLoading}
               className="px-4 py-2 rounded-xl bg-orange-700 hover:bg-orange-600 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
               Revert to Trial
             </button>
           )}
+
+          {/* ── Extend trial ── */}
           <div className="flex items-center gap-2">
             <input type="number" value={trialDays} onChange={e => setTrialDays(e.target.value)}
               min="1" max="365" placeholder="Days"
