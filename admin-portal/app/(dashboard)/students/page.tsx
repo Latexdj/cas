@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
-import type { Student } from '@/types/api';
+import type { Student, Program } from '@/types/api';
 
 interface UploadResult { inserted: number; errors: { row: number; message: string }[]; }
 type ModalMode = 'add' | 'edit' | 'upload' | 'promote' | 'graduate' | null;
@@ -14,11 +14,13 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 };
 
 export default function StudentsPage() {
-  const [students,     setStudents]     = useState<Student[]>([]);
-  const [classes,      setClasses]      = useState<string[]>([]);
-  const [loading,      setLoading]      = useState(true);
-  const [filterClass,  setFilterClass]  = useState('');
-  const [filterStatus, setFilterStatus] = useState('Active');
+  const [students,       setStudents]       = useState<Student[]>([]);
+  const [classes,        setClasses]        = useState<string[]>([]);
+  const [programs,       setPrograms]       = useState<Program[]>([]);
+  const [loading,        setLoading]        = useState(true);
+  const [filterClass,    setFilterClass]    = useState('');
+  const [filterStatus,   setFilterStatus]   = useState('Active');
+  const [filterProgram,  setFilterProgram]  = useState('');
   const [search,       setSearch]       = useState('');
   const [modal,        setModal]        = useState<ModalMode>(null);
   const [editing,      setEditing]      = useState<Student | null>(null);
@@ -34,6 +36,7 @@ export default function StudentsPage() {
   const [fClass,     setFClass]     = useState('');
   const [fStatus,    setFStatus]    = useState('Active');
   const [fNotes,     setFNotes]     = useState('');
+  const [fProgram,   setFProgram]   = useState('');
 
   // Promote / Graduate state
   const [fromClass,  setFromClass]  = useState('');
@@ -44,28 +47,31 @@ export default function StudentsPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (filterClass)  params.set('class_name', filterClass);
-      if (filterStatus) params.set('status', filterStatus || 'all');
-      const [stuRes, clsRes] = await Promise.all([
+      if (filterClass)   params.set('class_name', filterClass);
+      if (filterProgram) params.set('program_id', filterProgram);
+      if (filterStatus)  params.set('status', filterStatus || 'all');
+      const [stuRes, clsRes, progRes] = await Promise.all([
         api.get<Student[]>(`/api/students?${params}`),
         api.get<string[]>('/api/students/classes'),
+        api.get<Program[]>('/api/programs'),
       ]);
       setStudents(stuRes.data);
       setClasses(clsRes.data);
+      setPrograms(progRes.data);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, [filterClass, filterStatus]);
+  useEffect(() => { load(); }, [filterClass, filterStatus, filterProgram]);
 
   function openAdd() {
-    setEditing(null); setFCode(''); setFName(''); setFClass(''); setFStatus('Active'); setFNotes('');
+    setEditing(null); setFCode(''); setFName(''); setFClass(''); setFStatus('Active'); setFNotes(''); setFProgram('');
     setError(''); setModal('add');
   }
   function openEdit(s: Student) {
     setEditing(s); setFCode(s.student_code); setFName(s.name);
-    setFClass(s.class_name); setFStatus(s.status); setFNotes(s.notes || '');
+    setFClass(s.class_name); setFStatus(s.status); setFNotes(s.notes || ''); setFProgram(s.program_id || '');
     setError(''); setModal('edit');
   }
 
@@ -74,7 +80,7 @@ export default function StudentsPage() {
     if (!fClass.trim()) { setError('Class is required'); return; }
     setSaving(true); setError('');
     try {
-      const body = { name: fName.trim(), class_name: fClass.trim(), student_code: fCode.trim() || undefined, status: fStatus, notes: fNotes.trim() || null };
+      const body = { name: fName.trim(), class_name: fClass.trim(), student_code: fCode.trim() || undefined, status: fStatus, notes: fNotes.trim() || null, program_id: fProgram || null };
       if (editing) {
         await api.put(`/api/students/${editing.id}`, body);
       } else {
@@ -178,6 +184,13 @@ export default function StudentsPage() {
           <option value="Inactive">Inactive</option>
           <option value="all">All Statuses</option>
         </select>
+        {programs.length > 0 && (
+          <select className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}
+            value={filterProgram} onChange={e => setFilterProgram(e.target.value)}>
+            <option value="">All Programs</option>
+            {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Table */}
@@ -186,12 +199,13 @@ export default function StudentsPage() {
           <div className="flex justify-center py-16"><div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} /></div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-sm" style={{ color: '#94A3B8' }}>No students found.</div>
+
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
-                  {['ID', 'Name', 'Class', 'Status', 'Notes', ''].map(h => (
+                  {['ID', 'Name', 'Class', 'Program', 'Status', 'Notes', ''].map(h => (
                     <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
                   ))}
                 </tr>
@@ -207,6 +221,11 @@ export default function StudentsPage() {
                       </td>
                       <td className="px-5 py-3 font-semibold" style={{ color: '#0F172A' }}>{s.name}</td>
                       <td className="px-5 py-3" style={{ color: '#475569' }}>{s.class_name}</td>
+                      <td className="px-5 py-3">
+                        {s.program_name
+                          ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#EFF6FF', color: '#2563EB' }}>{s.program_name}</span>
+                          : <span style={{ color: '#CBD5E1' }}>—</span>}
+                      </td>
                       <td className="px-5 py-3">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: sc.bg, color: sc.color }}>{s.status}</span>
                       </td>
@@ -252,6 +271,15 @@ export default function StudentsPage() {
                   <option>Active</option><option>Graduated</option><option>Inactive</option>
                 </select>
               </div>
+              {programs.length > 0 && (
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Program</label>
+                  <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={fProgram} onChange={e => setFProgram(e.target.value)}>
+                    <option value="">No program assigned</option>
+                    {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Notes</label>
                 <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={fNotes} onChange={e => setFNotes(e.target.value)} placeholder="Optional" />

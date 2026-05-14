@@ -134,23 +134,27 @@ router.get('/classes', async (req, res, next) => {
 /** GET /api/students */
 router.get('/', async (req, res, next) => {
   try {
-    const { class_name, status } = req.query;
-    const conds  = ['school_id = $1'];
+    const { class_name, status, program_id } = req.query;
+    const conds  = ['s.school_id = $1'];
     const params = [req.schoolId];
 
-    if (class_name) { params.push(class_name); conds.push(`class_name = $${params.length}`); }
+    if (class_name)  { params.push(class_name);  conds.push(`s.class_name = $${params.length}`); }
+    if (program_id)  { params.push(program_id);  conds.push(`s.program_id = $${params.length}`); }
 
     // Default to Active only; pass status=all to get everything
     const effectiveStatus = status || 'Active';
     if (effectiveStatus !== 'all') {
       params.push(effectiveStatus);
-      conds.push(`status = $${params.length}`);
+      conds.push(`s.status = $${params.length}`);
     }
 
     const { rows } = await pool.query(
-      `SELECT id, student_code, name, class_name, status, notes
-       FROM students WHERE ${conds.join(' AND ')}
-       ORDER BY class_name, name`,
+      `SELECT s.id, s.student_code, s.name, s.class_name, s.status, s.notes,
+              s.program_id, p.name AS program_name
+       FROM students s
+       LEFT JOIN programs p ON p.id = s.program_id
+       WHERE ${conds.join(' AND ')}
+       ORDER BY s.class_name, s.name`,
       params
     );
     res.json(rows);
@@ -161,8 +165,11 @@ router.get('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, student_code, name, class_name, status, notes
-       FROM students WHERE id = $1 AND school_id = $2`,
+      `SELECT s.id, s.student_code, s.name, s.class_name, s.status, s.notes,
+              s.program_id, p.name AS program_name
+       FROM students s
+       LEFT JOIN programs p ON p.id = s.program_id
+       WHERE s.id = $1 AND s.school_id = $2`,
       [req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Student not found' });
@@ -173,16 +180,16 @@ router.get('/:id', async (req, res, next) => {
 /** POST /api/students */
 router.post('/', adminOnly, async (req, res, next) => {
   try {
-    const { name, class_name, student_code, status = 'Active', notes } = req.body;
+    const { name, class_name, student_code, status = 'Active', notes, program_id } = req.body;
     if (!name)       return res.status(400).json({ error: 'name is required' });
     if (!class_name) return res.status(400).json({ error: 'class_name is required' });
 
     const code = student_code?.trim() || await nextStudentCode(req.schoolId);
     const { rows } = await pool.query(
-      `INSERT INTO students (school_id, student_code, name, class_name, status, notes)
-       VALUES ($1,$2,$3,$4,$5,$6)
-       RETURNING id, student_code, name, class_name, status, notes`,
-      [req.schoolId, code, name.trim(), class_name.trim(), status, notes || null]
+      `INSERT INTO students (school_id, student_code, name, class_name, status, notes, program_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       RETURNING id, student_code, name, class_name, status, notes, program_id`,
+      [req.schoolId, code, name.trim(), class_name.trim(), status, notes || null, program_id || null]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -194,7 +201,7 @@ router.post('/', adminOnly, async (req, res, next) => {
 /** PUT /api/students/:id */
 router.put('/:id', adminOnly, async (req, res, next) => {
   try {
-    const { name, class_name, student_code, status, notes } = req.body;
+    const { name, class_name, student_code, status, notes, program_id } = req.body;
     const { rows } = await pool.query(
       `UPDATE students SET
          student_code = COALESCE($1, student_code),
@@ -202,12 +209,13 @@ router.put('/:id', adminOnly, async (req, res, next) => {
          class_name   = COALESCE($3, class_name),
          status       = COALESCE($4, status),
          notes        = COALESCE($5, notes),
+         program_id   = $6,
          updated_at   = now()
-       WHERE id = $6 AND school_id = $7
-       RETURNING id, student_code, name, class_name, status, notes`,
+       WHERE id = $7 AND school_id = $8
+       RETURNING id, student_code, name, class_name, status, notes, program_id`,
       [student_code?.trim() || null, name || null, class_name?.trim() || null,
        status || null, notes !== undefined ? (notes || null) : undefined,
-       req.params.id, req.schoolId]
+       program_id || null, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Student not found' });
     res.json(rows[0]);

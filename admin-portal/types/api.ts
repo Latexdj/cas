@@ -39,6 +39,13 @@ export interface ClassItem {
   name: string;
 }
 
+export interface Program {
+  id: string;
+  name: string;
+  notes: string | null;
+  student_count: number;
+}
+
 export interface TimetableEntry {
   id: string;
   day_of_week: number;
@@ -110,6 +117,8 @@ export interface Student {
   class_name: string;
   status: 'Active' | 'Graduated' | 'Inactive';
   notes: string | null;
+  program_id: string | null;
+  program_name: string | null;
 }
 
 export interface StudentAttendanceSession {

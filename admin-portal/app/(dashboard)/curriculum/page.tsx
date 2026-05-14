@@ -4,17 +4,18 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import type { Subject, ClassItem } from '@/types/api';
+import type { Subject, ClassItem, Program } from '@/types/api';
 
 /* ── Tab bar ── */
-type Tab = 'subjects' | 'classes';
+type Tab = 'subjects' | 'classes' | 'programs';
 
-function TabBar({ active, onSelect, subjectCount, classCount }: {
-  active: Tab; onSelect: (t: Tab) => void; subjectCount: number; classCount: number;
+function TabBar({ active, onSelect, subjectCount, classCount, programCount }: {
+  active: Tab; onSelect: (t: Tab) => void; subjectCount: number; classCount: number; programCount: number;
 }) {
   const tabs: { id: Tab; label: string; count: number }[] = [
     { id: 'subjects', label: 'Subjects', count: subjectCount },
     { id: 'classes',  label: 'Classes',  count: classCount  },
+    { id: 'programs', label: 'Programs', count: programCount },
   ];
   return (
     <div className="flex gap-1 p-1 rounded-xl" style={{ backgroundColor: '#F1F5F9' }}>
@@ -342,21 +343,140 @@ function ClassesTab() {
   );
 }
 
+/* ── Programs tab ── */
+function ProgramsTab() {
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [modal,    setModal]    = useState<'create' | 'edit' | null>(null);
+  const [form,     setForm]     = useState({ name: '', notes: '' });
+  const [editId,   setEditId]   = useState<string | null>(null);
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await api.get<Program[]>('/api/programs');
+      setPrograms(data);
+    } finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  function openCreate() { setForm({ name: '', notes: '' }); setError(''); setEditId(null); setModal('create'); }
+  function openEdit(p: Program) { setForm({ name: p.name, notes: p.notes ?? '' }); setEditId(p.id); setError(''); setModal('edit'); }
+
+  async function save() {
+    if (!form.name.trim()) { setError('Program name is required.'); return; }
+    setSaving(true); setError('');
+    try {
+      if (modal === 'create') await api.post('/api/programs', form);
+      else                    await api.put(`/api/programs/${editId}`, form);
+      setModal(null); await load();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Failed to save.');
+    } finally { setSaving(false); }
+  }
+
+  async function del(id: string, name: string) {
+    if (!confirm(`Delete program "${name}"? Students assigned to it will have no program.`)) return;
+    try { await api.delete(`/api/programs/${id}`); await load(); }
+    catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(msg ?? 'Failed to delete.');
+    }
+  }
+
+  const inputCls = 'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-sm" style={{ color: '#94A3B8' }}>{programs.length} program{programs.length !== 1 ? 's' : ''} defined</p>
+        <Button onClick={openCreate}>+ Add Program</Button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center h-32 items-center">
+          <div className="w-6 h-6 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+          <table className="w-full text-sm">
+            <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+              <tr>
+                {['Program Name', 'Active Students', 'Notes', ''].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {programs.map((p, i) => (
+                <tr key={p.id} className="hover:bg-slate-50 transition-colors"
+                  style={{ borderBottom: i < programs.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                  <td className="px-4 py-3 font-medium" style={{ color: '#0F172A' }}>{p.name}</td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                      {p.student_count}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs" style={{ color: '#94A3B8' }}>{p.notes ?? '—'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>Edit</Button>
+                      <Button variant="danger" size="sm" onClick={() => del(p.id, p.name)}>Del</Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {programs.length === 0 && (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: '#94A3B8' }}>No programs yet. Add one (e.g. Science, General Arts, Business).</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <Modal open={modal !== null} onClose={() => setModal(null)}
+        title={modal === 'create' ? 'Add Program' : 'Edit Program'} maxWidth="max-w-sm">
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Program Name *</label>
+            <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Science, General Arts" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</label>
+            <input className={inputCls} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional description" />
+          </div>
+          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
+            <Button onClick={save} loading={saving}>Save</Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 /* ── Page ── */
 export default function CurriculumPage() {
   const searchParams = useSearchParams();
-  const initialTab   = searchParams.get('tab') === 'classes' ? 'classes' : 'subjects';
-  const [tab,          setTab]          = useState<Tab>(initialTab);
-  const [subjectCount, setSubjectCount] = useState(0);
-  const [classCount,   setClassCount]   = useState(0);
+  const rawTab = searchParams.get('tab');
+  const initialTab: Tab = rawTab === 'classes' ? 'classes' : rawTab === 'programs' ? 'programs' : 'subjects';
+  const [tab,           setTab]           = useState<Tab>(initialTab);
+  const [subjectCount,  setSubjectCount]  = useState(0);
+  const [classCount,    setClassCount]    = useState(0);
+  const [programCount,  setProgramCount]  = useState(0);
 
   useEffect(() => {
     Promise.allSettled([
       api.get<Subject[]>('/api/subjects'),
       api.get<ClassItem[]>('/api/classes'),
-    ]).then(([s, c]) => {
+      api.get<Program[]>('/api/programs'),
+    ]).then(([s, c, p]) => {
       if (s.status === 'fulfilled') setSubjectCount(s.value.data.length);
       if (c.status === 'fulfilled') setClassCount(c.value.data.length);
+      if (p.status === 'fulfilled') setProgramCount(p.value.data.length);
     });
   }, []);
 
@@ -364,13 +484,14 @@ export default function CurriculumPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold" style={{ color: '#0F172A' }}>Curriculum</h1>
-        <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>Manage subjects and class groups</p>
+        <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>Manage subjects, class groups, and academic programs</p>
       </div>
 
-      <TabBar active={tab} onSelect={setTab} subjectCount={subjectCount} classCount={classCount} />
+      <TabBar active={tab} onSelect={setTab} subjectCount={subjectCount} classCount={classCount} programCount={programCount} />
 
       {tab === 'subjects' && <SubjectsTab />}
       {tab === 'classes'  && <ClassesTab  />}
+      {tab === 'programs' && <ProgramsTab />}
     </div>
   );
 }
