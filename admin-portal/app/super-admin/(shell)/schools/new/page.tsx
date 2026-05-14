@@ -102,7 +102,7 @@ export default function NewSchoolPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Teacher Limit</span>
-              <span className="font-semibold text-white">{limitNum} teachers</span>
+              <span className="font-semibold text-white">{parseInt(teacherLimit)} teachers</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Trial Ends</span>
