@@ -60,10 +60,11 @@ export default function SchoolDetailPage() {
   const [saveErr,     setSaveErr]     = useState('');
 
   // Subscription actions
-  const [trialDays,   setTrialDays]   = useState('14');
-  const [subLoading,  setSubLoading]  = useState(false);
-  const [subMsg,      setSubMsg]      = useState('');
-  const [subErr,      setSubErr]      = useState('');
+  const [trialDays,    setTrialDays]    = useState('14');
+  const [activateLimit,setActivateLimit]= useState('');
+  const [subLoading,   setSubLoading]   = useState(false);
+  const [subMsg,       setSubMsg]       = useState('');
+  const [subErr,       setSubErr]       = useState('');
 
   // Reset PIN
   const [newPin,      setNewPin]      = useState('');
@@ -93,6 +94,7 @@ export default function SchoolDetailPage() {
       setEditPhone(s.phone ?? '');
       setEditAddress(s.address ?? '');
       setEditNotes(s.notes ?? '');
+      setActivateLimit(String(s.teacher_limit ?? 10));
     } finally { setLoading(false); }
   }, [id]);
 
@@ -117,10 +119,12 @@ export default function SchoolDetailPage() {
   }
 
   async function handleActivate() {
+    const limit = parseInt(activateLimit);
+    if (!limit || limit < 10) { setSubErr('Teacher limit must be at least 10.'); return; }
     setSubLoading(true); setSubMsg(''); setSubErr('');
     try {
-      await saApi.post(`/api/schools/${id}/activate`);
-      setSubMsg('School activated on paid plan.');
+      await saApi.post(`/api/schools/${id}/activate`, { teacherLimit: limit });
+      setSubMsg(`School activated on paid plan (${limit} teacher limit).`);
       await load();
     } catch (err: unknown) {
       setSubErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed.');
@@ -309,12 +313,21 @@ export default function SchoolDetailPage() {
           </span>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="space-y-3">
           {school.subscription_status !== 'active' && (
-            <button onClick={handleActivate} disabled={subLoading}
-              className="px-4 py-2 rounded-xl bg-green-700 hover:bg-green-600 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
-              Activate Paid Plan
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <label className="text-[10px] text-slate-500 block mb-1">Teacher limit for paid plan</label>
+                <input type="number" value={activateLimit}
+                  onChange={e => { setActivateLimit(e.target.value); setSubErr(''); }}
+                  min="10" placeholder="Min 10"
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white text-center focus:outline-none focus:border-green-500" />
+              </div>
+              <button onClick={handleActivate} disabled={subLoading}
+                className="mt-4 px-4 py-2 rounded-xl bg-green-700 hover:bg-green-600 text-white text-xs font-semibold disabled:opacity-40 transition-colors whitespace-nowrap">
+                Activate Paid Plan
+              </button>
+            </div>
           )}
           {school.subscription_status === 'active' && (
             <button onClick={handleRevertToTrial} disabled={subLoading}
