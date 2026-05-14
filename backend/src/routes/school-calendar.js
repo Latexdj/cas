@@ -28,7 +28,7 @@ router.get('/', async (req, res, next) => {
     }
 
     const { rows } = await pool.query(
-      `SELECT id, date, name, type, notes, created_at
+      `SELECT id, date::text, name, type, notes, created_at
        FROM school_calendar
        WHERE ${conditions.join(' AND ')}
        ORDER BY date ASC`,

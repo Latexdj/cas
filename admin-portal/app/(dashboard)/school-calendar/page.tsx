@@ -158,7 +158,7 @@ export default function SchoolCalendarPage() {
       ) : (
         <div className="space-y-5">
           {monthKeys.map(month => {
-            const label = new Date(month + '-01').toLocaleString('default', { month: 'long', year: 'numeric' });
+            const label = new Date(month + '-01T12:00:00').toLocaleString('default', { month: 'long', year: 'numeric' });
             return (
               <div key={month}>
                 <p className="text-xs font-bold uppercase tracking-widest mb-2 px-1" style={{ color: '#94A3B8' }}>{label}</p>
