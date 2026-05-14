@@ -100,6 +100,8 @@ export default function SchoolDetailPage() {
       setEditAddress(s.address ?? '');
       setEditNotes(s.notes ?? '');
       setActivateLimit(String(s.teacher_limit ?? 10));
+      if (s.starts_at) setActivateStart(s.starts_at.slice(0, 10));
+      if (s.ends_at)   setActivateEnd(s.ends_at.slice(0, 10));
     } finally { setLoading(false); }
   }, [id]);
 
@@ -142,6 +144,23 @@ export default function SchoolDetailPage() {
         endsAt:   activateEnd,
       });
       setSubMsg(`Activated on paid plan · ${activateStart} → ${activateEnd} · ${limit} teachers.`);
+      await load();
+    } catch (err: unknown) {
+      setSubErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed.');
+    } finally { setSubLoading(false); }
+  }
+
+  async function handleUpdateSubscription() {
+    const limit = parseInt(activateLimit);
+    if (!limit || limit < 10) { setSubErr('Teacher limit must be at least 10.'); return; }
+    setSubLoading(true); setSubMsg(''); setSubErr('');
+    try {
+      await saApi.patch(`/api/schools/${id}/subscription`, {
+        startsAt:     activateStart || undefined,
+        endsAt:       activateEnd   || undefined,
+        teacherLimit: limit,
+      });
+      setSubMsg('Subscription period updated.');
       await load();
     } catch (err: unknown) {
       setSubErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed.');
@@ -333,75 +352,84 @@ export default function SchoolDetailPage() {
         </div>
 
         <div className="space-y-3">
-          {/* ── Activate paid plan ── */}
-          {school.subscription_status !== 'active' && (
-            <div className="bg-slate-900/60 rounded-xl p-4 space-y-3 border border-slate-600">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Activate Paid Plan</p>
+          {/* ── Subscription period form (shown for ALL statuses) ── */}
+          <div className="bg-slate-900/60 rounded-xl p-4 space-y-3 border border-slate-600">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              {school.subscription_status === 'active' ? 'Update Subscription Period' : 'Activate Paid Plan'}
+            </p>
 
-              {/* Duration quick-select */}
+            {/* Duration quick-select */}
+            <div>
+              <p className="text-[10px] text-slate-500 mb-1.5">Quick duration</p>
+              <div className="flex gap-1.5 flex-wrap">
+                {([['1 mo', 1], ['3 mo', 3], ['6 mo', 6], ['1 yr', 12]] as [string, number][]).map(([label, months]) => (
+                  <button key={label} type="button"
+                    onClick={() => applyDuration(months)}
+                    className="px-3 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-slate-200 transition-colors">
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Start / end dates */}
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <p className="text-[10px] text-slate-500 mb-1.5">Quick duration</p>
-                <div className="flex gap-1.5 flex-wrap">
-                  {[['1 mo', 1], ['3 mo', 3], ['6 mo', 6], ['1 yr', 12]].map(([label, months]) => (
-                    <button key={label as string} type="button"
-                      onClick={() => applyDuration(months as number)}
-                      className="px-3 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-slate-200 transition-colors">
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                <label className="text-[10px] text-slate-500 block mb-1">Start date</label>
+                <input type="date" value={activateStart}
+                  onChange={e => { setActivateStart(e.target.value); setSubErr(''); }}
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-green-500" />
               </div>
-
-              {/* Start / end dates */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] text-slate-500 block mb-1">Start date</label>
-                  <input type="date" value={activateStart}
-                    onChange={e => { setActivateStart(e.target.value); setSubErr(''); }}
-                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-green-500" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-500 block mb-1">End date</label>
-                  <input type="date" value={activateEnd}
-                    onChange={e => { setActivateEnd(e.target.value); setSubErr(''); }}
-                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-green-500" />
-                </div>
-              </div>
-
-              {/* Teacher limit */}
               <div>
-                <label className="text-[10px] text-slate-500 block mb-1">Teacher limit</label>
-                <input type="number" value={activateLimit}
-                  onChange={e => { setActivateLimit(e.target.value); setSubErr(''); }}
-                  min="10" placeholder={`Current: ${school.teacher_limit}`}
-                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-green-500" />
+                <label className="text-[10px] text-slate-500 block mb-1">End date</label>
+                <input type="date" value={activateEnd}
+                  onChange={e => { setActivateEnd(e.target.value); setSubErr(''); }}
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-green-500" />
               </div>
+            </div>
 
+            {/* Teacher limit */}
+            <div>
+              <label className="text-[10px] text-slate-500 block mb-1">Teacher limit</label>
+              <input type="number" value={activateLimit}
+                onChange={e => { setActivateLimit(e.target.value); setSubErr(''); }}
+                min="10" placeholder={`Current: ${school.teacher_limit}`}
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-green-500" />
+            </div>
+
+            {school.subscription_status === 'active' ? (
+              <button onClick={handleUpdateSubscription} disabled={subLoading}
+                className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
+                {subLoading ? 'Saving...' : 'Save Subscription Period'}
+              </button>
+            ) : (
               <button onClick={handleActivate} disabled={subLoading}
                 className="w-full py-2 rounded-xl bg-green-700 hover:bg-green-600 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
                 {subLoading ? 'Activating...' : 'Activate Paid Plan'}
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* ── Revert to trial (paid → trial) ── */}
           {school.subscription_status === 'active' && (
             <button onClick={handleRevertToTrial} disabled={subLoading}
-              className="px-4 py-2 rounded-xl bg-orange-700 hover:bg-orange-600 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
+              className="w-full px-4 py-2 rounded-xl bg-orange-700 hover:bg-orange-600 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
               Revert to Trial
             </button>
           )}
 
           {/* ── Extend trial ── */}
-          <div className="flex items-center gap-2">
-            <input type="number" value={trialDays} onChange={e => setTrialDays(e.target.value)}
-              min="1" max="365" placeholder="Days"
-              className="w-16 bg-slate-900 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white text-center focus:outline-none" />
-            <button onClick={handleExtendTrial} disabled={subLoading}
-              className="px-4 py-2 rounded-xl bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
-              Extend Trial
-            </button>
-          </div>
+          {school.subscription_status !== 'active' && (
+            <div className="flex items-center gap-2">
+              <input type="number" value={trialDays} onChange={e => setTrialDays(e.target.value)}
+                min="1" max="365" placeholder="Days"
+                className="w-16 bg-slate-900 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white text-center focus:outline-none" />
+              <button onClick={handleExtendTrial} disabled={subLoading}
+                className="px-4 py-2 rounded-xl bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
+                Extend Trial
+              </button>
+            </div>
+          )}
         </div>
 
         {subMsg && <p className="text-xs text-green-400 bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-3">{subMsg}</p>}

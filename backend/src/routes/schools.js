@@ -325,6 +325,57 @@ router.post('/:id/reset-admin-pin', async (req, res, next) => {
   }
 });
 
+// ── PATCH /api/schools/:id/subscription — update dates / teacher limit on current subscription ──
+router.patch('/:id/subscription', async (req, res, next) => {
+  try {
+    const { startsAt, endsAt, teacherLimit } = req.body;
+
+    const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.params.id]);
+    if (!schoolRows.length) return res.status(404).json({ error: 'School not found' });
+
+    const setClauses = [];
+    const values     = [];
+    let idx = 1;
+
+    if (startsAt !== undefined) {
+      setClauses.push(`starts_at = $${idx++}`);
+      values.push(startsAt ? new Date(startsAt) : null);
+    }
+    if (endsAt !== undefined) {
+      setClauses.push(`ends_at = $${idx++}`);
+      values.push(endsAt ? new Date(endsAt) : null);
+    }
+    if (teacherLimit !== undefined) {
+      const limit = parseInt(teacherLimit);
+      if (!limit || limit < 10) return res.status(400).json({ error: 'Teacher limit must be at least 10' });
+      setClauses.push(`teacher_limit = $${idx++}`);
+      values.push(limit);
+    }
+    if (!setClauses.length) return res.status(400).json({ error: 'Nothing to update' });
+
+    setClauses.push(`updated_at = now()`);
+    values.push(req.params.id);
+
+    const { rows } = await pool.query(
+      `UPDATE subscriptions
+       SET ${setClauses.join(', ')}
+       WHERE school_id = $${idx}
+         AND id = (SELECT id FROM subscriptions WHERE school_id = $${idx} ORDER BY created_at DESC LIMIT 1)
+       RETURNING *`,
+      values
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No subscription found' });
+
+    await auditLog('subscription_updated', 'school', req.params.id, schoolRows[0].name, {
+      changes: Object.keys(req.body),
+    });
+
+    res.json({ message: 'Subscription updated', subscription: rows[0] });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── PATCH /api/schools/:id/teacher-limit — update the active subscription's teacher limit ──
 router.patch('/:id/teacher-limit', async (req, res, next) => {
   try {
