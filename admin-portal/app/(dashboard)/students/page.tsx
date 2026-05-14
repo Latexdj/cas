@@ -50,14 +50,14 @@ export default function StudentsPage() {
       if (filterClass)   params.set('class_name', filterClass);
       if (filterProgram) params.set('program_id', filterProgram);
       if (filterStatus)  params.set('status', filterStatus || 'all');
-      const [stuRes, clsRes, progRes] = await Promise.all([
+      const [stuRes, clsRes, progRes] = await Promise.allSettled([
         api.get<Student[]>(`/api/students?${params}`),
         api.get<string[]>('/api/students/classes'),
         api.get<Program[]>('/api/programs'),
       ]);
-      setStudents(stuRes.data);
-      setClasses(clsRes.data);
-      setPrograms(progRes.data);
+      if (stuRes.status  === 'fulfilled') setStudents(stuRes.value.data);
+      if (clsRes.status  === 'fulfilled') setClasses(clsRes.value.data);
+      if (progRes.status === 'fulfilled') setPrograms(progRes.value.data);
     } finally {
       setLoading(false);
     }
@@ -113,7 +113,8 @@ export default function StudentsPage() {
       const res = await api.post<UploadResult>('/api/students/upload', fd);
       setUploadResult(res.data); await load();
     } catch (err: any) {
-      setUploadResult({ inserted: 0, errors: [{ row: 0, message: err?.response?.data?.error || 'Upload failed' }] });
+      const msg = err?.response?.data?.error || err?.message || 'Upload failed';
+      setUploadResult({ inserted: 0, errors: [{ row: 0, message: msg }] });
     } finally { setUploading(false); if (fileRef.current) fileRef.current.value = ''; }
   }
 
