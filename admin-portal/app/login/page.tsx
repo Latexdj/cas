@@ -9,8 +9,8 @@ import { Input } from '@/components/ui/Input';
 export default function LoginPage() {
   const router = useRouter();
   const [schoolCode, setSchoolCode] = useState('');
-  const [name,       setName]       = useState('');
-  const [pin,        setPin]        = useState('');
+  const [teacherId,  setTeacherId]  = useState('');
+  const [password,   setPassword]   = useState('');
   const [error,      setError]      = useState('');
   const [loading,    setLoading]    = useState(false);
 
@@ -21,15 +21,15 @@ export default function LoginPage() {
     try {
       const { data } = await api.post('/api/auth/login', {
         type: 'admin',
-        name: name.trim(),
-        pin,
+        username: teacherId.trim(),
+        password,
         schoolCode: schoolCode.trim().toUpperCase(),
       });
       saveUser({ id: data.id, name: data.name, role: data.role, schoolId: data.schoolId, token: data.token });
       router.replace('/dashboard');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg ?? 'Login failed. Check your name, PIN and School ID.');
+      setError(msg ?? 'Login failed. Check your Teacher ID, password and School Code.');
     } finally {
       setLoading(false);
     }
@@ -57,18 +57,18 @@ export default function LoginPage() {
           </div>
 
           <h2 className="text-4xl font-bold leading-tight mb-5" style={{ color: '#F8FAFC' }}>
-            Manage your school with confidence
+            Everything your school needs, in one place
           </h2>
           <p className="text-base leading-relaxed" style={{ color: '#94A3B8' }}>
-            Track teacher attendance, manage timetables, monitor absences, and ensure every classroom is covered — all from one place.
+            From teacher and student attendance to timetables, curriculum, remedials, and school calendars — a complete school management system.
           </p>
         </div>
 
         <div className="relative z-10 space-y-4">
           {[
-            { label: 'Real-time attendance tracking', icon: '✓' },
-            { label: 'Automated absence detection',   icon: '✓' },
-            { label: 'GPS-verified classroom check-ins', icon: '✓' },
+            { label: 'Teacher & student attendance',      icon: '✓' },
+            { label: 'Timetable & curriculum management', icon: '✓' },
+            { label: 'Absences, remedials & reporting',   icon: '✓' },
           ].map(f => (
             <div key={f.label} className="flex items-center gap-3">
               <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white" style={{ backgroundColor: '#15803D' }}>
@@ -93,7 +93,7 @@ export default function LoginPage() {
 
           <div className="mb-8">
             <h1 className="text-2xl font-bold mb-1" style={{ color: '#0F172A' }}>Welcome back</h1>
-            <p className="text-sm" style={{ color: '#94A3B8' }}>Sign in to your admin account</p>
+            <p className="text-sm" style={{ color: '#94A3B8' }}>Sign in with your Teacher ID and password</p>
           </div>
 
           <div className="bg-white rounded-2xl p-8" style={{ border: '1px solid #E2E8F0', boxShadow: '0 4px 24px rgba(15,23,42,0.08)' }}>
@@ -107,20 +107,19 @@ export default function LoginPage() {
                 autoComplete="off"
               />
               <Input
-                label="Admin Name"
-                placeholder="As registered in the system"
-                value={name}
-                onChange={e => setName(e.target.value)}
+                label="Teacher ID"
+                placeholder="e.g. T001"
+                value={teacherId}
+                onChange={e => setTeacherId(e.target.value)}
                 required
-                autoComplete="name"
+                autoComplete="username"
               />
               <Input
-                label="PIN"
+                label="Password"
                 type="password"
-                inputMode="numeric"
-                placeholder="••••"
-                value={pin}
-                onChange={e => setPin(e.target.value)}
+                placeholder="Your password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
               />
