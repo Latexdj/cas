@@ -101,7 +101,7 @@ export default function StudentsPage() {
   async function downloadTemplate() {
     const res = await api.get('/api/students/upload/template', { responseType: 'blob' });
     const url = URL.createObjectURL(res.data as Blob);
-    const a   = document.createElement('a'); a.href = url; a.download = 'students_template.csv'; a.click();
+    const a   = document.createElement('a'); a.href = url; a.download = 'students_template.xlsx'; a.click();
     URL.revokeObjectURL(url);
   }
 
@@ -300,8 +300,9 @@ export default function StudentsPage() {
             <h2 className="text-lg font-bold mb-4" style={{ color: '#0F172A' }}>Upload Students (Excel / CSV)</h2>
             <div className="rounded-lg p-4 mb-4 text-sm" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2D9CC' }}>
               <p className="font-semibold mb-2" style={{ color: '#0F172A' }}>Column format:</p>
-              <p style={{ color: '#475569' }}>A: Student ID (blank = auto-generate) &nbsp;·&nbsp; B: Name &nbsp;·&nbsp; C: Class &nbsp;·&nbsp; D: Status &nbsp;·&nbsp; E: Notes</p>
-              <button className="mt-2 text-xs font-semibold underline" style={{ color: '#2563EB' }} onClick={downloadTemplate}>Download template</button>
+              <p style={{ color: '#475569' }}>A: Student ID (blank = auto-generate) &nbsp;·&nbsp; B: Name &nbsp;·&nbsp; C: Class &nbsp;·&nbsp; D: Program &nbsp;·&nbsp; E: Status &nbsp;·&nbsp; F: Notes</p>
+              <p className="mt-1 text-xs" style={{ color: '#94A3B8' }}>Program and Status are optional. See the Reference sheet in the template for valid values.</p>
+              <button className="mt-2 text-xs font-semibold underline" style={{ color: '#2563EB' }} onClick={downloadTemplate}>Download template (.xlsx)</button>
             </div>
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="block w-full text-sm mb-4" onChange={handleUpload} disabled={uploading} />
             {uploading && <p className="text-sm text-center mb-3" style={{ color: '#64748B' }}>Uploading…</p>}
