@@ -7,23 +7,24 @@ import { teacherApi } from '@/lib/teacher-api';
 
 interface TimetableSlot {
   id: string;
-  startTime: string;
-  endTime: string;
+  start_time: string;
+  end_time: string;
   subject: string;
-  className: string;
-  submitted?: boolean;
+  class_names: string;
 }
 
 interface AttendanceRecord {
-  slotId: string;
-  submitted: boolean;
+  id: string;
+  subject: string;
+  class_names: string;
 }
 
 interface CalendarEvent {
   id: string;
-  title: string;
+  name: string;
   date: string;
   type: 'Holiday' | 'School Event' | 'Closed Day' | string;
+  notes?: string;
 }
 
 function formatLocalDate(iso: string) {
@@ -81,10 +82,18 @@ export default function TeacherTodayPage() {
     loadData();
   }, [loadData]);
 
-  const submittedIds = new Set(attendance.filter((a) => a.submitted).map((a) => a.slotId));
+  function isSlotSubmitted(slot: TimetableSlot) {
+    return attendance.some((a) => {
+      if (a.subject.toLowerCase() !== slot.subject.toLowerCase()) return false;
+      const slotClasses = slot.class_names.split(',').map((c) => c.trim().toLowerCase());
+      const attClasses  = a.class_names.split(',').map((c) => c.trim().toLowerCase());
+      return slotClasses.some((sc) => attClasses.includes(sc));
+    });
+  }
+
   const totalLessons = slots.length;
-  const submitted = slots.filter((s) => submittedIds.has(s.id)).length;
-  const pending = totalLessons - submitted;
+  const submittedCount = slots.filter(isSlotSubmitted).length;
+  const pending = totalLessons - submittedCount;
 
   const eventColor = (type: string) => {
     if (type === 'Holiday') return { bg: '#FEF3C7', border: '#FCD34D', text: '#92400E' };
@@ -122,7 +131,7 @@ export default function TeacherTodayPage() {
       <div className="grid grid-cols-3 gap-3 mb-6">
         {[
           { label: 'Lessons', value: totalLessons, color: '#8C7E6E' },
-          { label: 'Submitted', value: submitted, color: primary },
+          { label: 'Submitted', value: submittedCount, color: primary },
           { label: 'Pending', value: pending, color: pending > 0 ? '#B83232' : '#8C7E6E' },
         ].map((stat) => (
           <div key={stat.label} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-3 text-center">
@@ -148,7 +157,7 @@ export default function TeacherTodayPage() {
         ) : (
           <div className="space-y-3">
             {slots.map((slot) => {
-              const isSubmitted = submittedIds.has(slot.id);
+              const done = isSlotSubmitted(slot);
               return (
                 <div
                   key={slot.id}
@@ -157,17 +166,17 @@ export default function TeacherTodayPage() {
                   <div className="flex items-start gap-3">
                     <div
                       className="w-1 self-stretch rounded-full shrink-0"
-                      style={{ background: isSubmitted ? primary : '#E2D9CC' }}
+                      style={{ background: done ? primary : '#E2D9CC' }}
                     />
                     <div>
                       <p className="text-xs text-[#8C7E6E] font-medium">
-                        {slot.startTime} – {slot.endTime}
+                        {slot.start_time?.slice(0, 5)} – {slot.end_time?.slice(0, 5)}
                       </p>
                       <p className="font-semibold text-[#2C2218] text-sm mt-0.5">{slot.subject}</p>
-                      <p className="text-xs text-[#8C7E6E]">{slot.className}</p>
+                      <p className="text-xs text-[#8C7E6E]">{slot.class_names}</p>
                     </div>
                   </div>
-                  {isSubmitted ? (
+                  {done ? (
                     <span
                       className="text-xs font-semibold px-3 py-1 rounded-full"
                       style={{ background: `${primary}18`, color: primary }}
@@ -204,7 +213,7 @@ export default function TeacherTodayPage() {
                   style={{ background: col.bg, borderColor: col.border }}
                 >
                   <div>
-                    <p className="text-sm font-semibold" style={{ color: col.text }}>{ev.title}</p>
+                    <p className="text-sm font-semibold" style={{ color: col.text }}>{ev.name}</p>
                     <p className="text-xs mt-0.5" style={{ color: col.text, opacity: 0.75 }}>
                       {formatLocalDate(ev.date)}
                     </p>

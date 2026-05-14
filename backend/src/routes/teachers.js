@@ -57,6 +57,24 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     const defaultPin = process.env.DEFAULT_TEACHER_PIN || '1234';
     const pinHash    = await bcrypt.hash(defaultPin, 12);
 
+    // Get teacher limit for this school
+    const { rows: subRows } = await pool.query(
+      `SELECT teacher_limit FROM subscriptions
+       WHERE school_id = $1 AND status IN ('trial', 'active')
+       ORDER BY created_at DESC LIMIT 1`,
+      [req.schoolId]
+    );
+    let teacherLimit = null;
+    let activeCount  = 0;
+    if (subRows.length) {
+      teacherLimit = subRows[0].teacher_limit;
+      const { rows: countRows } = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM teachers WHERE school_id = $1 AND status = 'Active'`,
+        [req.schoolId]
+      );
+      activeCount = countRows[0].cnt;
+    }
+
     let inserted = 0;
     const errors = [];
 
@@ -75,6 +93,12 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       // Skip entirely blank rows
       if (!name && !teacherCode) continue;
       if (!name) { errors.push({ row: rowNum, message: 'Name is required' }); continue; }
+
+      // Hard stop at teacher limit
+      if (teacherLimit !== null && activeCount + inserted >= teacherLimit) {
+        errors.push({ row: rowNum, message: `Teacher limit reached (${teacherLimit}). Row skipped.` });
+        continue;
+      }
 
       const isAdmin = ['yes', 'true', '1', 'y'].includes(isAdminRaw);
 
@@ -147,6 +171,26 @@ router.post('/', adminOnly, async (req, res, next) => {
   try {
     const { name, email, phone, department, status = 'Active', is_admin = false, notes, teacher_code } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
+
+    // Enforce teacher limit
+    const { rows: subRows } = await pool.query(
+      `SELECT teacher_limit FROM subscriptions
+       WHERE school_id = $1 AND status IN ('trial', 'active')
+       ORDER BY created_at DESC LIMIT 1`,
+      [req.schoolId]
+    );
+    if (subRows.length) {
+      const limit = subRows[0].teacher_limit;
+      const { rows: countRows } = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM teachers WHERE school_id = $1 AND status = 'Active'`,
+        [req.schoolId]
+      );
+      if (countRows[0].cnt >= limit) {
+        return res.status(403).json({
+          error: `Teacher limit reached (${countRows[0].cnt}/${limit}). Contact your administrator to upgrade your subscription.`,
+        });
+      }
+    }
 
     const code    = teacher_code?.trim().toUpperCase() || await nextTeacherCode(req.schoolId);
     const pinHash = await bcrypt.hash(process.env.DEFAULT_TEACHER_PIN || '1234', 12);

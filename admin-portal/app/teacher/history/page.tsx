@@ -7,16 +7,11 @@ import { teacherApi } from '@/lib/teacher-api';
 interface AttendanceRecord {
   id: string;
   date: string;
-  startTime?: string;
-  endTime?: string;
   subject: string;
-  className: string;
+  class_names: string;
   topic?: string;
-  location?: string;
-  locationName?: string;
-  presentCount?: number;
-  absentCount?: number;
-  studentCount?: number;
+  location_name?: string;
+  periods?: number;
 }
 
 const PAGE_SIZE = 30;
@@ -95,42 +90,27 @@ export default function HistoryPage() {
       ) : (
         <div className="space-y-3">
           {records.map((rec) => {
-            const present = rec.presentCount ?? (rec.studentCount ? rec.studentCount - (rec.absentCount ?? 0) : null);
-            const absent = rec.absentCount ?? null;
             return (
               <div key={rec.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#2C2218] truncate">{rec.subject} — {rec.className}</p>
+                    <p className="text-sm font-semibold text-[#2C2218] truncate">{rec.subject} — {rec.class_names}</p>
                     <p className="text-xs text-[#8C7E6E] mt-0.5">{formatDate(rec.date)}</p>
-                    {(rec.startTime || rec.endTime) && (
-                      <p className="text-xs text-[#8C7E6E]">{rec.startTime}{rec.endTime ? ` – ${rec.endTime}` : ''}</p>
-                    )}
                     {rec.topic && (
                       <p className="text-xs text-[#8C7E6E] mt-1 truncate">
                         <span className="font-medium">Topic:</span> {rec.topic}
                       </p>
                     )}
-                    {(rec.location || rec.locationName) && (
+                    {rec.location_name && (
                       <p className="text-xs text-[#8C7E6E] truncate">
-                        <span className="font-medium">Location:</span> {rec.locationName ?? rec.location}
+                        <span className="font-medium">Location:</span> {rec.location_name}
                       </p>
                     )}
                   </div>
-                  {(present !== null || absent !== null) && (
-                    <div className="flex gap-2 shrink-0">
-                      {present !== null && (
-                        <div className="text-center">
-                          <p className="text-base font-bold" style={{ color: primary }}>{present}</p>
-                          <p className="text-[10px] text-[#8C7E6E]">Present</p>
-                        </div>
-                      )}
-                      {absent !== null && (
-                        <div className="text-center">
-                          <p className="text-base font-bold text-[#B83232]">{absent}</p>
-                          <p className="text-[10px] text-[#8C7E6E]">Absent</p>
-                        </div>
-                      )}
+                  {rec.periods && (
+                    <div className="shrink-0 text-center">
+                      <p className="text-base font-bold" style={{ color: primary }}>{rec.periods}</p>
+                      <p className="text-[10px] text-[#8C7E6E]">Period{rec.periods !== 1 ? 's' : ''}</p>
                     </div>
                   )}
                 </div>
