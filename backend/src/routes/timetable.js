@@ -122,10 +122,15 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
 
     if (!rows.length) return res.status(400).json({ error: 'File is empty' });
 
-    // Skip header row if detected
-    const firstRow  = rows[0].map(c => String(c).toLowerCase().trim());
-    const hasHeader = firstRow.some(c => ['teacher', 'day', 'subject', 'class', 'time'].some(k => c.includes(k)));
-    const dataRows  = hasHeader ? rows.slice(1) : rows;
+    // Remove comment rows (lines whose first cell starts with #)
+    let dataRows = rows.filter(row => !String(row[0] ?? '').trim().startsWith('#'));
+    // Skip header row if the first remaining row looks like column labels
+    if (dataRows.length > 0) {
+      const firstRow = dataRows[0].map(c => String(c).toLowerCase().trim());
+      if (firstRow.some(c => ['teacher', 'day', 'subject', 'class', 'time'].some(k => c.includes(k)))) {
+        dataRows = dataRows.slice(1);
+      }
+    }
 
     // Load teachers for this school
     const { rows: teachers } = await pool.query(
@@ -168,7 +173,7 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
 
     for (let i = 0; i < dataRows.length; i++) {
       const row    = dataRows[i];
-      const rowNum = i + (hasHeader ? 2 : 1);
+      const rowNum = i + 2;
 
       const dayRaw      = String(row[2] ?? '').trim();
       const startRaw    = row[3];
