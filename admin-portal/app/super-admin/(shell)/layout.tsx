@@ -45,7 +45,7 @@ export default function SuperAdminShell({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex min-h-screen" style={{ background: '#0F172A' }}>
+    <div className="flex h-screen" style={{ background: '#0F172A' }}>
       {/* Sidebar */}
       <aside className="w-56 shrink-0 flex flex-col border-r border-slate-700/60 bg-slate-900">
         {/* Logo */}
@@ -103,7 +103,7 @@ export default function SuperAdminShell({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto min-h-0">
         {children}
       </main>
     </div>
