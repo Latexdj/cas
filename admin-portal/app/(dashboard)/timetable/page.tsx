@@ -68,8 +68,7 @@ export default function TimetablePage() {
     try {
       const fd = new FormData(); fd.append('file', file);
       const { data } = await api.post<UploadResult>(
-        `/api/timetable/upload?replace=${replaceAll}`, fd,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        `/api/timetable/upload?replace=${replaceAll}`, fd
       );
       setUploadResult(data);
       await load();
@@ -194,13 +193,13 @@ export default function TimetablePage() {
         <div className="space-y-4">
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-600 space-y-1.5">
             <p className="font-semibold text-slate-700">Expected columns (row 1 = optional header):</p>
-            <div className="grid grid-cols-6 gap-1 text-xs font-mono">
-              {['A: Teacher', 'B: Day', 'C: Start', 'D: End', 'E: Subject', 'F: Classes'].map(c => (
+            <div className="grid grid-cols-7 gap-1 text-xs font-mono">
+              {['A: Teacher ID', 'B: Teacher Name', 'C: Day', 'D: Start', 'E: End', 'F: Subject', 'G: Classes'].map(c => (
                 <span key={c} className="bg-white border border-slate-200 rounded px-1.5 py-0.5 text-center">{c}</span>
               ))}
             </div>
             <ul className="text-xs text-slate-400 space-y-0.5 mt-1">
-              <li>• <strong className="text-slate-600">Column A</strong> accepts a Teacher ID like <code>T001</code> <span className="text-green-600">(recommended)</span> or a teacher name</li>
+              <li>• <strong className="text-slate-600">Column A</strong> accepts a Teacher ID like <code>T001</code> <span className="text-green-600">(recommended)</span> or a teacher name. <strong className="text-slate-600">Column B</strong> is for reference only and is ignored on import.</li>
               <li>• IDs are unambiguous even when two teachers share the same name — download the template to get a pre-filled list</li>
               <li>• Day: Monday/Tuesday… or 1–7 &nbsp;·&nbsp; Times: HH:MM or Excel time cells</li>
               <li>• Classes: comma-separated (e.g. <code>1A, 1B</code>). New classes are auto-created.</li>
