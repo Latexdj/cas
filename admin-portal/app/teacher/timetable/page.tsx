@@ -35,8 +35,7 @@ export default function TimetablePage() {
     setError('');
     try {
       const res = await teacherApi.get<TimetableSlot[]>(`/api/timetable/teacher/${teacher.id}`);
-      const d = res.data;
-      setSlots(Array.isArray(d) ? d : d?.slots ?? []);
+      setSlots(res.data ?? []);
     } catch {
       setError('Failed to load timetable.');
     } finally {
