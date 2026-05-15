@@ -164,7 +164,7 @@ router.get('/today/:teacherId', async (req, res, next) => {
 // GET /api/attendance/history
 router.get('/history', async (req, res, next) => {
   try {
-    const teacherId = req.user.role === 'admin' ? (req.query.teacherId||null) : req.user.id;
+    const teacherId = (req.user.role === 'admin' && req.query.teacherId) ? req.query.teacherId : req.user.id;
     const limit  = Math.min(parseInt(req.query.limit)||30, 100);
     const offset = parseInt(req.query.offset)||0;
 
