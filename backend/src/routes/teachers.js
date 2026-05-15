@@ -4,6 +4,7 @@ const multer = require('multer');
 const XLSX   = require('xlsx');
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { uploadFile } = require('../services/storage.service');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -264,6 +265,33 @@ router.post('/:id/reset-pin', adminOnly, async (req, res, next) => {
     );
     if (!rowCount) return res.status(404).json({ error: 'Teacher not found' });
     res.json({ message: `PIN reset to default (${defaultPin})` });
+  } catch (err) { next(err); }
+});
+
+// GET /api/teachers/me — own profile
+router.get('/me', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, teacher_code, is_admin, photo_url FROM teachers WHERE id = $1 AND school_id = $2`,
+      [req.user.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/teachers/me/photo — upload / replace own profile photo
+router.patch('/me/photo', async (req, res, next) => {
+  try {
+    const { imageBase64 } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 is required' });
+    const filePath = `profile-photos/${req.user.id}`;
+    const photoUrl = await uploadFile(imageBase64, filePath, { upsert: true });
+    await pool.query(
+      `UPDATE teachers SET photo_url = $1, updated_at = now() WHERE id = $2 AND school_id = $3`,
+      [photoUrl, req.user.id, req.schoolId]
+    );
+    res.json({ photo_url: photoUrl });
   } catch (err) { next(err); }
 });
 

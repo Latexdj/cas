@@ -11,11 +11,11 @@ function signToken(payload, expiresIn) {
 router.get('/school/:code', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name, primary_color, accent_color FROM schools WHERE UPPER(code) = UPPER($1)`,
+      `SELECT id, name, primary_color, accent_color, logo_url FROM schools WHERE UPPER(code) = UPPER($1)`,
       [req.params.code.trim()]
     );
     if (!rows.length) return res.status(404).json({ error: 'School not found' });
-    res.json({ id: rows[0].id, name: rows[0].name, primary_color: rows[0].primary_color, accent_color: rows[0].accent_color });
+    res.json({ id: rows[0].id, name: rows[0].name, primary_color: rows[0].primary_color, accent_color: rows[0].accent_color, logo_url: rows[0].logo_url ?? null });
   } catch (err) {
     next(err);
   }

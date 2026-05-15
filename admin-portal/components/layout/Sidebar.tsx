@@ -1,6 +1,8 @@
 'use client';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { api } from '@/lib/api';
 
 type NavItem = { href: string; label: string; icon: React.ReactNode };
 type Section = { label: string; items: NavItem[] };
@@ -87,14 +89,24 @@ const sections: Section[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get('/api/admin/settings').then(r => setLogoUrl(r.data.logo_url ?? null)).catch(() => {});
+  }, []);
+
   return (
     <aside className="w-56 flex-shrink-0 flex flex-col" style={{ backgroundColor: '#0F172A' }}>
       {/* Logo */}
       <div className="h-16 flex items-center px-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#15803D' }}>
-            <span className="text-white text-sm font-bold">C</span>
-          </div>
+          {logoUrl ? (
+            <img src={logoUrl} alt="School logo" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+          ) : (
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#15803D' }}>
+              <span className="text-white text-sm font-bold">C</span>
+            </div>
+          )}
           <div>
             <p className="text-white text-sm font-bold leading-tight">CAS Admin</p>
             <p className="text-xs leading-tight" style={{ color: '#64748B' }}>Portal</p>

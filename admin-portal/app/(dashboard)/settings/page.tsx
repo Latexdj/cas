@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 
@@ -8,6 +8,25 @@ interface SchoolSettings {
   code: string;
   primary_color: string;
   accent_color: string;
+  logo_url?: string | null;
+}
+
+function compressToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      const scale = Math.min(1, 400 / Math.max(img.width, img.height));
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/png', 0.9));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
 }
 
 function ColorSwatch({ color, label }: { color: string; label: string }) {
@@ -73,21 +92,45 @@ function AppPreview({ primary, accent }: { primary: string; accent: string }) {
 }
 
 export default function SettingsPage() {
-  const [settings,  setSettings]  = useState<SchoolSettings | null>(null);
-  const [primary,   setPrimary]   = useState('#0B3D2E');
-  const [accent,    setAccent]    = useState('#C8973A');
-  const [loading,   setLoading]   = useState(true);
-  const [saving,    setSaving]    = useState(false);
-  const [saved,     setSaved]     = useState(false);
-  const [error,     setError]     = useState('');
+  const logoFileRef = useRef<HTMLInputElement>(null);
+  const [settings,     setSettings]     = useState<SchoolSettings | null>(null);
+  const [primary,      setPrimary]      = useState('#0B3D2E');
+  const [accent,       setAccent]       = useState('#C8973A');
+  const [loading,      setLoading]      = useState(true);
+  const [saving,       setSaving]       = useState(false);
+  const [saved,        setSaved]        = useState(false);
+  const [error,        setError]        = useState('');
+  const [logoUrl,      setLogoUrl]      = useState<string | null>(null);
+  const [logoSaving,   setLogoSaving]   = useState(false);
+  const [logoSaved,    setLogoSaved]    = useState(false);
+  const [logoError,    setLogoError]    = useState('');
 
   useEffect(() => {
     api.get<SchoolSettings>('/api/admin/settings').then(r => {
       setSettings(r.data);
       setPrimary(r.data.primary_color);
       setAccent(r.data.accent_color);
+      setLogoUrl(r.data.logo_url ?? null);
     }).finally(() => setLoading(false));
   }, []);
+
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoSaving(true); setLogoError(''); setLogoSaved(false);
+    try {
+      const dataUrl = await compressToBase64(file);
+      const res = await api.patch('/api/admin/settings/logo', { imageBase64: dataUrl });
+      setLogoUrl(res.data.logo_url);
+      setLogoSaved(true);
+      setTimeout(() => setLogoSaved(false), 3000);
+    } catch {
+      setLogoError('Failed to upload logo. Please try again.');
+    } finally {
+      setLogoSaving(false);
+      if (logoFileRef.current) logoFileRef.current.value = '';
+    }
+  }
 
   async function save() {
     setSaving(true); setError(''); setSaved(false);
@@ -128,6 +171,48 @@ export default function SettingsPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#94A3B8' }}>School Code</p>
             <p className="text-sm font-mono font-bold px-2 py-0.5 rounded inline-block" style={{ backgroundColor: '#F0FDF4', color: '#15803D' }}>{settings?.code}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* School Logo */}
+      <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>School Logo</h2>
+        <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
+          Displayed in the teacher portal sidebar. Recommended: square image, at least 200×200 px.
+        </p>
+        <input ref={logoFileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+        <div className="flex items-center gap-5">
+          {/* Current logo preview */}
+          <div className="w-20 h-20 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
+            style={{ border: '2px dashed #E2E8F0', background: '#F8FAFC' }}>
+            {logoUrl ? (
+              <img src={logoUrl} alt="School logo" className="w-full h-full object-cover" />
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-8 h-8" style={{ color: '#CBD5E1' }}>
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            )}
+          </div>
+          <div className="flex-1">
+            <button
+              onClick={() => logoFileRef.current?.click()}
+              disabled={logoSaving}
+              className="px-4 py-2 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-40"
+              style={{ borderColor: '#15803D', color: '#15803D', background: '#F0FDF4' }}
+            >
+              {logoSaving ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 rounded-full border-2 border-green-700 border-t-transparent animate-spin" />
+                  Uploading...
+                </span>
+              ) : logoUrl ? 'Replace Logo' : 'Upload Logo'}
+            </button>
+            {logoSaved  && <p className="text-xs mt-2" style={{ color: '#15803D' }}>✓ Logo updated successfully.</p>}
+            {logoError  && <p className="text-xs mt-2" style={{ color: '#DC2626' }}>{logoError}</p>}
+            {!logoUrl   && !logoSaved && <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>No logo uploaded yet.</p>}
           </div>
         </div>
       </div>

@@ -22,4 +22,21 @@ async function uploadPhoto(base64DataUri, fileName) {
   return data.publicUrl;
 }
 
-module.exports = { uploadPhoto };
+// Upload to a specific path with optional upsert (for profile photos / logos that replace themselves)
+async function uploadFile(base64DataUri, filePath, { upsert = false } = {}) {
+  const matches = base64DataUri.match(/^data:([^;]+);base64,(.+)$/);
+  if (!matches) throw new Error('Invalid image format — expected base64 data URI');
+  const mimeType = matches[1];
+  const buffer   = Buffer.from(matches[2], 'base64');
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(filePath, buffer, { contentType: mimeType, upsert });
+
+  if (error) throw new Error(`Storage upload failed: ${error.message}`);
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
+  return data.publicUrl;
+}
+
+module.exports = { uploadPhoto, uploadFile };

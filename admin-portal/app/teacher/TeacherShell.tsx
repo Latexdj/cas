@@ -78,8 +78,9 @@ const NO_SHELL_PATHS = ['/teacher/setup', '/teacher/login'];
 export default function TeacherShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [ready, setReady] = useState(false);
+  const [ready,   setReady]   = useState(false);
   const [primary, setPrimary] = useState('#2ab289');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (NO_SHELL_PATHS.includes(pathname)) {
@@ -98,6 +99,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     }
     const colors = getTeacherColors();
     setPrimary(colors.primary);
+    setLogoUrl(colors.logoUrl ?? null);
     setReady(true);
   }, [pathname, router]);
 
@@ -122,8 +124,14 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex" style={{ background: '#F4EFE6' }}>
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 bg-white border-r border-[#E2D9CC] shadow-sm shrink-0 fixed top-0 left-0 h-full z-20">
-        <div className="px-6 py-5 border-b border-[#E2D9CC]">
-          <span className="text-lg font-bold" style={{ color: primary }}>Teacher Portal</span>
+        <div className="px-5 py-4 border-b border-[#E2D9CC] flex items-center gap-3">
+          {logoUrl ? (
+            <img src={logoUrl} alt="School logo" className="w-9 h-9 rounded-lg object-cover shrink-0" />
+          ) : (
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-white text-sm font-bold"
+              style={{ background: primary }}>T</div>
+          )}
+          <span className="text-base font-bold leading-tight" style={{ color: primary }}>Teacher Portal</span>
         </div>
         <nav className="flex-1 py-4 space-y-1 px-3">
           {NAV_ITEMS.map((item) => {

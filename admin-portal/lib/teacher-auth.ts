@@ -38,15 +38,18 @@ export function saveSchoolCode(code: string) {
   localStorage.setItem('cas_school_code', code);
 }
 
-export function getTeacherColors(): { primary: string; accent: string } {
-  if (typeof window === 'undefined') return { primary: '#2ab289', accent: '#1a8a6a' };
+export function getTeacherColors(): { primary: string; accent: string; logoUrl: string | null } {
+  if (typeof window === 'undefined') return { primary: '#2ab289', accent: '#1a8a6a', logoUrl: null };
   return {
     primary: localStorage.getItem('cas_t_primary_color') ?? '#2ab289',
-    accent: localStorage.getItem('cas_t_accent_color') ?? '#1a8a6a',
+    accent:  localStorage.getItem('cas_t_accent_color')  ?? '#1a8a6a',
+    logoUrl: localStorage.getItem('cas_t_logo_url'),
   };
 }
 
-export function saveTeacherColors(primary: string, accent: string) {
+export function saveTeacherColors(primary: string, accent: string, logoUrl?: string | null) {
   localStorage.setItem('cas_t_primary_color', primary);
   localStorage.setItem('cas_t_accent_color', accent);
+  if (logoUrl) localStorage.setItem('cas_t_logo_url', logoUrl);
+  else localStorage.removeItem('cas_t_logo_url');
 }

@@ -11,6 +11,7 @@ interface SchoolInfo {
   name: string;
   primaryColor?: string;
   accentColor?: string;
+  logoUrl?: string | null;
   code: string;
 }
 
@@ -31,7 +32,14 @@ export default function TeacherSetupPage() {
     setLoading(true);
     try {
       const res = await axios.get(`${BASE}/api/auth/school/${code.trim().toUpperCase()}`);
-      setSchool(res.data);
+      const d = res.data;
+      setSchool({
+        name:       d.name,
+        code:       d.code ?? code.trim().toUpperCase(),
+        primaryColor: d.primary_color,
+        accentColor:  d.accent_color,
+        logoUrl:      d.logo_url ?? null,
+      });
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.response?.data?.error ?? 'School not found. Check the code and try again.');
@@ -47,7 +55,7 @@ export default function TeacherSetupPage() {
   function handleConfirm() {
     if (!school) return;
     saveSchoolCode(school.code ?? code.trim().toUpperCase());
-    saveTeacherColors(school.primaryColor ?? '#2ab289', school.accentColor ?? '#1a8a6a');
+    saveTeacherColors(school.primaryColor ?? '#2ab289', school.accentColor ?? '#1a8a6a', school.logoUrl);
     router.push('/teacher/login');
   }
 

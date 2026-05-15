@@ -72,6 +72,8 @@ async function runMigrations() {
       )
     `);
     await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS program_id UUID REFERENCES programs(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS photo_url TEXT`);
+    await pool.query(`ALTER TABLE schools  ADD COLUMN IF NOT EXISTS logo_url  TEXT`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -3,7 +3,8 @@ const bcrypt = require('bcrypt');
 const pool = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { runAbsenceCheck } = require('../jobs/absenceCheck');
-const { getWeekNumber } = require('../services/geo.service');
+const { getWeekNumber }   = require('../services/geo.service');
+const { uploadFile }      = require('../services/storage.service');
 
 // Public deployment-check endpoint (no auth needed)
 router.get('/version', (_req, res) => res.json({ version: '2', has_settings: true }));
@@ -211,7 +212,7 @@ router.post('/run-absence-check', async (req, res, next) => {
 router.get('/settings', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT name, email, phone, address, code, primary_color, accent_color FROM schools WHERE id = $1`,
+      `SELECT name, email, phone, address, code, primary_color, accent_color, logo_url FROM schools WHERE id = $1`,
       [req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'School not found' });
@@ -236,6 +237,21 @@ router.patch('/settings', async (req, res, next) => {
       [primary_color, accent_color, req.schoolId]
     );
     res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/admin/settings/logo — upload / replace school logo
+router.patch('/settings/logo', async (req, res, next) => {
+  try {
+    const { imageBase64 } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 is required' });
+    const filePath = `school-logos/${req.schoolId}`;
+    const logoUrl  = await uploadFile(imageBase64, filePath, { upsert: true });
+    await pool.query(
+      `UPDATE schools SET logo_url = $1, updated_at = now() WHERE id = $2`,
+      [logoUrl, req.schoolId]
+    );
+    res.json({ logo_url: logoUrl });
   } catch (err) { next(err); }
 });
 
