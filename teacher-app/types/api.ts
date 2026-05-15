@@ -87,6 +87,21 @@ export interface StudentSession {
   absent: number;
 }
 
+export interface AcademicYear {
+  id: string;
+  name: string;
+  is_current: boolean;
+  current_semester: 1 | 2 | null;
+}
+
+export interface AttendanceSummary {
+  present_periods: number;
+  absent_periods: number;
+  excused_periods: number;
+  total_scheduled: number;
+  attendance_pct: number | null;
+}
+
 export interface SchoolCalendarEntry {
   id: string;
   date: string;

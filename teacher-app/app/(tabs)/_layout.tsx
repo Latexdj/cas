@@ -23,11 +23,12 @@ export default function TabsLayout() {
         headerShadowVisible: false,
       }}
     >
-      <Tabs.Screen name="index"   options={{ title: 'Today',    tabBarIcon: ({ color, size }) => <Ionicons name="today-outline"          size={size} color={color} /> }} />
-      <Tabs.Screen name="submit"  options={{ title: 'Submit',   tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-done-outline" size={size} color={color} /> }} />
-      <Tabs.Screen name="absences" options={{ title: 'Absences', tabBarIcon: ({ color, size }) => <Ionicons name="alert-circle-outline"   size={size} color={color} />, href: '/absences' }} />
-      <Tabs.Screen name="history" options={{ title: 'History',  tabBarIcon: ({ color, size }) => <Ionicons name="time-outline"           size={size} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile',  tabBarIcon: ({ color, size }) => <Ionicons name="person-circle-outline"  size={size} color={color} /> }} />
+      <Tabs.Screen name="index"     options={{ title: 'Dashboard', tabBarIcon: ({ color, size }) => <Ionicons name="home-outline"            size={size} color={color} /> }} />
+      <Tabs.Screen name="submit"    options={{ title: 'Submit',    tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-done-outline" size={size} color={color} /> }} />
+      <Tabs.Screen name="absences"  options={{ title: 'Absences',  tabBarIcon: ({ color, size }) => <Ionicons name="alert-circle-outline"   size={size} color={color} />, href: '/absences' }} />
+      <Tabs.Screen name="history"   options={{ title: 'History',   tabBarIcon: ({ color, size }) => <Ionicons name="time-outline"           size={size} color={color} /> }} />
+      <Tabs.Screen name="profile"   options={{ title: 'Profile',   tabBarIcon: ({ color, size }) => <Ionicons name="person-circle-outline"  size={size} color={color} /> }} />
+      <Tabs.Screen name="timetable" options={{ href: null, title: 'Timetable' }} />
     </Tabs>
   );
 }

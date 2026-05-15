@@ -80,8 +80,9 @@ router.post('/submit', async (req, res, next) => {
       locationVerified = result.verified;
       locationMsg      = result.message;
     } else {
-      locationVerified = false;
-      locationMsg      = 'Location recorded (no GPS reference configured for this location).';
+      return res.status(400).json({
+        error: `GPS coordinates have not been configured for "${locationName}". Ask your administrator to add GPS coordinates for this location before attendance can be submitted.`,
+      });
     }
 
     // Upload photo
@@ -169,9 +170,11 @@ router.get('/history', async (req, res, next) => {
 
     const conds  = [`a.school_id = $1`];
     const params = [req.schoolId];
-    if (teacherId)      { params.push(teacherId);      conds.push(`a.teacher_id = $${params.length}`); }
-    if (req.query.from) { params.push(req.query.from); conds.push(`a.date >= $${params.length}`); }
-    if (req.query.to)   { params.push(req.query.to);   conds.push(`a.date <= $${params.length}`); }
+    if (teacherId)               { params.push(teacherId);                           conds.push(`a.teacher_id = $${params.length}`); }
+    if (req.query.from)          { params.push(req.query.from);                      conds.push(`a.date >= $${params.length}`); }
+    if (req.query.to)            { params.push(req.query.to);                        conds.push(`a.date <= $${params.length}`); }
+    if (req.query.academic_year_id) { params.push(req.query.academic_year_id);       conds.push(`a.academic_year_id = $${params.length}`); }
+    if (req.query.semester)      { params.push(parseInt(req.query.semester, 10));    conds.push(`a.semester = $${params.length}`); }
 
     const { rows } = await pool.query(
       `SELECT a.id, a.date, a.submitted_at, a.subject, a.class_names,
@@ -186,6 +189,71 @@ router.get('/history', async (req, res, next) => {
       [...params, limit, offset]
     );
     res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// GET /api/attendance/my-summary — teacher's own attendance stats (defaults to current year + semester)
+router.get('/my-summary', async (req, res, next) => {
+  try {
+    const { academic_year_id, semester } = req.query;
+    const useAll = semester === 'all' || semester === '0';
+
+    let yearId = academic_year_id?.trim() || null;
+    let sem    = useAll ? null : (semester ? parseInt(semester, 10) : null);
+
+    if (!yearId || (!useAll && sem === null)) {
+      const { rows: ayRows } = await pool.query(
+        `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+        [req.schoolId]
+      );
+      if (!yearId) yearId = ayRows[0]?.id    || null;
+      if (!useAll && sem === null) sem = ayRows[0]?.current_semester || null;
+    }
+
+    const { rows } = await pool.query(`
+      SELECT
+        COALESCE(SUM(a.periods), 0)::int AS present_periods,
+        COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused')::int AS absent_periods,
+        COUNT(DISTINCT ab.id) FILTER (WHERE ab.status  = 'Excused')::int AS excused_periods,
+        (COALESCE(SUM(a.periods), 0)
+          + COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused'))::int AS total_scheduled,
+        CASE
+          WHEN (COALESCE(SUM(a.periods), 0)
+                + COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused')) = 0 THEN NULL
+          ELSE ROUND(
+            100.0 * COALESCE(SUM(a.periods), 0) /
+            NULLIF(COALESCE(SUM(a.periods), 0)
+              + COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused'), 0), 1)
+        END AS attendance_pct
+      FROM teachers t
+      LEFT JOIN attendance a
+        ON  a.teacher_id = t.id
+        AND a.school_id  = $1
+        AND ($2::uuid IS NULL OR a.academic_year_id = $2::uuid)
+        AND ($3::int  IS NULL OR a.semester = $3::int)
+      LEFT JOIN absences ab
+        ON  ab.teacher_id = t.id
+        AND ab.school_id  = $1
+        AND ab.date >= COALESCE(
+              (SELECT MIN(a2.date) FROM attendance a2
+               WHERE  a2.teacher_id = $4 AND a2.school_id = $1
+                 AND ($2::uuid IS NULL OR a2.academic_year_id = $2::uuid)
+                 AND ($3::int  IS NULL OR a2.semester = $3::int)),
+              CURRENT_DATE - INTERVAL '365 days')
+        AND ab.date <= COALESCE(
+              (SELECT MAX(a2.date) FROM attendance a2
+               WHERE  a2.teacher_id = $4 AND a2.school_id = $1
+                 AND ($2::uuid IS NULL OR a2.academic_year_id = $2::uuid)
+                 AND ($3::int  IS NULL OR a2.semester = $3::int)),
+              CURRENT_DATE)
+      WHERE t.id = $4 AND t.school_id = $1
+      GROUP BY t.id
+    `, [req.schoolId, yearId || null, sem || null, req.user.id]);
+
+    res.json(rows[0] || {
+      present_periods: 0, absent_periods: 0, excused_periods: 0,
+      total_scheduled: 0, attendance_pct: null,
+    });
   } catch (err) { next(err); }
 });
 

@@ -1,6 +1,6 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, Alert, FlatList, RefreshControl,
+  ActivityIndicator, Alert, FlatList, RefreshControl, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -11,7 +11,7 @@ import { AttendanceCard } from '@/components/AttendanceCard';
 import { Spinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useTheme } from '@/context/ThemeContext';
-import { AttendanceRecord } from '@/types/api';
+import { AttendanceRecord, AcademicYear } from '@/types/api';
 
 const PAGE_SIZE = 30;
 
@@ -49,23 +49,40 @@ const pendingStyles = StyleSheet.create({
 export default function HistoryScreen() {
   const Colors = useTheme();
   const { user } = useAuth();
-  const [records,     setRecords]     = useState<AttendanceRecord[]>([]);
-  const [pending,     setPending]     = useState<QueuedSubmission[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [refreshing,  setRefreshing]  = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [syncing,     setSyncing]     = useState(false);
-  const [hasMore,     setHasMore]     = useState(true);
+  const [records,       setRecords]       = useState<AttendanceRecord[]>([]);
+  const [pending,       setPending]       = useState<QueuedSubmission[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [refreshing,    setRefreshing]    = useState(false);
+  const [loadingMore,   setLoadingMore]   = useState(false);
+  const [syncing,       setSyncing]       = useState(false);
+  const [hasMore,       setHasMore]       = useState(true);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [filterYear,    setFilterYear]    = useState<string>('');
+  const [filterSem,     setFilterSem]     = useState<string>('');
+
+  useEffect(() => {
+    api.get<AcademicYear[]>('/api/academic-years').then(r => {
+      setAcademicYears(r.data);
+      const current = r.data.find(y => y.is_current);
+      if (current) {
+        setFilterYear(current.id);
+        setFilterSem(current.current_semester ? String(current.current_semester) : '');
+      }
+    }).catch(() => {});
+  }, []);
 
   async function loadPending() {
     const q = await offlineQueue.getAll();
     setPending(q);
   }
 
-  async function fetchPage(offset: number, replace: boolean) {
+  async function fetchPage(offset: number, replace: boolean, year = filterYear, sem = filterSem) {
     if (!user) return;
     try {
-      const res = await api.get('/api/attendance/history', { params: { limit: PAGE_SIZE, offset } });
+      const params: Record<string, string | number> = { limit: PAGE_SIZE, offset };
+      if (year) params.academic_year_id = year;
+      if (sem)  params.semester = sem;
+      const res = await api.get('/api/attendance/history', { params });
       const data: AttendanceRecord[] = res.data;
       setRecords((prev) => replace ? data : [...prev, ...data]);
       setHasMore(data.length === PAGE_SIZE);
@@ -77,8 +94,8 @@ export default function HistoryScreen() {
     }
   }
 
-  async function loadAll(replace: boolean) {
-    await Promise.all([loadPending(), fetchPage(0, replace)]);
+  async function loadAll(replace: boolean, year = filterYear, sem = filterSem) {
+    await Promise.all([loadPending(), fetchPage(0, replace, year, sem)]);
   }
 
   useFocusEffect(useCallback(() => {
@@ -86,6 +103,14 @@ export default function HistoryScreen() {
     setRecords([]);
     loadAll(true);
   }, [user]));
+
+  function applyFilter(year: string, sem: string) {
+    setFilterYear(year);
+    setFilterSem(sem);
+    setLoading(true);
+    setRecords([]);
+    loadAll(true, year, sem);
+  }
 
   const onRefresh = () => { setRefreshing(true); loadAll(true); };
 
@@ -116,25 +141,64 @@ export default function HistoryScreen() {
     }
   }
 
-  const pendingHeader = pending.length > 0 ? (
-    <View style={styles.pendingSection}>
-      <View style={styles.pendingHeaderRow}>
-        <Text style={styles.pendingSectionTitle}>
-          Pending Sync ({pending.length})
-        </Text>
-        <TouchableOpacity style={styles.syncBtn} onPress={handleSyncNow} disabled={syncing}>
-          {syncing
-            ? <ActivityIndicator size="small" color="#fff" />
-            : <Text style={styles.syncBtnText}>Sync Now</Text>}
-        </TouchableOpacity>
+  const selectedYearName = academicYears.find(y => y.id === filterYear)?.name ?? 'All Years';
+  const semLabel = filterSem === '1' ? 'Semester 1' : filterSem === '2' ? 'Semester 2' : 'All Semesters';
+
+  const filterBar = (
+    <View style={styles.filterBar}>
+      {/* Year picker */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+        {academicYears.map(y => (
+          <TouchableOpacity
+            key={y.id}
+            style={[styles.filterChip, filterYear === y.id && { backgroundColor: Colors.primary }]}
+            onPress={() => applyFilter(y.id, filterSem)}
+          >
+            <Text style={[styles.filterChipText, filterYear === y.id && { color: '#fff' }]}>
+              {y.name}{y.is_current ? ' ✦' : ''}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+      {/* Semester chips */}
+      <View style={styles.semRow}>
+        {[['', 'All'], ['1', 'Sem 1'], ['2', 'Sem 2']].map(([val, label]) => (
+          <TouchableOpacity
+            key={val}
+            style={[styles.semChip, filterSem === val && { backgroundColor: Colors.primary }]}
+            onPress={() => applyFilter(filterYear, val)}
+          >
+            <Text style={[styles.semChipText, filterSem === val && { color: '#fff' }]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
-      {pending.map(item => (
-        <PendingCard key={item.id} item={item} onRemove={loadPending} />
-      ))}
-      <View style={styles.divider} />
-      <Text style={styles.historyLabel}>Submitted Records</Text>
     </View>
-  ) : null;
+  );
+
+  const pendingHeader = (
+    <View>
+      {filterBar}
+      {pending.length > 0 && (
+        <View style={styles.pendingSection}>
+          <View style={styles.pendingHeaderRow}>
+            <Text style={styles.pendingSectionTitle}>
+              Pending Sync ({pending.length})
+            </Text>
+            <TouchableOpacity style={styles.syncBtn} onPress={handleSyncNow} disabled={syncing}>
+              {syncing
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Text style={styles.syncBtnText}>Sync Now</Text>}
+            </TouchableOpacity>
+          </View>
+          {pending.map(item => (
+            <PendingCard key={item.id} item={item} onRemove={loadPending} />
+          ))}
+          <View style={styles.divider} />
+        </View>
+      )}
+      <Text style={styles.historyLabel}>{selectedYearName} · {semLabel}</Text>
+    </View>
+  );
 
   if (loading) return <Spinner />;
 
@@ -149,10 +213,9 @@ export default function HistoryScreen() {
         onEndReached={loadMore}
         onEndReachedThreshold={0.3}
         ListHeaderComponent={pendingHeader}
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: 16 }} color={Colors.primary} /> : null}
         ListEmptyComponent={
-          pending.length === 0
-            ? <EmptyState icon="📋" title="No records yet" subtitle="Submitted attendance will appear here." />
-            : null
+          <EmptyState icon="📋" title="No records" subtitle={`No attendance records for ${selectedYearName} · ${semLabel}.`} />
         }
       />
     </View>
@@ -162,6 +225,15 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container:          { flex: 1, backgroundColor: '#F4EFE6' },
   list:               { padding: 16, flexGrow: 1 },
+  // Filter bar
+  filterBar:          { backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E2D9CC', paddingBottom: 10, marginBottom: 12, marginHorizontal: -16, paddingHorizontal: 16 },
+  filterScroll:       { gap: 8, paddingVertical: 10 },
+  filterChip:         { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F0EDE8', borderWidth: 1, borderColor: '#E2D9CC' },
+  filterChipText:     { fontSize: 12, fontWeight: '700', color: '#4A3F32' },
+  semRow:             { flexDirection: 'row', gap: 8 },
+  semChip:            { flex: 1, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F0EDE8', alignItems: 'center', borderWidth: 1, borderColor: '#E2D9CC' },
+  semChipText:        { fontSize: 12, fontWeight: '700', color: '#4A3F32' },
+  // Pending
   pendingSection:     { marginBottom: 8 },
   pendingHeaderRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   pendingSectionTitle:{ fontSize: 13, fontWeight: '700', color: '#EA580C', textTransform: 'uppercase', letterSpacing: 0.5 },

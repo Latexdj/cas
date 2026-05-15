@@ -240,9 +240,24 @@ router.patch('/settings', async (req, res, next) => {
 });
 
 // GET /api/admin/reports/teacher-summary
-// Returns per-teacher attendance stats for the current academic year
+// Optional: ?academic_year_id=X&semester=1|2|all  (defaults to current year + current semester)
 router.get('/reports/teacher-summary', async (req, res, next) => {
   try {
+    const { academic_year_id, semester } = req.query;
+    const useAll = semester === 'all' || semester === '0';
+
+    let yearId = academic_year_id?.trim() || null;
+    let sem    = useAll ? null : (semester ? parseInt(semester, 10) : null);
+
+    if (!yearId || (!useAll && sem === null)) {
+      const { rows: ayRows } = await pool.query(
+        `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+        [req.schoolId]
+      );
+      if (!yearId) yearId = ayRows[0]?.id || null;
+      if (!useAll && sem === null) sem = ayRows[0]?.current_semester || null;
+    }
+
     const { rows } = await pool.query(`
       SELECT
         t.id,
@@ -258,38 +273,34 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
                 + COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused')) = 0 THEN NULL
           ELSE ROUND(
             100.0 * COALESCE(SUM(a.periods), 0) /
-            NULLIF(
-              COALESCE(SUM(a.periods), 0)
-                + COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused'),
-            0), 1
-          )
+            NULLIF(COALESCE(SUM(a.periods), 0)
+              + COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused'), 0), 1)
         END AS attendance_pct
       FROM teachers t
       LEFT JOIN attendance a
-        ON  a.teacher_id       = t.id
-        AND a.school_id        = $1
-        AND a.academic_year_id = (
-              SELECT id FROM academic_years
-              WHERE school_id = $1 AND is_current = true
-              LIMIT 1
-            )
+        ON  a.teacher_id = t.id
+        AND a.school_id  = $1
+        AND ($2::uuid IS NULL OR a.academic_year_id = $2::uuid)
+        AND ($3::int  IS NULL OR a.semester = $3::int)
       LEFT JOIN absences ab
         ON  ab.teacher_id = t.id
         AND ab.school_id  = $1
         AND ab.date >= COALESCE(
               (SELECT MIN(a2.date) FROM attendance a2
-               WHERE  a2.school_id        = $1
-               AND    a2.academic_year_id = (
-                        SELECT id FROM academic_years
-                        WHERE school_id = $1 AND is_current = true
-                        LIMIT 1
-                      )),
-              CURRENT_DATE - INTERVAL '365 days'
-            )
+               WHERE  a2.school_id = $1
+                 AND ($2::uuid IS NULL OR a2.academic_year_id = $2::uuid)
+                 AND ($3::int  IS NULL OR a2.semester = $3::int)),
+              CURRENT_DATE - INTERVAL '365 days')
+        AND ab.date <= COALESCE(
+              (SELECT MAX(a2.date) FROM attendance a2
+               WHERE  a2.school_id = $1
+                 AND ($2::uuid IS NULL OR a2.academic_year_id = $2::uuid)
+                 AND ($3::int  IS NULL OR a2.semester = $3::int)),
+              CURRENT_DATE)
       WHERE t.school_id = $1 AND t.status = 'Active'
       GROUP BY t.id, t.name, t.department
       ORDER BY attendance_pct ASC NULLS LAST, t.name
-    `, [req.schoolId]);
+    `, [req.schoolId, yearId || null, sem || null]);
     res.json(rows);
   } catch (err) { next(err); }
 });

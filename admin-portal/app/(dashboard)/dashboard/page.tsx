@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { StatCard } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import type { AdminStats, ClassroomStatus, TeacherAttendanceSummary } from '@/types/api';
+import type { AdminStats, AcademicYear, ClassroomStatus, TeacherAttendanceSummary } from '@/types/api';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,23 +64,51 @@ function ClassroomCard({ row }: { row: ClassroomStatus }) {
 // ── main page ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [stats,   setStats]   = useState<AdminStats | null>(null);
-  const [classes, setClasses] = useState<ClassroomStatus[]>([]);
-  const [summary, setSummary] = useState<TeacherAttendanceSummary[]>([]);
-  const [running, setRunning] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [filter,  setFilter]  = useState<OccupancyFilter>('all');
+  const [stats,          setStats]          = useState<AdminStats | null>(null);
+  const [classes,        setClasses]        = useState<ClassroomStatus[]>([]);
+  const [summary,        setSummary]        = useState<TeacherAttendanceSummary[]>([]);
+  const [academicYears,  setAcademicYears]  = useState<AcademicYear[]>([]);
+  const [filterYear,     setFilterYear]     = useState<string>('');
+  const [filterSem,      setFilterSem]      = useState<string>('');
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [running,        setRunning]        = useState(false);
+  const [loading,        setLoading]        = useState(true);
+  const [filter,         setFilter]         = useState<OccupancyFilter>('all');
+
+  // Load academic years once and set defaults to current year + current semester
+  useEffect(() => {
+    api.get<AcademicYear[]>('/api/academic-years').then(r => {
+      setAcademicYears(r.data);
+      const current = r.data.find(y => y.is_current);
+      if (current) {
+        setFilterYear(current.id);
+        setFilterSem(current.current_semester ? String(current.current_semester) : '');
+      }
+    }).catch(() => {});
+  }, []);
+
+  const loadSummary = useCallback(async (yearId: string, sem: string) => {
+    setSummaryLoading(true);
+    try {
+      const params: Record<string, string> = {};
+      if (yearId) params.academic_year_id = yearId;
+      if (sem)    params.semester = sem;
+      const t = await api.get<TeacherAttendanceSummary[]>('/api/admin/reports/teacher-summary', { params });
+      setSummary(t.data);
+    } catch {
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     try {
-      const [s, c, t] = await Promise.allSettled([
+      const [s, c] = await Promise.allSettled([
         api.get<AdminStats>('/api/admin/stats'),
         api.get<ClassroomStatus[]>('/api/admin/classroom-status'),
-        api.get<TeacherAttendanceSummary[]>('/api/admin/reports/teacher-summary'),
       ]);
       if (s.status === 'fulfilled') setStats(s.value.data);
       if (c.status === 'fulfilled') setClasses(c.value.data);
-      if (t.status === 'fulfilled') setSummary(t.value.data);
     } finally {
       setLoading(false);
     }
@@ -91,6 +119,11 @@ export default function DashboardPage() {
     const id = setInterval(load, 60_000);
     return () => clearInterval(id);
   }, [load]);
+
+  // Re-fetch summary whenever filters change
+  useEffect(() => {
+    loadSummary(filterYear, filterSem);
+  }, [filterYear, filterSem, loadSummary]);
 
   async function runAbsenceCheck() {
     setRunning(true);
@@ -236,13 +269,46 @@ export default function DashboardPage() {
 
       {/* ── teacher attendance summary ── */}
       <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: '#64748B' }}>
-          Teacher Attendance Summary — Current Academic Year
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>
+            Teacher Attendance Summary
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Academic year selector */}
+            <select
+              value={filterYear}
+              onChange={e => setFilterYear(e.target.value)}
+              className="text-sm rounded-lg px-3 py-1.5 font-medium"
+              style={{ border: '1px solid #E2E8F0', color: '#0F172A', backgroundColor: '#fff' }}
+            >
+              {academicYears.map(y => (
+                <option key={y.id} value={y.id}>
+                  {y.name}{y.is_current ? ' (Current)' : ''}
+                </option>
+              ))}
+            </select>
+            {/* Semester selector */}
+            <select
+              value={filterSem}
+              onChange={e => setFilterSem(e.target.value)}
+              className="text-sm rounded-lg px-3 py-1.5 font-medium"
+              style={{ border: '1px solid #E2E8F0', color: '#0F172A', backgroundColor: '#fff' }}
+            >
+              <option value="">All Semesters</option>
+              <option value="1">Semester 1</option>
+              <option value="2">Semester 2</option>
+            </select>
+          </div>
+        </div>
 
-        {summary.length === 0 ? (
+        {summaryLoading ? (
+          <div className="bg-white rounded-xl p-8 flex justify-center" style={{ border: '1px solid #F1F5F9' }}>
+            <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin"
+              style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          </div>
+        ) : summary.length === 0 ? (
           <div className="bg-white rounded-xl p-8 text-center" style={{ border: '1px solid #F1F5F9' }}>
-            <p className="text-sm" style={{ color: '#94A3B8' }}>No data yet for the current academic year.</p>
+            <p className="text-sm" style={{ color: '#94A3B8' }}>No data for the selected period.</p>
           </div>
         ) : (
           <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>

@@ -54,6 +54,8 @@ export default function SubmitScreen() {
   const [statuses,        setStatuses]        = useState<Record<string, StudentStatus>>({});
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [submittingStud,  setSubmittingStud]  = useState(false);
+  const [classQueue,      setClassQueue]      = useState<string[]>([]);
+  const [classQueueIndex, setClassQueueIndex] = useState(0);
 
   // ── Camera ───────────────────────────────────────────────────
   const [showCamera,  setShowCamera]  = useState(false);
@@ -243,26 +245,42 @@ export default function SubmitScreen() {
     }
   }
 
-  async function loadStudentsForClass(classNames: string, attId: string | null, endTime: string) {
+  async function loadStudentsForClass(classNames: string, attId: string | null, _endTime: string) {
+    const queue = classNames.split(',').map(c => c.trim()).filter(Boolean);
+    setClassQueue(queue);
+    setClassQueueIndex(0);
+    setAttendanceId(attId);
+    await loadClassAtIndex(queue, 0, attId);
+  }
+
+  async function loadClassAtIndex(queue: string[], index: number, attId: string | null) {
     setLoadingStudents(true);
     try {
-      // Use the first class name for lookup (teacher attends one class at a time)
-      const primaryClass = classNames.split(',')[0].trim();
-      const res = await api.get<Student[]>(`/api/students?class_name=${encodeURIComponent(primaryClass)}&status=Active`);
+      const className = queue[index];
+      const res = await api.get<Student[]>(`/api/students?class_name=${encodeURIComponent(className)}&status=Active`);
       const list = res.data;
       if (!list.length) {
-        Alert.alert(
-          'No students found',
-          `No active students are registered for ${primaryClass}. Please ask your administrator to add students.`,
-          [{ text: 'OK', onPress: () => { resetTeacherForm(); loadData(); } }]
-        );
+        const nextIndex = index + 1;
+        if (nextIndex < queue.length) {
+          Alert.alert(
+            'No students',
+            `No active students registered for ${className}. Moving to ${queue[nextIndex]}.`,
+            [{ text: 'Continue', onPress: async () => {
+              setClassQueueIndex(nextIndex);
+              await loadClassAtIndex(queue, nextIndex, attId);
+            }}]
+          );
+        } else {
+          Alert.alert('Done', 'All classes processed. No active students found for the remaining class(es).');
+          resetAll();
+          await loadData();
+        }
         return;
       }
       const initialStatuses: Record<string, StudentStatus> = {};
       list.forEach(s => { initialStatuses[s.id] = 'Present'; });
       setStudents(list);
       setStatuses(initialStatuses);
-      setAttendanceId(attId);
       setStep('students');
     } catch {
       Alert.alert('Error', 'Could not load students. Teacher attendance was saved.');
@@ -284,22 +302,37 @@ export default function SubmitScreen() {
   async function handleSubmitStudents() {
     if (!selectedSlot) return;
     setSubmittingStud(true);
+    const currentClass = classQueue[classQueueIndex];
     try {
-      const primaryClass = selectedSlot.class_names.split(',')[0].trim();
       const records = students.map(s => ({ studentId: s.id, status: statuses[s.id] || 'Present' }));
       await api.post('/api/student-attendance/submit', {
         attendanceId,
         teacherId:      user!.id,
         subject:        selectedSlot.subject,
-        className:      primaryClass,
+        className:      currentClass,
         lessonEndTime:  selectedSlot.end_time,
         records,
       });
       const present = records.filter(r => r.status === 'Present').length;
       const absent  = records.filter(r => r.status === 'Absent').length;
-      Alert.alert('✅ Complete', `Attendance submitted.\n${present} present · ${absent} absent`);
-      resetAll();
-      await loadData();
+
+      const nextIndex = classQueueIndex + 1;
+      if (nextIndex < classQueue.length) {
+        setClassQueueIndex(nextIndex);
+        setStudents([]);
+        setStatuses({});
+        Alert.alert(
+          `✅ ${currentClass} Done`,
+          `${present} present · ${absent} absent.\n\nNext: ${classQueue[nextIndex]}`,
+          [{ text: `Mark ${classQueue[nextIndex]}`, onPress: async () => {
+            await loadClassAtIndex(classQueue, nextIndex, attendanceId);
+          }}]
+        );
+      } else {
+        Alert.alert('✅ Complete', `All classes done!\n${present} present · ${absent} absent (${currentClass})`);
+        resetAll();
+        await loadData();
+      }
     } catch (err: any) {
       Alert.alert('Error', err?.response?.data?.error ?? 'Student attendance submission failed.');
     } finally {
@@ -315,6 +348,7 @@ export default function SubmitScreen() {
   function resetAll() {
     resetTeacherForm();
     setStep('teacher'); setStudents([]); setStatuses({}); setAttendanceId(null);
+    setClassQueue([]); setClassQueueIndex(0);
   }
 
   // ── CAMERA VIEW ──────────────────────────────────────────────
@@ -371,9 +405,34 @@ export default function SubmitScreen() {
           <View style={styles.stepSep} />
           <View style={[styles.stepItem, { borderColor: Colors.primary }]}>
             <View style={[styles.stepDot, { backgroundColor: Colors.primary }]} />
-            <Text style={[styles.stepActiveText, { color: Colors.primary }]}>Student Attendance</Text>
+            <Text style={[styles.stepActiveText, { color: Colors.primary }]}>
+              {classQueue.length > 1
+                ? `Register (${classQueueIndex + 1}/${classQueue.length})`
+                : 'Student Attendance'}
+            </Text>
           </View>
         </View>
+
+        {/* Class progress bar for merged classes */}
+        {classQueue.length > 1 && (
+          <View style={styles.classProgressBar}>
+            {classQueue.map((cls, i) => (
+              <View
+                key={cls}
+                style={[
+                  styles.classProgressChip,
+                  i < classQueueIndex  && styles.classProgressDone,
+                  i === classQueueIndex && { backgroundColor: Colors.primary },
+                ]}
+              >
+                <Text style={[
+                  styles.classProgressText,
+                  (i <= classQueueIndex) && { color: '#fff' },
+                ]}>{cls}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Lesson summary */}
         <View style={styles.lockedCard}>
@@ -383,7 +442,7 @@ export default function SubmitScreen() {
           </View>
           <View style={[styles.lockedRow, { borderTopWidth: 1, borderTopColor: '#E2D9CC' }]}>
             <Text style={styles.lockedLabel}>Class</Text>
-            <Text style={styles.lockedValue}>{selectedSlot?.class_names.split(',')[0].trim()}</Text>
+            <Text style={styles.lockedValue}>{classQueue[classQueueIndex] ?? ''}</Text>
           </View>
         </View>
 
@@ -434,7 +493,9 @@ export default function SubmitScreen() {
         )}
 
         <Button
-          label="Submit Student Attendance"
+          label={classQueueIndex < classQueue.length - 1
+            ? `Submit & Mark ${classQueue[classQueueIndex + 1]} →`
+            : 'Submit Attendance'}
           onPress={handleSubmitStudents}
           loading={submittingStud}
           style={styles.submitBtn}
@@ -670,6 +731,11 @@ const styles = StyleSheet.create({
   locItemRow:            { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   locItemText:           { fontSize: 15, color: '#1C1208', flex: 1 },
   locItemGpsBadge:       { fontSize: 11, fontWeight: '700', color: '#2D7A4F', backgroundColor: '#E4F4EB', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  // Class progress bar
+  classProgressBar:      { flexDirection: 'row', gap: 6, marginBottom: 14, flexWrap: 'wrap' },
+  classProgressChip:     { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: '#E2D9CC' },
+  classProgressDone:     { backgroundColor: '#2D7A4F' },
+  classProgressText:     { fontSize: 12, fontWeight: '700', color: '#4A3F32' },
   // Student checklist
   countRow:              { flexDirection: 'row', gap: 10, marginBottom: 4 },
   countBadge:            { flex: 1, borderRadius: 12, padding: 12, alignItems: 'center' },
