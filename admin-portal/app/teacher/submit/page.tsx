@@ -88,6 +88,8 @@ export default function SubmitPage() {
   const [studLoading,   setStudLoading]   = useState(false);
   const [step2Loading,  setStep2Loading]  = useState(false);
   const [step2Error,    setStep2Error]    = useState('');
+  const [classQueue,    setClassQueue]    = useState<string[]>([]);
+  const [classQueueIdx, setClassQueueIdx] = useState(0);
 
   const load = useCallback(async () => {
     const teacher = getTeacher();
@@ -167,13 +169,11 @@ export default function SubmitPage() {
       const newId = res.data?.record?.id ?? res.data?.id ?? '';
       setAttendanceId(newId);
 
-      // Load students
-      const primaryClass = slot.class_names.split(',')[0].trim();
-      setStudLoading(true);
-      try {
-        const sr = await teacherApi.get<Student[]>(`/api/students?class_name=${encodeURIComponent(primaryClass)}&status=Active`);
-        setStudents(sr.data ?? []);
-      } finally { setStudLoading(false); }
+      // Build class queue from merged class_names
+      const queue = slot.class_names.split(',').map(c => c.trim()).filter(Boolean);
+      setClassQueue(queue);
+      setClassQueueIdx(0);
+      await loadClassAtIndex(queue, 0, newId);
       setStep(2);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -181,21 +181,40 @@ export default function SubmitPage() {
     } finally { setSubmitting(false); }
   }
 
+  async function loadClassAtIndex(queue: string[], index: number, attId: string) {
+    setStudLoading(true);
+    try {
+      const className = queue[index];
+      const sr = await teacherApi.get<Student[]>(`/api/students?class_name=${encodeURIComponent(className)}&status=Active`);
+      setStudents(sr.data ?? []);
+      setAbsentIds(new Set());
+    } finally {
+      setStudLoading(false);
+    }
+  }
+
   async function handleStep2() {
     const slot = slots.find(s => s.id === selectedId)!;
     const teacher = getTeacher()!;
-    const primaryClass = slot.class_names.split(',')[0].trim();
+    const currentClass = classQueue[classQueueIdx];
     setStep2Loading(true); setStep2Error('');
     try {
       await teacherApi.post('/api/student-attendance/submit', {
         attendanceId,
         teacherId:      teacher.id,
         subject:        slot.subject,
-        className:      primaryClass,
+        className:      currentClass,
         lessonEndTime:  slot.end_time,
         records: students.map(s => ({ studentId: s.id, status: absentIds.has(s.id) ? 'Absent' : 'Present' })),
       });
-      router.push('/teacher');
+
+      const nextIdx = classQueueIdx + 1;
+      if (nextIdx < classQueue.length) {
+        setClassQueueIdx(nextIdx);
+        await loadClassAtIndex(classQueue, nextIdx, attendanceId);
+      } else {
+        router.push('/teacher');
+      }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setStep2Error(msg ?? 'Failed to submit student attendance.');
@@ -217,7 +236,11 @@ export default function SubmitPage() {
         </button>
         <div>
           <h1 className="text-xl font-bold text-[#2C2218]">{step === 1 ? 'Submit Attendance' : 'Student Attendance'}</h1>
-          <p className="text-xs text-[#8C7E6E]">Step {step} of 2</p>
+          <p className="text-xs text-[#8C7E6E]">
+          {step === 2 && classQueue.length > 1
+            ? `Register (${classQueueIdx + 1}/${classQueue.length})`
+            : `Step ${step} of 2`}
+        </p>
         </div>
       </div>
 
@@ -331,8 +354,28 @@ export default function SubmitPage() {
           {selectedSlot && (
             <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
               <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-2">Lesson</p>
-              <p className="text-sm font-semibold text-[#2C2218]">{selectedSlot.subject} — {selectedSlot.class_names.split(',')[0].trim()}</p>
+              <p className="text-sm font-semibold text-[#2C2218]">
+                {selectedSlot.subject} — {classQueue[classQueueIdx] ?? selectedSlot.class_names.split(',')[0].trim()}
+              </p>
               <p className="text-xs text-[#8C7E6E]">{selectedSlot.start_time.slice(0,5)} – {selectedSlot.end_time.slice(0,5)}</p>
+              {/* Class progress chips for merged classes */}
+              {classQueue.length > 1 && (
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {classQueue.map((cls, i) => {
+                    const isDone    = i < classQueueIdx;
+                    const isCurrent = i === classQueueIdx;
+                    return (
+                      <span key={cls} className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                        style={{
+                          background: isDone ? '#DCFCE7' : isCurrent ? primary : '#F0EDE8',
+                          color:      isDone ? '#166534' : isCurrent ? '#fff'   : '#8C7E6E',
+                        }}>
+                        {isDone ? `✓ ${cls}` : cls}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -389,7 +432,11 @@ export default function SubmitPage() {
           <button onClick={handleStep2} disabled={step2Loading}
             className="w-full py-3.5 rounded-xl text-sm font-bold text-white disabled:opacity-40"
             style={{ background: primary }}>
-            {step2Loading ? 'Submitting…' : 'Submit Student Attendance ✓'}
+            {step2Loading
+              ? 'Submitting…'
+              : classQueueIdx < classQueue.length - 1
+                ? `Submit & Mark ${classQueue[classQueueIdx + 1]} →`
+                : 'Submit Student Attendance ✓'}
           </button>
         </div>
       )}
