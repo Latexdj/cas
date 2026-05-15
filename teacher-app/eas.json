@@ -12,17 +12,16 @@
       "android": {
         "buildType": "apk"
       },
-      "ios": {
-        "simulator": false
-      },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://cas-backend-20rn.onrender.com",
-        "EXPO_PUBLIC_SCHOOL_ID": "d454d6d9-cee3-4ffb-80c0-0c2ef7e99ab5"
+        "EXPO_PUBLIC_API_URL": "https://cas-backend-20rn.onrender.com"
       }
     },
     "production": {
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://cas-backend-20rn.onrender.com"
       }
     }
   },
