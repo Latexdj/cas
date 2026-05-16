@@ -111,6 +111,7 @@ export default function HistoryPage() {
   const [riskFrom,      setRiskFrom]     = useState(today30);
   const [riskTo,        setRiskTo]       = useState(todayStr);
   const [riskBelowOnly, setRiskBelowOnly] = useState(false);
+  const [openClasses,   setOpenClasses]  = useState<Set<string>>(new Set());
   const RISK_THRESHOLD = 75;
 
   /* ─── My Attendance load ─── */
@@ -485,13 +486,19 @@ export default function HistoryPage() {
             {riskError && <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{riskError}</p>}
             {riskLoading ? (
               <div className="space-y-3">
-                {[1,2,3,4].map(i => <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-20 animate-pulse" />)}
+                {[1,2,3,4].map(i => <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-16 animate-pulse" />)}
               </div>
             ) : (() => {
-              const displayed = riskBelowOnly
-                ? atRisk.filter(s => s.present_pct !== null && s.present_pct < RISK_THRESHOLD)
-                : atRisk;
-              if (displayed.length === 0) return (
+              /* Group students by class, filtering if needed */
+              const classMap = new Map<string, AtRiskStudent[]>();
+              for (const s of atRisk) {
+                if (riskBelowOnly && (s.present_pct === null || s.present_pct >= RISK_THRESHOLD)) continue;
+                if (!classMap.has(s.class_name)) classMap.set(s.class_name, []);
+                classMap.get(s.class_name)!.push(s);
+              }
+              const classGroups = [...classMap.entries()].sort(([a], [b]) => a.localeCompare(b));
+
+              if (classGroups.length === 0) return (
                 <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-8 text-center">
                   <p className="text-3xl mb-2">{riskBelowOnly ? '✅' : '📋'}</p>
                   <p className="text-sm font-semibold text-[#2C2218]">
@@ -500,37 +507,74 @@ export default function HistoryPage() {
                   <p className="text-xs text-[#8C7E6E] mt-1">Adjust the date range to see more records</p>
                 </div>
               );
+
               return (
-                <div className="space-y-3">
-                  {riskBelowOnly && (
-                    <p className="text-xs font-semibold text-[#B83232] mb-1">{displayed.length} student{displayed.length !== 1 ? 's' : ''} below {RISK_THRESHOLD}% attendance</p>
-                  )}
-                  {displayed.map(s => {
-                    const pct = s.present_pct ?? 0;
-                    const barColor = pct >= 90 ? '#15803D' : pct >= RISK_THRESHOLD ? '#D97706' : '#DC2626';
-                    const isLow = s.present_pct !== null && s.present_pct < RISK_THRESHOLD;
+                <div className="space-y-2">
+                  {classGroups.map(([className, students]) => {
+                    const isOpen = openClasses.has(className);
+                    const belowCount = students.filter(s => s.present_pct !== null && s.present_pct < RISK_THRESHOLD).length;
+                    const hasAlert = belowCount > 0;
                     return (
-                      <div key={s.id}
-                        className="bg-white rounded-2xl border shadow-sm p-4"
-                        style={{ borderColor: isLow ? '#FECACA' : '#E2D9CC', backgroundColor: isLow ? '#FFF8F8' : 'white' }}>
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1 min-w-0 pr-3">
-                            <p className="text-sm font-semibold text-[#2C2218]">{s.name}</p>
-                            <p className="text-xs text-[#8C7E6E] mt-0.5">{s.class_name} · {s.student_code}</p>
+                      <div key={className} className="rounded-2xl overflow-hidden border"
+                        style={{ borderColor: hasAlert ? '#FECACA' : '#E2D9CC' }}>
+                        {/* Class header — tappable */}
+                        <button type="button"
+                          onClick={() => setOpenClasses(prev => {
+                            const next = new Set(prev);
+                            if (next.has(className)) next.delete(className); else next.add(className);
+                            return next;
+                          })}
+                          className="w-full flex items-center justify-between px-4 py-3 text-left"
+                          style={{ backgroundColor: hasAlert ? '#FFF8F8' : '#FAFAF8' }}>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <p className="text-sm font-bold text-[#2C2218] truncate">{className}</p>
+                            <span className="text-xs text-[#8C7E6E] shrink-0">
+                              {students.length} student{students.length !== 1 ? 's' : ''}
+                              {hasAlert && !riskBelowOnly
+                                ? <span style={{ color: '#DC2626' }}> · {belowCount} below {RISK_THRESHOLD}%</span>
+                                : null}
+                            </span>
                           </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-base font-bold" style={{ color: barColor }}>
-                              {s.present_pct !== null ? `${s.present_pct}%` : '—'}
-                            </p>
-                            <p className="text-[10px] text-[#8C7E6E]">attendance</p>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+                            className="w-4 h-4 shrink-0 ml-2 transition-transform"
+                            style={{ color: '#8C7E6E', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </button>
+
+                        {/* Student list — shown when expanded */}
+                        {isOpen && (
+                          <div className="bg-white divide-y divide-[#F4EFE6]">
+                            {students.map(s => {
+                              const pct = s.present_pct ?? 0;
+                              const barColor = pct >= 90 ? '#15803D' : pct >= RISK_THRESHOLD ? '#D97706' : '#DC2626';
+                              const isLow = s.present_pct !== null && s.present_pct < RISK_THRESHOLD;
+                              return (
+                                <div key={s.id} className="px-4 py-3"
+                                  style={{ backgroundColor: isLow ? '#FFF8F8' : 'white' }}>
+                                  <div className="flex items-start justify-between mb-1.5">
+                                    <div className="flex-1 min-w-0 pr-3">
+                                      <p className="text-sm font-semibold text-[#2C2218]">{s.name}</p>
+                                      <p className="text-xs text-[#8C7E6E]">{s.student_code}</p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <p className="text-base font-bold" style={{ color: barColor }}>
+                                        {s.present_pct !== null ? `${s.present_pct}%` : '—'}
+                                      </p>
+                                      <p className="text-[10px] text-[#8C7E6E]">attendance</p>
+                                    </div>
+                                  </div>
+                                  <div className="h-1.5 rounded-full bg-[#F0EDE8] overflow-hidden mb-1">
+                                    <div className="h-1.5 rounded-full" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }} />
+                                  </div>
+                                  <p className="text-xs text-[#8C7E6E]">
+                                    {s.absent} absent{s.late > 0 ? ` · ${s.late} late` : ''} · {s.total_sessions} session{s.total_sessions !== 1 ? 's' : ''}
+                                  </p>
+                                </div>
+                              );
+                            })}
                           </div>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-[#F0EDE8] overflow-hidden mb-1.5">
-                          <div className="h-1.5 rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }} />
-                        </div>
-                        <p className="text-xs text-[#8C7E6E]">
-                          {s.absent} absent · {s.late > 0 ? `${s.late} late · ` : ''}{s.total_sessions} session{s.total_sessions !== 1 ? 's' : ''}
-                        </p>
+                        )}
                       </div>
                     );
                   })}
