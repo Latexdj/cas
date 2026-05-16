@@ -211,43 +211,46 @@ router.get('/my-summary', async (req, res, next) => {
     }
 
     const { rows } = await pool.query(`
+      WITH att AS (
+        SELECT COALESCE(SUM(periods), 0) AS present_periods
+        FROM attendance
+        WHERE teacher_id = $4
+          AND school_id  = $1
+          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
+          AND ($3::int  IS NULL OR semester = $3::int)
+      ),
+      dr AS (
+        SELECT
+          COALESCE(MIN(date), CURRENT_DATE - INTERVAL '365 days') AS min_date,
+          COALESCE(MAX(date), CURRENT_DATE) AS max_date
+        FROM attendance
+        WHERE teacher_id = $4
+          AND school_id  = $1
+          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
+          AND ($3::int  IS NULL OR semester = $3::int)
+      ),
+      abs AS (
+        SELECT
+          COUNT(*) FILTER (WHERE ab.status != 'Excused') AS absent_periods,
+          COUNT(*) FILTER (WHERE ab.status  = 'Excused') AS excused_periods
+        FROM absences ab, dr
+        WHERE ab.teacher_id = $4
+          AND ab.school_id  = $1
+          AND ab.date >= dr.min_date
+          AND ab.date <= dr.max_date
+      )
       SELECT
-        COALESCE(SUM(a.periods), 0)::int AS present_periods,
-        COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused')::int AS absent_periods,
-        COUNT(DISTINCT ab.id) FILTER (WHERE ab.status  = 'Excused')::int AS excused_periods,
-        (COALESCE(SUM(a.periods), 0)
-          + COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused'))::int AS total_scheduled,
+        att.present_periods::int,
+        abs.absent_periods::int,
+        abs.excused_periods::int,
+        (att.present_periods + abs.absent_periods)::int AS total_scheduled,
         CASE
-          WHEN (COALESCE(SUM(a.periods), 0)
-                + COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused')) = 0 THEN NULL
+          WHEN (att.present_periods + abs.absent_periods) = 0 THEN NULL
           ELSE ROUND(
-            100.0 * COALESCE(SUM(a.periods), 0) /
-            NULLIF(COALESCE(SUM(a.periods), 0)
-              + COUNT(DISTINCT ab.id) FILTER (WHERE ab.status != 'Excused'), 0), 1)
+            100.0 * att.present_periods /
+            NULLIF(att.present_periods + abs.absent_periods, 0), 1)
         END AS attendance_pct
-      FROM teachers t
-      LEFT JOIN attendance a
-        ON  a.teacher_id = t.id
-        AND a.school_id  = $1
-        AND ($2::uuid IS NULL OR a.academic_year_id = $2::uuid)
-        AND ($3::int  IS NULL OR a.semester = $3::int)
-      LEFT JOIN absences ab
-        ON  ab.teacher_id = t.id
-        AND ab.school_id  = $1
-        AND ab.date >= COALESCE(
-              (SELECT MIN(a2.date) FROM attendance a2
-               WHERE  a2.teacher_id = $4 AND a2.school_id = $1
-                 AND ($2::uuid IS NULL OR a2.academic_year_id = $2::uuid)
-                 AND ($3::int  IS NULL OR a2.semester = $3::int)),
-              CURRENT_DATE - INTERVAL '365 days')
-        AND ab.date <= COALESCE(
-              (SELECT MAX(a2.date) FROM attendance a2
-               WHERE  a2.teacher_id = $4 AND a2.school_id = $1
-                 AND ($2::uuid IS NULL OR a2.academic_year_id = $2::uuid)
-                 AND ($3::int  IS NULL OR a2.semester = $3::int)),
-              CURRENT_DATE)
-      WHERE t.id = $4 AND t.school_id = $1
-      GROUP BY t.id
+      FROM att, abs
     `, [req.schoolId, yearId || null, sem || null, req.user.id]);
 
     res.json(rows[0] || {
