@@ -18,6 +18,7 @@ const pageTitles: Record<string, string> = {
   '/curriculum':         'Curriculum',
   '/school-calendar':    'School Calendar',
   '/locations':          'Locations',
+  '/classroom-qr':       'Classroom QR Codes',
   '/settings':           'Settings',
 };
 
