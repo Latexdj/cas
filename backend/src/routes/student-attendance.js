@@ -166,6 +166,67 @@ router.patch('/records/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/** GET /api/student-attendance/teacher/:teacherId — teacher's own sessions (any date range) */
+router.get('/teacher/:teacherId', async (req, res, next) => {
+  try {
+    if (req.user.role === 'teacher' && req.user.id !== req.params.teacherId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const { from, to } = req.query;
+    const conds  = ['s.school_id = $1', 's.teacher_id = $2'];
+    const params = [req.schoolId, req.params.teacherId];
+    if (from) { params.push(from); conds.push(`s.date >= $${params.length}`); }
+    if (to)   { params.push(to);   conds.push(`s.date <= $${params.length}`); }
+
+    const { rows } = await pool.query(
+      `SELECT s.id, s.date, s.subject, s.class_name,
+              COUNT(r.id)::int                                             AS total,
+              SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END)::int  AS present,
+              SUM(CASE WHEN r.status = 'Absent'  THEN 1 ELSE 0 END)::int  AS absent,
+              SUM(CASE WHEN r.status = 'Late'    THEN 1 ELSE 0 END)::int  AS late
+       FROM student_attendance_sessions s
+       LEFT JOIN student_attendance_records r ON r.session_id = s.id
+       WHERE ${conds.join(' AND ')}
+       GROUP BY s.id
+       ORDER BY s.date DESC, s.created_at DESC`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+/** GET /api/student-attendance/report/students — per-student attendance summary (admin) */
+router.get('/report/students', adminOnly, async (req, res, next) => {
+  try {
+    const { class_name, from, to } = req.query;
+    const conds  = ['r.school_id = $1'];
+    const params = [req.schoolId];
+    if (class_name) { params.push(class_name); conds.push(`st.class_name = $${params.length}`); }
+    if (from)       { params.push(from);       conds.push(`s.date >= $${params.length}`); }
+    if (to)         { params.push(to);         conds.push(`s.date <= $${params.length}`); }
+
+    const { rows } = await pool.query(
+      `SELECT
+         st.id, st.student_code, st.name, st.class_name,
+         COUNT(r.id)::int                                             AS total_sessions,
+         SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END)::int  AS present,
+         SUM(CASE WHEN r.status = 'Absent'  THEN 1 ELSE 0 END)::int  AS absent,
+         SUM(CASE WHEN r.status = 'Late'    THEN 1 ELSE 0 END)::int  AS late,
+         CASE WHEN COUNT(r.id) = 0 THEN NULL
+              ELSE ROUND(100.0 * SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END) / COUNT(r.id), 1)
+         END AS present_pct
+       FROM student_attendance_records r
+       JOIN students st ON st.id = r.student_id
+       JOIN student_attendance_sessions s ON s.id = r.session_id
+       WHERE ${conds.join(' AND ')}
+       GROUP BY st.id, st.student_code, st.name, st.class_name
+       ORDER BY st.class_name, present_pct ASC NULLS LAST, st.name`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 /** GET /api/student-attendance — admin list of sessions with summary counts */
 router.get('/', adminOnly, async (req, res, next) => {
   try {
