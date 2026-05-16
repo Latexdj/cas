@@ -47,6 +47,18 @@ interface SessionDetail {
   records: SessionRecord[];
 }
 
+interface AtRiskStudent {
+  id: string;
+  student_code: string;
+  name: string;
+  class_name: string;
+  total_sessions: number;
+  present: number;
+  absent: number;
+  late: number;
+  present_pct: number | null;
+}
+
 /* ─── Helpers ─── */
 const PAGE_SIZE = 30;
 
@@ -66,7 +78,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 /* ─── Component ─── */
 export default function HistoryPage() {
   const [primary, setPrimary] = useState('#2ab289');
-  const [tab, setTab] = useState<'my' | 'students'>('my');
+  const [tab, setTab] = useState<'my' | 'students' | 'atrisk'>('my');
 
   /* ── My Attendance state ── */
   const [records,      setRecords]      = useState<AttendanceRecord[]>([]);
@@ -91,6 +103,15 @@ export default function HistoryPage() {
   /* ── Session detail ── */
   const [detail,       setDetail]       = useState<SessionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  /* ── At Risk state ── */
+  const [atRisk,        setAtRisk]       = useState<AtRiskStudent[]>([]);
+  const [riskLoading,   setRiskLoading]  = useState(false);
+  const [riskError,     setRiskError]    = useState('');
+  const [riskFrom,      setRiskFrom]     = useState(today30);
+  const [riskTo,        setRiskTo]       = useState(todayStr);
+  const [riskBelowOnly, setRiskBelowOnly] = useState(false);
+  const RISK_THRESHOLD = 75;
 
   /* ─── My Attendance load ─── */
   const fetchPage = useCallback(async (
@@ -120,6 +141,24 @@ export default function HistoryPage() {
       setLoadingMore(false);
     }
   }, [filterYear, filterSem]);
+
+  /* ─── At Risk load ─── */
+  const fetchAtRisk = useCallback(async (from: string, to: string) => {
+    const teacher = getTeacher();
+    if (!teacher) return;
+    setRiskLoading(true); setRiskError('');
+    try {
+      const params = new URLSearchParams({ from, to });
+      const res = await teacherApi.get<AtRiskStudent[]>(
+        `/api/student-attendance/report/teacher/${teacher.id}/students?${params}`
+      );
+      setAtRisk(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setRiskError('Failed to load student data.');
+    } finally {
+      setRiskLoading(false);
+    }
+  }, []);
 
   /* ─── Student Sessions load ─── */
   const fetchSessions = useCallback(async (from: string, to: string) => {
@@ -193,16 +232,23 @@ export default function HistoryPage() {
       {/* Tab toggle */}
       <div className="px-4 mb-4">
         <div className="flex bg-white rounded-2xl border border-[#E2D9CC] p-1 gap-1">
-          {(['my', 'students'] as const).map(t => (
+          {([
+            ['my',       'My Attendance'],
+            ['students', 'Sessions'],
+            ['atrisk',   'At Risk'],
+          ] as const).map(([t, label]) => (
             <button
               key={t}
-              onClick={() => setTab(t)}
+              onClick={() => {
+                setTab(t);
+                if (t === 'atrisk' && atRisk.length === 0 && !riskLoading) fetchAtRisk(riskFrom, riskTo);
+              }}
               className="flex-1 py-2 rounded-xl text-sm font-semibold transition-colors"
               style={tab === t
                 ? { background: primary, color: '#fff' }
                 : { color: '#8C7E6E' }}
             >
-              {t === 'my' ? 'My Attendance' : 'Student Sessions'}
+              {label}
             </button>
           ))}
         </div>
@@ -346,7 +392,7 @@ export default function HistoryPage() {
             )}
           </div>
 
-          {/* Session detail modal */}
+          {/* Session detail bottom sheet */}
           {(detail || detailLoading) && (
             <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
               <div className="bg-white rounded-t-3xl w-full max-h-[85vh] flex flex-col shadow-xl">
@@ -400,6 +446,98 @@ export default function HistoryPage() {
               </div>
             </div>
           )}
+        </>
+      )}
+
+      {/* ── At Risk tab ── */}
+      {tab === 'atrisk' && (
+        <>
+          {/* Date range + toggle filter */}
+          <div className="bg-white border-b border-[#E2D9CC] px-4 py-3 mb-4 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 flex-1">
+                <label className="text-xs font-semibold text-[#8C7E6E] shrink-0">From</label>
+                <input type="date" value={riskFrom}
+                  onChange={e => { setRiskFrom(e.target.value); fetchAtRisk(e.target.value, riskTo); }}
+                  className="flex-1 border border-[#E2D9CC] rounded-lg px-2 py-1.5 text-xs bg-white text-[#2C2218] focus:outline-none" />
+              </div>
+              <div className="flex items-center gap-2 flex-1">
+                <label className="text-xs font-semibold text-[#8C7E6E] shrink-0">To</label>
+                <input type="date" value={riskTo}
+                  onChange={e => { setRiskTo(e.target.value); fetchAtRisk(riskFrom, e.target.value); }}
+                  className="flex-1 border border-[#E2D9CC] rounded-lg px-2 py-1.5 text-xs bg-white text-[#2C2218] focus:outline-none" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {([false, true] as const).map(v => (
+                <button key={String(v)} onClick={() => setRiskBelowOnly(v)}
+                  className="flex-1 py-1.5 rounded-full text-xs font-bold border transition-colors"
+                  style={riskBelowOnly === v
+                    ? { background: primary, color: '#fff', borderColor: primary }
+                    : { background: '#F0EDE8', color: '#4A3F32', borderColor: '#E2D9CC' }}>
+                  {v ? `Below ${RISK_THRESHOLD}% only` : 'All Students'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="px-4">
+            {riskError && <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{riskError}</p>}
+            {riskLoading ? (
+              <div className="space-y-3">
+                {[1,2,3,4].map(i => <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-20 animate-pulse" />)}
+              </div>
+            ) : (() => {
+              const displayed = riskBelowOnly
+                ? atRisk.filter(s => s.present_pct !== null && s.present_pct < RISK_THRESHOLD)
+                : atRisk;
+              if (displayed.length === 0) return (
+                <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-8 text-center">
+                  <p className="text-3xl mb-2">{riskBelowOnly ? '✅' : '📋'}</p>
+                  <p className="text-sm font-semibold text-[#2C2218]">
+                    {riskBelowOnly ? 'No students below threshold' : 'No student data for this period'}
+                  </p>
+                  <p className="text-xs text-[#8C7E6E] mt-1">Adjust the date range to see more records</p>
+                </div>
+              );
+              return (
+                <div className="space-y-3">
+                  {riskBelowOnly && (
+                    <p className="text-xs font-semibold text-[#B83232] mb-1">{displayed.length} student{displayed.length !== 1 ? 's' : ''} below {RISK_THRESHOLD}% attendance</p>
+                  )}
+                  {displayed.map(s => {
+                    const pct = s.present_pct ?? 0;
+                    const barColor = pct >= 90 ? '#15803D' : pct >= RISK_THRESHOLD ? '#D97706' : '#DC2626';
+                    const isLow = s.present_pct !== null && s.present_pct < RISK_THRESHOLD;
+                    return (
+                      <div key={s.id}
+                        className="bg-white rounded-2xl border shadow-sm p-4"
+                        style={{ borderColor: isLow ? '#FECACA' : '#E2D9CC', backgroundColor: isLow ? '#FFF8F8' : 'white' }}>
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1 min-w-0 pr-3">
+                            <p className="text-sm font-semibold text-[#2C2218]">{s.name}</p>
+                            <p className="text-xs text-[#8C7E6E] mt-0.5">{s.class_name} · {s.student_code}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-base font-bold" style={{ color: barColor }}>
+                              {s.present_pct !== null ? `${s.present_pct}%` : '—'}
+                            </p>
+                            <p className="text-[10px] text-[#8C7E6E]">attendance</p>
+                          </div>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-[#F0EDE8] overflow-hidden mb-1.5">
+                          <div className="h-1.5 rounded-full transition-all" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }} />
+                        </div>
+                        <p className="text-xs text-[#8C7E6E]">
+                          {s.absent} absent · {s.late > 0 ? `${s.late} late · ` : ''}{s.total_sessions} session{s.total_sessions !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
         </>
       )}
     </div>
