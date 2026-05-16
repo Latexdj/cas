@@ -4,10 +4,11 @@ import { api } from '@/lib/api';
 import type { StudentAttendanceSession, StudentAttendanceRecord } from '@/types/api';
 
 /* ─── Export helpers ─── */
-async function exportExcel(filename: string, headers: string[], rows: (string | number | null)[]) {
+type Row = (string | number | null)[];
+
+async function exportExcel(filename: string, headers: string[], rows: Row[]) {
   const XLSX = await import('xlsx');
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows as unknown as (string|number)[][]]);
-  // Column widths
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = headers.map(() => ({ wch: 18 }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Report');
@@ -19,7 +20,7 @@ async function exportPdf(
   title: string,
   subtitle: string,
   head: string[],
-  body: (string | number)[][][],
+  body: Row[],
 ) {
   const { default: jsPDF } = await import('jspdf');
   await import('jspdf-autotable');
@@ -185,20 +186,20 @@ export default function StudentAttendancePage() {
 
       if (key === 'sess-xlsx') {
         const headers = ['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Total'];
-        const rows = sessions.map(s => [s.date, s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.total]);
-        await exportExcel(`student-sessions-${from}-${to}`, headers, rows as (string|number|null)[]);
+        const rows: Row[] = sessions.map(s => [s.date, s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.total]);
+        await exportExcel(`student-sessions-${from}-${to}`, headers, rows);
       } else if (key === 'sess-pdf') {
         const head = ['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Total'];
-        const body = sessions.map(s => [s.date, s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.total]);
-        await exportPdf(`student-sessions-${from}-${to}`, 'Student Attendance Sessions', subtitle, head, body as (string|number)[][][]);
+        const body: Row[] = sessions.map(s => [s.date, s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.total]);
+        await exportPdf(`student-sessions-${from}-${to}`, 'Student Attendance Sessions', subtitle, head, body);
       } else if (key === 'rep-xlsx') {
         const headers = ['Student ID', 'Name', 'Class', 'Sessions', 'Present', 'Absent', 'Late', 'Attendance %'];
-        const rows = report.map(r => [r.student_code, r.name, r.class_name, r.total_sessions, r.present, r.absent, r.late, r.present_pct !== null ? `${r.present_pct}%` : '—']);
-        await exportExcel(`student-report-${reportFrom}-${reportTo}`, headers, rows as (string|number|null)[]);
+        const rows: Row[] = report.map(r => [r.student_code, r.name, r.class_name, r.total_sessions, r.present, r.absent, r.late, r.present_pct !== null ? `${r.present_pct}%` : '—']);
+        await exportExcel(`student-report-${reportFrom}-${reportTo}`, headers, rows);
       } else if (key === 'rep-pdf') {
         const head = ['Student ID', 'Name', 'Class', 'Sessions', 'Present', 'Absent', 'Late', 'Attendance %'];
-        const body = report.map(r => [r.student_code, r.name, r.class_name, r.total_sessions, r.present, r.absent, r.late, r.present_pct !== null ? `${r.present_pct}%` : '—']);
-        await exportPdf(`student-report-${reportFrom}-${reportTo}`, 'Student Attendance Report', repSubtitle, head, body as (string|number)[][][]);
+        const body: Row[] = report.map(r => [r.student_code, r.name, r.class_name, r.total_sessions, r.present, r.absent, r.late, r.present_pct !== null ? `${r.present_pct}%` : '—']);
+        await exportPdf(`student-report-${reportFrom}-${reportTo}`, 'Student Attendance Report', repSubtitle, head, body);
       }
     } finally {
       setExporting(null);
