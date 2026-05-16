@@ -61,64 +61,75 @@ async function runAbsenceCheck(schoolId) {
     console.log(`[AbsenceCheck] ${excusedTeacherIds.size} teacher(s) excused today`);
   }
 
+  // Fetch all lessons today — use class_names (plural) which is the actual column name
   const { rows: lessons } = await pool.query(`
     SELECT
-      tt.id       AS slot_id,
+      tt.id           AS slot_id,
       tt.start_time::text,
       tt.end_time::text,
       tt.subject,
-      tt.class_name,
-      te.id       AS teacher_id,
-      te.name     AS teacher_name,
-      te.email    AS teacher_email
+      tt.class_names,
+      te.id           AS teacher_id,
+      te.name         AS teacher_name,
+      te.email        AS teacher_email
     FROM timetable tt
     JOIN teachers te ON te.id = tt.teacher_id AND te.status = 'Active'
     WHERE tt.school_id = $1 AND tt.day_of_week = $2
   `, [schoolId, dayOfWeek]);
 
-  console.log(`[AbsenceCheck] ${lessons.length} lessons scheduled for school ${schoolId}`);
+  console.log(`[AbsenceCheck] ${lessons.length} timetable slot(s) for school ${schoolId}`);
 
   const newAbsences = [];
 
   for (const lesson of lessons) {
-    try {
-      // Skip if this teacher has an approved excuse for today
-      if (excusedTeacherIds.has(lesson.teacher_id)) {
-        console.log(`[AbsenceCheck] Excused: ${lesson.teacher_name}`);
-        continue;
+    // Skip excused teachers
+    if (excusedTeacherIds.has(lesson.teacher_id)) {
+      console.log(`[AbsenceCheck] Excused: ${lesson.teacher_name}`);
+      continue;
+    }
+
+    // Split merged class groups (e.g. "1A, 1B, 1C") into individual classes
+    const individualClasses = lesson.class_names
+      .split(',')
+      .map(c => c.trim())
+      .filter(Boolean);
+
+    for (const className of individualClasses) {
+      try {
+        const present = await hasAttendance(
+          schoolId, lesson.teacher_id, lesson.subject, className, today
+        );
+        if (present) continue;
+
+        const { rows: inserted } = await pool.query(`
+          INSERT INTO absences
+            (school_id, date, detected_at, teacher_id, subject, class_name,
+             scheduled_period, status, is_auto_generated, reason)
+          VALUES
+            ($1, $2, $3::time, $4, $5, $6, $7, 'Absent', true, 'Daily automated check')
+          ON CONFLICT (date, teacher_id, subject, class_name)
+            WHERE is_auto_generated = true
+          DO NOTHING
+          RETURNING id
+        `, [
+          schoolId,
+          today,
+          now,
+          lesson.teacher_id,
+          lesson.subject,
+          className,
+          `${lesson.start_time}–${lesson.end_time}`,
+        ]);
+
+        if (inserted.length) {
+          console.log(`[AbsenceCheck] ABSENT: ${lesson.teacher_name} — ${lesson.subject} — ${className}`);
+          const absenceEntry = { ...lesson, class_name: className, day_name: getDayName(dayOfWeek) };
+          newAbsences.push(absenceEntry);
+          await sendAbsenceNotification(absenceEntry, today);
+        }
+      } catch (err) {
+        console.error(`[AbsenceCheck] Error processing ${lesson.teacher_name} / ${className}:`, err.message);
       }
-
-      const present = await hasAttendance(schoolId, lesson.teacher_id, lesson.subject, lesson.class_name, today);
-
-      if (present) continue;
-
-      const { rows: inserted } = await pool.query(`
-        INSERT INTO absences
-          (school_id, date, detected_at, teacher_id, subject, class_name,
-           scheduled_period, status, is_auto_generated, reason)
-        VALUES
-          ($1, $2, $3::time, $4, $5, $6, $7, 'Absent', true, 'Daily automated check')
-        ON CONFLICT (date, teacher_id, subject, class_name)
-          WHERE is_auto_generated = true
-        DO NOTHING
-        RETURNING id
-      `, [
-        schoolId,
-        today,
-        now,
-        lesson.teacher_id,
-        lesson.subject,
-        lesson.class_name,
-        `${lesson.start_time}–${lesson.end_time}`,
-      ]);
-
-      if (inserted.length) {
-        console.log(`[AbsenceCheck] ABSENT: ${lesson.teacher_name} — ${lesson.subject} — ${lesson.class_name}`);
-        newAbsences.push({ ...lesson, day_name: getDayName(dayOfWeek) });
-        await sendAbsenceNotification({ ...lesson, day_name: getDayName(dayOfWeek) }, today);
-      }
-    } catch (err) {
-      console.error(`[AbsenceCheck] Error processing ${lesson.teacher_name}:`, err.message);
     }
   }
 
@@ -137,7 +148,7 @@ async function runAbsenceCheck(schoolId) {
   return { date: today, schoolId, newAbsences: newAbsences.length };
 }
 
-// Cron: runs at 16:00 every day across all active schools.
+// Cron: runs at 16:00 every day across all active/trial schools.
 // Africa/Accra is UTC+0, so "0 16 * * *" is correct.
 function startAbsenceCheckJob() {
   cron.schedule('0 16 * * *', async () => {
@@ -146,10 +157,11 @@ function startAbsenceCheckJob() {
         SELECT s.id
         FROM schools s
         JOIN subscriptions sub ON sub.school_id = s.id
-        WHERE sub.status = 'active'
+        WHERE sub.status IN ('active', 'trial')
+          AND (sub.ends_at IS NULL OR sub.ends_at > now())
       `);
 
-      console.log(`[AbsenceCheck] Running for ${schools.length} active school(s)`);
+      console.log(`[AbsenceCheck] Running for ${schools.length} active/trial school(s)`);
       for (const school of schools) {
         try {
           await runAbsenceCheck(school.id);
