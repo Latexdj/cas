@@ -138,7 +138,9 @@ router.get('/', async (req, res, next) => {
       SELECT
         t.id, t.teacher_code, t.name, t.email, t.phone, t.department,
         t.status, t.is_admin, t.notes,
-        COUNT(tt.id)::int AS total_periods
+        ROUND(COALESCE(SUM(
+          EXTRACT(EPOCH FROM (tt.end_time - tt.start_time)) / 3600
+        ), 0)::numeric, 1)::float AS total_periods
       FROM teachers t
       LEFT JOIN timetable tt ON tt.teacher_id = t.id
       WHERE t.school_id = $1
