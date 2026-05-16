@@ -106,10 +106,26 @@ export default function ClassroomQrPage() {
 
       <style>{`
         @media print {
+          @page { size: A4 portrait; margin: 12mm; }
           .no-print { display: none !important; }
-          .print-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 16px !important; }
-          .qr-card { break-inside: avoid; border: 1px solid #cbd5e1 !important; box-shadow: none !important; border-radius: 8px !important; }
           nav, aside, header { display: none !important; }
+          .print-grid {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 12mm !important;
+          }
+          .qr-card {
+            break-inside: avoid;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: none !important;
+            border-radius: 8px !important;
+            padding: 8mm !important;
+            height: calc((297mm - 24mm - 12mm) / 2) !important;
+            justify-content: center !important;
+          }
+          .qr-card img { width: 55mm !important; height: 55mm !important; }
+          .qr-card p:first-child { font-size: 18pt !important; }
+          .qr-card p:last-child { font-size: 9pt !important; }
         }
       `}</style>
     </div>
