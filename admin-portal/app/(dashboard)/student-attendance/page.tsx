@@ -3,6 +3,43 @@ import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import type { StudentAttendanceSession, StudentAttendanceRecord } from '@/types/api';
 
+/* ─── Export helpers ─── */
+async function exportExcel(filename: string, headers: string[], rows: (string | number | null)[]) {
+  const XLSX = await import('xlsx');
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows as unknown as (string|number)[][]]);
+  // Column widths
+  ws['!cols'] = headers.map(() => ({ wch: 18 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Report');
+  XLSX.writeFile(wb, `${filename}.xlsx`);
+}
+
+async function exportPdf(
+  filename: string,
+  title: string,
+  subtitle: string,
+  head: string[],
+  body: (string | number)[][][],
+) {
+  const { default: jsPDF } = await import('jspdf');
+  await import('jspdf-autotable');
+  const doc = new jsPDF({ orientation: 'landscape' });
+  doc.setFontSize(14);
+  doc.text(title, 14, 16);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(subtitle, 14, 23);
+  (doc as unknown as { autoTable: (o: object) => void }).autoTable({
+    head: [head],
+    body,
+    startY: 28,
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+  });
+  doc.save(`${filename}.pdf`);
+}
+
 /* ─── Types ─── */
 interface SessionDetail {
   session: StudentAttendanceSession & { teacher_name: string; lesson_end_time: string | null };
@@ -19,6 +56,30 @@ interface StudentReport {
   absent: number;
   late: number;
   present_pct: number | null;
+}
+
+/* ─── Export button ─── */
+function ExportButton({ label, color, loading, disabled, onClick }: {
+  label: string; color: string; loading: boolean; disabled: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading || disabled}
+      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-40"
+      style={{ borderColor: color, color, background: 'white' }}
+    >
+      {loading
+        ? <span className="w-3.5 h-3.5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: color, borderTopColor: 'transparent' }} />
+        : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+      }
+      {label}
+    </button>
+  );
 }
 
 /* ─── Constants ─── */
@@ -62,6 +123,7 @@ export default function StudentAttendancePage() {
   const [reportFrom, setReportFrom] = useState(thirtyDaysAgo);
   const [reportTo,   setReportTo]   = useState(today);
   const LOW_THRESHOLD = 75;
+  const [exporting, setExporting] = useState<string | null>(null); // 'sess-xlsx'|'sess-pdf'|'rep-xlsx'|'rep-pdf'
 
   /* ─── Sessions load ─── */
   const loadSessions = useCallback(async (f = from, t = to, cls = filterClass) => {
@@ -115,6 +177,34 @@ export default function StudentAttendancePage() {
   const reportClasses = [...new Set(report.map(r => r.class_name))].sort();
   const lowAttendance = report.filter(r => r.present_pct !== null && r.present_pct < LOW_THRESHOLD).length;
 
+  async function doExport(key: string) {
+    setExporting(key);
+    try {
+      const subtitle = `Period: ${from} to ${to}${filterClass ? ` · Class: ${filterClass}` : ''}`;
+      const repSubtitle = `Period: ${reportFrom} to ${reportTo}${reportClass ? ` · Class: ${reportClass}` : ''}`;
+
+      if (key === 'sess-xlsx') {
+        const headers = ['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Total'];
+        const rows = sessions.map(s => [s.date, s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.total]);
+        await exportExcel(`student-sessions-${from}-${to}`, headers, rows as (string|number|null)[]);
+      } else if (key === 'sess-pdf') {
+        const head = ['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Total'];
+        const body = sessions.map(s => [s.date, s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.total]);
+        await exportPdf(`student-sessions-${from}-${to}`, 'Student Attendance Sessions', subtitle, head, body as (string|number)[][][]);
+      } else if (key === 'rep-xlsx') {
+        const headers = ['Student ID', 'Name', 'Class', 'Sessions', 'Present', 'Absent', 'Late', 'Attendance %'];
+        const rows = report.map(r => [r.student_code, r.name, r.class_name, r.total_sessions, r.present, r.absent, r.late, r.present_pct !== null ? `${r.present_pct}%` : '—']);
+        await exportExcel(`student-report-${reportFrom}-${reportTo}`, headers, rows as (string|number|null)[]);
+      } else if (key === 'rep-pdf') {
+        const head = ['Student ID', 'Name', 'Class', 'Sessions', 'Present', 'Absent', 'Late', 'Attendance %'];
+        const body = report.map(r => [r.student_code, r.name, r.class_name, r.total_sessions, r.present, r.absent, r.late, r.present_pct !== null ? `${r.present_pct}%` : '—']);
+        await exportPdf(`student-report-${reportFrom}-${reportTo}`, 'Student Attendance Report', repSubtitle, head, body as (string|number)[][][]);
+      }
+    } finally {
+      setExporting(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -139,7 +229,7 @@ export default function StudentAttendancePage() {
       {/* ══ SESSIONS TAB ══ */}
       {tab === 'sessions' && (
         <>
-          {/* Filters */}
+          {/* Filters + export */}
           <div className="flex flex-wrap gap-3 items-center">
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold" style={{ color: '#64748B' }}>From</label>
@@ -156,6 +246,12 @@ export default function StudentAttendancePage() {
               <option value="">All Classes</option>
               {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
+            <div className="flex gap-2 ml-auto">
+              <ExportButton label="Excel" loading={exporting === 'sess-xlsx'} disabled={sessions.length === 0}
+                color="#15803D" onClick={() => doExport('sess-xlsx')} />
+              <ExportButton label="PDF" loading={exporting === 'sess-pdf'} disabled={sessions.length === 0}
+                color="#2563EB" onClick={() => doExport('sess-pdf')} />
+            </div>
           </div>
 
           {/* Sessions table */}
@@ -203,7 +299,7 @@ export default function StudentAttendancePage() {
       {/* ══ STUDENT REPORT TAB ══ */}
       {tab === 'report' && (
         <>
-          {/* Filters */}
+          {/* Filters + export */}
           <div className="flex flex-wrap gap-3 items-center">
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold" style={{ color: '#64748B' }}>From</label>
@@ -223,6 +319,12 @@ export default function StudentAttendancePage() {
               <option value="">All Classes</option>
               {reportClasses.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
+            <div className="flex gap-2 ml-auto">
+              <ExportButton label="Excel" loading={exporting === 'rep-xlsx'} disabled={report.length === 0}
+                color="#15803D" onClick={() => doExport('rep-xlsx')} />
+              <ExportButton label="PDF" loading={exporting === 'rep-pdf'} disabled={report.length === 0}
+                color="#2563EB" onClick={() => doExport('rep-pdf')} />
+            </div>
           </div>
 
           {/* Summary badges */}
