@@ -405,7 +405,8 @@ router.post('/attendance', async (req, res, next) => {
         false, 'Manual entry by admin', null,
       ]
     );
-    res.status(201).json({ message: 'Attendance recorded manually', id: rows[0].id });
+    const classQueue = classNames.split(',').map(c => c.trim()).filter(Boolean);
+    res.status(201).json({ message: 'Attendance recorded manually', id: rows[0].id, classQueue });
   } catch (err) { next(err); }
 });
 
