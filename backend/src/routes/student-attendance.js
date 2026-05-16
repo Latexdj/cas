@@ -198,12 +198,14 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
 /** GET /api/student-attendance/report/students — per-student attendance summary (admin) */
 router.get('/report/students', adminOnly, async (req, res, next) => {
   try {
-    const { class_name, from, to } = req.query;
+    const { class_name, from, to, academic_year_id, semester } = req.query;
     const conds  = ['r.school_id = $1'];
     const params = [req.schoolId];
-    if (class_name) { params.push(class_name); conds.push(`st.class_name = $${params.length}`); }
-    if (from)       { params.push(from);       conds.push(`s.date >= $${params.length}`); }
-    if (to)         { params.push(to);         conds.push(`s.date <= $${params.length}`); }
+    if (class_name)       { params.push(class_name);       conds.push(`st.class_name = $${params.length}`); }
+    if (from)             { params.push(from);             conds.push(`s.date >= $${params.length}`); }
+    if (to)               { params.push(to);               conds.push(`s.date <= $${params.length}`); }
+    if (academic_year_id) { params.push(academic_year_id); conds.push(`s.academic_year_id = $${params.length}`); }
+    if (semester)         { params.push(parseInt(semester)); conds.push(`s.semester = $${params.length}`); }
 
     const { rows } = await pool.query(
       `SELECT
@@ -230,15 +232,17 @@ router.get('/report/students', adminOnly, async (req, res, next) => {
 /** GET /api/student-attendance — admin list of sessions with summary counts */
 router.get('/', adminOnly, async (req, res, next) => {
   try {
-    const { date, class_name, teacher_id, from, to } = req.query;
+    const { date, class_name, teacher_id, from, to, academic_year_id, semester } = req.query;
     const conds  = ['s.school_id = $1'];
     const params = [req.schoolId];
 
-    if (date)       { params.push(date);       conds.push(`s.date = $${params.length}`); }
-    if (from)       { params.push(from);       conds.push(`s.date >= $${params.length}`); }
-    if (to)         { params.push(to);         conds.push(`s.date <= $${params.length}`); }
-    if (class_name) { params.push(class_name); conds.push(`s.class_name = $${params.length}`); }
-    if (teacher_id) { params.push(teacher_id); conds.push(`s.teacher_id = $${params.length}`); }
+    if (date)             { params.push(date);             conds.push(`s.date = $${params.length}`); }
+    if (from)             { params.push(from);             conds.push(`s.date >= $${params.length}`); }
+    if (to)               { params.push(to);               conds.push(`s.date <= $${params.length}`); }
+    if (class_name)       { params.push(class_name);       conds.push(`s.class_name = $${params.length}`); }
+    if (teacher_id)       { params.push(teacher_id);       conds.push(`s.teacher_id = $${params.length}`); }
+    if (academic_year_id) { params.push(academic_year_id); conds.push(`s.academic_year_id = $${params.length}`); }
+    if (semester)         { params.push(parseInt(semester)); conds.push(`s.semester = $${params.length}`); }
 
     const { rows } = await pool.query(
       `SELECT s.id, s.date, s.subject, s.class_name, s.created_at,

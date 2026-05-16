@@ -42,6 +42,13 @@ async function exportPdf(
 }
 
 /* ─── Types ─── */
+interface AcademicYear {
+  id: string;
+  name: string;
+  is_current: boolean;
+  current_semester: 1 | 2 | null;
+}
+
 interface SessionDetail {
   session: StudentAttendanceSession & { teacher_name: string; lesson_end_time: string | null };
   records: StudentAttendanceRecord[];
@@ -104,17 +111,22 @@ function pctColor(pct: number | null) {
 export default function StudentAttendancePage() {
   const [tab, setTab] = useState<'sessions' | 'report'>('sessions');
 
+  /* Academic years (shared) */
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+
   /* Sessions tab state */
-  const [sessions,   setSessions]   = useState<StudentAttendanceSession[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [detail,     setDetail]     = useState<SessionDetail | null>(null);
-  const [loadingDtl, setLoadingDtl] = useState(false);
-  const [editingId,  setEditingId]  = useState<string | null>(null);
-  const [savingId,   setSavingId]   = useState<string | null>(null);
-  const [editError,  setEditError]  = useState('');
-  const [from,       setFrom]       = useState(today);
-  const [to,         setTo]         = useState(today);
+  const [sessions,    setSessions]    = useState<StudentAttendanceSession[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [detail,      setDetail]      = useState<SessionDetail | null>(null);
+  const [loadingDtl,  setLoadingDtl]  = useState(false);
+  const [editingId,   setEditingId]   = useState<string | null>(null);
+  const [savingId,    setSavingId]    = useState<string | null>(null);
+  const [editError,   setEditError]   = useState('');
+  const [from,        setFrom]        = useState(today);
+  const [to,          setTo]          = useState(today);
   const [filterClass, setFilterClass] = useState('');
+  const [sessYear,    setSessYear]    = useState('');
+  const [sessSem,     setSessSem]     = useState('');
 
   /* Report tab state */
   const [report,        setReport]        = useState<StudentReport[]>([]);
@@ -123,33 +135,59 @@ export default function StudentAttendancePage() {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const [reportFrom, setReportFrom] = useState(thirtyDaysAgo);
   const [reportTo,   setReportTo]   = useState(today);
+  const [repYear,    setRepYear]    = useState('');
+  const [repSem,     setRepSem]     = useState('');
   const LOW_THRESHOLD = 75;
-  const [exporting, setExporting] = useState<string | null>(null); // 'sess-xlsx'|'sess-pdf'|'rep-xlsx'|'rep-pdf'
+  const [exporting, setExporting] = useState<string | null>(null);
 
   /* ─── Sessions load ─── */
-  const loadSessions = useCallback(async (f = from, t = to, cls = filterClass) => {
+  const loadSessions = useCallback(async (
+    f = from, t = to, cls = filterClass, yr = sessYear, sm = sessSem
+  ) => {
     setLoading(true);
     try {
       const params = new URLSearchParams({ from: f, to: t });
       if (cls) params.set('class_name', cls);
+      if (yr)  params.set('academic_year_id', yr);
+      if (sm)  params.set('semester', sm);
       const res = await api.get<StudentAttendanceSession[]>(`/api/student-attendance?${params}`);
       setSessions(res.data);
     } finally { setLoading(false); }
-  }, [from, to, filterClass]);
+  }, [from, to, filterClass, sessYear, sessSem]);
 
   /* ─── Report load ─── */
-  const loadReport = useCallback(async (f = reportFrom, t = reportTo, cls = reportClass) => {
+  const loadReport = useCallback(async (
+    f = reportFrom, t = reportTo, cls = reportClass, yr = repYear, sm = repSem
+  ) => {
     setReportLoading(true);
     try {
       const params = new URLSearchParams({ from: f, to: t });
       if (cls) params.set('class_name', cls);
+      if (yr)  params.set('academic_year_id', yr);
+      if (sm)  params.set('semester', sm);
       const res = await api.get<StudentReport[]>(`/api/student-attendance/report/students?${params}`);
       setReport(res.data);
     } finally { setReportLoading(false); }
-  }, [reportFrom, reportTo, reportClass]);
+  }, [reportFrom, reportTo, reportClass, repYear, repSem]);
 
-  useEffect(() => { loadSessions(); }, [from, to, filterClass]);
+  useEffect(() => { loadSessions(); }, [from, to, filterClass, sessYear, sessSem]);
   useEffect(() => { if (tab === 'report') loadReport(); }, [tab]);
+
+  /* ─── Fetch academic years once ─── */
+  useEffect(() => {
+    api.get<AcademicYear[]>('/api/academic-years').then(r => {
+      const years = r.data ?? [];
+      setAcademicYears(years);
+      const current = years.find(y => y.is_current);
+      if (current) {
+        setSessYear(current.id);
+        setRepYear(current.id);
+        const sem = current.current_semester ? String(current.current_semester) : '';
+        setSessSem(sem);
+        setRepSem(sem);
+      }
+    }).catch(() => {});
+  }, []);
 
   /* ─── Session detail ─── */
   async function openDetail(sessionId: string) {
@@ -181,8 +219,12 @@ export default function StudentAttendancePage() {
   async function doExport(key: string) {
     setExporting(key);
     try {
-      const subtitle = `Period: ${from} to ${to}${filterClass ? ` · Class: ${filterClass}` : ''}`;
-      const repSubtitle = `Period: ${reportFrom} to ${reportTo}${reportClass ? ` · Class: ${reportClass}` : ''}`;
+      const sessYearName = academicYears.find(y => y.id === sessYear)?.name ?? '';
+      const repYearName  = academicYears.find(y => y.id === repYear)?.name  ?? '';
+      const sessSemLabel = sessSem === '1' ? 'Sem 1' : sessSem === '2' ? 'Sem 2' : '';
+      const repSemLabel  = repSem  === '1' ? 'Sem 1' : repSem  === '2' ? 'Sem 2' : '';
+      const subtitle    = [sessYearName, sessSemLabel, filterClass, `${from} – ${to}`].filter(Boolean).join(' · ');
+      const repSubtitle = [repYearName,  repSemLabel,  reportClass, `${reportFrom} – ${reportTo}`].filter(Boolean).join(' · ');
 
       if (key === 'sess-xlsx') {
         const headers = ['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Total'];
@@ -230,7 +272,36 @@ export default function StudentAttendancePage() {
       {/* ══ SESSIONS TAB ══ */}
       {tab === 'sessions' && (
         <>
-          {/* Filters + export */}
+          {/* Year + semester chips */}
+          {academicYears.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setSessYear('')}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+                  style={sessYear === '' ? { background: '#0F172A', color: '#fff', borderColor: '#0F172A' } : { color: '#64748B', borderColor: '#E2E8F0' }}>
+                  All Years
+                </button>
+                {academicYears.map(y => (
+                  <button key={y.id} onClick={() => setSessYear(y.id)}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+                    style={sessYear === y.id ? { background: '#0F172A', color: '#fff', borderColor: '#0F172A' } : { color: '#64748B', borderColor: '#E2E8F0' }}>
+                    {y.name}{y.is_current ? ' ✦' : ''}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                {([['', 'All Semesters'], ['1', 'Semester 1'], ['2', 'Semester 2']] as const).map(([val, label]) => (
+                  <button key={val} onClick={() => setSessSem(val)}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+                    style={sessSem === val ? { background: '#0F172A', color: '#fff', borderColor: '#0F172A' } : { color: '#64748B', borderColor: '#E2E8F0' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Date / class filters + export */}
           <div className="flex flex-wrap gap-3 items-center">
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold" style={{ color: '#64748B' }}>From</label>
@@ -300,22 +371,51 @@ export default function StudentAttendancePage() {
       {/* ══ STUDENT REPORT TAB ══ */}
       {tab === 'report' && (
         <>
-          {/* Filters + export */}
+          {/* Year + semester chips */}
+          {academicYears.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setRepYear('')}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+                  style={repYear === '' ? { background: '#0F172A', color: '#fff', borderColor: '#0F172A' } : { color: '#64748B', borderColor: '#E2E8F0' }}>
+                  All Years
+                </button>
+                {academicYears.map(y => (
+                  <button key={y.id} onClick={() => setRepYear(y.id)}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+                    style={repYear === y.id ? { background: '#0F172A', color: '#fff', borderColor: '#0F172A' } : { color: '#64748B', borderColor: '#E2E8F0' }}>
+                    {y.name}{y.is_current ? ' ✦' : ''}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                {([['', 'All Semesters'], ['1', 'Semester 1'], ['2', 'Semester 2']] as const).map(([val, label]) => (
+                  <button key={val} onClick={() => setRepSem(val)}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+                    style={repSem === val ? { background: '#0F172A', color: '#fff', borderColor: '#0F172A' } : { color: '#64748B', borderColor: '#E2E8F0' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Date / class filters + export */}
           <div className="flex flex-wrap gap-3 items-center">
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold" style={{ color: '#64748B' }}>From</label>
               <input type="date" value={reportFrom}
-                onChange={e => { setReportFrom(e.target.value); loadReport(e.target.value, reportTo, reportClass); }}
+                onChange={e => { setReportFrom(e.target.value); loadReport(e.target.value, reportTo, reportClass, repYear, repSem); }}
                 className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }} />
             </div>
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold" style={{ color: '#64748B' }}>To</label>
               <input type="date" value={reportTo}
-                onChange={e => { setReportTo(e.target.value); loadReport(reportFrom, e.target.value, reportClass); }}
+                onChange={e => { setReportTo(e.target.value); loadReport(reportFrom, e.target.value, reportClass, repYear, repSem); }}
                 className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }} />
             </div>
             <select value={reportClass}
-              onChange={e => { setReportClass(e.target.value); loadReport(reportFrom, reportTo, e.target.value); }}
+              onChange={e => { setReportClass(e.target.value); loadReport(reportFrom, reportTo, e.target.value, repYear, repSem); }}
               className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }}>
               <option value="">All Classes</option>
               {reportClasses.map(c => <option key={c} value={c}>{c}</option>)}
