@@ -52,7 +52,7 @@ export default function TeachersPage() {
       const { data } = await api.get('/api/teachers/upload/template', { responseType: 'blob' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(data as Blob);
-      a.download = 'teachers_template.csv'; a.click();
+      a.download = 'teachers_template.xlsx'; a.click();
     } catch { alert('Could not download template.'); }
   }
 
@@ -212,7 +212,7 @@ export default function TeachersPage() {
           </div>
 
           <button onClick={downloadTemplate} className="text-sm font-semibold text-green-700 hover:underline">
-            ↓ Download template CSV
+            ↓ Download template (.xlsx)
           </button>
 
           <div>
