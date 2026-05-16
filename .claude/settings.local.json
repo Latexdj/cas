@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(node migrate_excuses.js)",
+      "Bash(git push *)",
+      "Bash(dir /b .env*)",
+      "Bash(dir /b backend\\\\.env*)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Administrator\\\\Desktop\\\\cas\" -Filter \".env*\" -Recurse -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object FullName)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}
