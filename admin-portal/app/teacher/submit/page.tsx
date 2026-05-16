@@ -267,7 +267,7 @@ export default function SubmitPage() {
                         onChange={() => setSelectedId(slot.id)} className="mt-1 shrink-0" />
                       <div className="flex-1">
                         <p className="text-sm font-semibold text-[#2C2218]">{slot.subject} — {slot.class_names}</p>
-                        <p className="text-xs text-[#8C7E6E]">{slot.start_time.slice(0,5)} – {slot.end_time.slice(0,5)}</p>
+                        <p className="text-xs text-[#8C7E6E]">{slot.start_time.slice(0,5)} – {slot.end_time.slice(0,5)}{slot.periods ? ` · ${slot.periods} period${slot.periods !== 1 ? 's' : ''}` : ''}</p>
                         {done && <p className="text-xs font-semibold mt-0.5" style={{ color: '#2D7A4F' }}>✓ Submitted</p>}
                       </div>
                     </label>
@@ -357,7 +357,10 @@ export default function SubmitPage() {
               <p className="text-sm font-semibold text-[#2C2218]">
                 {selectedSlot.subject} — {classQueue[classQueueIdx] ?? selectedSlot.class_names.split(',')[0].trim()}
               </p>
-              <p className="text-xs text-[#8C7E6E]">{selectedSlot.start_time.slice(0,5)} – {selectedSlot.end_time.slice(0,5)}</p>
+              <p className="text-xs text-[#8C7E6E]">
+                {selectedSlot.start_time.slice(0,5)} – {selectedSlot.end_time.slice(0,5)}
+                {selectedSlot.periods ? ` · ${selectedSlot.periods} period${selectedSlot.periods !== 1 ? 's' : ''}` : ''}
+              </p>
               {/* Class progress chips for merged classes */}
               {classQueue.length > 1 && (
                 <div className="flex flex-wrap gap-1.5 mt-3">
