@@ -62,6 +62,32 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.get('/by-date', async (req, res, next) => {
+  try {
+    const { teacherId, date } = req.query;
+    if (!teacherId || !date) return res.status(400).json({ error: 'teacherId and date are required' });
+
+    // Parse date safely in local time to get day-of-week
+    const [y, m, d] = date.split('-').map(Number);
+    const jsDay     = new Date(y, m - 1, d).getDay();
+    const dayOfWeek = jsDay === 0 ? 7 : jsDay;
+
+    const { rows } = await pool.query(`
+      SELECT id, day_of_week, start_time, end_time, subject, class_names,
+             EXTRACT(EPOCH FROM (end_time::time - start_time::time)) / 3600 AS duration_hours
+      FROM timetable
+      WHERE school_id = $1 AND teacher_id = $2 AND day_of_week = $3
+      ORDER BY start_time
+    `, [req.schoolId, teacherId, dayOfWeek]);
+
+    res.json(rows.map(r => ({
+      ...r,
+      periods: Math.max(1, Math.round(parseFloat(r.duration_hours))),
+      classes: r.class_names.split(',').map(c => c.trim()).filter(Boolean),
+    })));
+  } catch (err) { next(err); }
+});
+
 router.get('/today/:teacherId', async (req, res, next) => {
   try {
     const jsDay     = new Date().getDay();

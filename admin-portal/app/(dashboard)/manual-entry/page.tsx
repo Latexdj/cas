@@ -1,7 +1,18 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
-import type { Teacher, Location, Subject, ClassItem } from '@/types/api';
+import type { Teacher, Location } from '@/types/api';
+
+interface TimetableSlot {
+  id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  subject: string;
+  class_names: string;
+  classes: string[];
+  periods: number;
+}
 
 interface Student {
   id: string;
@@ -14,21 +25,30 @@ const today = () => new Date().toISOString().slice(0, 10);
 const EMPTY = {
   teacherId:    '',
   date:         today(),
-  subject:      '',
-  periods:      '1',
   topic:        '',
   locationName: '',
 };
 
+// Format "08:00" → "8:00 AM"
+function fmt(t: string) {
+  const [h, m] = t.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12  = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+}
+
 export default function ManualEntryPage() {
   const [teachers,  setTeachers]  = useState<Teacher[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [subjects,  setSubjects]  = useState<Subject[]>([]);
-  const [classes,   setClasses]   = useState<ClassItem[]>([]);
-  const [selCls,    setSelCls]    = useState<Set<string>>(new Set());
   const [form,      setForm]      = useState(EMPTY);
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState('');
+
+  // Timetable slot state
+  const [slots,        setSlots]        = useState<TimetableSlot[]>([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<TimetableSlot | null>(null);
+  const [selCls,       setSelCls]       = useState<Set<string>>(new Set());
 
   // Step 2 state
   const [step,         setStep]         = useState<1 | 2>(1);
@@ -40,16 +60,40 @@ export default function ManualEntryPage() {
   const [studLoading,  setStudLoading]  = useState(false);
   const [step2Saving,  setStep2Saving]  = useState(false);
   const [step2Error,   setStep2Error]   = useState('');
+  const [doneMsg,      setDoneMsg]      = useState('');
 
   useEffect(() => {
     api.get<Teacher[]>('/api/teachers').then(r => setTeachers(r.data.filter(t => t.status === 'Active')));
     api.get<Location[]>('/api/locations').then(r => setLocations(r.data));
-    api.get<Subject[]>('/api/subjects').then(r => setSubjects(r.data));
-    api.get<ClassItem[]>('/api/classes').then(r => setClasses(r.data));
   }, []);
 
-  function toggleClass(name: string) {
-    setSelCls(prev => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n; });
+  // Fetch timetable slots whenever teacher or date changes
+  useEffect(() => {
+    if (!form.teacherId || !form.date) {
+      setSlots([]);
+      setSelectedSlot(null);
+      setSelCls(new Set());
+      return;
+    }
+    setSlotsLoading(true);
+    setSelectedSlot(null);
+    setSelCls(new Set());
+    setError('');
+    api.get<TimetableSlot[]>(`/api/timetable/by-date?teacherId=${form.teacherId}&date=${form.date}`)
+      .then(r => {
+        setSlots(r.data);
+        if (r.data.length === 1) {
+          applySlot(r.data[0]);
+        }
+      })
+      .catch(() => setSlots([]))
+      .finally(() => setSlotsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.teacherId, form.date]);
+
+  function applySlot(slot: TimetableSlot) {
+    setSelectedSlot(slot);
+    setSelCls(new Set(slot.classes));
     setError('');
   }
 
@@ -72,8 +116,20 @@ export default function ManualEntryPage() {
   // ── Step 1: record teacher attendance ──────────────────────────
   async function handleStep1(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.teacherId || !form.subject || selCls.size === 0 || !form.date || !form.topic.trim()) {
-      setError('Teacher, date, subject, at least one class, and topic are all required.');
+    if (!form.teacherId || !form.date) {
+      setError('Teacher and date are required.');
+      return;
+    }
+    if (!selectedSlot) {
+      setError('Please select a scheduled class slot.');
+      return;
+    }
+    if (selCls.size === 0) {
+      setError('At least one class must be selected.');
+      return;
+    }
+    if (!form.topic.trim()) {
+      setError('Topic is required.');
       return;
     }
     setSaving(true); setError('');
@@ -81,9 +137,9 @@ export default function ManualEntryPage() {
       const { data } = await api.post<{ id: string; classQueue: string[] }>('/api/admin/attendance', {
         teacherId:    form.teacherId,
         date:         form.date,
-        subject:      form.subject,
+        subject:      selectedSlot.subject,
         classNames:   Array.from(selCls).join(', '),
-        periods:      parseInt(form.periods, 10) || 1,
+        periods:      selectedSlot.periods,
         topic:        form.topic.trim(),
         locationName: form.locationName || undefined,
       });
@@ -109,7 +165,7 @@ export default function ManualEntryPage() {
       await api.post('/api/student-attendance/submit', {
         attendanceId,
         teacherId:     form.teacherId,
-        subject:       form.subject,
+        subject:       selectedSlot?.subject ?? '',
         className:     currentClass,
         lessonEndTime: null,
         records: students.map(s => ({
@@ -123,9 +179,10 @@ export default function ManualEntryPage() {
         setQueueIdx(nextIdx);
         await loadClassStudents(classQueue[nextIdx]);
       } else {
-        // All classes done — reset
         setStep(1);
         setForm({ ...EMPTY, date: form.date });
+        setSlots([]);
+        setSelectedSlot(null);
         setSelCls(new Set());
         setAttendanceId('');
         setClassQueue([]);
@@ -133,24 +190,21 @@ export default function ManualEntryPage() {
         setStudents([]);
         setAbsentIds(new Set());
         setError('');
-        // Show a brief success by setting error to a success-flavoured string
-        // (reuse the existing success pattern via a dedicated state below)
         setDoneMsg(`Attendance and student records saved for ${teacher?.name} on ${form.date}.`);
       }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setStep2Error(msg ?? 'Failed to save student attendance.');
     } finally {
-      setStep2Saving(false); }
+      setStep2Saving(false);
+    }
   }
-
-  const [doneMsg, setDoneMsg] = useState('');
 
   const inputCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500';
   const labelCls = 'block text-sm font-medium text-slate-700 mb-1';
 
-  const presentCount = students.length - absentIds.size;
-  const currentClass = classQueue[queueIdx];
+  const presentCount  = students.length - absentIds.size;
+  const currentClass  = classQueue[queueIdx];
 
   // ── Step 2 UI ──────────────────────────────────────────────────
   if (step === 2) {
@@ -164,7 +218,7 @@ export default function ManualEntryPage() {
           <div>
             <h1 className="text-xl font-bold text-slate-900">Student Attendance</h1>
             <p className="text-sm text-slate-500">
-              {form.subject} — {currentClass}
+              {selectedSlot?.subject} — {currentClass}
               {classQueue.length > 1 && ` (${queueIdx + 1} of ${classQueue.length})`}
             </p>
           </div>
@@ -263,6 +317,11 @@ export default function ManualEntryPage() {
   }
 
   // ── Step 1 UI ──────────────────────────────────────────────────
+  const dayName = form.date
+    ? new Date(form.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })
+    : '';
+  const selectedTeacher = teachers.find(t => t.id === form.teacherId);
+
   return (
     <div className="max-w-xl mx-auto">
       <div className="mb-6">
@@ -308,74 +367,137 @@ export default function ManualEntryPage() {
             onChange={e => setField('date', e.target.value)} required />
         </div>
 
-        {/* Subject */}
-        <div>
-          <label className={labelCls}>Subject *</label>
-          {subjects.length > 0 ? (
-            <select className={inputCls} value={form.subject} onChange={e => setField('subject', e.target.value)} required>
-              <option value="">— Select subject —</option>
-              {subjects.map(s => (
-                <option key={s.id} value={s.name}>{s.name}{s.code ? ` (${s.code})` : ''}</option>
-              ))}
-            </select>
-          ) : (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-              No subjects defined. Add subjects in the <strong>Subjects</strong> section first.
-            </p>
-          )}
-        </div>
+        {/* Timetable slot picker */}
+        {form.teacherId && form.date && (
+          <div>
+            <label className={labelCls}>
+              Scheduled Classes <span className="text-slate-400 font-normal">({dayName})</span>
+            </label>
 
-        {/* Classes multi-picker */}
-        <div>
-          <label className={labelCls}>
-            Class(es) *
-            {selCls.size > 0 && (
-              <span className="ml-2 text-green-600 font-normal text-xs">({Array.from(selCls).join(', ')})</span>
+            {slotsLoading ? (
+              <div className="space-y-2">
+                {[1, 2].map(i => (
+                  <div key={i} className="h-16 rounded-xl border border-slate-100 bg-slate-50 animate-pulse" />
+                ))}
+              </div>
+            ) : slots.length === 0 ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                <p className="font-semibold">No classes scheduled</p>
+                <p className="mt-0.5 text-amber-700">
+                  {selectedTeacher?.name} has no timetable entries for {dayName}. Check the timetable or select a different date.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {slots.map(slot => {
+                  const isSelected = selectedSlot?.id === slot.id;
+                  return (
+                    <button key={slot.id} type="button" onClick={() => applySlot(slot)}
+                      className="w-full text-left rounded-xl border px-4 py-3 transition-colors"
+                      style={{
+                        borderColor: isSelected ? '#15803D' : '#E2E8F0',
+                        background:  isSelected ? '#F0FDF4' : 'white',
+                      }}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-slate-900">{slot.subject}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {fmt(slot.start_time)} – {fmt(slot.end_time)}
+                            {' · '}{slot.periods} period{slot.periods !== 1 ? 's' : ''}
+                          </p>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {slot.classes.map(cls => (
+                              <span key={cls} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                                {cls}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex-shrink-0 mt-0.5">
+                          <span className="inline-flex w-5 h-5 rounded-full border-2 items-center justify-center text-xs"
+                            style={{
+                              borderColor: isSelected ? '#15803D' : '#CBD5E1',
+                              background:  isSelected ? '#15803D' : 'transparent',
+                              color: 'white',
+                            }}>
+                            {isSelected ? '✓' : ''}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
-          </label>
-          {classes.length > 0 ? (
-            <div className="border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto space-y-0.5">
-              {classes.map(c => (
-                <label key={c.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 rounded px-2 py-1.5">
-                  <input type="checkbox" checked={selCls.has(c.name)} onChange={() => toggleClass(c.name)}
-                    className="w-4 h-4 accent-green-600" />
-                  <span className="text-sm text-slate-900 font-medium">{c.name}</span>
-                </label>
-              ))}
+          </div>
+        )}
+
+        {/* Auto-filled summary (shown once a slot is selected) */}
+        {selectedSlot && (
+          <>
+            {/* Subject (read-only) */}
+            <div>
+              <label className={labelCls}>Subject</label>
+              <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 flex items-center gap-2">
+                <span className="flex-1">{selectedSlot.subject}</span>
+                <span className="text-xs text-slate-400">auto-filled</span>
+              </div>
             </div>
-          ) : (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-              No classes defined. Add classes in the <strong>Classes</strong> section first.
-            </p>
-          )}
-        </div>
 
-        {/* Periods */}
-        <div>
-          <label className={labelCls}>Periods *</label>
-          <input type="number" className={inputCls} min={1} max={10} value={form.periods}
-            onChange={e => setField('periods', e.target.value)} required />
-        </div>
+            {/* Periods (read-only) */}
+            <div>
+              <label className={labelCls}>Periods</label>
+              <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 flex items-center gap-2">
+                <span className="flex-1">{selectedSlot.periods}</span>
+                <span className="text-xs text-slate-400">auto-filled</span>
+              </div>
+            </div>
 
-        {/* Topic */}
-        <div>
-          <label className={labelCls}>Topic *</label>
-          <input type="text" className={inputCls} placeholder="e.g. Quadratic equations"
-            value={form.topic} onChange={e => setField('topic', e.target.value)} required />
-        </div>
+            {/* Classes (from slot — allow unchecking if merged) */}
+            {selectedSlot.classes.length > 1 && (
+              <div>
+                <label className={labelCls}>
+                  Class(es) *
+                  <span className="ml-2 text-green-600 font-normal text-xs">
+                    ({Array.from(selCls).join(', ')})
+                  </span>
+                </label>
+                <div className="border border-slate-200 rounded-lg p-3 space-y-0.5">
+                  {selectedSlot.classes.map(cls => (
+                    <label key={cls} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 rounded px-2 py-1.5">
+                      <input type="checkbox" checked={selCls.has(cls)}
+                        onChange={() => setSelCls(prev => {
+                          const n = new Set(prev); n.has(cls) ? n.delete(cls) : n.add(cls); return n;
+                        })}
+                        className="w-4 h-4 accent-green-600" />
+                      <span className="text-sm text-slate-900 font-medium">{cls}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* Location */}
-        <div>
-          <label className={labelCls}>Location <span className="text-slate-400 font-normal">(optional)</span></label>
-          <select className={inputCls} value={form.locationName} onChange={e => setField('locationName', e.target.value)}>
-            <option value="">— Not specified —</option>
-            {locations.map(l => (
-              <option key={l.id} value={l.name}>{l.name}</option>
-            ))}
-          </select>
-        </div>
+            {/* Topic */}
+            <div>
+              <label className={labelCls}>Topic *</label>
+              <input type="text" className={inputCls} placeholder="e.g. Quadratic equations"
+                value={form.topic} onChange={e => setField('topic', e.target.value)} required />
+            </div>
 
-        <button type="submit" disabled={saving}
+            {/* Location */}
+            <div>
+              <label className={labelCls}>Location <span className="text-slate-400 font-normal">(optional)</span></label>
+              <select className={inputCls} value={form.locationName} onChange={e => setField('locationName', e.target.value)}>
+                <option value="">— Not specified —</option>
+                {locations.map(l => (
+                  <option key={l.id} value={l.name}>{l.name}</option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
+
+        <button type="submit" disabled={saving || !selectedSlot || slots.length === 0}
           className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ backgroundColor: '#15803D' }}>
           {saving ? 'Recording…' : 'Next: Mark Student Attendance →'}
