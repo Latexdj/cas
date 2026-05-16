@@ -42,6 +42,29 @@ function parseToken(token) {
   return { schoolId, className, hmac };
 }
 
+/** GET /api/classroom-qr/info — return rotation metadata for this school (admin) */
+router.get('/info', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT qr_rotated_at FROM schools WHERE id = $1',
+      [req.schoolId]
+    );
+    res.json({ qr_rotated_at: rows[0]?.qr_rotated_at ?? null });
+  } catch (err) { next(err); }
+});
+
+/** POST /api/classroom-qr/rotate — generate a new secret, invalidating all printed codes (admin) */
+router.post('/rotate', adminOnly, async (req, res, next) => {
+  try {
+    const newSecret = crypto.randomBytes(32).toString('hex');
+    await pool.query(
+      'UPDATE schools SET qr_secret = $1, qr_rotated_at = now() WHERE id = $2',
+      [newSecret, req.schoolId]
+    );
+    res.json({ message: 'QR codes rotated. Reprint and replace all classroom codes.' });
+  } catch (err) { next(err); }
+});
+
 /** GET /api/classroom-qr/classes — list all active class names (admin) */
 router.get('/classes', adminOnly, async (req, res, next) => {
   try {

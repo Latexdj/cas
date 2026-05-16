@@ -132,6 +132,7 @@ async function runMigrations() {
       )
     `);
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS qr_secret TEXT`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS qr_rotated_at TIMESTAMPTZ`);
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);
