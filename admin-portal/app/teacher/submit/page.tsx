@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getTeacher, getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import type jsQRType from 'jsqr';
 
 interface TimetableSlot {
   id: string;
@@ -79,7 +80,17 @@ export default function SubmitPage() {
   const [errors,      setErrors]      = useState<Record<string,string>>({});
   const [submitting,  setSubmitting]  = useState(false);
   const [apiError,    setApiError]    = useState('');
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef   = useRef<HTMLInputElement>(null);
+  const videoRef  = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scanTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // QR scan state
+  const [qrVerified,  setQrVerified]  = useState(false);
+  const [qrScanning,  setQrScanning]  = useState(false);
+  const [qrError,     setQrError]     = useState('');
+  const [qrClassName, setQrClassName] = useState('');
 
   // Step 2
   const [attendanceId,  setAttendanceId]  = useState('');
@@ -111,6 +122,59 @@ export default function SubmitPage() {
     grabGps();
   }, [load]);
 
+  function stopCamera() {
+    if (scanTimer.current) { clearInterval(scanTimer.current); scanTimer.current = null; }
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    setQrScanning(false);
+  }
+
+  async function startQrScan() {
+    setQrError(''); setQrScanning(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      streamRef.current = stream;
+      const video = videoRef.current!;
+      video.srcObject = stream;
+      await video.play();
+      const jsQR: typeof jsQRType = (await import('jsqr')).default;
+      const canvas = canvasRef.current!;
+      const ctx    = canvas.getContext('2d')!;
+      scanTimer.current = setInterval(() => {
+        if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+        canvas.width  = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code?.data) {
+          stopCamera();
+          verifyQrToken(code.data);
+        }
+      }, 250);
+    } catch {
+      setQrError('Camera access denied. Please allow camera permissions and try again.');
+      setQrScanning(false);
+    }
+  }
+
+  async function verifyQrToken(token: string) {
+    const slot = slots.find(s => s.id === selectedId);
+    setQrError('');
+    try {
+      const res = await teacherApi.post<{ valid: boolean; className: string }>(
+        '/api/classroom-qr/verify',
+        { token, expectedClassName: slot?.class_names ?? '' }
+      );
+      if (res.data.valid) {
+        setQrVerified(true);
+        setQrClassName(res.data.className);
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setQrError(msg ?? 'QR verification failed. Please try again.');
+    }
+  }
+
   function grabGps() {
     if (!navigator.geolocation) { setGpsError('GPS not available in this browser.'); return; }
     setGpsLoading(true); setGpsError('');
@@ -140,10 +204,13 @@ export default function SubmitPage() {
     );
   }
 
+  useEffect(() => () => stopCamera(), []);
+
   async function handleStep1(e: React.FormEvent) {
     e.preventDefault();
     const errs: Record<string,string> = {};
     if (!selectedId)    errs.slot  = 'Please select a lesson slot.';
+    if (!qrVerified)    errs.qr    = 'Please scan the classroom QR code.';
     if (!topic.trim())  errs.topic = 'Topic is required.';
     if (!locName)       errs.loc   = 'Please select a location.';
     if (!gps)           errs.gps   = gpsError || 'GPS is required. Tap Refresh.';
@@ -264,7 +331,7 @@ export default function SubmitPage() {
                     <label key={slot.id} className={`flex items-start gap-3 p-3 rounded-xl border mb-2 cursor-pointer transition-colors ${done ? 'opacity-50' : ''}`}
                       style={{ borderColor: sel ? primary : '#E2D9CC', background: sel ? `${primary}10` : 'white' }}>
                       <input type="radio" name="slot" value={slot.id} checked={sel} disabled={done}
-                        onChange={() => setSelectedId(slot.id)} className="mt-1 shrink-0" />
+                          onChange={() => { setSelectedId(slot.id); setQrVerified(false); setQrError(''); setQrClassName(''); }} className="mt-1 shrink-0" />
                       <div className="flex-1">
                         <p className="text-sm font-semibold text-[#2C2218]">{slot.subject} — {slot.class_names}</p>
                         <p className="text-xs text-[#8C7E6E]">{slot.start_time.slice(0,5)} – {slot.end_time.slice(0,5)}{slot.periods ? ` · ${slot.periods} period${slot.periods !== 1 ? 's' : ''}` : ''}</p>
@@ -276,6 +343,57 @@ export default function SubmitPage() {
             }
             {errors.slot && <p className="text-xs text-[#B83232] mt-1">{errors.slot}</p>}
           </div>
+
+          {/* QR scan */}
+          {selectedId && (
+            <div className="bg-white rounded-2xl border shadow-sm p-4"
+              style={{ borderColor: qrVerified ? '#86EFAC' : errors.qr ? '#FCA5A5' : '#E2D9CC' }}>
+              <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-3">Classroom QR *</p>
+
+              {qrVerified ? (
+                <div className="flex items-center gap-3 py-1">
+                  <span className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold text-lg shrink-0">✓</span>
+                  <div>
+                    <p className="text-sm font-semibold text-[#2C2218]">Verified — {qrClassName}</p>
+                    <button type="button" onClick={() => { setQrVerified(false); setQrClassName(''); }}
+                      className="text-xs mt-0.5" style={{ color: primary }}>Scan again</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {qrScanning ? (
+                    <div className="space-y-3">
+                      <div className="relative rounded-xl overflow-hidden bg-black" style={{ aspectRatio: '1' }}>
+                        <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+                        {/* Targeting reticle */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="w-48 h-48 border-2 border-white rounded-xl opacity-70" />
+                        </div>
+                        <canvas ref={canvasRef} className="hidden" />
+                      </div>
+                      <button type="button" onClick={stopCamera}
+                        className="w-full py-2.5 rounded-xl text-sm font-semibold border border-[#E2D9CC] text-[#8C7E6E] bg-white">
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={startQrScan}
+                      className="w-full h-20 rounded-xl border-2 border-dashed flex items-center justify-center gap-3 text-[#8C7E6E]"
+                      style={{ borderColor: '#E2D9CC' }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-6 h-6 shrink-0">
+                        <rect x="3" y="3" width="5" height="5" rx="1" /><rect x="16" y="3" width="5" height="5" rx="1" />
+                        <rect x="3" y="16" width="5" height="5" rx="1" /><rect x="10" y="10" width="4" height="4" rx="0.5" />
+                        <path d="M16 10h5M16 14h3M21 14v2M10 3v5M10 16v5M3 10h5" />
+                      </svg>
+                      <span className="text-sm font-semibold">Tap to scan room QR code</span>
+                    </button>
+                  )}
+                  {qrError && <p className="text-xs text-[#B83232] mt-2">{qrError}</p>}
+                </>
+              )}
+              {errors.qr && !qrVerified && <p className="text-xs text-[#B83232] mt-1">{errors.qr}</p>}
+            </div>
+          )}
 
           {/* Topic */}
           <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">

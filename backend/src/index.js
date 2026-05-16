@@ -22,6 +22,7 @@ const schoolCalendarRoutes    = require('./routes/school-calendar');
 const teacherExcusesRoutes    = require('./routes/teacher-excuses');
 const superAdminRoutes        = require('./routes/superAdmin');
 const programRoutes           = require('./routes/programs');
+const classroomQrRoutes       = require('./routes/classroom-qr');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -52,6 +53,7 @@ app.use('/api/school-calendar',    schoolCalendarRoutes);
 app.use('/api/teacher-excuses',    teacherExcusesRoutes);
 app.use('/api/super-admin',        superAdminRoutes);
 app.use('/api/programs',           programRoutes);
+app.use('/api/classroom-qr',       classroomQrRoutes);
 
 app.use(errorHandler);
 
