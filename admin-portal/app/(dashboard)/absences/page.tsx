@@ -82,6 +82,12 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
     } finally { setSaving(false); }
   }
 
+  async function deleteAbsence(id: string) {
+    if (!confirm('Delete this absence record? This will allow the teacher to resubmit attendance.')) return;
+    try { await api.delete(`/api/absences/${id}`); await load(); }
+    catch { alert('Failed to delete absence.'); }
+  }
+
   return (
     <div className="space-y-4">
       {/* Filters */}
@@ -139,7 +145,10 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
                     <td className="px-4 py-3 max-w-48 truncate text-xs" style={{ color: '#64748B' }}>{r.reason ?? <span style={{ color: '#CBD5E1' }}>—</span>}</td>
                     <td className="px-4 py-3 text-xs" style={{ color: '#94A3B8' }}>{r.is_auto_generated ? 'Auto' : 'Manual'}</td>
                     <td className="px-4 py-3">
-                      <Button variant="ghost" size="sm" onClick={() => { setReason(r.reason ?? ''); setReasonModal(r); }}>Reason</Button>
+                      <div className="flex gap-2 items-center">
+                        <Button variant="ghost" size="sm" onClick={() => { setReason(r.reason ?? ''); setReasonModal(r); }}>Reason</Button>
+                        <Button variant="danger" size="sm" onClick={() => deleteAbsence(r.id)}>Delete</Button>
+                      </div>
                     </td>
                   </tr>
                 ))}

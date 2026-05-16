@@ -38,6 +38,23 @@ router.get('/', adminOnly, async (req, res, next) => {
   }
 });
 
+// GET /api/absences/today/:teacherId — today's absences for a teacher (used by teacher app)
+router.get('/today/:teacherId', async (req, res, next) => {
+  try {
+    if (req.user.role === 'teacher' && req.user.id !== req.params.teacherId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const { rows } = await pool.query(
+      `SELECT id, subject, class_name, scheduled_period, is_auto_generated
+       FROM absences
+       WHERE school_id = $1 AND date = $2 AND teacher_id = $3`,
+      [req.schoolId, today, req.params.teacherId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // GET /api/absences/teacher/:teacherId
 router.get('/teacher/:teacherId', async (req, res, next) => {
   try {

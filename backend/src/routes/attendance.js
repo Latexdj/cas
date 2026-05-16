@@ -58,6 +58,25 @@ router.post('/submit', async (req, res, next) => {
       return res.status(409).json({ error: `Attendance already recorded for: ${overlap.join(', ')} today` });
     }
 
+    // Block if teacher has been auto-marked absent for any of the submitted classes
+    const classList = classNames.split(',').map(c => c.trim().toLowerCase()).filter(Boolean);
+    if (classList.length > 0) {
+      const { rows: absRows } = await pool.query(
+        `SELECT class_name FROM absences
+         WHERE school_id = $1 AND date = $2 AND teacher_id = $3
+           AND LOWER(subject) = LOWER($4) AND is_auto_generated = true
+           AND LOWER(class_name) = ANY($5::text[])`,
+        [req.schoolId, today, teacherId, subject, classList]
+      );
+      if (absRows.length > 0) {
+        const blocked = absRows.map(r => r.class_name).join(', ');
+        return res.status(403).json({
+          error: `You have been automatically marked absent for ${blocked}. Contact your administrator to allow re-submission.`,
+          code: 'AUTO_ABSENT',
+        });
+      }
+    }
+
     // GPS / location verification — both required
     let locationId = null, locationVerified = false, locationMsg = 'Location not verified';
     const { rows: locRows } = await pool.query(
@@ -257,6 +276,18 @@ router.get('/my-summary', async (req, res, next) => {
       present_periods: 0, absent_periods: 0, excused_periods: 0,
       total_scheduled: 0, attendance_pct: null,
     });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/attendance/:id — admin removes a submitted record (unblocks re-submission)
+router.delete('/:id', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `DELETE FROM attendance WHERE id = $1 AND school_id = $2 RETURNING id`,
+      [req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Record not found' });
+    res.json({ message: 'Attendance record deleted' });
   } catch (err) { next(err); }
 });
 

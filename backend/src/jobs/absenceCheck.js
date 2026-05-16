@@ -148,32 +148,106 @@ async function runAbsenceCheck(schoolId) {
   return { date: today, schoolId, newAbsences: newAbsences.length };
 }
 
+function timeToMinutes(timeStr) {
+  const [h, m] = timeStr.slice(0, 5).split(':').map(Number);
+  return h * 60 + m;
+}
+
+// Per-lesson check: marks absent only for lessons whose grace period (end + 30 min) has passed.
+async function runPerLessonCheck(schoolId) {
+  const today     = new Date().toISOString().slice(0, 10);
+  const dayOfWeek = getAccraDayOfWeek();
+  const now       = new Date().toTimeString().slice(0, 5);
+  const nowMins   = timeToMinutes(now);
+
+  const { rows: calRows } = await pool.query(
+    `SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 LIMIT 1`,
+    [schoolId, today]
+  );
+  if (calRows.length) return;
+
+  const { rows: excuseRows } = await pool.query(
+    `SELECT DISTINCT teacher_id FROM teacher_excuses
+     WHERE school_id = $1 AND status = 'Approved'
+       AND date_from <= $2 AND date_to >= $2`,
+    [schoolId, today]
+  );
+  const excusedIds = new Set(excuseRows.map(r => r.teacher_id));
+
+  const { rows: lessons } = await pool.query(`
+    SELECT tt.start_time::text, tt.end_time::text, tt.subject, tt.class_names,
+           te.id AS teacher_id, te.name AS teacher_name, te.email AS teacher_email
+    FROM timetable tt
+    JOIN teachers te ON te.id = tt.teacher_id AND te.status = 'Active'
+    WHERE tt.school_id = $1 AND tt.day_of_week = $2
+  `, [schoolId, dayOfWeek]);
+
+  for (const lesson of lessons) {
+    if (excusedIds.has(lesson.teacher_id)) continue;
+
+    // Only process lessons whose grace period (end_time + 30 min) has passed
+    if (timeToMinutes(lesson.end_time) + 30 > nowMins) continue;
+
+    const individualClasses = lesson.class_names.split(',').map(c => c.trim()).filter(Boolean);
+    for (const className of individualClasses) {
+      try {
+        const present = await hasAttendance(schoolId, lesson.teacher_id, lesson.subject, className, today);
+        if (present) continue;
+
+        await pool.query(`
+          INSERT INTO absences
+            (school_id, date, detected_at, teacher_id, subject, class_name,
+             scheduled_period, status, is_auto_generated, reason)
+          VALUES ($1,$2,$3::time,$4,$5,$6,$7,'Absent',true,'Grace period expired — no attendance submitted')
+          ON CONFLICT (date, teacher_id, subject, class_name)
+            WHERE is_auto_generated = true
+          DO NOTHING
+        `, [schoolId, today, now, lesson.teacher_id, lesson.subject, className,
+            `${lesson.start_time}–${lesson.end_time}`]);
+      } catch (err) {
+        console.error(`[PerLessonCheck] Error: ${lesson.teacher_name} / ${className}:`, err.message);
+      }
+    }
+  }
+}
+
 // Cron: runs at 16:00 every day across all active/trial schools.
 // Africa/Accra is UTC+0, so "0 16 * * *" is correct.
 function startAbsenceCheckJob() {
+  const getSchools = async () => {
+    const { rows } = await pool.query(`
+      SELECT s.id FROM schools s
+      JOIN subscriptions sub ON sub.school_id = s.id
+      WHERE sub.status IN ('active', 'trial')
+        AND (sub.ends_at IS NULL OR sub.ends_at > now())
+    `);
+    return rows;
+  };
+
+  // Every 5 minutes: per-lesson grace period check
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const schools = await getSchools();
+      for (const school of schools) {
+        try { await runPerLessonCheck(school.id); }
+        catch (err) { console.error(`[PerLessonCheck] school ${school.id}:`, err.message); }
+      }
+    } catch (err) { console.error('[PerLessonCheck] Fatal:', err.message); }
+  });
+
+  // Daily 16:00 sweep: catches any missed lessons (safety net)
   cron.schedule('0 16 * * *', async () => {
     try {
-      const { rows: schools } = await pool.query(`
-        SELECT s.id
-        FROM schools s
-        JOIN subscriptions sub ON sub.school_id = s.id
-        WHERE sub.status IN ('active', 'trial')
-          AND (sub.ends_at IS NULL OR sub.ends_at > now())
-      `);
-
+      const schools = await getSchools();
       console.log(`[AbsenceCheck] Running for ${schools.length} active/trial school(s)`);
       for (const school of schools) {
-        try {
-          await runAbsenceCheck(school.id);
-        } catch (err) {
-          console.error(`[AbsenceCheck] Failed for school ${school.id}:`, err.message);
-        }
+        try { await runAbsenceCheck(school.id); }
+        catch (err) { console.error(`[AbsenceCheck] Failed for school ${school.id}:`, err.message); }
       }
-    } catch (err) {
-      console.error('[AbsenceCheck] Fatal error:', err.message);
-    }
+    } catch (err) { console.error('[AbsenceCheck] Fatal error:', err.message); }
   });
-  console.log('[AbsenceCheck] Cron job scheduled — runs daily at 16:00 Accra time');
+
+  console.log('[AbsenceCheck] Jobs scheduled — per-lesson every 5 min + daily sweep at 16:00');
 }
 
 module.exports = { startAbsenceCheckJob, runAbsenceCheck };

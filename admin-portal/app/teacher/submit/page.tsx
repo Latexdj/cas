@@ -21,6 +21,13 @@ interface AttendanceRecord {
   class_names: string;
 }
 
+interface TodayAbsence {
+  id: string;
+  subject: string;
+  class_name: string;
+  is_auto_generated: boolean;
+}
+
 interface Location {
   id: string;
   name: string;
@@ -67,6 +74,7 @@ export default function SubmitPage() {
   // Step 1
   const [slots,       setSlots]       = useState<TimetableSlot[]>([]);
   const [submitted,   setSubmitted]   = useState<AttendanceRecord[]>([]);
+  const [absences,    setAbsences]    = useState<TodayAbsence[]>([]);
   const [selectedId,  setSelectedId]  = useState(preselectedSlotId);
   const [topic,       setTopic]       = useState('');
   const [locations,   setLocations]   = useState<Location[]>([]);
@@ -105,14 +113,16 @@ export default function SubmitPage() {
   const load = useCallback(async () => {
     const teacher = getTeacher();
     if (!teacher) return;
-    const [slotsRes, locsRes, attRes] = await Promise.allSettled([
+    const [slotsRes, locsRes, attRes, absRes] = await Promise.allSettled([
       teacherApi.get<TimetableSlot[]>(`/api/timetable/today/${teacher.id}`),
       teacherApi.get<Location[]>('/api/locations'),
       teacherApi.get<AttendanceRecord[]>(`/api/attendance/today/${teacher.id}`),
+      teacherApi.get<TodayAbsence[]>(`/api/absences/today/${teacher.id}`),
     ]);
     if (slotsRes.status === 'fulfilled') setSlots(slotsRes.value.data ?? []);
     if (locsRes.status === 'fulfilled')  setLocations(locsRes.value.data ?? []);
     if (attRes.status  === 'fulfilled')  setSubmitted(attRes.value.data ?? []);
+    if (absRes.status  === 'fulfilled')  setAbsences(absRes.value.data ?? []);
   }, []);
 
   useEffect(() => {
@@ -201,6 +211,14 @@ export default function SubmitPage() {
       a.subject.toLowerCase() === slot.subject.toLowerCase() &&
       slot.class_names.split(',').map(c => c.trim().toLowerCase())
         .some(c => a.class_names.split(',').map(x => x.trim().toLowerCase()).includes(c))
+    );
+  }
+
+  function isAutoAbsent(slot: TimetableSlot) {
+    const slotClasses = slot.class_names.split(',').map(c => c.trim().toLowerCase());
+    return absences.some(a =>
+      a.subject.toLowerCase() === slot.subject.toLowerCase() &&
+      slotClasses.includes(a.class_name.toLowerCase())
     );
   }
 
@@ -325,17 +343,23 @@ export default function SubmitPage() {
             {slots.length === 0
               ? <p className="text-sm text-[#8C7E6E]">No timetable slots for today.</p>
               : slots.map(slot => {
-                  const done = isSubmitted(slot);
-                  const sel  = selectedId === slot.id;
+                  const done   = isSubmitted(slot);
+                  const absent = !done && isAutoAbsent(slot);
+                  const locked = done || absent;
+                  const sel    = selectedId === slot.id;
                   return (
-                    <label key={slot.id} className={`flex items-start gap-3 p-3 rounded-xl border mb-2 cursor-pointer transition-colors ${done ? 'opacity-50' : ''}`}
-                      style={{ borderColor: sel ? primary : '#E2D9CC', background: sel ? `${primary}10` : 'white' }}>
-                      <input type="radio" name="slot" value={slot.id} checked={sel} disabled={done}
+                    <label key={slot.id} className={`flex items-start gap-3 p-3 rounded-xl border mb-2 transition-colors ${locked ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
+                      style={{
+                        borderColor: absent ? '#FCA5A5' : sel ? primary : '#E2D9CC',
+                        background:  absent ? '#FFF8F8' : sel ? `${primary}10` : 'white',
+                      }}>
+                      <input type="radio" name="slot" value={slot.id} checked={sel} disabled={locked}
                           onChange={() => { setSelectedId(slot.id); setQrVerified(false); setQrError(''); setQrClassName(''); }} className="mt-1 shrink-0" />
                       <div className="flex-1">
                         <p className="text-sm font-semibold text-[#2C2218]">{slot.subject} — {slot.class_names}</p>
                         <p className="text-xs text-[#8C7E6E]">{slot.start_time.slice(0,5)} – {slot.end_time.slice(0,5)}{slot.periods ? ` · ${slot.periods} period${slot.periods !== 1 ? 's' : ''}` : ''}</p>
-                        {done && <p className="text-xs font-semibold mt-0.5" style={{ color: '#2D7A4F' }}>✓ Submitted</p>}
+                        {done   && <p className="text-xs font-semibold mt-0.5" style={{ color: '#2D7A4F' }}>✓ Submitted</p>}
+                        {absent && <p className="text-xs font-semibold mt-0.5" style={{ color: '#DC2626' }}>✗ Marked Absent — contact admin to resubmit</p>}
                       </div>
                     </label>
                   );

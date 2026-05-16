@@ -140,6 +140,12 @@ export default function AttendancePage() {
     e.preventDefault(); await load();
   }
 
+  async function deleteRecord(id: string) {
+    if (!confirm('Delete this attendance record? The teacher will be able to resubmit for this slot.')) return;
+    try { await api.delete(`/api/attendance/${id}`); await load(); }
+    catch { alert('Failed to delete attendance record.'); }
+  }
+
   return (
     <>
       <div className="space-y-4">
@@ -171,7 +177,7 @@ export default function AttendancePage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  {['Date','Teacher','Subject','Class','Periods','Topic','Location','Photo','Week'].map(h => (
+                  {['Date','Teacher','Subject','Class','Periods','Topic','Location','Photo','Week',''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
@@ -208,10 +214,13 @@ export default function AttendancePage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-600">Wk {r.week_number}</td>
+                    <td className="px-4 py-3">
+                      <Button variant="danger" size="sm" onClick={() => deleteRecord(r.id)}>Delete</Button>
+                    </td>
                   </tr>
                 ))}
                 {records.length === 0 && (
-                  <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-400">No records found.</td></tr>
+                  <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-400">No records found.</td></tr>
                 )}
               </tbody>
             </table>
