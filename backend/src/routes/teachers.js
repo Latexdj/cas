@@ -27,207 +27,192 @@ async function nextTeacherCode(schoolId) {
 /** GET /api/teachers/upload/template — styled XLSX template */
 router.get('/upload/template', adminOnly, async (req, res, next) => {
   try {
-    // Fetch school name for the header
-    const { rows: schoolRows } = await pool.query(
-      `SELECT name FROM schools WHERE id = $1`, [req.schoolId]
-    );
-    const schoolName = schoolRows[0]?.name ?? 'School';
-
     const wb = new ExcelJS.Workbook();
-    wb.creator  = 'CAS – Classroom Attendance System';
-    wb.created  = new Date();
+    wb.creator = 'CAS – Classroom Attendance System';
+    wb.created = new Date();
 
-    // ── Colours & fonts ──────────────────────────────────────────
-    const GREEN_DARK  = '0F4C35';  // header bg
-    const GREEN_MID   = '1A7A50';  // sub-header bg
-    const GREEN_LIGHT = 'E8F5EE';  // example row bg
-    const AMBER       = 'FFFBEB';  // notes bg
-    const AMBER_BORDER= 'FCD34D';
-    const GREY_HEADER = 'F8FAFC';
+    const GREEN_DARK  = '0F4C35';
+    const GREEN_LIGHT = 'E8F5EE';
+    const GREY_ALT    = 'F8FAFC';
     const WHITE       = 'FFFFFF';
     const TEXT_DARK   = '0F172A';
     const TEXT_MUTED  = '64748B';
-    const RED_LIGHT   = 'FEF2F2';
-    const RED_TEXT    = 'DC2626';
 
-    const boldWhite  = { bold: true, color: { argb: WHITE },    size: 11, name: 'Calibri' };
-    const boldDark   = { bold: true, color: { argb: TEXT_DARK }, size: 11, name: 'Calibri' };
-    const normalDark = {             color: { argb: TEXT_DARK }, size: 10, name: 'Calibri' };
-    const mutedSmall = {             color: { argb: TEXT_MUTED }, size: 9, name: 'Calibri', italic: true };
+    const cols = [
+      { key: 'teacher_code', header: 'Teacher ID',             width: 16 },
+      { key: 'name',         header: 'Full Name',              width: 28 },
+      { key: 'email',        header: 'Email Address',          width: 32 },
+      { key: 'phone',        header: 'Phone Number',           width: 18 },
+      { key: 'department',   header: 'Department / Subject',   width: 26 },
+      { key: 'is_admin',     header: 'Is Admin? (Yes/No)',     width: 20 },
+      { key: 'notes',        header: 'Notes',                  width: 30 },
+    ];
 
-    // ── Sheet: Teachers ──────────────────────────────────────────
+    // ── Sheet 1: Teachers ─────────────────────────────────────────
     const ws = wb.addWorksheet('Teachers', {
       pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1 },
-      views: [{ state: 'frozen', ySplit: 6 }],
+      views: [{ state: 'frozen', ySplit: 1 }],
     });
 
-    // Column definitions
-    const cols = [
-      { key: 'teacher_code', header: 'Teacher ID',        width: 16 },
-      { key: 'name',         header: 'Full Name',         width: 28 },
-      { key: 'email',        header: 'Email Address',     width: 32 },
-      { key: 'phone',        header: 'Phone Number',      width: 18 },
-      { key: 'department',   header: 'Department / Subject', width: 26 },
-      { key: 'is_admin',     header: 'Is Admin? (Yes/No)', width: 20 },
-      { key: 'notes',        header: 'Notes',             width: 30 },
-    ];
     ws.columns = cols.map(c => ({ key: c.key, width: c.width }));
 
-    // ── Row 1: Title banner ──────────────────────────────────────
-    const titleRow = ws.getRow(1);
-    titleRow.height = 36;
-    titleRow.getCell(1).value    = 'CAS — Teacher Bulk Upload Template';
-    titleRow.getCell(1).font     = { bold: true, color: { argb: WHITE }, size: 16, name: 'Calibri' };
-    titleRow.getCell(1).fill     = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
-    titleRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-    ws.mergeCells('A1:G1');
-    for (let c = 2; c <= 7; c++) {
-      titleRow.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
-    }
-
-    // ── Row 2: School name subtitle ───────────────────────────────
-    const subRow = ws.getRow(2);
-    subRow.height = 20;
-    subRow.getCell(1).value     = schoolName;
-    subRow.getCell(1).font      = { color: { argb: WHITE }, size: 10, name: 'Calibri', italic: true };
-    subRow.getCell(1).fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_MID } };
-    subRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-    ws.mergeCells('A2:G2');
-    for (let c = 2; c <= 7; c++) {
-      subRow.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_MID } };
-    }
-
-    // ── Row 3: Instructions block ─────────────────────────────────
-    const notes = [
-      '• Leave "Teacher ID" blank — the system will auto-generate it (e.g. T001, T002).',
-      '• "Full Name" and "Email Address" are required. All other columns are optional.',
-      '• "Is Admin?" accepts only: Yes or No  (default: No).  Admins can log into this portal.',
-    ];
-    notes.forEach((note, i) => {
-      const r = ws.getRow(3 + i);
-      r.height = 18;
-      r.getCell(1).value     = note;
-      r.getCell(1).font      = { color: { argb: TEXT_MUTED }, size: 9, name: 'Calibri' };
-      r.getCell(1).fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: AMBER } };
-      r.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: 1, wrapText: false };
-      ws.mergeCells(`A${3 + i}:G${3 + i}`);
-      for (let c = 2; c <= 7; c++) {
-        r.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: AMBER } };
-      }
-      // Amber left border on first note row only
-      if (i === 0) {
-        r.getCell(1).border = { left: { style: 'medium', color: { argb: AMBER_BORDER } } };
-      }
-    });
-
-    // ── Row 6: Column headers ─────────────────────────────────────
-    const hdrRow = ws.getRow(6);
-    hdrRow.height = 24;
+    // Row 1 — column headers
+    const hdrRow = ws.getRow(1);
+    hdrRow.height = 26;
     cols.forEach((col, idx) => {
-      const cell = hdrRow.getCell(idx + 1);
-      cell.value     = col.header;
-      cell.font      = { bold: true, color: { argb: WHITE }, size: 10, name: 'Calibri' };
-      cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
-      cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-      cell.border    = { bottom: { style: 'thin', color: { argb: GREEN_MID } } };
+      const cell      = hdrRow.getCell(idx + 1);
+      cell.value      = col.header;
+      cell.font       = { bold: true, color: { argb: WHITE }, size: 11, name: 'Calibri' };
+      cell.fill       = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
+      cell.alignment  = { vertical: 'middle', horizontal: 'left', indent: 1 };
+      cell.border     = { right: { style: 'thin', color: { argb: '1A7A50' } } };
     });
 
-    // ── Rows 7–9: Example rows ────────────────────────────────────
-    const examples = [
-      { teacher_code: '', name: 'Jane Doe',   email: 'jane.doe@school.edu',   phone: '024-000-0001', department: 'Mathematics', is_admin: 'No',  notes: 'Head of department' },
-      { teacher_code: '', name: 'Kwame Asante', email: 'kwame.a@school.edu', phone: '024-000-0002', department: 'English',     is_admin: 'No',  notes: '' },
-      { teacher_code: '', name: 'Ama Boateng', email: 'ama.b@school.edu',    phone: '024-000-0003', department: 'Science',     is_admin: 'Yes', notes: 'Vice principal' },
-    ];
-
-    examples.forEach((ex, i) => {
-      const r = ws.getRow(7 + i);
-      r.height = 20;
-      cols.forEach((col, idx) => {
-        const cell = r.getCell(idx + 1);
-        cell.value     = ex[col.key] ?? '';
-        cell.font      = { color: { argb: '3D7A55' }, size: 10, name: 'Calibri', italic: true };
-        cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_LIGHT } };
-        cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-        cell.border    = { bottom: { style: 'hair', color: { argb: 'C8E6D4' } } };
-      });
-    });
-
-    // ── Row 10: "← Example rows" label ───────────────────────────
-    const labelRow = ws.getRow(10);
-    labelRow.height = 14;
-    labelRow.getCell(1).value     = '↑ Example rows — delete these before uploading, or leave them; the system will skip duplicates.';
-    labelRow.getCell(1).font      = mutedSmall;
-    labelRow.getCell(1).fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREY_HEADER } };
-    labelRow.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-    ws.mergeCells('A10:G10');
-    for (let c = 2; c <= 7; c++) {
-      labelRow.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREY_HEADER } };
-    }
-
-    // ── Rows 11–60: Empty data rows (alternating) ─────────────────
-    for (let row = 11; row <= 60; row++) {
-      const r = ws.getRow(row);
+    // Rows 2–200 — empty data rows with alternating background + dropdown
+    for (let row = 2; row <= 200; row++) {
+      const r  = ws.getRow(row);
       r.height = 18;
-      const bg = row % 2 === 0 ? GREY_HEADER : WHITE;
+      const bg = row % 2 === 0 ? GREY_ALT : WHITE;
       cols.forEach((_, idx) => {
-        const cell = r.getCell(idx + 1);
+        const cell     = r.getCell(idx + 1);
         cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-        cell.font      = normalDark;
+        cell.font      = { color: { argb: TEXT_DARK }, size: 10, name: 'Calibri' };
         cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
         cell.border    = { bottom: { style: 'hair', color: { argb: 'E2E8F0' } } };
       });
-      // Data validation: Is Admin column (col F = index 6)
+      // Yes/No dropdown for Is Admin (column F)
       ws.getCell(`F${row}`).dataValidation = {
         type: 'list', allowBlank: true, formulae: ['"Yes,No"'],
-        showErrorMessage: true,
-        errorStyle: 'stop',
-        errorTitle: 'Invalid value',
-        error: 'Please enter Yes or No',
+        showErrorMessage: true, errorStyle: 'stop',
+        errorTitle: 'Invalid value', error: 'Please enter Yes or No',
       };
     }
 
-    // ── Instructions sheet ────────────────────────────────────────
+    // ── Sheet 2: Instructions ─────────────────────────────────────
     const ws2 = wb.addWorksheet('Instructions');
-    ws2.columns = [{ width: 80 }];
+    ws2.columns = [{ width: 14 }, { width: 66 }];
 
-    const instructions = [
-      { text: 'HOW TO USE THIS TEMPLATE', bold: true, size: 14, bg: GREEN_DARK, color: WHITE, height: 30 },
-      { text: '', bg: WHITE, height: 8 },
-      { text: 'STEP 1 — Fill in the "Teachers" sheet', bold: true, size: 11, bg: GREEN_LIGHT, color: GREEN_DARK, height: 22 },
-      { text: '  • Delete the three example rows (rows 7–9) or leave them — duplicates are skipped automatically.', height: 18 },
-      { text: '  • Each row = one teacher. Required: Full Name + Email Address.', height: 18 },
-      { text: '  • Teacher ID: leave blank to auto-generate (T001, T002, …).', height: 18 },
-      { text: '  • Is Admin?: enter Yes (can log into admin portal) or No (teacher-only access).', height: 18 },
-      { text: '', height: 8 },
-      { text: 'STEP 2 — Save the file', bold: true, size: 11, bg: GREEN_LIGHT, color: GREEN_DARK, height: 22 },
-      { text: '  • Save as .xlsx or .csv before uploading.', height: 18 },
-      { text: '  • Do not rename the "Teachers" sheet or add extra sheets.', height: 18 },
-      { text: '', height: 8 },
-      { text: 'STEP 3 — Upload', bold: true, size: 11, bg: GREEN_LIGHT, color: GREEN_DARK, height: 22 },
-      { text: '  • In the admin portal go to Teachers → Bulk Upload.', height: 18 },
-      { text: '  • Select your saved file and click Upload.', height: 18 },
-      { text: '  • A summary will show how many were added and any rows that were skipped.', height: 18 },
-      { text: '', height: 8 },
-      { text: 'COLUMN REFERENCE', bold: true, size: 11, bg: GREEN_LIGHT, color: GREEN_DARK, height: 22 },
-      { text: '  Teacher ID     — Optional. Leave blank for auto-assignment.', height: 18 },
-      { text: '  Full Name      — Required.', height: 18 },
-      { text: '  Email Address  — Required. Must be unique across all teachers.', height: 18 },
-      { text: '  Phone Number   — Optional.', height: 18 },
-      { text: '  Department     — Optional. e.g. Mathematics, Science, English.', height: 18 },
-      { text: '  Is Admin?      — Optional. Yes or No (default: No).', height: 18 },
-      { text: '  Notes          — Optional. Internal notes about the teacher.', height: 18 },
+    const section = (label) => {
+      const r    = ws2.addRow(['', label]);
+      r.height   = 24;
+      const cell = r.getCell(2);
+      cell.font  = { bold: true, size: 11, name: 'Calibri', color: { argb: WHITE } };
+      cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
+      cell.alignment = { vertical: 'middle', indent: 1 };
+      ws2.mergeCells(`A${r.number}:B${r.number}`);
+      r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
+    };
+
+    const line = (text, opts = {}) => {
+      const r    = ws2.addRow(['', text]);
+      r.height   = opts.height ?? 18;
+      const cell = r.getCell(2);
+      cell.font  = { size: 10, name: 'Calibri', color: { argb: opts.color ?? TEXT_DARK },
+                     italic: !!opts.italic, bold: !!opts.bold };
+      cell.alignment = { vertical: 'middle', indent: opts.indent ?? 1, wrapText: true };
+      if (opts.bg) {
+        cell.fill        = { type: 'pattern', pattern: 'solid', fgColor: { argb: opts.bg } };
+        r.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: opts.bg } };
+        ws2.mergeCells(`A${r.number}:B${r.number}`);
+      }
+    };
+
+    const gap = () => { const r = ws2.addRow(['']); r.height = 8; };
+
+    // Title
+    const titleRow  = ws2.addRow(['', 'CAS — Teacher Bulk Upload: Instructions']);
+    titleRow.height = 36;
+    const titleCell = titleRow.getCell(2);
+    titleCell.value = 'CAS — Teacher Bulk Upload: Instructions';
+    titleCell.font  = { bold: true, size: 16, name: 'Calibri', color: { argb: WHITE } };
+    titleCell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
+    titleCell.alignment = { vertical: 'middle', indent: 1 };
+    ws2.mergeCells('A1:B1');
+    titleRow.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
+
+    gap();
+
+    // Overview
+    section('OVERVIEW');
+    line('Open the "Teachers" sheet, fill in one teacher per row starting from row 2, then upload the file via Teachers → Bulk Upload in the admin portal.', { indent: 2 });
+    gap();
+
+    // Column reference
+    section('COLUMN REFERENCE');
+    const colRef = [
+      ['Teacher ID',           'Optional',  'Leave blank — the system will auto-assign (e.g. T001, T002). You may enter an existing ID to skip that row.'],
+      ['Full Name',            'Required',  'Teacher\'s full name as it should appear in reports.'],
+      ['Email Address',        'Required',  'Must be unique. Used for login and email notifications.'],
+      ['Phone Number',         'Optional',  'Contact number. Any format accepted.'],
+      ['Department / Subject', 'Optional',  'e.g. Mathematics, English Language, Science.'],
+      ['Is Admin? (Yes/No)',   'Optional',  'Yes = can log into this admin portal. No = teacher access only. Default: No. Use the dropdown in column F.'],
+      ['Notes',                'Optional',  'Internal notes — not visible to the teacher.'],
+    ];
+    colRef.forEach(([col, req, desc]) => {
+      const r      = ws2.addRow([col, `[${req}]  ${desc}`]);
+      r.height     = 20;
+      const colCell = r.getCell(1);
+      colCell.font      = { bold: true, size: 10, name: 'Calibri', color: { argb: GREEN_DARK } };
+      colCell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_LIGHT } };
+      colCell.alignment = { vertical: 'middle', indent: 1 };
+      const descCell = r.getCell(2);
+      descCell.font      = { size: 10, name: 'Calibri', color: { argb: TEXT_DARK } };
+      descCell.alignment = { vertical: 'middle', indent: 1, wrapText: true };
+      descCell.border    = { bottom: { style: 'hair', color: { argb: 'E2E8F0' } } };
+    });
+    gap();
+
+    // Example data
+    section('EXAMPLE DATA');
+    line('The rows below show correctly formatted entries. Your actual data goes in the "Teachers" sheet.', { color: TEXT_MUTED, italic: true });
+    gap();
+
+    // Example header
+    const exHdrRow = ws2.addRow(cols.map(c => c.header));
+    exHdrRow.height = 22;
+    cols.forEach((_, i) => {
+      const cell = exHdrRow.getCell(i + 1);
+      cell.font       = { bold: true, size: 10, name: 'Calibri', color: { argb: WHITE } };
+      cell.fill       = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1A7A50' } };
+      cell.alignment  = { vertical: 'middle', indent: 1 };
+    });
+    // Adjust columns for example table
+    ws2.columns = [
+      { width: 14 }, { width: 24 }, { width: 28 }, { width: 16 },
+      { width: 22 }, { width: 18 }, { width: 22 },
     ];
 
-    instructions.forEach(({ text, bold, size, bg, color, height }) => {
-      const r = ws2.addRow([text]);
-      r.height = height ?? 18;
-      const cell = r.getCell(1);
-      cell.font      = { bold: !!bold, size: size ?? 10, name: 'Calibri', color: { argb: color ?? TEXT_DARK } };
-      cell.alignment = { vertical: 'middle', wrapText: false };
-      if (bg) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+    const examples = [
+      ['',     'Jane Doe',     'jane.doe@school.edu',  '024-000-0001', 'Mathematics', 'No',  'Head of department'],
+      ['',     'Kwame Asante', 'kwame.a@school.edu',   '024-000-0002', 'English',     'No',  ''],
+      ['T050', 'Ama Boateng',  'ama.b@school.edu',     '024-000-0003', 'Science',     'Yes', 'Vice principal'],
+    ];
+    examples.forEach((ex, i) => {
+      const r  = ws2.addRow(ex);
+      r.height = 18;
+      const bg = i % 2 === 0 ? WHITE : GREEN_LIGHT;
+      ex.forEach((_, idx) => {
+        const cell     = r.getCell(idx + 1);
+        cell.font      = { size: 10, name: 'Calibri', color: { argb: '2D6A4F' }, italic: true };
+        cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+        cell.alignment = { vertical: 'middle', indent: 1 };
+        cell.border    = { bottom: { style: 'hair', color: { argb: 'C8E6D4' } } };
+      });
     });
+    gap();
 
-    // ── Send as buffer (streaming directly to res causes corrupt files) ──
+    // Rules
+    section('IMPORTANT RULES');
+    [
+      'Do not rename or delete the "Teachers" sheet.',
+      'Do not change the column order or header names in the Teachers sheet.',
+      'One row = one teacher. Do not merge cells in the Teachers sheet.',
+      'Rows with a missing Full Name or Email Address will be skipped with an error.',
+      'Rows whose Email already exists in the system will be skipped.',
+      'It is safe to upload the same file twice — duplicates are detected and skipped.',
+    ].forEach((rule, i) => line(`${i + 1}.  ${rule}`, { indent: 2 }));
+
+    // ── Send buffer ───────────────────────────────────────────────
     const buffer = await wb.xlsx.writeBuffer();
     res.setHeader('Content-Type',        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="teachers_template.xlsx"');
