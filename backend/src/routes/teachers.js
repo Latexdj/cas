@@ -227,11 +227,12 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
       if (bg) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
     });
 
-    // ── Stream response ───────────────────────────────────────────
+    // ── Send as buffer (streaming directly to res causes corrupt files) ──
+    const buffer = await wb.xlsx.writeBuffer();
     res.setHeader('Content-Type',        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename="teachers_template.xlsx"');
-    await wb.xlsx.write(res);
-    res.end();
+    res.setHeader('Content-Length',      buffer.length);
+    res.end(buffer);
   } catch (err) { next(err); }
 });
 
