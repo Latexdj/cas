@@ -23,6 +23,8 @@ const teacherExcusesRoutes    = require('./routes/teacher-excuses');
 const superAdminRoutes        = require('./routes/superAdmin');
 const programRoutes           = require('./routes/programs');
 const classroomQrRoutes       = require('./routes/classroom-qr');
+const notificationsRoutes     = require('./routes/notifications');
+const auditLogRoutes          = require('./routes/audit-log');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -54,6 +56,8 @@ app.use('/api/teacher-excuses',    teacherExcusesRoutes);
 app.use('/api/super-admin',        superAdminRoutes);
 app.use('/api/programs',           programRoutes);
 app.use('/api/classroom-qr',       classroomQrRoutes);
+app.use('/api/notifications',      notificationsRoutes);
+app.use('/api/audit-log',          auditLogRoutes);
 
 app.use(errorHandler);
 
@@ -76,6 +80,38 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS program_id UUID REFERENCES programs(id) ON DELETE SET NULL`);
     await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS photo_url TEXT`);
     await pool.query(`ALTER TABLE schools  ADD COLUMN IF NOT EXISTS logo_url  TEXT`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_audit_logs (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID REFERENCES schools(id) ON DELETE CASCADE,
+        action      TEXT NOT NULL,
+        actor_id    UUID,
+        actor_name  TEXT,
+        target_type TEXT,
+        target_id   UUID,
+        details     JSONB,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_school_audit_logs_school
+        ON school_audit_logs(school_id, created_at DESC)
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS teacher_notifications (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id  UUID REFERENCES teachers(id) ON DELETE CASCADE,
+        title       TEXT NOT NULL,
+        message     TEXT NOT NULL,
+        read        BOOLEAN NOT NULL DEFAULT false,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_teacher_notifications_teacher
+        ON teacher_notifications(teacher_id, read, created_at DESC)
+    `);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

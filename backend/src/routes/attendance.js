@@ -3,6 +3,8 @@ const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { verifyLocation, getWeekNumber } = require('../services/geo.service');
 const { uploadPhoto }   = require('../services/storage.service');
+const { logAudit }      = require('../services/audit.service');
+const { notifyTeacherAttendanceRevoked, notifyTeacherAttendanceDeleted } = require('../services/notification.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -279,14 +281,91 @@ router.get('/my-summary', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/attendance/:id — admin removes a submitted record (unblocks re-submission)
-router.delete('/:id', adminOnly, async (req, res, next) => {
+// POST /api/attendance/:id/revoke — admin flags fraudulent submission:
+//   deletes record + student records, marks teacher absent, notifies teacher, audit logs
+router.post('/:id/revoke', adminOnly, async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      `DELETE FROM attendance WHERE id = $1 AND school_id = $2 RETURNING id`,
+    const reason = req.body.reason?.trim() || 'Attendance revoked by administrator';
+
+    const { rows: recRows } = await pool.query(
+      `SELECT a.*, te.name AS teacher_name, te.email AS teacher_email
+       FROM attendance a
+       JOIN teachers te ON te.id = a.teacher_id
+       WHERE a.id = $1 AND a.school_id = $2`,
       [req.params.id, req.schoolId]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Record not found' });
+    if (!recRows.length) return res.status(404).json({ error: 'Record not found' });
+    const record = recRows[0];
+
+    // Cascade: delete student attendance linked to this record
+    await pool.query(
+      `DELETE FROM student_attendance_records
+       WHERE session_id IN (
+         SELECT id FROM student_attendance_sessions WHERE attendance_id = $1
+       )`,
+      [record.id]
+    );
+    await pool.query(`DELETE FROM student_attendance_sessions WHERE attendance_id = $1`, [record.id]);
+    await pool.query(`DELETE FROM attendance WHERE id = $1`, [record.id]);
+
+    // Mark teacher absent for each class in the revoked record
+    const now     = new Date().toTimeString().slice(0, 5);
+    const classes = record.class_names.split(',').map(c => c.trim()).filter(Boolean);
+    for (const className of classes) {
+      await pool.query(
+        `INSERT INTO absences
+           (school_id, date, detected_at, teacher_id, subject, class_name,
+            status, is_auto_generated, reason)
+         VALUES ($1,$2,$3::time,$4,$5,$6,'Absent',false,$7)
+         ON CONFLICT (date, teacher_id, subject, class_name)
+           WHERE is_auto_generated = true
+         DO UPDATE SET reason = EXCLUDED.reason, is_auto_generated = false, updated_at = now()`,
+        [req.schoolId, record.date, now, record.teacher_id, record.subject, className, reason]
+      );
+    }
+
+    const teacher = { id: record.teacher_id, name: record.teacher_name, email: record.teacher_email };
+    await logAudit(req.schoolId, 'ATTENDANCE_REVOKED', req.user.id, req.user.name, 'attendance', record.id, {
+      teacher_name: record.teacher_name, subject: record.subject,
+      class_names: record.class_names, date: record.date, reason,
+    });
+    await notifyTeacherAttendanceRevoked(req.schoolId, teacher, record, reason);
+
+    res.json({ message: 'Attendance revoked and teacher marked absent', classes: classes.length });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/attendance/:id — admin removes a record (cascades student records, notifies teacher)
+router.delete('/:id', adminOnly, async (req, res, next) => {
+  try {
+    const { rows: recRows } = await pool.query(
+      `SELECT a.*, te.name AS teacher_name, te.email AS teacher_email
+       FROM attendance a
+       JOIN teachers te ON te.id = a.teacher_id
+       WHERE a.id = $1 AND a.school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!recRows.length) return res.status(404).json({ error: 'Record not found' });
+    const record = recRows[0];
+
+    // Cascade student attendance
+    await pool.query(
+      `DELETE FROM student_attendance_records
+       WHERE session_id IN (
+         SELECT id FROM student_attendance_sessions WHERE attendance_id = $1
+       )`,
+      [record.id]
+    );
+    await pool.query(`DELETE FROM student_attendance_sessions WHERE attendance_id = $1`, [record.id]);
+    await pool.query(`DELETE FROM attendance WHERE id = $1`, [record.id]);
+
+    const teacher = { id: record.teacher_id, name: record.teacher_name, email: record.teacher_email };
+    await logAudit(req.schoolId, 'ATTENDANCE_DELETED', req.user.id, req.user.name, 'attendance', record.id, {
+      teacher_name: record.teacher_name, subject: record.subject,
+      class_names: record.class_names, date: record.date,
+    });
+    await notifyTeacherAttendanceDeleted(req.schoolId, teacher, record);
+
     res.json({ message: 'Attendance record deleted' });
   } catch (err) { next(err); }
 });

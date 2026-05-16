@@ -1,9 +1,10 @@
 'use client';
 
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useState, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getTeacher, getSchoolCode, getTeacherColors } from '@/lib/teacher-auth';
+import { teacherApi } from '@/lib/teacher-api';
 
 const NAV_ITEMS = [
   {
@@ -62,6 +63,16 @@ const NAV_ITEMS = [
     ),
   },
   {
+    href: '/teacher/notifications',
+    label: 'Alerts',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+        <path d="M13.73 21a2 2 0 01-3.46 0" />
+      </svg>
+    ),
+  },
+  {
     href: '/teacher/profile',
     label: 'Profile',
     icon: (
@@ -78,9 +89,17 @@ const NO_SHELL_PATHS = ['/teacher/setup', '/teacher/login'];
 export default function TeacherShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [ready,   setReady]   = useState(false);
-  const [primary, setPrimary] = useState('#2ab289');
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [ready,       setReady]       = useState(false);
+  const [primary,     setPrimary]     = useState('#2ab289');
+  const [logoUrl,     setLogoUrl]     = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchUnread = useCallback(async () => {
+    try {
+      const { data } = await teacherApi.get<{ count: number }>('/api/notifications/unread-count');
+      setUnreadCount(data.count ?? 0);
+    } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     if (NO_SHELL_PATHS.includes(pathname)) {
@@ -101,7 +120,10 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     setPrimary(colors.primary);
     setLogoUrl(colors.logoUrl ?? null);
     setReady(true);
-  }, [pathname, router]);
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60_000);
+    return () => clearInterval(interval);
+  }, [pathname, router, fetchUnread]);
 
   if (!ready) {
     return (
@@ -135,20 +157,29 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
         </div>
         <nav className="flex-1 py-4 space-y-1 px-3">
           {NAV_ITEMS.map((item) => {
-            const active = isActive(item.href);
+            const active  = isActive(item.href);
+            const isAlert = item.href === '/teacher/notifications';
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                style={
-                  active
-                    ? { backgroundColor: `${primary}18`, color: primary }
-                    : { color: '#8C7E6E' }
-                }
+                style={active ? { backgroundColor: `${primary}18`, color: primary } : { color: '#8C7E6E' }}
               >
-                <span style={{ color: active ? primary : '#8C7E6E' }}>{item.icon}</span>
+                <span style={{ color: active ? primary : '#8C7E6E' }} className="relative">
+                  {item.icon}
+                  {isAlert && unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </span>
                 {item.label}
+                {isAlert && unreadCount > 0 && (
+                  <span className="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">
+                    {unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -165,7 +196,8 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
       {/* Mobile bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[#E2D9CC] z-20 flex">
         {NAV_ITEMS.map((item) => {
-          const active = isActive(item.href);
+          const active  = isActive(item.href);
+          const isAlert = item.href === '/teacher/notifications';
           return (
             <Link
               key={item.href}
@@ -173,7 +205,14 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
               className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-colors"
               style={{ color: active ? primary : '#8C7E6E' }}
             >
-              <span style={{ color: active ? primary : '#8C7E6E' }}>{item.icon}</span>
+              <span style={{ color: active ? primary : '#8C7E6E' }} className="relative">
+                {item.icon}
+                {isAlert && unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </span>
               {item.label}
             </Link>
           );

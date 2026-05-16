@@ -1,6 +1,8 @@
 const router = require('express').Router();
 const pool = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { logAudit } = require('../services/audit.service');
+const { notifyTeacherAbsenceDeleted } = require('../services/notification.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -163,24 +165,42 @@ router.patch('/:id/status', adminOnly, async (req, res, next) => {
     }
     const { rows } = await pool.query(
       `UPDATE absences SET status = $1, updated_at = now()
-       WHERE id = $2 AND school_id = $3 RETURNING id, status`,
+       WHERE id = $2 AND school_id = $3 RETURNING id, status, teacher_id, subject, class_name, date`,
       [status, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Absence not found' });
+    await logAudit(req.schoolId, 'ABSENCE_STATUS_CHANGED', req.user.id, req.user.name, 'absence', req.params.id, {
+      new_status: status, teacher_id: rows[0].teacher_id,
+      subject: rows[0].subject, class_name: rows[0].class_name, date: rows[0].date,
+    });
     res.json(rows[0]);
   } catch (err) {
     next(err);
   }
 });
 
-// DELETE /api/absences/:id — reverse / remove an auto-generated absence (admin)
+// DELETE /api/absences/:id — reverse / remove an absence (admin); notifies teacher they can resubmit
 router.delete('/:id', adminOnly, async (req, res, next) => {
   try {
-    const { rowCount } = await pool.query(
-      `DELETE FROM absences WHERE id = $1 AND school_id = $2`,
+    const { rows: absRows } = await pool.query(
+      `SELECT ab.*, te.name AS teacher_name, te.email AS teacher_email
+       FROM absences ab
+       JOIN teachers te ON te.id = ab.teacher_id
+       WHERE ab.id = $1 AND ab.school_id = $2`,
       [req.params.id, req.schoolId]
     );
-    if (!rowCount) return res.status(404).json({ error: 'Absence not found' });
+    if (!absRows.length) return res.status(404).json({ error: 'Absence not found' });
+    const absence = absRows[0];
+
+    await pool.query(`DELETE FROM absences WHERE id = $1`, [req.params.id]);
+
+    const teacher = { id: absence.teacher_id, name: absence.teacher_name, email: absence.teacher_email };
+    await logAudit(req.schoolId, 'ABSENCE_DELETED', req.user.id, req.user.name, 'absence', req.params.id, {
+      teacher_name: absence.teacher_name, subject: absence.subject,
+      class_name: absence.class_name, date: absence.date,
+    });
+    await notifyTeacherAbsenceDeleted(req.schoolId, teacher, absence);
+
     res.json({ message: 'Absence removed' });
   } catch (err) {
     next(err);
