@@ -272,36 +272,7 @@ export default function StudentAttendancePage() {
       {/* ══ SESSIONS TAB ══ */}
       {tab === 'sessions' && (
         <>
-          {/* Year + semester chips */}
-          {academicYears.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => setSessYear('')}
-                  className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-                  style={sessYear === '' ? { background: '#0F172A', color: '#fff', borderColor: '#0F172A' } : { color: '#64748B', borderColor: '#E2E8F0' }}>
-                  All Years
-                </button>
-                {academicYears.map(y => (
-                  <button key={y.id} onClick={() => setSessYear(y.id)}
-                    className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-                    style={sessYear === y.id ? { background: '#0F172A', color: '#fff', borderColor: '#0F172A' } : { color: '#64748B', borderColor: '#E2E8F0' }}>
-                    {y.name}{y.is_current ? ' ✦' : ''}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                {([['', 'All Semesters'], ['1', 'Semester 1'], ['2', 'Semester 2']] as const).map(([val, label]) => (
-                  <button key={val} onClick={() => setSessSem(val)}
-                    className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-                    style={sessSem === val ? { background: '#0F172A', color: '#fff', borderColor: '#0F172A' } : { color: '#64748B', borderColor: '#E2E8F0' }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Date / class filters + export */}
+          {/* Date / class / year / semester filters + export */}
           <div className="flex flex-wrap gap-3 items-center">
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold" style={{ color: '#64748B' }}>From</label>
@@ -317,6 +288,21 @@ export default function StudentAttendancePage() {
               className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }}>
               <option value="">All Classes</option>
               {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {academicYears.length > 0 && (
+              <select value={sessYear} onChange={e => setSessYear(e.target.value)}
+                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }}>
+                <option value="">All Years</option>
+                {academicYears.map(y => (
+                  <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>
+                ))}
+              </select>
+            )}
+            <select value={sessSem} onChange={e => setSessSem(e.target.value)}
+              className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }}>
+              <option value="">All Semesters</option>
+              <option value="1">Semester 1</option>
+              <option value="2">Semester 2</option>
             </select>
             <div className="flex gap-2 ml-auto">
               <ExportButton label="Excel" loading={exporting === 'sess-xlsx'} disabled={sessions.length === 0}
@@ -371,36 +357,7 @@ export default function StudentAttendancePage() {
       {/* ══ STUDENT REPORT TAB ══ */}
       {tab === 'report' && (
         <>
-          {/* Year + semester chips */}
-          {academicYears.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => setRepYear('')}
-                  className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-                  style={repYear === '' ? { background: '#0F172A', color: '#fff', borderColor: '#0F172A' } : { color: '#64748B', borderColor: '#E2E8F0' }}>
-                  All Years
-                </button>
-                {academicYears.map(y => (
-                  <button key={y.id} onClick={() => setRepYear(y.id)}
-                    className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-                    style={repYear === y.id ? { background: '#0F172A', color: '#fff', borderColor: '#0F172A' } : { color: '#64748B', borderColor: '#E2E8F0' }}>
-                    {y.name}{y.is_current ? ' ✦' : ''}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                {([['', 'All Semesters'], ['1', 'Semester 1'], ['2', 'Semester 2']] as const).map(([val, label]) => (
-                  <button key={val} onClick={() => setRepSem(val)}
-                    className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-                    style={repSem === val ? { background: '#0F172A', color: '#fff', borderColor: '#0F172A' } : { color: '#64748B', borderColor: '#E2E8F0' }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Date / class filters + export */}
+          {/* Date / class / year / semester filters + export */}
           <div className="flex flex-wrap gap-3 items-center">
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold" style={{ color: '#64748B' }}>From</label>
@@ -419,6 +376,23 @@ export default function StudentAttendancePage() {
               className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }}>
               <option value="">All Classes</option>
               {reportClasses.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {academicYears.length > 0 && (
+              <select value={repYear}
+                onChange={e => { setRepYear(e.target.value); loadReport(reportFrom, reportTo, reportClass, e.target.value, repSem); }}
+                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }}>
+                <option value="">All Years</option>
+                {academicYears.map(y => (
+                  <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>
+                ))}
+              </select>
+            )}
+            <select value={repSem}
+              onChange={e => { setRepSem(e.target.value); loadReport(reportFrom, reportTo, reportClass, repYear, e.target.value); }}
+              className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }}>
+              <option value="">All Semesters</option>
+              <option value="1">Semester 1</option>
+              <option value="2">Semester 2</option>
             </select>
             <div className="flex gap-2 ml-auto">
               <ExportButton label="Excel" loading={exporting === 'rep-xlsx'} disabled={report.length === 0}
