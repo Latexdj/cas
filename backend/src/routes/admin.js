@@ -69,6 +69,7 @@ router.get('/classroom-status', async (req, res, next) => {
           tt.start_time::text,
           tt.end_time::text,
           te.name  AS teacher_name,
+          te.phone AS teacher_phone,
           a.id     AS attendance_id,
           a.submitted_at
         FROM timetable tt
@@ -91,6 +92,7 @@ router.get('/classroom-status', async (req, res, next) => {
           ane.start_time,
           ane.end_time,
           ane.teacher_name,
+          ane.teacher_phone,
           ane.attendance_id,
           ane.submitted_at
         FROM active_now_entries ane,
@@ -108,6 +110,7 @@ router.get('/classroom-status', async (req, res, next) => {
         an.start_time,
         an.end_time,
         an.teacher_name,
+        an.teacher_phone,
         an.submitted_at
       FROM all_classrooms ac
       LEFT JOIN active_now an ON an.class_name = ac.class_name

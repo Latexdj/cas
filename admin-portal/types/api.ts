@@ -195,5 +195,6 @@ export interface ClassroomStatus {
   start_time: string | null;
   end_time: string | null;
   teacher_name: string | null;
+  teacher_phone: string | null;
   submitted_at: string | null;
 }

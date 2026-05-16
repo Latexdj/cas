@@ -52,6 +52,9 @@ function ClassroomCard({ row }: { row: ClassroomStatus }) {
       <p className="text-base font-bold mb-1 leading-tight" style={{ color: '#0F172A' }}>{row.class_name}</p>
       <p className="text-sm" style={{ color: '#475569' }}>{row.subject ?? '—'}</p>
       <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>{row.teacher_name ?? '—'}</p>
+      {row.teacher_phone && (
+        <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>{row.teacher_phone}</p>
+      )}
       {row.start_time && row.end_time && (
         <p className="text-xs font-mono mt-0.5" style={{ color: '#94A3B8' }}>
           {row.start_time}–{row.end_time}
