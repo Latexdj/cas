@@ -324,10 +324,21 @@ router.get('/', async (req, res, next) => {
         t.id, t.teacher_code, t.name, t.email, t.phone, t.department,
         t.status, t.is_admin, t.notes,
         ROUND(COALESCE(SUM(
-          EXTRACT(EPOCH FROM (tt.end_time - tt.start_time)) / 3600
-        ), 0)::numeric, 1)::float AS total_periods
+          GREATEST(0,
+            EXTRACT(EPOCH FROM (tt.end_time - tt.start_time))
+            - COALESCE((
+                SELECT SUM(GREATEST(0, EXTRACT(EPOCH FROM (
+                  LEAST(tt.end_time, sb.end_time)
+                  - GREATEST(tt.start_time, sb.start_time)
+                ))))
+                FROM school_breaks sb
+                WHERE sb.school_id = $1
+                  AND (sb.day_of_week IS NULL OR sb.day_of_week = tt.day_of_week)
+            ), 0)
+          ) / 3600
+        ), 0)::numeric)::integer AS total_periods
       FROM teachers t
-      LEFT JOIN timetable tt ON tt.teacher_id = t.id
+      LEFT JOIN timetable tt ON tt.teacher_id = t.id AND tt.school_id = $1
       WHERE t.school_id = $1
       GROUP BY t.id
       ORDER BY t.teacher_code
