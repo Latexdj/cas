@@ -2,7 +2,7 @@ const router = require('express').Router();
 const bcrypt = require('bcrypt');
 const jwt    = require('jsonwebtoken');
 const pool   = require('../config/db');
-const { loginLimiter, schoolLookupLimiter } = require('../middleware/rateLimiter');
+const { loginLimiter, schoolLookupLimiter, superAdminLimiter } = require('../middleware/rateLimiter');
 
 function signToken(payload, expiresIn) {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
@@ -25,7 +25,11 @@ router.get('/school/:code', schoolLookupLimiter, async (req, res, next) => {
 // POST /api/auth/login
 // Body: { type: 'teacher'|'admin', username, password, schoolId|schoolCode }
 //   or: { type: 'super_admin', username, password }
-router.post('/login', loginLimiter, async (req, res, next) => {
+router.post('/login', loginLimiter, (req, res, next) => {
+  // Super admin login gets an additional, stricter rate limit (5 vs 10 attempts).
+  if (req.body?.type === 'super_admin') return superAdminLimiter(req, res, next);
+  next();
+}, async (req, res, next) => {
   try {
     const { type } = req.body;
 

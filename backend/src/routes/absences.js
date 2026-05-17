@@ -105,6 +105,21 @@ router.post('/manual', adminOnly, async (req, res, next) => {
       return res.status(400).json({ error: 'teacherId, subject, className, dates[] required' });
     }
 
+    if (!Array.isArray(dates) || dates.length > 31) {
+      return res.status(400).json({ error: 'dates must be an array of up to 31 entries' });
+    }
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    if (dates.some(d => !dateRe.test(d))) {
+      return res.status(400).json({ error: 'All dates must be in YYYY-MM-DD format' });
+    }
+
+    const { rows: teacherCheck } = await pool.query(
+      `SELECT id FROM teachers WHERE id = $1 AND school_id = $2`,
+      [teacherId, req.schoolId]
+    );
+    if (!teacherCheck.length)
+      return res.status(400).json({ error: 'Teacher not found in this school' });
+
     const inserted = [];
     for (const date of dates) {
       try {

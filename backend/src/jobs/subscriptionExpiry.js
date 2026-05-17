@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const pool = require('../config/db');
 const { auditLog } = require('../utils/audit');
+const { clearSubCache } = require('../middleware/auth');
 
 async function runExpiryCheck() {
   try {
@@ -41,6 +42,7 @@ async function runExpiryCheck() {
         );
 
         await client.query('COMMIT');
+        clearSubCache(row.school_id);
 
         await auditLog('subscription_auto_expired', 'school', row.school_id, row.school_name, {
           message: 'Paid subscription expired — automatically reverted to 14-day trial',

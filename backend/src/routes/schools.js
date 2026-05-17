@@ -1,7 +1,7 @@
 const router  = require('express').Router();
 const bcrypt  = require('bcrypt');
 const pool    = require('../config/db');
-const { authenticate, superAdminOnly } = require('../middleware/auth');
+const { authenticate, superAdminOnly, clearSubCache } = require('../middleware/auth');
 const { auditLog } = require('../utils/audit');
 
 // All routes here are super-admin only
@@ -202,6 +202,7 @@ router.post('/:id/activate', async (req, res, next) => {
       [req.params.id, paidPlanId, startsAt, endsAt, teacherLimit]
     );
 
+    clearSubCache(req.params.id);
     await auditLog('school_activated', 'school', req.params.id, schoolRows[0].name, {
       plan: 'paid',
       starts_at: startsAt,
@@ -250,6 +251,7 @@ router.post('/:id/revert-to-trial', async (req, res, next) => {
       [req.params.id, trialPlanId, trialEnd, teacherLimit]
     );
 
+    clearSubCache(req.params.id);
     await auditLog('reverted_to_trial', 'school', req.params.id, schoolRows[0].name, {
       days,
       trial_ends: trialEnd,
@@ -282,6 +284,7 @@ router.post('/:id/extend-trial', async (req, res, next) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'No trial subscription found' });
 
+    clearSubCache(req.params.id);
     await auditLog('trial_extended', 'school', req.params.id, schoolRows[0].name, {
       days_added: days,
       new_ends_at: rows[0].ends_at,
@@ -366,6 +369,7 @@ router.patch('/:id/subscription', async (req, res, next) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'No subscription found' });
 
+    clearSubCache(req.params.id);
     await auditLog('subscription_updated', 'school', req.params.id, schoolRows[0].name, {
       changes: Object.keys(req.body),
     });
@@ -417,6 +421,7 @@ router.delete('/:id', async (req, res, next) => {
     );
     if (!rowCount) return res.status(404).json({ error: 'School not found' });
 
+    clearSubCache(req.params.id);
     await auditLog('school_deleted', 'school', req.params.id, schoolName, {
       message: 'School and all data permanently deleted',
     });

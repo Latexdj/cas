@@ -133,6 +133,15 @@ router.get('/reports/absences', async (req, res, next) => {
     const from = req.query.from || new Date().toISOString().slice(0, 10);
     const to   = req.query.to   || from;
 
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRe.test(from) || !dateRe.test(to))
+      return res.status(400).json({ error: 'from and to must be YYYY-MM-DD dates' });
+    const rangeDays = (new Date(to) - new Date(from)) / 86400000;
+    if (rangeDays < 0)
+      return res.status(400).json({ error: 'from must not be after to' });
+    if (rangeDays > 365)
+      return res.status(400).json({ error: 'Date range cannot exceed 365 days' });
+
     const { rows } = await pool.query(`
       SELECT
         ab.date, ab.subject, ab.class_name, ab.scheduled_period,
@@ -154,6 +163,16 @@ router.get('/reports/absences', async (req, res, next) => {
 router.get('/reports/remedial', async (req, res, next) => {
   try {
     const { status, from, to } = req.query;
+
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    if (from && !dateRe.test(from)) return res.status(400).json({ error: 'from must be a YYYY-MM-DD date' });
+    if (to   && !dateRe.test(to))   return res.status(400).json({ error: 'to must be a YYYY-MM-DD date' });
+    if (from && to) {
+      const rangeDays = (new Date(to) - new Date(from)) / 86400000;
+      if (rangeDays < 0)   return res.status(400).json({ error: 'from must not be after to' });
+      if (rangeDays > 365) return res.status(400).json({ error: 'Date range cannot exceed 365 days' });
+    }
+
     const conditions = [`rl.school_id = $1`];
     const params = [req.schoolId];
 
@@ -375,6 +394,13 @@ router.post('/attendance', async (req, res, next) => {
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
       return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+
+    const { rows: teacherCheck } = await pool.query(
+      `SELECT id FROM teachers WHERE id = $1 AND school_id = $2 AND status = 'Active'`,
+      [teacherId, req.schoolId]
+    );
+    if (!teacherCheck.length)
+      return res.status(400).json({ error: 'Teacher not found in this school' });
 
     // Resolve current academic year
     const { rows: ayRows } = await pool.query(
