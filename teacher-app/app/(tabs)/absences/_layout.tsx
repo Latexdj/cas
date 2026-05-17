@@ -10,7 +10,10 @@ export default function AbsencesLayout() {
         headerTitleStyle: { fontWeight: '700' },
       }}
     >
-      <Stack.Screen name="index"    options={{ title: 'My Absences' }} />
+      <Stack.Screen name="index"    options={{ title: 'Absences & Leave' }} />
+      <Stack.Screen name="list"     options={{ title: 'Outstanding Absences' }} />
+      <Stack.Screen name="remedials" options={{ title: 'Remedial Lessons' }} />
+      <Stack.Screen name="leaves"   options={{ title: 'Leave Requests' }} />
       <Stack.Screen name="remedial" options={{ title: 'Schedule Remedial' }} />
     </Stack>
   );
