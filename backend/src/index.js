@@ -25,6 +25,7 @@ const programRoutes           = require('./routes/programs');
 const classroomQrRoutes       = require('./routes/classroom-qr');
 const notificationsRoutes     = require('./routes/notifications');
 const auditLogRoutes          = require('./routes/audit-log');
+const schoolBreaksRoutes      = require('./routes/school-breaks');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -58,6 +59,7 @@ app.use('/api/programs',           programRoutes);
 app.use('/api/classroom-qr',       classroomQrRoutes);
 app.use('/api/notifications',      notificationsRoutes);
 app.use('/api/audit-log',          auditLogRoutes);
+app.use('/api/school-breaks',      schoolBreaksRoutes);
 
 app.use(errorHandler);
 
@@ -133,6 +135,18 @@ async function runMigrations() {
     `);
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS qr_secret TEXT`);
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS qr_rotated_at TIMESTAMPTZ`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_breaks (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        day_of_week INTEGER,
+        start_time  TIME NOT NULL,
+        end_time    TIME NOT NULL,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, day_of_week, start_time)
+      )
+    `);
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

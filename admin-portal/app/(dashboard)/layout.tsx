@@ -14,6 +14,7 @@ const pageTitles: Record<string, string> = {
   '/absences':           'Absences & Remedials',
   '/manual-entry':       'Manual Attendance Entry',
   '/timetable':          'Timetable',
+  '/school-breaks':      'Bell Schedule',
   '/academic-years':     'Academic Years',
   '/curriculum':         'Curriculum',
   '/school-calendar':    'School Calendar',
