@@ -2,13 +2,14 @@ const router = require('express').Router();
 const bcrypt = require('bcrypt');
 const jwt    = require('jsonwebtoken');
 const pool   = require('../config/db');
+const { loginLimiter, schoolLookupLimiter } = require('../middleware/rateLimiter');
 
 function signToken(payload, expiresIn) {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
 }
 
 // GET /api/auth/school/:code — public, resolves a school code to its name
-router.get('/school/:code', async (req, res, next) => {
+router.get('/school/:code', schoolLookupLimiter, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, primary_color, accent_color, logo_url FROM schools WHERE UPPER(code) = UPPER($1)`,
@@ -24,7 +25,7 @@ router.get('/school/:code', async (req, res, next) => {
 // POST /api/auth/login
 // Body: { type: 'teacher'|'admin', username, password, schoolId|schoolCode }
 //   or: { type: 'super_admin', username, password }
-router.post('/login', async (req, res, next) => {
+router.post('/login', loginLimiter, async (req, res, next) => {
   try {
     const { type } = req.body;
 
