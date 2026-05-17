@@ -32,7 +32,22 @@ const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+
+// CORS — restrict to explicit origin in production.
+// Set CORS_ORIGIN env var to your frontend URL (e.g. https://app.yourschool.com).
+// Multiple origins: comma-separated list.
+if (process.env.NODE_ENV === 'production' && !process.env.CORS_ORIGIN) {
+  console.warn('[WARN] CORS_ORIGIN is not set in production — defaulting to *. Set it to your frontend URL.');
+}
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+  : '*';
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
 // 10 mb limit to handle base64 classroom photos
 app.use(express.json({ limit: '10mb' }));
 

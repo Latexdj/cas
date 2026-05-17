@@ -1,6 +1,19 @@
 const jwt  = require('jsonwebtoken');
 const pool = require('../config/db');
 
+// In-memory subscription cache — avoids a DB round-trip on every API request.
+// TTL of 5 minutes is acceptable: a newly activated or expired subscription
+// takes effect within 5 minutes without any explicit invalidation needed.
+const subCache = new Map(); // schoolId → { status, ends_at, cachedAt }
+const SUB_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function clearSubCache(schoolId) {
+  if (schoolId) subCache.delete(schoolId);
+  else subCache.clear();
+}
+// Export so routes that change subscription status can bust the cache.
+module.exports.clearSubCache = clearSubCache;
+
 async function authenticate(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
@@ -57,27 +70,38 @@ async function requireActiveSubscription(req, res, next) {
   }
 
   try {
-    const { rows } = await pool.query(
-      `SELECT status, ends_at
-       FROM subscriptions
-       WHERE school_id = $1
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [req.schoolId]
-    );
+    const schoolId = req.schoolId;
+    const now = Date.now();
+    const cached = subCache.get(schoolId);
 
-    if (!rows.length) {
-      return res.status(403).json({ error: 'No subscription found for this school' });
+    let sub;
+    if (cached && (now - cached.cachedAt) < SUB_CACHE_TTL_MS) {
+      sub = { status: cached.status, ends_at: cached.ends_at };
+    } else {
+      const { rows } = await pool.query(
+        `SELECT status, ends_at
+         FROM subscriptions
+         WHERE school_id = $1
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [schoolId]
+      );
+
+      if (!rows.length) {
+        return res.status(403).json({ error: 'No subscription found for this school' });
+      }
+
+      sub = rows[0];
+      subCache.set(schoolId, { status: sub.status, ends_at: sub.ends_at, cachedAt: now });
     }
-
-    const sub = rows[0];
 
     // Auto-expire if the end date has passed
     if (sub.ends_at && new Date(sub.ends_at) < new Date()) {
+      subCache.delete(schoolId);
       await pool.query(
         `UPDATE subscriptions SET status = 'expired', updated_at = now()
          WHERE school_id = $1 AND status IN ('trial', 'active')`,
-        [req.schoolId]
+        [schoolId]
       );
       return res.status(403).json({
         error: 'subscription_expired',

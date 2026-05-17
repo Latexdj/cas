@@ -13,21 +13,36 @@ function getDayName(dayOfWeek) {
   return ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][dayOfWeek];
 }
 
-async function hasAttendance(schoolId, teacherId, subject, className, date) {
+function timeToMinutes(timeStr) {
+  const [h, m] = timeStr.slice(0, 5).split(':').map(Number);
+  return h * 60 + m;
+}
+
+// Bulk-fetch all attendance records for a school+date and return a fast lookup function.
+// Replaces per-class DB queries (N+1) with a single query + in-memory check.
+async function buildAttendanceLookup(schoolId, date) {
   const { rows } = await pool.query(
-    `SELECT class_names FROM attendance
-     WHERE school_id = $1 AND date = $2 AND teacher_id = $3 AND LOWER(subject) = LOWER($4)`,
-    [schoolId, date, teacherId, subject]
+    `SELECT teacher_id, subject, class_names FROM attendance WHERE school_id = $1 AND date = $2`,
+    [schoolId, date]
   );
 
-  const target = className.trim().toLowerCase();
+  // Map: "teacherId:subjectLower" → flattened array of individual class names (lowercased)
+  const index = new Map();
   for (const row of rows) {
+    const key = `${row.teacher_id}:${row.subject.toLowerCase()}`;
     const classes = row.class_names.split(',').map(c => c.trim().toLowerCase()).filter(Boolean);
-    if (classes.some(c => c === target || c.includes(target) || target.includes(c))) {
-      return true;
-    }
+    const existing = index.get(key);
+    if (existing) existing.push(...classes);
+    else index.set(key, classes);
   }
-  return false;
+
+  return function hasAttendance(teacherId, subject, className) {
+    const key = `${teacherId}:${subject.toLowerCase()}`;
+    const recorded = index.get(key);
+    if (!recorded) return false;
+    const target = className.trim().toLowerCase();
+    return recorded.some(c => c === target || c.includes(target) || target.includes(c));
+  };
 }
 
 // Core absence-check logic — scoped to a single school.
@@ -61,7 +76,7 @@ async function runAbsenceCheck(schoolId) {
     console.log(`[AbsenceCheck] ${excusedTeacherIds.size} teacher(s) excused today`);
   }
 
-  // Fetch all lessons today — use class_names (plural) which is the actual column name
+  // Fetch all lessons today
   const { rows: lessons } = await pool.query(`
     SELECT
       tt.id           AS slot_id,
@@ -79,16 +94,17 @@ async function runAbsenceCheck(schoolId) {
 
   console.log(`[AbsenceCheck] ${lessons.length} timetable slot(s) for school ${schoolId}`);
 
+  // Single bulk query replaces per-class hasAttendance() calls
+  const hasAttendance = await buildAttendanceLookup(schoolId, today);
+
   const newAbsences = [];
 
   for (const lesson of lessons) {
-    // Skip excused teachers
     if (excusedTeacherIds.has(lesson.teacher_id)) {
       console.log(`[AbsenceCheck] Excused: ${lesson.teacher_name}`);
       continue;
     }
 
-    // Split merged class groups (e.g. "1A, 1B, 1C") into individual classes
     const individualClasses = lesson.class_names
       .split(',')
       .map(c => c.trim())
@@ -96,10 +112,7 @@ async function runAbsenceCheck(schoolId) {
 
     for (const className of individualClasses) {
       try {
-        const present = await hasAttendance(
-          schoolId, lesson.teacher_id, lesson.subject, className, today
-        );
-        if (present) continue;
+        if (hasAttendance(lesson.teacher_id, lesson.subject, className)) continue;
 
         const { rows: inserted } = await pool.query(`
           INSERT INTO absences
@@ -148,11 +161,6 @@ async function runAbsenceCheck(schoolId) {
   return { date: today, schoolId, newAbsences: newAbsences.length };
 }
 
-function timeToMinutes(timeStr) {
-  const [h, m] = timeStr.slice(0, 5).split(':').map(Number);
-  return h * 60 + m;
-}
-
 // Per-lesson check: marks absent only for lessons whose grace period (end + 30 min) has passed.
 async function runPerLessonCheck(schoolId) {
   const today     = new Date().toISOString().slice(0, 10);
@@ -182,17 +190,17 @@ async function runPerLessonCheck(schoolId) {
     WHERE tt.school_id = $1 AND tt.day_of_week = $2
   `, [schoolId, dayOfWeek]);
 
+  // Single bulk query replaces per-class hasAttendance() calls
+  const hasAttendance = await buildAttendanceLookup(schoolId, today);
+
   for (const lesson of lessons) {
     if (excusedIds.has(lesson.teacher_id)) continue;
-
-    // Only process lessons whose grace period (end_time + 30 min) has passed
     if (timeToMinutes(lesson.end_time) + 30 > nowMins) continue;
 
     const individualClasses = lesson.class_names.split(',').map(c => c.trim()).filter(Boolean);
     for (const className of individualClasses) {
       try {
-        const present = await hasAttendance(schoolId, lesson.teacher_id, lesson.subject, className, today);
-        if (present) continue;
+        if (hasAttendance(lesson.teacher_id, lesson.subject, className)) continue;
 
         await pool.query(`
           INSERT INTO absences
