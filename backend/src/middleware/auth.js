@@ -1,7 +1,7 @@
 const jwt  = require('jsonwebtoken');
 const pool = require('../config/db');
 
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Authentication required' });
@@ -9,9 +9,27 @@ function authenticate(req, res, next) {
   try {
     req.user     = jwt.verify(header.slice(7), process.env.JWT_SECRET);
     req.schoolId = req.user.schoolId || null;
+
+    // Re-validate teacher/admin accounts on every request so that
+    // deactivating a user takes effect immediately, not after token expiry.
+    if (req.user.role === 'teacher' || req.user.role === 'admin') {
+      const { rows } = await pool.query(
+        `SELECT status FROM teachers WHERE id = $1 AND school_id = $2`,
+        [req.user.id, req.schoolId]
+      );
+      if (!rows.length || rows[0].status !== 'Active') {
+        return res.status(401).json({
+          error: 'Your account has been deactivated. Please contact your administrator.',
+        });
+      }
+    }
+
     next();
-  } catch {
-    res.status(401).json({ error: 'Invalid or expired token' });
+  } catch (err) {
+    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+    next(err);
   }
 }
 

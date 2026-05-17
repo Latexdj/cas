@@ -55,11 +55,6 @@ router.post('/submit', async (req, res, next) => {
     const today      = new Date().toISOString().slice(0, 10);
     const weekNumber = getWeekNumber(new Date());
 
-    const overlap = await findDuplicateClass(teacherId, today, subject, classNames);
-    if (overlap) {
-      return res.status(409).json({ error: `Attendance already recorded for: ${overlap.join(', ')} today` });
-    }
-
     // Block if teacher has been auto-marked absent for any of the submitted classes
     const classList = classNames.split(',').map(c => c.trim().toLowerCase()).filter(Boolean);
     if (classList.length > 0) {
@@ -106,28 +101,67 @@ router.post('/submit', async (req, res, next) => {
       });
     }
 
-    // Upload photo
+    // Upload photo first (external call — cannot be inside a DB transaction)
     const { rows: tRows } = await pool.query(`SELECT name FROM teachers WHERE id = $1`, [teacherId]);
     const tName    = tRows[0]?.name || teacherId;
     const fileName = `${req.schoolId}/${tName}_${today}_${classNames.replace(/,\s*/g,'_')}_${Date.now()}.png`;
     const photoUrl = await uploadPhoto(imageBase64, fileName);
 
-    const { rows } = await pool.query(
-      `INSERT INTO attendance
-         (school_id, date, academic_year_id, semester, teacher_id,
-          subject, class_names, periods, topic, gps_coordinates,
-          photo_url, week_number, location_id, location_name,
-          location_verified, location_verification_message, photo_size_kb)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-       RETURNING *`,
-      [
-        req.schoolId, today, yearId, sem, teacherId,
-        subject, classNames, periods, topic||null, gpsCoordinates||null,
-        photoUrl, weekNumber, locationId, locationName||null,
-        locationVerified, locationMsg, photoSizeKb||null,
-      ]
-    );
-    res.status(201).json({ message: 'Attendance recorded', record: rows[0], locationMessage: locationMsg });
+    // Atomic duplicate-check + insert using a PostgreSQL advisory lock.
+    // This serialises concurrent submissions for the same teacher/date/subject
+    // so two simultaneous requests cannot both pass the duplicate check and
+    // both insert — the second will wait, re-check, and get a 409.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Advisory lock key: scoped to teacher + date + subject (case-insensitive).
+      // pg_advisory_xact_lock blocks until the lock is available and auto-releases at COMMIT/ROLLBACK.
+      await client.query(
+        `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+        [`${teacherId}:${today}`, subject.toLowerCase()]
+      );
+
+      // Re-check for duplicates while holding the lock
+      const { rows: existingRows } = await client.query(
+        `SELECT class_names FROM attendance
+         WHERE school_id = $1 AND date = $2 AND teacher_id = $3 AND LOWER(subject) = LOWER($4)`,
+        [req.schoolId, today, teacherId, subject]
+      );
+      const submitted = classNames.split(',').map(c => c.trim().toLowerCase()).filter(Boolean);
+      for (const row of existingRows) {
+        const existing = row.class_names.split(',').map(c => c.trim().toLowerCase()).filter(Boolean);
+        const overlap  = submitted.filter(c => existing.includes(c));
+        if (overlap.length) {
+          await client.query('ROLLBACK');
+          return res.status(409).json({ error: `Attendance already recorded for: ${overlap.join(', ')} today` });
+        }
+      }
+
+      const { rows } = await client.query(
+        `INSERT INTO attendance
+           (school_id, date, academic_year_id, semester, teacher_id,
+            subject, class_names, periods, topic, gps_coordinates,
+            photo_url, week_number, location_id, location_name,
+            location_verified, location_verification_message, photo_size_kb)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+         RETURNING *`,
+        [
+          req.schoolId, today, yearId, sem, teacherId,
+          subject, classNames, periods, topic||null, gpsCoordinates||null,
+          photoUrl, weekNumber, locationId, locationName||null,
+          locationVerified, locationMsg, photoSizeKb||null,
+        ]
+      );
+
+      await client.query('COMMIT');
+      res.status(201).json({ message: 'Attendance recorded', record: rows[0], locationMessage: locationMsg });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) { next(err); }
 });
 
