@@ -155,7 +155,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
           )}
           <span className="text-base font-bold leading-tight" style={{ color: primary }}>Teacher Portal</span>
         </div>
-        <nav className="flex-1 py-4 space-y-1 px-3">
+        <nav className="flex-1 py-4 space-y-1 px-3 overflow-y-auto no-scrollbar">
           {NAV_ITEMS.map((item) => {
             const active  = isActive(item.href);
             const isAlert = item.href === '/teacher/notifications';

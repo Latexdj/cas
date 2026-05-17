@@ -127,7 +127,7 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-4 px-3">
+      <nav className="flex-1 overflow-y-auto no-scrollbar py-4 px-3">
         {sections.map((section, si) => (
           <div key={section.label} className={si > 0 ? 'mt-5' : ''}>
             <p className="px-3 text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: '#334155' }}>

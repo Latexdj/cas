@@ -64,7 +64,7 @@ export default function SuperAdminShell({ children }: { children: React.ReactNod
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto no-scrollbar">
           {NAV.map(item => {
             const active = item.href === '/super-admin'
               ? pathname === '/super-admin'
