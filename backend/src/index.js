@@ -135,6 +135,7 @@ async function runMigrations() {
     `);
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS qr_secret TEXT`);
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS qr_rotated_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS period_duration_minutes INTEGER NOT NULL DEFAULT 60`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS school_breaks (
         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

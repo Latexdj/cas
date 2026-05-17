@@ -335,12 +335,13 @@ router.get('/', async (req, res, next) => {
                 WHERE sb.school_id = $1
                   AND (sb.day_of_week IS NULL OR sb.day_of_week = tt.day_of_week)
             ), 0)
-          ) / 3600
+          ) / (s.period_duration_minutes * 60.0)
         ), 0)::numeric)::integer AS total_periods
       FROM teachers t
+      JOIN schools s ON s.id = $1
       LEFT JOIN timetable tt ON tt.teacher_id = t.id AND tt.school_id = $1
       WHERE t.school_id = $1
-      GROUP BY t.id
+      GROUP BY t.id, s.period_duration_minutes
       ORDER BY t.teacher_code
     `, [req.schoolId]);
     res.json(rows);

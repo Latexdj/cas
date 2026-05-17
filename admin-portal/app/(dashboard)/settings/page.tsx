@@ -9,6 +9,7 @@ interface SchoolSettings {
   primary_color: string;
   accent_color: string;
   logo_url?: string | null;
+  period_duration_minutes: number;
 }
 
 function compressToBase64(file: File): Promise<string> {
@@ -105,14 +106,37 @@ export default function SettingsPage() {
   const [logoSaved,    setLogoSaved]    = useState(false);
   const [logoError,    setLogoError]    = useState('');
 
+  // Period duration state
+  const [periodMins,      setPeriodMins]      = useState(60);
+  const [periodSaving,    setPeriodSaving]    = useState(false);
+  const [periodSaved,     setPeriodSaved]     = useState(false);
+  const [periodError,     setPeriodError]     = useState('');
+
   useEffect(() => {
     api.get<SchoolSettings>('/api/admin/settings').then(r => {
       setSettings(r.data);
       setPrimary(r.data.primary_color);
       setAccent(r.data.accent_color);
       setLogoUrl(r.data.logo_url ?? null);
+      setPeriodMins(r.data.period_duration_minutes ?? 60);
     }).finally(() => setLoading(false));
   }, []);
+
+  async function savePeriodDuration() {
+    if (!periodMins || periodMins < 1 || periodMins > 480) {
+      setPeriodError('Must be between 1 and 480 minutes.');
+      return;
+    }
+    setPeriodSaving(true); setPeriodError(''); setPeriodSaved(false);
+    try {
+      await api.patch('/api/admin/settings/scheduling', { period_duration_minutes: periodMins });
+      setPeriodSaved(true);
+      setTimeout(() => setPeriodSaved(false), 3000);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setPeriodError(msg ?? 'Failed to save.');
+    } finally { setPeriodSaving(false); }
+  }
 
   async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -214,6 +238,56 @@ export default function SettingsPage() {
             {logoError  && <p className="text-xs mt-2" style={{ color: '#DC2626' }}>{logoError}</p>}
             {!logoUrl   && !logoSaved && <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>No logo uploaded yet.</p>}
           </div>
+        </div>
+      </div>
+
+      {/* Period Duration */}
+      <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>Scheduling</h2>
+        <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
+          Set how many minutes make up one period at your school. This is used to calculate periods
+          from timetable start and end times, with break times automatically deducted.
+        </p>
+
+        <div className="max-w-xs space-y-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#475569' }}>
+              Minutes per Period
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min={1}
+                max={480}
+                value={periodMins}
+                onChange={e => { setPeriodMins(parseInt(e.target.value, 10) || 0); setPeriodError(''); }}
+                className="w-28 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <span className="text-sm text-slate-500">minutes</span>
+            </div>
+            {periodMins >= 1 && (
+              <p className="text-xs mt-2" style={{ color: '#64748B' }}>
+                {periodMins < 60
+                  ? `${periodMins} min per period`
+                  : periodMins === 60
+                    ? '1 hour per period'
+                    : periodMins % 60 === 0
+                      ? `${periodMins / 60} hours per period`
+                      : `${Math.floor(periodMins / 60)}h ${periodMins % 60}min per period`}
+              </p>
+            )}
+          </div>
+
+          {periodError && (
+            <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>{periodError}</p>
+          )}
+          {periodSaved && (
+            <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#F0FDF4', color: '#15803D' }}>✓ Period duration saved.</p>
+          )}
+
+          <Button onClick={savePeriodDuration} loading={periodSaving}>
+            Save Period Duration
+          </Button>
         </div>
       </div>
 

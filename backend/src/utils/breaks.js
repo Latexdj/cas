@@ -17,9 +17,10 @@ async function fetchBreaks(schoolId, dayOfWeek) {
 
 /**
  * Calculate net periods for a lesson, subtracting any overlapping breaks.
+ * periodMins: minutes per period for this school (default 60).
  * Returns at least 1.
  */
-function effectivePeriods(startTime, endTime, breaks) {
+function effectivePeriods(startTime, endTime, breaks, periodMins = 60) {
   const start = timeToMins(startTime);
   const end   = timeToMins(endTime);
   let netMins = end - start;
@@ -32,7 +33,7 @@ function effectivePeriods(startTime, endTime, breaks) {
     if (overlapEnd > overlapStart) netMins -= (overlapEnd - overlapStart);
   }
 
-  return Math.max(1, Math.round(netMins / 60));
+  return Math.max(1, Math.round(netMins / periodMins));
 }
 
 module.exports = { fetchBreaks, effectivePeriods };

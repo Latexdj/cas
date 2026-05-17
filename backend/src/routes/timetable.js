@@ -72,7 +72,7 @@ router.get('/by-date', async (req, res, next) => {
     const jsDay     = new Date(y, m - 1, d).getDay();
     const dayOfWeek = jsDay === 0 ? 7 : jsDay;
 
-    const [{ rows }, breaks] = await Promise.all([
+    const [{ rows }, breaks, schoolRows] = await Promise.all([
       pool.query(`
         SELECT id, day_of_week, start_time, end_time, subject, class_names
         FROM timetable
@@ -80,11 +80,13 @@ router.get('/by-date', async (req, res, next) => {
         ORDER BY start_time
       `, [req.schoolId, teacherId, dayOfWeek]),
       fetchBreaks(req.schoolId, dayOfWeek),
+      pool.query(`SELECT period_duration_minutes FROM schools WHERE id = $1`, [req.schoolId]),
     ]);
 
+    const periodMins = schoolRows.rows[0]?.period_duration_minutes ?? 60;
     res.json(rows.map(r => ({
       ...r,
-      periods: effectivePeriods(r.start_time, r.end_time, breaks),
+      periods: effectivePeriods(r.start_time, r.end_time, breaks, periodMins),
       classes: r.class_names.split(',').map(c => c.trim()).filter(Boolean),
     })));
   } catch (err) { next(err); }
@@ -95,7 +97,7 @@ router.get('/today/:teacherId', async (req, res, next) => {
     const jsDay     = new Date().getDay();
     const dayOfWeek = jsDay === 0 ? 7 : jsDay;
 
-    const [{ rows }, breaks] = await Promise.all([
+    const [{ rows }, breaks, schoolRows] = await Promise.all([
       pool.query(`
         SELECT id, day_of_week, start_time, end_time, subject, class_names
         FROM timetable
@@ -103,11 +105,13 @@ router.get('/today/:teacherId', async (req, res, next) => {
         ORDER BY start_time
       `, [req.schoolId, req.params.teacherId, dayOfWeek]),
       fetchBreaks(req.schoolId, dayOfWeek),
+      pool.query(`SELECT period_duration_minutes FROM schools WHERE id = $1`, [req.schoolId]),
     ]);
 
+    const periodMins = schoolRows.rows[0]?.period_duration_minutes ?? 60;
     res.json(rows.map(r => ({
       ...r,
-      periods: effectivePeriods(r.start_time, r.end_time, breaks),
+      periods: effectivePeriods(r.start_time, r.end_time, breaks, periodMins),
     })));
   } catch (err) { next(err); }
 });
