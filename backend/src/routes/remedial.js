@@ -227,7 +227,7 @@ router.patch('/:id/verify', adminOnly, async (req, res, next) => {
            updated_at = now()
        WHERE id = $3 AND school_id = $4 AND status = 'Completed'
        RETURNING *`,
-      ['Admin', notes || null, req.params.id, req.schoolId]
+      [req.user.name || 'Admin', notes || null, req.params.id, req.schoolId]
     );
     if (!rows.length) {
       return res.status(404).json({ error: 'Remedial lesson not found or not yet completed' });

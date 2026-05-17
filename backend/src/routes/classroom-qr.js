@@ -115,7 +115,11 @@ router.post('/verify', async (req, res, next) => {
 
     const expected     = await buildToken(req.schoolId, parsed.className);
     const expectedHmac = parseToken(expected).hmac;
-    if (parsed.hmac !== expectedHmac) {
+    // Use constant-time comparison to prevent timing attacks on the HMAC
+    const aBuf = Buffer.from(parsed.hmac.padEnd(expectedHmac.length, '0'), 'hex');
+    const bBuf = Buffer.from(expectedHmac, 'hex');
+    const hmacValid = aBuf.length === bBuf.length && crypto.timingSafeEqual(aBuf, bBuf);
+    if (!hmacValid) {
       return res.status(400).json({ error: 'QR code is invalid or has been tampered with' });
     }
 

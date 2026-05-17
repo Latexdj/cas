@@ -67,6 +67,7 @@ router.get('/by-date', async (req, res, next) => {
   try {
     const { teacherId, date } = req.query;
     if (!teacherId || !date) return res.status(400).json({ error: 'teacherId and date are required' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
 
     const [y, m, d] = date.split('-').map(Number);
     const jsDay     = new Date(y, m - 1, d).getDay();

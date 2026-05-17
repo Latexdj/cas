@@ -18,9 +18,26 @@ router.post('/submit', async (req, res, next) => {
     if (!teacherId || !subject || !className || !Array.isArray(records) || !records.length) {
       return res.status(400).json({ error: 'teacherId, subject, className, and records[] are required' });
     }
+    if (records.length > 500) {
+      return res.status(400).json({ error: 'Cannot submit more than 500 student records at once' });
+    }
 
     if (req.user.role === 'teacher' && req.user.id !== teacherId) {
       return res.status(403).json({ error: 'You can only submit attendance for yourself' });
+    }
+
+    // Validate all submitted student IDs belong to this school in one query
+    const uniqueStudentIds = [...new Set(records.map(r => r.studentId).filter(Boolean))];
+    if (uniqueStudentIds.length) {
+      const { rows: validStudents } = await pool.query(
+        `SELECT id FROM students WHERE school_id = $1 AND id = ANY($2::uuid[])`,
+        [req.schoolId, uniqueStudentIds]
+      );
+      const validSet = new Set(validStudents.map(s => s.id));
+      const invalid  = uniqueStudentIds.filter(id => !validSet.has(id));
+      if (invalid.length) {
+        return res.status(400).json({ error: `${invalid.length} student ID(s) not found in this school` });
+      }
     }
 
     const { rows: ayRows } = await pool.query(
@@ -59,14 +76,20 @@ router.post('/submit', async (req, res, next) => {
       const sessionId = sessRows[0].id;
 
       const validStatuses = new Set(['Present', 'Absent', 'Late']);
-      for (const rec of records) {
-        await client.query(
-          `INSERT INTO student_attendance_records (school_id, session_id, student_id, status)
-           VALUES ($1,$2,$3,$4)`,
-          [req.schoolId, sessionId, rec.studentId,
-           validStatuses.has(rec.status) ? rec.status : 'Present']
+      const bulkValues = [];
+      const bulkParams = [];
+      records.forEach((rec, i) => {
+        const b = i * 4;
+        bulkParams.push(
+          req.schoolId, sessionId, rec.studentId,
+          validStatuses.has(rec.status) ? rec.status : 'Present'
         );
-      }
+        bulkValues.push(`($${b+1},$${b+2},$${b+3},$${b+4})`);
+      });
+      await client.query(
+        `INSERT INTO student_attendance_records (school_id, session_id, student_id, status) VALUES ${bulkValues.join(',')}`,
+        bulkParams
+      );
 
       await client.query('COMMIT');
       const present = records.filter(r => r.status === 'Present').length;
@@ -119,10 +142,10 @@ router.get('/session/:sessionId', async (req, res, next) => {
       `SELECT r.id, r.status, r.updated_at,
               st.id AS student_id, st.student_code, st.name, st.class_name
        FROM student_attendance_records r
-       JOIN students st ON st.id = r.student_id
+       JOIN students st ON st.id = r.student_id AND st.school_id = $2
        WHERE r.session_id = $1
        ORDER BY st.name`,
-      [req.params.sessionId]
+      [req.params.sessionId, req.schoolId]
     );
     res.json({ session: sess[0], records });
   } catch (err) { next(err); }
