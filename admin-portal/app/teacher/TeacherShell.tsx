@@ -184,6 +184,13 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+
+        {/* Credit */}
+        <div className="px-4 py-3.5 border-t border-[#E2D9CC] text-center">
+          <p className="text-[9px] font-semibold uppercase tracking-widest text-[#8C7E6E]">Designed by</p>
+          <p className="text-[11px] font-bold mt-0.5" style={{ color: primary }}>LatexTech</p>
+          <p className="text-[9px] text-[#8C7E6E] mt-0.5">+233 24 8234 649</p>
+        </div>
       </aside>
 
       {/* Main content */}

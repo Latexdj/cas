@@ -88,8 +88,8 @@ export default function SuperAdminShell({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        {/* Logout */}
-        <div className="px-3 py-4 border-t border-slate-700/60">
+        {/* Logout + credit */}
+        <div className="px-3 py-4 border-t border-slate-700/60 space-y-3">
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
@@ -99,6 +99,11 @@ export default function SuperAdminShell({ children }: { children: React.ReactNod
             </svg>
             Sign Out
           </button>
+          <div className="pt-2.5 border-t border-slate-700/40 text-center">
+            <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-600">Designed by</p>
+            <p className="text-[11px] font-bold text-indigo-400 mt-0.5">LatexTech</p>
+            <p className="text-[9px] text-slate-600 mt-0.5">+233 24 8234 649</p>
+          </div>
         </div>
       </aside>
 

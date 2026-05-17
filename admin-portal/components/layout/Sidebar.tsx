@@ -158,8 +158,17 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-        <p className="text-xs text-center" style={{ color: '#334155' }}>Classroom Attendance System</p>
+      <div className="px-4 py-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+        <p className="text-[10px] text-center font-medium tracking-wide" style={{ color: '#475569' }}>
+          Classroom Attendance System
+        </p>
+        <div className="mt-2.5 pt-2.5 border-t text-center" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
+          <p className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: '#334155' }}>
+            Designed by
+          </p>
+          <p className="text-[11px] font-bold mt-0.5" style={{ color: '#4ADE80' }}>LatexTech</p>
+          <p className="text-[9px] mt-0.5" style={{ color: '#475569' }}>+233 24 8234 649</p>
+        </div>
       </div>
     </aside>
   );

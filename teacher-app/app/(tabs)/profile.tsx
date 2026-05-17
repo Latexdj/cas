@@ -162,6 +162,14 @@ export default function ProfileScreen() {
       </View>
 
       <Button label="Log Out" variant="danger" onPress={handleLogout} style={styles.logout} />
+
+      {/* Credit */}
+      <View style={styles.credit}>
+        <View style={styles.creditDivider} />
+        <Text style={styles.creditLabel}>Designed by</Text>
+        <Text style={styles.creditBrand}>LatexTech</Text>
+        <Text style={styles.creditPhone}>+233 24 8234 649</Text>
+      </View>
     </ScrollView>
   );
 }
@@ -188,6 +196,11 @@ const styles = StyleSheet.create({
   rowLabel:        { fontSize: 14, color: '#8C7E6E' },
   rowValue:        { fontSize: 14, fontWeight: '600', color: '#1C1208', maxWidth: '55%', textAlign: 'right' },
   logout:          { marginHorizontal: 16, marginTop: 8 },
+  credit:          { alignItems: 'center', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 32 },
+  creditDivider:   { width: 48, height: 1, backgroundColor: '#E2D9CC', marginBottom: 16 },
+  creditLabel:     { fontSize: 10, color: '#A09282', fontWeight: '600', letterSpacing: 1, textTransform: 'uppercase' },
+  creditBrand:     { fontSize: 14, fontWeight: '800', color: '#1C1208', marginTop: 4, letterSpacing: -0.3 },
+  creditPhone:     { fontSize: 11, color: '#A09282', marginTop: 3, fontWeight: '500' },
   // Camera
   cameraContainer: { flex: 1, backgroundColor: '#000' },
   camera:          { flex: 1 },
