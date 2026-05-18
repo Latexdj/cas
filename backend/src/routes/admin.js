@@ -5,6 +5,7 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 const { runAbsenceCheck } = require('../jobs/absenceCheck');
 const { getWeekNumber }   = require('../services/geo.service');
 const { uploadFile }      = require('../services/storage.service');
+const { sendTeacherCredentials } = require('../services/email.service');
 
 // Public deployment-check endpoint (no auth needed)
 router.get('/version', (_req, res) => res.json({ version: '2', has_settings: true }));
@@ -381,6 +382,78 @@ router.patch('/teachers/:id/reset-pin', async (req, res, next) => {
     );
     if (!rowCount) return res.status(404).json({ error: 'Teacher not found' });
     res.json({ message: 'PIN reset successfully', pin: newPin });
+  } catch (err) { next(err); }
+});
+
+// POST /api/admin/teachers/:id/send-credentials
+// Generates a fresh random 6-digit PIN, saves it, and emails it to the teacher.
+router.post('/teachers/:id/send-credentials', async (req, res, next) => {
+  try {
+    const { rows: teachers } = await pool.query(
+      `SELECT id, name, email, teacher_code FROM teachers WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!teachers.length) return res.status(404).json({ error: 'Teacher not found' });
+    const teacher = teachers[0];
+    if (!teacher.email) return res.status(400).json({ error: 'Teacher has no email address on record.' });
+
+    const { rows: schools } = await pool.query(
+      `SELECT name, code FROM schools WHERE id = $1`, [req.schoolId]
+    );
+    const school = schools[0];
+
+    const pin = String(Math.floor(100000 + Math.random() * 900000));
+    const pinHash = await bcrypt.hash(pin, 12);
+    await pool.query(
+      `UPDATE teachers SET pin_hash = $1, updated_at = now() WHERE id = $2`,
+      [pinHash, teacher.id]
+    );
+
+    await sendTeacherCredentials(teacher, school, pin);
+    res.json({ message: 'Credentials sent', email: teacher.email, pin });
+  } catch (err) { next(err); }
+});
+
+// POST /api/admin/teachers/send-credentials-bulk
+// Sends credentials to all active teachers who have email addresses.
+router.post('/teachers/send-credentials-bulk', async (req, res, next) => {
+  try {
+    const { rows: schools } = await pool.query(
+      `SELECT name, code FROM schools WHERE id = $1`, [req.schoolId]
+    );
+    const school = schools[0];
+
+    const { rows: teachers } = await pool.query(
+      `SELECT id, name, email, teacher_code FROM teachers
+       WHERE school_id = $1 AND status = 'Active' AND email IS NOT NULL AND email != ''`,
+      [req.schoolId]
+    );
+
+    let sent = 0, failed = 0;
+    const errors = [];
+
+    for (const teacher of teachers) {
+      try {
+        const pin = String(Math.floor(100000 + Math.random() * 900000));
+        const pinHash = await bcrypt.hash(pin, 12);
+        await pool.query(
+          `UPDATE teachers SET pin_hash = $1, updated_at = now() WHERE id = $2`,
+          [pinHash, teacher.id]
+        );
+        await sendTeacherCredentials(teacher, school, pin);
+        sent++;
+      } catch (e) {
+        failed++;
+        errors.push({ name: teacher.name, error: e.message });
+      }
+    }
+
+    const skipped = (await pool.query(
+      `SELECT COUNT(*) FROM teachers WHERE school_id = $1 AND status = 'Active' AND (email IS NULL OR email = '')`,
+      [req.schoolId]
+    )).rows[0].count;
+
+    res.json({ sent, failed, skipped: Number(skipped), errors });
   } catch (err) { next(err); }
 });
 
