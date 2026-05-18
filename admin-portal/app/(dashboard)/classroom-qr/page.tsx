@@ -19,13 +19,14 @@ function daysSince(iso: string | null): number | null {
 }
 
 export default function ClassroomQrPage() {
-  const [items,          setItems]          = useState<ClassQr[]>([]);
-  const [loading,        setLoading]        = useState(true);
-  const [rotatedAt,      setRotatedAt]      = useState<string | null>(null);
-  const [showModal,      setShowModal]      = useState(false);
-  const [rotating,       setRotating]       = useState(false);
-  const [rotateError,    setRotateError]    = useState('');
-  const [justRotated,    setJustRotated]    = useState(false);
+  const [items,       setItems]       = useState<ClassQr[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [rotatedAt,   setRotatedAt]   = useState<string | null>(null);
+  const [showModal,   setShowModal]   = useState(false);
+  const [rotating,    setRotating]    = useState(false);
+  const [rotateError, setRotateError] = useState('');
+  const [justRotated, setJustRotated] = useState(false);
+  const [selected,    setSelected]    = useState<Set<string>>(new Set());
   const printRef = useRef<HTMLDivElement>(null);
 
   async function loadQrCodes() {
@@ -50,6 +51,7 @@ export default function ClassroomQrPage() {
         })
       );
       setItems(results);
+      setSelected(new Set(classes));
     } finally {
       setLoading(false);
     }
@@ -73,14 +75,28 @@ export default function ClassroomQrPage() {
     }
   }
 
+  function toggleClass(className: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(className)) next.delete(className); else next.add(className);
+      return next;
+    });
+  }
+
+  const allSelected  = items.length > 0 && selected.size === items.length;
+  const noneSelected = selected.size === 0;
+
+  function toggleAll() {
+    if (allSelected) setSelected(new Set());
+    else setSelected(new Set(items.map(i => i.className)));
+  }
+
   const days    = daysSince(rotatedAt);
   const ageText = rotatedAt === null
     ? 'Never rotated'
-    : days === 0
-      ? 'Rotated today'
-      : days === 1
-        ? 'Rotated yesterday'
-        : `Rotated ${days} days ago`;
+    : days === 0 ? 'Rotated today'
+    : days === 1 ? 'Rotated yesterday'
+    : `Rotated ${days} days ago`;
   const ageWarn = days !== null && days >= 7;
 
   return (
@@ -95,24 +111,31 @@ export default function ClassroomQrPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 no-print">
-          <button onClick={() => { setShowModal(true); setRotateError(''); }}
+          <button
+            onClick={() => { setShowModal(true); setRotateError(''); }}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border transition-colors"
-            style={{ borderColor: '#FCA5A5', color: '#DC2626', background: '#FFF8F8' }}>
+            style={{ borderColor: '#FCA5A5', color: '#DC2626', background: '#FFF8F8' }}
+          >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
               <path d="M23 4v6h-6M1 20v-6h6" />
               <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
             </svg>
             Rotate Codes
           </button>
-          <button onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white"
-            style={{ background: '#0F172A' }}>
+          <button
+            onClick={() => window.print()}
+            disabled={noneSelected}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: '#0F172A' }}
+          >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
               <polyline points="6 9 6 2 18 2 18 9" />
               <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
               <rect x="6" y="14" width="12" height="8" />
             </svg>
-            Print All
+            {selected.size === items.length
+              ? 'Print All'
+              : `Print Selected (${selected.size})`}
           </button>
         </div>
       </div>
@@ -131,7 +154,7 @@ export default function ClassroomQrPage() {
         )}
       </div>
 
-      {/* Success banner after rotation */}
+      {/* Success banner */}
       {justRotated && (
         <div className="no-print rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 font-medium">
           ✓ New QR codes generated. Print this page and replace all classroom sheets before the next lesson.
@@ -144,6 +167,52 @@ export default function ClassroomQrPage() {
         Teachers open the app, select their lesson, then scan the QR code on the wall — proving they are physically present in the correct room before they can submit.
         Rotate codes weekly or immediately if you suspect a code has been photographed.
       </div>
+
+      {/* Class filter bar */}
+      {!loading && items.length > 0 && (
+        <div className="no-print rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-slate-700">
+              Select classes to print
+              <span className="ml-2 text-xs font-normal text-slate-500">
+                {selected.size} of {items.length} selected
+              </span>
+            </p>
+            <button
+              onClick={toggleAll}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors"
+              style={{ borderColor: '#CBD5E1', color: '#475569', background: 'white' }}
+            >
+              {allSelected ? 'Deselect All' : 'Select All'}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {items.map(({ className }) => {
+              const active = selected.has(className);
+              return (
+                <button
+                  key={className}
+                  onClick={() => toggleClass(className)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors"
+                  style={active
+                    ? { background: '#0F172A', borderColor: '#0F172A', color: '#fff' }
+                    : { background: 'white', borderColor: '#CBD5E1', color: '#64748B' }
+                  }
+                >
+                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${active ? 'bg-white border-white' : 'border-slate-400'}`}>
+                    {active && (
+                      <svg viewBox="0 0 10 10" fill="none" className="w-2.5 h-2.5">
+                        <path d="M2 5l2.5 2.5L8 3" stroke="#0F172A" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </span>
+                  {className}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* QR grid */}
       {loading ? (
@@ -158,26 +227,46 @@ export default function ClassroomQrPage() {
         </div>
       ) : (
         <div ref={printRef} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 print-grid">
-          {items.map(({ className, dataUrl }) => (
-            <div key={className}
-              className="qr-card bg-white rounded-xl border border-slate-100 shadow-sm p-5 flex flex-col items-center gap-3 text-center">
-              {dataUrl
-                ? <img src={dataUrl} alt={`QR for ${className}`} width={160} height={160} className="rounded" />
-                : <div className="w-40 h-40 bg-slate-100 rounded flex items-center justify-center text-xs text-slate-400">Error</div>
-              }
-              <div>
-                <p className="text-lg font-bold" style={{ color: '#0F172A' }}>{className}</p>
-                <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>Scan before submitting attendance</p>
+          {items.map(({ className, dataUrl }) => {
+            const isPrinted = selected.has(className);
+            return (
+              <div
+                key={className}
+                className={`qr-card bg-white rounded-xl border shadow-sm p-5 flex flex-col items-center gap-3 text-center relative transition-opacity ${isPrinted ? 'border-slate-100' : 'border-slate-100 opacity-40 no-print'}`}
+              >
+                {/* Checkbox overlay (screen only) */}
+                <button
+                  onClick={() => toggleClass(className)}
+                  className="no-print absolute top-2.5 right-2.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"
+                  style={isPrinted
+                    ? { background: '#0F172A', borderColor: '#0F172A' }
+                    : { background: 'white', borderColor: '#CBD5E1' }
+                  }
+                >
+                  {isPrinted && (
+                    <svg viewBox="0 0 10 10" fill="none" className="w-3 h-3">
+                      <path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+
+                {dataUrl
+                  ? <img src={dataUrl} alt={`QR for ${className}`} width={160} height={160} className="rounded" />
+                  : <div className="w-40 h-40 bg-slate-100 rounded flex items-center justify-center text-xs text-slate-400">Error</div>
+                }
+                <div>
+                  <p className="text-lg font-bold" style={{ color: '#0F172A' }}>{className}</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>Scan before submitting attendance</p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* Rotate confirmation modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.4)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
@@ -191,7 +280,6 @@ export default function ClassroomQrPage() {
                 <p className="text-sm text-slate-500">This cannot be undone.</p>
               </div>
             </div>
-
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 space-y-1">
               <p className="font-semibold">All currently printed codes will stop working immediately.</p>
               <ul className="list-disc list-inside text-red-700 space-y-0.5 mt-1">
@@ -200,17 +288,12 @@ export default function ClassroomQrPage() {
                 <li>Teachers will not be able to scan until the new codes are in place</li>
               </ul>
             </div>
-
             <p className="text-sm text-slate-600">
               Do this when you suspect codes have been photographed for fraudulent use, or as a routine weekly security measure.
             </p>
-
             {rotateError && (
-              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {rotateError}
-              </p>
+              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{rotateError}</p>
             )}
-
             <div className="flex gap-3 pt-1">
               <button onClick={() => setShowModal(false)} disabled={rotating}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60">
@@ -228,26 +311,45 @@ export default function ClassroomQrPage() {
 
       <style>{`
         @media print {
+          /* Reset layout shell so content isn't clipped to one viewport */
+          html, body {
+            height: auto !important;
+            overflow: visible !important;
+          }
+          body > div,
+          div[style*="h-screen"],
+          .flex.h-screen,
+          main {
+            height: auto !important;
+            overflow: visible !important;
+          }
+
           @page { size: A4 portrait; margin: 12mm; }
+
           .no-print { display: none !important; }
           nav, aside, header { display: none !important; }
+
           .print-grid {
             display: grid !important;
             grid-template-columns: repeat(2, 1fr) !important;
-            gap: 12mm !important;
+            gap: 10mm !important;
           }
+
           .qr-card {
             break-inside: avoid;
+            page-break-inside: avoid;
             border: 1px solid #cbd5e1 !important;
             box-shadow: none !important;
             border-radius: 8px !important;
             padding: 8mm !important;
-            height: calc((297mm - 24mm - 12mm) / 2) !important;
+            min-height: 120mm !important;
             justify-content: center !important;
+            opacity: 1 !important;
           }
+
           .qr-card img { width: 55mm !important; height: 55mm !important; }
           .qr-card p:first-child { font-size: 18pt !important; }
-          .qr-card p:last-child { font-size: 9pt !important; }
+          .qr-card p:last-child  { font-size: 9pt  !important; }
         }
       `}</style>
     </div>
