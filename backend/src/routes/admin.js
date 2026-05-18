@@ -409,9 +409,16 @@ router.post('/teachers/:id/send-credentials', async (req, res, next) => {
       [pinHash, teacher.id]
     );
 
-    await sendTeacherCredentials(teacher, school, pin);
+    const result = await sendTeacherCredentials(teacher, school, pin);
+    if (result && result.skipped) {
+      return res.status(503).json({ error: 'Email is not configured on the server. Add GMAIL_USER and GMAIL_APP_PASSWORD to Render environment variables.' });
+    }
     res.json({ message: 'Credentials sent', email: teacher.email, pin });
-  } catch (err) { next(err); }
+  } catch (err) {
+    const msg = err.message || 'Unknown error';
+    console.error('[send-credentials] Failed:', msg);
+    return res.status(500).json({ error: `Failed to send email: ${msg}` });
+  }
 });
 
 // POST /api/admin/teachers/send-credentials-bulk
