@@ -10,6 +10,17 @@ const { sendTeacherCredentials } = require('../services/email.service');
 // Public deployment-check endpoint (no auth needed)
 router.get('/version', (_req, res) => res.json({ version: '2', has_settings: true }));
 
+// GET /api/admin/test-email — sends a test email to ADMIN_EMAIL to verify SMTP works
+router.get('/test-email', async (_req, res) => {
+  const { sendTestEmail } = require('../services/email.service');
+  try {
+    const result = await sendTestEmail();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.use(authenticate, requireActiveSubscription, adminOnly);
 
 // GET /api/admin/stats — dashboard counters

@@ -8,9 +8,10 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@yourschool.edu.gh';
 const transporter = (GMAIL_USER && GMAIL_PASS)
   ? nodemailer.createTransport({
       host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
+      port: 587,
+      secure: false,
       auth: { user: GMAIL_USER, pass: GMAIL_PASS },
+      tls: { rejectUnauthorized: false },
     })
   : null;
 
@@ -166,9 +167,21 @@ async function sendTeacherCredentials(teacher, school, pin) {
   });
 }
 
+async function sendTestEmail() {
+  if (!transporter) return { skipped: true, reason: 'GMAIL_USER or GMAIL_APP_PASSWORD not set' };
+  await transporter.verify();
+  await sendMail({
+    to: GMAIL_USER,
+    subject: 'CAS Email Test',
+    text: 'SMTP connection from Render is working correctly.',
+  });
+  return { ok: true, sentTo: GMAIL_USER };
+}
+
 module.exports = {
   sendAbsenceNotification,
   sendRemedialScheduledNotification,
   sendDailyAbsenceReport,
   sendTeacherCredentials,
+  sendTestEmail,
 };
