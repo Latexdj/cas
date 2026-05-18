@@ -1,23 +1,23 @@
 const nodemailer = require('nodemailer');
 
-const GMAIL_USER = process.env.GMAIL_USER;
-const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD;
+const SMTP_USER  = process.env.SMTP_USER;
+const SMTP_PASS  = process.env.SMTP_PASS;
+const SMTP_FROM  = process.env.SMTP_FROM  || SMTP_USER;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@yourschool.edu.gh';
 
 // Transporter is null when credentials are not configured — functions silently no-op.
-const transporter = (GMAIL_USER && GMAIL_PASS)
+const transporter = (SMTP_USER && SMTP_PASS)
   ? nodemailer.createTransport({
-      host: 'smtp.gmail.com',
+      host: 'smtp-relay.brevo.com',
       port: 587,
       secure: false,
-      auth: { user: GMAIL_USER, pass: GMAIL_PASS },
-      tls: { rejectUnauthorized: false },
+      auth: { user: SMTP_USER, pass: SMTP_PASS },
     })
   : null;
 
 async function sendMail(opts) {
   if (!transporter) return { skipped: true };
-  return transporter.sendMail({ from: `"CAS Attendance" <${GMAIL_USER}>`, ...opts });
+  return transporter.sendMail({ from: `"CAS Attendance" <${SMTP_FROM}>`, ...opts });
 }
 
 async function sendAbsenceNotification(lesson, date) {
@@ -168,14 +168,14 @@ async function sendTeacherCredentials(teacher, school, pin) {
 }
 
 async function sendTestEmail() {
-  if (!transporter) return { skipped: true, reason: 'GMAIL_USER or GMAIL_APP_PASSWORD not set' };
+  if (!transporter) return { skipped: true, reason: 'SMTP_USER or SMTP_PASS not set' };
   await transporter.verify();
   await sendMail({
-    to: GMAIL_USER,
+    to: SMTP_FROM,
     subject: 'CAS Email Test',
     text: 'SMTP connection from Render is working correctly.',
   });
-  return { ok: true, sentTo: GMAIL_USER };
+  return { ok: true, sentTo: SMTP_FROM };
 }
 
 module.exports = {

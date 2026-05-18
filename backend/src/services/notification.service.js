@@ -1,11 +1,12 @@
 const pool       = require('../config/db');
 const nodemailer = require('nodemailer');
 
-const GMAIL_USER = process.env.GMAIL_USER;
-const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD;
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
+const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER;
 
-const transporter = (GMAIL_USER && GMAIL_PASS)
-  ? nodemailer.createTransport({ host: 'smtp.gmail.com', port: 587, secure: false, auth: { user: GMAIL_USER, pass: GMAIL_PASS }, tls: { rejectUnauthorized: false } })
+const transporter = (SMTP_USER && SMTP_PASS)
+  ? nodemailer.createTransport({ host: 'smtp-relay.brevo.com', port: 587, secure: false, auth: { user: SMTP_USER, pass: SMTP_PASS } })
   : null;
 
 async function createNotification(schoolId, teacherId, title, message) {
@@ -23,7 +24,7 @@ async function createNotification(schoolId, teacherId, title, message) {
 async function sendTeacherEmail(teacherEmail, subject, body) {
   if (!transporter || !teacherEmail) return;
   try {
-    await transporter.sendMail({ from: `"CAS Attendance" <${GMAIL_USER}>`, to: teacherEmail, subject, text: body });
+    await transporter.sendMail({ from: `"CAS Attendance" <${SMTP_FROM}>`, to: teacherEmail, subject, text: body });
   } catch (err) {
     console.error('[Notification] Email failed:', err.message);
   }
