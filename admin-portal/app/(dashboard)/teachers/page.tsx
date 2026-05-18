@@ -152,8 +152,12 @@ export default function TeachersPage() {
       const { data } = await api.post<{ pin: string; email: string }>(`/api/admin/teachers/${sendTarget.id}/send-credentials`);
       setSendResult(data);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setSendError(msg ?? 'Failed to send credentials.');
+      const e = err as { response?: { data?: unknown }; message?: string };
+      const body = e.response?.data;
+      const msg = (typeof body === 'object' && body !== null)
+        ? (body as { error?: string }).error
+        : undefined;
+      setSendError(msg ?? e.message ?? 'Request failed with no response.');
     } finally { setSending(false); }
   }
 

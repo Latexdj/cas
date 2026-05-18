@@ -7,7 +7,9 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@yourschool.edu.gh';
 // Transporter is null when credentials are not configured — functions silently no-op.
 const transporter = (GMAIL_USER && GMAIL_PASS)
   ? nodemailer.createTransport({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
       auth: { user: GMAIL_USER, pass: GMAIL_PASS },
     })
   : null;
