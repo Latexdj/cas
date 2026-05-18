@@ -424,8 +424,8 @@ export default function TeachersPage() {
             <div className="space-y-3">
               <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-4 text-center space-y-2">
                 <p className="text-2xl">✉️</p>
-                <p className="text-sm font-semibold text-green-800">Email sent successfully!</p>
-                <p className="text-xs text-green-700">Credentials delivered to <strong>{sendResult.email}</strong></p>
+                <p className="text-sm font-semibold text-green-800">PIN reset — email on its way!</p>
+                <p className="text-xs text-green-700">Login details being sent to <strong>{sendResult.email}</strong></p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center">
                 <p className="text-xs text-slate-500 mb-1">New PIN (keep as backup)</p>

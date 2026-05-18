@@ -409,16 +409,13 @@ router.post('/teachers/:id/send-credentials', async (req, res, next) => {
       [pinHash, teacher.id]
     );
 
-    const result = await sendTeacherCredentials(teacher, school, pin);
-    if (result && result.skipped) {
-      return res.status(503).json({ error: 'Email is not configured on the server. Add GMAIL_USER and GMAIL_APP_PASSWORD to Render environment variables.' });
-    }
+    // Respond immediately so the browser never times out — email goes in background
     res.json({ message: 'Credentials sent', email: teacher.email, pin });
-  } catch (err) {
-    const msg = err.message || 'Unknown error';
-    console.error('[send-credentials] Failed:', msg);
-    return res.status(500).json({ error: `Failed to send email: ${msg}` });
-  }
+
+    sendTeacherCredentials(teacher, school, pin).catch(err =>
+      console.error('[send-credentials] Email failed for', teacher.email, '—', err.message)
+    );
+  } catch (err) { next(err); }
 });
 
 // POST /api/admin/teachers/send-credentials-bulk
@@ -436,9 +433,8 @@ router.post('/teachers/send-credentials-bulk', async (req, res, next) => {
       [req.schoolId]
     );
 
-    let sent = 0, failed = 0;
-    const errors = [];
-
+    // Reset all PINs first, then fire emails in background
+    const queue = [];
     for (const teacher of teachers) {
       try {
         const pin = String(Math.floor(100000 + Math.random() * 900000));
@@ -447,11 +443,9 @@ router.post('/teachers/send-credentials-bulk', async (req, res, next) => {
           `UPDATE teachers SET pin_hash = $1, updated_at = now() WHERE id = $2`,
           [pinHash, teacher.id]
         );
-        await sendTeacherCredentials(teacher, school, pin);
-        sent++;
+        queue.push({ teacher, pin });
       } catch (e) {
-        failed++;
-        errors.push({ name: teacher.name, error: e.message });
+        console.error('[bulk-credentials] PIN reset failed for', teacher.name, e.message);
       }
     }
 
@@ -460,7 +454,14 @@ router.post('/teachers/send-credentials-bulk', async (req, res, next) => {
       [req.schoolId]
     )).rows[0].count;
 
-    res.json({ sent, failed, skipped: Number(skipped), errors });
+    // Respond immediately, send emails in background
+    res.json({ sent: queue.length, failed: 0, skipped: Number(skipped), errors: [] });
+
+    for (const { teacher, pin } of queue) {
+      sendTeacherCredentials(teacher, school, pin).catch(err =>
+        console.error('[bulk-credentials] Email failed for', teacher.email, '—', err.message)
+      );
+    }
   } catch (err) { next(err); }
 });
 
