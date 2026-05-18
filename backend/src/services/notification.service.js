@@ -1,13 +1,7 @@
-const pool       = require('../config/db');
-const nodemailer = require('nodemailer');
+const pool = require('../config/db');
 
-const SMTP_USER = process.env.SMTP_USER;
-const SMTP_PASS = process.env.SMTP_PASS;
-const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER;
-
-const transporter = (SMTP_USER && SMTP_PASS)
-  ? nodemailer.createTransport({ host: 'smtp-relay.brevo.com', port: 587, secure: false, auth: { user: SMTP_USER, pass: SMTP_PASS } })
-  : null;
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const EMAIL_FROM    = process.env.SMTP_FROM || 'staugustineshts@gmail.com';
 
 async function createNotification(schoolId, teacherId, title, message) {
   try {
@@ -22,9 +16,22 @@ async function createNotification(schoolId, teacherId, title, message) {
 }
 
 async function sendTeacherEmail(teacherEmail, subject, body) {
-  if (!transporter || !teacherEmail) return;
+  if (!BREVO_API_KEY || !teacherEmail) return;
   try {
-    await transporter.sendMail({ from: `"CAS Attendance" <${SMTP_FROM}>`, to: teacherEmail, subject, text: body });
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: { 'accept': 'application/json', 'api-key': BREVO_API_KEY, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        sender: { name: 'CAS Attendance', email: EMAIL_FROM },
+        to: [{ email: teacherEmail }],
+        subject,
+        textContent: body,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error('[Notification] Email failed:', err.message || res.status);
+    }
   } catch (err) {
     console.error('[Notification] Email failed:', err.message);
   }

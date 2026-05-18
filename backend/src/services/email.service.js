@@ -1,26 +1,32 @@
-const nodemailer = require('nodemailer');
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const EMAIL_FROM    = process.env.SMTP_FROM || 'staugustineshts@gmail.com';
+const ADMIN_EMAIL   = process.env.ADMIN_EMAIL || 'admin@yourschool.edu.gh';
 
-const SMTP_USER  = process.env.SMTP_USER;
-const SMTP_PASS  = process.env.SMTP_PASS;
-const SMTP_FROM  = process.env.SMTP_FROM  || SMTP_USER;
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@yourschool.edu.gh';
+async function sendMail({ to, subject, html, text }) {
+  if (!BREVO_API_KEY) return { skipped: true };
 
-// Transporter is null when credentials are not configured — functions silently no-op.
-const transporter = (SMTP_USER && SMTP_PASS)
-  ? nodemailer.createTransport({
-      host: 'smtp-relay.brevo.com',
-      port: 587,
-      secure: false,
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
-      connectionTimeout: 10000,
-      greetingTimeout: 8000,
-      socketTimeout: 15000,
-    })
-  : null;
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': BREVO_API_KEY,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: 'CAS Attendance', email: EMAIL_FROM },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+      textContent: text,
+    }),
+  });
 
-async function sendMail(opts) {
-  if (!transporter) return { skipped: true };
-  return transporter.sendMail({ from: `"CAS Attendance" <${SMTP_FROM}>`, ...opts });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `Brevo API error ${res.status}`);
+  }
+
+  return res.json();
 }
 
 async function sendAbsenceNotification(lesson, date) {
@@ -82,13 +88,11 @@ async function sendTeacherCredentials(teacher, school, pin) {
     <tr><td align="center">
       <table width="100%" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #E2D9CC;">
 
-        <!-- Header -->
         <tr><td style="background:#0B3D2E;padding:28px 32px;text-align:center;">
           <p style="margin:0;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">${school.name}</p>
           <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.65);">Classroom Attendance System</p>
         </td></tr>
 
-        <!-- Greeting -->
         <tr><td style="padding:28px 32px 0;">
           <p style="margin:0;font-size:15px;color:#2C2218;">Dear <strong>${teacher.name}</strong>,</p>
           <p style="margin:12px 0 0;font-size:14px;color:#5C4F42;line-height:1.6;">
@@ -97,7 +101,6 @@ async function sendTeacherCredentials(teacher, school, pin) {
           </p>
         </td></tr>
 
-        <!-- Credentials box -->
         <tr><td style="padding:20px 32px;">
           <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4EFE6;border-radius:12px;border:1px solid #E2D9CC;overflow:hidden;">
             <tr>
@@ -121,7 +124,6 @@ async function sendTeacherCredentials(teacher, school, pin) {
           </table>
         </td></tr>
 
-        <!-- Steps -->
         <tr><td style="padding:0 32px 24px;">
           <p style="margin:0 0 12px;font-size:12px;font-weight:700;color:#8C7E6E;text-transform:uppercase;letter-spacing:0.6px;">How to get started</p>
           ${[
@@ -140,7 +142,6 @@ async function sendTeacherCredentials(teacher, school, pin) {
           </table>`).join('')}
         </td></tr>
 
-        <!-- Security note -->
         <tr><td style="padding:16px 32px;background:#FFF8F0;border-top:1px solid #F5E6D0;">
           <p style="margin:0;font-size:12px;color:#92400E;line-height:1.6;">
             Keep this email private. Do not share your password with anyone.
@@ -148,7 +149,6 @@ async function sendTeacherCredentials(teacher, school, pin) {
           </p>
         </td></tr>
 
-        <!-- Footer -->
         <tr><td style="padding:20px 32px;text-align:center;border-top:1px solid #E2D9CC;">
           <p style="margin:0;font-size:11px;color:#A09282;">${school.name}</p>
           <p style="margin:6px 0 0;font-size:10px;color:#C4B8AC;">
@@ -171,13 +171,12 @@ async function sendTeacherCredentials(teacher, school, pin) {
 }
 
 async function sendTestEmail() {
-  if (!transporter) return { skipped: true, reason: 'SMTP_USER or SMTP_PASS not set in environment' };
-  await sendMail({
-    to: SMTP_FROM,
+  if (!BREVO_API_KEY) return { skipped: true, reason: 'BREVO_API_KEY not set in environment' };
+  return sendMail({
+    to: EMAIL_FROM,
     subject: 'CAS Email Test',
-    text: 'SMTP connection from Render is working correctly.',
+    text: 'Brevo HTTP API connection from Render is working correctly.',
   });
-  return { ok: true, sentTo: SMTP_FROM };
 }
 
 module.exports = {
