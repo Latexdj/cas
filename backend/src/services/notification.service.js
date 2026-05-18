@@ -1,8 +1,12 @@
-const pool   = require('../config/db');
-const { Resend } = require('resend');
+const pool       = require('../config/db');
+const nodemailer = require('nodemailer');
 
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const FROM   = process.env.EMAIL_FROM || 'attendance@yourschool.edu.gh';
+const GMAIL_USER = process.env.GMAIL_USER;
+const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD;
+
+const transporter = (GMAIL_USER && GMAIL_PASS)
+  ? nodemailer.createTransport({ service: 'gmail', auth: { user: GMAIL_USER, pass: GMAIL_PASS } })
+  : null;
 
 async function createNotification(schoolId, teacherId, title, message) {
   try {
@@ -17,9 +21,9 @@ async function createNotification(schoolId, teacherId, title, message) {
 }
 
 async function sendTeacherEmail(teacherEmail, subject, body) {
-  if (!resend || !teacherEmail) return;
+  if (!transporter || !teacherEmail) return;
   try {
-    await resend.emails.send({ from: FROM, to: teacherEmail, subject, text: body });
+    await transporter.sendMail({ from: `"CAS Attendance" <${GMAIL_USER}>`, to: teacherEmail, subject, text: body });
   } catch (err) {
     console.error('[Notification] Email failed:', err.message);
   }
