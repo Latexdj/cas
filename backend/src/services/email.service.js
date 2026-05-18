@@ -168,8 +168,7 @@ async function sendTeacherCredentials(teacher, school, pin) {
 }
 
 async function sendTestEmail() {
-  if (!transporter) return { skipped: true, reason: 'SMTP_USER or SMTP_PASS not set' };
-  await transporter.verify();
+  if (!transporter) return { skipped: true, reason: 'SMTP_USER or SMTP_PASS not set in environment' };
   await sendMail({
     to: SMTP_FROM,
     subject: 'CAS Email Test',
