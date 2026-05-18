@@ -409,7 +409,13 @@ router.post('/teachers/:id/send-credentials', async (req, res, next) => {
       [pinHash, teacher.id]
     );
 
-    await sendTeacherCredentials(teacher, school, pin);
+    const result = await sendTeacherCredentials(teacher, school, pin);
+    if (result && result.skipped) {
+      return res.status(503).json({
+        error: 'Email service is not configured. Set RESEND_API_KEY in the server environment. The PIN was reset — note it down and share manually.',
+        pin,
+      });
+    }
     res.json({ message: 'Credentials sent', email: teacher.email, pin });
   } catch (err) { next(err); }
 });
@@ -440,7 +446,10 @@ router.post('/teachers/send-credentials-bulk', async (req, res, next) => {
           `UPDATE teachers SET pin_hash = $1, updated_at = now() WHERE id = $2`,
           [pinHash, teacher.id]
         );
-        await sendTeacherCredentials(teacher, school, pin);
+        const emailResult = await sendTeacherCredentials(teacher, school, pin);
+        if (emailResult && emailResult.skipped) {
+          return res.status(503).json({ error: 'Email service is not configured. Set RESEND_API_KEY in the server environment.' });
+        }
         sent++;
       } catch (e) {
         failed++;
