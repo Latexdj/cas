@@ -44,7 +44,6 @@ export default function TeachersPage() {
   const [sending,      setSending]      = useState(false);
   const [sendResult,   setSendResult]   = useState<{ pin: string; email: string } | null>(null);
   const [sendError,    setSendError]    = useState('');
-  const [sendErrorPin, setSendErrorPin] = useState<string | null>(null);
   const [bulkSending,  setBulkSending]  = useState(false);
   const [bulkResult,   setBulkResult]   = useState<SendResult | null>(null);
 
@@ -143,19 +142,18 @@ export default function TeachersPage() {
 
   /* ── Send Credentials ── */
   function openSendCredentials(t: Teacher) {
-    setSendTarget(t); setSendResult(null); setSendError(''); setSendErrorPin(null);
+    setSendTarget(t); setSendResult(null); setSendError('');
   }
 
   async function doSendCredentials() {
     if (!sendTarget) return;
-    setSending(true); setSendError(''); setSendErrorPin(null);
+    setSending(true); setSendError('');
     try {
       const { data } = await api.post<{ pin: string; email: string }>(`/api/admin/teachers/${sendTarget.id}/send-credentials`);
       setSendResult(data);
     } catch (err: unknown) {
-      const resp = (err as { response?: { data?: { error?: string; pin?: string } } })?.response?.data;
-      setSendError(resp?.error ?? 'Failed to send credentials.');
-      if (resp?.pin) setSendErrorPin(resp.pin);
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setSendError(msg ?? 'Failed to send credentials.');
     } finally { setSending(false); }
   }
 
@@ -416,7 +414,7 @@ export default function TeachersPage() {
       </Modal>
 
       {/* ── Send Credentials modal ── */}
-      <Modal open={sendTarget !== null} onClose={() => { setSendTarget(null); setSendResult(null); setSendErrorPin(null); setSendError(''); }} title="Send Login Credentials" maxWidth="max-w-sm">
+      <Modal open={sendTarget !== null} onClose={() => { setSendTarget(null); setSendResult(null); setSendError(''); }} title="Send Login Credentials" maxWidth="max-w-sm">
         <div className="space-y-4">
           {sendResult ? (
             <div className="space-y-3">
@@ -430,7 +428,7 @@ export default function TeachersPage() {
                 <p className="text-2xl font-bold tracking-widest text-slate-800 font-mono">{sendResult.pin}</p>
               </div>
               <div className="flex justify-end">
-                <Button onClick={() => { setSendTarget(null); setSendResult(null); setSendErrorPin(null); setSendError(''); }}>Done</Button>
+                <Button onClick={() => { setSendTarget(null); setSendResult(null); setSendError(''); }}>Done</Button>
               </div>
             </div>
           ) : (
@@ -446,17 +444,7 @@ export default function TeachersPage() {
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                 ⚠ The teacher's current PIN will be replaced. They will need to use the new PIN after this.
               </div>
-              {sendError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 space-y-2">
-                  <p className="text-sm text-red-700">{sendError}</p>
-                  {sendErrorPin && (
-                    <div className="rounded border border-red-300 bg-white px-3 py-2 text-center">
-                      <p className="text-xs text-slate-500 mb-0.5">New PIN (share manually)</p>
-                      <p className="text-xl font-bold tracking-widest font-mono text-slate-800">{sendErrorPin}</p>
-                    </div>
-                  )}
-                </div>
-              )}
+              {sendError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{sendError}</p>}
               <div className="flex justify-end gap-2 pt-1">
                 <Button variant="secondary" onClick={() => setSendTarget(null)}>Cancel</Button>
                 <Button onClick={doSendCredentials} loading={sending}>Send Credentials</Button>

@@ -1,18 +1,27 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
-// If no API key is configured, email functions silently no-op.
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const FROM = process.env.EMAIL_FROM || 'attendance@yourschool.edu.gh';
+const GMAIL_USER = process.env.GMAIL_USER;
+const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@yourschool.edu.gh';
 
+// Transporter is null when credentials are not configured — functions silently no-op.
+const transporter = (GMAIL_USER && GMAIL_PASS)
+  ? nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: GMAIL_USER, pass: GMAIL_PASS },
+    })
+  : null;
+
+async function sendMail(opts) {
+  if (!transporter) return { skipped: true };
+  return transporter.sendMail({ from: `"CAS Attendance" <${GMAIL_USER}>`, ...opts });
+}
+
 async function sendAbsenceNotification(lesson, date) {
-  if (!resend) return;
-  try {
-    await resend.emails.send({
-      from: FROM,
-      to: ADMIN_EMAIL,
-      subject: `Absence Alert: ${lesson.teacher_name} — ${date}`,
-      text: `ATTENDANCE SYSTEM ALERT
+  await sendMail({
+    to: ADMIN_EMAIL,
+    subject: `Absence Alert: ${lesson.teacher_name} — ${date}`,
+    text: `ATTENDANCE SYSTEM ALERT
 
 Teacher : ${lesson.teacher_name}
 Subject : ${lesson.subject}
@@ -22,22 +31,14 @@ Period  : ${lesson.start_time} – ${lesson.end_time}
 Status  : Marked absent (automated)
 
 Please follow up with the teacher if necessary.`,
-    });
-  } catch (err) {
-    // Email failure must never break the absence-recording flow
-    console.error('Failed to send absence notification:', err.message);
-  }
+  });
 }
 
 async function sendRemedialScheduledNotification(remedial, teacherName, adminEmail) {
-  if (!resend) return;
-  try {
-    const target = adminEmail || ADMIN_EMAIL;
-    await resend.emails.send({
-      from: FROM,
-      to: target,
-      subject: `Remedial Lesson Scheduled: ${teacherName}`,
-      text: `REMEDIAL LESSON SCHEDULED
+  await sendMail({
+    to: adminEmail || ADMIN_EMAIL,
+    subject: `Remedial Lesson Scheduled: ${teacherName}`,
+    text: `REMEDIAL LESSON SCHEDULED
 
 Teacher         : ${teacherName}
 Subject         : ${remedial.subject}
@@ -45,35 +46,26 @@ Class           : ${remedial.class_name}
 Original Absence: ${remedial.original_absence_date}
 Remedial Date   : ${remedial.remedial_date}
 Remedial Time   : ${remedial.remedial_time}`,
-    });
-  } catch (err) {
-    console.error('Failed to send remedial notification:', err.message);
-  }
+  });
 }
 
 async function sendDailyAbsenceReport(absences, date) {
-  if (!resend || !absences.length) return;
-  try {
-    const lines = absences
-      .map(
-        (a, i) =>
-          `${i + 1}. ${a.teacher_name} — ${a.subject} — ${a.class_name}\n   Period: ${a.scheduled_period}\n   Reason: ${a.reason || 'Not provided'}`
-      )
-      .join('\n\n');
+  if (!absences.length) return;
+  const lines = absences
+    .map(
+      (a, i) =>
+        `${i + 1}. ${a.teacher_name} — ${a.subject} — ${a.class_name}\n   Period: ${a.scheduled_period}\n   Reason: ${a.reason || 'Not provided'}`
+    )
+    .join('\n\n');
 
-    await resend.emails.send({
-      from: FROM,
-      to: ADMIN_EMAIL,
-      subject: `Daily Absence Report — ${date}`,
-      text: `DAILY ABSENCE REPORT\nDate: ${date}\nTotal: ${absences.length}\n\n${lines}`,
-    });
-  } catch (err) {
-    console.error('Failed to send daily absence report:', err.message);
-  }
+  await sendMail({
+    to: ADMIN_EMAIL,
+    subject: `Daily Absence Report — ${date}`,
+    text: `DAILY ABSENCE REPORT\nDate: ${date}\nTotal: ${absences.length}\n\n${lines}`,
+  });
 }
 
 async function sendTeacherCredentials(teacher, school, pin) {
-  if (!resend) return { skipped: true };
   if (!teacher.email) throw new Error('Teacher has no email address on record.');
 
   const html = `<!DOCTYPE html>
@@ -145,8 +137,8 @@ async function sendTeacherCredentials(teacher, school, pin) {
         <!-- Security note -->
         <tr><td style="padding:16px 32px;background:#FFF8F0;border-top:1px solid #F5E6D0;">
           <p style="margin:0;font-size:12px;color:#92400E;line-height:1.6;">
-            🔒 <strong>Keep this email private.</strong>
-            Do not share your password with anyone. Contact your school admin if you need a reset.
+            Keep this email private. Do not share your password with anyone.
+            Contact your school admin if you need a reset.
           </p>
         </td></tr>
 
@@ -164,8 +156,7 @@ async function sendTeacherCredentials(teacher, school, pin) {
 </body>
 </html>`;
 
-  await resend.emails.send({
-    from: FROM,
+  return sendMail({
     to: teacher.email,
     subject: `Your CAS Login Details — ${school.name}`,
     html,
