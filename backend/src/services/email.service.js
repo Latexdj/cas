@@ -12,6 +12,9 @@ const transporter = (SMTP_USER && SMTP_PASS)
       port: 587,
       secure: false,
       auth: { user: SMTP_USER, pass: SMTP_PASS },
+      connectionTimeout: 10000,
+      greetingTimeout: 8000,
+      socketTimeout: 15000,
     })
   : null;
 
