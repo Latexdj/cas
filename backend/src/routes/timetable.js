@@ -119,13 +119,38 @@ router.get('/today/:teacherId', async (req, res, next) => {
 
 router.get('/teacher/:teacherId', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT id, day_of_week, start_time, end_time, subject, class_names
-       FROM timetable WHERE school_id = $1 AND teacher_id = $2
-       ORDER BY day_of_week, start_time`,
-      [req.schoolId, req.params.teacherId]
-    );
-    res.json(rows);
+    const [{ rows: lessons }, { rows: plcSessions }] = await Promise.all([
+      pool.query(
+        `SELECT id, day_of_week, start_time::text, end_time::text, subject, class_names
+         FROM timetable WHERE school_id = $1 AND teacher_id = $2
+         ORDER BY day_of_week, start_time`,
+        [req.schoolId, req.params.teacherId]
+      ),
+      pool.query(
+        `SELECT s.id, s.day_of_week, s.start_time::text, s.end_time::text,
+                s.title, l.name AS location_name
+         FROM plc_sessions s
+         JOIN locations l ON l.id = s.location_id
+         WHERE s.school_id = $1 AND s.is_active = true
+         ORDER BY s.day_of_week, s.start_time`,
+        [req.schoolId]
+      ),
+    ]);
+
+    const plcEntries = plcSessions.map(s => ({
+      id:           s.id,
+      day_of_week:  s.day_of_week,
+      start_time:   s.start_time,
+      end_time:     s.end_time,
+      subject:      s.title,
+      class_names:  s.location_name,
+      type:         'plc',
+    }));
+
+    const combined = [...lessons.map(r => ({ ...r, type: 'lesson' })), ...plcEntries]
+      .sort((a, b) => a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time));
+
+    res.json(combined);
   } catch (err) { next(err); }
 });
 

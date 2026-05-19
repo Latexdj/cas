@@ -11,20 +11,22 @@ import { api } from '@/lib/api';
 import { Spinner } from '@/components/ui/Spinner';
 import { TimetableSlot } from '@/types/api';
 
+type SlotWithType = TimetableSlot & { type?: 'lesson' | 'plc' };
+
 const DAY_NAMES = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAYS = [1, 2, 3, 4, 5];
 
 export default function TimetableScreen() {
   const Colors = useTheme();
   const { user } = useAuth();
-  const [slots,      setSlots]      = useState<TimetableSlot[]>([]);
+  const [slots,      setSlots]      = useState<SlotWithType[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     if (!user) return;
     try {
-      const res = await api.get<TimetableSlot[]>(`/api/timetable/teacher/${user.id}`);
+      const res = await api.get<SlotWithType[]>(`/api/timetable/teacher/${user.id}`);
       setSlots(res.data);
     } catch {
     } finally {
@@ -79,7 +81,14 @@ export default function TimetableScreen() {
                     </View>
                   )}
                   <Text style={styles.dayCount}>
-                    {daySlots.length} {daySlots.length === 1 ? 'lesson' : 'lessons'}
+                    {(() => {
+                      const lessons = daySlots.filter(s => s.type !== 'plc').length;
+                      const plc     = daySlots.filter(s => s.type === 'plc').length;
+                      const parts   = [];
+                      if (lessons) parts.push(`${lessons} ${lessons === 1 ? 'lesson' : 'lessons'}`);
+                      if (plc)     parts.push('PLC');
+                      return parts.join(' · ') || '0 lessons';
+                    })()}
                   </Text>
                 </View>
 
@@ -88,25 +97,42 @@ export default function TimetableScreen() {
                     <Text style={styles.emptyDayText}>No classes</Text>
                   </View>
                 ) : (
-                  daySlots.map(slot => (
-                    <View key={slot.id} style={[styles.slotCard, isToday && { borderLeftColor: Colors.primary, borderLeftWidth: 3 }]}>
-                      <View style={styles.slotTime}>
-                        <Text style={styles.slotTimeText}>{slot.start_time.slice(0, 5)}</Text>
-                        <View style={styles.slotTimeLine} />
-                        <Text style={styles.slotTimeText}>{slot.end_time.slice(0, 5)}</Text>
-                      </View>
-                      <View style={styles.slotBody}>
-                        <Text style={styles.slotSubject}>{slot.subject}</Text>
-                        <View style={styles.slotMeta}>
-                          <Ionicons name="people-outline" size={12} color="#8C7E6E" />
-                          <Text style={styles.slotClass}>{slot.class_names}</Text>
+                  daySlots.map(slot => {
+                    const isPlc = slot.type === 'plc';
+                    return (
+                      <View
+                        key={slot.id}
+                        style={[
+                          styles.slotCard,
+                          isToday && { borderLeftColor: Colors.primary, borderLeftWidth: 3 },
+                          isPlc  && styles.slotCardPlc,
+                        ]}
+                      >
+                        <View style={[styles.slotTime, isPlc && styles.slotTimePlc]}>
+                          <Text style={styles.slotTimeText}>{slot.start_time.slice(0, 5)}</Text>
+                          <View style={styles.slotTimeLine} />
+                          <Text style={styles.slotTimeText}>{slot.end_time.slice(0, 5)}</Text>
                         </View>
-                        {slot.periods && slot.periods > 1 && (
-                          <Text style={styles.slotPeriods}>{slot.periods} periods</Text>
-                        )}
+                        <View style={styles.slotBody}>
+                          <View style={styles.slotTitleRow}>
+                            <Text style={[styles.slotSubject, isPlc && { color: '#1A4D2E' }]}>{slot.subject}</Text>
+                            {isPlc && (
+                              <View style={styles.plcBadge}>
+                                <Text style={styles.plcBadgeText}>PLC</Text>
+                              </View>
+                            )}
+                          </View>
+                          <View style={styles.slotMeta}>
+                            <Ionicons name={isPlc ? 'location-outline' : 'people-outline'} size={12} color="#8C7E6E" />
+                            <Text style={styles.slotClass}>{slot.class_names}</Text>
+                          </View>
+                          {!isPlc && slot.periods && slot.periods > 1 && (
+                            <Text style={styles.slotPeriods}>{slot.periods} periods</Text>
+                          )}
+                        </View>
                       </View>
-                    </View>
-                  ))
+                    );
+                  })
                 )}
               </View>
             );
@@ -142,8 +168,14 @@ const styles = StyleSheet.create({
   slotTimeText:  { fontSize: 10, fontWeight: '700', color: '#4A3F32', fontVariant: ['tabular-nums'] },
   slotTimeLine:  { width: 1, height: 10, backgroundColor: '#C0B8AF' },
   slotBody:      { flex: 1, paddingHorizontal: 12, paddingVertical: 10 },
-  slotSubject:   { fontSize: 14, fontWeight: '700', color: '#1C1208', marginBottom: 4 },
+  slotSubject:   { fontSize: 14, fontWeight: '700', color: '#1C1208', flex: 1 },
   slotMeta:      { flexDirection: 'row', alignItems: 'center', gap: 4 },
   slotClass:     { fontSize: 12, color: '#8C7E6E', fontWeight: '600' },
   slotPeriods:   { fontSize: 11, color: '#A09282', marginTop: 3 },
+  // PLC card variants
+  slotCardPlc:   { backgroundColor: '#F0FAF4', borderColor: '#A7D7B8' },
+  slotTimePlc:   { backgroundColor: '#E4F4EB' },
+  slotTitleRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  plcBadge:      { backgroundColor: '#2D7A4F', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  plcBadgeText:  { fontSize: 9, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
 });
