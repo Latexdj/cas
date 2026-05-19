@@ -220,45 +220,56 @@ export default function PlcPage() {
   const [qrUrl,        setQrUrl]        = useState<string | null>(null);
 
   const loadSessions = useCallback(async () => {
-    const [s, l] = await Promise.all([
-      api.get<PlcSession[]>('/api/plc/sessions'),
-      api.get<Location[]>('/api/locations'),
-    ]);
-    setSessions(s.data);
-    setLocations(l.data);
+    try {
+      const [s, l] = await Promise.all([
+        api.get<PlcSession[]>('/api/plc/sessions'),
+        api.get<Location[]>('/api/locations'),
+      ]);
+      setSessions(s.data);
+      setLocations(l.data);
+    } catch {}
   }, []);
 
   const loadAttendance = useCallback(async () => {
-    const params: Record<string, string> = {};
-    if (dateFrom)  params.from      = dateFrom;
-    if (dateTo)    params.to        = dateTo;
-    if (teacherId) params.teacherId = teacherId;
-    const [a, t] = await Promise.all([
-      api.get<PlcAttendanceRecord[]>('/api/plc/attendance', { params }),
-      teachers.length ? Promise.resolve({ data: teachers }) : api.get<Teacher[]>('/api/teachers'),
-    ]);
-    setAttendance(a.data);
-    setTeachers(t.data);
+    try {
+      const params: Record<string, string> = {};
+      if (dateFrom)  params.from      = dateFrom;
+      if (dateTo)    params.to        = dateTo;
+      if (teacherId) params.teacherId = teacherId;
+      const [a, t] = await Promise.all([
+        api.get<PlcAttendanceRecord[]>('/api/plc/attendance', { params }),
+        teachers.length ? Promise.resolve({ data: teachers }) : api.get<Teacher[]>('/api/teachers'),
+      ]);
+      setAttendance(a.data);
+      setTeachers(t.data);
+    } catch {}
   }, [dateFrom, dateTo, teacherId, teachers]);
 
   const loadAbsences = useCallback(async () => {
-    const params: Record<string, string> = {};
-    if (dateFrom)  params.from      = dateFrom;
-    if (dateTo)    params.to        = dateTo;
-    if (teacherId) params.teacherId = teacherId;
-    const a = await api.get<PlcAbsence[]>('/api/plc/absences', { params });
-    setAbsences(a.data);
+    try {
+      const params: Record<string, string> = {};
+      if (dateFrom)  params.from      = dateFrom;
+      if (dateTo)    params.to        = dateTo;
+      if (teacherId) params.teacherId = teacherId;
+      const a = await api.get<PlcAbsence[]>('/api/plc/absences', { params });
+      setAbsences(a.data);
+    } catch {}
   }, [dateFrom, dateTo, teacherId]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
-    try { await Promise.all([loadSessions(), loadAttendance(), loadAbsences()]); }
-    finally { setLoading(false); }
+    await Promise.allSettled([loadSessions(), loadAttendance(), loadAbsences()]);
+    setLoading(false);
   }, [loadSessions, loadAttendance, loadAbsences]);
 
   useEffect(() => { loadAll(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function search(e: React.FormEvent) { e.preventDefault(); setLoading(true); try { await Promise.all([loadAttendance(), loadAbsences()]); } finally { setLoading(false); } }
+  async function search(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    await Promise.allSettled([loadAttendance(), loadAbsences()]);
+    setLoading(false);
+  }
 
   async function deleteSession(id: string) {
     if (!confirm('Delete this PLC session? All attendance records for this session will also be deleted.')) return;
