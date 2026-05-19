@@ -101,8 +101,8 @@ router.delete('/sessions/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/plc/sessions/:id/qr-image — PNG QR code for the session venue
-router.get('/sessions/:id/qr-image', adminOnly, async (req, res, next) => {
+// GET /api/plc/sessions/:id/token — return raw QR token (client renders the image)
+router.get('/sessions/:id/token', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT s.*, l.name AS location_name
@@ -113,9 +113,7 @@ router.get('/sessions/:id/qr-image', adminOnly, async (req, res, next) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Session not found' });
     const token = await buildToken(req.schoolId, rows[0].location_name);
-    const png   = await QRCode.toBuffer(token, { errorCorrectionLevel: 'M', width: 300 });
-    res.set('Content-Type', 'image/png');
-    res.send(png);
+    res.json({ token, location_name: rows[0].location_name, title: rows[0].title });
   } catch (err) { next(err); }
 });
 

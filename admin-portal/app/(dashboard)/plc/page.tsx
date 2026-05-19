@@ -217,7 +217,8 @@ export default function PlcPage() {
   const [editSession,  setEditSession]  = useState<Partial<PlcSession> | null | false>(false);
   const [photoRecord,  setPhotoRecord]  = useState<PlcAttendanceRecord | null>(null);
   const [qrSession,    setQrSession]    = useState<PlcSession | null>(null);
-  const [qrUrl,        setQrUrl]        = useState<string | null>(null);
+  const [qrDataUrl,    setQrDataUrl]    = useState<string | null>(null);
+  const [qrLoading,    setQrLoading]    = useState(false);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -291,7 +292,18 @@ export default function PlcPage() {
 
   async function openQr(session: PlcSession) {
     setQrSession(session);
-    setQrUrl(`/api/plc/sessions/${session.id}/qr-image`);
+    setQrDataUrl(null);
+    setQrLoading(true);
+    try {
+      const { data } = await api.get<{ token: string }>(`/api/plc/sessions/${session.id}/token`);
+      const QRCode   = (await import('qrcode')).default;
+      const dataUrl  = await QRCode.toDataURL(data.token, { errorCorrectionLevel: 'M', width: 280, margin: 2 });
+      setQrDataUrl(dataUrl);
+    } catch {
+      setQrDataUrl(null);
+    } finally {
+      setQrLoading(false);
+    }
   }
 
   const tabClass = (t: Tab) =>
@@ -508,29 +520,35 @@ export default function PlcPage() {
       {photoRecord && <PhotoModal record={photoRecord} onClose={() => setPhotoRecord(null)} />}
 
       {/* QR modal */}
-      {qrSession && qrUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setQrSession(null); setQrUrl(null); }}>
+      {qrSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setQrSession(null); setQrDataUrl(null); }}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-800">PLC Venue QR Code</h3>
               <p className="text-sm text-slate-500 mt-0.5">{qrSession.title} — {qrSession.location_name}</p>
             </div>
             <div className="p-6 flex flex-col items-center gap-4">
-              <img
-                src={`${process.env.NEXT_PUBLIC_API_URL ?? ''}${qrUrl}?t=${Date.now()}`}
-                alt="PLC QR code"
-                className="w-60 h-60 rounded-xl border border-slate-100"
-              />
+              {qrLoading ? (
+                <div className="w-60 h-60 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                </div>
+              ) : qrDataUrl ? (
+                <img src={qrDataUrl} alt="PLC QR code" className="w-60 h-60 rounded-xl border border-slate-100" />
+              ) : (
+                <div className="w-60 h-60 flex items-center justify-center bg-slate-50 rounded-xl border border-slate-100 text-sm text-slate-400">Failed to load QR</div>
+              )}
               <p className="text-xs text-slate-400 text-center">Print this QR and post it at the PLC venue. Teachers scan it to verify they are present.</p>
-              <a
-                href={`${process.env.NEXT_PUBLIC_API_URL ?? ''}${qrUrl}`}
-                download={`plc-qr-${qrSession.location_name}.png`}
-                className="w-full text-center py-2.5 rounded-xl text-sm font-semibold text-white"
-                style={{ backgroundColor: '#15803D' }}
-              >
-                Download PNG
-              </a>
-              <button onClick={() => { setQrSession(null); setQrUrl(null); }} className="w-full py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50">Close</button>
+              {qrDataUrl && (
+                <a
+                  href={qrDataUrl}
+                  download={`plc-qr-${qrSession.location_name}.png`}
+                  className="w-full text-center py-2.5 rounded-xl text-sm font-semibold text-white"
+                  style={{ backgroundColor: '#15803D' }}
+                >
+                  Download PNG
+                </a>
+              )}
+              <button onClick={() => { setQrSession(null); setQrDataUrl(null); }} className="w-full py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50">Close</button>
             </div>
           </div>
         </div>
