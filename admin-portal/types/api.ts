@@ -187,6 +187,16 @@ export interface TeacherAttendanceSummary {
   attendance_pct: number | null;
 }
 
+export interface PlcAttendanceSummary {
+  id: string;
+  name: string;
+  department: string;
+  present_count: number;
+  absent_count: number;
+  total_scheduled: number;
+  attendance_pct: number | null;
+}
+
 export interface ClassroomStatus {
   class_name: string;
   status: 'occupied' | 'vacant';

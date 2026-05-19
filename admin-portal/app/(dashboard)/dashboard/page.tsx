@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { StatCard } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import type { AdminStats, AcademicYear, ClassroomStatus, TeacherAttendanceSummary } from '@/types/api';
+import type { AdminStats, AcademicYear, ClassroomStatus, TeacherAttendanceSummary, PlcAttendanceSummary } from '@/types/api';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -70,10 +70,12 @@ export default function DashboardPage() {
   const [stats,          setStats]          = useState<AdminStats | null>(null);
   const [classes,        setClasses]        = useState<ClassroomStatus[]>([]);
   const [summary,        setSummary]        = useState<TeacherAttendanceSummary[]>([]);
+  const [plcSummary,     setPlcSummary]     = useState<PlcAttendanceSummary[]>([]);
   const [academicYears,  setAcademicYears]  = useState<AcademicYear[]>([]);
   const [filterYear,     setFilterYear]     = useState<string>('');
   const [filterSem,      setFilterSem]      = useState<string>('');
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [plcSummaryLoading, setPlcSummaryLoading] = useState(false);
   const [running,        setRunning]        = useState(false);
   const [loading,        setLoading]        = useState(true);
   const [filter,         setFilter]         = useState<OccupancyFilter>('all');
@@ -92,15 +94,20 @@ export default function DashboardPage() {
 
   const loadSummary = useCallback(async (yearId: string, sem: string) => {
     setSummaryLoading(true);
+    setPlcSummaryLoading(true);
     try {
       const params: Record<string, string> = {};
       if (yearId) params.academic_year_id = yearId;
       if (sem)    params.semester = sem;
-      const t = await api.get<TeacherAttendanceSummary[]>('/api/admin/reports/teacher-summary', { params });
-      setSummary(t.data);
-    } catch {
+      const [t, p] = await Promise.allSettled([
+        api.get<TeacherAttendanceSummary[]>('/api/admin/reports/teacher-summary', { params }),
+        api.get<PlcAttendanceSummary[]>('/api/plc/summary', { params }),
+      ]);
+      if (t.status === 'fulfilled') setSummary(t.value.data);
+      if (p.status === 'fulfilled') setPlcSummary(p.value.data);
     } finally {
       setSummaryLoading(false);
+      setPlcSummaryLoading(false);
     }
   }, []);
 
@@ -174,6 +181,19 @@ export default function DashboardPage() {
   );
   const schoolPct = totals.scheduled > 0
     ? Math.round(100 * totals.present / totals.scheduled)
+    : null;
+
+  // PLC school-wide totals
+  const plcTotals = plcSummary.reduce(
+    (acc, r) => ({
+      present:   acc.present   + r.present_count,
+      absent:    acc.absent    + r.absent_count,
+      scheduled: acc.scheduled + r.total_scheduled,
+    }),
+    { present: 0, absent: 0, scheduled: 0 }
+  );
+  const plcSchoolPct = plcTotals.scheduled > 0
+    ? Math.round(100 * plcTotals.present / plcTotals.scheduled)
     : null;
 
   const filterLabels: Record<OccupancyFilter, string> = {
@@ -389,6 +409,108 @@ export default function DashboardPage() {
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold"
                           style={{ backgroundColor: attendanceStatus(schoolPct).bg, color: attendanceStatus(schoolPct).color }}>
                           {attendanceStatus(schoolPct).label}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* ── PLC attendance summary ── */}
+      <section>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>
+            PLC Attendance Summary
+          </h2>
+          <p className="text-xs" style={{ color: '#94A3B8' }}>Same period as above</p>
+        </div>
+
+        {plcSummaryLoading ? (
+          <div className="bg-white rounded-xl p-8 flex justify-center" style={{ border: '1px solid #F1F5F9' }}>
+            <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin"
+              style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          </div>
+        ) : plcSummary.length === 0 ? (
+          <div className="bg-white rounded-xl p-8 text-center" style={{ border: '1px solid #F1F5F9' }}>
+            <p className="text-sm" style={{ color: '#94A3B8' }}>No PLC data for the selected period.</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+                    {['Teacher','Department','Sessions','Present','Absent','Attendance %','Status'].map(h => (
+                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {plcSummary.map((row, i) => {
+                    const st = attendanceStatus(row.attendance_pct);
+                    return (
+                      <tr key={row.id}
+                        className="transition-colors hover:bg-slate-50"
+                        style={{ borderBottom: i < plcSummary.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                        <td className="px-5 py-3.5 font-semibold" style={{ color: '#0F172A' }}>{row.name}</td>
+                        <td className="px-5 py-3.5 text-xs" style={{ color: '#64748B' }}>{row.department}</td>
+                        <td className="px-5 py-3.5 font-mono text-center" style={{ color: '#475569' }}>{row.total_scheduled}</td>
+                        <td className="px-5 py-3.5 font-mono text-center font-semibold" style={{ color: '#16A34A' }}>{row.present_count}</td>
+                        <td className="px-5 py-3.5 font-mono text-center font-semibold" style={{ color: row.absent_count > 0 ? '#DC2626' : '#94A3B8' }}>{row.absent_count}</td>
+                        <td className="px-5 py-3.5 min-w-36">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 rounded-full" style={{ backgroundColor: '#F1F5F9' }}>
+                              <div className="h-1.5 rounded-full" style={{
+                                width: `${Math.min(row.attendance_pct ?? 0, 100)}%`,
+                                backgroundColor: st.color,
+                              }} />
+                            </div>
+                            <span className="text-xs font-bold w-10 text-right" style={{ color: st.color }}>
+                              {row.attendance_pct !== null ? `${row.attendance_pct}%` : '—'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
+                            style={{ backgroundColor: st.bg, color: st.color }}>
+                            {st.label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: '2px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+                    <td className="px-5 py-3 text-xs font-bold uppercase tracking-wide" style={{ color: '#64748B' }}>School Total</td>
+                    <td className="px-5 py-3" />
+                    <td className="px-5 py-3 font-mono text-center font-bold" style={{ color: '#0F172A' }}>{plcTotals.scheduled}</td>
+                    <td className="px-5 py-3 font-mono text-center font-bold" style={{ color: '#16A34A' }}>{plcTotals.present}</td>
+                    <td className="px-5 py-3 font-mono text-center font-bold" style={{ color: plcTotals.absent > 0 ? '#DC2626' : '#94A3B8' }}>{plcTotals.absent}</td>
+                    <td className="px-5 py-3">
+                      {plcSchoolPct !== null && (
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 rounded-full" style={{ backgroundColor: '#F1F5F9' }}>
+                            <div className="h-1.5 rounded-full" style={{
+                              width: `${Math.min(plcSchoolPct, 100)}%`,
+                              backgroundColor: attendanceStatus(plcSchoolPct).color,
+                            }} />
+                          </div>
+                          <span className="text-xs font-bold w-10 text-right" style={{ color: attendanceStatus(plcSchoolPct).color }}>
+                            {plcSchoolPct}%
+                          </span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      {plcSchoolPct !== null && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold"
+                          style={{ backgroundColor: attendanceStatus(plcSchoolPct).bg, color: attendanceStatus(plcSchoolPct).color }}>
+                          {attendanceStatus(plcSchoolPct).label}
                         </span>
                       )}
                     </td>

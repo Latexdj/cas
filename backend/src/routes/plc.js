@@ -288,6 +288,12 @@ router.get('/my-history', async (req, res, next) => {
   try {
     const limit  = Math.min(parseInt(req.query.limit) || 30, 100);
     const offset = parseInt(req.query.offset) || 0;
+    const { academic_year_id, semester } = req.query;
+
+    const conds  = ['pa.school_id = $1', 'pa.teacher_id = $2'];
+    const params = [req.schoolId, req.user.id];
+    if (academic_year_id) { params.push(academic_year_id); conds.push(`pa.academic_year_id = $${params.length}`); }
+    if (semester)         { params.push(parseInt(semester, 10)); conds.push(`pa.semester = $${params.length}`); }
 
     const { rows } = await pool.query(
       `SELECT pa.id, pa.date, pa.submitted_at, pa.agenda, pa.location_name,
@@ -295,10 +301,10 @@ router.get('/my-history', async (req, res, next) => {
               ps.title AS session_title, ps.start_time::text, ps.end_time::text
        FROM plc_attendance pa
        JOIN plc_sessions ps ON ps.id = pa.session_id
-       WHERE pa.school_id = $1 AND pa.teacher_id = $2
+       WHERE ${conds.join(' AND ')}
        ORDER BY pa.date DESC
-       LIMIT $3 OFFSET $4`,
-      [req.schoolId, req.user.id, limit, offset]
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
     );
     res.json(rows);
   } catch (err) { next(err); }
@@ -401,6 +407,72 @@ router.delete('/absences/:id', adminOnly, async (req, res, next) => {
     );
     if (!rowCount) return res.status(404).json({ error: 'Record not found' });
     res.json({ message: 'PLC absence cleared' });
+  } catch (err) { next(err); }
+});
+
+// GET /api/plc/summary — admin: per-teacher PLC attendance summary
+router.get('/summary', adminOnly, async (req, res, next) => {
+  try {
+    const { academic_year_id, semester } = req.query;
+    const useAll = semester === 'all' || semester === '0';
+    let yearId = academic_year_id?.trim() || null;
+    let sem    = useAll ? null : (semester ? parseInt(semester, 10) : null);
+
+    if (!yearId || (!useAll && sem === null)) {
+      const { rows: ayRows } = await pool.query(
+        `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+        [req.schoolId]
+      );
+      if (!yearId) yearId = ayRows[0]?.id || null;
+      if (!useAll && sem === null) sem = ayRows[0]?.current_semester || null;
+    }
+
+    const { rows } = await pool.query(`
+      WITH att AS (
+        SELECT teacher_id, COUNT(*) AS present_count
+        FROM plc_attendance
+        WHERE school_id = $1
+          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
+          AND ($3::int  IS NULL OR semester = $3::int)
+        GROUP BY teacher_id
+      ),
+      dr AS (
+        SELECT
+          COALESCE(MIN(date), CURRENT_DATE - INTERVAL '365 days') AS min_date,
+          COALESCE(MAX(date), CURRENT_DATE) AS max_date
+        FROM plc_attendance
+        WHERE school_id = $1
+          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
+          AND ($3::int  IS NULL OR semester = $3::int)
+      ),
+      abs AS (
+        SELECT ab.teacher_id, COUNT(*) AS absent_count
+        FROM plc_absences ab, dr
+        WHERE ab.school_id = $1
+          AND ab.date >= dr.min_date
+          AND ab.date <= dr.max_date
+        GROUP BY ab.teacher_id
+      )
+      SELECT
+        t.id,
+        t.name,
+        COALESCE(t.department, '—') AS department,
+        COALESCE(att.present_count, 0)::int AS present_count,
+        COALESCE(abs.absent_count, 0)::int  AS absent_count,
+        (COALESCE(att.present_count, 0) + COALESCE(abs.absent_count, 0))::int AS total_scheduled,
+        CASE
+          WHEN (COALESCE(att.present_count, 0) + COALESCE(abs.absent_count, 0)) = 0 THEN NULL
+          ELSE ROUND(
+            100.0 * COALESCE(att.present_count, 0) /
+            NULLIF(COALESCE(att.present_count, 0) + COALESCE(abs.absent_count, 0), 0), 1)
+        END AS attendance_pct
+      FROM teachers t
+      LEFT JOIN att ON att.teacher_id = t.id
+      LEFT JOIN abs ON abs.teacher_id = t.id
+      WHERE t.school_id = $1 AND t.status = 'Active'
+      ORDER BY attendance_pct ASC NULLS LAST, t.name
+    `, [req.schoolId, yearId || null, sem || null]);
+    res.json(rows);
   } catch (err) { next(err); }
 });
 
