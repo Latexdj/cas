@@ -10,6 +10,7 @@ const pageTitles: Record<string, string> = {
   '/teachers':           'Teachers',
   '/students':           'Students',
   '/attendance':         'Teacher Attendance',
+  '/plc':               'PLC Attendance',
   '/student-attendance': 'Student Attendance',
   '/absences':           'Absences & Remedials',
   '/manual-entry':       'Manual Attendance Entry',

@@ -26,6 +26,7 @@ const classroomQrRoutes       = require('./routes/classroom-qr');
 const notificationsRoutes     = require('./routes/notifications');
 const auditLogRoutes          = require('./routes/audit-log');
 const schoolBreaksRoutes      = require('./routes/school-breaks');
+const plcRoutes               = require('./routes/plc');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -75,6 +76,7 @@ app.use('/api/classroom-qr',       classroomQrRoutes);
 app.use('/api/notifications',      notificationsRoutes);
 app.use('/api/audit-log',          auditLogRoutes);
 app.use('/api/school-breaks',      schoolBreaksRoutes);
+app.use('/api/plc',                plcRoutes);
 
 app.use(errorHandler);
 
@@ -147,6 +149,64 @@ async function runMigrations() {
         password_hash TEXT NOT NULL,
         updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
       )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS plc_sessions (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        title       TEXT NOT NULL,
+        day_of_week SMALLINT NOT NULL CHECK (day_of_week BETWEEN 1 AND 7),
+        start_time  TIME NOT NULL,
+        end_time    TIME NOT NULL,
+        location_id UUID REFERENCES locations(id) ON DELETE SET NULL,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS plc_attendance (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id         UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        session_id        UUID NOT NULL REFERENCES plc_sessions(id) ON DELETE CASCADE,
+        teacher_id        UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        date              DATE NOT NULL,
+        academic_year_id  UUID REFERENCES academic_years(id) ON DELETE SET NULL,
+        semester          SMALLINT,
+        agenda            TEXT,
+        gps_coordinates   TEXT,
+        photo_url         TEXT,
+        photo_size_kb     INTEGER,
+        location_name     TEXT,
+        location_verified BOOLEAN NOT NULL DEFAULT false,
+        submitted_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (session_id, teacher_id, date)
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_plc_attendance_school_date
+        ON plc_attendance(school_id, date DESC)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_plc_attendance_teacher
+        ON plc_attendance(teacher_id)
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS plc_absences (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        session_id  UUID NOT NULL REFERENCES plc_sessions(id) ON DELETE CASCADE,
+        teacher_id  UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        date        DATE NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'Absent',
+        reason      TEXT,
+        detected_at TIME,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (session_id, teacher_id, date)
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_plc_absences_school_date
+        ON plc_absences(school_id, date DESC)
     `);
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS qr_secret TEXT`);
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS qr_rotated_at TIMESTAMPTZ`);

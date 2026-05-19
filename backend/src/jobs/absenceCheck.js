@@ -219,6 +219,70 @@ async function runPerLessonCheck(schoolId) {
   }
 }
 
+// PLC absence check — flags teachers who missed a scheduled PLC session.
+async function runPlcAbsenceCheck(schoolId) {
+  const today     = new Date().toISOString().slice(0, 10);
+  const dayOfWeek = getAccraDayOfWeek();
+  const now       = new Date().toTimeString().slice(0, 5);
+
+  // Skip on school holidays
+  const { rows: calRows } = await pool.query(
+    'SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 LIMIT 1',
+    [schoolId, today]
+  );
+  if (calRows.length) return;
+
+  // Get today's active PLC session (if any)
+  const { rows: sessions } = await pool.query(
+    `SELECT id, title, start_time::text, end_time::text
+     FROM plc_sessions
+     WHERE school_id = $1 AND day_of_week = $2 AND is_active = true`,
+    [schoolId, dayOfWeek]
+  );
+  if (!sessions.length) return;
+
+  // Fetch approved excuses
+  const { rows: excuseRows } = await pool.query(
+    `SELECT DISTINCT teacher_id FROM teacher_excuses
+     WHERE school_id = $1 AND status = 'Approved'
+       AND date_from <= $2 AND date_to >= $2`,
+    [schoolId, today]
+  );
+  const excusedIds = new Set(excuseRows.map(r => r.teacher_id));
+
+  // All active teachers in the school
+  const { rows: teachers } = await pool.query(
+    `SELECT id, name FROM teachers WHERE school_id = $1 AND status = 'Active'`,
+    [schoolId]
+  );
+
+  for (const session of sessions) {
+    // Teachers who have already submitted for this session today
+    const { rows: submitted } = await pool.query(
+      `SELECT teacher_id FROM plc_attendance
+       WHERE session_id = $1 AND date = $2`,
+      [session.id, today]
+    );
+    const submittedIds = new Set(submitted.map(r => r.teacher_id));
+
+    for (const teacher of teachers) {
+      if (excusedIds.has(teacher.id) || submittedIds.has(teacher.id)) continue;
+      try {
+        await pool.query(
+          `INSERT INTO plc_absences
+             (school_id, session_id, teacher_id, date, status, detected_at, reason)
+           VALUES ($1, $2, $3, $4, 'Absent', $5::time, 'Daily automated check')
+           ON CONFLICT (session_id, teacher_id, date) DO NOTHING`,
+          [schoolId, session.id, teacher.id, today, now]
+        );
+      } catch (err) {
+        console.error(`[PlcAbsenceCheck] Error: ${teacher.name} / ${session.title}:`, err.message);
+      }
+    }
+    console.log(`[PlcAbsenceCheck] Checked ${teachers.length} teachers for "${session.title}" on ${today}`);
+  }
+}
+
 // Cron: runs at 16:00 every day across all active/trial schools.
 // Africa/Accra is UTC+0, so "0 16 * * *" is correct.
 function startAbsenceCheckJob() {
@@ -243,7 +307,7 @@ function startAbsenceCheckJob() {
     } catch (err) { console.error('[PerLessonCheck] Fatal:', err.message); }
   });
 
-  // Daily 16:00 sweep: catches any missed lessons (safety net)
+  // Daily 16:00 sweep: catches any missed lessons + PLC sessions (safety net)
   cron.schedule('0 16 * * *', async () => {
     try {
       const schools = await getSchools();
@@ -251,6 +315,8 @@ function startAbsenceCheckJob() {
       for (const school of schools) {
         try { await runAbsenceCheck(school.id); }
         catch (err) { console.error(`[AbsenceCheck] Failed for school ${school.id}:`, err.message); }
+        try { await runPlcAbsenceCheck(school.id); }
+        catch (err) { console.error(`[PlcAbsenceCheck] Failed for school ${school.id}:`, err.message); }
       }
     } catch (err) { console.error('[AbsenceCheck] Fatal error:', err.message); }
   });
@@ -258,4 +324,4 @@ function startAbsenceCheckJob() {
   console.log('[AbsenceCheck] Jobs scheduled — per-lesson every 5 min + daily sweep at 16:00');
 }
 
-module.exports = { startAbsenceCheckJob, runAbsenceCheck };
+module.exports = { startAbsenceCheckJob, runAbsenceCheck, runPlcAbsenceCheck };
