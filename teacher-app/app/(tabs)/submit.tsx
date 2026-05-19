@@ -63,6 +63,14 @@ export default function SubmitScreen() {
   const [camPermission, requestCamPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
+  // ── QR Scanner ───────────────────────────────────────────────
+  const [showQrScanner, setShowQrScanner] = useState(false);
+  const [qrVerified,    setQrVerified]    = useState(false);
+  const [qrClassName,   setQrClassName]   = useState('');
+  const [qrError,       setQrError]       = useState('');
+  const [qrVerifying,   setQrVerifying]   = useState(false);
+  const qrScannedRef = useRef(false);
+
   useFocusEffect(useCallback(() => {
     loadData();
     grabGps();
@@ -129,6 +137,43 @@ export default function SubmitScreen() {
       const attClasses   = a.class_names.split(',').map(c => c.trim().toLowerCase());
       return subjectMatch && slotClasses.some(sc => attClasses.includes(sc));
     });
+  }
+
+  async function openQrScanner() {
+    if (!camPermission?.granted) {
+      const res = await requestCamPermission();
+      if (!res.granted) { Alert.alert('Camera permission denied'); return; }
+    }
+    qrScannedRef.current = false;
+    setQrError('');
+    setShowQrScanner(true);
+  }
+
+  async function handleQrScanned({ data }: { data: string }) {
+    if (qrScannedRef.current || qrVerifying) return;
+    qrScannedRef.current = true;
+    setQrVerifying(true);
+    setQrError('');
+    try {
+      const res = await api.post<{ valid: boolean; className: string }>('/api/classroom-qr/verify', {
+        token: data,
+        expectedClassName: selectedSlot?.class_names,
+      });
+      if (res.data.valid) {
+        setQrVerified(true);
+        setQrClassName(res.data.className);
+        setShowQrScanner(false);
+      } else {
+        setQrError('Wrong classroom. Scan the QR code for this lesson\'s room.');
+        qrScannedRef.current = false;
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? 'Invalid or expired QR code. Try again.';
+      setQrError(msg);
+      qrScannedRef.current = false;
+    } finally {
+      setQrVerifying(false);
+    }
   }
 
   async function openCamera() {
@@ -210,6 +255,7 @@ export default function SubmitScreen() {
     if (gpsAcquiring)  { Alert.alert('GPS acquiring', 'GPS is still being determined. Please wait.'); return; }
     if (!gps)          { Alert.alert('GPS required', gpsError || 'GPS coordinates are required. Tap Refresh.'); return; }
     if (!photoBase64)  { Alert.alert('Photo required', 'Please take a classroom photo before submitting.'); return; }
+    if (!IS_WEB && !qrVerified) { Alert.alert('QR Required', 'Please scan the classroom QR code to verify your presence.'); return; }
 
     setSubmitting(true);
     try {
@@ -343,12 +389,52 @@ export default function SubmitScreen() {
   function resetTeacherForm() {
     setSelectedSlot(null); setTopic(''); setLocationName('');
     setPhotoUri(null); setPhotoBase64(null); setPhotoSizeKb(null);
+    setQrVerified(false); setQrClassName(''); setQrError('');
   }
 
   function resetAll() {
     resetTeacherForm();
     setStep('teacher'); setStudents([]); setStatuses({}); setAttendanceId(null);
     setClassQueue([]); setClassQueueIndex(0);
+  }
+
+  // ── QR SCANNER VIEW ─────────────────────────────────────────
+  if (showQrScanner) {
+    return (
+      <View style={styles.cameraContainer}>
+        <CameraView
+          style={styles.camera}
+          facing="back"
+          onBarcodeScanned={qrScannedRef.current ? undefined : handleQrScanned}
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+        />
+        {/* Semi-transparent frame overlay */}
+        <View style={styles.qrOverlay} pointerEvents="none">
+          <View style={styles.qrFrame} />
+        </View>
+        {/* Status strip at bottom */}
+        <View style={styles.qrStatusStrip}>
+          {qrVerifying ? (
+            <Text style={styles.qrStatusText}>Verifying…</Text>
+          ) : qrError ? (
+            <>
+              <Text style={[styles.qrStatusText, { color: '#FCA5A5' }]}>{qrError}</Text>
+              <TouchableOpacity onPress={() => { qrScannedRef.current = false; setQrError(''); }}>
+                <Text style={styles.qrRetryText}>Tap to retry</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <Text style={styles.qrStatusText}>Align the QR code with the frame</Text>
+          )}
+        </View>
+        <TouchableOpacity
+          style={[styles.cancelBtn, { position: 'absolute', top: 56, left: 20 }]}
+          onPress={() => { setShowQrScanner(false); qrScannedRef.current = false; setQrError(''); }}
+        >
+          <Text style={styles.cancelBtnText}>✕  Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   // ── CAMERA VIEW ──────────────────────────────────────────────
@@ -536,7 +622,7 @@ export default function SubmitScreen() {
           <TouchableOpacity
             key={slot.id}
             style={[styles.slotRow, selected && styles.slotRowSelected, done && styles.slotRowDone]}
-            onPress={() => { if (!done) { setSelectedSlot(slot); setTopic(''); } }}
+            onPress={() => { if (!done) { setSelectedSlot(slot); setTopic(''); setQrVerified(false); setQrClassName(''); } }}
             activeOpacity={done ? 1 : 0.7}
           >
             <View style={styles.slotRowLeft}>
@@ -573,6 +659,36 @@ export default function SubmitScreen() {
               <Text style={styles.lockedValue}>{selectedSlot.periods ?? 1}</Text>
             </View>
           </View>
+
+          {/* QR Code Verification (native only) */}
+          {!IS_WEB && (
+            <>
+              <Text style={styles.sectionTitle}>Classroom QR Code *</Text>
+              {qrVerified ? (
+                <View style={styles.qrVerifiedCard}>
+                  <Ionicons name="checkmark-circle" size={22} color="#2D7A4F" />
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={styles.qrVerifiedTitle}>Classroom Verified</Text>
+                    <Text style={styles.qrVerifiedSub}>{qrClassName}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => { setQrVerified(false); setQrClassName(''); }}>
+                    <Text style={[styles.qrRescanText, { color: Colors.primary }]}>Rescan</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.qrScanCard} onPress={openQrScanner}>
+                  <View style={[styles.qrScanIconWrap, { backgroundColor: Colors.accentLight }]}>
+                    <Ionicons name="qr-code-outline" size={24} color={Colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.qrScanTitle, { color: Colors.primary }]}>Scan Classroom QR Code</Text>
+                    <Text style={styles.qrScanSub}>Point your camera at the code on the wall</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#C0B8AF" />
+                </TouchableOpacity>
+              )}
+            </>
+          )}
 
           <Input label="Topic *" value={topic} onChangeText={setTopic} placeholder="What was taught in this lesson?" />
 
@@ -736,6 +852,22 @@ const styles = StyleSheet.create({
   classProgressChip:     { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, backgroundColor: '#E2D9CC' },
   classProgressDone:     { backgroundColor: '#2D7A4F' },
   classProgressText:     { fontSize: 12, fontWeight: '700', color: '#4A3F32' },
+  // QR scanner overlay
+  qrOverlay:             { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' },
+  qrFrame:               { width: 220, height: 220, borderWidth: 3, borderColor: '#fff', borderRadius: 16, backgroundColor: 'transparent' },
+  qrStatusStrip:         { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.75)', paddingVertical: 24, paddingHorizontal: 24, alignItems: 'center', gap: 10 },
+  qrStatusText:          { color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center' },
+  qrRetryText:           { color: '#FCD34D', fontSize: 13, fontWeight: '700', marginTop: 6 },
+  // QR form card — unverified
+  qrScanCard:            { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#E2D9CC', padding: 14, marginBottom: 16, gap: 12 },
+  qrScanIconWrap:        { width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  qrScanTitle:           { fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  qrScanSub:             { fontSize: 12, color: '#8C7E6E' },
+  // QR form card — verified
+  qrVerifiedCard:        { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E4F4EB', borderRadius: 14, borderWidth: 1.5, borderColor: '#A7D7B8', padding: 14, marginBottom: 16 },
+  qrVerifiedTitle:       { fontSize: 14, fontWeight: '700', color: '#1A4D2E' },
+  qrVerifiedSub:         { fontSize: 12, color: '#2D7A4F', marginTop: 1 },
+  qrRescanText:          { fontSize: 12, fontWeight: '700' },
   // Student checklist
   countRow:              { flexDirection: 'row', gap: 10, marginBottom: 4 },
   countBadge:            { flex: 1, borderRadius: 12, padding: 12, alignItems: 'center' },
