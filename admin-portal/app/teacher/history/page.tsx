@@ -217,7 +217,7 @@ export default function HistoryPage() {
       if (year) params.set('academic_year_id', year);
       if (sem)  params.set('semester', sem);
       const res = await teacherApi.get<MeetingRecord[]>(`/api/meetings/my-history?${params}`);
-      const rows: PlcRecord[] = Array.isArray(res.data) ? res.data : [];
+      const rows: MeetingRecord[] = Array.isArray(res.data) ? res.data : [];
       if (append) setPlcRecords(prev => [...prev, ...rows]);
       else        setPlcRecords(rows);
       setPlcHasMore(rows.length === PAGE_SIZE);
