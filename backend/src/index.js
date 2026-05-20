@@ -27,6 +27,7 @@ const notificationsRoutes     = require('./routes/notifications');
 const auditLogRoutes          = require('./routes/audit-log');
 const schoolBreaksRoutes      = require('./routes/school-breaks');
 const plcRoutes               = require('./routes/plc');
+const meetingsRoutes          = require('./routes/meetings');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -77,6 +78,7 @@ app.use('/api/notifications',      notificationsRoutes);
 app.use('/api/audit-log',          auditLogRoutes);
 app.use('/api/school-breaks',      schoolBreaksRoutes);
 app.use('/api/plc',                plcRoutes);
+app.use('/api/meetings',           meetingsRoutes);
 
 app.use(errorHandler);
 
@@ -211,6 +213,65 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS qr_secret TEXT`);
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS qr_rotated_at TIMESTAMPTZ`);
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS period_duration_minutes INTEGER NOT NULL DEFAULT 60`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meetings (
+        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id    UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        title        TEXT NOT NULL,
+        meeting_type TEXT NOT NULL CHECK (meeting_type IN ('PLC', 'Morning Briefing', 'Staff Meeting', 'PTA', 'Other')),
+        date         DATE NOT NULL,
+        start_time   TIME NOT NULL,
+        end_time     TIME NOT NULL,
+        location_id  UUID REFERENCES locations(id) ON DELETE SET NULL,
+        is_active    BOOLEAN NOT NULL DEFAULT true,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meeting_attendance (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id         UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        meeting_id        UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        teacher_id        UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        date              DATE NOT NULL,
+        academic_year_id  UUID REFERENCES academic_years(id) ON DELETE SET NULL,
+        semester          SMALLINT,
+        notes             TEXT,
+        gps_coordinates   TEXT,
+        photo_url         TEXT,
+        photo_size_kb     INTEGER,
+        location_name     TEXT,
+        location_verified BOOLEAN NOT NULL DEFAULT false,
+        submitted_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (meeting_id, teacher_id, date)
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_meeting_attendance_school_date
+        ON meeting_attendance(school_id, date DESC)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_meeting_attendance_teacher
+        ON meeting_attendance(teacher_id)
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meeting_absences (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        meeting_id  UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        teacher_id  UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        date        DATE NOT NULL,
+        status      TEXT NOT NULL DEFAULT 'Absent',
+        reason      TEXT,
+        detected_at TIME,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (meeting_id, teacher_id, date)
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_meeting_absences_school_date
+        ON meeting_absences(school_id, date DESC)
+    `);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS school_breaks (
         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

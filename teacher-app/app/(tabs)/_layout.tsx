@@ -44,7 +44,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index"         options={{ title: 'Dashboard',     tabBarIcon: ({ color, size }) => <Ionicons name="home-outline"            size={size} color={color} /> }} />
       <Tabs.Screen name="submit"        options={{ title: 'Submit',        tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-done-outline" size={size} color={color} /> }} />
-      <Tabs.Screen name="plc"           options={{ title: 'PLC',           tabBarIcon: ({ color, size }) => <Ionicons name="people-outline"         size={size} color={color} /> }} />
+      <Tabs.Screen name="meetings"       options={{ title: 'Meetings',       tabBarIcon: ({ color, size }) => <Ionicons name="people-outline"         size={size} color={color} /> }} />
       <Tabs.Screen name="absences"      options={{ title: 'Absences',      tabBarIcon: ({ color, size }) => <Ionicons name="alert-circle-outline"   size={size} color={color} />, href: '/absences' }} />
       <Tabs.Screen name="history"       options={{ title: 'History',       tabBarIcon: ({ color, size }) => <Ionicons name="time-outline"           size={size} color={color} /> }} />
       <Tabs.Screen

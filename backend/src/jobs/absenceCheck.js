@@ -283,6 +283,62 @@ async function runPlcAbsenceCheck(schoolId) {
   }
 }
 
+// Meeting absence check — flags teachers who missed a scheduled meeting.
+async function runMeetingAbsenceCheck(schoolId) {
+  const today = new Date().toISOString().slice(0, 10);
+  const now   = new Date().toTimeString().slice(0, 5);
+
+  const { rows: calRows } = await pool.query(
+    'SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 LIMIT 1',
+    [schoolId, today]
+  );
+  if (calRows.length) return;
+
+  const { rows: meetings } = await pool.query(
+    `SELECT id, title FROM meetings
+     WHERE school_id = $1 AND date = $2 AND is_active = true`,
+    [schoolId, today]
+  );
+  if (!meetings.length) return;
+
+  const { rows: excuseRows } = await pool.query(
+    `SELECT DISTINCT teacher_id FROM teacher_excuses
+     WHERE school_id = $1 AND status = 'Approved'
+       AND date_from <= $2 AND date_to >= $2`,
+    [schoolId, today]
+  );
+  const excusedIds = new Set(excuseRows.map(r => r.teacher_id));
+
+  const { rows: teachers } = await pool.query(
+    `SELECT id, name FROM teachers WHERE school_id = $1 AND status = 'Active'`,
+    [schoolId]
+  );
+
+  for (const meeting of meetings) {
+    const { rows: submitted } = await pool.query(
+      'SELECT teacher_id FROM meeting_attendance WHERE meeting_id = $1 AND date = $2',
+      [meeting.id, today]
+    );
+    const submittedIds = new Set(submitted.map(r => r.teacher_id));
+
+    for (const teacher of teachers) {
+      if (excusedIds.has(teacher.id) || submittedIds.has(teacher.id)) continue;
+      try {
+        await pool.query(
+          `INSERT INTO meeting_absences
+             (school_id, meeting_id, teacher_id, date, status, detected_at, reason)
+           VALUES ($1, $2, $3, $4, 'Absent', $5::time, 'Daily automated check')
+           ON CONFLICT (meeting_id, teacher_id, date) DO NOTHING`,
+          [schoolId, meeting.id, teacher.id, today, now]
+        );
+      } catch (err) {
+        console.error(`[MeetingAbsenceCheck] Error: ${teacher.name} / ${meeting.title}:`, err.message);
+      }
+    }
+    console.log(`[MeetingAbsenceCheck] Checked ${teachers.length} teachers for "${meeting.title}" on ${today}`);
+  }
+}
+
 // Cron: runs at 16:00 every day across all active/trial schools.
 // Africa/Accra is UTC+0, so "0 16 * * *" is correct.
 function startAbsenceCheckJob() {
@@ -317,6 +373,8 @@ function startAbsenceCheckJob() {
         catch (err) { console.error(`[AbsenceCheck] Failed for school ${school.id}:`, err.message); }
         try { await runPlcAbsenceCheck(school.id); }
         catch (err) { console.error(`[PlcAbsenceCheck] Failed for school ${school.id}:`, err.message); }
+        try { await runMeetingAbsenceCheck(school.id); }
+        catch (err) { console.error(`[MeetingAbsenceCheck] Failed for school ${school.id}:`, err.message); }
       }
     } catch (err) { console.error('[AbsenceCheck] Fatal error:', err.message); }
   });
@@ -324,4 +382,4 @@ function startAbsenceCheckJob() {
   console.log('[AbsenceCheck] Jobs scheduled — per-lesson every 5 min + daily sweep at 16:00');
 }
 
-module.exports = { startAbsenceCheckJob, runAbsenceCheck, runPlcAbsenceCheck };
+module.exports = { startAbsenceCheckJob, runAbsenceCheck, runPlcAbsenceCheck, runMeetingAbsenceCheck };

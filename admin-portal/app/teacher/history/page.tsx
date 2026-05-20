@@ -15,13 +15,14 @@ interface AttendanceRecord {
   periods?: number;
 }
 
-interface PlcRecord {
+interface MeetingRecord {
   id: string;
   date: string;
-  session_title: string;
+  meeting_title: string;
+  meeting_type: string;
   start_time: string;
   end_time: string;
-  agenda?: string;
+  notes?: string;
   location_name?: string;
   location_verified: boolean;
   submitted_at: string;
@@ -90,7 +91,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 /* ─── Component ─── */
 export default function HistoryPage() {
   const [primary, setPrimary] = useState('#2ab289');
-  const [tab, setTab] = useState<'my' | 'students' | 'atrisk' | 'plc'>('my');
+  const [tab, setTab] = useState<'my' | 'students' | 'atrisk' | 'meetings'>('my');
 
   /* ── My Attendance state ── */
   const [records,      setRecords]      = useState<AttendanceRecord[]>([]);
@@ -116,8 +117,8 @@ export default function HistoryPage() {
   const [detail,       setDetail]       = useState<SessionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  /* ── PLC state ── */
-  const [plcRecords,     setPlcRecords]     = useState<PlcRecord[]>([]);
+  /* ── Meetings state ── */
+  const [plcRecords,     setPlcRecords]     = useState<MeetingRecord[]>([]);
   const [plcLoading,     setPlcLoading]     = useState(false);
   const [plcLoadingMore, setPlcLoadingMore] = useState(false);
   const [plcOffset,      setPlcOffset]      = useState(0);
@@ -215,14 +216,14 @@ export default function HistoryPage() {
       const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(currentOffset) });
       if (year) params.set('academic_year_id', year);
       if (sem)  params.set('semester', sem);
-      const res = await teacherApi.get<PlcRecord[]>(`/api/plc/my-history?${params}`);
+      const res = await teacherApi.get<MeetingRecord[]>(`/api/meetings/my-history?${params}`);
       const rows: PlcRecord[] = Array.isArray(res.data) ? res.data : [];
       if (append) setPlcRecords(prev => [...prev, ...rows]);
       else        setPlcRecords(rows);
       setPlcHasMore(rows.length === PAGE_SIZE);
       setPlcOffset(currentOffset + rows.length);
     } catch {
-      setPlcError('Failed to load PLC history.');
+      setPlcError('Failed to load meeting history.');
     } finally {
       setPlcLoading(false);
       setPlcLoadingMore(false);
@@ -300,13 +301,13 @@ export default function HistoryPage() {
             ['my',       'Lessons'],
             ['students', 'Sessions'],
             ['atrisk',   'At Risk'],
-            ['plc',      'PLC'],
+            ['meetings',  'Meetings'],
           ] as const).map(([t, label]) => (
             <button
               key={t}
               onClick={() => {
                 setTab(t);
-                if (t === 'atrisk' && atRisk.length === 0 && !riskLoading) fetchAtRisk(riskFrom, riskTo);
+                if (t === 'atrisk'    && atRisk.length === 0 && !riskLoading) fetchAtRisk(riskFrom, riskTo);
               }}
               className="flex-1 py-2 rounded-xl text-xs font-semibold transition-colors"
               style={tab === t
@@ -514,8 +515,8 @@ export default function HistoryPage() {
         </>
       )}
 
-      {/* ── PLC tab ── */}
-      {tab === 'plc' && (
+      {/* ── Meetings tab ── */}
+      {tab === 'meetings' && (
         <>
           {/* Filter bar */}
           <div className="bg-white border-b border-[#E2D9CC] px-4 pb-3 mb-4">
@@ -560,7 +561,7 @@ export default function HistoryPage() {
               </div>
             ) : plcRecords.length === 0 ? (
               <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-8 text-center">
-                <p className="text-[#8C7E6E] text-sm">No PLC records for this period</p>
+                <p className="text-[#8C7E6E] text-sm">No meeting records for this period</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -569,7 +570,7 @@ export default function HistoryPage() {
                     style={{ borderLeftColor: '#A7D7B8', borderLeftWidth: 3 }}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-[#1A4D2E] truncate">{rec.session_title}</p>
+                        <p className="text-sm font-semibold text-[#1A4D2E] truncate">{rec.meeting_title}</p>
                         <p className="text-xs text-[#8C7E6E] mt-0.5">{formatDate(rec.date)}</p>
                         <p className="text-xs text-[#8C7E6E] mt-0.5">
                           {rec.start_time.slice(0, 5)} – {rec.end_time.slice(0, 5)}
@@ -580,15 +581,15 @@ export default function HistoryPage() {
                             {rec.location_verified && <span className="text-green-600 ml-1">✓</span>}
                           </p>
                         )}
-                        {rec.agenda && (
+                        {rec.notes && (
                           <p className="text-xs text-[#8C7E6E] mt-0.5 truncate">
-                            <span className="font-medium">Agenda:</span> {rec.agenda}
+                            <span className="font-medium">Notes:</span> {rec.notes}
                           </p>
                         )}
                       </div>
                       <div className="shrink-0">
                         <span className="text-xs font-bold px-2 py-1 rounded-full"
-                          style={{ background: '#E4F4EB', color: '#1A4D2E' }}>PLC</span>
+                          style={{ background: '#E4F4EB', color: '#1A4D2E' }}>{rec.meeting_type}</span>
                       </div>
                     </div>
                   </div>
