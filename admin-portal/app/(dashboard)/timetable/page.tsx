@@ -25,6 +25,7 @@ export default function TimetablePage() {
   const [filterDay, setFilterDay] = useState('0');
   const [filterTch, setFilterTch] = useState('');
   const [filterCls, setFilterCls] = useState('');
+  const [filterSub, setFilterSub] = useState('');
 
   // Upload state
   const fileRef                   = useRef<HTMLInputElement>(null);
@@ -125,7 +126,8 @@ export default function TimetablePage() {
     .filter(e =>
       (filterDay === '0' || e.day_of_week === parseInt(filterDay)) &&
       (!filterTch || e.teacher_id === filterTch) &&
-      (!filterCls || e.class_names.split(',').map(c => c.trim()).includes(filterCls))
+      (!filterCls || e.class_names.split(',').map(c => c.trim()).includes(filterCls)) &&
+      (!filterSub || e.subject === filterSub)
     )
     .sort((a, b) => a.day_of_week - b.day_of_week || a.start_time.localeCompare(b.start_time));
 
@@ -145,6 +147,10 @@ export default function TimetablePage() {
         <select value={filterCls} onChange={e => setFilterCls(e.target.value)} className={selectCls}>
           <option value="">All Classes</option>
           {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+        </select>
+        <select value={filterSub} onChange={e => setFilterSub(e.target.value)} className={selectCls}>
+          <option value="">All Subjects</option>
+          {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
         </select>
         <div className="ml-auto flex gap-2">
           <Button variant="secondary" onClick={openUpload}>↑ Upload Excel</Button>
