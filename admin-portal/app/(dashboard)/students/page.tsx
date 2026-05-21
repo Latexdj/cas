@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
-import type { Student, Program } from '@/types/api';
+import type { Student, Program, ClassItem } from '@/types/api';
 
 interface UploadResult { inserted: number; errors: { row: number; message: string }[]; }
 type ModalMode = 'add' | 'edit' | 'upload' | 'promote' | 'graduate' | null;
@@ -16,6 +16,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
 export default function StudentsPage() {
   const [students,       setStudents]       = useState<Student[]>([]);
   const [classes,        setClasses]        = useState<string[]>([]);
+  const [allClasses,     setAllClasses]     = useState<string[]>([]);
   const [programs,       setPrograms]       = useState<Program[]>([]);
   const [loading,        setLoading]        = useState(true);
   const [filterClass,    setFilterClass]    = useState('');
@@ -50,14 +51,19 @@ export default function StudentsPage() {
       if (filterClass)   params.set('class_name', filterClass);
       if (filterProgram) params.set('program_id', filterProgram);
       if (filterStatus)  params.set('status', filterStatus || 'all');
-      const [stuRes, clsRes, progRes] = await Promise.allSettled([
+      const [stuRes, clsRes, allClsRes, progRes] = await Promise.allSettled([
         api.get<Student[]>(`/api/students?${params}`),
         api.get<string[]>('/api/students/classes'),
+        api.get<ClassItem[]>('/api/classes'),
         api.get<Program[]>('/api/programs'),
       ]);
       if (stuRes.status  === 'fulfilled') setStudents(stuRes.value.data);
       if (clsRes.status  === 'fulfilled') setClasses(clsRes.value.data);
       if (progRes.status === 'fulfilled') setPrograms(progRes.value.data);
+      const fromStudents = clsRes.status  === 'fulfilled' ? clsRes.value.data : [];
+      const fromDefined  = allClsRes.status === 'fulfilled' ? allClsRes.value.data.map(c => c.name) : [];
+      const merged = Array.from(new Set([...fromDefined, ...fromStudents])).sort();
+      setAllClasses(merged);
     } finally {
       setLoading(false);
     }
@@ -263,8 +269,10 @@ export default function StudentsPage() {
               </div>
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Class *</label>
-                <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={fClass} onChange={e => setFClass(e.target.value)} placeholder="e.g. Form 1A" list="class-list" />
-                <datalist id="class-list">{classes.map(c => <option key={c} value={c} />)}</datalist>
+                <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: fClass ? '#0F172A' : '#94A3B8' }} value={fClass} onChange={e => setFClass(e.target.value)}>
+                  <option value="">Select class…</option>
+                  {allClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Status</label>
