@@ -503,14 +503,20 @@ router.post('/attendance', async (req, res, next) => {
     if (!ayRows.length) return res.status(400).json({ error: 'No current academic year configured' });
     const { id: yearId, current_semester: sem } = ayRows[0];
 
-    // Check for exact duplicate (same teacher + subject + date)
+    // Duplicate check: same teacher + subject + date AND at least one overlapping class
     const { rows: dupRows } = await pool.query(
       `SELECT id FROM attendance
-       WHERE school_id = $1 AND date = $2 AND teacher_id = $3 AND LOWER(subject) = LOWER($4)`,
-      [req.schoolId, date, teacherId, subject]
+       WHERE school_id = $1 AND date = $2 AND teacher_id = $3 AND LOWER(subject) = LOWER($4)
+         AND EXISTS (
+           SELECT 1
+           FROM unnest(string_to_array(class_names, ',')) AS ec
+          CROSS JOIN unnest(string_to_array($5, ','))    AS nc
+           WHERE trim(lower(ec)) = trim(lower(nc))
+         )`,
+      [req.schoolId, date, teacherId, subject, classNames]
     );
     if (dupRows.length)
-      return res.status(409).json({ error: 'Attendance already recorded for this teacher and subject on that date' });
+      return res.status(409).json({ error: 'Attendance already recorded for this teacher, subject, and class on that date' });
 
     // Resolve location id if name provided
     let locationId = null;
