@@ -167,6 +167,7 @@ export default function ManualEntryPage() {
         teacherId:     form.teacherId,
         subject:       selectedSlot?.subject ?? '',
         className:     currentClass,
+        date:          form.date,
         lessonEndTime: null,
         records: students.map(s => ({
           studentId: s.id,

@@ -14,7 +14,7 @@ function isEditLocked(sessionDate, lessonEndTime) {
 /** POST /api/student-attendance/submit */
 router.post('/submit', async (req, res, next) => {
   try {
-    const { attendanceId, teacherId, subject, className, lessonEndTime, records } = req.body;
+    const { attendanceId, teacherId, subject, className, lessonEndTime, records, date: bodyDate } = req.body;
     if (!teacherId || !subject || !className || !Array.isArray(records) || !records.length) {
       return res.status(400).json({ error: 'teacherId, subject, className, and records[] are required' });
     }
@@ -48,7 +48,7 @@ router.post('/submit', async (req, res, next) => {
     const yearId = ayRows[0]?.id            || null;
     const sem    = ayRows[0]?.current_semester || null;
 
-    const today  = new Date().toISOString().slice(0, 10);
+    const today  = bodyDate || new Date().toISOString().slice(0, 10);
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
