@@ -10,6 +10,12 @@ import type { AbsenceRecord, RemedialLesson, Teacher, TeacherExcuse } from '@/ty
 
 type Tab = 'absences' | 'remedials' | 'excuses';
 
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 // ── shared tab bar ─────────────────────────────────────────────
 function TabBar({ active, onChange, absCount, remCount, excCount }: {
   active: Tab; onChange: (t: Tab) => void;
@@ -137,7 +143,7 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
                 {records.map((r, i) => (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors"
                     style={{ borderBottom: i < records.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
-                    <td className="px-4 py-3 font-mono text-xs" style={{ color: '#475569' }}>{r.date}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: '#475569' }}>{fmtDate(r.date)}</td>
                     <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{r.teacher_name}</td>
                     <td className="px-4 py-3" style={{ color: '#475569' }}>{r.subject}</td>
                     <td className="px-4 py-3" style={{ color: '#475569' }}>{r.class_name}</td>
@@ -165,7 +171,7 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
         {reasonModal && (
           <div className="space-y-3">
             <p className="text-sm" style={{ color: '#475569' }}>
-              <strong style={{ color: '#0F172A' }}>{reasonModal.teacher_name}</strong> — {reasonModal.subject} / {reasonModal.class_name} on {reasonModal.date}
+              <strong style={{ color: '#0F172A' }}>{reasonModal.teacher_name}</strong> — {reasonModal.subject} / {reasonModal.class_name} on {fmtDate(reasonModal.date)}
             </p>
             <div>
               <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Reason</label>
@@ -267,9 +273,9 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
                 {items.map((r, i) => (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors"
                     style={{ borderBottom: i < items.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
-                    <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{r.original_absence_date}</td>
-                    <td className="px-4 py-3 font-mono text-xs" style={{ color: '#0F172A' }}>
-                      {r.remedial_date} <span style={{ color: '#94A3B8' }}>{r.remedial_time}</span>
+                    <td className="px-4 py-3 text-xs" style={{ color: '#64748B' }}>{fmtDate(r.original_absence_date)}</td>
+                    <td className="px-4 py-3 text-xs" style={{ color: '#0F172A' }}>
+                      {fmtDate(r.remedial_date)} <span style={{ color: '#94A3B8' }}>{r.remedial_time}</span>
                     </td>
                     <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{r.teacher_name}</td>
                     <td className="px-4 py-3" style={{ color: '#475569' }}>{r.subject}</td>
@@ -303,7 +309,7 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
           <div className="space-y-3">
             <p className="text-sm" style={{ color: '#475569' }}>
               <strong style={{ color: '#0F172A' }}>{notesModal.teacher_name}</strong> — {notesModal.subject} / {notesModal.class_name}<br />
-              Scheduled: {notesModal.remedial_date} at {notesModal.remedial_time}
+              Scheduled: {fmtDate(notesModal.remedial_date)} at {notesModal.remedial_time}
             </p>
             <div>
               <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Verification Notes (optional)</label>
@@ -490,7 +496,7 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
               <tbody>
                 {excuses.map((ex, i) => {
                   const ss = EXCUSE_STATUS_STYLE[ex.status] ?? { bg: '#F1F5F9', color: '#64748B' };
-                  const period = ex.date_from === ex.date_to ? ex.date_from : `${ex.date_from} – ${ex.date_to}`;
+                  const period = ex.date_from === ex.date_to ? fmtDate(ex.date_from) : `${fmtDate(ex.date_from)} – ${fmtDate(ex.date_to)}`;
                   return (
                     <tr key={ex.id} className="hover:bg-slate-50 transition-colors"
                       style={{ borderBottom: i < excuses.length - 1 ? '1px solid #F8FAFC' : 'none' }}>

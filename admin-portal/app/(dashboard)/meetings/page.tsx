@@ -66,6 +66,12 @@ const GREEN = '#15803D';
 
 function fmt(t: string) { return t?.slice(0, 5) ?? '—'; }
 
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function dayName(dateStr: string) {
   if (!dateStr) return '';
   const d = new Date(dateStr + 'T00:00:00');
@@ -433,7 +439,7 @@ function PhotoModal({ record, onClose }: { record: AttendanceRecord; onClose: ()
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Date</p>
-              <p className="text-slate-800 font-medium">{record.date}</p>
+              <p className="text-slate-800 font-medium">{fmtDate(record.date)}</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Venue</p>
@@ -719,7 +725,7 @@ export default function MeetingsPage() {
                     <tbody>
                       {meetings.map(m => (
                         <tr key={m.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors last:border-0">
-                          <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{m.date}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{fmtDate(m.date)}</td>
                           <td className="px-4 py-3 text-slate-500">{dayName(m.date)}</td>
                           <td className="px-4 py-3"><TypeBadge type={m.meeting_type} /></td>
                           <td className="px-4 py-3 text-slate-700 font-medium max-w-[200px] truncate">{m.title}</td>
@@ -780,7 +786,7 @@ export default function MeetingsPage() {
                     <tbody>
                       {attendance.map(r => (
                         <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors last:border-0">
-                          <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{r.date}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{fmtDate(r.date)}</td>
                           <td className="px-4 py-3 text-slate-700 font-medium">{r.teacher_name}</td>
                           <td className="px-4 py-3 text-slate-600 max-w-[180px] truncate">{r.meeting_title}</td>
                           <td className="px-4 py-3"><TypeBadge type={r.meeting_type} /></td>
@@ -832,7 +838,7 @@ export default function MeetingsPage() {
                     <tbody>
                       {absences.map(a => (
                         <tr key={a.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors last:border-0">
-                          <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{a.date}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{fmtDate(a.date)}</td>
                           <td className="px-4 py-3 text-slate-700 font-medium">{a.teacher_name}</td>
                           <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate">{a.meeting_title}</td>
                           <td className="px-4 py-3"><TypeBadge type={a.meeting_type} /></td>

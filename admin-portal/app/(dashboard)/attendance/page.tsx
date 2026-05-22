@@ -6,6 +6,12 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import type { AttendanceRecord, Teacher } from '@/types/api';
 
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 function PhotoModal({ record, onClose }: { record: AttendanceRecord; onClose: () => void }) {
   const submittedAt = record.submitted_at
     ? new Date(record.submitted_at).toLocaleString('en-GB', {
@@ -176,7 +182,7 @@ export default function AttendancePage() {
               <tbody className="divide-y divide-gray-50">
                 {records.map(r => (
                   <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{r.date}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtDate(r.date)}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{r.teacher_name}</td>
                     <td className="px-4 py-3 text-gray-700">{r.subject}</td>
                     <td className="px-4 py-3 text-gray-700">{r.class_names}</td>
@@ -245,7 +251,7 @@ export default function AttendancePage() {
             <div className="bg-slate-50 rounded-xl p-3 text-sm">
               <p><span className="font-semibold text-slate-700">Teacher:</span> <span className="text-slate-600">{revokeRecord.teacher_name}</span></p>
               <p><span className="font-semibold text-slate-700">Subject:</span> <span className="text-slate-600">{revokeRecord.subject} — {revokeRecord.class_names}</span></p>
-              <p><span className="font-semibold text-slate-700">Date:</span> <span className="text-slate-600">{revokeRecord.date}</span></p>
+              <p><span className="font-semibold text-slate-700">Date:</span> <span className="text-slate-600">{fmtDate(revokeRecord.date)}</span></p>
             </div>
 
             <div>

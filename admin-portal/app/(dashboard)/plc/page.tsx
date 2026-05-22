@@ -5,6 +5,12 @@ import type { Location, Teacher } from '@/types/api';
 
 const DAYS = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 interface PlcSession {
   id: string;
   title: string;
@@ -437,7 +443,7 @@ export default function PlcPage() {
                   <tbody>
                     {attendance.map(r => (
                       <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3 font-semibold text-slate-800">{r.date}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-800">{fmtDate(r.date)}</td>
                         <td className="px-4 py-3 text-slate-700">{r.teacher_name}</td>
                         <td className="px-4 py-3 text-slate-600">{r.session_title}</td>
                         <td className="px-4 py-3 text-slate-600">
@@ -486,7 +492,7 @@ export default function PlcPage() {
                   <tbody>
                     {absences.map(a => (
                       <tr key={a.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3 font-semibold text-slate-800">{a.date}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-800">{fmtDate(a.date)}</td>
                         <td className="px-4 py-3 text-slate-700">{a.teacher_name}</td>
                         <td className="px-4 py-3 text-slate-600">{a.session_title}</td>
                         <td className="px-4 py-3 text-slate-500">{a.start_time?.slice(0,5)} – {a.end_time?.slice(0,5)}</td>

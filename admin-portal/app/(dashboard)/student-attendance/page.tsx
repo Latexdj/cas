@@ -3,6 +3,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import type { StudentAttendanceSession, StudentAttendanceRecord } from '@/types/api';
 
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 /* ─── Export helpers ─── */
 type Row = (string | number | null)[];
 
@@ -335,7 +341,7 @@ export default function StudentAttendancePage() {
                       <tr key={s.id} className="hover:bg-slate-50 transition-colors cursor-pointer"
                         style={{ borderBottom: i < sessions.length - 1 ? '1px solid #F8FAFC' : 'none' }}
                         onClick={() => openDetail(s.id)}>
-                        <td className="px-4 py-3 font-mono text-xs" style={{ color: '#475569' }}>{s.date}</td>
+                        <td className="px-4 py-3 font-mono text-xs" style={{ color: '#475569' }}>{fmtDate(s.date)}</td>
                         <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{s.class_name}</td>
                         <td className="px-4 py-3" style={{ color: '#475569' }}>{s.subject}</td>
                         <td className="px-4 py-3" style={{ color: '#475569' }}>{s.teacher_name}</td>
@@ -480,7 +486,7 @@ export default function StudentAttendancePage() {
                 <h2 className="text-base font-bold" style={{ color: '#0F172A' }}>
                   {detail ? `${detail.session.class_name} — ${detail.session.subject}` : 'Loading…'}
                 </h2>
-                {detail && <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>{detail.session.date} · {detail.session.teacher_name}</p>}
+                {detail && <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>{fmtDate(detail.session.date)} · {detail.session.teacher_name}</p>}
               </div>
               {detail && (
                 <div className="flex gap-4 text-sm">
