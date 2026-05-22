@@ -167,9 +167,10 @@ export default function AttendancePage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  {['Date','Teacher','Subject','Class','Periods','Topic','Location','Photo','Week','Actions'].map(h => (
+                  {['Date','Teacher','Subject','Class','Periods','Topic','Location','Photo','Week'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                   ))}
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide sticky right-0 bg-gray-50">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -202,7 +203,7 @@ export default function AttendancePage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-600">Wk {r.week_number}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 sticky right-0 bg-white">
                       <div className="flex gap-2 items-center">
                         <Button variant="danger" size="sm" onClick={() => { setRevokeRecord(r); setRevokeReason(''); setRevokeError(''); }}>
                           Revoke
