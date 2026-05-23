@@ -74,7 +74,7 @@ function fmtDate(iso: string | null | undefined): string {
 
 function dayName(dateStr: string) {
   if (!dateStr) return '';
-  const d = new Date(dateStr + 'T00:00:00');
+  const d = new Date(dateStr.length === 10 ? dateStr + 'T00:00:00' : dateStr);
   return d.toLocaleDateString('en-GB', { weekday: 'short' });
 }
 
