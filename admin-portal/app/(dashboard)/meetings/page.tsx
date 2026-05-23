@@ -74,8 +74,9 @@ function fmtDate(iso: string | null | undefined): string {
 
 function dayName(dateStr: string) {
   if (!dateStr) return '';
-  const d = new Date(dateStr.length === 10 ? dateStr + 'T00:00:00' : dateStr);
-  return d.toLocaleDateString('en-GB', { weekday: 'short' });
+  const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return '';
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short' });
 }
 
 /** Estimate number of occurrences when repeating from `start` until `end`. */
