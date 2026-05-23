@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -58,12 +58,26 @@ const eventStyles = StyleSheet.create({
 export default function HomeScreen() {
   const themeColors = useTheme();
   const { user } = useAuth();
-  const [slots,      setSlots]      = useState<TimetableSlot[]>([]);
-  const [submitted,  setSubmitted]  = useState<AttendanceRecord[]>([]);
-  const [events,     setEvents]     = useState<SchoolCalendarEntry[]>([]);
-  const [mySummary,  setMySummary]  = useState<AttendanceSummary | null>(null);
-  const [loading,    setLoading]    = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [slots,        setSlots]        = useState<TimetableSlot[]>([]);
+  const [submitted,    setSubmitted]    = useState<AttendanceRecord[]>([]);
+  const [events,       setEvents]       = useState<SchoolCalendarEntry[]>([]);
+  const [mySummary,    setMySummary]    = useState<AttendanceSummary | null>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [refreshing,   setRefreshing]   = useState(false);
+  const [unreadCount,  setUnreadCount]  = useState(0);
+  const unreadInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    async function fetchUnread() {
+      try {
+        const { data } = await api.get<{ count: number }>('/api/notifications/unread-count');
+        setUnreadCount(data.count ?? 0);
+      } catch {}
+    }
+    fetchUnread();
+    unreadInterval.current = setInterval(fetchUnread, 60_000);
+    return () => { if (unreadInterval.current) clearInterval(unreadInterval.current); };
+  }, []);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -111,8 +125,22 @@ export default function HomeScreen() {
           <Text style={styles.greeting}>Good day, {firstName}</Text>
           <Text style={styles.date}>{today}</Text>
         </View>
-        <View style={[styles.avatarSmall, { backgroundColor: themeColors.accent }]}>
-          <Text style={styles.avatarLetter}>{firstName.charAt(0)}</Text>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={styles.bellBtn}
+            onPress={() => router.push('/(tabs)/notifications')}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="notifications-outline" size={23} color="#fff" />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          <View style={[styles.avatarSmall, { backgroundColor: themeColors.accent }]}>
+            <Text style={styles.avatarLetter}>{firstName.charAt(0)}</Text>
+          </View>
         </View>
       </View>
 
@@ -205,12 +233,16 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: '#F4EFE6' },
-  header:      { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  greeting:    { fontSize: 21, fontWeight: '800', color: '#fff', letterSpacing: -0.3 },
-  date:        { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
-  avatarSmall: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
-  avatarLetter:{ fontSize: 18, fontWeight: '800', color: '#fff' },
+  root:          { flex: 1, backgroundColor: '#F4EFE6' },
+  header:        { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  greeting:      { fontSize: 21, fontWeight: '800', color: '#fff', letterSpacing: -0.3 },
+  date:          { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
+  headerRight:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  bellBtn:       { position: 'relative', width: 38, height: 38, justifyContent: 'center', alignItems: 'center' },
+  bellBadge:     { position: 'absolute', top: 0, right: 0, backgroundColor: '#EF4444', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
+  bellBadgeText: { fontSize: 9, fontWeight: '800', color: '#fff' },
+  avatarSmall:   { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
+  avatarLetter:  { fontSize: 18, fontWeight: '800', color: '#fff' },
   statsRow:    { flexDirection: 'row', backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: -16, borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', shadowColor: '#1C1208', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3, marginBottom: 20 },
   stat:        { flex: 1, alignItems: 'center', paddingVertical: 14 },
   statDivider: { borderLeftWidth: 1, borderLeftColor: '#E2D9CC' },

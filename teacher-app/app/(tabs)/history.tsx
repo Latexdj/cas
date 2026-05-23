@@ -39,6 +39,19 @@ interface SessionDetail {
   records: SessionRecord[];
 }
 
+interface MeetingRecord {
+  id: string;
+  date: string;
+  meeting_title: string;
+  meeting_type: string;
+  start_time: string;
+  end_time: string;
+  notes?: string;
+  location_name?: string;
+  location_verified: boolean;
+  submitted_at: string;
+}
+
 interface AtRiskStudent {
   id: string;
   student_code: string;
@@ -135,7 +148,7 @@ export default function HistoryScreen() {
   const Colors = useTheme();
   const { user } = useAuth();
 
-  const [tab, setTab] = useState<'my' | 'sessions' | 'atrisk'>('my');
+  const [tab, setTab] = useState<'my' | 'sessions' | 'atrisk' | 'meetings'>('my');
 
   /* ── My Attendance ── */
   const [records,       setRecords]       = useState<AttendanceRecord[]>([]);
@@ -158,6 +171,16 @@ export default function HistoryScreen() {
   const [detailLoading,setDetailLoading]= useState(false);
   const sessInitRef = useRef(false);
 
+  /* ── Meetings ── */
+  const [meetingRecords,    setMeetingRecords]    = useState<MeetingRecord[]>([]);
+  const [meetingLoading,    setMeetingLoading]    = useState(false);
+  const [meetingLoadingMore,setMeetingLoadingMore]= useState(false);
+  const [meetingHasMore,    setMeetingHasMore]    = useState(true);
+  const [meetingOffset,     setMeetingOffset]     = useState(0);
+  const [meetingFilterYear, setMeetingFilterYear] = useState('');
+  const [meetingFilterSem,  setMeetingFilterSem]  = useState('');
+  const meetingInitRef = useRef(false);
+
   /* ── At Risk ── */
   const [atRisk,        setAtRisk]        = useState<AtRiskStudent[]>([]);
   const [riskLoading,   setRiskLoading]   = useState(false);
@@ -173,8 +196,12 @@ export default function HistoryScreen() {
       setAcademicYears(r.data);
       const current = r.data.find(y => y.is_current);
       if (current) {
-        setFilterYear(current.id);
-        setFilterSem(current.current_semester ? String(current.current_semester) : '');
+        const yearId = current.id;
+        const sem    = current.current_semester ? String(current.current_semester) : '';
+        setFilterYear(yearId);
+        setFilterSem(sem);
+        setMeetingFilterYear(yearId);
+        setMeetingFilterSem(sem);
       }
     }).catch(() => {});
   }, []);
@@ -254,6 +281,29 @@ export default function HistoryScreen() {
     } finally { setDetailLoading(false); }
   }
 
+  /* ─── Meetings history ─── */
+  async function fetchMeetingPage(offset: number, replace: boolean, year = meetingFilterYear, sem = meetingFilterSem) {
+    if (!user) return;
+    if (replace) setMeetingLoading(true); else setMeetingLoadingMore(true);
+    try {
+      const params: Record<string, string | number> = { limit: PAGE_SIZE, offset };
+      if (year) params.academic_year_id = year;
+      if (sem)  params.semester = sem;
+      const res = await api.get<MeetingRecord[]>('/api/meetings/my-history', { params });
+      const rows = Array.isArray(res.data) ? res.data : [];
+      setMeetingRecords(prev => replace ? rows : [...prev, ...rows]);
+      setMeetingHasMore(rows.length === PAGE_SIZE);
+      setMeetingOffset(offset + rows.length);
+    } catch {}
+    finally { setMeetingLoading(false); setMeetingLoadingMore(false); }
+  }
+
+  function applyMeetingFilter(year: string, sem: string) {
+    setMeetingFilterYear(year); setMeetingFilterSem(sem);
+    setMeetingRecords([]); setMeetingOffset(0);
+    fetchMeetingPage(0, true, year, sem);
+  }
+
   /* ─── At Risk ─── */
   async function fetchAtRisk(from: string, to: string) {
     if (!user) return;
@@ -267,7 +317,7 @@ export default function HistoryScreen() {
     finally { setRiskLoading(false); }
   }
 
-  function handleTabPress(t: 'my' | 'sessions' | 'atrisk') {
+  function handleTabPress(t: 'my' | 'sessions' | 'atrisk' | 'meetings') {
     setTab(t);
     if (t === 'sessions' && !sessInitRef.current) {
       sessInitRef.current = true;
@@ -276,6 +326,10 @@ export default function HistoryScreen() {
     if (t === 'atrisk' && !riskInitRef.current) {
       riskInitRef.current = true;
       fetchAtRisk(riskFrom, riskTo);
+    }
+    if (t === 'meetings' && !meetingInitRef.current) {
+      meetingInitRef.current = true;
+      fetchMeetingPage(0, true);
     }
   }
 
@@ -286,7 +340,7 @@ export default function HistoryScreen() {
   /* ─── Tab bar ─── */
   const TabBar = (
     <View style={styles.tabBar}>
-      {([['my', 'My Attendance'], ['sessions', 'Sessions'], ['atrisk', 'At Risk']] as const).map(([t, label]) => (
+      {([['my', 'My Lessons'], ['sessions', 'Sessions'], ['atrisk', 'At Risk'], ['meetings', 'Meetings']] as const).map(([t, label]) => (
         <TouchableOpacity
           key={t}
           style={[styles.tabBtn, tab === t && { backgroundColor: Colors.primary }]}
@@ -498,6 +552,108 @@ export default function HistoryScreen() {
     );
   }
 
+  /* ── Meetings tab ── */
+  if (tab === 'meetings') {
+    const meetingSelectedYearName = academicYears.find(y => y.id === meetingFilterYear)?.name ?? 'All Years';
+    const meetingSemLabel = meetingFilterSem === '1' ? 'Sem 1' : meetingFilterSem === '2' ? 'Sem 2' : 'All';
+
+    const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
+      PLC:        { bg: '#EDE9FE', color: '#7C3AED' },
+      Staff:      { bg: '#DBEAFE', color: '#1D4ED8' },
+      Department: { bg: '#FEF3C7', color: '#D97706' },
+      General:    { bg: '#F0FDF4', color: '#15803D' },
+    };
+
+    return (
+      <View style={styles.container}>
+        <ScrollView contentContainerStyle={styles.list}>
+          {TabBar}
+
+          {/* Year filter */}
+          <View style={styles.filterBar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+              {academicYears.map(y => (
+                <TouchableOpacity
+                  key={y.id}
+                  style={[styles.filterChip, meetingFilterYear === y.id && { backgroundColor: Colors.primary }]}
+                  onPress={() => applyMeetingFilter(y.id, meetingFilterSem)}
+                >
+                  <Text style={[styles.filterChipText, meetingFilterYear === y.id && { color: '#fff' }]}>
+                    {y.name}{y.is_current ? ' ✦' : ''}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <View style={styles.semRow}>
+              {[['', 'All'], ['1', 'Sem 1'], ['2', 'Sem 2']].map(([val, label]) => (
+                <TouchableOpacity
+                  key={val}
+                  style={[styles.semChip, meetingFilterSem === val && { backgroundColor: Colors.primary }]}
+                  onPress={() => applyMeetingFilter(meetingFilterYear, val)}
+                >
+                  <Text style={[styles.semChipText, meetingFilterSem === val && { color: '#fff' }]}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <Text style={styles.historyLabel}>{meetingSelectedYearName} · {meetingSemLabel}</Text>
+
+          <View style={{ paddingHorizontal: 16, paddingBottom: 24 }}>
+            {meetingLoading ? (
+              [1,2,3].map(i => <View key={i} style={[styles.skeleton, { marginBottom: 12 }]} />)
+            ) : meetingRecords.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyIcon}>🤝</Text>
+                <Text style={styles.emptyTitle}>No meeting records</Text>
+                <Text style={styles.emptySub}>No meetings recorded for this period</Text>
+              </View>
+            ) : meetingRecords.map(m => {
+              const tc = TYPE_COLORS[m.meeting_type] ?? { bg: '#F0EDE8', color: '#4A3F32' };
+              return (
+                <View key={m.id} style={styles.meetingCard}>
+                  <View style={styles.meetingTop}>
+                    <View style={styles.flex1}>
+                      <Text style={styles.meetingTitle}>{m.meeting_title}</Text>
+                      <Text style={styles.meetingDate}>{fmt(m.date)}</Text>
+                    </View>
+                    <View style={[styles.meetingTypeBadge, { backgroundColor: tc.bg }]}>
+                      <Text style={[styles.meetingTypeText, { color: tc.color }]}>{m.meeting_type}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.meetingMeta}>
+                    <Text style={styles.meetingMetaText}>
+                      {m.start_time} – {m.end_time}
+                    </Text>
+                    {m.location_name ? (
+                      <Text style={styles.meetingMetaText}> · {m.location_name}</Text>
+                    ) : null}
+                    {m.location_verified && (
+                      <Text style={styles.meetingVerified}> · Location verified</Text>
+                    )}
+                  </View>
+                  {m.notes ? <Text style={styles.meetingNotes}>{m.notes}</Text> : null}
+                </View>
+              );
+            })}
+
+            {meetingHasMore && !meetingLoading && meetingRecords.length > 0 && (
+              <TouchableOpacity
+                style={[styles.loadMoreBtn, { borderColor: Colors.primary }]}
+                onPress={() => fetchMeetingPage(meetingOffset, false)}
+                disabled={meetingLoadingMore}
+              >
+                {meetingLoadingMore
+                  ? <ActivityIndicator size="small" color={Colors.primary} />
+                  : <Text style={[styles.loadMoreText, { color: Colors.primary }]}>Load more</Text>}
+              </TouchableOpacity>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
   /* ── At Risk tab ── */
   const classMap = new Map<string, AtRiskStudent[]>();
   for (const s of atRisk) {
@@ -667,6 +823,19 @@ const styles = StyleSheet.create({
   studentName:        { fontSize: 14, fontWeight: '600', color: '#2C2218' },
   statusPill:         { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statusPillText:     { fontSize: 12, fontWeight: '700' },
+  /* Meetings */
+  meetingCard:        { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#E2D9CC', padding: 14, marginBottom: 12 },
+  meetingTop:         { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
+  meetingTitle:       { fontSize: 14, fontWeight: '700', color: '#2C2218', marginBottom: 2 },
+  meetingDate:        { fontSize: 12, color: '#8C7E6E' },
+  meetingTypeBadge:   { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginLeft: 8 },
+  meetingTypeText:    { fontSize: 11, fontWeight: '700' },
+  meetingMeta:        { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+  meetingMetaText:    { fontSize: 12, color: '#8C7E6E' },
+  meetingVerified:    { fontSize: 12, color: '#15803D', fontWeight: '600' },
+  meetingNotes:       { fontSize: 13, color: '#4A3F32', fontStyle: 'italic', marginTop: 6, lineHeight: 18 },
+  loadMoreBtn:        { borderWidth: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
+  loadMoreText:       { fontSize: 13, fontWeight: '700' },
   /* At Risk */
   classGroup:         { borderRadius: 14, borderWidth: 1, borderColor: '#E2D9CC', overflow: 'hidden', marginBottom: 10 },
   classHeader:        { flexDirection: 'row', alignItems: 'center', padding: 14 },
