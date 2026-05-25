@@ -145,11 +145,13 @@ export default function TeacherMeetingsPage() {
   async function startQrScanner() {
     setQrError('');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+      });
+      const video = videoRef.current!;
+      video.srcObject = stream;
+      await new Promise<void>(res => { video.onloadedmetadata = () => res(); });
+      await video.play();
       setQrScanning(true);
       const jsQR = (await import('jsqr')).default;
       qrIntervalRef.current = setInterval(() => {
@@ -166,8 +168,15 @@ export default function TeacherMeetingsPage() {
         const code = jsQR(imageData.data, imageData.width, imageData.height);
         if (code?.data) handleQrDetected(code.data);
       }, 300);
-    } catch {
-      setQrError('Camera access denied or not available.');
+    } catch (err: unknown) {
+      const name = (err as { name?: string })?.name ?? '';
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        setQrError('Camera permission denied. In Safari, go to Settings → Safari → Camera and allow access.');
+      } else if (name === 'NotFoundError') {
+        setQrError('No camera found on this device.');
+      } else {
+        setQrError('Could not open camera. Make sure no other app is using it and try again.');
+      }
     }
   }
 

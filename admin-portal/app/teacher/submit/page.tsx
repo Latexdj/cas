@@ -141,10 +141,13 @@ export default function SubmitPage() {
   async function startQrScan() {
     setQrError(''); setQrScanning(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+      });
       streamRef.current = stream;
       const video = videoRef.current!;
       video.srcObject = stream;
+      await new Promise<void>(res => { video.onloadedmetadata = () => res(); });
       await video.play();
       const jsQR: typeof jsQRType = (await import('jsqr')).default;
       const canvas = canvasRef.current!;
@@ -161,8 +164,15 @@ export default function SubmitPage() {
           verifyQrToken(code.data);
         }
       }, 250);
-    } catch {
-      setQrError('Camera access denied. Please allow camera permissions and try again.');
+    } catch (err: unknown) {
+      const name = (err as { name?: string })?.name ?? '';
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        setQrError('Camera permission denied. In Safari, go to Settings → Safari → Camera and allow access.');
+      } else if (name === 'NotFoundError') {
+        setQrError('No camera found on this device.');
+      } else {
+        setQrError('Could not open camera. Make sure no other app is using it and try again.');
+      }
       setQrScanning(false);
     }
   }
