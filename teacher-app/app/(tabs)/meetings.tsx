@@ -282,12 +282,14 @@ export default function MeetingsScreen() {
   if (showQrScanner) {
     return (
       <View style={styles.cameraContainer}>
-        <CameraView
-          style={styles.camera}
-          facing="back"
-          onBarcodeScanned={qrScannedRef.current ? undefined : handleQrScanned}
-          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        />
+        {camPermission?.granted && (
+          <CameraView
+            style={StyleSheet.absoluteFill}
+            facing="back"
+            onBarcodeScanned={handleQrScanned}
+            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+          />
+        )}
         <View style={styles.qrOverlay} pointerEvents="none">
           <View style={styles.qrFrame} />
         </View>
