@@ -373,41 +373,48 @@ export default function TeacherMeetingsPage() {
                         </div>
                         <button onClick={() => { setQrVerified(false); setQrLocation(''); }} className="text-xs font-bold text-green-700">Rescan</button>
                       </div>
-                    ) : qrScanning ? (
-                      <div className="relative rounded-xl overflow-hidden border border-[#E2D9CC]">
-                        <video ref={videoRef} className="w-full h-48 object-cover bg-black" playsInline muted />
-                        <canvas ref={canvasRef} className="hidden" />
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="w-40 h-40 border-2 border-white rounded-xl" />
-                        </div>
-                        {qrError && (
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-3 py-2 text-center">
-                            <p className="text-xs text-red-300">{qrError}</p>
-                          </div>
-                        )}
-                        <button
-                          onClick={stopQrScanner}
-                          className="absolute top-2 right-2 bg-black/60 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
-                        >
-                          Cancel
-                        </button>
-                      </div>
                     ) : (
-                      <button
-                        onClick={startQrScanner}
-                        className="w-full flex items-center gap-3 bg-white border border-[#E2D9CC] rounded-xl px-4 py-3"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5 shrink-0" style={{ color: primary }}>
-                          <rect x="3" y="3" width="5" height="5" rx="1" /><rect x="16" y="3" width="5" height="5" rx="1" />
-                          <rect x="3" y="16" width="5" height="5" rx="1" />
-                          <path strokeLinecap="round" d="M16 10h5M16 14h3M21 14v5M10 3v5M10 16v5M3 10h5M10 10h.01" />
-                        </svg>
-                        <div className="flex-1 text-left">
-                          <p className="text-sm font-bold text-[#2C2218]">Scan Venue QR Code</p>
-                          <p className="text-xs text-[#8C7E6E]">Scan the QR code posted at {m.location_name}</p>
+                      <>
+                        {/* video/canvas always in DOM — iOS Safari resolves getUserMedia instantly
+                            when permission is cached, so videoRef.current must exist before the call */}
+                        <div style={{ display: qrScanning ? 'block' : 'none' }}>
+                          <div className="relative rounded-xl overflow-hidden border border-[#E2D9CC]">
+                            <video ref={videoRef} className="w-full h-48 object-cover bg-black" playsInline muted />
+                            <canvas ref={canvasRef} className="hidden" />
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <div className="w-40 h-40 border-2 border-white rounded-xl" />
+                            </div>
+                            {qrError && (
+                              <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-3 py-2 text-center">
+                                <p className="text-xs text-red-300">{qrError}</p>
+                              </div>
+                            )}
+                            <button
+                              onClick={stopQrScanner}
+                              className="absolute top-2 right-2 bg-black/60 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                        {qrError && <span className="text-xs text-red-500 shrink-0">Failed — retry</span>}
-                      </button>
+                        {!qrScanning && (
+                          <button
+                            onClick={startQrScanner}
+                            className="w-full flex items-center gap-3 bg-white border border-[#E2D9CC] rounded-xl px-4 py-3"
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5 shrink-0" style={{ color: primary }}>
+                              <rect x="3" y="3" width="5" height="5" rx="1" /><rect x="16" y="3" width="5" height="5" rx="1" />
+                              <rect x="3" y="16" width="5" height="5" rx="1" />
+                              <path strokeLinecap="round" d="M16 10h5M16 14h3M21 14v5M10 3v5M10 16v5M3 10h5M10 10h.01" />
+                            </svg>
+                            <div className="flex-1 text-left">
+                              <p className="text-sm font-bold text-[#2C2218]">Scan Venue QR Code</p>
+                              <p className="text-xs text-[#8C7E6E]">Scan the QR code posted at {m.location_name}</p>
+                            </div>
+                            {qrError && <span className="text-xs text-red-500 shrink-0">Failed — retry</span>}
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
 

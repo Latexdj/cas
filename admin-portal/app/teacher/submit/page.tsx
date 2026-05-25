@@ -395,22 +395,23 @@ export default function SubmitPage() {
                 </div>
               ) : (
                 <>
-                  {qrScanning ? (
-                    <div className="space-y-3">
-                      <div className="relative rounded-xl overflow-hidden bg-black" style={{ aspectRatio: '1' }}>
-                        <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-                        {/* Targeting reticle */}
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <div className="w-48 h-48 border-2 border-white rounded-xl opacity-70" />
-                        </div>
-                        <canvas ref={canvasRef} className="hidden" />
+                  {/* video/canvas always in DOM — iOS Safari resolves getUserMedia instantly
+                      when permission is cached, so videoRef.current must exist before the call */}
+                  <div style={{ display: qrScanning ? 'block' : 'none' }} className="space-y-3">
+                    <div className="relative rounded-xl overflow-hidden bg-black" style={{ aspectRatio: '1' }}>
+                      <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-48 h-48 border-2 border-white rounded-xl opacity-70" />
                       </div>
-                      <button type="button" onClick={stopCamera}
-                        className="w-full py-2.5 rounded-xl text-sm font-semibold border border-[#E2D9CC] text-[#8C7E6E] bg-white">
-                        Cancel
-                      </button>
+                      <canvas ref={canvasRef} className="hidden" />
                     </div>
-                  ) : (
+                    <button type="button" onClick={stopCamera}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold border border-[#E2D9CC] text-[#8C7E6E] bg-white">
+                      Cancel
+                    </button>
+                  </div>
+
+                  {!qrScanning && (
                     <button type="button" onClick={startQrScan}
                       className="w-full h-20 rounded-xl border-2 border-dashed flex items-center justify-center gap-3 text-[#8C7E6E]"
                       style={{ borderColor: '#E2D9CC' }}>
