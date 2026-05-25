@@ -33,6 +33,11 @@ const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
 const app = express();
 
+// Trust Render's reverse proxy so req.ip is the real client IP,
+// not the proxy IP. Without this every teacher shares one IP and
+// one person's failed logins lock out the entire school.
+app.set('trust proxy', 1);
+
 app.use(helmet());
 
 // CORS — restrict to explicit origin in production.
