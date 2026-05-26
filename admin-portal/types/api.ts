@@ -71,7 +71,73 @@ export interface Program {
   id: string;
   name: string;
   notes: string | null;
+  exam_body: string;
   student_count: number;
+}
+
+export interface AssessmentMode {
+  id: string;
+  name: string;
+  ca_contribution: number;
+  sort_order: number;
+}
+
+export interface Assessment {
+  id: string;
+  mode_id: string;
+  mode_name: string;
+  ca_contribution: number;
+  title: string | null;
+  date: string | null;
+  max_score: number;
+  subject: string;
+  class_name: string;
+  teacher_name: string | null;
+  score_count: number;
+}
+
+export interface AssessmentScore {
+  student_id: string;
+  student_code: string;
+  name: string;
+  score_id: string | null;
+  score: number | null;
+  absent: boolean;
+}
+
+export interface GradeBoundary {
+  id: string;
+  exam_body: string;
+  grade: string;
+  min_pct: number;
+  max_pct: number;
+  remark: string | null;
+  sort_order: number;
+}
+
+export interface SubjectResult {
+  subject: string;
+  ca_score: number | null;
+  exam_score: number | null;
+  total: number | null;
+  grade: string;
+  remark: string;
+  subject_position: number | null;
+  class_size: number;
+}
+
+export interface StudentResult {
+  student_id: string;
+  student_code: string;
+  name: string;
+  exam_body: string | null;
+  subjects: SubjectResult[];
+  average: number | null;
+  overall_grade: string;
+  class_position?: number;
+  class_total?: number;
+  ca_percentage: number;
+  exam_percentage: number;
 }
 
 export interface House {

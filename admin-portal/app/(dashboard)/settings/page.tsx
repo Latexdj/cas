@@ -1,7 +1,9 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
+import type { GradeBoundary } from '@/types/api';
 
 interface SchoolSettings {
   name: string;
@@ -10,6 +12,7 @@ interface SchoolSettings {
   accent_color: string;
   logo_url?: string | null;
   period_duration_minutes: number;
+  ca_percentage: number;
 }
 
 function compressToBase64(file: File): Promise<string> {
@@ -92,6 +95,171 @@ function AppPreview({ primary, accent }: { primary: string; accent: string }) {
   );
 }
 
+/* ── Grade Boundaries section ── */
+type GBExamBody = 'WAEC' | 'CTVET';
+
+function GradeBoundariesCard() {
+  const [activeBody, setActiveBody] = useState<GBExamBody>('WAEC');
+  const [boundaries, setBoundaries] = useState<GradeBoundary[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [modal,      setModal]      = useState<'add' | 'edit' | null>(null);
+  const [editRow,    setEditRow]    = useState<GradeBoundary | null>(null);
+  const [form,       setForm]       = useState({ grade: '', min_pct: '', max_pct: '', remark: '', sort_order: '' });
+  const [saving,     setSaving]     = useState(false);
+  const [error,      setError]      = useState('');
+  const [seeding,    setSeeding]    = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await api.get<GradeBoundary[]>('/api/grade-boundaries');
+      setBoundaries(data);
+    } finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const shown = boundaries.filter(b => b.exam_body === activeBody);
+
+  function openAdd() {
+    setForm({ grade: '', min_pct: '', max_pct: '', remark: '', sort_order: '' });
+    setEditRow(null); setError(''); setModal('add');
+  }
+  function openEdit(b: GradeBoundary) {
+    setForm({ grade: b.grade, min_pct: String(b.min_pct), max_pct: String(b.max_pct), remark: b.remark ?? '', sort_order: String(b.sort_order) });
+    setEditRow(b); setError(''); setModal('edit');
+  }
+
+  async function save() {
+    if (!form.grade.trim()) { setError('Grade label is required.'); return; }
+    setSaving(true); setError('');
+    try {
+      const body = { grade: form.grade.trim(), min_pct: parseFloat(form.min_pct) || 0, max_pct: parseFloat(form.max_pct) || 100, remark: form.remark || null, sort_order: parseInt(form.sort_order) || 0, exam_body: activeBody };
+      if (modal === 'add') await api.post('/api/grade-boundaries', body);
+      else await api.put(`/api/grade-boundaries/${editRow!.id}`, body);
+      setModal(null); await load();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Failed to save.');
+    } finally { setSaving(false); }
+  }
+
+  async function del(id: string, grade: string) {
+    if (!confirm(`Delete grade "${grade}"?`)) return;
+    try { await api.delete(`/api/grade-boundaries/${id}`); await load(); }
+    catch { alert('Failed to delete.'); }
+  }
+
+  async function seedDefaults() {
+    if (!confirm(`Reset ${activeBody} grades to defaults? This will overwrite current ${activeBody} boundaries.`)) return;
+    setSeeding(true);
+    try { await api.post('/api/grade-boundaries/seed', { exam_body: activeBody }); await load(); }
+    catch { alert('Failed to reset.'); }
+    finally { setSeeding(false); }
+  }
+
+  const inputCls = 'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
+
+  return (
+    <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+      <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>Grade Boundaries</h2>
+      <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
+        Set the percentage ranges and labels for each grade under WAEC and CTVET. Used to compute grades on report cards.
+      </p>
+
+      {/* Exam body toggle */}
+      <div className="flex gap-1 p-1 rounded-xl mb-4 w-fit" style={{ backgroundColor: '#F1F5F9' }}>
+        {(['WAEC', 'CTVET'] as GBExamBody[]).map(b => (
+          <button key={b} onClick={() => setActiveBody(b)}
+            className="px-5 py-1.5 rounded-lg text-sm font-semibold transition-all"
+            style={{ backgroundColor: activeBody === b ? '#FFFFFF' : 'transparent', color: activeBody === b ? '#0F172A' : '#64748B', boxShadow: activeBody === b ? '0 1px 3px rgba(15,23,42,0.08)' : 'none' }}>
+            {b}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center h-24 items-center">
+          <div className="w-5 h-5 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid #F1F5F9' }}>
+            <table className="min-w-[520px] w-full text-sm">
+              <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+                <tr>
+                  {['Grade', 'Min %', 'Max %', 'Remark', ''].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((b, i) => (
+                  <tr key={b.id} className="hover:bg-slate-50"
+                    style={{ borderBottom: i < shown.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                    <td className="px-4 py-2.5 font-bold" style={{ color: '#0F172A' }}>{b.grade}</td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: '#64748B' }}>{b.min_pct}%</td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: '#64748B' }}>{b.max_pct}%</td>
+                    <td className="px-4 py-2.5 text-xs" style={{ color: '#94A3B8' }}>{b.remark ?? '—'}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex gap-1.5">
+                        <button onClick={() => openEdit(b)} className="text-xs px-2 py-1 rounded-lg font-semibold" style={{ backgroundColor: '#F1F5F9', color: '#64748B' }}>Edit</button>
+                        <button onClick={() => del(b.id, b.grade)} className="text-xs px-2 py-1 rounded-lg font-semibold" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>Del</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {shown.length === 0 && (
+                  <tr><td colSpan={5} className="px-4 py-6 text-center text-sm" style={{ color: '#94A3B8' }}>No grades set for {activeBody}. Add manually or reset to defaults.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={openAdd}>+ Add Grade</Button>
+            <Button size="sm" variant="secondary" onClick={seedDefaults} loading={seeding}>
+              Reset to {activeBody} Defaults
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <Modal open={modal !== null} onClose={() => setModal(null)}
+        title={modal === 'add' ? `Add ${activeBody} Grade` : 'Edit Grade'} maxWidth="max-w-sm">
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Grade Label *</label>
+            <input className={inputCls} value={form.grade} onChange={e => setForm(f => ({ ...f, grade: e.target.value }))} placeholder="e.g. A1, B+, C" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Min % *</label>
+              <input className={inputCls} type="number" min="0" max="100" step="0.5"
+                value={form.min_pct} onChange={e => setForm(f => ({ ...f, min_pct: e.target.value }))} placeholder="e.g. 80" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Max % *</label>
+              <input className={inputCls} type="number" min="0" max="100" step="0.5"
+                value={form.max_pct} onChange={e => setForm(f => ({ ...f, max_pct: e.target.value }))} placeholder="e.g. 100" />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Remark</label>
+            <input className={inputCls} value={form.remark} onChange={e => setForm(f => ({ ...f, remark: e.target.value }))} placeholder="e.g. Excellent, Credit, Pass, Fail" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sort Order</label>
+            <input className={inputCls} type="number" value={form.sort_order} onChange={e => setForm(f => ({ ...f, sort_order: e.target.value }))} placeholder="Higher = shown first (e.g. 9 for A1)" />
+          </div>
+          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
+            <Button onClick={save} loading={saving}>Save</Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const logoFileRef = useRef<HTMLInputElement>(null);
   const [settings,     setSettings]     = useState<SchoolSettings | null>(null);
@@ -112,6 +280,12 @@ export default function SettingsPage() {
   const [periodSaved,     setPeriodSaved]     = useState(false);
   const [periodError,     setPeriodError]     = useState('');
 
+  // CA percentage state
+  const [caPct,     setCaPct]     = useState(30);
+  const [caSaving,  setCaSaving]  = useState(false);
+  const [caSaved,   setCaSaved]   = useState(false);
+  const [caError,   setCaError]   = useState('');
+
   useEffect(() => {
     api.get<SchoolSettings>('/api/admin/settings').then(r => {
       setSettings(r.data);
@@ -119,8 +293,22 @@ export default function SettingsPage() {
       setAccent(r.data.accent_color);
       setLogoUrl(r.data.logo_url ?? null);
       setPeriodMins(r.data.period_duration_minutes ?? 60);
+      setCaPct(r.data.ca_percentage ?? 30);
     }).finally(() => setLoading(false));
   }, []);
+
+  async function saveCaPercentage() {
+    if (!caPct || caPct < 1 || caPct > 99) { setCaError('Must be between 1 and 99.'); return; }
+    setCaSaving(true); setCaError(''); setCaSaved(false);
+    try {
+      await api.patch('/api/admin/settings/scheduling', { ca_percentage: caPct });
+      setCaSaved(true);
+      setTimeout(() => setCaSaved(false), 3000);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setCaError(msg ?? 'Failed to save.');
+    } finally { setCaSaving(false); }
+  }
 
   async function savePeriodDuration() {
     if (!periodMins || periodMins < 1 || periodMins > 480) {
@@ -290,6 +478,39 @@ export default function SettingsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Assessment CA % */}
+      <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>Assessment Scoring</h2>
+        <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
+          Set the percentage of the total score that comes from Continuous Assessment (CA). The remainder is for the End-of-Semester Exam.
+        </p>
+        <div className="max-w-xs space-y-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#475569' }}>
+              CA Percentage
+            </label>
+            <div className="flex items-center gap-3">
+              <input type="number" min={1} max={99} value={caPct}
+                onChange={e => { setCaPct(parseInt(e.target.value, 10) || 0); setCaError(''); }}
+                className="w-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              <span className="text-sm text-slate-500">%</span>
+            </div>
+            {caPct >= 1 && caPct <= 99 && (
+              <p className="text-xs mt-2" style={{ color: '#64748B' }}>
+                CA: <span className="font-semibold">{caPct}%</span> &nbsp;·&nbsp; Exam: <span className="font-semibold">{100 - caPct}%</span>
+              </p>
+            )}
+          </div>
+          {caError && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>{caError}</p>}
+          {caSaved && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#F0FDF4', color: '#15803D' }}>✓ CA percentage saved.</p>}
+          <Button onClick={saveCaPercentage} loading={caSaving}>Save CA %</Button>
+        </div>
+      </div>
+
+      {/* Grade Boundaries */}
+      <GradeBoundariesCard />
 
       {/* Theme colors */}
       <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>

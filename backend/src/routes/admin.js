@@ -246,7 +246,7 @@ router.post('/run-absence-check', async (req, res, next) => {
 router.get('/settings', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT name, email, phone, address, code, primary_color, accent_color, logo_url, period_duration_minutes FROM schools WHERE id = $1`,
+      `SELECT name, email, phone, address, code, primary_color, accent_color, logo_url, period_duration_minutes, ca_percentage FROM schools WHERE id = $1`,
       [req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'School not found' });
@@ -254,17 +254,33 @@ router.get('/settings', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/admin/settings/scheduling — update period duration
+// PATCH /api/admin/settings/scheduling — update period duration and/or CA percentage
 router.patch('/settings/scheduling', adminOnly, async (req, res, next) => {
   try {
-    const { period_duration_minutes } = req.body;
-    const mins = parseInt(period_duration_minutes, 10);
-    if (!mins || mins < 1 || mins > 480) {
-      return res.status(400).json({ error: 'period_duration_minutes must be between 1 and 480.' });
+    const { period_duration_minutes, ca_percentage } = req.body;
+    if (period_duration_minutes !== undefined) {
+      const mins = parseInt(period_duration_minutes, 10);
+      if (!mins || mins < 1 || mins > 480) {
+        return res.status(400).json({ error: 'period_duration_minutes must be between 1 and 480.' });
+      }
+      await pool.query(
+        `UPDATE schools SET period_duration_minutes = $1 WHERE id = $2`,
+        [mins, req.schoolId]
+      );
+    }
+    if (ca_percentage !== undefined) {
+      const pct = parseInt(ca_percentage, 10);
+      if (!pct || pct < 1 || pct > 99) {
+        return res.status(400).json({ error: 'ca_percentage must be between 1 and 99.' });
+      }
+      await pool.query(
+        `UPDATE schools SET ca_percentage = $1 WHERE id = $2`,
+        [pct, req.schoolId]
+      );
     }
     const { rows } = await pool.query(
-      `UPDATE schools SET period_duration_minutes = $1, updated_at = now() WHERE id = $2 RETURNING period_duration_minutes`,
-      [mins, req.schoolId]
+      `SELECT period_duration_minutes, ca_percentage FROM schools WHERE id = $1`,
+      [req.schoolId]
     );
     res.json(rows[0]);
   } catch (err) { next(err); }

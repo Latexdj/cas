@@ -4,28 +4,29 @@ import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import type { Subject, ClassItem, Program, House } from '@/types/api';
+import type { Subject, ClassItem, Program, House, AssessmentMode } from '@/types/api';
 
 /* ── Tab bar ── */
-type Tab = 'subjects' | 'classes' | 'programs' | 'houses';
+type Tab = 'subjects' | 'classes' | 'programs' | 'houses' | 'assessment-modes';
 
-function TabBar({ active, onSelect, subjectCount, classCount, programCount, houseCount }: {
+function TabBar({ active, onSelect, subjectCount, classCount, programCount, houseCount, modeCount }: {
   active: Tab; onSelect: (t: Tab) => void;
-  subjectCount: number; classCount: number; programCount: number; houseCount: number;
+  subjectCount: number; classCount: number; programCount: number; houseCount: number; modeCount: number;
 }) {
   const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: 'subjects', label: 'Subjects', count: subjectCount },
-    { id: 'classes',  label: 'Classes',  count: classCount  },
-    { id: 'programs', label: 'Programs', count: programCount },
-    { id: 'houses',   label: 'Houses',   count: houseCount  },
+    { id: 'subjects',          label: 'Subjects',     count: subjectCount },
+    { id: 'classes',           label: 'Classes',      count: classCount   },
+    { id: 'programs',          label: 'Programs',     count: programCount },
+    { id: 'houses',            label: 'Houses',       count: houseCount   },
+    { id: 'assessment-modes',  label: 'CA Modes',     count: modeCount    },
   ];
   return (
-    <div className="flex gap-1 p-1 rounded-xl" style={{ backgroundColor: '#F1F5F9' }}>
+    <div className="flex flex-wrap gap-1 p-1 rounded-xl" style={{ backgroundColor: '#F1F5F9' }}>
       {tabs.map(t => (
         <button
           key={t.id}
           onClick={() => onSelect(t.id)}
-          className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
           style={{
             backgroundColor: active === t.id ? '#FFFFFF' : 'transparent',
             color: active === t.id ? '#0F172A' : '#64748B',
@@ -42,6 +43,8 @@ function TabBar({ active, onSelect, subjectCount, classCount, programCount, hous
     </div>
   );
 }
+
+const inputCls = 'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
 
 /* ── Subjects tab ── */
 const SUBJECT_EMPTY = { name: '', code: '' };
@@ -120,8 +123,6 @@ function SubjectsTab() {
     } finally { setUploading(false); }
   }
 
-  const inputCls = 'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
-
   return (
     <div className="space-y-4 max-w-2xl">
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -170,7 +171,6 @@ function SubjectsTab() {
         </div>
       )}
 
-      {/* Add / Edit modal */}
       <Modal open={modal === 'create' || modal === 'edit'} onClose={() => setModal(null)}
         title={modal === 'create' ? 'Add Subject' : 'Edit Subject'} maxWidth="max-w-sm">
         <div className="space-y-3">
@@ -191,7 +191,6 @@ function SubjectsTab() {
         </div>
       </Modal>
 
-      {/* Upload modal */}
       <Modal open={modal === 'upload'} onClose={() => setModal(null)} title="Upload Subjects from Excel" maxWidth="max-w-md">
         <div className="space-y-4">
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-600 space-y-1.5">
@@ -285,8 +284,6 @@ function ClassesTab() {
     }
   }
 
-  const inputCls = 'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
-
   return (
     <div className="space-y-4 max-w-sm">
       <div className="flex items-center justify-between">
@@ -350,11 +347,14 @@ function ClassesTab() {
 }
 
 /* ── Programs tab ── */
+const EXAM_BODIES = ['WAEC', 'CTVET', 'Both'] as const;
+type ExamBody = typeof EXAM_BODIES[number];
+
 function ProgramsTab() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [modal,    setModal]    = useState<'create' | 'edit' | null>(null);
-  const [form,     setForm]     = useState({ name: '', notes: '' });
+  const [form,     setForm]     = useState({ name: '', notes: '', exam_body: 'WAEC' as ExamBody });
   const [editId,   setEditId]   = useState<string | null>(null);
   const [saving,   setSaving]   = useState(false);
   const [error,    setError]    = useState('');
@@ -367,8 +367,11 @@ function ProgramsTab() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  function openCreate() { setForm({ name: '', notes: '' }); setError(''); setEditId(null); setModal('create'); }
-  function openEdit(p: Program) { setForm({ name: p.name, notes: p.notes ?? '' }); setEditId(p.id); setError(''); setModal('edit'); }
+  function openCreate() { setForm({ name: '', notes: '', exam_body: 'WAEC' }); setError(''); setEditId(null); setModal('create'); }
+  function openEdit(p: Program) {
+    setForm({ name: p.name, notes: p.notes ?? '', exam_body: (p.exam_body as ExamBody) || 'WAEC' });
+    setEditId(p.id); setError(''); setModal('edit');
+  }
 
   async function save() {
     if (!form.name.trim()) { setError('Program name is required.'); return; }
@@ -392,7 +395,19 @@ function ProgramsTab() {
     }
   }
 
-  const inputCls = 'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
+  const examBodyBadge = (eb: string) => {
+    const styles: Record<string, { bg: string; color: string }> = {
+      WAEC:  { bg: '#DBEAFE', color: '#1D4ED8' },
+      CTVET: { bg: '#FEF3C7', color: '#B45309' },
+      Both:  { bg: '#F3E8FF', color: '#7C3AED' },
+    };
+    const s = styles[eb] || { bg: '#F1F5F9', color: '#64748B' };
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={s}>
+        {eb}
+      </span>
+    );
+  };
 
   return (
     <div className="space-y-4 max-w-2xl">
@@ -408,10 +423,10 @@ function ProgramsTab() {
       ) : (
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
           <div className="overflow-x-auto">
-          <table className="min-w-[550px] w-full text-sm">
+          <table className="min-w-[600px] w-full text-sm">
             <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
               <tr>
-                {['Program Name', 'Active Students', 'Notes', ''].map(h => (
+                {['Program Name', 'Exam Body', 'Active Students', 'Notes', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
                 ))}
               </tr>
@@ -421,6 +436,7 @@ function ProgramsTab() {
                 <tr key={p.id} className="hover:bg-slate-50 transition-colors"
                   style={{ borderBottom: i < programs.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
                   <td className="px-4 py-3 font-medium" style={{ color: '#0F172A' }}>{p.name}</td>
+                  <td className="px-4 py-3">{examBodyBadge(p.exam_body || 'WAEC')}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
                       {p.student_count}
@@ -436,7 +452,7 @@ function ProgramsTab() {
                 </tr>
               ))}
               {programs.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: '#94A3B8' }}>No programs yet. Add one (e.g. Science, General Arts, Business).</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: '#94A3B8' }}>No programs yet. Add one (e.g. Science, General Arts, Business).</td></tr>
               )}
             </tbody>
           </table>
@@ -450,6 +466,13 @@ function ProgramsTab() {
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Program Name *</label>
             <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Science, General Arts" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Exam Body *</label>
+            <select className={inputCls} value={form.exam_body} onChange={e => setForm(f => ({ ...f, exam_body: e.target.value as ExamBody }))}>
+              {EXAM_BODIES.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-slate-400">Determines grading scale used on report cards for students in this program.</p>
           </div>
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</label>
@@ -508,8 +531,6 @@ function HousesTab() {
       alert(msg ?? 'Failed to delete.');
     }
   }
-
-  const inputCls = 'mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
 
   return (
     <div className="space-y-4 max-w-2xl">
@@ -583,16 +604,179 @@ function HousesTab() {
   );
 }
 
+/* ── Assessment Modes tab ── */
+function AssessmentModesTab() {
+  const [modes,   setModes]   = useState<AssessmentMode[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modal,   setModal]   = useState<'create' | 'edit' | null>(null);
+  const [form,    setForm]    = useState({ name: '', ca_contribution: '', sort_order: '' });
+  const [editId,  setEditId]  = useState<string | null>(null);
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await api.get<AssessmentMode[]>('/api/assessment-modes');
+      setModes(data);
+    } finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  function openCreate() { setForm({ name: '', ca_contribution: '', sort_order: '' }); setError(''); setEditId(null); setModal('create'); }
+  function openEdit(m: AssessmentMode) {
+    setForm({ name: m.name, ca_contribution: String(m.ca_contribution), sort_order: String(m.sort_order) });
+    setEditId(m.id); setError(''); setModal('edit');
+  }
+
+  async function save() {
+    if (!form.name.trim()) { setError('Name is required.'); return; }
+    setSaving(true); setError('');
+    try {
+      const body = { name: form.name.trim(), ca_contribution: parseFloat(form.ca_contribution) || 0, sort_order: parseInt(form.sort_order) || 0 };
+      if (modal === 'create') await api.post('/api/assessment-modes', body);
+      else                    await api.put(`/api/assessment-modes/${editId}`, body);
+      setModal(null); await load();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Failed to save.');
+    } finally { setSaving(false); }
+  }
+
+  async function del(id: string, name: string) {
+    if (!confirm(`Delete assessment mode "${name}"? All assessments using this mode will also be deleted.`)) return;
+    try { await api.delete(`/api/assessment-modes/${id}`); await load(); }
+    catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(msg ?? 'Failed to delete.');
+    }
+  }
+
+  const totalContribution = modes.reduce((s, m) => s + parseFloat(String(m.ca_contribution)), 0);
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <p className="text-sm" style={{ color: '#94A3B8' }}>{modes.length} CA mode{modes.length !== 1 ? 's' : ''}</p>
+          {modes.length > 0 && (
+            <p className="text-xs mt-0.5" style={{ color: totalContribution > 0 ? '#64748B' : '#94A3B8' }}>
+              Total CA contribution: <span className="font-semibold" style={{ color: '#0F172A' }}>{totalContribution}</span> marks
+              <span className="ml-1 text-slate-400">(set CA % in Settings)</span>
+            </p>
+          )}
+        </div>
+        <Button onClick={openCreate}>+ Add Mode</Button>
+      </div>
+
+      <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800">
+        <p className="font-semibold mb-0.5">How CA Modes work</p>
+        <p className="text-xs text-blue-700">Each mode (e.g. Class Test, Assignment) has a CA contribution in marks. Teachers record multiple instances per mode per subject. Scores are averaged per mode, then weighted by its contribution to calculate the final CA score.</p>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center h-32 items-center">
+          <div className="w-6 h-6 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+          <div className="overflow-x-auto">
+            <table className="min-w-[480px] w-full text-sm">
+              <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+                <tr>
+                  {['Mode Name', 'CA Contribution (marks)', 'Order', ''].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {modes.map((m, i) => (
+                  <tr key={m.id} className="hover:bg-slate-50 transition-colors"
+                    style={{ borderBottom: i < modes.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                    <td className="px-4 py-3 font-medium" style={{ color: '#0F172A' }}>{m.name}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
+                        {m.ca_contribution}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs" style={{ color: '#64748B' }}>{m.sort_order}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(m)}>Edit</Button>
+                        <Button variant="danger" size="sm" onClick={() => del(m.id, m.name)}>Del</Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {modes.length === 0 && (
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: '#94A3B8' }}>No modes yet. Example: Class Test (20 marks), Assignment (10 marks).</td></tr>
+                )}
+              </tbody>
+              {modes.length > 0 && (
+                <tfoot style={{ borderTop: '2px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+                  <tr>
+                    <td className="px-4 py-3 text-xs font-bold" style={{ color: '#0F172A' }}>Total</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                        {totalContribution}
+                      </span>
+                    </td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+      )}
+
+      <Modal open={modal !== null} onClose={() => setModal(null)}
+        title={modal === 'create' ? 'Add CA Mode' : 'Edit CA Mode'} maxWidth="max-w-sm">
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Mode Name *</label>
+            <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Class Test, Assignment, Portfolio" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">CA Contribution (marks) *</label>
+            <input className={inputCls} type="number" min="0" max="100" step="0.5"
+              value={form.ca_contribution} onChange={e => setForm(f => ({ ...f, ca_contribution: e.target.value }))}
+              placeholder="e.g. 20" />
+            <p className="mt-1 text-xs text-slate-400">How many of the total CA marks this mode contributes.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Display Order</label>
+            <input className={inputCls} type="number" min="0"
+              value={form.sort_order} onChange={e => setForm(f => ({ ...f, sort_order: e.target.value }))}
+              placeholder="0" />
+          </div>
+          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
+            <Button onClick={save} loading={saving}>Save</Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 /* ── Page ── */
 export default function CurriculumPage() {
   const searchParams = useSearchParams();
   const rawTab = searchParams.get('tab');
-  const initialTab: Tab = rawTab === 'classes' ? 'classes' : rawTab === 'programs' ? 'programs' : rawTab === 'houses' ? 'houses' : 'subjects';
+  const initialTab: Tab = (
+    rawTab === 'classes' ? 'classes' :
+    rawTab === 'programs' ? 'programs' :
+    rawTab === 'houses' ? 'houses' :
+    rawTab === 'assessment-modes' ? 'assessment-modes' :
+    'subjects'
+  );
   const [tab,          setTab]          = useState<Tab>(initialTab);
   const [subjectCount, setSubjectCount] = useState(0);
   const [classCount,   setClassCount]   = useState(0);
   const [programCount, setProgramCount] = useState(0);
   const [houseCount,   setHouseCount]   = useState(0);
+  const [modeCount,    setModeCount]    = useState(0);
 
   useEffect(() => {
     Promise.allSettled([
@@ -600,11 +784,13 @@ export default function CurriculumPage() {
       api.get<ClassItem[]>('/api/classes'),
       api.get<Program[]>('/api/programs'),
       api.get<House[]>('/api/houses'),
-    ]).then(([s, c, p, h]) => {
+      api.get<AssessmentMode[]>('/api/assessment-modes'),
+    ]).then(([s, c, p, h, m]) => {
       if (s.status === 'fulfilled') setSubjectCount(s.value.data.length);
       if (c.status === 'fulfilled') setClassCount(c.value.data.length);
       if (p.status === 'fulfilled') setProgramCount(p.value.data.length);
       if (h.status === 'fulfilled') setHouseCount(h.value.data.length);
+      if (m.status === 'fulfilled') setModeCount(m.value.data.length);
     });
   }, []);
 
@@ -612,15 +798,18 @@ export default function CurriculumPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold" style={{ color: '#0F172A' }}>Curriculum</h1>
-        <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>Manage subjects, class groups, programs, and houses</p>
+        <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>Manage subjects, class groups, programs, houses, and assessment modes</p>
       </div>
 
-      <TabBar active={tab} onSelect={setTab} subjectCount={subjectCount} classCount={classCount} programCount={programCount} houseCount={houseCount} />
+      <TabBar active={tab} onSelect={setTab}
+        subjectCount={subjectCount} classCount={classCount}
+        programCount={programCount} houseCount={houseCount} modeCount={modeCount} />
 
-      {tab === 'subjects' && <SubjectsTab />}
-      {tab === 'classes'  && <ClassesTab  />}
-      {tab === 'programs' && <ProgramsTab />}
-      {tab === 'houses'   && <HousesTab   />}
+      {tab === 'subjects'          && <SubjectsTab         />}
+      {tab === 'classes'           && <ClassesTab          />}
+      {tab === 'programs'          && <ProgramsTab         />}
+      {tab === 'houses'            && <HousesTab           />}
+      {tab === 'assessment-modes'  && <AssessmentModesTab  />}
     </div>
   );
 }

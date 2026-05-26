@@ -29,6 +29,11 @@ const auditLogRoutes          = require('./routes/audit-log');
 const schoolBreaksRoutes      = require('./routes/school-breaks');
 const plcRoutes               = require('./routes/plc');
 const meetingsRoutes          = require('./routes/meetings');
+const assessmentModesRoutes   = require('./routes/assessment-modes');
+const assessmentsRoutes       = require('./routes/assessments');
+const examScoresRoutes        = require('./routes/exam-scores');
+const gradeBoundariesRoutes   = require('./routes/grade-boundaries');
+const resultsRoutes           = require('./routes/results');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -86,6 +91,11 @@ app.use('/api/audit-log',          auditLogRoutes);
 app.use('/api/school-breaks',      schoolBreaksRoutes);
 app.use('/api/plc',                plcRoutes);
 app.use('/api/meetings',           meetingsRoutes);
+app.use('/api/assessment-modes',   assessmentModesRoutes);
+app.use('/api/assessments',        assessmentsRoutes);
+app.use('/api/exam-scores',        examScoresRoutes);
+app.use('/api/grade-boundaries',   gradeBoundariesRoutes);
+app.use('/api/results',            resultsRoutes);
 
 app.use(errorHandler);
 
@@ -288,6 +298,84 @@ async function runMigrations() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_meeting_absences_school_date
         ON meeting_absences(school_id, date DESC)
+    `);
+    // Assessment Module
+    await pool.query(`ALTER TABLE programs ADD COLUMN IF NOT EXISTS exam_body TEXT NOT NULL DEFAULT 'WAEC'`);
+    await pool.query(`ALTER TABLE schools  ADD COLUMN IF NOT EXISTS ca_percentage INTEGER NOT NULL DEFAULT 30`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS assessment_modes (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id       UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name            TEXT NOT NULL,
+        ca_contribution NUMERIC(5,2) NOT NULL DEFAULT 0,
+        sort_order      INTEGER NOT NULL DEFAULT 0,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, name)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS assessments (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        academic_year_id UUID REFERENCES academic_years(id) ON DELETE SET NULL,
+        semester         SMALLINT NOT NULL,
+        subject          TEXT NOT NULL,
+        class_name       TEXT NOT NULL,
+        teacher_id       UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        mode_id          UUID NOT NULL REFERENCES assessment_modes(id) ON DELETE CASCADE,
+        title            TEXT,
+        date             DATE,
+        max_score        NUMERIC(5,2) NOT NULL DEFAULT 100,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_assessments_school_year_sem
+        ON assessments(school_id, academic_year_id, semester)
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS assessment_scores (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        assessment_id UUID NOT NULL REFERENCES assessments(id) ON DELETE CASCADE,
+        student_id    UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        score         NUMERIC(5,2),
+        absent        BOOLEAN NOT NULL DEFAULT false,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (assessment_id, student_id)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS exam_scores (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        academic_year_id UUID REFERENCES academic_years(id) ON DELETE SET NULL,
+        semester         SMALLINT NOT NULL,
+        subject          TEXT NOT NULL,
+        class_name       TEXT NOT NULL,
+        student_id       UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        teacher_id       UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        score            NUMERIC(5,2),
+        max_score        NUMERIC(5,2) NOT NULL DEFAULT 100,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (academic_year_id, semester, subject, class_name, student_id)
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_exam_scores_school_year_sem
+        ON exam_scores(school_id, academic_year_id, semester)
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS grade_boundaries (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        exam_body   TEXT NOT NULL CHECK (exam_body IN ('WAEC','CTVET')),
+        grade       TEXT NOT NULL,
+        min_pct     NUMERIC(5,2) NOT NULL,
+        max_pct     NUMERIC(5,2) NOT NULL,
+        remark      TEXT,
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        UNIQUE (school_id, exam_body, grade)
+      )
     `);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS school_breaks (

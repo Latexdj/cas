@@ -13,6 +13,17 @@ interface MenuItem {
 
 const MENU_SECTIONS: { label: string; items: MenuItem[] }[] = [
   {
+    label: 'Assessments',
+    items: [
+      {
+        title:    'My Assessments',
+        subtitle: 'Record CA scores and end-of-semester exam marks',
+        icon:     'school-outline',
+        route:    '/(tabs)/assessments',
+      },
+    ],
+  },
+  {
     label: 'Records',
     items: [
       {
