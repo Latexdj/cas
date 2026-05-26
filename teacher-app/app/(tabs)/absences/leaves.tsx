@@ -4,6 +4,8 @@ import {
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
@@ -40,7 +42,11 @@ export default function LeavesScreen() {
   const [dateFrom,   setDateFrom]   = useState(todayStr());
   const [dateTo,     setDateTo]     = useState(todayStr());
   const [reason,     setReason]     = useState('');
+  const [docUri,     setDocUri]     = useState<string | null>(null);
+  const [docName,    setDocName]    = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const docRequired = leaveType !== 'Official Duty';
 
   const load = useCallback(async () => {
     try {
@@ -53,18 +59,50 @@ export default function LeavesScreen() {
   useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
   const onRefresh = () => { setRefreshing(true); load(); };
 
+  async function pickDocument() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'application/msword',
+               'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setDocUri(result.assets[0].uri);
+        setDocName(result.assets[0].name);
+      }
+    } catch {
+      Alert.alert('Error', 'Could not open document picker.');
+    }
+  }
+
   async function submit() {
     if (!reason.trim()) { Alert.alert('Reason required'); return; }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
       Alert.alert('Invalid date', 'Use YYYY-MM-DD format.'); return;
     }
     if (dateTo < dateFrom) { Alert.alert('End date must be on or after start date'); return; }
+    if (docRequired && !docUri) {
+      Alert.alert('Document required', 'Please attach a supporting document (PDF or Word) for this leave type.');
+      return;
+    }
     setSubmitting(true);
     try {
+      let documentBase64: string | undefined;
+      if (docUri && docName) {
+        const base64 = await FileSystem.readAsStringAsync(docUri, { encoding: FileSystem.EncodingType.Base64 });
+        const ext  = docName.slice(docName.lastIndexOf('.')).toLowerCase();
+        const mime = ext === '.pdf'  ? 'application/pdf'
+                   : ext === '.docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                   :                   'application/msword';
+        documentBase64 = `data:${mime};base64,${base64}`;
+      }
       await api.post('/api/teacher-excuses', {
         teacherId: user!.id, dateFrom, dateTo, type: leaveType, reason: reason.trim(),
+        documentBase64, documentFilename: docName ?? undefined,
       });
-      setShowForm(false); setReason(''); setDateFrom(todayStr()); setDateTo(todayStr()); setLeaveType('Sick Leave');
+      setShowForm(false);
+      setReason(''); setDateFrom(todayStr()); setDateTo(todayStr()); setLeaveType('Sick Leave');
+      setDocUri(null); setDocName(null);
       load();
     } catch (err: any) {
       Alert.alert('Error', err?.response?.data?.error ?? 'Could not submit request.');
@@ -107,6 +145,14 @@ export default function LeavesScreen() {
                     <Text style={styles.leaveType}>{lv.type}</Text>
                     <Text style={styles.meta}>{dateLabel}</Text>
                     {lv.reason ? <Text style={styles.italicText}>"{lv.reason}"</Text> : null}
+                    {lv.document_url ? (
+                      <Text
+                        style={[styles.meta, { color: Colors.primary, fontWeight: '600' }]}
+                        onPress={() => { if (lv.document_url) require('react-native').Linking.openURL(lv.document_url); }}
+                      >
+                        📄 View Document
+                      </Text>
+                    ) : null}
                     {lv.approved_by_name ? (
                       <Text style={styles.meta}>
                         {lv.status === 'Approved' ? 'Approved' : 'Reviewed'} by {lv.approved_by_name}
@@ -181,6 +227,24 @@ export default function LeavesScreen() {
                 numberOfLines={4}
               />
 
+              {docRequired && (
+                <View>
+                  <Text style={styles.fieldLabel}>
+                    Supporting Document <Text style={{ color: '#DC2626' }}>*</Text>
+                  </Text>
+                  <Text style={styles.fieldHint}>PDF or Word file required for this leave type</Text>
+                  <TouchableOpacity
+                    style={[styles.docBtn, docUri && { borderColor: Colors.primary }]}
+                    onPress={pickDocument}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.docBtnText, docUri && { color: Colors.primary }]}>
+                      {docUri ? `✓  ${docName}` : '📎  Attach Document'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <View style={styles.row2}>
                 <Button
                   label="Cancel"
@@ -229,4 +293,7 @@ const styles = StyleSheet.create({
   dateInput:   { backgroundColor: '#F4EFE6', borderRadius: 10, padding: 12, fontSize: 15, color: '#1C1208', borderWidth: 1, borderColor: '#E2D9CC' },
   textArea:    { backgroundColor: '#F4EFE6', borderRadius: 10, padding: 14, fontSize: 15, color: '#1C1208', minHeight: 100, textAlignVertical: 'top', marginBottom: 18, borderWidth: 1, borderColor: '#E2D9CC' },
   row2:        { flexDirection: 'row', gap: 10 },
+  fieldHint:   { fontSize: 11, color: '#8C7E6E', marginBottom: 8, marginTop: -4 },
+  docBtn:      { borderWidth: 1, borderColor: '#E2D9CC', borderStyle: 'dashed', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: 'center', marginBottom: 18 },
+  docBtnText:  { fontSize: 13, fontWeight: '600', color: '#8C7E6E' },
 });

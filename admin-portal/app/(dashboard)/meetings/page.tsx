@@ -23,6 +23,9 @@ interface Meeting {
   end_time: string;
   location_id: string;
   location_name: string;
+  minutes_url: string | null;
+  minutes_filename: string | null;
+  minutes_uploaded_at: string | null;
 }
 
 interface AttendanceRecord {
@@ -478,6 +481,120 @@ async function buildPrintSheet(
   return out.toDataURL('image/png');
 }
 
+// ─── MinutesModal ────────────────────────────────────────────────────────────
+
+function MinutesModal({ meeting, onClose, onSaved }: { meeting: Meeting; onClose: () => void; onSaved: () => void }) {
+  const [file,       setFile]       = useState<File | null>(null);
+  const [uploading,  setUploading]  = useState(false);
+  const [removing,   setRemoving]   = useState(false);
+  const [error,      setError]      = useState('');
+
+  async function handleUpload() {
+    if (!file) { setError('Please select a file.'); return; }
+    setUploading(true); setError('');
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      await api.post(`/api/meetings/${meeting.id}/minutes`, {
+        fileBase64: dataUrl,
+        filename:   file.name,
+      });
+      onSaved();
+      onClose();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Upload failed.');
+    } finally { setUploading(false); }
+  }
+
+  async function handleRemove() {
+    if (!confirm('Remove the uploaded minutes for this meeting?')) return;
+    setRemoving(true);
+    try {
+      await api.delete(`/api/meetings/${meeting.id}/minutes`);
+      onSaved();
+      onClose();
+    } catch {
+      setError('Failed to remove minutes.');
+    } finally { setRemoving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-slate-100">
+          <h3 className="text-base font-bold text-slate-800">Meeting Minutes</h3>
+          <p className="text-sm text-slate-500 mt-0.5 truncate">{meeting.title} — {fmtDate(meeting.date)}</p>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {meeting.minutes_url && (
+            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5 text-green-700 shrink-0">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-green-800 truncate">{meeting.minutes_filename}</p>
+                <p className="text-xs text-green-600 mt-0.5">
+                  Uploaded {meeting.minutes_uploaded_at ? fmtDate(meeting.minutes_uploaded_at) : ''}
+                </p>
+              </div>
+              <a href={meeting.minutes_url} target="_blank" rel="noopener noreferrer"
+                className="text-xs font-semibold text-green-700 hover:text-green-900 shrink-0">
+                Download
+              </a>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+              {meeting.minutes_url ? 'Replace Minutes' : 'Upload Minutes'}
+            </label>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx"
+              onChange={e => { setFile(e.target.files?.[0] ?? null); setError(''); }}
+              className="w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer"
+            />
+            <p className="text-xs text-slate-400 mt-1">PDF or Word document (.pdf, .doc, .docx)</p>
+          </div>
+
+          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+
+          <div className="flex gap-2 pt-1">
+            {meeting.minutes_url && (
+              <button
+                onClick={handleRemove}
+                disabled={removing}
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40"
+              >
+                {removing ? 'Removing…' : 'Remove'}
+              </button>
+            )}
+            <button onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              Cancel
+            </button>
+            <button
+              onClick={handleUpload}
+              disabled={!file || uploading}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+              style={{ backgroundColor: GREEN }}
+            >
+              {uploading ? 'Uploading…' : 'Upload'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── QrModal ─────────────────────────────────────────────────────────────────
 
 function QrModal({ meeting, onClose }: { meeting: Meeting; onClose: () => void }) {
@@ -660,9 +777,10 @@ export default function MeetingsPage() {
   const [aType,      setAType]      = useState<MeetingType | ''>('');
 
   // Modals
-  const [editMeeting,  setEditMeeting]  = useState<Partial<Meeting> | null | false>(false);
-  const [qrMeeting,    setQrMeeting]    = useState<Meeting | null>(null);
-  const [photoRecord,  setPhotoRecord]  = useState<AttendanceRecord | null>(null);
+  const [editMeeting,    setEditMeeting]    = useState<Partial<Meeting> | null | false>(false);
+  const [qrMeeting,      setQrMeeting]      = useState<Meeting | null>(null);
+  const [photoRecord,    setPhotoRecord]    = useState<AttendanceRecord | null>(null);
+  const [minutesMeeting, setMinutesMeeting] = useState<Meeting | null>(null);
 
   // ── Loaders ────────────────────────────────────────────────────
 
@@ -873,7 +991,7 @@ export default function MeetingsPage() {
                   <table className="min-w-[850px] w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50">
-                        {['Date', 'Day', 'Type', 'Title', 'Time', 'Venue', 'Actions'].map(h => (
+                        {['Date', 'Day', 'Type', 'Title', 'Time', 'Venue', 'Minutes', 'Actions'].map(h => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
                         ))}
                       </tr>
@@ -887,6 +1005,27 @@ export default function MeetingsPage() {
                           <td className="px-4 py-3 text-slate-700 font-medium max-w-[200px] truncate">{m.title}</td>
                           <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{fmt(m.start_time)} – {fmt(m.end_time)}</td>
                           <td className="px-4 py-3 text-slate-600">{m.location_name}</td>
+                          <td className="px-4 py-3">
+                            {m.minutes_url ? (
+                              <button
+                                onClick={() => setMinutesMeeting(m)}
+                                className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg"
+                                style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3 h-3">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
+                                </svg>
+                                Uploaded
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setMinutesMeeting(m)}
+                                className="text-xs font-semibold text-slate-400 hover:text-slate-600"
+                              >
+                                Upload
+                              </button>
+                            )}
+                          </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               <button
@@ -1031,6 +1170,14 @@ export default function MeetingsPage() {
 
       {photoRecord && (
         <PhotoModal record={photoRecord} onClose={() => setPhotoRecord(null)} />
+      )}
+
+      {minutesMeeting && (
+        <MinutesModal
+          meeting={minutesMeeting}
+          onClose={() => setMinutesMeeting(null)}
+          onSaved={async () => { setLoading(true); await loadMeetings(); setLoading(false); }}
+        />
       )}
     </div>
   );

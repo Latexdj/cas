@@ -3,7 +3,7 @@ const pool   = require('../config/db');
 const crypto = require('crypto');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { verifyLocation } = require('../services/geo.service');
-const { uploadPhoto }    = require('../services/storage.service');
+const { uploadPhoto, uploadDocument } = require('../services/storage.service');
 const { logAudit }       = require('../services/audit.service');
 
 router.use(authenticate, requireActiveSubscription);
@@ -161,6 +161,59 @@ router.post('/', adminOnly, async (req, res, next) => {
     } finally {
       client.release();
     }
+  } catch (err) { next(err); }
+});
+
+// POST /api/meetings/:id/minutes — admin uploads meeting minutes
+router.post('/:id/minutes', adminOnly, async (req, res, next) => {
+  try {
+    const { fileBase64, filename } = req.body;
+    if (!fileBase64 || !filename) {
+      return res.status(400).json({ error: 'fileBase64 and filename are required' });
+    }
+
+    const { rows: mtg } = await pool.query(
+      'SELECT id FROM meetings WHERE id = $1 AND school_id = $2',
+      [req.params.id, req.schoolId]
+    );
+    if (!mtg.length) return res.status(404).json({ error: 'Meeting not found' });
+
+    let docUrl, docFilename;
+    try {
+      const result = await uploadDocument(
+        fileBase64,
+        filename,
+        `meeting-minutes/${req.schoolId}`
+      );
+      docUrl      = result.url;
+      docFilename = result.filename;
+    } catch (uploadErr) {
+      return res.status(400).json({ error: uploadErr.message });
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE meetings
+       SET minutes_url = $1, minutes_filename = $2, minutes_uploaded_at = now()
+       WHERE id = $3 AND school_id = $4
+       RETURNING id, minutes_url, minutes_filename, minutes_uploaded_at`,
+      [docUrl, docFilename, req.params.id, req.schoolId]
+    );
+
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/meetings/:id/minutes — admin removes meeting minutes
+router.delete('/:id/minutes', adminOnly, async (req, res, next) => {
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE meetings
+       SET minutes_url = NULL, minutes_filename = NULL, minutes_uploaded_at = NULL
+       WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Meeting not found' });
+    res.json({ message: 'Minutes removed' });
   } catch (err) { next(err); }
 });
 

@@ -165,6 +165,8 @@ export interface TeacherExcuse {
   approved_by_name: string | null;
   approved_at: string | null;
   created_at: string;
+  document_url: string | null;
+  document_filename: string | null;
 }
 
 export interface AdminStats {

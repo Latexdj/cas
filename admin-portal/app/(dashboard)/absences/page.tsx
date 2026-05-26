@@ -488,7 +488,7 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
             <table className="min-w-[800px] w-full text-sm">
               <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
                 <tr>
-                  {['Teacher', 'Type', 'Period', 'Reason', 'Status', 'Approved By', ''].map(h => (
+                  {['Teacher', 'Type', 'Period', 'Reason', 'Document', 'Status', 'Approved By', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
                   ))}
                 </tr>
@@ -505,28 +505,49 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
                       <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{period}</td>
                       <td className="px-4 py-3 max-w-xs truncate" style={{ color: '#475569' }} title={ex.reason}>{ex.reason}</td>
                       <td className="px-4 py-3">
+                        {ex.document_url ? (
+                          <a href={ex.document_url} target="_blank" rel="noopener noreferrer"
+                            className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                            </svg>
+                            View
+                          </a>
+                        ) : (
+                          <span className="text-xs" style={{ color: ex.type === 'Official Duty' ? '#94A3B8' : '#F59E0B' }}>
+                            {ex.type === 'Official Duty' ? '—' : 'Missing'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold"
                           style={{ backgroundColor: ss.bg, color: ss.color }}>{ex.status}</span>
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: '#94A3B8' }}>{ex.approved_by_name ?? '—'}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex gap-2 items-center">
-                          {ex.status === 'Pending' && (
-                            <>
-                              <button disabled={acting === ex.id}
-                                onClick={() => approve(ex.id)}
-                                className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors"
-                                style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
-                                {acting === ex.id ? '…' : 'Approve'}
-                              </button>
-                              <button disabled={acting === ex.id}
-                                onClick={() => reject(ex.id)}
-                                className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors"
-                                style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>
-                                Reject
-                              </button>
-                            </>
-                          )}
+                          {ex.status === 'Pending' && (() => {
+                            const docRequired = ex.type !== 'Official Duty' && !ex.document_url;
+                            return (
+                              <>
+                                <button
+                                  disabled={acting === ex.id || docRequired}
+                                  onClick={() => approve(ex.id)}
+                                  title={docRequired ? 'Supporting document required before approval' : ''}
+                                  className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                  style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                                  {acting === ex.id ? '…' : 'Approve'}
+                                </button>
+                                <button disabled={acting === ex.id}
+                                  onClick={() => reject(ex.id)}
+                                  className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors"
+                                  style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>
+                                  Reject
+                                </button>
+                              </>
+                            );
+                          })()}
                           <button onClick={() => del(ex.id)}
                             className="text-xs font-semibold" style={{ color: '#94A3B8' }}>
                             Del

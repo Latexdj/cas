@@ -40,8 +40,11 @@ function LeavesContent() {
   const [leaveFrom,    setLeaveFrom]    = useState('');
   const [leaveTo,      setLeaveTo]      = useState('');
   const [leaveReason,  setLeaveReason]  = useState('');
+  const [leaveDoc,     setLeaveDoc]     = useState<File | null>(null);
   const [leaveLoading, setLeaveLoading] = useState(false);
   const [leaveError,   setLeaveError]   = useState('');
+
+  const docRequired = leaveType !== 'Official Duty';
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -61,22 +64,38 @@ function LeavesContent() {
 
   async function handleLeaveSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!leaveFrom)          { setLeaveError('Start date is required.'); return; }
-    if (!leaveTo)            { setLeaveError('End date is required.'); return; }
-    if (!leaveReason.trim()) { setLeaveError('Reason is required.'); return; }
+    if (!leaveFrom)                          { setLeaveError('Start date is required.'); return; }
+    if (!leaveTo)                            { setLeaveError('End date is required.'); return; }
+    if (!leaveReason.trim())                 { setLeaveError('Reason is required.'); return; }
+    if (leaveType !== 'Official Duty' && !leaveDoc) {
+      setLeaveError('A supporting document (PDF or Word) is required for this leave type.'); return;
+    }
     const teacher = getTeacher();
     if (!teacher) return;
     setLeaveLoading(true); setLeaveError('');
     try {
+      let documentBase64: string | undefined;
+      let documentFilename: string | undefined;
+      if (leaveDoc) {
+        documentBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload  = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(leaveDoc);
+        });
+        documentFilename = leaveDoc.name;
+      }
       await teacherApi.post('/api/teacher-excuses', {
         teacherId: teacher.id,
         dateFrom:  leaveFrom,
         dateTo:    leaveTo,
         type:      leaveType,
         reason:    leaveReason.trim(),
+        documentBase64,
+        documentFilename,
       });
       setShowLeave(false);
-      setLeaveType('Sick Leave'); setLeaveFrom(''); setLeaveTo(''); setLeaveReason('');
+      setLeaveType('Sick Leave'); setLeaveFrom(''); setLeaveTo(''); setLeaveReason(''); setLeaveDoc(null);
       await loadData();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -148,6 +167,25 @@ function LeavesContent() {
             <textarea value={leaveReason} onChange={e => setLeaveReason(e.target.value)}
               placeholder="Describe your reason..." rows={3}
               className="w-full border border-[#E2D9CC] rounded-xl px-3 py-2.5 text-sm bg-white text-[#2C2218] focus:outline-none resize-none" />
+            {docRequired && (
+              <div>
+                <p className="text-xs text-[#8C7E6E] mb-1.5">
+                  Supporting Document <span className="text-[#DC2626]">*</span>
+                  <span className="ml-1 font-normal">(PDF or Word — required for this leave type)</span>
+                </p>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={e => { setLeaveDoc(e.target.files?.[0] ?? null); setLeaveError(''); }}
+                  className="w-full text-sm text-[#4A3F32] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#F4EFE6] file:text-[#4A3F32] cursor-pointer"
+                />
+                {leaveDoc && (
+                  <p className="text-xs mt-1" style={{ color: primary }}>
+                    ✓ {leaveDoc.name}
+                  </p>
+                )}
+              </div>
+            )}
             {leaveError && (
               <p className="text-xs text-[#B83232] bg-red-50 border border-red-200 rounded-lg px-3 py-2">{leaveError}</p>
             )}
@@ -192,6 +230,16 @@ function LeavesContent() {
                     <p className="text-sm font-semibold text-[#2C2218]">{lv.type}</p>
                     <p className="text-xs text-[#8C7E6E] mt-0.5">{dateLabel}</p>
                     {lv.reason && <p className="text-xs text-[#4A3F32] mt-1 italic">&ldquo;{lv.reason}&rdquo;</p>}
+                    {lv.document_url && (
+                      <a href={lv.document_url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs mt-1 font-semibold"
+                        style={{ color: primary }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3 h-3">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
+                        </svg>
+                        View Document
+                      </a>
+                    )}
                     {lv.approved_by_name && (
                       <p className="text-xs text-[#8C7E6E] mt-1">
                         {lv.status === 'Approved' ? 'Approved' : 'Reviewed'} by {lv.approved_by_name}

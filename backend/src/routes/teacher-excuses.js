@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { uploadDocument } = require('../services/storage.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -52,6 +53,7 @@ router.get('/', async (req, res, next) => {
       `SELECT
          te.id, te.date_from, te.date_to, te.type, te.reason,
          te.status, te.approved_at, te.created_at,
+         te.document_url, te.document_filename,
          t.id   AS teacher_id,
          t.name AS teacher_name,
          a.name AS approved_by_name
@@ -69,7 +71,7 @@ router.get('/', async (req, res, next) => {
 // POST /api/teacher-excuses — admin creates (auto-approved) or teacher requests (Pending)
 router.post('/', async (req, res, next) => {
   try {
-    const { teacherId, dateFrom, dateTo, type, reason } = req.body;
+    const { teacherId, dateFrom, dateTo, type, reason, documentBase64, documentFilename } = req.body;
     const valid = ['Official Duty', 'Permission', 'Sick Leave', 'Other'];
 
     if (!teacherId || !dateFrom || !dateTo || !type || !reason) {
@@ -86,16 +88,40 @@ router.post('/', async (req, res, next) => {
       return res.status(403).json({ error: 'You can only submit excuses for yourself' });
     }
 
-    const isAdmin  = req.user.role === 'admin' || req.user.role === 'super_admin';
+    // Teachers submitting non-Official Duty leave must include a supporting document
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
+    if (!isAdmin && type !== 'Official Duty' && !documentBase64) {
+      return res.status(400).json({ error: 'A supporting document (PDF or Word) is required for this leave type' });
+    }
+
+    // Upload document if provided
+    let docUrl      = null;
+    let docFilename = null;
+    if (documentBase64 && documentFilename) {
+      try {
+        const result = await uploadDocument(
+          documentBase64,
+          documentFilename,
+          `leave-documents/${req.schoolId}`
+        );
+        docUrl      = result.url;
+        docFilename = result.filename;
+      } catch (uploadErr) {
+        return res.status(400).json({ error: uploadErr.message });
+      }
+    }
+
     const status   = isAdmin ? 'Approved' : 'Pending';
     const approver = (isAdmin && req.user.id) ? req.user.id : null;
 
     const { rows } = await pool.query(
       `INSERT INTO teacher_excuses
-         (school_id, teacher_id, date_from, date_to, type, reason, status, approved_by, approved_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,${isAdmin ? 'now()' : 'NULL'})
+         (school_id, teacher_id, date_from, date_to, type, reason,
+          document_url, document_filename, status, approved_by, approved_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,${isAdmin ? 'now()' : 'NULL'})
        RETURNING *`,
-      [req.schoolId, teacherId, dateFrom, dateTo, type, reason.trim(), status, approver]
+      [req.schoolId, teacherId, dateFrom, dateTo, type, reason.trim(),
+       docUrl, docFilename, status, approver]
     );
 
     // Admin-created excuses are immediately approved — retroactively excuses any existing absences
@@ -114,6 +140,20 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id/approve', adminOnly, async (req, res, next) => {
   try {
     const approver = req.user.id || null;
+
+    // Fetch the excuse first to check document requirement
+    const { rows: check } = await pool.query(
+      'SELECT type, document_url FROM teacher_excuses WHERE id = $1 AND school_id = $2',
+      [req.params.id, req.schoolId]
+    );
+    if (!check.length) return res.status(404).json({ error: 'Excuse not found' });
+
+    if (check[0].type !== 'Official Duty' && !check[0].document_url) {
+      return res.status(400).json({
+        error: 'A supporting document is required before this leave can be approved',
+      });
+    }
+
     const { rows } = await pool.query(
       `UPDATE teacher_excuses
        SET status = 'Approved', approved_by = $1, approved_at = now(), updated_at = now()
