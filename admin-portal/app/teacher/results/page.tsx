@@ -33,13 +33,13 @@ function ResultsContent() {
 
     Promise.all([
       teacherApi.get<AcademicYear[]>('/api/academic-years'),
-      teacherApi.get<{ name: string }[]>('/api/students/classes'),
+      teacherApi.get<string[]>('/api/students/classes'),
     ]).then(([yRes, cRes]) => {
       setYears(yRes.data ?? []);
       const current = (yRes.data ?? []).find((y: AcademicYear) => y.is_current);
       if (current) { setYearId(current.id); setSemester(String(current.current_semester ?? 1)); }
       else if (yRes.data?.[0]) setYearId(yRes.data[0].id);
-      setClasses((cRes.data ?? []).map((c: { name: string }) => c.name));
+      setClasses(cRes.data ?? []);
     }).catch(() => setError('Failed to load filters.')).finally(() => setLoadingMeta(false));
   }, []);
 

@@ -4,8 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { AcademicYear, StudentResult } from '@/types/api';
 
-interface ClassOption { name: string }
-
 function ordinal(n: number) {
   const s = ['th', 'st', 'nd', 'rd'];
   const v = n % 100;
@@ -47,7 +45,7 @@ export default function ResultsPage() {
   useEffect(() => {
     Promise.all([
       api.get<AcademicYear[]>('/api/academic-years'),
-      api.get<ClassOption[]>('/api/students/classes'),
+      api.get<string[]>('/api/students/classes'),
     ]).then(([yRes, cRes]) => {
       setYears(yRes.data);
       const current = yRes.data.find(y => y.is_current);
@@ -57,7 +55,7 @@ export default function ResultsPage() {
       } else if (yRes.data[0]) {
         setYearId(yRes.data[0].id);
       }
-      setClasses(cRes.data.map((c: ClassOption) => c.name));
+      setClasses(cRes.data);
     }).catch(() => setError('Failed to load filters.')).finally(() => setLoadingMeta(false));
   }, []);
 
