@@ -21,6 +21,12 @@ const MENU_SECTIONS: { label: string; items: MenuItem[] }[] = [
         icon:     'school-outline',
         route:    '/(tabs)/assessments',
       },
+      {
+        title:    'Results',
+        subtitle: 'View class report cards and student rankings',
+        icon:     'bar-chart-outline',
+        route:    '/(tabs)/results',
+      },
     ],
   },
   {

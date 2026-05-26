@@ -120,6 +120,31 @@ export interface SchoolCalendarEntry {
   notes: string | null;
 }
 
+export interface SubjectResult {
+  subject: string;
+  ca_score: number | null;
+  exam_score: number | null;
+  total: number | null;
+  grade: string;
+  remark: string;
+  subject_position: number | null;
+  class_size: number;
+}
+
+export interface StudentResult {
+  student_id: string;
+  student_code: string;
+  name: string;
+  exam_body: string | null;
+  subjects: SubjectResult[];
+  average: number | null;
+  overall_grade: string;
+  class_position?: number;
+  class_total?: number;
+  ca_percentage: number;
+  exam_percentage: number;
+}
+
 export interface TeacherExcuse {
   id: string;
   teacher_id: string;
