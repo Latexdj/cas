@@ -9,6 +9,34 @@ export interface Teacher {
   is_admin: boolean;
   notes: string | null;
   total_periods: number;
+  rank: string | null;
+  photo_url: string | null;
+}
+
+export interface TeacherProfile extends Teacher {
+  gov_staff_id: string | null;
+  gender: string | null;
+  date_of_birth: string | null;
+  registered_number: string | null;
+  ntc_number: string | null;
+  ssf_number: string | null;
+  academic_qualification: string | null;
+  professional_qualification: string | null;
+  additional_responsibility: string | null;
+  bank: string | null;
+  bank_branch: string | null;
+  account_number: string | null;
+  religion: string | null;
+  religious_denomination: string | null;
+  hometown: string | null;
+  residential_address: string | null;
+  association: string | null;
+  ghana_card_number: string | null;
+  certificate_url: string | null;
+  certificate_filename: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  schedule?: { id: string; day_of_week: number; start_time: string; end_time: string; subject: string; class_names: string }[];
 }
 
 export interface AcademicYear {
@@ -119,6 +147,27 @@ export interface Student {
   notes: string | null;
   program_id: string | null;
   program_name: string | null;
+  picture_url: string | null;
+  house: string | null;
+  residential_status: string | null;
+}
+
+export interface StudentProfile extends Student {
+  jhs_index_number: string | null;
+  date_of_birth: string | null;
+  age: number | null;
+  gender: string | null;
+  hometown: string | null;
+  residential_address: string | null;
+  ghana_card_number: string | null;
+  nhia_number: string | null;
+  mobile_number: string | null;
+  aggregate: number | null;
+  religion: string | null;
+  religious_denomination: string | null;
+  guardian_name: string | null;
+  guardian_occupation: string | null;
+  guardian_mobile: string | null;
 }
 
 export interface StudentAttendanceSession {

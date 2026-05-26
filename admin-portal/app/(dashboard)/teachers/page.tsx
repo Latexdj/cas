@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback, useRef } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -332,6 +334,7 @@ export default function TeachersPage() {
           <table className="min-w-[900px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-10"></th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</th>
@@ -345,6 +348,14 @@ export default function TeachersPage() {
             <tbody className="divide-y divide-gray-50">
               {filtered.map(t => (
                 <tr key={t.id} className="hover:bg-gray-50">
+                  <td className="px-3 py-2">
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
+                      {t.photo_url
+                        ? <Image src={t.photo_url} alt={t.name} width={32} height={32} className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center text-sm font-bold text-gray-400">{t.name.charAt(0).toUpperCase()}</div>
+                      }
+                    </div>
+                  </td>
                   <td className="px-3 py-2.5">
                     <span className="font-mono font-bold text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5 text-xs">{t.teacher_code}</span>
                   </td>
@@ -356,6 +367,10 @@ export default function TeachersPage() {
                   <td className="px-3 py-2.5"><Badge status={t.status} /></td>
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <div className="flex gap-1.5 items-center">
+                      <Link href={`/teachers/${t.id}`}
+                        className="flex items-center gap-0.5 px-2 py-1 rounded text-xs font-semibold border border-gray-200 text-gray-600 bg-white hover:bg-gray-50">
+                        Profile
+                      </Link>
                       <Button variant="ghost" size="sm" onClick={() => openEdit(t)}>Edit</Button>
                       <Button variant="ghost" size="sm" onClick={() => openResetPin(t)} title="Reset PIN">🔑 PIN</Button>
                       <button
@@ -375,7 +390,7 @@ export default function TeachersPage() {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">No teachers found.</td></tr>
+                <tr><td colSpan={9} className="px-3 py-8 text-center text-gray-400">No teachers found.</td></tr>
               )}
             </tbody>
           </table>

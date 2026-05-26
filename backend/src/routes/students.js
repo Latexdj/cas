@@ -3,6 +3,7 @@ const multer = require('multer');
 const XLSX   = require('xlsx');
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { uploadFile } = require('../services/storage.service');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -31,24 +32,31 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
     const wb = XLSX.utils.book_new();
 
     // ── Sheet 1: Students ──
-    const headers = ['Student ID', 'Name', 'Class', 'Program', 'Status', 'Notes'];
+    const headers = [
+      'Student ID', 'Name', 'Class', 'Program', 'Status',
+      'JHS Index No.', 'Date of Birth (YYYY-MM-DD)', 'Gender (Male/Female)',
+      'Hometown', 'Residential Address', 'Ghana Card No.', 'NHIA No.',
+      'Mobile No.', 'Aggregate', 'House', 'Residential Status (Day/Boarding)',
+      'Religion', 'Religious Denomination',
+      'Guardian Name', 'Guardian Occupation', 'Guardian Mobile',
+      'Notes',
+    ];
     const p0 = programs[0]?.name ?? '';
     const p1 = programs[1]?.name ?? p0;
     const examples = [
-      ['',     'Kwame Mensah',  '1A', p0, 'Active', ''],
-      ['',     'Abena Osei',    '2B', p1, 'Active', 'Transferred in'],
-      ['S003', 'Kofi Asante',   '3C', p0, 'Active', ''],
+      ['',     'Kwame Mensah', '1A', p0, 'Active', 'GHA-JHS-001', '2008-03-15', 'Male',   'Accra',   '12 Main St', 'GHA-001', 'NHIA-001', '024-000-0001', 8,  'Blue',  'Day',      'Christianity', 'Methodist',  'Kofi Mensah',  'Farmer',    '020-000-0001', ''],
+      ['',     'Abena Osei',   '2B', p1, 'Active', 'GHA-JHS-002', '2007-07-20', 'Female', 'Kumasi',  '5 Ring Rd',  '',        '',          '',             12, 'Red',   'Boarding', 'Islam',        'Sunni',      'Ama Osei',     'Teacher',   '024-000-0002', 'Transferred in'],
+      ['S003', 'Kofi Asante',  '3C', p0, 'Active', 'GHA-JHS-003', '2006-11-05', 'Male',   'Takoradi','3 Beach Rd', 'GHA-003', 'NHIA-003', '027-000-0003', 10, 'Green', 'Day',      'Christianity', 'Catholic',   'Yaw Asante',   'Engineer',  '027-000-0003', ''],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
 
     ws['!cols'] = [
-      { wch: 14 },
-      { wch: 28 },
-      { wch: 10 },
-      { wch: 22 },
-      { wch: 12 },
-      { wch: 32 },
+      { wch: 14 }, { wch: 28 }, { wch: 10 }, { wch: 22 }, { wch: 12 },
+      { wch: 18 }, { wch: 26 }, { wch: 22 }, { wch: 18 }, { wch: 30 },
+      { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 14 },
+      { wch: 28 }, { wch: 18 }, { wch: 24 }, { wch: 26 }, { wch: 22 },
+      { wch: 18 }, { wch: 28 },
     ];
 
     // Freeze the header row
@@ -140,12 +148,29 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       const row    = dataRows[i];
       const rowNum = i + 2;
 
-      const studentCode = String(row[0] ?? '').trim() || null;
-      const name        = String(row[1] ?? '').trim();
-      const className   = String(row[2] ?? '').trim();
-      const programName = String(row[3] ?? '').trim();
-      const statusRaw   = String(row[4] ?? '').trim();
-      const notes       = String(row[5] ?? '').trim() || null;
+      const studentCode          = String(row[0]  ?? '').trim() || null;
+      const name                 = String(row[1]  ?? '').trim();
+      const className            = String(row[2]  ?? '').trim();
+      const programName          = String(row[3]  ?? '').trim();
+      const statusRaw            = String(row[4]  ?? '').trim();
+      const jhs_index_number     = String(row[5]  ?? '').trim() || null;
+      const date_of_birth        = String(row[6]  ?? '').trim() || null;
+      const gender               = String(row[7]  ?? '').trim() || null;
+      const hometown             = String(row[8]  ?? '').trim() || null;
+      const residential_address  = String(row[9]  ?? '').trim() || null;
+      const ghana_card_number    = String(row[10] ?? '').trim() || null;
+      const nhia_number          = String(row[11] ?? '').trim() || null;
+      const mobile_number        = String(row[12] ?? '').trim() || null;
+      const aggregateRaw         = String(row[13] ?? '').trim();
+      const aggregate            = aggregateRaw ? (parseInt(aggregateRaw) || null) : null;
+      const house                = String(row[14] ?? '').trim() || null;
+      const residential_status   = String(row[15] ?? '').trim() || null;
+      const religion             = String(row[16] ?? '').trim() || null;
+      const religious_denomination = String(row[17] ?? '').trim() || null;
+      const guardian_name        = String(row[18] ?? '').trim() || null;
+      const guardian_occupation  = String(row[19] ?? '').trim() || null;
+      const guardian_mobile      = String(row[20] ?? '').trim() || null;
+      const notes                = String(row[21] ?? '').trim() || null;
 
       if (!name && !studentCode) continue;
       if (!name)      { errors.push({ row: rowNum, message: 'Name is required' });  continue; }
@@ -167,9 +192,18 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
 
       try {
         await pool.query(
-          `INSERT INTO students (school_id, student_code, name, class_name, status, notes, program_id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [req.schoolId, code, name, className, status, notes, programId]
+          `INSERT INTO students
+             (school_id, student_code, name, class_name, status, notes, program_id,
+              jhs_index_number, date_of_birth, gender, hometown, residential_address,
+              ghana_card_number, nhia_number, mobile_number, aggregate, house,
+              residential_status, religion, religious_denomination,
+              guardian_name, guardian_occupation, guardian_mobile)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
+          [req.schoolId, code, name, className, status, notes, programId,
+           jhs_index_number, date_of_birth || null, gender, hometown, residential_address,
+           ghana_card_number, nhia_number, mobile_number, aggregate, house,
+           residential_status, religion, religious_denomination,
+           guardian_name, guardian_occupation, guardian_mobile]
         );
         inserted++;
       } catch (err) {
@@ -247,7 +281,7 @@ router.get('/', async (req, res, next) => {
 
     const { rows } = await pool.query(
       `SELECT s.id, s.student_code, s.name, s.class_name, s.status, s.notes,
-              s.program_id, p.name AS program_name
+              s.program_id, p.name AS program_name, s.picture_url, s.house, s.residential_status
        FROM students s
        LEFT JOIN programs p ON p.id = s.program_id
        WHERE ${conds.join(' AND ')}
@@ -263,7 +297,12 @@ router.get('/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT s.id, s.student_code, s.name, s.class_name, s.status, s.notes,
-              s.program_id, p.name AS program_name
+              s.program_id, p.name AS program_name,
+              s.jhs_index_number, s.date_of_birth, s.gender, s.hometown, s.residential_address,
+              s.ghana_card_number, s.nhia_number, s.mobile_number, s.aggregate, s.house,
+              s.residential_status, s.religion, s.religious_denomination,
+              s.guardian_name, s.guardian_occupation, s.guardian_mobile, s.picture_url,
+              DATE_PART('year', AGE(s.date_of_birth))::integer AS age
        FROM students s
        LEFT JOIN programs p ON p.id = s.program_id
        WHERE s.id = $1 AND s.school_id = $2`,
@@ -298,21 +337,53 @@ router.post('/', adminOnly, async (req, res, next) => {
 /** PUT /api/students/:id */
 router.put('/:id', adminOnly, async (req, res, next) => {
   try {
-    const { name, class_name, student_code, status, notes, program_id } = req.body;
+    const {
+      name, class_name, student_code, status, notes, program_id,
+      jhs_index_number, date_of_birth, gender, hometown, residential_address,
+      ghana_card_number, nhia_number, mobile_number, aggregate, house,
+      residential_status, religion, religious_denomination,
+      guardian_name, guardian_occupation, guardian_mobile,
+    } = req.body;
     const { rows } = await pool.query(
       `UPDATE students SET
-         student_code = COALESCE($1, student_code),
-         name         = COALESCE($2, name),
-         class_name   = COALESCE($3, class_name),
-         status       = COALESCE($4, status),
-         notes        = COALESCE($5, notes),
-         program_id   = $6,
-         updated_at   = now()
-       WHERE id = $7 AND school_id = $8
-       RETURNING id, student_code, name, class_name, status, notes, program_id`,
+         student_code           = COALESCE($1,  student_code),
+         name                   = COALESCE($2,  name),
+         class_name             = COALESCE($3,  class_name),
+         status                 = COALESCE($4,  status),
+         notes                  = COALESCE($5,  notes),
+         program_id             = COALESCE($6,  program_id),
+         jhs_index_number       = COALESCE($7,  jhs_index_number),
+         date_of_birth          = COALESCE($8,  date_of_birth),
+         gender                 = COALESCE($9,  gender),
+         hometown               = COALESCE($10, hometown),
+         residential_address    = COALESCE($11, residential_address),
+         ghana_card_number      = COALESCE($12, ghana_card_number),
+         nhia_number            = COALESCE($13, nhia_number),
+         mobile_number          = COALESCE($14, mobile_number),
+         aggregate              = COALESCE($15, aggregate),
+         house                  = COALESCE($16, house),
+         residential_status     = COALESCE($17, residential_status),
+         religion               = COALESCE($18, religion),
+         religious_denomination = COALESCE($19, religious_denomination),
+         guardian_name          = COALESCE($20, guardian_name),
+         guardian_occupation    = COALESCE($21, guardian_occupation),
+         guardian_mobile        = COALESCE($22, guardian_mobile),
+         updated_at             = now()
+       WHERE id = $23 AND school_id = $24
+       RETURNING id, student_code, name, class_name, status, notes, program_id,
+                 jhs_index_number, date_of_birth, gender, hometown, residential_address,
+                 ghana_card_number, nhia_number, mobile_number, aggregate, house,
+                 residential_status, religion, religious_denomination,
+                 guardian_name, guardian_occupation, guardian_mobile, picture_url`,
       [student_code?.trim() || null, name || null, class_name?.trim() || null,
        status || null, notes !== undefined ? (notes || null) : undefined,
-       program_id || null, req.params.id, req.schoolId]
+       program_id || null,
+       jhs_index_number||null, date_of_birth||null, gender||null, hometown||null, residential_address||null,
+       ghana_card_number||null, nhia_number||null, mobile_number||null,
+       aggregate !== undefined ? (aggregate || null) : undefined,
+       house||null, residential_status||null, religion||null, religious_denomination||null,
+       guardian_name||null, guardian_occupation||null, guardian_mobile||null,
+       req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Student not found' });
     res.json(rows[0]);
@@ -331,6 +402,22 @@ router.delete('/:id', adminOnly, async (req, res, next) => {
     );
     if (!rowCount) return res.status(404).json({ error: 'Student not found' });
     res.json({ message: 'Student deleted' });
+  } catch (err) { next(err); }
+});
+
+/** POST /api/students/:id/picture — upload student profile photo */
+router.post('/:id/picture', adminOnly, async (req, res, next) => {
+  try {
+    const { imageBase64 } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 is required' });
+    const filePath = `student-photos/${req.params.id}`;
+    const pictureUrl = await uploadFile(imageBase64, filePath, { upsert: true });
+    const { rowCount } = await pool.query(
+      `UPDATE students SET picture_url = $1, updated_at = now() WHERE id = $2 AND school_id = $3`,
+      [pictureUrl, req.params.id, req.schoolId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Student not found' });
+    res.json({ picture_url: pictureUrl });
   } catch (err) { next(err); }
 });
 

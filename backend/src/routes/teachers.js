@@ -5,7 +5,7 @@ const XLSX     = require('xlsx');
 const ExcelJS  = require('exceljs');
 const pool     = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
-const { uploadFile } = require('../services/storage.service');
+const { uploadFile, uploadDocument } = require('../services/storage.service');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -39,13 +39,34 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
     const TEXT_MUTED  = '64748B';
 
     const cols = [
-      { key: 'teacher_code', header: 'Teacher ID',             width: 16 },
-      { key: 'name',         header: 'Full Name',              width: 28 },
-      { key: 'email',        header: 'Email Address',          width: 32 },
-      { key: 'phone',        header: 'Phone Number',           width: 18 },
-      { key: 'department',   header: 'Department / Subject',   width: 26 },
-      { key: 'is_admin',     header: 'Is Admin? (Yes/No)',     width: 20 },
-      { key: 'notes',        header: 'Notes',                  width: 30 },
+      { key: 'teacher_code',              header: 'Teacher ID',                    width: 16 },
+      { key: 'name',                      header: 'Full Name',                     width: 28 },
+      { key: 'email',                     header: 'Email Address',                 width: 32 },
+      { key: 'phone',                     header: 'Phone Number',                  width: 18 },
+      { key: 'department',                header: 'Department / Subject',          width: 26 },
+      { key: 'rank',                      header: 'GES Rank',                      width: 28 },
+      { key: 'gov_staff_id',              header: 'Gov Staff ID',                  width: 18 },
+      { key: 'gender',                    header: 'Gender (Male/Female)',          width: 20 },
+      { key: 'date_of_birth',             header: 'Date of Birth (YYYY-MM-DD)',    width: 24 },
+      { key: 'registered_number',         header: 'Registered Number',             width: 20 },
+      { key: 'ntc_number',                header: 'NTC Number',                    width: 18 },
+      { key: 'ssf_number',                header: 'SSF Number',                    width: 18 },
+      { key: 'academic_qualification',    header: 'Academic Qualification',        width: 26 },
+      { key: 'professional_qualification',header: 'Professional Qualification',    width: 28 },
+      { key: 'additional_responsibility', header: 'Additional Responsibility',     width: 28 },
+      { key: 'bank',                      header: 'Bank',                          width: 22 },
+      { key: 'bank_branch',               header: 'Bank Branch',                   width: 22 },
+      { key: 'account_number',            header: 'Account Number',                width: 20 },
+      { key: 'religion',                  header: 'Religion',                      width: 18 },
+      { key: 'religious_denomination',    header: 'Religious Denomination',        width: 24 },
+      { key: 'hometown',                  header: 'Hometown',                      width: 22 },
+      { key: 'residential_address',       header: 'Residential Address',           width: 32 },
+      { key: 'association',               header: 'Association (GNAT/NAGRAT/etc)', width: 26 },
+      { key: 'ghana_card_number',         header: 'Ghana Card Number',             width: 22 },
+      { key: 'emergency_contact_name',    header: 'Emergency Contact Name',        width: 26 },
+      { key: 'emergency_contact_phone',   header: 'Emergency Contact Phone',       width: 24 },
+      { key: 'is_admin',                  header: 'Is Admin? (Yes/No)',            width: 20 },
+      { key: 'notes',                     header: 'Notes',                         width: 30 },
     ];
 
     // ── Sheet 1: Teachers ─────────────────────────────────────────
@@ -80,8 +101,21 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
         cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
         cell.border    = { bottom: { style: 'hair', color: { argb: 'E2E8F0' } } };
       });
-      // Yes/No dropdown for Is Admin (column F)
+      // Gender dropdown (column H)
+      ws.getCell(`H${row}`).dataValidation = {
+        type: 'list', allowBlank: true, formulae: ['"Male,Female"'],
+        showErrorMessage: true, errorStyle: 'stop',
+        errorTitle: 'Invalid value', error: 'Please enter Male or Female',
+      };
+      // GES Rank dropdown (column F)
       ws.getCell(`F${row}`).dataValidation = {
+        type: 'list', allowBlank: true,
+        formulae: ['"Pupil Teacher,Teacher II,Teacher I,Senior Teacher II,Senior Teacher I,Assistant Superintendent II,Assistant Superintendent I,Superintendent,Senior Superintendent,Principal Superintendent,Assistant Director II,Assistant Director I,Deputy Director,Director"'],
+        showErrorMessage: true, errorStyle: 'stop',
+        errorTitle: 'Invalid value', error: 'Select a rank from the list',
+      };
+      // Yes/No dropdown for Is Admin (column AB — index 27)
+      ws.getCell(`AB${row}`).dataValidation = {
         type: 'list', allowBlank: true, formulae: ['"Yes,No"'],
         showErrorMessage: true, errorStyle: 'stop',
         errorTitle: 'Invalid value', error: 'Please enter Yes or No',
@@ -140,13 +174,34 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
     // Column reference
     section('COLUMN REFERENCE');
     const colRef = [
-      ['Teacher ID',           'Optional',  'Leave blank — the system will auto-assign (e.g. T001, T002). You may enter an existing ID to skip that row.'],
-      ['Full Name',            'Required',  'Teacher\'s full name as it should appear in reports.'],
-      ['Email Address',        'Required',  'Must be unique. Used for login and email notifications.'],
-      ['Phone Number',         'Optional',  'Contact number. Any format accepted.'],
-      ['Department / Subject', 'Optional',  'e.g. Mathematics, English Language, Science.'],
-      ['Is Admin? (Yes/No)',   'Optional',  'Yes = can log into this admin portal. No = teacher access only. Default: No. Use the dropdown in column F.'],
-      ['Notes',                'Optional',  'Internal notes — not visible to the teacher.'],
+      ['Teacher ID',                    'Optional',  'Leave blank — the system will auto-assign (e.g. T001, T002).'],
+      ['Full Name',                     'Required',  'Teacher\'s full name as it should appear in reports.'],
+      ['Email Address',                 'Optional',  'Must be unique if provided. Used for login.'],
+      ['Phone Number',                  'Optional',  'Contact number. Any format accepted.'],
+      ['Department / Subject',          'Optional',  'e.g. Mathematics, English Language, Science.'],
+      ['GES Rank',                      'Optional',  'Select from dropdown: Pupil Teacher → Director.'],
+      ['Gov Staff ID',                  'Optional',  'Government-issued staff identification number.'],
+      ['Gender',                        'Optional',  'Male or Female (use dropdown).'],
+      ['Date of Birth',                 'Optional',  'Format: YYYY-MM-DD (e.g. 1990-05-23).'],
+      ['Registered Number',             'Optional',  'GES registered number.'],
+      ['NTC Number',                    'Optional',  'National Teaching Council registration number.'],
+      ['SSF Number',                    'Optional',  'Social Security and National Insurance Trust number.'],
+      ['Academic Qualification',        'Optional',  'Highest academic qualification e.g. BA, BSc, MA, PhD.'],
+      ['Professional Qualification',    'Optional',  'e.g. B.Ed, PGDE, Cert A.'],
+      ['Additional Responsibility',     'Optional',  'e.g. Form Master, HOD, House Master, Vice Principal.'],
+      ['Bank',                          'Optional',  'Name of bank e.g. GCB, Absa, Ecobank.'],
+      ['Bank Branch',                   'Optional',  'Branch name or code.'],
+      ['Account Number',                'Optional',  'Bank account number.'],
+      ['Religion',                      'Optional',  'e.g. Christianity, Islam, Traditional.'],
+      ['Religious Denomination',        'Optional',  'e.g. Catholic, Methodist, Presbyterian, Sunni.'],
+      ['Hometown',                      'Optional',  'Town or city of origin.'],
+      ['Residential Address',           'Optional',  'Current home address.'],
+      ['Association',                   'Optional',  'e.g. GNAT, NAGRAT, CCT, TEWU, Non-member.'],
+      ['Ghana Card Number',             'Optional',  'National ID card number.'],
+      ['Emergency Contact Name',        'Optional',  'Name of person to contact in an emergency.'],
+      ['Emergency Contact Phone',       'Optional',  'Phone number of emergency contact person.'],
+      ['Is Admin? (Yes/No)',            'Optional',  'Yes = can log into admin portal. Default: No.'],
+      ['Notes',                         'Optional',  'Internal notes — not visible to the teacher.'],
     ];
     colRef.forEach(([col, req, desc]) => {
       const r      = ws2.addRow([col, `[${req}]  ${desc}`]);
@@ -177,15 +232,12 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
       cell.alignment  = { vertical: 'middle', indent: 1 };
     });
     // Adjust columns for example table
-    ws2.columns = [
-      { width: 14 }, { width: 24 }, { width: 28 }, { width: 16 },
-      { width: 22 }, { width: 18 }, { width: 22 },
-    ];
+    ws2.columns = cols.map(c => ({ width: c.width }));
 
     const examples = [
-      ['',     'Jane Doe',     'jane.doe@school.edu',  '024-000-0001', 'Mathematics', 'No',  'Head of department'],
-      ['',     'Kwame Asante', 'kwame.a@school.edu',   '024-000-0002', 'English',     'No',  ''],
-      ['T050', 'Ama Boateng',  'ama.b@school.edu',     '024-000-0003', 'Science',     'Yes', 'Vice principal'],
+      ['', 'Jane Doe',     'jane.doe@school.edu',  '024-000-0001', 'Mathematics', 'Senior Teacher I',       'GHA-0001', 'Female', '1985-03-12', 'REG001', 'NTC001', 'SSF001', 'BA',    'B.Ed', 'HOD',         'GCB Bank',  'Accra Central', '1234567890', 'Christianity', 'Methodist',  'Accra',  '12 Main St', 'GNAT',    'GHA-001234', 'Kofi Doe',  '024-111-0001', 'No',  'Head of dept'],
+      ['', 'Kwame Asante', 'kwame.a@school.edu',   '024-000-0002', 'English',     'Teacher I',              'GHA-0002', 'Male',   '1990-07-20', '',       '',       '',       'BSc',   'PGDE', '',            'Absa',      'Kumasi',        '0987654321', 'Islam',        'Sunni',      'Kumasi', '5 Ring Rd',  'NAGRAT',  '',            'Ama Asante','024-222-0002', 'No',  ''],
+      ['T050', 'Ama Boateng', 'ama.b@school.edu', '024-000-0003', 'Science',     'Assistant Superintendent I','GHA-0003','Female','1978-11-05','REG003', 'NTC003', 'SSF003', 'MA',    'B.Ed', 'Vice Principal','Ecobank',   'Takoradi',      '1122334455', 'Christianity', 'Catholic',   'Takoradi','3 Beach Rd', 'CCT',     'GHA-003456', 'Kojo Boateng','024-333-0003','Yes','Vice principal'],
     ];
     examples.forEach((ex, i) => {
       const r  = ws2.addRow(ex);
@@ -270,13 +322,34 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       const row    = dataRows[i];
       const rowNum = i + 2;
 
-      const teacherCode = String(row[0] ?? '').trim().toUpperCase() || null;
-      const name        = String(row[1] ?? '').trim();
-      const email       = String(row[2] ?? '').trim() || null;
-      const phone       = String(row[3] ?? '').trim() || null;
-      const department  = String(row[4] ?? '').trim() || null;
-      const isAdminRaw  = String(row[5] ?? '').trim().toLowerCase();
-      const notes       = String(row[6] ?? '').trim() || null;
+      const teacherCode              = String(row[0]  ?? '').trim().toUpperCase() || null;
+      const name                     = String(row[1]  ?? '').trim();
+      const email                    = String(row[2]  ?? '').trim() || null;
+      const phone                    = String(row[3]  ?? '').trim() || null;
+      const department               = String(row[4]  ?? '').trim() || null;
+      const rank                     = String(row[5]  ?? '').trim() || null;
+      const gov_staff_id             = String(row[6]  ?? '').trim() || null;
+      const gender                   = String(row[7]  ?? '').trim() || null;
+      const date_of_birth            = String(row[8]  ?? '').trim() || null;
+      const registered_number        = String(row[9]  ?? '').trim() || null;
+      const ntc_number               = String(row[10] ?? '').trim() || null;
+      const ssf_number               = String(row[11] ?? '').trim() || null;
+      const academic_qualification   = String(row[12] ?? '').trim() || null;
+      const professional_qualification = String(row[13] ?? '').trim() || null;
+      const additional_responsibility = String(row[14] ?? '').trim() || null;
+      const bank                     = String(row[15] ?? '').trim() || null;
+      const bank_branch              = String(row[16] ?? '').trim() || null;
+      const account_number           = String(row[17] ?? '').trim() || null;
+      const religion                 = String(row[18] ?? '').trim() || null;
+      const religious_denomination   = String(row[19] ?? '').trim() || null;
+      const hometown                 = String(row[20] ?? '').trim() || null;
+      const residential_address      = String(row[21] ?? '').trim() || null;
+      const association              = String(row[22] ?? '').trim() || null;
+      const ghana_card_number        = String(row[23] ?? '').trim() || null;
+      const emergency_contact_name   = String(row[24] ?? '').trim() || null;
+      const emergency_contact_phone  = String(row[25] ?? '').trim() || null;
+      const isAdminRaw               = String(row[26] ?? '').trim().toLowerCase();
+      const notes                    = String(row[27] ?? '').trim() || null;
 
       // Skip entirely blank rows
       if (!name && !teacherCode) continue;
@@ -296,9 +369,20 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       try {
         await pool.query(
           `INSERT INTO teachers
-             (school_id, teacher_code, name, email, phone, department, status, is_admin, notes, pin_hash)
-           VALUES ($1,$2,$3,$4,$5,$6,'Active',$7,$8,$9)`,
-          [req.schoolId, code, name, email, phone, department, isAdmin, notes, pinHash]
+             (school_id, teacher_code, name, email, phone, department, status, is_admin, notes, pin_hash,
+              rank, gov_staff_id, gender, date_of_birth, registered_number, ntc_number, ssf_number,
+              academic_qualification, professional_qualification, additional_responsibility,
+              bank, bank_branch, account_number, religion, religious_denomination,
+              hometown, residential_address, association, ghana_card_number,
+              emergency_contact_name, emergency_contact_phone)
+           VALUES ($1,$2,$3,$4,$5,$6,'Active',$7,$8,$9,
+                   $10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`,
+          [req.schoolId, code, name, email, phone, department, isAdmin, notes, pinHash,
+           rank, gov_staff_id, gender, date_of_birth || null, registered_number, ntc_number, ssf_number,
+           academic_qualification, professional_qualification, additional_responsibility,
+           bank, bank_branch, account_number, religion, religious_denomination,
+           hometown, residential_address, association, ghana_card_number,
+           emergency_contact_name, emergency_contact_phone]
         );
         inserted++;
       } catch (err) {
@@ -322,7 +406,7 @@ router.get('/', async (req, res, next) => {
     const { rows } = await pool.query(`
       SELECT
         t.id, t.teacher_code, t.name, t.email, t.phone, t.department,
-        t.status, t.is_admin, t.notes,
+        t.status, t.is_admin, t.notes, t.rank, t.photo_url,
         ROUND(COALESCE(SUM(
           GREATEST(0,
             EXTRACT(EPOCH FROM (tt.end_time - tt.start_time))
@@ -351,7 +435,12 @@ router.get('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, teacher_code, name, email, phone, department, status, is_admin, notes
+      `SELECT id, teacher_code, name, email, phone, department, status, is_admin, notes,
+              rank, gov_staff_id, gender, date_of_birth, registered_number, ntc_number, ssf_number,
+              academic_qualification, professional_qualification, additional_responsibility,
+              bank, bank_branch, account_number, religion, religious_denomination,
+              hometown, residential_address, association, ghana_card_number, photo_url,
+              certificate_url, certificate_filename, emergency_contact_name, emergency_contact_phone
        FROM teachers WHERE id = $1 AND school_id = $2`,
       [req.params.id, req.schoolId]
     );
@@ -418,22 +507,63 @@ router.post('/', adminOnly, async (req, res, next) => {
 
 router.put('/:id', adminOnly, async (req, res, next) => {
   try {
-    const { name, email, phone, department, status, is_admin, notes, teacher_code } = req.body;
+    const {
+      name, email, phone, department, status, is_admin, notes, teacher_code,
+      rank, gov_staff_id, gender, date_of_birth, registered_number, ntc_number, ssf_number,
+      academic_qualification, professional_qualification, additional_responsibility,
+      bank, bank_branch, account_number, religion, religious_denomination,
+      hometown, residential_address, association, ghana_card_number,
+      emergency_contact_name, emergency_contact_phone,
+    } = req.body;
     const { rows } = await pool.query(
-      `UPDATE teachers
-       SET teacher_code = COALESCE($1, teacher_code),
-           name        = COALESCE($2, name),
-           email       = COALESCE($3, email),
-           phone       = COALESCE($4, phone),
-           department  = COALESCE($5, department),
-           status      = COALESCE($6, status),
-           is_admin    = COALESCE($7, is_admin),
-           notes       = COALESCE($8, notes),
-           updated_at  = now()
-       WHERE id = $9 AND school_id = $10
-       RETURNING id, teacher_code, name, email, phone, department, status, is_admin, notes`,
-      [teacher_code?.trim().toUpperCase() || null, name||null, email||null, phone||null,
-       department||null, status||null, is_admin??null, notes||null, req.params.id, req.schoolId]
+      `UPDATE teachers SET
+         teacher_code             = COALESCE($1,  teacher_code),
+         name                     = COALESCE($2,  name),
+         email                    = COALESCE($3,  email),
+         phone                    = COALESCE($4,  phone),
+         department               = COALESCE($5,  department),
+         status                   = COALESCE($6,  status),
+         is_admin                 = COALESCE($7,  is_admin),
+         notes                    = COALESCE($8,  notes),
+         rank                     = COALESCE($9,  rank),
+         gov_staff_id             = COALESCE($10, gov_staff_id),
+         gender                   = COALESCE($11, gender),
+         date_of_birth            = COALESCE($12, date_of_birth),
+         registered_number        = COALESCE($13, registered_number),
+         ntc_number               = COALESCE($14, ntc_number),
+         ssf_number               = COALESCE($15, ssf_number),
+         academic_qualification   = COALESCE($16, academic_qualification),
+         professional_qualification = COALESCE($17, professional_qualification),
+         additional_responsibility = COALESCE($18, additional_responsibility),
+         bank                     = COALESCE($19, bank),
+         bank_branch              = COALESCE($20, bank_branch),
+         account_number           = COALESCE($21, account_number),
+         religion                 = COALESCE($22, religion),
+         religious_denomination   = COALESCE($23, religious_denomination),
+         hometown                 = COALESCE($24, hometown),
+         residential_address      = COALESCE($25, residential_address),
+         association              = COALESCE($26, association),
+         ghana_card_number        = COALESCE($27, ghana_card_number),
+         emergency_contact_name   = COALESCE($28, emergency_contact_name),
+         emergency_contact_phone  = COALESCE($29, emergency_contact_phone),
+         updated_at               = now()
+       WHERE id = $30 AND school_id = $31
+       RETURNING id, teacher_code, name, email, phone, department, status, is_admin, notes,
+                 rank, gov_staff_id, gender, date_of_birth, registered_number, ntc_number, ssf_number,
+                 academic_qualification, professional_qualification, additional_responsibility,
+                 bank, bank_branch, account_number, religion, religious_denomination,
+                 hometown, residential_address, association, ghana_card_number,
+                 emergency_contact_name, emergency_contact_phone, photo_url`,
+      [teacher_code?.trim().toUpperCase() || null,
+       name||null, email||null, phone||null, department||null, status||null, is_admin??null, notes||null,
+       rank||null, gov_staff_id||null, gender||null, date_of_birth||null,
+       registered_number||null, ntc_number||null, ssf_number||null,
+       academic_qualification||null, professional_qualification||null, additional_responsibility||null,
+       bank||null, bank_branch||null, account_number||null,
+       religion||null, religious_denomination||null, hometown||null, residential_address||null,
+       association||null, ghana_card_number||null,
+       emergency_contact_name||null, emergency_contact_phone||null,
+       req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
     res.json(rows[0]);
@@ -467,12 +597,52 @@ router.post('/:id/reset-pin', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/teachers/me — own profile
+// GET /api/teachers/me — own full profile
 router.get('/me', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name, teacher_code, is_admin, photo_url FROM teachers WHERE id = $1 AND school_id = $2`,
+      `SELECT id, teacher_code, name, email, phone, department, status, is_admin, notes,
+              rank, gov_staff_id, gender, date_of_birth, registered_number, ntc_number, ssf_number,
+              academic_qualification, professional_qualification, additional_responsibility,
+              bank, bank_branch, account_number, religion, religious_denomination,
+              hometown, residential_address, association, ghana_card_number, photo_url,
+              certificate_url, certificate_filename, emergency_contact_name, emergency_contact_phone
+       FROM teachers WHERE id = $1 AND school_id = $2`,
       [req.user.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/teachers/me/profile — teacher self-updates own editable fields
+router.patch('/me/profile', async (req, res, next) => {
+  try {
+    const {
+      phone, gender, date_of_birth, religion, religious_denomination,
+      hometown, residential_address, emergency_contact_name, emergency_contact_phone,
+    } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE teachers SET
+         phone                   = COALESCE($1,  phone),
+         gender                  = COALESCE($2,  gender),
+         date_of_birth           = COALESCE($3,  date_of_birth),
+         religion                = COALESCE($4,  religion),
+         religious_denomination  = COALESCE($5,  religious_denomination),
+         hometown                = COALESCE($6,  hometown),
+         residential_address     = COALESCE($7,  residential_address),
+         emergency_contact_name  = COALESCE($8,  emergency_contact_name),
+         emergency_contact_phone = COALESCE($9,  emergency_contact_phone),
+         updated_at              = now()
+       WHERE id = $10 AND school_id = $11
+       RETURNING id, teacher_code, name, email, phone, gender, date_of_birth, religion,
+                 religious_denomination, hometown, residential_address,
+                 emergency_contact_name, emergency_contact_phone, photo_url`,
+      [phone||null, gender||null, date_of_birth||null,
+       religion||null, religious_denomination||null,
+       hometown||null, residential_address||null,
+       emergency_contact_name||null, emergency_contact_phone||null,
+       req.user.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
     res.json(rows[0]);
@@ -491,6 +661,57 @@ router.patch('/me/photo', async (req, res, next) => {
       [photoUrl, req.user.id, req.schoolId]
     );
     res.json({ photo_url: photoUrl });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/teachers/me/certificate — teacher uploads own academic certificate
+router.patch('/me/certificate', async (req, res, next) => {
+  try {
+    const { documentBase64, documentFilename } = req.body;
+    if (!documentBase64 || !documentFilename) {
+      return res.status(400).json({ error: 'documentBase64 and documentFilename are required' });
+    }
+    const { url, filename } = await uploadDocument(documentBase64, documentFilename, `teacher-certificates/${req.schoolId}`);
+    await pool.query(
+      `UPDATE teachers SET certificate_url = $1, certificate_filename = $2, updated_at = now()
+       WHERE id = $3 AND school_id = $4`,
+      [url, filename, req.user.id, req.schoolId]
+    );
+    res.json({ certificate_url: url, certificate_filename: filename });
+  } catch (err) { next(err); }
+});
+
+// POST /api/teachers/:id/photo — admin uploads photo for a teacher
+router.post('/:id/photo', adminOnly, async (req, res, next) => {
+  try {
+    const { imageBase64 } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 is required' });
+    const filePath = `profile-photos/${req.params.id}`;
+    const photoUrl = await uploadFile(imageBase64, filePath, { upsert: true });
+    const { rowCount } = await pool.query(
+      `UPDATE teachers SET photo_url = $1, updated_at = now() WHERE id = $2 AND school_id = $3`,
+      [photoUrl, req.params.id, req.schoolId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Teacher not found' });
+    res.json({ photo_url: photoUrl });
+  } catch (err) { next(err); }
+});
+
+// POST /api/teachers/:id/certificate — admin uploads certificate for a teacher
+router.post('/:id/certificate', adminOnly, async (req, res, next) => {
+  try {
+    const { documentBase64, documentFilename } = req.body;
+    if (!documentBase64 || !documentFilename) {
+      return res.status(400).json({ error: 'documentBase64 and documentFilename are required' });
+    }
+    const { url, filename } = await uploadDocument(documentBase64, documentFilename, `teacher-certificates/${req.schoolId}`);
+    const { rowCount } = await pool.query(
+      `UPDATE teachers SET certificate_url = $1, certificate_filename = $2, updated_at = now()
+       WHERE id = $3 AND school_id = $4`,
+      [url, filename, req.params.id, req.schoolId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Teacher not found' });
+    res.json({ certificate_url: url, certificate_filename: filename });
   } catch (err) { next(err); }
 });
 

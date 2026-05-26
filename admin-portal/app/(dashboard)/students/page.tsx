@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import type { Student, Program, ClassItem } from '@/types/api';
@@ -258,7 +260,7 @@ export default function StudentsPage() {
             <table className="min-w-[800px] w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
-                  {['ID', 'Name', 'Class', 'Program', 'Status', 'Notes', ''].map(h => (
+                  {['', 'ID', 'Name', 'Class', 'Program', 'Status', 'Notes', ''].map(h => (
                     <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
                   ))}
                 </tr>
@@ -269,6 +271,14 @@ export default function StudentsPage() {
                   return (
                     <tr key={s.id} className="hover:bg-slate-50 transition-colors"
                       style={{ borderBottom: i < filtered.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                      <td className="px-3 py-2">
+                        <div className="w-8 h-8 rounded-full overflow-hidden border shrink-0" style={{ backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }}>
+                          {s.picture_url
+                            ? <Image src={s.picture_url} alt={s.name} width={32} height={32} className="w-full h-full object-cover" />
+                            : <div className="w-full h-full flex items-center justify-center text-sm font-bold" style={{ color: '#94A3B8' }}>{s.name.charAt(0).toUpperCase()}</div>
+                          }
+                        </div>
+                      </td>
                       <td className="px-5 py-3">
                         <span className="font-mono text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: '#E0F2FE', color: '#0369A1' }}>{s.student_code}</span>
                       </td>
@@ -284,7 +294,8 @@ export default function StudentsPage() {
                       </td>
                       <td className="px-5 py-3 text-xs" style={{ color: '#94A3B8' }}>{s.notes || '—'}</td>
                       <td className="px-5 py-3">
-                        <div className="flex gap-3 justify-end">
+                        <div className="flex gap-2 justify-end items-center">
+                          <Link href={`/students/${s.id}`} className="text-xs font-semibold px-2 py-1 rounded border" style={{ color: '#64748B', borderColor: '#E2E8F0' }}>Profile</Link>
                           <button className="text-xs font-semibold" style={{ color: '#2563EB' }} onClick={() => openEdit(s)}>Edit</button>
                           <button className="text-xs font-semibold" style={{ color: '#DC2626' }} onClick={() => handleDelete(s)}>Delete</button>
                         </div>
