@@ -4,6 +4,7 @@ import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '@/lib/api';
 import { useTheme } from '@/context/ThemeContext';
+import { DropdownSelect } from '@/components/DropdownSelect';
 import type { AcademicYear } from '@/types/api';
 
 interface SubjectSlot { subject: string; class_name: string }
@@ -65,26 +66,21 @@ export default function AssessmentsIndexScreen() {
       {/* Year + Semester selector */}
       <View style={[styles.selectorCard, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
         <View style={styles.selectorRow}>
-          <Text style={[styles.selectorLabel, { color: Colors.muted }]}>Academic Year</Text>
-          <View style={styles.pillRow}>
-            {years.map(y => (
-              <TouchableOpacity key={y.id} onPress={() => changeYear(y.id)}
-                style={[styles.pill, { backgroundColor: yearId === y.id ? Colors.primary : Colors.bg, borderColor: yearId === y.id ? Colors.primary : Colors.border }]}>
-                <Text style={[styles.pillText, { color: yearId === y.id ? '#fff' : Colors.text }]}>{y.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-        <View style={[styles.selectorRow, { marginTop: 10 }]}>
-          <Text style={[styles.selectorLabel, { color: Colors.muted }]}>Semester</Text>
-          <View style={styles.pillRow}>
-            {([1, 2] as const).map(s => (
-              <TouchableOpacity key={s} onPress={() => changeSemester(s)}
-                style={[styles.pill, { backgroundColor: semester === s ? Colors.primary : Colors.bg, borderColor: semester === s ? Colors.primary : Colors.border }]}>
-                <Text style={[styles.pillText, { color: semester === s ? '#fff' : Colors.text }]}>Semester {s}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+          <DropdownSelect
+            value={yearId}
+            options={years.map(y => ({ label: y.name, value: y.id }))}
+            onChange={changeYear}
+            placeholder="Academic Year"
+            colors={Colors}
+            style={{ flex: 1 }}
+          />
+          <DropdownSelect
+            value={String(semester)}
+            options={[{ label: 'Semester 1', value: '1' }, { label: 'Semester 2', value: '2' }]}
+            onChange={v => changeSemester(parseInt(v) as 1 | 2)}
+            colors={Colors}
+            style={{ width: 130 }}
+          />
         </View>
       </View>
 
@@ -127,11 +123,7 @@ export default function AssessmentsIndexScreen() {
 const styles = StyleSheet.create({
   container:    { flex: 1 },
   selectorCard: { margin: 16, borderRadius: 14, padding: 14, borderWidth: 1 },
-  selectorRow:  { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
-  selectorLabel:{ fontSize: 12, fontWeight: '600', minWidth: 90 },
-  pillRow:      { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  pill:         { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
-  pillText:     { fontSize: 12, fontWeight: '600' },
+  selectorRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
   center:       { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   emptyText:    { fontSize: 14, textAlign: 'center', marginTop: 12, lineHeight: 22 },
   card:         { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, overflow: 'hidden' },

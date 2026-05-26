@@ -10,6 +10,7 @@ import { offlineQueue, QueuedSubmission } from '@/lib/offlineQueue';
 import { AttendanceCard } from '@/components/AttendanceCard';
 import { Spinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { DropdownSelect } from '@/components/DropdownSelect';
 import { useTheme } from '@/context/ThemeContext';
 import { AttendanceRecord, AcademicYear } from '@/types/api';
 
@@ -355,29 +356,22 @@ export default function HistoryScreen() {
   /* ─── My Attendance header ─── */
   const filterBar = (
     <View style={styles.filterBar}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-        {academicYears.map(y => (
-          <TouchableOpacity
-            key={y.id}
-            style={[styles.filterChip, filterYear === y.id && { backgroundColor: Colors.primary }]}
-            onPress={() => applyFilter(y.id, filterSem)}
-          >
-            <Text style={[styles.filterChipText, filterYear === y.id && { color: '#fff' }]}>
-              {y.name}{y.is_current ? ' ✦' : ''}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      <View style={styles.semRow}>
-        {[['', 'All'], ['1', 'Sem 1'], ['2', 'Sem 2']].map(([val, label]) => (
-          <TouchableOpacity
-            key={val}
-            style={[styles.semChip, filterSem === val && { backgroundColor: Colors.primary }]}
-            onPress={() => applyFilter(filterYear, val)}
-          >
-            <Text style={[styles.semChipText, filterSem === val && { color: '#fff' }]}>{label}</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.filterDropRow}>
+        <DropdownSelect
+          value={filterYear}
+          options={academicYears.map(y => ({ label: y.name + (y.is_current ? ' ✦' : ''), value: y.id }))}
+          onChange={id => applyFilter(id, filterSem)}
+          placeholder="Academic Year"
+          colors={Colors}
+          style={{ flex: 1 }}
+        />
+        <DropdownSelect
+          value={filterSem}
+          options={[{ label: 'All', value: '' }, { label: 'Semester 1', value: '1' }, { label: 'Semester 2', value: '2' }]}
+          onChange={v => applyFilter(filterYear, v)}
+          colors={Colors}
+          style={{ width: 130 }}
+        />
       </View>
     </View>
   );
@@ -569,31 +563,24 @@ export default function HistoryScreen() {
         <ScrollView contentContainerStyle={styles.list}>
           {TabBar}
 
-          {/* Year filter */}
+          {/* Year + Semester filter */}
           <View style={styles.filterBar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-              {academicYears.map(y => (
-                <TouchableOpacity
-                  key={y.id}
-                  style={[styles.filterChip, meetingFilterYear === y.id && { backgroundColor: Colors.primary }]}
-                  onPress={() => applyMeetingFilter(y.id, meetingFilterSem)}
-                >
-                  <Text style={[styles.filterChipText, meetingFilterYear === y.id && { color: '#fff' }]}>
-                    {y.name}{y.is_current ? ' ✦' : ''}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <View style={styles.semRow}>
-              {[['', 'All'], ['1', 'Sem 1'], ['2', 'Sem 2']].map(([val, label]) => (
-                <TouchableOpacity
-                  key={val}
-                  style={[styles.semChip, meetingFilterSem === val && { backgroundColor: Colors.primary }]}
-                  onPress={() => applyMeetingFilter(meetingFilterYear, val)}
-                >
-                  <Text style={[styles.semChipText, meetingFilterSem === val && { color: '#fff' }]}>{label}</Text>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.filterDropRow}>
+              <DropdownSelect
+                value={meetingFilterYear}
+                options={academicYears.map(y => ({ label: y.name + (y.is_current ? ' ✦' : ''), value: y.id }))}
+                onChange={id => applyMeetingFilter(id, meetingFilterSem)}
+                placeholder="Academic Year"
+                colors={Colors}
+                style={{ flex: 1 }}
+              />
+              <DropdownSelect
+                value={meetingFilterSem}
+                options={[{ label: 'All', value: '' }, { label: 'Semester 1', value: '1' }, { label: 'Semester 2', value: '2' }]}
+                onChange={v => applyMeetingFilter(meetingFilterYear, v)}
+                colors={Colors}
+                style={{ width: 130 }}
+              />
             </View>
           </View>
 
@@ -777,11 +764,8 @@ const styles = StyleSheet.create({
   tabBtn:             { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: '#F4EFE6' },
   tabBtnText:         { fontSize: 12, fontWeight: '700', color: '#8C7E6E' },
   /* Filter bar */
-  filterBar:          { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2D9CC', paddingBottom: 10, paddingHorizontal: 16 },
-  filterScroll:       { gap: 8, paddingVertical: 10 },
-  filterChip:         { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F0EDE8', borderWidth: 1, borderColor: '#E2D9CC' },
-  filterChipText:     { fontSize: 12, fontWeight: '700', color: '#4A3F32' },
-  semRow:             { flexDirection: 'row', gap: 8 },
+  filterBar:          { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2D9CC', paddingVertical: 10, paddingHorizontal: 16 },
+  filterDropRow:      { flexDirection: 'row', gap: 8 },
   semChip:            { flex: 1, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F0EDE8', alignItems: 'center', borderWidth: 1, borderColor: '#E2D9CC' },
   semChipText:        { fontSize: 12, fontWeight: '700', color: '#4A3F32' },
   /* Pending */

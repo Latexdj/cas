@@ -324,28 +324,34 @@ export default function HistoryPage() {
       {tab === 'my' && (
         <>
           {/* Filter bar */}
-          <div className="bg-white border-b border-[#E2D9CC] px-4 pb-3 mb-4">
-            <div className="flex gap-2 overflow-x-auto py-3 scrollbar-hide">
-              {academicYears.map(y => (
-                <button key={y.id} onClick={() => applyFilter(y.id, filterSem)}
-                  className="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-colors"
-                  style={filterYear === y.id
-                    ? { background: primary, color: '#fff', borderColor: primary }
-                    : { background: '#F0EDE8', color: '#4A3F32', borderColor: '#E2D9CC' }}>
-                  {y.name}{y.is_current ? ' ✦' : ''}
-                </button>
-              ))}
+          <div className="bg-white border-b border-[#E2D9CC] px-4 py-3 mb-4 flex gap-3">
+            <div className="flex-1 relative">
+              <select
+                value={filterYear}
+                onChange={e => applyFilter(e.target.value, filterSem)}
+                className="w-full appearance-none border border-[#E2D9CC] rounded-xl px-3 py-2 pr-8 text-sm font-semibold text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]"
+              >
+                {academicYears.map(y => (
+                  <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>
+                ))}
+              </select>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 text-[#8C7E6E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </div>
-            <div className="flex gap-2">
-              {([['', 'All'], ['1', 'Sem 1'], ['2', 'Sem 2']] as const).map(([val, label]) => (
-                <button key={val} onClick={() => applyFilter(filterYear, val)}
-                  className="flex-1 py-1.5 rounded-full text-xs font-bold border transition-colors"
-                  style={filterSem === val
-                    ? { background: primary, color: '#fff', borderColor: primary }
-                    : { background: '#F0EDE8', color: '#4A3F32', borderColor: '#E2D9CC' }}>
-                  {label}
-                </button>
-              ))}
+            <div className="w-36 relative">
+              <select
+                value={filterSem}
+                onChange={e => applyFilter(filterYear, e.target.value)}
+                className="w-full appearance-none border border-[#E2D9CC] rounded-xl px-3 py-2 pr-8 text-sm font-semibold text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]"
+              >
+                <option value="">All</option>
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+              </select>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 text-[#8C7E6E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </div>
           </div>
 
@@ -519,28 +525,34 @@ export default function HistoryPage() {
       {tab === 'meetings' && (
         <>
           {/* Filter bar */}
-          <div className="bg-white border-b border-[#E2D9CC] px-4 pb-3 mb-4">
-            <div className="flex gap-2 overflow-x-auto py-3 scrollbar-hide">
-              {academicYears.map(y => (
-                <button key={y.id} onClick={() => applyPlcFilter(y.id, plcFilterSem)}
-                  className="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold border transition-colors"
-                  style={plcFilterYear === y.id
-                    ? { background: primary, color: '#fff', borderColor: primary }
-                    : { background: '#F0EDE8', color: '#4A3F32', borderColor: '#E2D9CC' }}>
-                  {y.name}{y.is_current ? ' ✦' : ''}
-                </button>
-              ))}
+          <div className="bg-white border-b border-[#E2D9CC] px-4 py-3 mb-4 flex gap-3">
+            <div className="flex-1 relative">
+              <select
+                value={plcFilterYear}
+                onChange={e => applyPlcFilter(e.target.value, plcFilterSem)}
+                className="w-full appearance-none border border-[#E2D9CC] rounded-xl px-3 py-2 pr-8 text-sm font-semibold text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]"
+              >
+                {academicYears.map(y => (
+                  <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>
+                ))}
+              </select>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 text-[#8C7E6E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </div>
-            <div className="flex gap-2">
-              {([['', 'All'], ['1', 'Sem 1'], ['2', 'Sem 2']] as const).map(([val, label]) => (
-                <button key={val} onClick={() => applyPlcFilter(plcFilterYear, val)}
-                  className="flex-1 py-1.5 rounded-full text-xs font-bold border transition-colors"
-                  style={plcFilterSem === val
-                    ? { background: primary, color: '#fff', borderColor: primary }
-                    : { background: '#F0EDE8', color: '#4A3F32', borderColor: '#E2D9CC' }}>
-                  {label}
-                </button>
-              ))}
+            <div className="w-36 relative">
+              <select
+                value={plcFilterSem}
+                onChange={e => applyPlcFilter(plcFilterYear, e.target.value)}
+                className="w-full appearance-none border border-[#E2D9CC] rounded-xl px-3 py-2 pr-8 text-sm font-semibold text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]"
+              >
+                <option value="">All</option>
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+              </select>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 text-[#8C7E6E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </div>
           </div>
 
