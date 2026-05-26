@@ -3,11 +3,29 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { api } from '@/lib/api';
+import { validateStudentForm } from '@/lib/validations';
 import { Button } from '@/components/ui/Button';
-import type { Student, Program, ClassItem } from '@/types/api';
+import type { Student, StudentProfile, Program, ClassItem } from '@/types/api';
 
 interface UploadResult { inserted: number; errors: { row: number; message: string }[]; }
 type ModalMode = 'add' | 'edit' | 'upload' | 'promote' | 'graduate' | null;
+
+type StudentForm = {
+  student_code: string; name: string; class_name: string; status: string; program_id: string; notes: string;
+  gender: string; date_of_birth: string; hometown: string; residential_address: string;
+  ghana_card_number: string; nhia_number: string; mobile_number: string; aggregate: string;
+  house: string; residential_status: string; jhs_index_number: string;
+  religion: string; religious_denomination: string;
+  guardian_name: string; guardian_occupation: string; guardian_mobile: string;
+};
+
+const STUDENT_EMPTY: StudentForm = {
+  student_code: '', name: '', class_name: '', status: 'Active', program_id: '', notes: '',
+  gender: '', date_of_birth: '', hometown: '', residential_address: '', ghana_card_number: '',
+  nhia_number: '', mobile_number: '', aggregate: '', house: '', residential_status: '',
+  jhs_index_number: '', religion: '', religious_denomination: '',
+  guardian_name: '', guardian_occupation: '', guardian_mobile: '',
+};
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   Active:    { bg: '#DCFCE7', color: '#15803D' },
@@ -29,17 +47,17 @@ export default function StudentsPage() {
   const [editing,      setEditing]      = useState<Student | null>(null);
   const [saving,       setSaving]       = useState(false);
   const [error,        setError]        = useState('');
+  const [fieldErrors,  setFieldErrors]  = useState<Record<string, string>>({});
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [uploading,    setUploading]    = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Form state
-  const [fCode,      setFCode]      = useState('');
-  const [fName,      setFName]      = useState('');
-  const [fClass,     setFClass]     = useState('');
-  const [fStatus,    setFStatus]    = useState('Active');
-  const [fNotes,     setFNotes]     = useState('');
-  const [fProgram,   setFProgram]   = useState('');
+  const [form, setForm] = useState<StudentForm>(STUDENT_EMPTY);
+  function sf(k: keyof StudentForm) {
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm(f => ({ ...f, [k]: e.target.value }));
+  }
 
   // Promote / Graduate state
   const [fromClass,  setFromClass]  = useState('');
@@ -74,29 +92,62 @@ export default function StudentsPage() {
   useEffect(() => { load(); }, [filterClass, filterStatus, filterProgram]);
 
   function openAdd() {
-    setEditing(null); setFCode(''); setFName(''); setFClass(''); setFStatus('Active'); setFNotes(''); setFProgram('');
-    setError(''); setModal('add');
+    setEditing(null); setForm(STUDENT_EMPTY); setError(''); setFieldErrors({}); setModal('add');
   }
-  function openEdit(s: Student) {
-    setEditing(s); setFCode(s.student_code); setFName(s.name);
-    setFClass(s.class_name); setFStatus(s.status); setFNotes(s.notes || ''); setFProgram(s.program_id || '');
-    setError(''); setModal('edit');
+  async function openEdit(s: Student) {
+    setEditing(s); setError(''); setFieldErrors({});
+    try {
+      const { data } = await api.get<StudentProfile>(`/api/students/${s.id}`);
+      setForm({
+        student_code: data.student_code, name: data.name, class_name: data.class_name,
+        status: data.status, program_id: data.program_id ?? '', notes: data.notes ?? '',
+        gender: data.gender ?? '', date_of_birth: data.date_of_birth ?? '',
+        hometown: data.hometown ?? '', residential_address: data.residential_address ?? '',
+        ghana_card_number: data.ghana_card_number ?? '', nhia_number: data.nhia_number ?? '',
+        mobile_number: data.mobile_number ?? '', aggregate: data.aggregate != null ? String(data.aggregate) : '',
+        house: data.house ?? '', residential_status: data.residential_status ?? '',
+        jhs_index_number: data.jhs_index_number ?? '', religion: data.religion ?? '',
+        religious_denomination: data.religious_denomination ?? '',
+        guardian_name: data.guardian_name ?? '', guardian_occupation: data.guardian_occupation ?? '',
+        guardian_mobile: data.guardian_mobile ?? '',
+      });
+    } catch {
+      setForm({ ...STUDENT_EMPTY, student_code: s.student_code, name: s.name,
+        class_name: s.class_name, status: s.status, notes: s.notes ?? '', program_id: s.program_id ?? '' });
+    }
+    setModal('edit');
   }
 
   async function handleSave() {
-    if (!fName.trim()) { setError('Name is required'); return; }
-    if (!fClass.trim()) { setError('Class is required'); return; }
+    if (!form.name.trim()) { setError('Name is required'); return; }
+    if (!form.class_name.trim()) { setError('Class is required'); return; }
+    const errs = validateStudentForm(form as Record<string, string>);
+    if (Object.keys(errs).length > 0) { setFieldErrors(errs); setError('Please fix the errors below.'); return; }
+    setFieldErrors({});
     setSaving(true); setError('');
     try {
-      const body = { name: fName.trim(), class_name: fClass.trim(), student_code: fCode.trim() || undefined, status: fStatus, notes: fNotes.trim() || null, program_id: fProgram || null };
-      if (editing) {
-        await api.put(`/api/students/${editing.id}`, body);
-      } else {
-        await api.post('/api/students', body);
-      }
+      const body: Record<string, unknown> = {
+        name: form.name.trim(), class_name: form.class_name.trim(),
+        student_code: form.student_code.trim() || undefined,
+        status: form.status, program_id: form.program_id || null,
+        notes: form.notes.trim() || null,
+        gender: form.gender || null, date_of_birth: form.date_of_birth || null,
+        hometown: form.hometown || null, residential_address: form.residential_address || null,
+        ghana_card_number: form.ghana_card_number || null, nhia_number: form.nhia_number || null,
+        mobile_number: form.mobile_number || null,
+        aggregate: form.aggregate ? Number(form.aggregate) : null,
+        house: form.house || null, residential_status: form.residential_status || null,
+        jhs_index_number: form.jhs_index_number || null,
+        religion: form.religion || null, religious_denomination: form.religious_denomination || null,
+        guardian_name: form.guardian_name || null, guardian_occupation: form.guardian_occupation || null,
+        guardian_mobile: form.guardian_mobile || null,
+      };
+      if (editing) await api.put(`/api/students/${editing.id}`, body);
+      else await api.post('/api/students', body);
       setModal(null); await load();
-    } catch (e: any) {
-      setError(e?.response?.data?.error || 'Save failed');
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Save failed');
     } finally { setSaving(false); }
   }
 
@@ -312,46 +363,176 @@ export default function StudentsPage() {
       {/* Add / Edit modal */}
       {(modal === 'add' || modal === 'edit') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
-            <h2 className="text-lg font-bold mb-5" style={{ color: '#0F172A' }}>{modal === 'add' ? 'Add Student' : 'Edit Student'}</h2>
-            {error && <p className="text-sm mb-3 p-2 rounded" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>{error}</p>}
-            <div className="space-y-3">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+            <h2 className="text-lg font-bold mb-4" style={{ color: '#0F172A' }}>{modal === 'add' ? 'Add Student' : 'Edit Student'}</h2>
+            <div className="max-h-[72vh] overflow-y-auto pr-1 space-y-5">
+
+              {/* Basic */}
               <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Student ID <span style={{ color: '#94A3B8' }}>(leave blank to auto-generate)</span></label>
-                <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={fCode} onChange={e => setFCode(e.target.value)} placeholder="e.g. 2024001" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Name *</label>
-                <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={fName} onChange={e => setFName(e.target.value)} placeholder="Full name" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Class *</label>
-                <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: fClass ? '#0F172A' : '#94A3B8' }} value={fClass} onChange={e => setFClass(e.target.value)}>
-                  <option value="">Select class…</option>
-                  {allClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Status</label>
-                <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={fStatus} onChange={e => setFStatus(e.target.value)}>
-                  <option>Active</option><option>Graduated</option><option>Inactive</option>
-                </select>
-              </div>
-              {programs.length > 0 && (
-                <div>
-                  <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Program</label>
-                  <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={fProgram} onChange={e => setFProgram(e.target.value)}>
-                    <option value="">No program assigned</option>
-                    {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
+                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#94A3B8' }}>Basic Information</p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Student ID <span style={{ color: '#94A3B8' }}>(auto if blank)</span></label>
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm font-mono font-bold" style={{ borderColor: '#E2D9CC', color: '#0369A1' }} value={form.student_code} onChange={sf('student_code')} placeholder="e.g. 2024001" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Name *</label>
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.name} onChange={sf('name')} placeholder="Full name" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Class *</label>
+                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: form.class_name ? '#0F172A' : '#94A3B8' }} value={form.class_name} onChange={sf('class_name')}>
+                        <option value="">Select class…</option>
+                        {allClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Status</label>
+                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.status} onChange={sf('status')}>
+                        <option>Active</option><option>Graduated</option><option>Inactive</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {programs.length > 0 && (
+                      <div>
+                        <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Program</label>
+                        <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.program_id} onChange={sf('program_id')}>
+                          <option value="">No program assigned</option>
+                          {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Residential Status</label>
+                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.residential_status} onChange={sf('residential_status')}>
+                        <option value="">Select…</option>
+                        <option value="Day">Day</option>
+                        <option value="Boarding">Boarding</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>House</label>
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.house} onChange={sf('house')} placeholder="e.g. Unity" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Aggregate</label>
+                      <input type="number" min={6} max={36} className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.aggregate} onChange={sf('aggregate')} placeholder="6–36" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>JHS Index No.</label>
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.jhs_index_number} onChange={sf('jhs_index_number')} />
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
+
+              <hr style={{ borderColor: '#F1F5F9' }} />
+
+              {/* Personal */}
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#94A3B8' }}>Personal Information</p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Gender</label>
+                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.gender} onChange={sf('gender')}>
+                        <option value="">Select…</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Date of Birth</label>
+                      <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.date_of_birth} onChange={sf('date_of_birth')} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Mobile No.</label>
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: fieldErrors.mobile_number ? '#F87171' : '#E2D9CC', color: '#0F172A' }} value={form.mobile_number} onChange={sf('mobile_number')} placeholder="0XXXXXXXXX" />
+                      {fieldErrors.mobile_number && <p className="text-xs mt-0.5" style={{ color: '#DC2626' }}>{fieldErrors.mobile_number}</p>}
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Ghana Card No.</label>
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: fieldErrors.ghana_card_number ? '#F87171' : '#E2D9CC', color: '#0F172A' }} value={form.ghana_card_number} onChange={sf('ghana_card_number')} placeholder="GHA-XXXXXXXXX-X" />
+                      {fieldErrors.ghana_card_number && <p className="text-xs mt-0.5" style={{ color: '#DC2626' }}>{fieldErrors.ghana_card_number}</p>}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>NHIA No.</label>
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.nhia_number} onChange={sf('nhia_number')} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Hometown</label>
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.hometown} onChange={sf('hometown')} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Residential Address</label>
+                    <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.residential_address} onChange={sf('residential_address')} />
+                  </div>
+                </div>
+              </div>
+
+              <hr style={{ borderColor: '#F1F5F9' }} />
+
+              {/* Religion */}
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#94A3B8' }}>Religion</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Religion</label>
+                    <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.religion} onChange={sf('religion')} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Religious Denomination</label>
+                    <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.religious_denomination} onChange={sf('religious_denomination')} />
+                  </div>
+                </div>
+              </div>
+
+              <hr style={{ borderColor: '#F1F5F9' }} />
+
+              {/* Guardian */}
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#94A3B8' }}>Parent / Guardian</p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Guardian Name</label>
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.guardian_name} onChange={sf('guardian_name')} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Occupation</label>
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.guardian_occupation} onChange={sf('guardian_occupation')} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Guardian Mobile</label>
+                    <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: fieldErrors.guardian_mobile ? '#F87171' : '#E2D9CC', color: '#0F172A' }} value={form.guardian_mobile} onChange={sf('guardian_mobile')} placeholder="0XXXXXXXXX" />
+                    {fieldErrors.guardian_mobile && <p className="text-xs mt-0.5" style={{ color: '#DC2626' }}>{fieldErrors.guardian_mobile}</p>}
+                  </div>
+                </div>
+              </div>
+
+              <hr style={{ borderColor: '#F1F5F9' }} />
+
+              {/* Notes */}
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Notes</label>
-                <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={fNotes} onChange={e => setFNotes(e.target.value)} placeholder="Optional" />
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.notes} onChange={sf('notes')} placeholder="Optional" />
               </div>
+
             </div>
-            <div className="flex gap-3 mt-6">
+            {error && <p className="text-sm mt-3 p-2 rounded" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>{error}</p>}
+            <div className="flex gap-3 mt-4">
               <Button variant="secondary" className="flex-1" onClick={() => setModal(null)}>Cancel</Button>
               <Button className="flex-1" loading={saving} onClick={handleSave}>Save</Button>
             </div>

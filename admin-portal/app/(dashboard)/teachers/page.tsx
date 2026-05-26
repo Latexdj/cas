@@ -3,15 +3,23 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { api } from '@/lib/api';
-import { validatePhone } from '@/lib/validations';
+import { validateTeacherForm } from '@/lib/validations';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
-import type { Teacher } from '@/types/api';
+import type { Teacher, TeacherProfile } from '@/types/api';
 
-const EMPTY: Partial<Teacher & { password: string }> = {
+const GES_RANKS = ['Pupil Teacher','Teacher II','Teacher I','Senior Teacher II','Senior Teacher I','Assistant Superintendent II','Assistant Superintendent I','Superintendent','Senior Superintendent','Principal Superintendent','Assistant Director II','Assistant Director I','Deputy Director','Director'];
+
+type TeacherForm = Partial<TeacherProfile & { password: string }>;
+
+const EMPTY: TeacherForm = {
   teacher_code: '', name: '', email: '', phone: '', department: '', status: 'Active', is_admin: false, notes: '', password: '',
+  gov_staff_id: '', gender: '', date_of_birth: '', rank: '', registered_number: '', ntc_number: '', ssf_number: '',
+  academic_qualification: '', professional_qualification: '', additional_responsibility: '', bank: '', bank_branch: '',
+  account_number: '', religion: '', religious_denomination: '', hometown: '', residential_address: '', association: '',
+  ghana_card_number: '', emergency_contact_name: '', emergency_contact_phone: '',
 };
 
 interface UploadResult { inserted: number; errors: { row: number; message: string }[] }
@@ -24,10 +32,11 @@ export default function TeachersPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDept,   setFilterDept]   = useState('');
   const [filterRole,   setFilterRole]   = useState('');
-  const [modal,    setModal]    = useState<'create' | 'edit' | 'upload' | null>(null);
-  const [form,     setForm]     = useState<typeof EMPTY>(EMPTY);
-  const [saving,   setSaving]   = useState(false);
-  const [error,    setError]    = useState('');
+  const [modal,       setModal]       = useState<'create' | 'edit' | 'upload' | null>(null);
+  const [form,        setForm]        = useState<TeacherForm>(EMPTY);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [saving,      setSaving]      = useState(false);
+  const [error,       setError]       = useState('');
   const [editId,   setEditId]   = useState<string | null>(null);
 
   // Upload state
@@ -89,20 +98,41 @@ export default function TeachersPage() {
     } finally { setUploading(false); }
   }
 
-  function openCreate() { setForm(EMPTY); setError(''); setEditId(null); setModal('create'); }
-  function openEdit(t: Teacher) {
-    setForm({ teacher_code: t.teacher_code, name: t.name, email: t.email ?? '', phone: t.phone ?? '',
-      department: t.department ?? '', status: t.status, is_admin: t.is_admin, notes: t.notes ?? '', password: '' });
-    setEditId(t.id); setError(''); setModal('edit');
+  function openCreate() { setForm(EMPTY); setError(''); setFieldErrors({}); setEditId(null); setModal('create'); }
+  async function openEdit(t: Teacher) {
+    setEditId(t.id); setError(''); setFieldErrors({});
+    try {
+      const { data } = await api.get<TeacherProfile>(`/api/teachers/${t.id}`);
+      setForm({
+        teacher_code: data.teacher_code, name: data.name, email: data.email ?? '', phone: data.phone ?? '',
+        department: data.department ?? '', status: data.status, is_admin: data.is_admin, notes: data.notes ?? '', password: '',
+        gov_staff_id: data.gov_staff_id ?? '', gender: data.gender ?? '', date_of_birth: data.date_of_birth ?? '',
+        rank: data.rank ?? '', registered_number: data.registered_number ?? '', ntc_number: data.ntc_number ?? '',
+        ssf_number: data.ssf_number ?? '', academic_qualification: data.academic_qualification ?? '',
+        professional_qualification: data.professional_qualification ?? '',
+        additional_responsibility: data.additional_responsibility ?? '', bank: data.bank ?? '',
+        bank_branch: data.bank_branch ?? '', account_number: data.account_number ?? '',
+        religion: data.religion ?? '', religious_denomination: data.religious_denomination ?? '',
+        hometown: data.hometown ?? '', residential_address: data.residential_address ?? '',
+        association: data.association ?? '', ghana_card_number: data.ghana_card_number ?? '',
+        emergency_contact_name: data.emergency_contact_name ?? '', emergency_contact_phone: data.emergency_contact_phone ?? '',
+      });
+    } catch {
+      setForm({ ...EMPTY, teacher_code: t.teacher_code, name: t.name, email: t.email ?? '',
+        phone: t.phone ?? '', department: t.department ?? '', status: t.status, is_admin: t.is_admin, notes: t.notes ?? '' });
+    }
+    setModal('edit');
   }
 
   async function save() {
-    const phoneErr = validatePhone(form.phone as string);
-    if (phoneErr) { setError(`Phone: ${phoneErr}`); return; }
+    const errs = validateTeacherForm(form as Record<string, string>);
+    if (Object.keys(errs).length > 0) { setFieldErrors(errs); setError('Please fix the errors below.'); return; }
+    setFieldErrors({});
     setSaving(true); setError('');
     try {
       const body: Record<string, unknown> = { ...form };
       if (!body.password) delete body.password;
+      for (const k of Object.keys(body)) { if (body[k] === '') body[k] = null; }
       if (modal === 'create') await api.post('/api/teachers', body);
       else await api.put(`/api/teachers/${editId}`, body);
       setModal(null); await load();
@@ -569,55 +599,158 @@ export default function TeachersPage() {
       </Modal>
 
       {/* ── Create / Edit modal ── */}
-      <Modal open={modal === 'create' || modal === 'edit'} onClose={() => setModal(null)} title={modal === 'create' ? 'Add Teacher' : 'Edit Teacher'} maxWidth="max-w-lg">
-        <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Teacher ID {modal === 'create' && <span className="text-slate-400 font-normal">(auto if blank)</span>}
-              </label>
-              <input
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-bold text-green-700 uppercase focus:outline-none focus:ring-2 focus:ring-green-600"
-                value={form.teacher_code ?? ''}
-                onChange={e => setForm(f => ({ ...f, teacher_code: e.target.value.toUpperCase() }))}
-                placeholder="e.g. T001"
-                maxLength={10}
-              />
-              <p className="mt-1 text-xs text-slate-400">Used to log in to the teacher app.</p>
-            </div>
-            <div className="col-span-2">
-              <Input label="Full Name *" value={form.name ?? ''} onChange={field('name')} required />
+      <Modal open={modal === 'create' || modal === 'edit'} onClose={() => setModal(null)} title={modal === 'create' ? 'Add Teacher' : 'Edit Teacher'} maxWidth="max-w-2xl">
+        <div className="max-h-[75vh] overflow-y-auto pr-1 space-y-5">
+
+          {/* Account */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Account</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Teacher ID {modal === 'create' && <span className="font-normal text-slate-400">(auto if blank)</span>}</label>
+                  <input className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-bold text-green-700 uppercase focus:outline-none focus:ring-2 focus:ring-green-600"
+                    value={form.teacher_code ?? ''} onChange={e => setForm(f => ({ ...f, teacher_code: e.target.value.toUpperCase() }))} placeholder="e.g. T001" maxLength={10} />
+                </div>
+                <div className="col-span-2"><Input label="Full Name *" value={form.name ?? ''} onChange={field('name')} required /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Email" type="email" value={form.email ?? ''} onChange={field('email')} />
+                <div>
+                  <Input label="Phone" value={form.phone ?? ''} onChange={field('phone')} />
+                  {fieldErrors.phone && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.phone}</p>}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Department" value={form.department ?? ''} onChange={field('department')} />
+                <Input label={modal === 'create' ? 'Password *' : 'New Password (leave blank to keep)'} type="password" value={form.password ?? ''} onChange={field('password')} />
+              </div>
+              <div className="flex gap-4 items-center">
+                <label className="flex items-center gap-2 text-sm">
+                  <select value={form.status ?? 'Active'} onChange={field('status')} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600">
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                  Status
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={!!form.is_admin} onChange={e => setForm(f => ({ ...f, is_admin: e.target.checked }))} />
+                  Admin role
+                </label>
+              </div>
             </div>
           </div>
-          <Input label="Email" type="email" value={form.email ?? ''} onChange={field('email')} />
-          <Input label="Phone" value={form.phone ?? ''} onChange={field('phone')} />
-          <Input label="Department" value={form.department ?? ''} onChange={field('department')} />
-          <Input label={modal === 'create' ? 'Password *' : 'New Password (leave blank to keep)'} type="password" value={form.password ?? ''} onChange={field('password')} />
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2 text-sm">
-              <select value={form.status} onChange={field('status')}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600">
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-              Status
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={!!form.is_admin}
-                onChange={e => setForm(f => ({ ...f, is_admin: e.target.checked }))} />
-              Admin role
-            </label>
+
+          <hr className="border-slate-100" />
+
+          {/* Personal Information */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Personal Information</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Gender</label>
+                  <select value={form.gender ?? ''} onChange={field('gender')} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600">
+                    <option value="">Select…</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
+                </div>
+                <Input label="Date of Birth" type="date" value={form.date_of_birth ?? ''} onChange={field('date_of_birth')} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Hometown" value={form.hometown ?? ''} onChange={field('hometown')} />
+                <Input label="Residential Address" value={form.residential_address ?? ''} onChange={field('residential_address')} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Religion" value={form.religion ?? ''} onChange={field('religion')} />
+                <Input label="Religious Denomination" value={form.religious_denomination ?? ''} onChange={field('religious_denomination')} />
+              </div>
+              <div>
+                <Input label="Ghana Card No." value={form.ghana_card_number ?? ''} onChange={field('ghana_card_number')} placeholder="GHA-XXXXXXXXX-X" />
+                {fieldErrors.ghana_card_number && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.ghana_card_number}</p>}
+              </div>
+            </div>
           </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Professional Information */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Professional Information</p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Gov Staff ID" value={form.gov_staff_id ?? ''} onChange={field('gov_staff_id')} />
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">GES Rank</label>
+                  <select value={form.rank ?? ''} onChange={field('rank')} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600">
+                    <option value="">Select rank…</option>
+                    {GES_RANKS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Registered Number" value={form.registered_number ?? ''} onChange={field('registered_number')} />
+                <div>
+                  <Input label="NTC Number" value={form.ntc_number ?? ''} onChange={field('ntc_number')} placeholder="PT/XXXXXX/XXXX" />
+                  {fieldErrors.ntc_number && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.ntc_number}</p>}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Input label="SSF Number" value={form.ssf_number ?? ''} onChange={field('ssf_number')} placeholder="e.g. KO18602160034" />
+                  {fieldErrors.ssf_number && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.ssf_number}</p>}
+                </div>
+                <Input label="Association (GNAT/NAGRAT/CCT…)" value={form.association ?? ''} onChange={field('association')} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Academic Qualification" value={form.academic_qualification ?? ''} onChange={field('academic_qualification')} />
+                <Input label="Professional Qualification" value={form.professional_qualification ?? ''} onChange={field('professional_qualification')} />
+              </div>
+              <Input label="Additional Responsibility (e.g. HOD, Form Master)" value={form.additional_responsibility ?? ''} onChange={field('additional_responsibility')} />
+            </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Banking */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Banking</p>
+            <div className="grid grid-cols-3 gap-3">
+              <Input label="Bank" value={form.bank ?? ''} onChange={field('bank')} />
+              <Input label="Branch" value={form.bank_branch ?? ''} onChange={field('bank_branch')} />
+              <Input label="Account No." value={form.account_number ?? ''} onChange={field('account_number')} />
+            </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Emergency Contact */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Emergency Contact</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Contact Name" value={form.emergency_contact_name ?? ''} onChange={field('emergency_contact_name')} />
+              <div>
+                <Input label="Contact Phone" value={form.emergency_contact_phone ?? ''} onChange={field('emergency_contact_phone')} />
+                {fieldErrors.emergency_contact_phone && <p className="text-xs text-red-500 mt-0.5">{fieldErrors.emergency_contact_phone}</p>}
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Notes */}
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</label>
             <textarea value={form.notes ?? ''} onChange={field('notes')} rows={2}
               className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
           </div>
-          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
-            <Button onClick={save} loading={saving}>Save</Button>
-          </div>
+
+        </div>
+        {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mt-3">{error}</p>}
+        <div className="flex justify-end gap-2 pt-3">
+          <Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
+          <Button onClick={save} loading={saving}>Save</Button>
         </div>
       </Modal>
     </div>
