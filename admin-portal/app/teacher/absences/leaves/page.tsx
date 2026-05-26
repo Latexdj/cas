@@ -13,6 +13,8 @@ interface TeacherExcuse {
   reason: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   approved_by_name: string | null;
+  document_url: string | null;
+  document_filename: string | null;
 }
 
 const LEAVE_TYPES = ['Sick Leave', 'Official Duty', 'Permission', 'Other'];
