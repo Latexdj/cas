@@ -7,6 +7,20 @@ const { uploadFile } = require('../services/storage.service');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
+const PHONE_RE      = /^0\d{9}$/;
+const GHANA_CARD_RE = /^GHA-\d{9}-\d$/;
+
+function validateStudentFields(fields) {
+  const errors = [];
+  if (fields.mobile_number   && !PHONE_RE.test(fields.mobile_number))
+    errors.push('Mobile number must be 10 digits starting with 0 (e.g. 0207440175)');
+  if (fields.guardian_mobile && !PHONE_RE.test(fields.guardian_mobile))
+    errors.push('Guardian mobile must be 10 digits starting with 0');
+  if (fields.ghana_card_number && !GHANA_CARD_RE.test(fields.ghana_card_number))
+    errors.push('Ghana Card must be in the format GHA-XXXXXXXXX-X (e.g. GHA-715422858-2)');
+  return errors;
+}
+
 router.use(authenticate, requireActiveSubscription);
 
 async function nextStudentCode(schoolId) {
@@ -319,6 +333,8 @@ router.post('/', adminOnly, async (req, res, next) => {
     const { name, class_name, student_code, status = 'Active', notes, program_id } = req.body;
     if (!name)       return res.status(400).json({ error: 'name is required' });
     if (!class_name) return res.status(400).json({ error: 'class_name is required' });
+    const valErrors = validateStudentFields(req.body);
+    if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
 
     const code = student_code?.trim() || await nextStudentCode(req.schoolId);
     const { rows } = await pool.query(
@@ -344,6 +360,8 @@ router.put('/:id', adminOnly, async (req, res, next) => {
       residential_status, religion, religious_denomination,
       guardian_name, guardian_occupation, guardian_mobile,
     } = req.body;
+    const valErrors = validateStudentFields(req.body);
+    if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
     const { rows } = await pool.query(
       `UPDATE students SET
          student_code           = COALESCE($1,  student_code),

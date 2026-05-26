@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { api } from '@/lib/api';
+import { validateTeacherForm } from '@/lib/validations';
 import type { TeacherProfile } from '@/types/api';
 
 const GES_RANKS = [
@@ -39,7 +40,7 @@ function Field({ label, value }: { label: string; value?: string | number | null
 }
 
 function EditField({
-  label, name, value, onChange, type = 'text', options,
+  label, name, value, onChange, type = 'text', options, error,
 }: {
   label: string;
   name: string;
@@ -47,7 +48,9 @@ function EditField({
   onChange: (n: string, v: string) => void;
   type?: string;
   options?: string[];
+  error?: string;
 }) {
+  const borderClass = error ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-blue-500';
   if (options) {
     return (
       <div>
@@ -55,11 +58,12 @@ function EditField({
         <select
           value={value}
           onChange={e => onChange(name, e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 bg-white ${borderClass}`}
         >
           <option value="">— select —</option>
           {options.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
       </div>
     );
   }
@@ -70,8 +74,9 @@ function EditField({
         type={type}
         value={value}
         onChange={e => onChange(name, e.target.value)}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 ${borderClass}`}
       />
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
     </div>
   );
 }
@@ -92,6 +97,7 @@ export default function TeacherProfilePage() {
   const [form,     setForm]     = useState<Record<string, string>>({});
   const [saving,   setSaving]   = useState(false);
   const [saveErr,  setSaveErr]  = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const photoRef = useRef<HTMLInputElement>(null);
   const certRef  = useRef<HTMLInputElement>(null);
@@ -147,12 +153,16 @@ export default function TeacherProfilePage() {
   }
 
   async function save() {
+    const errs = validateTeacherForm(form);
+    setFieldErrors(errs);
+    if (Object.keys(errs).length) return;
     setSaving(true); setSaveErr('');
     try {
       const body = { ...form, is_admin: form.is_admin === 'true' };
       const { data } = await api.put<TeacherProfile>(`/api/teachers/${id}`, body);
       setProfile(data);
       setEditing(false);
+      setFieldErrors({});
     } catch (err: unknown) {
       setSaveErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Save failed');
     } finally { setSaving(false); }
@@ -288,7 +298,7 @@ export default function TeacherProfilePage() {
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <EditField label="Full Name"  name="name"  value={form.name}  onChange={set} />
             <EditField label="Email"      name="email" value={form.email} onChange={set} type="email" />
-            <EditField label="Phone"      name="phone" value={form.phone} onChange={set} />
+            <EditField label="Phone"      name="phone" value={form.phone} onChange={set} error={fieldErrors.phone} />
             <EditField label="Gender"     name="gender" value={form.gender} onChange={set} options={GENDERS} />
             <EditField label="Date of Birth" name="date_of_birth" value={form.date_of_birth} onChange={set} type="date" />
             <EditField label="Hometown"   name="hometown" value={form.hometown} onChange={set} />
@@ -297,7 +307,7 @@ export default function TeacherProfilePage() {
             </div>
             <EditField label="Religion"   name="religion" value={form.religion} onChange={set} options={RELIGIONS} />
             <EditField label="Religious Denomination" name="religious_denomination" value={form.religious_denomination} onChange={set} />
-            <EditField label="Ghana Card Number" name="ghana_card_number" value={form.ghana_card_number} onChange={set} />
+            <EditField label="Ghana Card Number" name="ghana_card_number" value={form.ghana_card_number} onChange={set} error={fieldErrors.ghana_card_number} />
           </div>
         </div>
       ) : (
@@ -323,8 +333,8 @@ export default function TeacherProfilePage() {
             <EditField label="GES Rank"   name="rank"       value={form.rank}       onChange={set} options={GES_RANKS} />
             <EditField label="Gov Staff ID" name="gov_staff_id" value={form.gov_staff_id} onChange={set} />
             <EditField label="Registered Number" name="registered_number" value={form.registered_number} onChange={set} />
-            <EditField label="NTC Number" name="ntc_number" value={form.ntc_number} onChange={set} />
-            <EditField label="SSF Number" name="ssf_number" value={form.ssf_number} onChange={set} />
+            <EditField label="NTC Number" name="ntc_number" value={form.ntc_number} onChange={set} error={fieldErrors.ntc_number} />
+            <EditField label="SSF Number" name="ssf_number" value={form.ssf_number} onChange={set} error={fieldErrors.ssf_number} />
             <EditField label="Academic Qualification" name="academic_qualification" value={form.academic_qualification} onChange={set} />
             <EditField label="Professional Qualification" name="professional_qualification" value={form.professional_qualification} onChange={set} />
             <EditField label="Additional Responsibility" name="additional_responsibility" value={form.additional_responsibility} onChange={set} />
@@ -390,7 +400,7 @@ export default function TeacherProfilePage() {
           </div>
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <EditField label="Contact Name"  name="emergency_contact_name"  value={form.emergency_contact_name}  onChange={set} />
-            <EditField label="Contact Phone" name="emergency_contact_phone" value={form.emergency_contact_phone} onChange={set} />
+            <EditField label="Contact Phone" name="emergency_contact_phone" value={form.emergency_contact_phone} onChange={set} error={fieldErrors.emergency_contact_phone} />
           </div>
         </div>
       ) : (

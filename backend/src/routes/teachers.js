@@ -9,6 +9,26 @@ const { uploadFile, uploadDocument } = require('../services/storage.service');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
+const PHONE_RE      = /^0\d{9}$/;
+const GHANA_CARD_RE = /^GHA-\d{9}-\d$/;
+const NTC_RE        = /^PT\/\d{6}\/\d{4}$/;
+const SSF_RE        = /^[A-Za-z]{2}\d{11}$/;
+
+function validateTeacherFields(fields) {
+  const errors = [];
+  if (fields.phone              && !PHONE_RE.test(fields.phone))
+    errors.push('Phone must be 10 digits starting with 0 (e.g. 0207440175)');
+  if (fields.emergency_contact_phone && !PHONE_RE.test(fields.emergency_contact_phone))
+    errors.push('Emergency contact phone must be 10 digits starting with 0');
+  if (fields.ghana_card_number  && !GHANA_CARD_RE.test(fields.ghana_card_number))
+    errors.push('Ghana Card must be in the format GHA-XXXXXXXXX-X (e.g. GHA-715422858-2)');
+  if (fields.ntc_number         && !NTC_RE.test(fields.ntc_number))
+    errors.push('NTC Number must be in the format PT/XXXXXX/XXXX (e.g. PT/010060/2009)');
+  if (fields.ssf_number         && !SSF_RE.test(fields.ssf_number))
+    errors.push('SSF Number must be 2 letters followed by 11 digits (e.g. KO18602160034)');
+  return errors;
+}
+
 router.use(authenticate, requireActiveSubscription);
 
 /** Generate the next available teacher code for a school (T001, T002, …) */
@@ -462,6 +482,8 @@ router.post('/', adminOnly, async (req, res, next) => {
   try {
     const { name, email, phone, department, status = 'Active', is_admin = false, notes, teacher_code } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
+    const valErrors = validateTeacherFields(req.body);
+    if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
 
     // Enforce teacher limit
     const { rows: subRows } = await pool.query(
@@ -515,6 +537,8 @@ router.put('/:id', adminOnly, async (req, res, next) => {
       hometown, residential_address, association, ghana_card_number,
       emergency_contact_name, emergency_contact_phone,
     } = req.body;
+    const valErrors = validateTeacherFields(req.body);
+    if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
     const { rows } = await pool.query(
       `UPDATE teachers SET
          teacher_code             = COALESCE($1,  teacher_code),
@@ -622,6 +646,8 @@ router.patch('/me/profile', async (req, res, next) => {
       phone, gender, date_of_birth, religion, religious_denomination,
       hometown, residential_address, emergency_contact_name, emergency_contact_phone,
     } = req.body;
+    const valErrors = validateTeacherFields(req.body);
+    if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
     const { rows } = await pool.query(
       `UPDATE teachers SET
          phone                   = COALESCE($1,  phone),

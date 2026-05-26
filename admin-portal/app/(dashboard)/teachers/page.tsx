@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { api } from '@/lib/api';
+import { validatePhone } from '@/lib/validations';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
@@ -96,6 +97,8 @@ export default function TeachersPage() {
   }
 
   async function save() {
+    const phoneErr = validatePhone(form.phone as string);
+    if (phoneErr) { setError(`Phone: ${phoneErr}`); return; }
     setSaving(true); setError('');
     try {
       const body: Record<string, unknown> = { ...form };

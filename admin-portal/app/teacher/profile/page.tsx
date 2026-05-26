@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTeacher, getTeacherColors, clearTeacher } from '@/lib/teacher-auth';
+import { validatePhone } from '@/lib/validations';
 import { teacherApi } from '@/lib/teacher-api';
 
 const GENDERS   = ['Male', 'Female'];
@@ -151,6 +152,10 @@ export default function ProfilePage() {
 
   async function saveEdit(e: React.FormEvent) {
     e.preventDefault();
+    const phoneErr    = validatePhone(editForm.phone);
+    const emrgPhErr   = validatePhone(editForm.emergency_contact_phone);
+    if (phoneErr)  { setEditError(`Phone: ${phoneErr}`); return; }
+    if (emrgPhErr) { setEditError(`Emergency contact phone: ${emrgPhErr}`); return; }
     setEditSaving(true); setEditError('');
     try {
       const res = await teacherApi.patch('/api/teachers/me/profile', editForm);

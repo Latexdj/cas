@@ -134,6 +134,13 @@ export default function ProfileScreen() {
   }
 
   async function saveProfile() {
+    const PHONE_RE = /^0\d{9}$/;
+    if (editForm.phone && !PHONE_RE.test(editForm.phone)) {
+      setEditErr('Phone must be 10 digits starting with 0 (e.g. 0207440175)'); return;
+    }
+    if (editForm.emergency_contact_phone && !PHONE_RE.test(editForm.emergency_contact_phone)) {
+      setEditErr('Emergency contact phone must be 10 digits starting with 0'); return;
+    }
     setEditSaving(true); setEditErr('');
     try {
       const { data } = await api.patch<TeacherProfile>('/api/teachers/me/profile', editForm);

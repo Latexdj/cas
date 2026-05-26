@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { api } from '@/lib/api';
+import { validateStudentForm } from '@/lib/validations';
 import type { StudentProfile, Program } from '@/types/api';
 
 const GENDERS   = ['Male', 'Female'];
@@ -31,21 +32,23 @@ function Field({ label, value }: { label: string; value?: string | number | null
 }
 
 function EditField({
-  label, name, value, onChange, type = 'text', options,
+  label, name, value, onChange, type = 'text', options, error,
 }: {
   label: string; name: string; value: string;
   onChange: (n: string, v: string) => void;
-  type?: string; options?: string[];
+  type?: string; options?: string[]; error?: string;
 }) {
+  const borderClass = error ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-blue-500';
   if (options) {
     return (
       <div>
         <label className="text-xs text-gray-400 font-medium block mb-1">{label}</label>
         <select value={value} onChange={e => onChange(name, e.target.value)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white ${borderClass}`}>
           <option value="">— select —</option>
           {options.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
       </div>
     );
   }
@@ -53,7 +56,8 @@ function EditField({
     <div>
       <label className="text-xs text-gray-400 font-medium block mb-1">{label}</label>
       <input type={type} value={value} onChange={e => onChange(name, e.target.value)}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ${borderClass}`} />
+      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
     </div>
   );
 }
@@ -75,6 +79,7 @@ export default function StudentProfilePage() {
   const [form,     setForm]     = useState<Record<string, string>>({});
   const [saving,   setSaving]   = useState(false);
   const [saveErr,  setSaveErr]  = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const photoRef = useRef<HTMLInputElement>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
@@ -125,6 +130,9 @@ export default function StudentProfilePage() {
   }
 
   async function save() {
+    const errs = validateStudentForm(form);
+    setFieldErrors(errs);
+    if (Object.keys(errs).length) return;
     setSaving(true); setSaveErr('');
     try {
       const body = {
@@ -135,6 +143,7 @@ export default function StudentProfilePage() {
       const { data } = await api.put<StudentProfile>(`/api/students/${id}`, body);
       setProfile(data);
       setEditing(false);
+      setFieldErrors({});
     } catch (err: unknown) {
       setSaveErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Save failed');
     } finally { setSaving(false); }
@@ -274,12 +283,12 @@ export default function StudentProfilePage() {
             <EditField label="Aggregate"    name="aggregate"      value={form.aggregate}      onChange={set} type="number" />
             <EditField label="House"        name="house"          value={form.house}          onChange={set} />
             <EditField label="Residential Status" name="residential_status" value={form.residential_status} onChange={set} options={RES_STATUSES} />
-            <EditField label="Mobile No."   name="mobile_number"  value={form.mobile_number}  onChange={set} />
+            <EditField label="Mobile No."   name="mobile_number"  value={form.mobile_number}  onChange={set} error={fieldErrors.mobile_number} />
             <EditField label="Hometown"     name="hometown"       value={form.hometown}       onChange={set} />
             <div className="sm:col-span-2">
               <EditField label="Residential Address" name="residential_address" value={form.residential_address} onChange={set} />
             </div>
-            <EditField label="Ghana Card No." name="ghana_card_number" value={form.ghana_card_number} onChange={set} />
+            <EditField label="Ghana Card No." name="ghana_card_number" value={form.ghana_card_number} onChange={set} error={fieldErrors.ghana_card_number} />
             <EditField label="NHIA No."     name="nhia_number"    value={form.nhia_number}    onChange={set} />
             <EditField label="Religion"     name="religion"       value={form.religion}       onChange={set} options={RELIGIONS} />
             <EditField label="Religious Denomination" name="religious_denomination" value={form.religious_denomination} onChange={set} />
@@ -313,7 +322,7 @@ export default function StudentProfilePage() {
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <EditField label="Guardian Name"       name="guardian_name"       value={form.guardian_name}       onChange={set} />
             <EditField label="Occupation"          name="guardian_occupation" value={form.guardian_occupation} onChange={set} />
-            <EditField label="Guardian Mobile"     name="guardian_mobile"     value={form.guardian_mobile}     onChange={set} />
+            <EditField label="Guardian Mobile"     name="guardian_mobile"     value={form.guardian_mobile}     onChange={set} error={fieldErrors.guardian_mobile} />
           </div>
         </div>
       ) : (
