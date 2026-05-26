@@ -1,9 +1,8 @@
 import React, { useCallback, useState } from 'react';
 import {
-  ScrollView, RefreshControl, StyleSheet, Text,
-  TouchableOpacity, View,
+  ScrollView, RefreshControl, StyleSheet, Text, View,
 } from 'react-native';
-import { useFocusEffect, router } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -46,15 +45,6 @@ export default function TimetableScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Custom header */}
-      <View style={[styles.header, { backgroundColor: Colors.primary }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Weekly Timetable</Text>
-        <View style={styles.backBtn} />
-      </View>
-
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />}
@@ -145,9 +135,6 @@ export default function TimetableScreen() {
 
 const styles = StyleSheet.create({
   root:          { flex: 1, backgroundColor: '#F4EFE6' },
-  header:        { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingTop: 16, paddingBottom: 16 },
-  backBtn:       { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  headerTitle:   { flex: 1, fontSize: 17, fontWeight: '800', color: '#fff', textAlign: 'center', letterSpacing: -0.3 },
   content:       { padding: 16, paddingBottom: 40 },
   // Empty state
   emptyWrap:     { alignItems: 'center', paddingVertical: 60 },

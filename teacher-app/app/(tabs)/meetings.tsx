@@ -18,6 +18,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useTheme } from '@/context/ThemeContext';
 
+// ── Interfaces ────────────────────────────────────────────────────────────────
+
 interface Meeting {
   id: string;
   title: string;
@@ -30,6 +32,23 @@ interface Meeting {
   submitted: { id: string; submitted_at: string } | null;
 }
 
+interface PlcSession {
+  id: string;
+  title: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  location_name: string;
+  has_coordinates: boolean;
+}
+
+interface PlcTodayResponse {
+  session: PlcSession;
+  submitted: { id: string; submitted_at: string } | null;
+}
+
+type ActiveTab = 'meetings' | 'plc';
+
 const TYPE_COLORS: Record<string, string> = {
   'PLC':              '#15803D',
   'Morning Briefing': '#1D4ED8',
@@ -38,16 +57,27 @@ const TYPE_COLORS: Record<string, string> = {
   'Other':            '#475569',
 };
 
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function MeetingsScreen() {
   const { user } = useAuth();
   const Colors   = useTheme();
 
-  const [loading,      setLoading]      = useState(true);
-  const [meetings,     setMeetings]     = useState<Meeting[]>([]);
-  const [activeMeeting, setActiveMeeting] = useState<Meeting | null>(null);
+  // Tab
+  const [activeTab, setActiveTab] = useState<ActiveTab>('meetings');
 
-  // Form fields
-  const [notes,        setNotes]        = useState('');
+  // Meetings
+  const [loadingMeetings, setLoadingMeetings] = useState(true);
+  const [meetings,        setMeetings]        = useState<Meeting[]>([]);
+  const [activeMeeting,   setActiveMeeting]   = useState<Meeting | null>(null);
+  const [meetingNotes,    setMeetingNotes]    = useState('');
+
+  // PLC
+  const [loadingPlc, setLoadingPlc] = useState(true);
+  const [plcData,    setPlcData]    = useState<PlcTodayResponse | null>(null);
+  const [agenda,     setAgenda]     = useState('');
+
+  // Shared form (GPS / photo / QR)
   const [gps,          setGps]          = useState('');
   const [gpsAcquiring, setGpsAcquiring] = useState(true);
   const [gpsError,     setGpsError]     = useState('');
@@ -62,7 +92,7 @@ export default function MeetingsScreen() {
   const [camPermission, requestCamPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
 
-  // QR Scanner
+  // QR
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [qrVerified,    setQrVerified]    = useState(false);
   const [qrLocation,    setQrLocation]    = useState('');
@@ -72,19 +102,35 @@ export default function MeetingsScreen() {
 
   useFocusEffect(useCallback(() => {
     loadMeetings();
+    loadPlc();
     grabGps();
   }, [user]));
 
+  // ── Data loaders ───────────────────────────────────────────────────────────
+
   async function loadMeetings() {
     if (!user) return;
-    setLoading(true);
+    setLoadingMeetings(true);
     try {
       const res = await api.get<Meeting[]>('/api/meetings/today');
       setMeetings(Array.isArray(res.data) ? res.data : []);
     } catch {
       setMeetings([]);
     } finally {
-      setLoading(false);
+      setLoadingMeetings(false);
+    }
+  }
+
+  async function loadPlc() {
+    if (!user) return;
+    setLoadingPlc(true);
+    try {
+      const res = await api.get<PlcTodayResponse | null>('/api/plc/today');
+      setPlcData(res.data);
+    } catch {
+      setPlcData(null);
+    } finally {
+      setLoadingPlc(false);
     }
   }
 
@@ -96,7 +142,7 @@ export default function MeetingsScreen() {
       navigator.geolocation.getCurrentPosition(
         (pos) => { setGps(`${pos.coords.latitude.toFixed(6)},${pos.coords.longitude.toFixed(6)}`); setGpsAcquiring(false); },
         ()    => { setGpsError('GPS unavailable. Tap Refresh.'); setGpsAcquiring(false); },
-        { timeout: 15000 }
+        { timeout: 15000 },
       );
       return;
     }
@@ -112,9 +158,19 @@ export default function MeetingsScreen() {
     }
   }
 
+  // ── Form helpers ───────────────────────────────────────────────────────────
+
   function openForm(meeting: Meeting) {
     setActiveMeeting(meeting);
-    setNotes('');
+    setMeetingNotes('');
+    resetSharedForm();
+  }
+
+  function closeForm() {
+    setActiveMeeting(null);
+  }
+
+  function resetSharedForm() {
     setPhotoUri(null);
     setPhotoBase64(null);
     setPhotoSizeKb(null);
@@ -123,11 +179,16 @@ export default function MeetingsScreen() {
     setQrError('');
   }
 
-  function closeForm() {
+  function switchTab(tab: ActiveTab) {
+    setActiveTab(tab);
     setActiveMeeting(null);
+    setAgenda('');
+    setMeetingNotes('');
+    resetSharedForm();
   }
 
-  // ── QR ────────────────────────────────────────────────────────
+  // ── QR ─────────────────────────────────────────────────────────────────────
+
   async function openQrScanner() {
     if (!camPermission?.granted) {
       const res = await requestCamPermission();
@@ -139,33 +200,35 @@ export default function MeetingsScreen() {
   }
 
   async function handleQrScanned({ data }: { data: string }) {
-    if (qrScannedRef.current || qrVerifying || !activeMeeting) return;
+    if (qrScannedRef.current || qrVerifying) return;
     qrScannedRef.current = true;
     setQrVerifying(true);
     setQrError('');
     try {
-      const res = await api.post<{ valid: boolean; locationName: string }>('/api/meetings/verify-qr', {
-        token: data,
-        meetingId: activeMeeting.id,
-      });
+      const isPLC     = activeTab === 'plc';
+      const endpoint  = isPLC ? '/api/plc/verify-qr' : '/api/meetings/verify-qr';
+      const payload   = isPLC
+        ? { token: data, sessionId: plcData?.session.id }
+        : { token: data, meetingId: activeMeeting?.id };
+      const res = await api.post<{ valid: boolean; locationName: string }>(endpoint, payload);
       if (res.data.valid) {
         setQrVerified(true);
         setQrLocation(res.data.locationName);
         setShowQrScanner(false);
       } else {
-        setQrError('Wrong venue. Scan the QR code posted at the meeting room.');
+        setQrError('Wrong venue. Scan the QR code posted at the venue.');
         qrScannedRef.current = false;
       }
     } catch (err: any) {
-      const msg = err?.response?.data?.error ?? 'Invalid QR code. Try again.';
-      setQrError(msg);
+      setQrError(err?.response?.data?.error ?? 'Invalid QR code. Try again.');
       qrScannedRef.current = false;
     } finally {
       setQrVerifying(false);
     }
   }
 
-  // ── Camera ────────────────────────────────────────────────────
+  // ── Camera ─────────────────────────────────────────────────────────────────
+
   async function openCamera() {
     if (IS_WEB) {
       await new Promise<void>((resolve) => {
@@ -235,18 +298,9 @@ export default function MeetingsScreen() {
     }
   }
 
-  function resetForm() {
-    setNotes('');
-    setPhotoUri(null);
-    setPhotoBase64(null);
-    setPhotoSizeKb(null);
-    setQrVerified(false);
-    setQrLocation('');
-    setQrError('');
-  }
+  // ── Submit handlers ────────────────────────────────────────────────────────
 
-  // ── Submit ────────────────────────────────────────────────────
-  async function handleSubmit() {
+  async function handleMeetingSubmit() {
     if (!activeMeeting) return;
     if (gpsAcquiring)  { Alert.alert('GPS acquiring', 'GPS is still being determined. Please wait.'); return; }
     if (!gps)          { Alert.alert('GPS required', gpsError || 'GPS coordinates are required. Tap Refresh.'); return; }
@@ -256,19 +310,16 @@ export default function MeetingsScreen() {
     setSubmitting(true);
     try {
       const netState = await NetInfo.fetch();
-      if (!netState.isConnected) {
-        Alert.alert('No Internet', 'You are offline. Please connect and try again.');
-        return;
-      }
+      if (!netState.isConnected) { Alert.alert('No Internet', 'You are offline. Please connect and try again.'); return; }
       await api.post('/api/meetings/submit', {
         meetingId:      activeMeeting.id,
-        notes:          notes.trim() || undefined,
+        notes:          meetingNotes.trim() || undefined,
         gpsCoordinates: gps,
         imageBase64:    photoBase64,
         photoSizeKb:    photoSizeKb ?? undefined,
       });
       Alert.alert('Attendance Recorded', `Your attendance for "${activeMeeting.title}" has been submitted.`);
-      resetForm();
+      resetSharedForm();
       closeForm();
       await loadMeetings();
     } catch (err: any) {
@@ -278,7 +329,103 @@ export default function MeetingsScreen() {
     }
   }
 
-  // ── QR Scanner full-screen view ───────────────────────────────
+  async function handlePlcSubmit() {
+    if (!plcData?.session) return;
+    if (gpsAcquiring)  { Alert.alert('GPS acquiring', 'GPS is still being determined. Please wait.'); return; }
+    if (!gps)          { Alert.alert('GPS required', gpsError || 'GPS coordinates are required. Tap Refresh.'); return; }
+    if (!photoBase64)  { Alert.alert('Photo required', 'Please take a photo at the PLC venue.'); return; }
+    if (!IS_WEB && !qrVerified) { Alert.alert('QR Required', 'Please scan the PLC venue QR code to verify your presence.'); return; }
+
+    setSubmitting(true);
+    try {
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) { Alert.alert('No Internet', 'You are offline. Please connect and try again.'); return; }
+      await api.post('/api/plc/submit', {
+        sessionId:      plcData.session.id,
+        agenda:         agenda.trim() || undefined,
+        gpsCoordinates: gps,
+        imageBase64:    photoBase64,
+        photoSizeKb:    photoSizeKb ?? undefined,
+      });
+      Alert.alert('PLC Attendance Recorded', "Your attendance for today's PLC session has been submitted.");
+      setAgenda('');
+      resetSharedForm();
+      await loadPlc();
+    } catch (err: any) {
+      Alert.alert('Error', err?.response?.data?.error ?? 'Submission failed.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // ── Reusable UI blocks ─────────────────────────────────────────────────────
+
+  function renderGps() {
+    return gpsAcquiring ? (
+      <View style={styles.gpsRow}><Text style={styles.gpsMuted}>Acquiring GPS…</Text></View>
+    ) : gpsError ? (
+      <View style={[styles.gpsRow, styles.gpsRowError]}>
+        <Text style={styles.gpsErrorText}>{gpsError}</Text>
+        <TouchableOpacity onPress={grabGps}><Text style={[styles.gpsRefresh, { color: Colors.primary }]}>Refresh</Text></TouchableOpacity>
+      </View>
+    ) : (
+      <View style={styles.gpsRow}>
+        <Text style={styles.gpsValue}>{gps}</Text>
+        <TouchableOpacity onPress={grabGps}><Text style={[styles.gpsRefresh, { color: Colors.primary }]}>Refresh</Text></TouchableOpacity>
+      </View>
+    );
+  }
+
+  function renderPhoto() {
+    return photoUri ? (
+      <View style={styles.photoPreviewWrap}>
+        <Image source={{ uri: photoUri }} style={styles.photoPreview} resizeMode="cover" />
+        {photoSizeKb != null && <Text style={styles.photoSize}>{photoSizeKb} KB</Text>}
+        <TouchableOpacity style={styles.retakeBtn} onPress={openCamera}>
+          <Text style={[styles.retakeBtnText, { color: Colors.primary }]}>Retake Photo</Text>
+        </TouchableOpacity>
+      </View>
+    ) : (
+      <TouchableOpacity style={styles.cameraPlaceholder} onPress={openCamera}>
+        <Text style={styles.cameraIcon}>📷</Text>
+        <Text style={styles.cameraPlaceholderText}>Tap to take a photo</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  function renderQr(locationLabel: string) {
+    return (
+      <>
+        <Text style={styles.sectionTitle}>Venue QR Code *</Text>
+        {qrVerified ? (
+          <View style={styles.qrVerifiedCard}>
+            <Ionicons name="checkmark-circle" size={22} color="#2D7A4F" />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.qrVerifiedTitle}>Venue Verified</Text>
+              <Text style={styles.qrVerifiedSub}>{qrLocation}</Text>
+            </View>
+            <TouchableOpacity onPress={() => { setQrVerified(false); setQrLocation(''); }}>
+              <Text style={[styles.qrRescanText, { color: Colors.primary }]}>Rescan</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.qrScanCard} onPress={openQrScanner}>
+            <View style={[styles.qrScanIconWrap, { backgroundColor: Colors.accentLight }]}>
+              <Ionicons name="qr-code-outline" size={24} color={Colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.qrScanTitle, { color: Colors.primary }]}>Scan Venue QR Code</Text>
+              <Text style={styles.qrScanSub}>Scan the QR code posted {locationLabel}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#C0B8AF" />
+          </TouchableOpacity>
+        )}
+      </>
+    );
+  }
+
+  // ── Full-screen overlays ───────────────────────────────────────────────────
+
   if (showQrScanner) {
     return (
       <View style={styles.cameraContainer}>
@@ -286,7 +433,7 @@ export default function MeetingsScreen() {
           <CameraView
             style={StyleSheet.absoluteFill}
             facing="back"
-            onBarcodeScanned={handleQrScanned}
+            onBarcodeScanned={qrScannedRef.current ? undefined : handleQrScanned}
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
           />
         )}
@@ -303,7 +450,7 @@ export default function MeetingsScreen() {
                     <Text style={styles.qrRetryText}>Tap to retry</Text>
                   </TouchableOpacity>
                 </>
-              : <Text style={styles.qrStatusText}>Align the meeting venue QR code with the frame</Text>
+              : <Text style={styles.qrStatusText}>Align the venue QR code with the frame</Text>
           }
         </View>
         <TouchableOpacity
@@ -316,7 +463,6 @@ export default function MeetingsScreen() {
     );
   }
 
-  // ── Camera full-screen view ───────────────────────────────────
   if (showCamera && !IS_WEB) {
     return (
       <View style={styles.cameraContainer}>
@@ -336,33 +482,11 @@ export default function MeetingsScreen() {
     );
   }
 
-  // ── Loading ───────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <View style={[styles.emptyRoot, { backgroundColor: '#F4EFE6' }]}>
-        <Text style={{ color: '#8C7E6E', fontSize: 15 }}>Loading…</Text>
-      </View>
-    );
-  }
+  // ── Meeting submission form (replaces main view) ───────────────────────────
 
-  // ── No meetings today ─────────────────────────────────────────
-  if (meetings.length === 0) {
-    return (
-      <View style={styles.emptyRoot}>
-        <View style={[styles.emptyIconWrap, { backgroundColor: Colors.accentLight }]}>
-          <Ionicons name="people-outline" size={44} color={Colors.primary} />
-        </View>
-        <Text style={styles.emptyTitle}>No Meetings Today</Text>
-        <Text style={styles.emptySub}>There are no meetings scheduled for today. Check back later.</Text>
-      </View>
-    );
-  }
-
-  // ── Submission form for selected meeting ──────────────────────
   if (activeMeeting) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {/* Meeting card */}
         <TouchableOpacity onPress={closeForm} style={styles.backRow}>
           <Ionicons name="arrow-back" size={18} color="#8C7E6E" />
           <Text style={styles.backText}>Back to meetings</Text>
@@ -382,86 +506,27 @@ export default function MeetingsScreen() {
           <Ionicons name="people" size={28} color={Colors.primary} />
         </View>
 
-        {/* GPS */}
         <Text style={styles.sectionTitle}>GPS Location</Text>
-        {gpsAcquiring ? (
-          <View style={styles.gpsRow}>
-            <Text style={styles.gpsMuted}>Acquiring GPS…</Text>
-          </View>
-        ) : gpsError ? (
-          <View style={[styles.gpsRow, styles.gpsRowError]}>
-            <Text style={styles.gpsErrorText}>{gpsError}</Text>
-            <TouchableOpacity onPress={grabGps}><Text style={[styles.gpsRefresh, { color: Colors.primary }]}>Refresh</Text></TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.gpsRow}>
-            <Text style={styles.gpsValue}>{gps}</Text>
-            <TouchableOpacity onPress={grabGps}><Text style={[styles.gpsRefresh, { color: Colors.primary }]}>Refresh</Text></TouchableOpacity>
-          </View>
-        )}
+        {renderGps()}
 
-        {/* Notes (optional) */}
         <Text style={styles.sectionTitle}>Notes <Text style={styles.optionalTag}>(optional)</Text></Text>
         <Input
           placeholder="Any notes about the meeting?"
-          value={notes}
-          onChangeText={setNotes}
+          value={meetingNotes}
+          onChangeText={setMeetingNotes}
           multiline
           numberOfLines={3}
           style={{ marginBottom: 4 }}
         />
 
-        {/* Photo */}
         <Text style={styles.sectionTitle}>Meeting Venue Photo *</Text>
-        {photoUri ? (
-          <View style={styles.photoPreviewWrap}>
-            <Image source={{ uri: photoUri }} style={styles.photoPreview} resizeMode="cover" />
-            {photoSizeKb != null && <Text style={styles.photoSize}>{photoSizeKb} KB</Text>}
-            <TouchableOpacity style={styles.retakeBtn} onPress={openCamera}>
-              <Text style={[styles.retakeBtnText, { color: Colors.primary }]}>Retake Photo</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity style={styles.cameraPlaceholder} onPress={openCamera}>
-            <Text style={styles.cameraIcon}>📷</Text>
-            <Text style={styles.cameraPlaceholderText}>Tap to take a photo</Text>
-          </TouchableOpacity>
-        )}
+        {renderPhoto()}
 
-        {/* QR Code (native only) */}
-        {!IS_WEB && (
-          <>
-            <Text style={styles.sectionTitle}>Venue QR Code *</Text>
-            {qrVerified ? (
-              <View style={styles.qrVerifiedCard}>
-                <Ionicons name="checkmark-circle" size={22} color="#2D7A4F" />
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={styles.qrVerifiedTitle}>Venue Verified</Text>
-                  <Text style={styles.qrVerifiedSub}>{qrLocation}</Text>
-                </View>
-                <TouchableOpacity onPress={() => { setQrVerified(false); setQrLocation(''); }}>
-                  <Text style={[styles.qrRescanText, { color: Colors.primary }]}>Rescan</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.qrScanCard} onPress={openQrScanner}>
-                <View style={[styles.qrScanIconWrap, { backgroundColor: Colors.accentLight }]}>
-                  <Ionicons name="qr-code-outline" size={24} color={Colors.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.qrScanTitle, { color: Colors.primary }]}>Scan Meeting Venue QR Code</Text>
-                  <Text style={styles.qrScanSub}>Scan the QR code posted at {activeMeeting.location_name}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#C0B8AF" />
-              </TouchableOpacity>
-            )}
-          </>
-        )}
+        {!IS_WEB && renderQr(`at ${activeMeeting.location_name}`)}
 
-        {/* Submit */}
         <Button
           title={submitting ? 'Submitting…' : 'Submit Attendance'}
-          onPress={handleSubmit}
+          onPress={handleMeetingSubmit}
           disabled={submitting}
           style={styles.submitBtn}
         />
@@ -469,54 +534,181 @@ export default function MeetingsScreen() {
     );
   }
 
-  // ── Meeting list ──────────────────────────────────────────────
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.pageTitle}>Today's Meetings</Text>
-      <Text style={styles.pageSub}>
-        {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
-      </Text>
+  // ── Main view ──────────────────────────────────────────────────────────────
 
-      {meetings.map(meeting => {
-        const typeColor = TYPE_COLORS[meeting.meeting_type] ?? '#475569';
-        return (
-          <View key={meeting.id} style={[styles.meetingCard, { borderLeftColor: typeColor }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.typeBadge, { color: typeColor }]}>{meeting.meeting_type}</Text>
-              <Text style={styles.meetingTitle}>{meeting.title}</Text>
-              <Text style={styles.meetingMeta}>
-                {meeting.start_time?.slice(0, 5)} – {meeting.end_time?.slice(0, 5)} · {meeting.location_name}
-              </Text>
+  const loading = loadingMeetings || loadingPlc;
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+
+      {/* Segmented control */}
+      <View style={styles.segmentWrap}>
+        <TouchableOpacity
+          style={[styles.segment, activeTab === 'meetings' && styles.segmentActive]}
+          onPress={() => switchTab('meetings')}
+        >
+          <Ionicons name="calendar-outline" size={16} color={activeTab === 'meetings' ? Colors.primary : '#A09282'} />
+          <Text style={[styles.segmentText, activeTab === 'meetings' && { color: Colors.primary }]}>Meetings</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segment, activeTab === 'plc' && styles.segmentActive]}
+          onPress={() => switchTab('plc')}
+        >
+          <Ionicons name="people-outline" size={16} color={activeTab === 'plc' ? Colors.primary : '#A09282'} />
+          <Text style={[styles.segmentText, activeTab === 'plc' && { color: Colors.primary }]}>PLC</Text>
+        </TouchableOpacity>
+      </View>
+
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <Text style={styles.loadingText}>Loading…</Text>
+        </View>
+      ) : activeTab === 'meetings' ? (
+        /* ── Meetings list ── */
+        meetings.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <View style={[styles.emptyIconWrap, { backgroundColor: Colors.accentLight }]}>
+              <Ionicons name="calendar-outline" size={44} color={Colors.primary} />
+            </View>
+            <Text style={styles.emptyTitle}>No Meetings Today</Text>
+            <Text style={styles.emptySub}>There are no meetings scheduled for today. Check back later.</Text>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.pageTitle}>Today's Meetings</Text>
+            <Text style={styles.pageSub}>
+              {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </Text>
+            {meetings.map(meeting => {
+              const typeColor = TYPE_COLORS[meeting.meeting_type] ?? '#475569';
+              return (
+                <View key={meeting.id} style={[styles.meetingCard, { borderLeftColor: typeColor }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.typeBadge, { color: typeColor }]}>{meeting.meeting_type}</Text>
+                    <Text style={styles.meetingTitle}>{meeting.title}</Text>
+                    <Text style={styles.meetingMeta}>
+                      {meeting.start_time?.slice(0, 5)} – {meeting.end_time?.slice(0, 5)} · {meeting.location_name}
+                    </Text>
+                  </View>
+                  {meeting.submitted ? (
+                    <View style={styles.submittedBadge}>
+                      <Ionicons name="checkmark-circle" size={16} color="#2D7A4F" />
+                      <Text style={styles.submittedText}>Done</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.submitMeetingBtn, { backgroundColor: Colors.primary }]}
+                      onPress={() => openForm(meeting)}
+                    >
+                      <Text style={styles.submitMeetingBtnText}>Submit</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+          </>
+        )
+      ) : (
+        /* ── PLC content ── */
+        !plcData ? (
+          <View style={styles.emptyWrap}>
+            <View style={[styles.emptyIconWrap, { backgroundColor: Colors.accentLight }]}>
+              <Ionicons name="people-outline" size={44} color={Colors.primary} />
+            </View>
+            <Text style={styles.emptyTitle}>No PLC Today</Text>
+            <Text style={styles.emptySub}>
+              There is no PLC session scheduled for today. Check back on your scheduled PLC day.
+            </Text>
+          </View>
+        ) : plcData.submitted ? (
+          <>
+            <View style={[styles.sessionCard, { borderColor: Colors.primary }]}>
+              <View style={styles.sessionCardLeft}>
+                <Text style={[styles.sessionTime, { color: Colors.primary }]}>
+                  {plcData.session.start_time?.slice(0, 5)} – {plcData.session.end_time?.slice(0, 5)}
+                </Text>
+                <Text style={styles.sessionTitle}>{plcData.session.title}</Text>
+                <Text style={styles.sessionLocation}>{plcData.session.location_name}</Text>
+              </View>
+              <Ionicons name="people" size={28} color={Colors.primary} />
+            </View>
+            <View style={styles.doneBanner}>
+              <Ionicons name="checkmark-circle" size={28} color="#2D7A4F" />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.doneTitle}>Attendance Submitted</Text>
+                <Text style={styles.doneSub}>
+                  Submitted at {new Date(plcData.submitted.submitted_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.sectionTitle}>Today's PLC Session</Text>
+            <View style={[styles.sessionCard, { borderColor: Colors.primary }]}>
+              <View style={styles.sessionCardLeft}>
+                <Text style={[styles.sessionTime, { color: Colors.primary }]}>
+                  {plcData.session.start_time?.slice(0, 5)} – {plcData.session.end_time?.slice(0, 5)}
+                </Text>
+                <Text style={styles.sessionTitle}>{plcData.session.title}</Text>
+                <Text style={styles.sessionLocation}>{plcData.session.location_name}</Text>
+              </View>
+              <Ionicons name="people" size={28} color={Colors.primary} />
             </View>
 
-            {meeting.submitted ? (
-              <View style={styles.submittedBadge}>
-                <Ionicons name="checkmark-circle" size={16} color="#2D7A4F" />
-                <Text style={styles.submittedText}>Done</Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={[styles.submitMeetingBtn, { backgroundColor: Colors.primary }]}
-                onPress={() => openForm(meeting)}
-              >
-                <Text style={styles.submitMeetingBtnText}>Submit</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        );
-      })}
+            <Text style={styles.sectionTitle}>GPS Location</Text>
+            {renderGps()}
+
+            <Text style={styles.sectionTitle}>
+              Discussion Agenda <Text style={styles.optionalTag}>(optional)</Text>
+            </Text>
+            <Input
+              placeholder="What was discussed today?"
+              value={agenda}
+              onChangeText={setAgenda}
+              multiline
+              numberOfLines={3}
+              style={{ marginBottom: 4 }}
+            />
+
+            <Text style={styles.sectionTitle}>PLC Venue Photo *</Text>
+            {renderPhoto()}
+
+            {!IS_WEB && renderQr('at the PLC room')}
+
+            <Button
+              title={submitting ? 'Submitting…' : 'Submit PLC Attendance'}
+              onPress={handlePlcSubmit}
+              disabled={submitting}
+              style={styles.submitBtn}
+            />
+          </>
+        )
+      )}
     </ScrollView>
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container:             { flex: 1, backgroundColor: '#F4EFE6' },
   content:               { padding: 16, paddingBottom: 48 },
+  // Segmented control
+  segmentWrap:           { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E2D9CC', marginBottom: 16, overflow: 'hidden' },
+  segment:               { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, gap: 6, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  segmentActive:         { backgroundColor: '#F0FAF4', borderBottomColor: '#15803D' },
+  segmentText:           { fontSize: 13, fontWeight: '700', color: '#A09282' },
+  // Loading / empty
+  loadingWrap:           { justifyContent: 'center', alignItems: 'center', paddingVertical: 60 },
+  loadingText:           { fontSize: 15, color: '#8C7E6E' },
+  emptyWrap:             { justifyContent: 'center', alignItems: 'center', paddingVertical: 60, paddingHorizontal: 16 },
+  emptyIconWrap:         { width: 96, height: 96, borderRadius: 48, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyTitle:            { fontSize: 22, fontWeight: '800', color: '#1C1208', marginBottom: 10, textAlign: 'center' },
+  emptySub:              { fontSize: 14, color: '#8C7E6E', textAlign: 'center', lineHeight: 22 },
+  // Meetings list
   pageTitle:             { fontSize: 22, fontWeight: '800', color: '#1C1208', marginBottom: 4 },
   pageSub:               { fontSize: 13, color: '#8C7E6E', marginBottom: 16 },
-  sectionTitle:          { fontSize: 13, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 16 },
-  optionalTag:           { fontSize: 11, fontWeight: '500', color: '#B0A898', textTransform: 'none' },
-  // Meeting list card
   meetingCard:           { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, borderWidth: 1.5, borderColor: '#E2D9CC', borderLeftWidth: 4, padding: 14, marginBottom: 12, gap: 12 },
   typeBadge:             { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 },
   meetingTitle:          { fontSize: 16, fontWeight: '800', color: '#1C1208', marginBottom: 3 },
@@ -525,19 +717,20 @@ const styles = StyleSheet.create({
   submittedText:         { fontSize: 12, fontWeight: '700', color: '#2D7A4F' },
   submitMeetingBtn:      { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
   submitMeetingBtnText:  { fontSize: 13, fontWeight: '700', color: '#fff' },
-  // Session card (form view)
+  // Form
   backRow:               { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   backText:              { fontSize: 14, color: '#8C7E6E', fontWeight: '600' },
+  sectionTitle:          { fontSize: 13, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 16 },
+  optionalTag:           { fontSize: 11, fontWeight: '500', color: '#B0A898', textTransform: 'none' },
   sessionCard:           { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, borderWidth: 2, padding: 16, marginBottom: 4 },
   sessionCardLeft:       { flex: 1 },
   sessionTime:           { fontSize: 12, fontWeight: '700', marginBottom: 4 },
   sessionTitle:          { fontSize: 17, fontWeight: '800', color: '#1C1208', marginBottom: 2 },
   sessionLocation:       { fontSize: 13, color: '#8C7E6E' },
-  // Empty state
-  emptyRoot:             { flex: 1, backgroundColor: '#F4EFE6', justifyContent: 'center', alignItems: 'center', padding: 32 },
-  emptyIconWrap:         { width: 96, height: 96, borderRadius: 48, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  emptyTitle:            { fontSize: 22, fontWeight: '800', color: '#1C1208', marginBottom: 10, textAlign: 'center' },
-  emptySub:              { fontSize: 14, color: '#8C7E6E', textAlign: 'center', lineHeight: 22 },
+  // Done banner
+  doneBanner:            { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E4F4EB', borderRadius: 14, borderWidth: 1.5, borderColor: '#A7D7B8', padding: 16, marginTop: 16 },
+  doneTitle:             { fontSize: 15, fontWeight: '700', color: '#1A4D2E' },
+  doneSub:               { fontSize: 13, color: '#2D7A4F', marginTop: 2 },
   // GPS
   gpsRow:                { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14 },
   gpsRowError:           { borderColor: '#E8A020', backgroundColor: '#FFFBF2' },
@@ -565,18 +758,16 @@ const styles = StyleSheet.create({
   cancelBtnText:         { color: '#fff', fontSize: 15, fontWeight: '600' },
   flipBtn:               { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
   flipBtnText:           { color: '#fff', fontSize: 28, fontWeight: '700' },
-  // QR scanner overlay
+  // QR overlay
   qrOverlay:             { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' },
   qrFrame:               { width: 220, height: 220, borderWidth: 3, borderColor: '#fff', borderRadius: 16, backgroundColor: 'transparent' },
   qrStatusStrip:         { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.75)', paddingVertical: 24, paddingHorizontal: 24, alignItems: 'center', gap: 10 },
   qrStatusText:          { color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center' },
   qrRetryText:           { color: '#FCD34D', fontSize: 13, fontWeight: '700', marginTop: 6 },
-  // QR form card — unverified
   qrScanCard:            { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#E2D9CC', padding: 14, marginBottom: 16, gap: 12 },
   qrScanIconWrap:        { width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   qrScanTitle:           { fontSize: 14, fontWeight: '700', marginBottom: 2 },
   qrScanSub:             { fontSize: 12, color: '#8C7E6E' },
-  // QR form card — verified
   qrVerifiedCard:        { flexDirection: 'row', alignItems: 'center', backgroundColor: '#E4F4EB', borderRadius: 14, borderWidth: 1.5, borderColor: '#A7D7B8', padding: 14, marginBottom: 16 },
   qrVerifiedTitle:       { fontSize: 14, fontWeight: '700', color: '#1A4D2E' },
   qrVerifiedSub:         { fontSize: 12, color: '#2D7A4F', marginTop: 1 },
