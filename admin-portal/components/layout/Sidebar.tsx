@@ -103,7 +103,12 @@ const sections: Section[] = [
   },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
@@ -112,7 +117,17 @@ export function Sidebar() {
   }, []);
 
   return (
-    <aside className="w-56 flex-shrink-0 flex flex-col" style={{ backgroundColor: '#0F172A' }}>
+    <aside
+      className={[
+        // Mobile: fixed, slides in/out from left over content
+        'fixed inset-y-0 left-0 z-50 w-64 flex flex-col flex-shrink-0',
+        'transition-transform duration-300 ease-in-out',
+        open ? 'translate-x-0' : '-translate-x-full',
+        // Desktop: static, always visible, original width
+        'md:relative md:w-56 md:translate-x-0 md:z-auto',
+      ].join(' ')}
+      style={{ backgroundColor: '#0F172A' }}
+    >
       {/* Logo */}
       <div className="h-16 flex items-center px-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
         <div className="flex items-center gap-3">
@@ -143,6 +158,7 @@ export function Sidebar() {
                 <Link
                   key={href}
                   href={href}
+                  onClick={onClose}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium mb-0.5 transition-all"
                   style={{
                     backgroundColor: active ? 'rgba(21,128,61,0.15)' : 'transparent',

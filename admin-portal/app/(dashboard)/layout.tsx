@@ -28,7 +28,8 @@ const pageTitles: Record<string, string> = {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router   = useRouter();
   const pathname = usePathname();
-  const [ready, setReady] = useState(false);
+  const [ready,       setReady]       = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const user = getUser();
@@ -38,6 +39,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setReady(true);
     }
   }, [router]);
+
+  // Close sidebar on route change (mobile navigation)
+  useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
   if (!ready) {
     return (
@@ -51,9 +55,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
       <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: '#F8FAFC' }}>
-        <Header title={title} />
+        <Header title={title} onMenuClick={() => setSidebarOpen(o => !o)} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>

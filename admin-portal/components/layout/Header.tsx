@@ -2,9 +2,12 @@
 import { useRouter } from 'next/navigation';
 import { clearUser, getUser } from '@/lib/auth';
 
-interface Props { title: string; }
+interface Props {
+  title: string;
+  onMenuClick: () => void;
+}
 
-export function Header({ title }: Props) {
+export function Header({ title, onMenuClick }: Props) {
   const router = useRouter();
   const user   = getUser();
   const initials = user?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() ?? 'A';
@@ -15,12 +18,26 @@ export function Header({ title }: Props) {
   }
 
   return (
-    <header className="h-16 bg-white flex items-center justify-between px-6 flex-shrink-0" style={{ borderBottom: '1px solid #F1F5F9', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-      <div>
-        <h1 className="text-base font-semibold" style={{ color: '#0F172A' }}>{title}</h1>
-        <p className="text-xs" style={{ color: '#94A3B8' }}>
-          {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        </p>
+    <header className="h-16 bg-white flex items-center justify-between px-4 md:px-6 flex-shrink-0" style={{ borderBottom: '1px solid #F1F5F9', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+      <div className="flex items-center gap-3">
+        {/* Hamburger — mobile only */}
+        <button
+          onClick={onMenuClick}
+          className="md:hidden flex flex-col justify-center items-center w-9 h-9 rounded-lg gap-1.5 flex-shrink-0"
+          style={{ color: '#64748B' }}
+          aria-label="Open menu"
+        >
+          <span className="block w-5 h-0.5 rounded-full bg-current" />
+          <span className="block w-5 h-0.5 rounded-full bg-current" />
+          <span className="block w-5 h-0.5 rounded-full bg-current" />
+        </button>
+
+        <div>
+          <h1 className="text-base font-semibold" style={{ color: '#0F172A' }}>{title}</h1>
+          <p className="text-xs hidden sm:block" style={{ color: '#94A3B8' }}>
+            {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
