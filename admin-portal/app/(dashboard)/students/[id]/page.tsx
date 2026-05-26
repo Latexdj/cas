@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { api } from '@/lib/api';
 import { validateStudentForm } from '@/lib/validations';
-import type { StudentProfile, Program } from '@/types/api';
+import type { StudentProfile, Program, House } from '@/types/api';
 
 const GENDERS   = ['Male', 'Female'];
 const RELIGIONS = ['Christianity', 'Islam', 'Traditional', 'Other'];
@@ -74,6 +74,7 @@ export default function StudentProfilePage() {
 
   const [profile,   setProfile]  = useState<StudentProfile | null>(null);
   const [programs,  setPrograms] = useState<Program[]>([]);
+  const [houses,    setHouses]   = useState<House[]>([]);
   const [loading,   setLoading]  = useState(true);
   const [loadErr,   setLoadErr]  = useState('');
   const [editing,   setEditing]  = useState(false);
@@ -88,12 +89,14 @@ export default function StudentProfilePage() {
 
   const load = useCallback(async () => {
     try {
-      const [{ data: s }, { data: progs }] = await Promise.all([
+      const [{ data: s }, { data: progs }, { data: hs }] = await Promise.all([
         api.get<StudentProfile>(`/api/students/${id}`),
         api.get<Program[]>('/api/programs'),
+        api.get<House[]>('/api/houses'),
       ]);
       setProfile(s);
       setPrograms(progs);
+      setHouses(hs);
       setForm(toForm(s));
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -286,7 +289,14 @@ export default function StudentProfilePage() {
             <EditField label="Date of Birth" name="date_of_birth" value={form.date_of_birth}  onChange={set} type="date" />
             <EditField label="JHS Index No." name="jhs_index_number" value={form.jhs_index_number} onChange={set} />
             <EditField label="Aggregate"    name="aggregate"      value={form.aggregate}      onChange={set} type="number" />
-            <EditField label="House"        name="house"          value={form.house}          onChange={set} />
+            <div>
+              <label className="text-xs text-gray-400 font-medium block mb-1">House</label>
+              <select value={form.house} onChange={e => set('house', e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                <option value="">— none —</option>
+                {houses.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
+              </select>
+            </div>
             <EditField label="Residential Status" name="residential_status" value={form.residential_status} onChange={set} options={RES_STATUSES} />
             <EditField label="Mobile No."   name="mobile_number"  value={form.mobile_number}  onChange={set} error={fieldErrors.mobile_number} />
             <EditField label="Hometown"     name="hometown"       value={form.hometown}       onChange={set} />

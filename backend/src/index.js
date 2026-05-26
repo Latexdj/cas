@@ -22,6 +22,7 @@ const schoolCalendarRoutes    = require('./routes/school-calendar');
 const teacherExcusesRoutes    = require('./routes/teacher-excuses');
 const superAdminRoutes        = require('./routes/superAdmin');
 const programRoutes           = require('./routes/programs');
+const houseRoutes             = require('./routes/houses');
 const classroomQrRoutes       = require('./routes/classroom-qr');
 const notificationsRoutes     = require('./routes/notifications');
 const auditLogRoutes          = require('./routes/audit-log');
@@ -78,6 +79,7 @@ app.use('/api/school-calendar',    schoolCalendarRoutes);
 app.use('/api/teacher-excuses',    teacherExcusesRoutes);
 app.use('/api/super-admin',        superAdminRoutes);
 app.use('/api/programs',           programRoutes);
+app.use('/api/houses',             houseRoutes);
 app.use('/api/classroom-qr',       classroomQrRoutes);
 app.use('/api/notifications',      notificationsRoutes);
 app.use('/api/audit-log',          auditLogRoutes);
@@ -104,6 +106,16 @@ async function runMigrations() {
       )
     `);
     await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS program_id UUID REFERENCES programs(id) ON DELETE SET NULL`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS houses (
+        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id  UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        notes      TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, name)
+      )
+    `);
     await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS photo_url TEXT`);
     await pool.query(`ALTER TABLE schools  ADD COLUMN IF NOT EXISTS logo_url  TEXT`);
     await pool.query(`

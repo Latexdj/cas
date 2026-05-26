@@ -74,6 +74,13 @@ export interface Program {
   student_count: number;
 }
 
+export interface House {
+  id: string;
+  name: string;
+  notes: string | null;
+  student_count: number;
+}
+
 export interface TimetableEntry {
   id: string;
   day_of_week: number;

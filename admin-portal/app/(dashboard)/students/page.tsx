@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { api } from '@/lib/api';
 import { validateStudentForm } from '@/lib/validations';
 import { Button } from '@/components/ui/Button';
-import type { Student, StudentProfile, Program, ClassItem } from '@/types/api';
+import type { Student, StudentProfile, Program, ClassItem, House } from '@/types/api';
 
 interface UploadResult { inserted: number; errors: { row: number; message: string }[]; }
 type ModalMode = 'add' | 'edit' | 'upload' | 'promote' | 'graduate' | null;
@@ -38,6 +38,7 @@ export default function StudentsPage() {
   const [classes,        setClasses]        = useState<string[]>([]);
   const [allClasses,     setAllClasses]     = useState<string[]>([]);
   const [programs,       setPrograms]       = useState<Program[]>([]);
+  const [houses,         setHouses]         = useState<House[]>([]);
   const [loading,        setLoading]        = useState(true);
   const [filterClass,    setFilterClass]    = useState('');
   const [filterStatus,   setFilterStatus]   = useState('Active');
@@ -71,15 +72,17 @@ export default function StudentsPage() {
       if (filterClass)   params.set('class_name', filterClass);
       if (filterProgram) params.set('program_id', filterProgram);
       if (filterStatus)  params.set('status', filterStatus || 'all');
-      const [stuRes, clsRes, allClsRes, progRes] = await Promise.allSettled([
+      const [stuRes, clsRes, allClsRes, progRes, houseRes] = await Promise.allSettled([
         api.get<Student[]>(`/api/students?${params}`),
         api.get<string[]>('/api/students/classes'),
         api.get<ClassItem[]>('/api/classes'),
         api.get<Program[]>('/api/programs'),
+        api.get<House[]>('/api/houses'),
       ]);
-      if (stuRes.status  === 'fulfilled') setStudents(stuRes.value.data);
-      if (clsRes.status  === 'fulfilled') setClasses(clsRes.value.data);
-      if (progRes.status === 'fulfilled') setPrograms(progRes.value.data);
+      if (stuRes.status   === 'fulfilled') setStudents(stuRes.value.data);
+      if (clsRes.status   === 'fulfilled') setClasses(clsRes.value.data);
+      if (progRes.status  === 'fulfilled') setPrograms(progRes.value.data);
+      if (houseRes.status === 'fulfilled') setHouses(houseRes.value.data);
       const fromStudents = clsRes.status  === 'fulfilled' ? clsRes.value.data : [];
       const fromDefined  = allClsRes.status === 'fulfilled' ? allClsRes.value.data.map(c => c.name) : [];
       const merged = Array.from(new Set([...fromDefined, ...fromStudents])).sort();
@@ -418,7 +421,10 @@ export default function StudentsPage() {
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>House</label>
-                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.house} onChange={sf('house')} placeholder="e.g. Unity" />
+                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.house} onChange={sf('house')}>
+                        <option value="">Select house…</option>
+                        {houses.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
+                      </select>
                     </div>
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Aggregate</label>
