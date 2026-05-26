@@ -65,7 +65,12 @@ export default function StudentResultScreen() {
             style={[styles.subjectRow, i > 0 && { borderTopWidth: 1, borderTopColor: Colors.border }]}
           >
             <View style={{ flex: 2 }}>
-              <Text style={[styles.subjectName, { color: Colors.text }]} numberOfLines={1}>{s.subject}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={[styles.subjectName, { color: Colors.text }]} numberOfLines={1}>{s.subject}</Text>
+                {s.is_imported && (
+                  <Text style={styles.importedBadge}>IMP</Text>
+                )}
+              </View>
               <Text style={[styles.subjectPos, { color: Colors.muted }]}>
                 {s.subject_position ? `${ordinal(s.subject_position)} / ${s.class_size}` : ''}
                 {s.remark && s.remark !== '-' ? ` · ${s.remark}` : ''}
@@ -99,4 +104,5 @@ const styles = StyleSheet.create({
   subjectName:   { fontSize: 12, fontWeight: '700' },
   subjectPos:    { fontSize: 10, marginTop: 2 },
   subjectNum:    { flex: 1, fontSize: 13, textAlign: 'center' },
+  importedBadge: { fontSize: 8, fontWeight: '800', color: '#92400E', backgroundColor: '#FEF3C7', paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 },
 });

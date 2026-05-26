@@ -1,11 +1,13 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
-const { authenticate, requireActiveSubscription } = require('../middleware/auth');
+const { authenticate, requireActiveSubscription, adminOnly } = require('../middleware/auth');
 
 router.use(authenticate, requireActiveSubscription);
 
 // GET /api/results?academic_year_id=&semester=&class_name=
-// Returns calculated results (CA, exam, total, grade, position) for all students in a class
+// Returns calculated results (CA, exam, total, grade, position) for all students in a class.
+// If a student has no live CA/exam data for a subject but has imported data, the imported
+// values are returned instead (marked with is_imported: true).
 router.get('/', async (req, res, next) => {
   try {
     const { academic_year_id, semester, class_name } = req.query;
@@ -71,8 +73,37 @@ router.get('/', async (req, res, next) => {
       [req.schoolId, academic_year_id, parseInt(semester), class_name]
     );
 
+    // Get imported results for this year/semester for students in this class
+    const studentIds = students.map(s => s.id);
+    let importedRows = [];
+    if (studentIds.length > 0) {
+      const { rows } = await pool.query(
+        `SELECT student_id, subject, class_score, exam_score, total_score, grade, remarks
+         FROM results_import
+         WHERE school_id = $1
+           AND academic_year_id = $2
+           AND semester = $3
+           AND student_id = ANY($4)`,
+        [req.schoolId, academic_year_id, parseInt(semester), studentIds]
+      );
+      importedRows = rows;
+    }
+
+    // importedData[studentId][subject] = { class_score, exam_score, total_score, grade, remarks }
+    const importedData = {};
+    for (const r of importedRows) {
+      if (!importedData[r.student_id]) importedData[r.student_id] = {};
+      importedData[r.student_id][r.subject] = {
+        class_score: r.class_score != null ? parseFloat(r.class_score) : null,
+        exam_score:  r.exam_score  != null ? parseFloat(r.exam_score)  : null,
+        total_score: r.total_score != null ? parseFloat(r.total_score) : null,
+        grade:       r.grade   || '-',
+        remarks:     r.remarks || '-',
+      };
+    }
+
     // Group assessments by student → subject → mode → [scores]
-    const caData = {}; // { [studentId]: { [subject]: { [modeId]: [{ score, max_score }] } } }
+    const caData = {};
     for (const a of assessments) {
       if (!caData[a.student_id]) caData[a.student_id] = {};
       if (!caData[a.student_id][a.subject]) caData[a.student_id][a.subject] = {};
@@ -81,16 +112,17 @@ router.get('/', async (req, res, next) => {
     }
 
     // Group exam scores by student → subject
-    const examData = {}; // { [studentId]: { [subject]: { score, max_score } } }
+    const examData = {};
     for (const e of examScores) {
       if (!examData[e.student_id]) examData[e.student_id] = {};
       examData[e.student_id][e.subject] = { score: parseFloat(e.score), max_score: parseFloat(e.max_score) };
     }
 
-    // Collect all subjects present (from assessments + exam scores)
+    // Collect all subjects (live + imported)
     const allSubjects = new Set();
     for (const a of assessments) allSubjects.add(a.subject);
     for (const e of examScores) allSubjects.add(e.subject);
+    for (const r of importedRows) allSubjects.add(r.subject);
 
     // Grade lookup
     function getGrade(total, examBody) {
@@ -105,31 +137,50 @@ router.get('/', async (req, res, next) => {
     }
 
     // Calculate per-student, per-subject results
-    const subjectResults = {}; // { [subject]: [{ student_id, ca_score, exam_score, total }] }
+    const subjectResults = {};
     for (const subject of allSubjects) {
       subjectResults[subject] = [];
       for (const st of students) {
-        // CA calculation
-        let caScore = 0;
-        const studentSubjectModes = caData[st.id]?.[subject] || {};
-        for (const mode of modes) {
-          const modeScores = studentSubjectModes[mode.id] || [];
-          if (modeScores.length === 0) continue;
-          // Average percentage across instances of this mode
-          const avgPct = modeScores.reduce((sum, s) => sum + (s.score / s.max_score * 100), 0) / modeScores.length;
-          // Contribution = avgPct * modeContribution / 100
-          caScore += (avgPct * parseFloat(mode.ca_contribution)) / 100;
+        const hasLiveCA   = !!(caData[st.id]?.[subject]);
+        const hasLiveExam = !!(examData[st.id]?.[subject]);
+        const hasImport   = !!(importedData[st.id]?.[subject]);
+
+        if (!hasLiveCA && !hasLiveExam && hasImport) {
+          // Use imported data directly
+          const imp = importedData[st.id][subject];
+          subjectResults[subject].push({
+            student_id:  st.id,
+            ca_score:    imp.class_score,
+            exam_score:  imp.exam_score,
+            total:       imp.total_score,
+            grade:       imp.grade,
+            remark:      imp.remarks,
+            is_imported: true,
+          });
+        } else {
+          // Live calculation
+          let caScore = 0;
+          const studentSubjectModes = caData[st.id]?.[subject] || {};
+          for (const mode of modes) {
+            const modeScores = studentSubjectModes[mode.id] || [];
+            if (modeScores.length === 0) continue;
+            const avgPct = modeScores.reduce((sum, s) => sum + (s.score / s.max_score * 100), 0) / modeScores.length;
+            caScore += (avgPct * parseFloat(mode.ca_contribution)) / 100;
+          }
+          const scaledCA = totalConfiguredCA > 0 ? (caScore / totalConfiguredCA) * caPercentage : caScore;
+
+          const examEntry = examData[st.id]?.[subject];
+          const examScore = examEntry ? (examEntry.score / examEntry.max_score) * examPercentage : null;
+          const total = (examScore != null) ? Math.round((scaledCA + examScore) * 10) / 10 : null;
+
+          subjectResults[subject].push({
+            student_id:  st.id,
+            ca_score:    Math.round(scaledCA * 10) / 10,
+            exam_score:  examScore != null ? Math.round(examScore * 10) / 10 : null,
+            total,
+            is_imported: false,
+          });
         }
-        // Scale CA to caPercentage if contributions don't sum to caPercentage
-        const scaledCA = totalConfiguredCA > 0 ? (caScore / totalConfiguredCA) * caPercentage : caScore;
-
-        // Exam score
-        const examEntry = examData[st.id]?.[subject];
-        const examScore = examEntry ? (examEntry.score / examEntry.max_score) * examPercentage : null;
-
-        const total = (examScore != null) ? Math.round((scaledCA + examScore) * 10) / 10 : null;
-
-        subjectResults[subject].push({ student_id: st.id, ca_score: Math.round(scaledCA * 10) / 10, exam_score: examScore != null ? Math.round(examScore * 10) / 10 : null, total });
       }
 
       // Assign subject positions (rank by total, descending)
@@ -156,16 +207,24 @@ router.get('/', async (req, res, next) => {
       for (const subject of allSubjects) {
         const row = subjectResults[subject].find(r => r.student_id === st.id);
         if (!row) continue;
-        const gradeInfo = row.total != null ? getGrade(row.total, st.exam_body) : { grade: '-', remark: '-' };
+
+        let gradeInfo;
+        if (row.is_imported) {
+          gradeInfo = { grade: row.grade, remark: row.remark };
+        } else {
+          gradeInfo = row.total != null ? getGrade(row.total, st.exam_body) : { grade: '-', remark: '-' };
+        }
+
         subjectRows.push({
           subject,
-          ca_score:        row.ca_score,
-          exam_score:      row.exam_score,
-          total:           row.total,
-          grade:           gradeInfo.grade,
-          remark:          gradeInfo.remark,
+          ca_score:         row.ca_score,
+          exam_score:       row.exam_score,
+          total:            row.total,
+          grade:            gradeInfo.grade,
+          remark:           gradeInfo.remark,
           subject_position: row.subject_position,
           class_size:       row.class_size,
+          is_imported:      row.is_imported,
         });
         if (row.total != null) { totalSum += row.total; subjectCount++; }
       }
@@ -174,14 +233,14 @@ router.get('/', async (req, res, next) => {
       const overallGrade = average != null ? getGrade(average, st.exam_body) : { grade: '-', remark: '-' };
 
       return {
-        student_id:    st.id,
-        student_code:  st.student_code,
-        name:          st.name,
-        exam_body:     st.exam_body,
-        subjects:      subjectRows.sort((a, b) => a.subject.localeCompare(b.subject)),
+        student_id:      st.id,
+        student_code:    st.student_code,
+        name:            st.name,
+        exam_body:       st.exam_body,
+        subjects:        subjectRows.sort((a, b) => a.subject.localeCompare(b.subject)),
         average,
-        overall_grade: overallGrade.grade,
-        ca_percentage: caPercentage,
+        overall_grade:   overallGrade.grade,
+        ca_percentage:   caPercentage,
         exam_percentage: examPercentage,
       };
     });
@@ -199,37 +258,105 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/results/student/:student_id?academic_year_id=&semester=
-router.get('/student/:student_id', async (req, res, next) => {
+// POST /api/results/import  (admin only)
+// Body: { rows: [{ student_code, academic_year_name, semester, subject, class_score, exam_score, total_score, grade, remarks }] }
+router.post('/import', adminOnly, async (req, res, next) => {
   try {
-    const { academic_year_id, semester } = req.query;
-    if (!academic_year_id || !semester) {
-      return res.status(400).json({ error: 'academic_year_id and semester are required' });
+    const { rows } = req.body;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: 'rows array is required and must not be empty' });
     }
 
-    const { rows: [student] } = await pool.query(
-      `SELECT s.id, s.name, s.student_code, s.class_name, p.exam_body
-       FROM students s
-       LEFT JOIN programs p ON p.id = s.program_id
-       WHERE s.id = $1 AND s.school_id = $2`,
-      [req.params.student_id, req.schoolId]
-    );
-    if (!student) return res.status(404).json({ error: 'Student not found' });
+    // Load all students and academic years for this school once
+    const [studentsRes, yearsRes] = await Promise.all([
+      pool.query(`SELECT id, UPPER(student_code) AS student_code FROM students WHERE school_id = $1`, [req.schoolId]),
+      pool.query(`SELECT id, name FROM academic_years WHERE school_id = $1`, [req.schoolId]),
+    ]);
 
-    // Reuse the class results endpoint logic via a redirect-friendly helper query
-    const { rows: classResults } = await pool.query(
-      `SELECT 1 FROM students WHERE id = $1 AND school_id = $2`,
-      [req.params.student_id, req.schoolId]
-    );
-    if (!classResults.length) return res.status(403).json({ error: 'Access denied' });
+    const studentMap = {};
+    for (const s of studentsRes.rows) studentMap[s.student_code] = s.id;
 
-    // Forward to the class results logic
-    req.query.class_name = student.class_name;
-    req.query.student_filter = req.params.student_id;
-    // Re-use the main GET / handler by building the URL and fetching internally would be complex;
-    // instead, let the frontend call GET /api/results?class_name=... and filter client-side,
-    // or use this endpoint for the report card.
-    res.json({ student, message: 'Use GET /api/results?class_name= to get full class results' });
+    // Normalize year name: keep only digits so "2024_2025" and "2024/2025" and "2024-2025" all match
+    function normalizeYear(name) {
+      return String(name || '').replace(/\D/g, '');
+    }
+    const yearMap = {};
+    for (const y of yearsRes.rows) yearMap[normalizeYear(y.name)] = y.id;
+
+    let inserted = 0, updated = 0, skipped = 0;
+    const errors = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 1;
+
+      const studentId = studentMap[String(row.student_code || '').toUpperCase()];
+      if (!studentId) {
+        errors.push({ row: rowNum, student_code: row.student_code, error: `Student not found` });
+        skipped++;
+        continue;
+      }
+
+      const yearId = yearMap[normalizeYear(row.academic_year_name)];
+      if (!yearId) {
+        errors.push({ row: rowNum, student_code: row.student_code, error: `Academic year not found: ${row.academic_year_name}` });
+        skipped++;
+        continue;
+      }
+
+      const semester = parseInt(row.semester);
+      if (![1, 2].includes(semester)) {
+        errors.push({ row: rowNum, student_code: row.student_code, error: `Invalid semester: ${row.semester}` });
+        skipped++;
+        continue;
+      }
+
+      const subject = String(row.subject || '').trim();
+      if (!subject) {
+        errors.push({ row: rowNum, student_code: row.student_code, error: `Subject is missing` });
+        skipped++;
+        continue;
+      }
+
+      try {
+        const result = await pool.query(
+          `INSERT INTO results_import
+             (school_id, student_id, academic_year_id, semester, subject,
+              class_score, exam_score, total_score, grade, remarks)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           ON CONFLICT (school_id, student_id, academic_year_id, semester, subject)
+           DO UPDATE SET
+             class_score  = EXCLUDED.class_score,
+             exam_score   = EXCLUDED.exam_score,
+             total_score  = EXCLUDED.total_score,
+             grade        = EXCLUDED.grade,
+             remarks      = EXCLUDED.remarks,
+             imported_at  = now()
+           RETURNING (xmax = 0) AS was_inserted`,
+          [
+            req.schoolId, studentId, yearId, semester, subject,
+            row.class_score  != null && row.class_score  !== '' ? parseFloat(row.class_score)  : null,
+            row.exam_score   != null && row.exam_score   !== '' ? parseFloat(row.exam_score)   : null,
+            row.total_score  != null && row.total_score  !== '' ? parseFloat(row.total_score)  : null,
+            row.grade   ? String(row.grade).trim()   : null,
+            row.remarks ? String(row.remarks).trim() : null,
+          ]
+        );
+        if (result.rows[0].was_inserted) inserted++;
+        else updated++;
+      } catch (err) {
+        errors.push({ row: rowNum, student_code: row.student_code, error: err.message });
+        skipped++;
+      }
+    }
+
+    res.json({
+      total:    rows.length,
+      inserted,
+      updated,
+      skipped,
+      errors:   errors.slice(0, 100),
+    });
   } catch (err) { next(err); }
 });
 

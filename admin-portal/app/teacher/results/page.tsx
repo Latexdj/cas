@@ -196,7 +196,12 @@ function ResultsContent() {
                   <tbody className="divide-y divide-[#F4EFE6]">
                     {selected.subjects.map(s => (
                       <tr key={s.subject}>
-                        <td className="py-2.5 font-medium text-[#2C2218] pr-3">{s.subject}</td>
+                        <td className="py-2.5 font-medium text-[#2C2218] pr-3">
+                          {s.subject}
+                          {s.is_imported && (
+                            <span className="ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 align-middle">IMP</span>
+                          )}
+                        </td>
                         <td className="py-2.5 text-center text-[#2C2218]">{s.ca_score ?? '—'}</td>
                         <td className="py-2.5 text-center text-[#2C2218]">{s.exam_score ?? '—'}</td>
                         <td className="py-2.5 text-center font-bold" style={{ color: primary }}>{s.total ?? '—'}</td>

@@ -389,6 +389,27 @@ async function runMigrations() {
         UNIQUE (school_id, day_of_week, start_time)
       )
     `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS results_import (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        student_id       UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        academic_year_id UUID NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        semester         SMALLINT NOT NULL CHECK (semester IN (1, 2)),
+        subject          TEXT NOT NULL,
+        class_score      NUMERIC(6,2),
+        exam_score       NUMERIC(6,2),
+        total_score      NUMERIC(6,2),
+        grade            TEXT,
+        remarks          TEXT,
+        imported_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, student_id, academic_year_id, semester, subject)
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_results_import_lookup
+        ON results_import(school_id, academic_year_id, semester, student_id)
+    `);
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

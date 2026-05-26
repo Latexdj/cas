@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import type { AcademicYear, StudentResult } from '@/types/api';
 
@@ -30,6 +30,286 @@ function GradeBadge({ grade, remark }: { grade: string; remark: string }) {
   );
 }
 
+// ── CSV column names (case-insensitive) accepted from the Google Sheet ──
+const COL_MAP: Record<string, string> = {
+  'student id':        'student_code',
+  'student_id':        'student_code',
+  'student_code':      'student_code',
+  'academic year':     'academic_year_name',
+  'academic_year':     'academic_year_name',
+  'academic year name':'academic_year_name',
+  'semester':          'semester',
+  'subject':           'subject',
+  'class score':       'class_score',
+  'class_score':       'class_score',
+  'exam score':        'exam_score',
+  'exam_score':        'exam_score',
+  'total score':       'total_score',
+  'total_score':       'total_score',
+  'grade':             'grade',
+  'remarks':           'remarks',
+  'remark':            'remarks',
+  'category':          '_ignore',
+  'student name':      '_ignore',
+  'student_name':      '_ignore',
+  'timestamp':         '_ignore',
+};
+
+interface ImportRow {
+  student_code: string;
+  academic_year_name: string;
+  semester: string;
+  subject: string;
+  class_score: string;
+  exam_score: string;
+  total_score: string;
+  grade: string;
+  remarks: string;
+  [k: string]: string;
+}
+
+function parseCsv(text: string): ImportRow[] {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+  const colKeys  = headers.map(h => COL_MAP[h.toLowerCase()] ?? null);
+
+  return lines.slice(1).filter(l => l.trim()).map(line => {
+    const cells = line.split(',').map(c => c.replace(/^"|"$/g, '').trim());
+    const row: ImportRow = {
+      student_code: '', academic_year_name: '', semester: '', subject: '',
+      class_score: '', exam_score: '', total_score: '', grade: '', remarks: '',
+    };
+    headers.forEach((_, i) => {
+      const key = colKeys[i];
+      if (key && key !== '_ignore') row[key] = cells[i] ?? '';
+    });
+    return row;
+  });
+}
+
+interface ImportResult {
+  total: number; inserted: number; updated: number; skipped: number;
+  errors: { row: number; student_code: string; error: string }[];
+}
+
+function ImportModal({ onClose }: { onClose: () => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [csvText,   setCsvText]   = useState('');
+  const [preview,   setPreview]   = useState<ImportRow[]>([]);
+  const [loading,   setLoading]   = useState(false);
+  const [result,    setResult]    = useState<ImportResult | null>(null);
+  const [error,     setError]     = useState('');
+
+  function handleText(text: string) {
+    setCsvText(text);
+    setPreview(parseCsv(text).slice(0, 10));
+    setResult(null);
+    setError('');
+  }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => handleText(String(ev.target?.result ?? ''));
+    reader.readAsText(file);
+  }
+
+  async function handleImport() {
+    const rows = parseCsv(csvText);
+    if (rows.length === 0) { setError('No valid rows parsed. Check your CSV format.'); return; }
+    setLoading(true); setError(''); setResult(null);
+    try {
+      const { data } = await api.post<ImportResult>('/api/results/import', { rows });
+      setResult(data);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Import failed. Please try again.');
+    } finally { setLoading(false); }
+  }
+
+  const allRows = parseCsv(csvText);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
+          <div className="flex-1">
+            <p className="font-bold text-slate-800">Import Historical Results</p>
+            <p className="text-xs text-slate-500 mt-0.5">Upload a CSV exported from Google Sheets</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {/* Expected columns note */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-xs text-blue-700">
+            <p className="font-semibold mb-1">Expected CSV columns (Google Sheets export)</p>
+            <p className="opacity-80">Timestamp · Student ID · Student Name · Academic Year · Semester · Subject · Category · Class Score · Exam Score · Total Score · Grade · Remarks</p>
+          </div>
+
+          {/* File upload */}
+          {!result && (
+            <div>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Upload CSV file</label>
+              <div className="flex gap-3 items-center">
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Choose file…
+                </button>
+                <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFile} />
+                <span className="text-xs text-slate-400">or paste CSV text below</span>
+              </div>
+            </div>
+          )}
+
+          {/* Paste area */}
+          {!result && (
+            <div>
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">
+                Paste CSV text
+              </label>
+              <textarea
+                value={csvText}
+                onChange={e => handleText(e.target.value)}
+                rows={6}
+                placeholder={"Timestamp,Student ID,Student Name,Academic Year,Semester,Subject,...\n6/10/2025,SASHTS001424,DUMA RICHARD,2024_2025,1,Math,..."}
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+              />
+            </div>
+          )}
+
+          {/* Preview */}
+          {!result && preview.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                Preview — {allRows.length} rows total{allRows.length > 10 ? ' (showing first 10)' : ''}
+              </p>
+              <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50">
+                    <tr className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                      <th className="px-3 py-2 text-left">Student ID</th>
+                      <th className="px-3 py-2 text-left">Year</th>
+                      <th className="px-3 py-2 text-center">Sem</th>
+                      <th className="px-3 py-2 text-left">Subject</th>
+                      <th className="px-3 py-2 text-center">CA</th>
+                      <th className="px-3 py-2 text-center">Exam</th>
+                      <th className="px-3 py-2 text-center">Total</th>
+                      <th className="px-3 py-2 text-center">Grade</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {preview.map((r, i) => (
+                      <tr key={i} className="hover:bg-slate-50">
+                        <td className="px-3 py-1.5 font-mono">{r.student_code}</td>
+                        <td className="px-3 py-1.5">{r.academic_year_name}</td>
+                        <td className="px-3 py-1.5 text-center">{r.semester}</td>
+                        <td className="px-3 py-1.5 max-w-[180px] truncate">{r.subject}</td>
+                        <td className="px-3 py-1.5 text-center">{r.class_score}</td>
+                        <td className="px-3 py-1.5 text-center">{r.exam_score}</td>
+                        <td className="px-3 py-1.5 text-center font-bold">{r.total_score}</td>
+                        <td className="px-3 py-1.5 text-center">{r.grade}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>}
+
+          {/* Result summary */}
+          {result && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { label: 'Total rows',  value: result.total,    color: 'text-slate-800' },
+                  { label: 'Inserted',    value: result.inserted, color: 'text-green-700' },
+                  { label: 'Updated',     value: result.updated,  color: 'text-blue-700'  },
+                  { label: 'Skipped',     value: result.skipped,  color: 'text-amber-700' },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="bg-slate-50 rounded-xl p-3 text-center">
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">{label}</p>
+                    <p className={`text-2xl font-bold mt-0.5 ${color}`}>{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {result.errors.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                    Errors ({result.errors.length}{result.errors.length === 100 ? '+' : ''})
+                  </p>
+                  <div className="border border-red-200 rounded-xl overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead className="bg-red-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-red-700 font-semibold">Row</th>
+                          <th className="px-3 py-2 text-left text-red-700 font-semibold">Student ID</th>
+                          <th className="px-3 py-2 text-left text-red-700 font-semibold">Error</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-red-100">
+                        {result.errors.map((e, i) => (
+                          <tr key={i}>
+                            <td className="px-3 py-1.5 text-slate-600">{e.row}</td>
+                            <td className="px-3 py-1.5 font-mono text-slate-700">{e.student_code}</td>
+                            <td className="px-3 py-1.5 text-red-700">{e.error}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {result.skipped === 0 && result.errors.length === 0 && (
+                <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-center font-semibold">
+                  All rows imported successfully!
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+          {result ? (
+            <button onClick={onClose} className="px-5 py-2 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700">
+              Done
+            </button>
+          ) : (
+            <>
+              <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={loading || allRows.length === 0}
+                className="px-5 py-2 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {loading && <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />}
+                {loading ? 'Importing…' : `Import ${allRows.length} rows`}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ResultsPage() {
   const [years,      setYears]      = useState<AcademicYear[]>([]);
   const [classes,    setClasses]    = useState<string[]>([]);
@@ -41,6 +321,7 @@ export default function ResultsPage() {
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [error,      setError]      = useState('');
   const [selected,   setSelected]   = useState<StudentResult | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -103,6 +384,17 @@ export default function ResultsPage() {
             <option value="">— Select class —</option>
             {classes.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+        </div>
+        <div className="ml-auto">
+          <button
+            onClick={() => setShowImport(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-slate-800 text-white hover:bg-slate-700"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 8l-4-4-4 4M12 4v12" />
+            </svg>
+            Import Historical
+          </button>
         </div>
       </div>
 
@@ -260,7 +552,12 @@ export default function ResultsPage() {
                   <tbody className="divide-y divide-slate-100">
                     {selected.subjects.map(s => (
                       <tr key={s.subject} className="hover:bg-slate-50">
-                        <td className="px-3 py-2.5 font-medium text-slate-800">{s.subject}</td>
+                        <td className="px-3 py-2.5 font-medium text-slate-800">
+                          {s.subject}
+                          {s.is_imported && (
+                            <span className="ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 align-middle">IMPORTED</span>
+                          )}
+                        </td>
                         <td className="px-3 py-2.5 text-center"><ScoreBadge value={s.ca_score} /></td>
                         <td className="px-3 py-2.5 text-center"><ScoreBadge value={s.exam_score} /></td>
                         <td className="px-3 py-2.5 text-center"><ScoreBadge value={s.total} /></td>
@@ -280,6 +577,8 @@ export default function ResultsPage() {
           </div>
         </div>
       )}
+
+      {showImport && <ImportModal onClose={() => setShowImport(false)} />}
     </div>
   );
 }

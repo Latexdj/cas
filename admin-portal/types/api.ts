@@ -124,6 +124,7 @@ export interface SubjectResult {
   remark: string;
   subject_position: number | null;
   class_size: number;
+  is_imported?: boolean;
 }
 
 export interface StudentResult {
