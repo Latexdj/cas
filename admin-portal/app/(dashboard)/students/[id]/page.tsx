@@ -72,10 +72,11 @@ export default function StudentProfilePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
-  const [profile,  setProfile]  = useState<StudentProfile | null>(null);
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [editing,  setEditing]  = useState(false);
+  const [profile,   setProfile]  = useState<StudentProfile | null>(null);
+  const [programs,  setPrograms] = useState<Program[]>([]);
+  const [loading,   setLoading]  = useState(true);
+  const [loadErr,   setLoadErr]  = useState('');
+  const [editing,   setEditing]  = useState(false);
   const [form,     setForm]     = useState<Record<string, string>>({});
   const [saving,   setSaving]   = useState(false);
   const [saveErr,  setSaveErr]  = useState('');
@@ -94,6 +95,9 @@ export default function StudentProfilePage() {
       setProfile(s);
       setPrograms(progs);
       setForm(toForm(s));
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setLoadErr(msg ?? 'Failed to load student profile.');
     } finally { setLoading(false); }
   }, [id]);
 
@@ -171,7 +175,8 @@ export default function StudentProfilePage() {
     );
   }
 
-  if (!profile) return <div className="p-6 text-sm text-gray-500">Student not found.</div>;
+  if (loadErr)   return <div className="p-6 text-sm text-red-500">{loadErr}</div>;
+  if (!profile)  return <div className="p-6 text-sm text-gray-500">Student not found.</div>;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">

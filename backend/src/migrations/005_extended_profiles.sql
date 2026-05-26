@@ -34,6 +34,7 @@ ALTER TABLE teachers
 ALTER TABLE students
   ADD COLUMN IF NOT EXISTS jhs_index_number    TEXT,
   ADD COLUMN IF NOT EXISTS date_of_birth       DATE,
+  ADD COLUMN IF NOT EXISTS gender              TEXT,
   ADD COLUMN IF NOT EXISTS hometown            TEXT,
   ADD COLUMN IF NOT EXISTS residential_address TEXT,
   ADD COLUMN IF NOT EXISTS ghana_card_number   TEXT,

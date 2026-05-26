@@ -93,6 +93,7 @@ export default function TeacherProfilePage() {
 
   const [profile,  setProfile]  = useState<TeacherProfile | null>(null);
   const [loading,  setLoading]  = useState(true);
+  const [loadErr,  setLoadErr]  = useState('');
   const [editing,  setEditing]  = useState(false);
   const [form,     setForm]     = useState<Record<string, string>>({});
   const [saving,   setSaving]   = useState(false);
@@ -110,6 +111,9 @@ export default function TeacherProfilePage() {
       const { data } = await api.get<TeacherProfile>(`/api/teachers/${id}`);
       setProfile(data);
       setForm(toForm(data));
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setLoadErr(msg ?? 'Failed to load teacher profile.');
     } finally { setLoading(false); }
   }, [id]);
 
@@ -207,6 +211,7 @@ export default function TeacherProfilePage() {
   }
 
   if (!profile) {
+    if (loadErr)  return <div className="p-6 text-sm text-red-500">{loadErr}</div>;
     return <div className="p-6 text-sm text-gray-500">Teacher not found.</div>;
   }
 
