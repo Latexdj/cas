@@ -259,7 +259,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // POST /api/results/import  (admin only)
-// Body: { rows: [{ student_code, academic_year_name, semester, subject, class_score, exam_score, total_score, grade, remarks }] }
+// Body: { rows: [...] }  — called in chunks from the frontend; processes in bulk via unnest()
 router.post('/import', adminOnly, async (req, res, next) => {
   try {
     const { rows } = req.body;
@@ -267,7 +267,7 @@ router.post('/import', adminOnly, async (req, res, next) => {
       return res.status(400).json({ error: 'rows array is required and must not be empty' });
     }
 
-    // Load all students and academic years for this school once
+    // Load lookup tables once per request
     const [studentsRes, yearsRes] = await Promise.all([
       pool.query(`SELECT id, UPPER(student_code) AS student_code FROM students WHERE school_id = $1`, [req.schoolId]),
       pool.query(`SELECT id, name FROM academic_years WHERE school_id = $1`, [req.schoolId]),
@@ -276,87 +276,113 @@ router.post('/import', adminOnly, async (req, res, next) => {
     const studentMap = {};
     for (const s of studentsRes.rows) studentMap[s.student_code] = s.id;
 
-    // Normalize year name: keep only digits so "2024_2025" and "2024/2025" and "2024-2025" all match
     function normalizeYear(name) {
       return String(name || '').replace(/\D/g, '');
     }
     const yearMap = {};
     for (const y of yearsRes.rows) yearMap[normalizeYear(y.name)] = y.id;
 
-    let inserted = 0, updated = 0, skipped = 0;
-    const errors = [];
+    // Validate all rows first — no DB queries here, just map lookups
+    const validRows = [];
+    const errors    = [];
+    let skipped = 0;
 
     for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
+      const row    = rows[i];
       const rowNum = i + 1;
 
       const studentId = studentMap[String(row.student_code || '').toUpperCase()];
       if (!studentId) {
-        errors.push({ row: rowNum, student_code: row.student_code, error: `Student not found` });
-        skipped++;
-        continue;
+        errors.push({ row: rowNum, student_code: row.student_code, error: 'Student not found' });
+        skipped++; continue;
       }
 
       const yearId = yearMap[normalizeYear(row.academic_year_name)];
       if (!yearId) {
         errors.push({ row: rowNum, student_code: row.student_code, error: `Academic year not found: ${row.academic_year_name}` });
-        skipped++;
-        continue;
+        skipped++; continue;
       }
 
       const semester = parseInt(row.semester);
       if (![1, 2].includes(semester)) {
         errors.push({ row: rowNum, student_code: row.student_code, error: `Invalid semester: ${row.semester}` });
-        skipped++;
-        continue;
+        skipped++; continue;
       }
 
       const subject = String(row.subject || '').trim();
       if (!subject) {
-        errors.push({ row: rowNum, student_code: row.student_code, error: `Subject is missing` });
-        skipped++;
-        continue;
+        errors.push({ row: rowNum, student_code: row.student_code, error: 'Subject is missing' });
+        skipped++; continue;
       }
 
-      try {
-        const result = await pool.query(
-          `INSERT INTO results_import
-             (school_id, student_id, academic_year_id, semester, subject,
-              class_score, exam_score, total_score, grade, remarks)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-           ON CONFLICT (school_id, student_id, academic_year_id, semester, subject)
-           DO UPDATE SET
-             class_score  = EXCLUDED.class_score,
-             exam_score   = EXCLUDED.exam_score,
-             total_score  = EXCLUDED.total_score,
-             grade        = EXCLUDED.grade,
-             remarks      = EXCLUDED.remarks,
-             imported_at  = now()
-           RETURNING (xmax = 0) AS was_inserted`,
-          [
-            req.schoolId, studentId, yearId, semester, subject,
-            row.class_score  != null && row.class_score  !== '' ? parseFloat(row.class_score)  : null,
-            row.exam_score   != null && row.exam_score   !== '' ? parseFloat(row.exam_score)   : null,
-            row.total_score  != null && row.total_score  !== '' ? parseFloat(row.total_score)  : null,
-            row.grade   ? String(row.grade).trim()   : null,
-            row.remarks ? String(row.remarks).trim() : null,
-          ]
-        );
-        if (result.rows[0].was_inserted) inserted++;
-        else updated++;
-      } catch (err) {
-        errors.push({ row: rowNum, student_code: row.student_code, error: err.message });
-        skipped++;
-      }
+      validRows.push({
+        studentId, yearId, semester, subject,
+        classScore: row.class_score != null && row.class_score !== '' ? parseFloat(row.class_score) : null,
+        examScore:  row.exam_score  != null && row.exam_score  !== '' ? parseFloat(row.exam_score)  : null,
+        totalScore: row.total_score != null && row.total_score !== '' ? parseFloat(row.total_score) : null,
+        grade:      row.grade   ? String(row.grade).trim()   : null,
+        remarks:    row.remarks ? String(row.remarks).trim() : null,
+      });
     }
 
-    res.json({
-      total:    rows.length,
-      inserted,
-      updated,
-      skipped,
-      errors:   errors.slice(0, 100),
-    });
+    // Bulk upsert in batches of 1 000 rows using unnest() — single query per batch
+    const BATCH_SIZE = 1000;
+    let inserted = 0, updated = 0;
+
+    for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+      const batch = validRows.slice(i, i + BATCH_SIZE);
+
+      const { rows: result } = await pool.query(`
+        WITH input AS (
+          SELECT
+            unnest($1::uuid[])    AS school_id,
+            unnest($2::uuid[])    AS student_id,
+            unnest($3::uuid[])    AS academic_year_id,
+            unnest($4::int[])     AS semester,
+            unnest($5::text[])    AS subject,
+            unnest($6::numeric[]) AS class_score,
+            unnest($7::numeric[]) AS exam_score,
+            unnest($8::numeric[]) AS total_score,
+            unnest($9::text[])    AS grade,
+            unnest($10::text[])   AS remarks
+        ),
+        upserted AS (
+          INSERT INTO results_import
+            (school_id, student_id, academic_year_id, semester, subject,
+             class_score, exam_score, total_score, grade, remarks)
+          SELECT * FROM input
+          ON CONFLICT (school_id, student_id, academic_year_id, semester, subject)
+          DO UPDATE SET
+            class_score = EXCLUDED.class_score,
+            exam_score  = EXCLUDED.exam_score,
+            total_score = EXCLUDED.total_score,
+            grade       = EXCLUDED.grade,
+            remarks     = EXCLUDED.remarks,
+            imported_at = now()
+          RETURNING (xmax = 0) AS was_inserted
+        )
+        SELECT
+          COUNT(*) FILTER (WHERE was_inserted)     AS ins,
+          COUNT(*) FILTER (WHERE NOT was_inserted) AS upd
+        FROM upserted
+      `, [
+        batch.map(() => req.schoolId),
+        batch.map(r => r.studentId),
+        batch.map(r => r.yearId),
+        batch.map(r => r.semester),
+        batch.map(r => r.subject),
+        batch.map(r => r.classScore),
+        batch.map(r => r.examScore),
+        batch.map(r => r.totalScore),
+        batch.map(r => r.grade),
+        batch.map(r => r.remarks),
+      ]);
+
+      inserted += parseInt(result[0].ins);
+      updated  += parseInt(result[0].upd);
+    }
+
+    res.json({ total: rows.length, inserted, updated, skipped, errors: errors.slice(0, 100) });
   } catch (err) { next(err); }
 });
 

@@ -93,11 +93,14 @@ interface ImportResult {
   errors: { row: number; student_code: string; error: string }[];
 }
 
+const CHUNK_SIZE = 2000;
+
 function ImportModal({ onClose }: { onClose: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [csvText,   setCsvText]   = useState('');
   const [preview,   setPreview]   = useState<ImportRow[]>([]);
   const [loading,   setLoading]   = useState(false);
+  const [progress,  setProgress]  = useState({ done: 0, total: 0 });
   const [result,    setResult]    = useState<ImportResult | null>(null);
   const [error,     setError]     = useState('');
 
@@ -117,12 +120,28 @@ function ImportModal({ onClose }: { onClose: () => void }) {
   }
 
   async function handleImport() {
-    const rows = parseCsv(csvText);
-    if (rows.length === 0) { setError('No valid rows parsed. Check your CSV format.'); return; }
+    const allParsed = parseCsv(csvText);
+    if (allParsed.length === 0) { setError('No valid rows parsed. Check your CSV format.'); return; }
     setLoading(true); setError(''); setResult(null);
+
+    const accumulated: ImportResult = { total: 0, inserted: 0, updated: 0, skipped: 0, errors: [] };
+    const chunks: ImportRow[][] = [];
+    for (let i = 0; i < allParsed.length; i += CHUNK_SIZE) {
+      chunks.push(allParsed.slice(i, i + CHUNK_SIZE));
+    }
+    setProgress({ done: 0, total: chunks.length });
+
     try {
-      const { data } = await api.post<ImportResult>('/api/results/import', { rows });
-      setResult(data);
+      for (let c = 0; c < chunks.length; c++) {
+        const { data } = await api.post<ImportResult>('/api/results/import', { rows: chunks[c] });
+        accumulated.total    += data.total;
+        accumulated.inserted += data.inserted;
+        accumulated.updated  += data.updated;
+        accumulated.skipped  += data.skipped;
+        accumulated.errors.push(...data.errors);
+        setProgress({ done: c + 1, total: chunks.length });
+      }
+      setResult(accumulated);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? 'Import failed. Please try again.');
@@ -283,6 +302,22 @@ function ImportModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
+        {/* Progress bar */}
+        {loading && progress.total > 1 && (
+          <div className="px-6 pb-3">
+            <div className="flex justify-between text-xs text-slate-500 mb-1">
+              <span>Uploading…</span>
+              <span>{progress.done}/{progress.total} chunks</span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-2">
+              <div
+                className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
           {result ? (
@@ -300,7 +335,9 @@ function ImportModal({ onClose }: { onClose: () => void }) {
                 className="px-5 py-2 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {loading && <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />}
-                {loading ? 'Importing…' : `Import ${allRows.length} rows`}
+                {loading
+                  ? `Chunk ${progress.done}/${progress.total}…`
+                  : `Import ${allRows.length} rows`}
               </button>
             </>
           )}
