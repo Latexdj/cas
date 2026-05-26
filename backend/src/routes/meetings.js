@@ -364,6 +364,81 @@ router.delete('/attendance/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Teacher: meeting attendance summary ──────────────────────────────────────
+
+// GET /api/meetings/my-summary — per-type attendance summary for current semester
+router.get('/my-summary', async (req, res, next) => {
+  try {
+    // Resolve current academic year + semester
+    const { rows: yearRows } = await pool.query(
+      `SELECT id FROM academic_years
+       WHERE school_id = $1 AND is_current = true
+       LIMIT 1`,
+      [req.schoolId]
+    );
+    const academicYearId = yearRows[0]?.id ?? null;
+
+    let semester = null;
+    if (academicYearId) {
+      const { rows: semRows } = await pool.query(
+        `SELECT semester FROM meeting_attendance
+         WHERE school_id = $1 AND academic_year_id = $2
+         ORDER BY date DESC LIMIT 1`,
+        [req.schoolId, academicYearId]
+      );
+      semester = semRows[0]?.semester ?? null;
+    }
+
+    const { rows } = await pool.query(
+      `WITH att AS (
+         SELECT m.meeting_type, COUNT(*)::int AS present
+         FROM meeting_attendance ma
+         JOIN meetings m ON m.id = ma.meeting_id
+         WHERE ma.school_id = $1
+           AND ma.teacher_id = $2
+           AND ($3::uuid IS NULL OR ma.academic_year_id = $3::uuid)
+           AND ($4::int  IS NULL OR ma.semester         = $4::int)
+         GROUP BY m.meeting_type
+       ),
+       date_range AS (
+         SELECT
+           COALESCE(MIN(ma.date), CURRENT_DATE - INTERVAL '365 days') AS min_date,
+           COALESCE(MAX(ma.date), CURRENT_DATE)                        AS max_date
+         FROM meeting_attendance ma
+         WHERE ma.school_id = $1
+           AND ($3::uuid IS NULL OR ma.academic_year_id = $3::uuid)
+           AND ($4::int  IS NULL OR ma.semester         = $4::int)
+       ),
+       abs AS (
+         SELECT m.meeting_type, COUNT(*)::int AS absent
+         FROM meeting_absences ab
+         JOIN meetings m ON m.id = ab.meeting_id
+         WHERE ab.school_id = $1
+           AND ab.teacher_id = $2
+           AND ab.date >= (SELECT min_date FROM date_range)
+           AND ab.date <= (SELECT max_date FROM date_range)
+         GROUP BY m.meeting_type
+       )
+       SELECT
+         COALESCE(att.meeting_type, abs.meeting_type) AS meeting_type,
+         COALESCE(att.present, 0)::int                AS present,
+         COALESCE(abs.absent,  0)::int                AS absent,
+         (COALESCE(att.present, 0) + COALESCE(abs.absent, 0))::int AS total,
+         CASE
+           WHEN (COALESCE(att.present, 0) + COALESCE(abs.absent, 0)) = 0 THEN NULL
+           ELSE ROUND(100.0 * COALESCE(att.present, 0) /
+             NULLIF(COALESCE(att.present, 0) + COALESCE(abs.absent, 0), 0), 1)
+         END AS pct
+       FROM att
+       FULL OUTER JOIN abs USING (meeting_type)
+       ORDER BY meeting_type`,
+      [req.schoolId, req.user.id, academicYearId, semester]
+    );
+
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // ── Teacher: today's meetings ─────────────────────────────────────────────────
 
 // GET /api/meetings/today — array of today's active meetings with submission status

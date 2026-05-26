@@ -35,10 +35,22 @@ interface AttendanceSummary {
   attendance_pct: number | null;
 }
 
+interface MeetingRow {
+  meeting_type: string;
+  present: number;
+  absent: number;
+  total: number;
+  pct: number | null;
+}
+
 function formatLocalDate(iso: string) {
   const d = iso.slice(0, 10);
   const [y, m, day] = d.split('-').map(Number);
   return new Date(y, m - 1, day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function formatMeetingType(t: string) {
+  return t.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\bPlc\b/, 'PLC');
 }
 
 function pctColor(pct: number | null) {
@@ -54,8 +66,9 @@ export default function TeacherDashboardPage() {
   const [slots,     setSlots]     = useState<TimetableSlot[]>([]);
   const [attendance,setAttendance]= useState<AttendanceRecord[]>([]);
   const [events,    setEvents]    = useState<CalendarEvent[]>([]);
-  const [summary,   setSummary]   = useState<AttendanceSummary | null>(null);
-  const [loading,   setLoading]   = useState(true);
+  const [summary,        setSummary]        = useState<AttendanceSummary | null>(null);
+  const [meetingRows,    setMeetingRows]    = useState<MeetingRow[]>([]);
+  const [loading,        setLoading]        = useState(true);
   const [error,     setError]     = useState('');
   const [primary,   setPrimary]   = useState('#2ab289');
 
@@ -68,17 +81,19 @@ export default function TeacherDashboardPage() {
       const today  = new Date().toISOString().slice(0, 10);
       const future = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
 
-      const [ttRes, attRes, calRes, sumRes] = await Promise.allSettled([
+      const [ttRes, attRes, calRes, sumRes, meetRes] = await Promise.allSettled([
         teacherApi.get(`/api/timetable/today/${teacher.id}`),
         teacherApi.get(`/api/attendance/today/${teacher.id}`),
         teacherApi.get(`/api/school-calendar?from=${today}&to=${future}`),
         teacherApi.get('/api/attendance/my-summary'),
+        teacherApi.get('/api/meetings/my-summary'),
       ]);
 
-      if (ttRes.status  === 'fulfilled') { const d = ttRes.value.data;  setSlots(Array.isArray(d) ? d : d?.slots ?? d?.timetable ?? []); }
-      if (attRes.status === 'fulfilled') { const d = attRes.value.data; setAttendance(Array.isArray(d) ? d : d?.records ?? []); }
-      if (calRes.status === 'fulfilled') { const d = calRes.value.data; setEvents(Array.isArray(d) ? d : d?.events ?? []); }
-      if (sumRes.status === 'fulfilled') setSummary(sumRes.value.data);
+      if (ttRes.status   === 'fulfilled') { const d = ttRes.value.data;  setSlots(Array.isArray(d) ? d : d?.slots ?? d?.timetable ?? []); }
+      if (attRes.status  === 'fulfilled') { const d = attRes.value.data; setAttendance(Array.isArray(d) ? d : d?.records ?? []); }
+      if (calRes.status  === 'fulfilled') { const d = calRes.value.data; setEvents(Array.isArray(d) ? d : d?.events ?? []); }
+      if (sumRes.status  === 'fulfilled') setSummary(sumRes.value.data);
+      if (meetRes.status === 'fulfilled') { const d = meetRes.value.data; setMeetingRows(Array.isArray(d) ? d : []); }
     } catch {
       setError('Failed to load data. Please refresh.');
     } finally {
@@ -179,6 +194,36 @@ export default function TeacherDashboardPage() {
                 style={{ width: `${Math.min(summary.attendance_pct ?? 0, 100)}%`, backgroundColor: pctColor(summary.attendance_pct) }} />
             </div>
           )}
+        </div>
+      )}
+
+      {/* Meeting Attendance — Current Semester */}
+      {meetingRows.length > 0 && (
+        <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-3">Meeting Attendance — Current Semester</p>
+          <div className="space-y-3">
+            {meetingRows.map((row) => (
+              <div key={row.meeting_type}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm font-semibold text-[#2C2218]">{formatMeetingType(row.meeting_type)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-[#8C7E6E]">{row.present}/{row.total}</span>
+                    <span className="text-sm font-bold" style={{ color: pctColor(row.pct) }}>
+                      {row.pct !== null ? `${row.pct}%` : '—'}
+                    </span>
+                  </div>
+                </div>
+                {row.total > 0 && (
+                  <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className="h-1.5 rounded-full transition-all"
+                      style={{ width: `${Math.min(row.pct ?? 0, 100)}%`, backgroundColor: pctColor(row.pct) }}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

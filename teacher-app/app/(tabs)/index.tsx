@@ -11,6 +11,14 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Colors } from '@/constants/colors';
 import { TimetableSlot, AttendanceRecord, SchoolCalendarEntry, AttendanceSummary } from '@/types/api';
 
+interface MeetingSummaryRow {
+  meeting_type: string;
+  present: number;
+  absent: number;
+  total: number;
+  pct: number | null;
+}
+
 const EVENT_COLORS: Record<SchoolCalendarEntry['type'], { bg: string; text: string }> = {
   Holiday:       { bg: '#FEF3DC', text: Colors.warning },
   'School Event':{ bg: Colors.primaryLight, text: Colors.primary },
@@ -61,8 +69,9 @@ export default function HomeScreen() {
   const [slots,        setSlots]        = useState<TimetableSlot[]>([]);
   const [submitted,    setSubmitted]    = useState<AttendanceRecord[]>([]);
   const [events,       setEvents]       = useState<SchoolCalendarEntry[]>([]);
-  const [mySummary,    setMySummary]    = useState<AttendanceSummary | null>(null);
-  const [loading,      setLoading]      = useState(true);
+  const [mySummary,       setMySummary]       = useState<AttendanceSummary | null>(null);
+  const [meetingSummary,  setMeetingSummary]  = useState<MeetingSummaryRow[]>([]);
+  const [loading,         setLoading]         = useState(true);
   const [refreshing,   setRefreshing]   = useState(false);
   const [unreadCount,  setUnreadCount]  = useState(0);
   const unreadInterval = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -84,16 +93,18 @@ export default function HomeScreen() {
     const from = new Date().toISOString().slice(0, 10);
     const to   = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
     try {
-      const [ttRes, attRes, evRes, sumRes] = await Promise.allSettled([
+      const [ttRes, attRes, evRes, sumRes, meetRes] = await Promise.allSettled([
         api.get(`/api/timetable/today/${user.id}`),
         api.get(`/api/attendance/today/${user.id}`),
         api.get('/api/school-calendar', { params: { from, to } }),
         api.get('/api/attendance/my-summary'),
+        api.get('/api/meetings/my-summary'),
       ]);
-      if (ttRes.status  === 'fulfilled') setSlots(ttRes.value.data);
-      if (attRes.status === 'fulfilled') setSubmitted(attRes.value.data);
-      if (evRes.status  === 'fulfilled') setEvents(evRes.value.data);
-      if (sumRes.status === 'fulfilled') setMySummary(sumRes.value.data);
+      if (ttRes.status   === 'fulfilled') setSlots(ttRes.value.data);
+      if (attRes.status  === 'fulfilled') setSubmitted(attRes.value.data);
+      if (evRes.status   === 'fulfilled') setEvents(evRes.value.data);
+      if (sumRes.status  === 'fulfilled') setMySummary(sumRes.value.data);
+      if (meetRes.status === 'fulfilled') setMeetingSummary(Array.isArray(meetRes.value.data) ? meetRes.value.data : []);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -106,6 +117,10 @@ export default function HomeScreen() {
   const today     = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
   const pending   = slots.length - submitted.length;
   const firstName = user?.name?.split(' ')[0] ?? '';
+
+  const formatMeetingType = (t: string) =>
+    t.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+     .replace(/\bPlc\b/, 'PLC');
 
   const pctColor = (pct: number | null) => {
     if (pct === null) return '#8C7E6E';
@@ -197,6 +212,34 @@ export default function HomeScreen() {
         </View>
       )}
 
+      {/* Meeting Attendance card */}
+      {meetingSummary.length > 0 && (
+        <View style={styles.summaryCard}>
+          <Text style={[styles.summaryTitle, { marginBottom: 10 }]}>Meeting Attendance — Current Semester</Text>
+          {meetingSummary.map((row, idx) => (
+            <View key={row.meeting_type} style={[styles.meetingRow, idx > 0 && styles.meetingRowBorder]}>
+              <View style={styles.meetingRowHeader}>
+                <Text style={styles.meetingType}>{formatMeetingType(row.meeting_type)}</Text>
+                <View style={styles.meetingStats}>
+                  <Text style={[styles.meetingFraction, { color: pctColor(row.pct) }]}>{row.present}/{row.total}</Text>
+                  <Text style={[styles.meetingPct, { color: pctColor(row.pct) }]}>
+                    {row.pct !== null ? `${row.pct}%` : '—'}
+                  </Text>
+                </View>
+              </View>
+              {row.total > 0 && (
+                <View style={styles.meetingBar}>
+                  <View style={[styles.meetingBarFill, {
+                    width: `${Math.min(row.pct ?? 0, 100)}%` as any,
+                    backgroundColor: pctColor(row.pct),
+                  }]} />
+                </View>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
+
       {/* View Timetable button */}
       <TouchableOpacity
         style={[styles.timetableBtn, { borderColor: themeColors.primary + '40' }]}
@@ -262,6 +305,16 @@ const styles = StyleSheet.create({
   summaryLabel:       { fontSize: 10, color: '#8C7E6E', marginTop: 2, fontWeight: '600', letterSpacing: 0.3 },
   summaryBar:         { marginTop: 12, height: 4, backgroundColor: '#F1F5F9', borderRadius: 2, overflow: 'hidden' },
   summaryBarFill:     { height: 4, borderRadius: 2 },
+  // Meeting rows inside summary card
+  meetingRow:       { paddingVertical: 8 },
+  meetingRowBorder: { borderTopWidth: 1, borderTopColor: '#F1EDE7' },
+  meetingRowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  meetingType:      { fontSize: 13, fontWeight: '700', color: '#2C2218', flex: 1 },
+  meetingStats:     { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  meetingFraction:  { fontSize: 12, fontWeight: '600' },
+  meetingPct:       { fontSize: 12, fontWeight: '700', minWidth: 36, textAlign: 'right' },
+  meetingBar:       { height: 4, backgroundColor: '#F1F5F9', borderRadius: 2, overflow: 'hidden' },
+  meetingBarFill:   { height: 4, borderRadius: 2 },
   // View Timetable button
   timetableBtn:       { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   timetableBtnText:   { flex: 1, fontSize: 14, fontWeight: '700' },
