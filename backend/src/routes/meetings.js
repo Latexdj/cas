@@ -629,6 +629,24 @@ router.post('/submit', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/meetings/my-absences — teacher's own meeting absence records
+router.get('/my-absences', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT ab.id, ab.date, ab.reason, ab.status,
+              m.title AS meeting_title, m.meeting_type,
+              m.start_time::text, m.end_time::text
+       FROM meeting_absences ab
+       JOIN meetings m ON m.id = ab.meeting_id
+       WHERE ab.school_id = $1 AND ab.teacher_id = $2
+       ORDER BY ab.date DESC
+       LIMIT 100`,
+      [req.schoolId, req.user.id]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // GET /api/meetings/my-history — teacher's own meeting attendance history
 router.get('/my-history', async (req, res, next) => {
   try {

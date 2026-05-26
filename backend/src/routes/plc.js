@@ -310,6 +310,24 @@ router.get('/my-history', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/plc/my-absences — teacher's own PLC absence records
+router.get('/my-absences', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT ab.id, ab.date, ab.reason, ab.status,
+              ps.title AS session_title,
+              ps.start_time::text, ps.end_time::text
+       FROM plc_absences ab
+       JOIN plc_sessions ps ON ps.id = ab.session_id
+       WHERE ab.school_id = $1 AND ab.teacher_id = $2
+       ORDER BY ab.date DESC
+       LIMIT 100`,
+      [req.schoolId, req.user.id]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // ── Admin: attendance records ──────────────────────────────────
 
 // GET /api/plc/attendance

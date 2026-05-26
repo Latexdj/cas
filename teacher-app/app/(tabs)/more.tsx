@@ -21,6 +21,12 @@ const MENU_SECTIONS: { label: string; items: MenuItem[] }[] = [
         icon:     'time-outline',
         route:    '/(tabs)/history',
       },
+      {
+        title:    'Leave Requests',
+        subtitle: 'Submit and track leave applications',
+        icon:     'document-text-outline',
+        route:    '/absences/leaves',
+      },
     ],
   },
   {

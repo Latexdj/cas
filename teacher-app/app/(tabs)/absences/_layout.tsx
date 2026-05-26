@@ -10,11 +10,13 @@ export default function AbsencesLayout() {
         headerTitleStyle: { fontWeight: '700' },
       }}
     >
-      <Stack.Screen name="index"    options={{ title: 'Absences & Leave' }} />
-      <Stack.Screen name="list"     options={{ title: 'Outstanding Absences' }} />
-      <Stack.Screen name="remedials" options={{ title: 'Remedial Lessons' }} />
-      <Stack.Screen name="leaves"   options={{ title: 'Leave Requests' }} />
-      <Stack.Screen name="remedial" options={{ title: 'Schedule Remedial' }} />
+      <Stack.Screen name="index"          options={{ title: 'Absences' }} />
+      <Stack.Screen name="list"           options={{ title: 'Class Absences' }} />
+      <Stack.Screen name="meetings"       options={{ title: 'Meeting Absences' }} />
+      <Stack.Screen name="plc-absences"   options={{ title: 'PLC Absences' }} />
+      <Stack.Screen name="remedials"      options={{ title: 'Remedial Lessons' }} />
+      <Stack.Screen name="leaves"         options={{ title: 'Leave Requests' }} />
+      <Stack.Screen name="remedial"       options={{ title: 'Schedule Remedial' }} />
     </Stack>
   );
 }
