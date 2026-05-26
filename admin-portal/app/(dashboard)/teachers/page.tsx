@@ -245,35 +245,39 @@ export default function TeachersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <Input placeholder="Search by name, ID, email…" value={search} onChange={e => setSearch(e.target.value)} className="max-w-xs" />
-        <select
-          value={filterStatus}
-          onChange={e => setFilterStatus(e.target.value)}
-          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-        >
-          <option value="">All Statuses</option>
-          <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
-        </select>
-        <select
-          value={filterDept}
-          onChange={e => setFilterDept(e.target.value)}
-          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-        >
-          <option value="">All Departments</option>
-          {departments.map(d => <option key={d} value={d}>{d}</option>)}
-        </select>
-        <select
-          value={filterRole}
-          onChange={e => setFilterRole(e.target.value)}
-          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-        >
-          <option value="">All Roles</option>
-          <option value="teacher">Teacher</option>
-          <option value="admin">Admin</option>
-        </select>
-        <div className="ml-auto flex gap-2 flex-wrap">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        {/* Search + filters row */}
+        <div className="flex flex-wrap gap-2 flex-1 min-w-0">
+          <Input placeholder="Search by name, ID, email…" value={search} onChange={e => setSearch(e.target.value)} className="w-full sm:max-w-xs" />
+          <select
+            value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="">All Statuses</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+          <select
+            value={filterDept}
+            onChange={e => setFilterDept(e.target.value)}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="">All Departments</option>
+            {departments.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <select
+            value={filterRole}
+            onChange={e => setFilterRole(e.target.value)}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="">All Roles</option>
+            <option value="teacher">Teacher</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        {/* Action buttons row */}
+        <div className="flex gap-2 flex-wrap sm:flex-nowrap">
           {/* Bulk email credentials */}
           <button
             onClick={doBulkSend}
@@ -298,6 +302,7 @@ export default function TeachersPage() {
           <Button onClick={openCreate}>+ Add Teacher</Button>
         </div>
       </div>
+
 
       {/* Bulk send result banner */}
       {bulkResult && (
@@ -324,31 +329,35 @@ export default function TeachersPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="min-w-[900px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {['ID','Name','Email','Dept','Periods','Role','Status',''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                ))}
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Dept</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Periods</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Role</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.map(t => (
                 <tr key={t.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2.5">
                     <span className="font-mono font-bold text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5 text-xs">{t.teacher_code}</span>
                   </td>
-                  <td className="px-4 py-3 font-medium text-gray-900">{t.name}</td>
-                  <td className="px-4 py-3 text-gray-600">{t.email ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{t.department ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{t.total_periods}</td>
-                  <td className="px-4 py-3 text-gray-600">{t.is_admin ? 'Admin' : 'Teacher'}</td>
-                  <td className="px-4 py-3"><Badge status={t.status} /></td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2.5 font-medium text-gray-900">{t.name}</td>
+                  <td className="px-3 py-2.5 text-gray-600">{t.email ?? '—'}</td>
+                  <td className="px-3 py-2.5 text-gray-600">{t.department ?? '—'}</td>
+                  <td className="px-3 py-2.5 text-gray-600 hidden md:table-cell">{t.total_periods}</td>
+                  <td className="px-3 py-2.5 text-gray-600 hidden md:table-cell">{t.is_admin ? 'Admin' : 'Teacher'}</td>
+                  <td className="px-3 py-2.5"><Badge status={t.status} /></td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">
                     <div className="flex gap-1.5 items-center">
                       <Button variant="ghost" size="sm" onClick={() => openEdit(t)}>Edit</Button>
                       <Button variant="ghost" size="sm" onClick={() => openResetPin(t)} title="Reset PIN">🔑 PIN</Button>
-                      {/* Send credentials — greyed out if no email */}
                       <button
                         onClick={() => t.email ? openSendCredentials(t) : undefined}
                         title={t.email ? `Send credentials to ${t.email}` : 'No email address on file'}
@@ -366,7 +375,7 @@ export default function TeachersPage() {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No teachers found.</td></tr>
+                <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">No teachers found.</td></tr>
               )}
             </tbody>
           </table>
