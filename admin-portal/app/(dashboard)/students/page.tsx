@@ -255,7 +255,7 @@ export default function StudentsPage() {
 
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="min-w-[800px] w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
                   {['ID', 'Name', 'Class', 'Program', 'Status', 'Notes', ''].map(h => (

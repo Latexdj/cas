@@ -870,7 +870,7 @@ export default function MeetingsPage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="min-w-[850px] w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50">
                         {['Date', 'Day', 'Type', 'Title', 'Time', 'Venue', 'Actions'].map(h => (
@@ -931,7 +931,7 @@ export default function MeetingsPage() {
                 <div className="py-16 text-center text-slate-400 text-sm">No attendance records found.</div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="min-w-[950px] w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50">
                         {['Date', 'Teacher', 'Meeting', 'Type', 'Location', 'GPS', 'Photo', ''].map(h => (
@@ -983,7 +983,7 @@ export default function MeetingsPage() {
                 <div className="py-16 text-center text-slate-400 text-sm">No absences found.</div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="min-w-[700px] w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50">
                         {['Date', 'Teacher', 'Meeting', 'Type', 'Status'].map(h => (

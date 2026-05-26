@@ -131,7 +131,7 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
       ) : (
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="min-w-[900px] w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
                   {['Date','Teacher','Subject','Class','Status','Reason','Source',''].map(h => (
@@ -150,7 +150,7 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
                     <td className="px-4 py-3"><Badge status={r.status} /></td>
                     <td className="px-4 py-3 max-w-48 truncate text-xs" style={{ color: '#64748B' }}>{r.reason ?? <span style={{ color: '#CBD5E1' }}>—</span>}</td>
                     <td className="px-4 py-3 text-xs" style={{ color: '#94A3B8' }}>{r.is_auto_generated ? 'Auto' : 'Manual'}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex gap-2 items-center">
                         <Button variant="ghost" size="sm" onClick={() => { setReason(r.reason ?? ''); setReasonModal(r); }}>Reason</Button>
                         <Button variant="danger" size="sm" onClick={() => deleteAbsence(r.id)}>Delete</Button>
@@ -261,7 +261,7 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
       ) : (
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="min-w-[1000px] w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
                   {['Absence Date','Remedial Date','Teacher','Subject','Class','Location','Duration','Status',''].map(h => (
@@ -283,7 +283,7 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
                     <td className="px-4 py-3 text-xs" style={{ color: '#64748B' }}>{r.location_name ?? '—'}</td>
                     <td className="px-4 py-3 text-xs" style={{ color: '#64748B' }}>{r.duration_periods ? `${r.duration_periods}p` : '—'}</td>
                     <td className="px-4 py-3"><Badge status={r.status} /></td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex gap-2">
                         {r.status === 'Completed' && (
                           <Button variant="ghost" size="sm" onClick={() => { setNotes(r.notes ?? ''); setNotesModal(r); }}>Verify</Button>
@@ -485,7 +485,7 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
           <div className="text-center py-16 text-sm" style={{ color: '#94A3B8' }}>No excuse records found.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="min-w-[800px] w-full text-sm">
               <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
                 <tr>
                   {['Teacher', 'Type', 'Period', 'Reason', 'Status', 'Approved By', ''].map(h => (
@@ -509,7 +509,7 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
                           style={{ backgroundColor: ss.bg, color: ss.color }}>{ex.status}</span>
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: '#94A3B8' }}>{ex.approved_by_name ?? '—'}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex gap-2 items-center">
                           {ex.status === 'Pending' && (
                             <>

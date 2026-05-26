@@ -328,7 +328,7 @@ export default function StudentAttendancePage() {
               <div className="text-center py-16 text-sm" style={{ color: '#94A3B8' }}>No sessions found for this period.</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="min-w-[1000px] w-full text-sm">
                   <thead>
                     <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
                       {['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Total', ''].map(h => (
@@ -432,7 +432,7 @@ export default function StudentAttendancePage() {
               <div className="text-center py-16 text-sm" style={{ color: '#94A3B8' }}>No student data for this period.</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="min-w-[850px] w-full text-sm">
                   <thead>
                     <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
                       {['ID', 'Name', 'Class', 'Sessions', 'Present', 'Absent', 'Late', 'Attendance %'].map(h => (

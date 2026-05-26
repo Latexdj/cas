@@ -170,7 +170,7 @@ export default function AttendancePage() {
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="min-w-[1100px] w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
                   {['Date','Teacher','Subject','Class','Periods','Topic','Location','Photo','Week'].map(h => (

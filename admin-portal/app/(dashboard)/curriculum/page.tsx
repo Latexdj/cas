@@ -136,7 +136,8 @@ function SubjectsTab() {
         </div>
       ) : (
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="min-w-[450px] w-full text-sm">
             <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
               <tr>
                 {['Subject Name', 'Code', ''].map(h => (
@@ -163,6 +164,7 @@ function SubjectsTab() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -296,7 +298,8 @@ function ClassesTab() {
         </div>
       ) : (
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="min-w-[350px] w-full text-sm">
             <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
               <tr>
                 {['Class Name', ''].map(h => (
@@ -322,6 +325,7 @@ function ClassesTab() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -401,7 +405,8 @@ function ProgramsTab() {
         </div>
       ) : (
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="min-w-[550px] w-full text-sm">
             <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
               <tr>
                 {['Program Name', 'Active Students', 'Notes', ''].map(h => (
@@ -433,6 +438,7 @@ function ProgramsTab() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

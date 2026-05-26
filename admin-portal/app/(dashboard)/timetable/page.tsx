@@ -164,7 +164,7 @@ export default function TimetablePage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="min-w-[750px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 {['Day', 'Time', 'Subject', 'Class(es)', 'Teacher', ''].map(h => (
@@ -186,7 +186,7 @@ export default function TimetablePage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-700">{e.teacher_name}</td>
-                  <td className="px-4 py-3 flex gap-2">
+                  <td className="px-4 py-3 flex gap-2 whitespace-nowrap">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(e)}>Edit</Button>
                     <Button variant="danger" size="sm" onClick={() => del(e.id)}>Del</Button>
                   </td>

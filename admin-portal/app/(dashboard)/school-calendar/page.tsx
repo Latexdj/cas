@@ -163,7 +163,8 @@ export default function SchoolCalendarPage() {
               <div key={month}>
                 <p className="text-xs font-bold uppercase tracking-widest mb-2 px-1" style={{ color: '#94A3B8' }}>{label}</p>
                 <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
-                  <table className="w-full text-sm">
+                  <div className="overflow-x-auto">
+                  <table className="min-w-[600px] w-full text-sm">
                     <tbody>
                       {byMonth[month].map((e, i) => (
                         <tr key={e.id} className="hover:bg-slate-50 transition-colors"
@@ -184,6 +185,7 @@ export default function SchoolCalendarPage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               </div>
             );

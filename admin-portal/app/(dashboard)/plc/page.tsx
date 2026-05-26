@@ -380,7 +380,8 @@ export default function PlcPage() {
               {sessions.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 text-sm">No PLC sessions configured. Click <strong>New Session</strong> to create one.</div>
               ) : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="min-w-[750px] w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100">
                       {['Title', 'Day', 'Time', 'Venue', 'Status', 'QR', ''].map(h => (
@@ -419,6 +420,7 @@ export default function PlcPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           )}
@@ -432,7 +434,8 @@ export default function PlcPage() {
               {attendance.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 text-sm">No PLC attendance records found.</div>
               ) : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="min-w-[900px] w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100">
                       {['Date', 'Teacher', 'Session', 'Venue', 'GPS', 'Agenda', 'Photo', ''].map(h => (
@@ -468,6 +471,7 @@ export default function PlcPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           )}
@@ -481,7 +485,8 @@ export default function PlcPage() {
               {absences.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 text-sm">No PLC absences found.</div>
               ) : (
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="min-w-[700px] w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100">
                       {['Date', 'Teacher', 'Session', 'Time', 'Status', ''].map(h => (
@@ -506,6 +511,7 @@ export default function PlcPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           )}

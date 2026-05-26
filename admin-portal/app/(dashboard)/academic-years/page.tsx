@@ -70,7 +70,7 @@ export default function AcademicYearsPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="min-w-[600px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 {['Year Name','Current','Semester',''].map(h => (
@@ -88,7 +88,7 @@ export default function AcademicYearsPage() {
                       : <Button variant="ghost" size="sm" onClick={() => setCurrent(y.id)}>Set Current</Button>}
                   </td>
                   <td className="px-4 py-3 text-gray-600">Semester {y.current_semester ?? '—'}</td>
-                  <td className="px-4 py-3 flex gap-2">
+                  <td className="px-4 py-3 flex gap-2 whitespace-nowrap">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(y)}>Edit</Button>
                     <Button variant="danger" size="sm" onClick={() => del(y.id, y.name)}>Del</Button>
                   </td>

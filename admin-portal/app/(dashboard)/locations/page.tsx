@@ -80,7 +80,7 @@ export default function LocationsPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="min-w-[800px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 {['Name','Type','Latitude','Longitude','Radius (m)','GPS',''].map(h => (
@@ -101,7 +101,7 @@ export default function LocationsPage() {
                       {l.has_coordinates ? '✓ Set' : '—'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 flex gap-2">
+                  <td className="px-4 py-3 flex gap-2 whitespace-nowrap">
                     <Button variant="ghost" size="sm" onClick={() => openEdit(l)}>Edit</Button>
                     <Button variant="danger" size="sm" onClick={() => del(l.id, l.name)}>Del</Button>
                   </td>

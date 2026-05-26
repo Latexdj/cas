@@ -336,7 +336,7 @@ export default function DashboardPage() {
         ) : (
           <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="min-w-[900px] w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
                     {['Teacher','Department','Scheduled','Present','Absent','Excused','Attendance %','Status'].map(h => (
@@ -441,7 +441,7 @@ export default function DashboardPage() {
         ) : (
           <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="min-w-[800px] w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
                     {['Teacher','Department','Sessions','Present','Absent','Attendance %','Status'].map(h => (
