@@ -23,11 +23,22 @@ async function authenticate(req, res, next) {
     req.user     = jwt.verify(header.slice(7), process.env.JWT_SECRET);
     req.schoolId = req.user.schoolId || null;
 
-    // Re-validate teacher/admin accounts on every request so that
+    // Re-validate teacher/admin/student accounts on every request so that
     // deactivating a user takes effect immediately, not after token expiry.
     if (req.user.role === 'teacher' || req.user.role === 'admin') {
       const { rows } = await pool.query(
         `SELECT status FROM teachers WHERE id = $1 AND school_id = $2`,
+        [req.user.id, req.schoolId]
+      );
+      if (!rows.length || rows[0].status !== 'Active') {
+        return res.status(401).json({
+          error: 'Your account has been deactivated. Please contact your administrator.',
+        });
+      }
+    }
+    if (req.user.role === 'student') {
+      const { rows } = await pool.query(
+        `SELECT status FROM students WHERE id = $1 AND school_id = $2`,
         [req.user.id, req.schoolId]
       );
       if (!rows.length || rows[0].status !== 'Active') {

@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const multer = require('multer');
 const XLSX   = require('xlsx');
+const bcrypt = require('bcrypt');
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { uploadFile } = require('../services/storage.service');
@@ -316,7 +317,8 @@ router.get('/:id', async (req, res, next) => {
               s.ghana_card_number, s.nhia_number, s.mobile_number, s.aggregate, s.house,
               s.residential_status, s.religion, s.religious_denomination,
               s.guardian_name, s.guardian_occupation, s.guardian_mobile, s.picture_url,
-              DATE_PART('year', AGE(s.date_of_birth))::integer AS age
+              DATE_PART('year', AGE(s.date_of_birth))::integer AS age,
+              (s.pin_hash IS NOT NULL) AS has_pin
        FROM students s
        LEFT JOIN programs p ON p.id = s.program_id
        WHERE s.id = $1 AND s.school_id = $2`,
@@ -324,6 +326,19 @@ router.get('/:id', async (req, res, next) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Student not found' });
     res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+/** POST /api/students/:id/set-pin — admin sets or resets a student's portal PIN */
+router.post('/:id/set-pin', adminOnly, async (req, res, next) => {
+  try {
+    const { pin } = req.body;
+    if (!pin || String(pin).length < 4) return res.status(400).json({ error: 'PIN must be at least 4 characters' });
+    const { rows } = await pool.query(`SELECT id FROM students WHERE id = $1 AND school_id = $2`, [req.params.id, req.schoolId]);
+    if (!rows.length) return res.status(404).json({ error: 'Student not found' });
+    const hash = await bcrypt.hash(String(pin), 12);
+    await pool.query(`UPDATE students SET pin_hash = $1, updated_at = now() WHERE id = $2`, [hash, req.params.id]);
+    res.json({ message: 'PIN set successfully' });
   } catch (err) { next(err); }
 });
 

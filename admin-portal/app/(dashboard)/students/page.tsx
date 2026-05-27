@@ -51,6 +51,10 @@ export default function StudentsPage() {
   const [fieldErrors,  setFieldErrors]  = useState<Record<string, string>>({});
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [uploading,    setUploading]    = useState(false);
+  const [pinValue,     setPinValue]     = useState('');
+  const [pinSaving,    setPinSaving]    = useState(false);
+  const [pinMsg,       setPinMsg]       = useState('');
+  const [hasPin,       setHasPin]       = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Form state
@@ -98,9 +102,10 @@ export default function StudentsPage() {
     setEditing(null); setForm(STUDENT_EMPTY); setError(''); setFieldErrors({}); setModal('add');
   }
   async function openEdit(s: Student) {
-    setEditing(s); setError(''); setFieldErrors({});
+    setEditing(s); setError(''); setFieldErrors({}); setPinValue(''); setPinMsg(''); setHasPin(false);
     try {
-      const { data } = await api.get<StudentProfile>(`/api/students/${s.id}`);
+      const { data } = await api.get<StudentProfile & { has_pin?: boolean }>(`/api/students/${s.id}`);
+      setHasPin(!!data.has_pin);
       setForm({
         student_code: data.student_code, name: data.name, class_name: data.class_name,
         status: data.status, program_id: data.program_id ?? '', notes: data.notes ?? '',
@@ -119,6 +124,17 @@ export default function StudentsPage() {
         class_name: s.class_name, status: s.status, notes: s.notes ?? '', program_id: s.program_id ?? '' });
     }
     setModal('edit');
+  }
+
+  async function handleSetPin() {
+    if (!editing || !pinValue.trim()) return;
+    if (pinValue.length < 4) { setPinMsg('PIN must be at least 4 characters'); return; }
+    setPinSaving(true); setPinMsg('');
+    try {
+      await api.post(`/api/students/${editing.id}/set-pin`, { pin: pinValue });
+      setHasPin(true); setPinValue(''); setPinMsg('PIN set successfully');
+    } catch { setPinMsg('Failed to set PIN'); }
+    setPinSaving(false);
   }
 
   async function handleSave() {
@@ -537,6 +553,31 @@ export default function StudentsPage() {
               </div>
 
             </div>
+            {/* Student Portal PIN — edit mode only */}
+            {modal === 'edit' && (
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Student Portal Access</p>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${hasPin ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-600'}`}>
+                    {hasPin ? 'PIN set' : 'No PIN'}
+                  </span>
+                  <input
+                    type="text"
+                    value={pinValue}
+                    onChange={e => { setPinValue(e.target.value); setPinMsg(''); }}
+                    placeholder={hasPin ? 'Enter new PIN to reset' : 'Enter PIN to enable portal access'}
+                    className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <Button variant="secondary" loading={pinSaving} onClick={handleSetPin}>
+                    {hasPin ? 'Reset' : 'Set PIN'}
+                  </Button>
+                </div>
+                {pinMsg && (
+                  <p className={`text-xs mt-1.5 ${pinMsg.includes('successfully') ? 'text-green-600' : 'text-red-500'}`}>{pinMsg}</p>
+                )}
+              </div>
+            )}
+
             {error && <p className="text-sm mt-3 p-2 rounded" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>{error}</p>}
             <div className="flex gap-3 mt-4">
               <Button variant="secondary" className="flex-1" onClick={() => setModal(null)}>Cancel</Button>

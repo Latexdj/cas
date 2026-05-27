@@ -35,6 +35,7 @@ const examScoresRoutes        = require('./routes/exam-scores');
 const gradeBoundariesRoutes   = require('./routes/grade-boundaries');
 const resultsRoutes           = require('./routes/results');
 const formTeacherRoutes       = require('./routes/form-teacher');
+const studentPortalRoutes     = require('./routes/student');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -98,6 +99,7 @@ app.use('/api/exam-scores',        examScoresRoutes);
 app.use('/api/grade-boundaries',   gradeBoundariesRoutes);
 app.use('/api/results',            resultsRoutes);
 app.use('/api/form-teacher',       formTeacherRoutes);
+app.use('/api/student',            studentPortalRoutes);
 
 app.use(errorHandler);
 
@@ -442,6 +444,7 @@ async function runMigrations() {
       CREATE INDEX IF NOT EXISTS idx_form_teacher_assignments_teacher
         ON form_teacher_assignments(teacher_id)
     `);
+    await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS pin_hash TEXT`);
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

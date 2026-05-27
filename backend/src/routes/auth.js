@@ -126,6 +126,63 @@ router.post('/login', loginLimiter, (req, res, next) => {
       });
     }
 
+    // ── Student ──────────────────────────────────────────────────────────────
+    if (type === 'student') {
+      const username   = req.body.username  || req.body.student_code;
+      const password   = req.body.password  || req.body.pin;
+      const schoolCode = req.body.schoolCode;
+      let   schoolId   = req.body.schoolId;
+
+      if (!username || !password || (!schoolId && !schoolCode))
+        return res.status(400).json({ error: 'username, password and schoolCode required' });
+
+      if (schoolCode && !schoolId) {
+        const { rows: codeRows } = await pool.query(
+          `SELECT id FROM schools WHERE UPPER(code) = UPPER($1)`, [schoolCode.trim()]
+        );
+        if (!codeRows.length) return res.status(404).json({ error: 'School code not found' });
+        schoolId = codeRows[0].id;
+      }
+
+      // Check subscription
+      const { rows: subRows } = await pool.query(
+        `SELECT s.id FROM schools s
+         JOIN subscriptions sub ON sub.school_id = s.id
+         WHERE s.id = $1 AND sub.status IN ('trial','active')
+           AND (sub.ends_at IS NULL OR sub.ends_at > now())
+         ORDER BY sub.created_at DESC LIMIT 1`,
+        [schoolId]
+      );
+      if (!subRows.length) return res.status(403).json({ error: 'School not found or subscription inactive' });
+
+      const { rows } = await pool.query(
+        `SELECT id, name, student_code, pin_hash
+         FROM students
+         WHERE school_id = $1 AND UPPER(student_code) = UPPER($2) AND status = 'Active'`,
+        [schoolId, username.trim()]
+      );
+      if (!rows.length) return res.status(401).json({ error: 'Invalid Student ID or PIN' });
+
+      const student = rows[0];
+      if (!student.pin_hash) return res.status(401).json({ error: 'No PIN set. Please contact your school administrator.' });
+
+      const valid = await bcrypt.compare(String(password), student.pin_hash);
+      if (!valid) return res.status(401).json({ error: 'Invalid Student ID or PIN' });
+
+      const token = signToken({ id: student.id, name: student.name, role: 'student', schoolId }, '12h');
+      const { rows: colorRows } = await pool.query(
+        `SELECT primary_color, accent_color, logo_url FROM schools WHERE id = $1`, [schoolId]
+      );
+      const sc = colorRows[0] ?? {};
+      return res.json({
+        token, role: 'student',
+        id: student.id, name: student.name, schoolId,
+        primary_color: sc.primary_color ?? '#3B82F6',
+        accent_color:  sc.accent_color  ?? '#1D4ED8',
+        logo_url:      sc.logo_url      ?? null,
+      });
+    }
+
     res.status(400).json({ error: 'Invalid login type' });
   } catch (err) {
     next(err);
