@@ -2,7 +2,7 @@ import { ReactNode, JSX } from 'react';
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`bg-white rounded-xl p-5 ${className}`} style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+    <div className={`bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-100 dark:border-slate-700 shadow-sm ${className}`}>
       {children}
     </div>
   );
@@ -59,16 +59,13 @@ const statConfig: Record<string, { bar: string; text: string; icon: JSX.Element 
 export function StatCard({ label, value, color = 'blue' }: { label: string; value: number | string; color?: string }) {
   const cfg = statConfig[color] ?? statConfig.blue;
   return (
-    <div
-      className="bg-white rounded-xl p-5 relative overflow-hidden"
-      style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}
-    >
+    <div className="bg-white dark:bg-slate-800 rounded-xl p-5 relative overflow-hidden border border-slate-100 dark:border-slate-700 shadow-sm">
       <div className="absolute top-0 left-0 w-1 h-full rounded-l-xl" style={{ backgroundColor: cfg.bar }} />
       <div className="flex items-start justify-between mb-3">
-        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{label}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
         <span style={{ color: cfg.text }}>{cfg.icon}</span>
       </div>
-      <p className="text-3xl font-bold" style={{ color: '#0F172A' }}>{value}</p>
+      <p className="text-3xl font-bold text-slate-900 dark:text-white">{value}</p>
     </div>
   );
 }

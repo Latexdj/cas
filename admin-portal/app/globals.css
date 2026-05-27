@@ -55,3 +55,132 @@ select option {
 /* Hide scrollbar while keeping scroll functionality */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   DARK MODE — COMPREHENSIVE PAGE THEMING
+   Matches the super-admin portal design language:
+   slate-900 page background · slate-800 cards · white text
+   CSS !important beats React inline styles (which don't use it)
+═══════════════════════════════════════════════════════════════ */
+
+/* ── Tailwind background class overrides ── */
+.dark .bg-white                  { background-color: #1E293B !important; }
+.dark .bg-gray-50,
+.dark .bg-slate-50               { background-color: #0F172A !important; }
+.dark .bg-gray-100,
+.dark .bg-slate-100              { background-color: #1E293B !important; }
+.dark .bg-gray-200,
+.dark .bg-slate-200              { background-color: #334155 !important; }
+
+/* ── Tailwind border class overrides ── */
+.dark .border-slate-100,
+.dark .border-gray-100,
+.dark .border-slate-200,
+.dark .border-gray-200           { border-color: #334155 !important; }
+.dark .border-slate-300,
+.dark .border-gray-300           { border-color: #475569 !important; }
+.dark .divide-slate-100,
+.dark .divide-gray-100,
+.dark .divide-slate-200,
+.dark .divide-gray-200           { border-color: #334155 !important; }
+
+/* ── Tailwind text class overrides ── */
+.dark .text-slate-900,
+.dark .text-gray-900             { color: #F1F5F9 !important; }
+.dark .text-slate-800,
+.dark .text-gray-800             { color: #E2E8F0 !important; }
+.dark .text-slate-700,
+.dark .text-gray-700             { color: #CBD5E1 !important; }
+.dark .text-slate-600,
+.dark .text-gray-600             { color: #94A3B8 !important; }
+.dark .text-slate-500,
+.dark .text-gray-500             { color: #94A3B8 !important; }
+
+/* ── Tailwind row-hover overrides ── */
+.dark .hover\:bg-white:hover     { background-color: #334155 !important; }
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-gray-50:hover   { background-color: rgba(30, 41, 59, 0.7) !important; }
+.dark .hover\:bg-slate-100:hover,
+.dark .hover\:bg-gray-100:hover  { background-color: #334155 !important; }
+
+/* ── Tailwind semantic badge overrides (light badges → dark equivalents) ── */
+.dark .bg-green-50               { background-color: rgba(20,  83,  45,  0.3) !important; }
+.dark .bg-blue-50                { background-color: rgba(30,  58,  138, 0.3) !important; }
+.dark .bg-red-50                 { background-color: rgba(127, 29,  29,  0.3) !important; }
+.dark .bg-amber-50,
+.dark .bg-yellow-50              { background-color: rgba(120, 53,  15,  0.3) !important; }
+.dark .bg-purple-50              { background-color: rgba(76,  29,  149, 0.3) !important; }
+.dark .bg-indigo-50              { background-color: rgba(49,  46,  129, 0.3) !important; }
+
+.dark .text-green-700            { color: #4ade80 !important; }
+.dark .text-green-600            { color: #4ade80 !important; }
+.dark .text-blue-700             { color: #60a5fa !important; }
+.dark .text-blue-600             { color: #60a5fa !important; }
+.dark .text-red-700              { color: #f87171 !important; }
+.dark .text-red-600              { color: #f87171 !important; }
+.dark .text-amber-700,
+.dark .text-yellow-700           { color: #fbbf24 !important; }
+.dark .text-amber-600,
+.dark .text-yellow-600           { color: #fbbf24 !important; }
+.dark .text-purple-700           { color: #c084fc !important; }
+.dark .text-indigo-700           { color: #818cf8 !important; }
+
+/* ── Tables (bare <table>, <thead>, <th>, <td>) ── */
+.dark table                      { color: #CBD5E1; }
+.dark thead                      { background-color: #0F172A !important; }
+.dark th                         { color: #94A3B8 !important; border-color: #334155 !important; }
+.dark td                         { border-color: #334155 !important; }
+.dark tr:hover                   { background-color: rgba(30, 41, 59, 0.5) !important; }
+
+/* ── Inline style: white / near-white backgrounds → slate-800 or slate-900 ──
+   React renders hex colors as rgb() in the DOM style attribute,
+   and CSS !important overrides inline styles that lack !important.         */
+.dark [style*="background-color: rgb(255, 255, 255)"]  { background-color: #1E293B !important; } /* #ffffff   */
+.dark [style*="background-color: rgb(248, 250, 252)"]  { background-color: #0F172A !important; } /* #F8FAFC   */
+.dark [style*="background-color: rgb(241, 245, 249)"]  { background-color: #1E293B !important; } /* #F1F5F9   */
+.dark [style*="background-color: rgb(250, 250, 250)"]  { background-color: #1E293B !important; } /* #FAFAFA   */
+.dark [style*="background-color: rgb(249, 250, 251)"]  { background-color: #0F172A !important; } /* #F9FAFB   */
+.dark [style*="background-color: rgb(244, 239, 230)"]  { background-color: #0F172A !important; } /* #F4EFE6   */
+.dark [style*="background-color: rgb(253, 250, 245)"]  { background-color: #1E293B !important; } /* #FDFAF5   */
+
+/* ── Inline style: semantic badge / section tinted backgrounds → dark equivalents ── */
+.dark [style*="background-color: rgb(240, 253, 244)"]  { background-color: rgba(20,  83,  45,  0.35) !important; } /* #F0FDF4 green  */
+.dark [style*="background-color: rgb(239, 246, 255)"]  { background-color: rgba(30,  58,  138, 0.35) !important; } /* #EFF6FF blue   */
+.dark [style*="background-color: rgb(224, 242, 254)"]  { background-color: rgba(30,  58,  138, 0.35) !important; } /* #E0F2FE blue   */
+.dark [style*="background-color: rgb(255, 251, 235)"]  { background-color: rgba(120, 53,  15,  0.35) !important; } /* #FFFBEB yellow */
+.dark [style*="background-color: rgb(254, 243, 220)"]  { background-color: rgba(120, 53,  15,  0.35) !important; } /* #FEF3DC yellow */
+.dark [style*="background-color: rgb(254, 242, 242)"]  { background-color: rgba(127, 29,  29,  0.35) !important; } /* #FEF2F2 red    */
+.dark [style*="background-color: rgb(220, 252, 231)"]  { background-color: rgba(20,  83,  45,  0.35) !important; } /* #DCFCE7 green  */
+.dark [style*="background-color: rgb(245, 243, 255)"]  { background-color: rgba(76,  29,  149, 0.35) !important; } /* #F5F3FF purple */
+
+/* ── Inline style: near-black text → near-white ── */
+.dark [style*="color: rgb(15, 23, 42)"]                { color: #F1F5F9  !important; } /* #0F172A   */
+.dark [style*="color: rgb(30, 41, 59)"]                { color: #F1F5F9  !important; } /* #1E293B   */
+.dark [style*="color: rgb(28, 18, 8)"]                 { color: #F1F5F9  !important; } /* #1C1208   */
+.dark [style*="color: rgb(44, 34, 24)"]                { color: #F1F5F9  !important; } /* #2C2218   */
+.dark [style*="color: rgb(51, 65, 85)"]                { color: #E2E8F0  !important; } /* #334155   */
+.dark [style*="color: rgb(71, 85, 105)"]               { color: #CBD5E1  !important; } /* #475569   */
+
+/* ── Inline style: border colors → slate-700 ── */
+.dark [style*="rgb(226, 232, 240)"]                    { border-color: #334155 !important; } /* #E2E8F0   */
+.dark [style*="rgb(241, 245, 249)"]                    { border-color: #334155 !important; } /* #F1F5F9   */
+.dark [style*="rgb(226, 217, 204)"]                    { border-color: #334155 !important; } /* #E2D9CC   */
+.dark [style*="rgb(203, 213, 225)"]                    { border-color: #475569 !important; } /* #CBD5E1   */
+
+/* ── Input / textarea dark override (covers inline-styled inputs) ── */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+  background-color: #1E293B !important;
+  color: #F1F5F9 !important;
+  border-color: #475569 !important;
+  color-scheme: dark;
+}
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"])::placeholder {
+  color: #64748B !important;
+}
+
+/* ── Scrollbar (dark) ── */
+.dark ::-webkit-scrollbar              { width: 6px; height: 6px; }
+.dark ::-webkit-scrollbar-track       { background: #0F172A; }
+.dark ::-webkit-scrollbar-thumb       { background: #334155; border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #475569; }

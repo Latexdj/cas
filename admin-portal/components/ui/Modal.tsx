@@ -20,11 +20,11 @@ export function Modal({ open, onClose, title, children, maxWidth = 'max-w-lg' }:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className={`relative w-full ${maxWidth} bg-white rounded-2xl shadow-xl p-6 max-h-[90vh] overflow-y-auto`}>
+      <div className="absolute inset-0 bg-black/40 dark:bg-black/60" onClick={onClose} />
+      <div className={`relative w-full ${maxWidth} bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 p-6 max-h-[90vh] overflow-y-auto`}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-2xl leading-none">&times;</button>
         </div>
         {children}
       </div>

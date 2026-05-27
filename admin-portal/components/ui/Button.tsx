@@ -10,17 +10,10 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants: Record<Variant, string> = {
-  primary:   'text-white hover:opacity-90',
-  secondary: 'hover:opacity-80',
-  danger:    'text-white hover:opacity-90',
-  ghost:     'hover:opacity-80',
-};
-
-const variantStyles: Record<Variant, React.CSSProperties> = {
-  primary:   { backgroundColor: '#15803D', color: '#fff' },
-  secondary: { backgroundColor: '#F1F5F9', color: '#334155', border: '1px solid #E2E8F0' },
-  danger:    { backgroundColor: '#DC2626', color: '#fff' },
-  ghost:     { backgroundColor: 'transparent', color: '#15803D' },
+  primary:   'bg-green-700 hover:bg-green-600 text-white',
+  secondary: 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600',
+  danger:    'bg-red-600 hover:bg-red-500 text-white',
+  ghost:     'bg-transparent text-green-700 dark:text-green-400 hover:bg-slate-100 dark:hover:bg-slate-700',
 };
 
 const sizes: Record<Size, string> = {
@@ -33,8 +26,8 @@ export function Button({ variant = 'primary', size = 'md', loading, disabled, ch
   return (
     <button
       disabled={disabled || loading}
-      style={{ ...variantStyles[variant], ...style }}
-      className={`inline-flex items-center justify-center font-semibold rounded-lg transition-opacity
+      style={style}
+      className={`inline-flex items-center justify-center font-semibold rounded-lg transition-colors
         disabled:opacity-40 disabled:cursor-not-allowed
         ${variants[variant]} ${sizes[size]} ${className}`}
       {...rest}
