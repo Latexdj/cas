@@ -135,9 +135,9 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    const wb   = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const wb   = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
     const ws   = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', cellDates: true });
     if (!rows.length) return res.status(400).json({ error: 'File is empty' });
 
     // Strip comment rows, then skip header row if detected
@@ -276,10 +276,7 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     }
 
     res.json({ inserted, errors });
-  } catch (err) {
-    console.error('Upload error:', err.message, 'code:', err.code);
-    return res.status(500).json({ error: err.message || 'Upload failed', pgCode: err.code });
-  }
+  } catch (err) { next(err); }
 });
 
 /** POST /api/students/promote — bulk promote a class */
