@@ -347,7 +347,12 @@ router.post('/resources', async (req, res, next) => {
     const { title, subject, resource_type = 'other', academic_year, level, file_data, file_name, file_size_kb } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'title is required' });
     if (!file_data || !file_name) return res.status(400).json({ error: 'file_data and file_name are required' });
-    const { url, filename } = await uploadDocument(file_data, file_name, 'library-resources');
+    let url, filename;
+    try {
+      ({ url, filename } = await uploadDocument(file_data, file_name, 'library-resources'));
+    } catch (uploadErr) {
+      return res.status(422).json({ error: uploadErr.message });
+    }
     const { rows } = await pool.query(
       `INSERT INTO library_resources
          (school_id, title, subject, resource_type, academic_year, level, file_url, file_name, file_size_kb)

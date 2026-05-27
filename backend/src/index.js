@@ -67,8 +67,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// 10 mb limit to handle base64 classroom photos
-app.use(express.json({ limit: '10mb' }));
+// 50 mb limit to handle base64 classroom photos and PDF document uploads
+app.use(express.json({ limit: '50mb' }));
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
