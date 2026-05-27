@@ -27,7 +27,7 @@ router.get('/', async (req, res, next) => {
         [req.schoolId]
       ),
       pool.query(
-        `SELECT s.id, s.name, s.student_code, p.exam_body
+        `SELECT s.id, s.name, s.student_code, s.picture_url, s.gender, p.exam_body
          FROM students s
          LEFT JOIN programs p ON p.id = s.program_id
          WHERE s.school_id = $1 AND s.status = 'Active'
@@ -277,6 +277,8 @@ router.get('/', async (req, res, next) => {
         student_code:    st.student_code,
         name:            st.name,
         exam_body:       st.exam_body,
+        picture_url:     st.picture_url ?? null,
+        gender:          st.gender ?? null,
         subjects:        subjectRows.sort((a, b) => a.subject.localeCompare(b.subject)),
         average,
         overall_grade:   overallGrade.grade,
@@ -423,6 +425,49 @@ router.post('/import', adminOnly, async (req, res, next) => {
     }
 
     res.json({ total: rows.length, inserted, updated, skipped, errors: errors.slice(0, 100) });
+  } catch (err) { next(err); }
+});
+
+// GET /api/results/remarks?academic_year_id=&semester=&class_name=
+router.get('/remarks', async (req, res, next) => {
+  try {
+    const { academic_year_id, semester, class_name } = req.query;
+    if (!academic_year_id || !semester || !class_name) {
+      return res.status(400).json({ error: 'academic_year_id, semester, class_name are required' });
+    }
+    const { rows } = await pool.query(
+      `SELECT rr.student_id, rr.attitude, rr.conduct, rr.general_remarks
+       FROM report_remarks rr
+       JOIN students s ON s.id = rr.student_id
+       WHERE rr.school_id = $1
+         AND rr.academic_year_id = $2
+         AND rr.semester = $3
+         AND LOWER(s.class_name) = LOWER($4)`,
+      [req.schoolId, academic_year_id, parseInt(semester), class_name]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/results/remarks  (admin only) — bulk upsert
+// Body: { academic_year_id, semester, remarks: [{ student_id, attitude, conduct, general_remarks }] }
+router.post('/remarks', adminOnly, async (req, res, next) => {
+  try {
+    const { academic_year_id, semester, remarks } = req.body;
+    if (!academic_year_id || !semester || !Array.isArray(remarks)) {
+      return res.status(400).json({ error: 'academic_year_id, semester, remarks[] are required' });
+    }
+    for (const r of remarks) {
+      await pool.query(
+        `INSERT INTO report_remarks (school_id, student_id, academic_year_id, semester, attitude, conduct, general_remarks)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         ON CONFLICT (school_id, student_id, academic_year_id, semester)
+         DO UPDATE SET attitude=$5, conduct=$6, general_remarks=$7, updated_at=now()`,
+        [req.schoolId, r.student_id, academic_year_id, parseInt(semester),
+         r.attitude || null, r.conduct || null, r.general_remarks || null]
+      );
+    }
+    res.json({ saved: remarks.length });
   } catch (err) { next(err); }
 });
 

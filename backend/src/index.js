@@ -410,6 +410,20 @@ async function runMigrations() {
       CREATE INDEX IF NOT EXISTS idx_results_import_lookup
         ON results_import(school_id, academic_year_id, semester, student_id)
     `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS report_remarks (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        student_id       UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        academic_year_id UUID NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        semester         SMALLINT NOT NULL,
+        attitude         TEXT,
+        conduct          TEXT,
+        general_remarks  TEXT,
+        updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, student_id, academic_year_id, semester)
+      )
+    `);
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

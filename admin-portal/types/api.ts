@@ -132,6 +132,8 @@ export interface StudentResult {
   student_code: string;
   name: string;
   exam_body: string | null;
+  picture_url: string | null;
+  gender: string | null;
   subjects: SubjectResult[];
   average: number | null;
   overall_grade: string;
@@ -139,6 +141,13 @@ export interface StudentResult {
   class_total?: number;
   ca_percentage: number;
   exam_percentage: number;
+}
+
+export interface ReportRemark {
+  student_id: string;
+  attitude: string | null;
+  conduct: string | null;
+  general_remarks: string | null;
 }
 
 export interface House {
