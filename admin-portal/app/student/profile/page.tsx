@@ -12,7 +12,7 @@ interface Profile {
   house: string | null; residential_status: string | null;
   religion: string | null; guardian_name: string | null;
   guardian_mobile: string | null; guardian_occupation: string | null;
-  form_teacher: { teacher_name: string; teacher_code: string } | null;
+  form_teacher: { teacher_name: string; teacher_phone: string | null } | null;
 }
 
 function Row({ label, value }: { label: string; value: string | null | undefined }) {
@@ -102,12 +102,15 @@ export default function StudentProfilePage() {
       {/* Personal info */}
       <div className="bg-white rounded-xl border border-slate-100 px-5 py-3">
         <p className="text-xs font-bold text-slate-400 uppercase tracking-wide py-2">Personal Information</p>
-        <Row label="Gender"       value={profile.gender} />
+        <Row label="Gender"        value={profile.gender} />
         <Row label="Date of Birth" value={profile.date_of_birth ? `${profile.date_of_birth}${profile.age ? ` (${profile.age} yrs)` : ''}` : null} />
-        <Row label="Hometown"     value={profile.hometown} />
-        <Row label="Address"      value={profile.residential_address} />
-        <Row label="Mobile"       value={profile.mobile_number} />
-        <Row label="Religion"     value={profile.religion} />
+        <Row label="Hometown"      value={profile.hometown} />
+        <Row label="Address"       value={profile.residential_address} />
+        <Row label="Mobile"        value={profile.mobile_number} />
+        <Row label="Religion"      value={profile.religion} />
+        {!profile.gender && !profile.date_of_birth && !profile.hometown && !profile.residential_address && !profile.mobile_number && !profile.religion && (
+          <p className="text-xs text-slate-400 py-2">No personal information on file. Contact your school administrator.</p>
+        )}
       </div>
 
       {/* Guardian */}
@@ -124,8 +127,8 @@ export default function StudentProfilePage() {
       {profile.form_teacher && (
         <div className="bg-white rounded-xl border border-slate-100 px-5 py-3">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wide py-2">Form Teacher</p>
-          <Row label="Name" value={profile.form_teacher.teacher_name} />
-          <Row label="Code" value={profile.form_teacher.teacher_code} />
+          <Row label="Name"    value={profile.form_teacher.teacher_name} />
+          <Row label="Contact" value={profile.form_teacher.teacher_phone} />
         </div>
       )}
 

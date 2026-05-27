@@ -52,7 +52,7 @@ router.get('/profile', async (req, res, next) => {
 
     // Attach form teacher for current year
     const { rows: ftRows } = await pool.query(
-      `SELECT t.name AS teacher_name, t.teacher_code
+      `SELECT t.name AS teacher_name, t.phone AS teacher_phone
        FROM form_teacher_assignments fta
        JOIN teachers t ON t.id = fta.teacher_id
        JOIN academic_years ay ON ay.id = fta.academic_year_id

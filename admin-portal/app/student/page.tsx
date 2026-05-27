@@ -8,7 +8,7 @@ import { getStudentColors } from '@/lib/student-auth';
 interface Profile {
   name: string; student_code: string; class_name: string; picture_url: string | null;
   program_name: string | null; residential_status: string | null; house: string | null;
-  form_teacher: { teacher_name: string; teacher_code: string } | null;
+  form_teacher: { teacher_name: string; teacher_phone: string | null } | null;
 }
 interface LatestResult {
   average: number | null; overall_grade: string; class_position: number | null; class_total: number | null;
@@ -219,7 +219,9 @@ export default function StudentDashboard() {
           <div>
             <p className="text-xs text-slate-400 font-medium">Your Form Teacher</p>
             <p className="text-sm font-bold text-slate-700">{profile.form_teacher.teacher_name}</p>
-            <p className="text-xs text-slate-400 font-mono">{profile.form_teacher.teacher_code}</p>
+            {profile.form_teacher.teacher_phone && (
+              <p className="text-xs text-slate-400">{profile.form_teacher.teacher_phone}</p>
+            )}
           </div>
         </div>
       )}

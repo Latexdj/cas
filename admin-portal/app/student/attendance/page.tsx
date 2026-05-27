@@ -15,12 +15,13 @@ const STATUS_STYLE: Record<string, { bg: string; text: string }> = {
 };
 
 export default function StudentAttendancePage() {
-  const [years,    setYears]    = useState<AcademicYear[]>([]);
-  const [yearId,   setYearId]   = useState('');
-  const [semester, setSemester] = useState('');
-  const [summary,  setSummary]  = useState<AttSummary | null>(null);
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [loading,  setLoading]  = useState(false);
+  const [years,      setYears]      = useState<AcademicYear[]>([]);
+  const [yearsReady, setYearsReady] = useState(false);
+  const [yearId,     setYearId]     = useState('');
+  const [semester,   setSemester]   = useState('');
+  const [summary,    setSummary]    = useState<AttSummary | null>(null);
+  const [sessions,   setSessions]   = useState<Session[]>([]);
+  const [loading,    setLoading]    = useState(false);
   const colors = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
   const primary = colors.primary;
 
@@ -29,7 +30,7 @@ export default function StudentAttendancePage() {
       setYears(r.data);
       const cur = r.data.find(y => y.is_current) ?? r.data[0];
       if (cur) { setYearId(cur.id); setSemester(String(cur.current_semester ?? 1)); }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setYearsReady(true));
   }, []);
 
   useEffect(() => {
@@ -52,8 +53,10 @@ export default function StudentAttendancePage() {
       <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-wrap gap-3 items-end">
         <div>
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-1">Academic Year</label>
-          <select value={yearId} onChange={e => setYearId(e.target.value)}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <select value={yearId} onChange={e => setYearId(e.target.value)} disabled={!yearsReady}
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
+            {!yearsReady && <option value="">Loading…</option>}
+            {yearsReady && years.length === 0 && <option value="">No academic years found</option>}
             {years.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>)}
           </select>
         </div>
