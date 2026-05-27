@@ -276,7 +276,10 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     }
 
     res.json({ inserted, errors });
-  } catch (err) { next(err); }
+  } catch (err) {
+    console.error('Upload error:', err.message, 'code:', err.code);
+    return res.status(500).json({ error: err.message || 'Upload failed', pgCode: err.code });
+  }
 });
 
 /** POST /api/students/promote — bulk promote a class */
