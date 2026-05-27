@@ -15,6 +15,7 @@ interface OfficeStaff {
 }
 interface ClearanceStaff { id: string; name: string; email: string; is_active: boolean; offices: string[] | null; }
 interface Program { id: string; name: string; }
+interface House   { id: string; name: string; }
 
 const TYPE_LABELS: Record<string, string> = { general: 'General', hod: 'HOD', housemaster: 'Housemaster' };
 
@@ -22,6 +23,7 @@ export default function OfficesPage() {
   const [offices,  setOffices]  = useState<Office[]>([]);
   const [staff,    setStaff]    = useState<ClearanceStaff[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [houses,   setHouses]   = useState<House[]>([]);
   const [loading,  setLoading]  = useState(true);
 
   // Office form
@@ -50,8 +52,9 @@ export default function OfficesPage() {
       api.get<ClearanceStaff[]>('/api/clearance-admin/staff'),
       api.get<Program[]>('/api/programs'),
       api.get<{ id: string; name: string; teacher_code: string }[]>('/api/teachers'),
-    ]).then(([o, s, p, t]) => {
-      setOffices(o.data); setStaff(s.data); setPrograms(p.data); setTeachers(t.data);
+      api.get<House[]>('/api/houses'),
+    ]).then(([o, s, p, t, h]) => {
+      setOffices(o.data); setStaff(s.data); setPrograms(p.data); setTeachers(t.data); setHouses(h.data);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
@@ -241,7 +244,11 @@ export default function OfficesPage() {
               )}
               {officeForm.office_type === 'housemaster' && (
                 <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Link to House (optional)</label>
-                  <input value={officeForm.linked_house ?? ''} onChange={e => setOfficeForm(p => ({ ...p, linked_house: e.target.value || null }))} placeholder="e.g. Blue House" className={inp} /></div>
+                  <select value={officeForm.linked_house ?? ''} onChange={e => setOfficeForm(p => ({ ...p, linked_house: e.target.value || null }))} className={inp}>
+                    <option value="">All houses</option>
+                    {houses.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
+                  </select>
+                </div>
               )}
               <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Sort Order</label>
                 <input type="number" value={officeForm.sort_order ?? 0} onChange={e => setOfficeForm(p => ({ ...p, sort_order: parseInt(e.target.value) }))} className={inp} /></div>
