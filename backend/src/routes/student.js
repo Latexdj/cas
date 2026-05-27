@@ -65,6 +65,18 @@ router.get('/profile', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /api/student/school-profile ─────────────────────────────────────────
+
+router.get('/school-profile', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT name, address, logo_url FROM schools WHERE id = $1`,
+      [req.schoolId]
+    );
+    res.json(rows[0] ?? {});
+  } catch (err) { next(err); }
+});
+
 // ── GET /api/student/results?academic_year_id=&semester= ─────────────────────
 
 router.get('/results', async (req, res, next) => {

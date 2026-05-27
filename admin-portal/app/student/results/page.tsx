@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { studentApi } from '@/lib/student-api';
 import { getStudentColors } from '@/lib/student-auth';
@@ -17,6 +17,7 @@ interface SemesterResult {
   remarks: { attitude: string | null; conduct: string | null; general_remarks: string | null; interest: string | null } | null;
 }
 interface HistoryPoint { label: string; academic_year: string; semester: number; average: number; grade: string; subject_count: number; }
+interface SchoolProfile { name: string; address: string | null; logo_url: string | null; }
 
 const GRADE_COLORS: Record<string, string> = {
   A: '#16a34a', B: '#2563eb', C: '#d97706', D: '#9333ea', E: '#64748b', F: '#dc2626',
@@ -27,6 +28,225 @@ function scoreColor(t: number | null) {
   if (t >= 70) return 'text-green-700'; if (t >= 50) return 'text-amber-600'; return 'text-red-600';
 }
 
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+// ── A4 Report Card ────────────────────────────────────────────────────────────
+
+function ReportCard({ result, yearName, semester, schoolName, schoolAddress, schoolLogo }: {
+  result: SemesterResult;
+  yearName: string;
+  semester: string;
+  schoolName: string;
+  schoolAddress: string;
+  schoolLogo: string | null;
+}) {
+  const subjects = result.subjects.filter(s => s.total != null);
+  const GREEN  = '#1a5c38';
+  const LGREEN = '#f0faf5';
+
+  const gradeCol = (g: string) =>
+    ['A1','B2','B3','A','B+','B-'].includes(g) ? '#15803D' :
+    ['F9','F','E8'].includes(g) ? '#DC2626' : '#D97706';
+
+  const barColor = (t: number | null) =>
+    t == null ? '#e5e7eb' : t >= 70 ? '#15803D' : t >= 50 ? '#D97706' : '#DC2626';
+
+  const page: React.CSSProperties = {
+    width: '210mm', minHeight: '297mm', padding: '12mm 13mm 10mm',
+    boxSizing: 'border-box',
+    fontFamily: "'Arial', 'Helvetica', sans-serif",
+    fontSize: '9pt', color: '#1a1a1a',
+    background: '#fff',
+    display: 'flex', flexDirection: 'column', gap: '7px',
+  };
+
+  return (
+    <div style={page}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: `3px solid ${GREEN}`, paddingBottom: '8px' }}>
+        <div style={{ width: '60px', height: '60px', flexShrink: 0, border: `1px solid #e5e7eb`, borderRadius: '6px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb' }}>
+          {schoolLogo
+            ? <img src={schoolLogo} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            : <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '36px', height: '36px' }}>
+                <rect width="48" height="48" rx="8" fill={GREEN} />
+                <path d="M24 10L36 18V30L24 38L12 30V18L24 10Z" fill="white" fillOpacity=".9" />
+                <path d="M24 14L32 20V28L24 34L16 28V20L24 14Z" fill={GREEN} />
+                <circle cx="24" cy="24" r="4" fill="white" />
+              </svg>
+          }
+        </div>
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <div style={{ fontSize: '15pt', fontWeight: 900, color: GREEN, letterSpacing: '0.5px', textTransform: 'uppercase', lineHeight: 1.2 }}>
+            {schoolName || 'SCHOOL NAME'}
+          </div>
+          {schoolAddress && <div style={{ fontSize: '8pt', color: '#555', marginTop: '2px' }}>{schoolAddress}</div>}
+          <div style={{ marginTop: '4px', fontSize: '10pt', fontWeight: 700, letterSpacing: '1.5px', color: '#333', textTransform: 'uppercase' }}>
+            Student Academic Report Card
+          </div>
+          <div style={{ fontSize: '8.5pt', color: '#555', marginTop: '2px' }}>
+            {yearName} &nbsp;·&nbsp; Semester {semester}
+          </div>
+        </div>
+        <div style={{ width: '60px', height: '72px', flexShrink: 0, border: `2px solid ${GREEN}`, borderRadius: '6px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e5e7eb' }}>
+          {result.student.picture_url
+            ? <img src={result.student.picture_url} alt="student" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <svg viewBox="0 0 48 48" fill="none" style={{ width: '36px', height: '36px' }}>
+                <circle cx="24" cy="18" r="10" fill="#9ca3af" />
+                <ellipse cx="24" cy="42" rx="18" ry="10" fill="#9ca3af" />
+              </svg>
+          }
+        </div>
+      </div>
+
+      {/* Student Info */}
+      <div style={{ background: LGREEN, border: `1px solid #c6e8d8`, borderRadius: '5px', padding: '6px 10px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
+          <tbody>
+            <tr>
+              <td style={{ width: '15%', fontWeight: 700, color: '#555', paddingBottom: '3px' }}>Full Name</td>
+              <td style={{ width: '35%', fontWeight: 700, paddingBottom: '3px', borderBottom: `1px solid #b0d4c4` }}>{result.student.name}</td>
+              <td style={{ width: '15%', fontWeight: 700, color: '#555', paddingLeft: '12px', paddingBottom: '3px' }}>Class</td>
+              <td style={{ width: '35%', fontWeight: 700, paddingBottom: '3px', borderBottom: `1px solid #b0d4c4` }}>{result.student.class_name}</td>
+            </tr>
+            <tr>
+              <td style={{ fontWeight: 700, color: '#555', paddingTop: '3px' }}>Student ID</td>
+              <td style={{ paddingTop: '3px' }}>{result.student.student_code}</td>
+              <td style={{ fontWeight: 700, color: '#555', paddingLeft: '12px', paddingTop: '3px' }}>Programme</td>
+              <td style={{ paddingTop: '3px' }}>{result.student.program_name ?? '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Summary Boxes */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '5px' }}>
+        {[
+          { label: 'Class Average',  value: result.average != null ? String(result.average) : '—', big: true },
+          { label: 'Class Position', value: result.class_position ? `${ordinal(result.class_position)} / ${result.class_total ?? '?'}` : '—' },
+          { label: 'Overall Grade',  value: result.overall_grade },
+          { label: 'Subjects Sat',   value: String(subjects.length) },
+        ].map(({ label, value, big }) => (
+          <div key={label} style={{ border: `1.5px solid ${GREEN}`, borderRadius: '5px', padding: '5px 4px', textAlign: 'center', background: '#fff' }}>
+            <div style={{ fontSize: '7pt', color: '#666', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px' }}>{label}</div>
+            <div style={{ fontSize: big ? '14pt' : '12pt', fontWeight: 900, color: GREEN, marginTop: '2px', lineHeight: 1.1 }}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Subject Table */}
+      <div>
+        <div style={{ fontSize: '7.5pt', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: GREEN, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ height: '2px', width: '14px', background: GREEN }} />
+          Subject Breakdown
+          <div style={{ flex: 1, height: '1px', background: '#c6e8d8' }} />
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
+          <thead>
+            <tr style={{ background: GREEN, color: '#fff' }}>
+              {['Subject', 'CA Score', 'Exam Score', 'Total', 'Grade', 'Remarks'].map((h, i) => (
+                <th key={h} style={{ padding: '4px 5px', textAlign: i === 0 ? 'left' : 'center', fontWeight: 700, fontSize: '7.5pt', letterSpacing: '0.3px' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {result.subjects.map((s, i) => (
+              <tr key={s.subject} style={{ background: i % 2 === 0 ? '#fff' : LGREEN, borderBottom: `1px solid #dde8e3` }}>
+                <td style={{ padding: '3.5px 5px', fontWeight: 500 }}>{s.subject}</td>
+                <td style={{ padding: '3.5px 5px', textAlign: 'center' }}>{s.ca_score ?? '—'}</td>
+                <td style={{ padding: '3.5px 5px', textAlign: 'center' }}>{s.exam_score ?? '—'}</td>
+                <td style={{ padding: '3.5px 5px', textAlign: 'center', fontWeight: 700, color: barColor(s.total) }}>{s.total ?? '—'}</td>
+                <td style={{ padding: '3.5px 5px', textAlign: 'center', fontWeight: 700, color: gradeCol(s.grade) }}>{s.grade}</td>
+                <td style={{ padding: '3.5px 5px', fontSize: '8pt', color: '#444' }}>{s.remark && s.remark !== '-' ? s.remark : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Performance Chart */}
+      {subjects.length > 0 && (
+        <div>
+          <div style={{ fontSize: '7.5pt', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: GREEN, marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ height: '2px', width: '14px', background: GREEN }} />
+            Performance Overview
+            <div style={{ flex: 1, height: '1px', background: '#c6e8d8' }} />
+            <span style={{ fontSize: '7pt', fontWeight: 400, color: '#888', textTransform: 'none' }}>
+              <span style={{ color: '#15803D' }}>■</span> ≥70 &nbsp;
+              <span style={{ color: '#D97706' }}>■</span> 50–69 &nbsp;
+              <span style={{ color: '#DC2626' }}>■</span> &lt;50
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5px' }}>
+            {subjects.map(s => (
+              <div key={s.subject} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '7.5pt' }}>
+                <div style={{ width: '110px', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#444', flexShrink: 0 }}>{s.subject}</div>
+                <div style={{ flex: 1, background: '#f0f0f0', height: '10px', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${Math.min(s.total ?? 0, 100)}%`, background: barColor(s.total), borderRadius: '2px' }} />
+                </div>
+                <div style={{ width: '28px', textAlign: 'right', fontWeight: 700, color: barColor(s.total), flexShrink: 0 }}>{s.total}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Remarks */}
+      <div style={{ background: LGREEN, border: `1px solid #c6e8d8`, borderRadius: '5px', padding: '6px 10px' }}>
+        <div style={{ fontSize: '7.5pt', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: GREEN, marginBottom: '5px' }}>
+          Form Teacher&apos;s Remarks
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
+          <tbody>
+            <tr>
+              <td style={{ width: '12%', fontWeight: 700, color: '#555', paddingBottom: '5px' }}>Attitude</td>
+              <td style={{ width: '38%', paddingBottom: '5px', borderBottom: '1px solid #b0d4c4', fontWeight: 600 }}>
+                {result.remarks?.attitude || <span style={{ color: '#bbb' }}>—</span>}
+              </td>
+              <td style={{ width: '12%', fontWeight: 700, color: '#555', paddingLeft: '12px', paddingBottom: '5px' }}>Conduct</td>
+              <td style={{ width: '38%', paddingBottom: '5px', borderBottom: '1px solid #b0d4c4', fontWeight: 600 }}>
+                {result.remarks?.conduct || <span style={{ color: '#bbb' }}>—</span>}
+              </td>
+            </tr>
+            <tr>
+              <td style={{ fontWeight: 700, color: '#555', paddingTop: '5px', verticalAlign: 'top' }}>Remarks</td>
+              <td colSpan={3} style={{ paddingTop: '5px', borderBottom: '1px solid #b0d4c4', paddingBottom: '5px', minHeight: '20px' }}>
+                {result.remarks?.general_remarks || <span style={{ color: '#bbb' }}>—</span>}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Signatures */}
+      <div style={{ marginTop: 'auto', paddingTop: '8px', borderTop: `1px dashed #c6e8d8` }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
+          <tbody>
+            <tr>
+              <td style={{ width: '33%', paddingTop: '22px', paddingRight: '20px' }}>
+                <div style={{ borderTop: `1.5px solid #888`, paddingTop: '4px', color: '#555' }}>Class Teacher&apos;s Signature &amp; Date</div>
+              </td>
+              <td style={{ width: '34%', paddingTop: '22px', textAlign: 'center' }}>
+                <div style={{ borderTop: `1.5px solid #888`, paddingTop: '4px', color: '#555' }}>Next Term Begins</div>
+              </td>
+              <td style={{ width: '33%', paddingTop: '22px', paddingLeft: '20px', textAlign: 'right' }}>
+                <div style={{ borderTop: `1.5px solid #888`, paddingTop: '4px', color: '#555' }}>Headmaster&apos;s Signature &amp; Date</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
 export default function StudentResultsPage() {
   const [years,      setYears]      = useState<AcademicYear[]>([]);
   const [yearsReady, setYearsReady] = useState(false);
@@ -36,7 +256,7 @@ export default function StudentResultsPage() {
   const [history,    setHistory]    = useState<HistoryPoint[]>([]);
   const [loading,    setLoading]    = useState(false);
   const [printing,   setPrinting]   = useState(false);
-  const printRef = useRef<HTMLDivElement>(null);
+  const [school,     setSchool]     = useState<SchoolProfile>({ name: '', address: null, logo_url: null });
   const colors = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
   const primary = colors.primary;
 
@@ -47,6 +267,7 @@ export default function StudentResultsPage() {
       if (cur) { setYearId(cur.id); setSemester(String(cur.current_semester ?? 1)); }
     }).catch(() => {}).finally(() => setYearsReady(true));
     studentApi.get<HistoryPoint[]>('/api/student/results/history').then(r => setHistory(r.data)).catch(() => {});
+    studentApi.get<SchoolProfile>('/api/student/school-profile').then(r => setSchool(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -76,77 +297,24 @@ export default function StudentResultsPage() {
           body * { visibility: hidden; }
           #student-print-area {
             display: block !important; visibility: visible !important;
-            position: absolute; top: 0; left: 0; width: 100%; background: white;
+            position: fixed; top: 0; left: 0; width: 100%; background: white; z-index: 9999;
           }
           #student-print-area * { visibility: visible !important; }
-          @page { size: A4 portrait; margin: 15mm; }
+          @page { size: A4 portrait; margin: 0; }
         }
       `}</style>
 
-      {/* Print area (hidden until print) */}
+      {/* Print area */}
       <div id="student-print-area">
         {printing && result && (
-          <div style={{ fontFamily: 'serif', padding: 0 }}>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <p style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>STUDENT REPORT CARD</p>
-              <p style={{ fontSize: 13, margin: '4px 0 0' }}>{selectedYear?.name} — Semester {semester}</p>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 12 }}>
-              <tbody>
-                <tr>
-                  <td style={{ padding: '2px 8px' }}><b>Name:</b> {result.student.name}</td>
-                  <td style={{ padding: '2px 8px' }}><b>Student ID:</b> {result.student.student_code}</td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '2px 8px' }}><b>Class:</b> {result.student.class_name}</td>
-                  <td style={{ padding: '2px 8px' }}><b>Programme:</b> {result.student.program_name ?? '—'}</td>
-                </tr>
-              </tbody>
-            </table>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-              <thead>
-                <tr style={{ background: '#f1f5f9' }}>
-                  {['Subject','CA Score','Exam Score','Total','Grade','Remark'].map(h => (
-                    <th key={h} style={{ border: '1px solid #cbd5e1', padding: '5px 8px', textAlign: 'left', fontWeight: 600 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {result.subjects.map(s => (
-                  <tr key={s.subject}>
-                    <td style={{ border: '1px solid #e2e8f0', padding: '4px 8px' }}>{s.subject}</td>
-                    <td style={{ border: '1px solid #e2e8f0', padding: '4px 8px', textAlign: 'center' }}>{s.ca_score ?? '—'}</td>
-                    <td style={{ border: '1px solid #e2e8f0', padding: '4px 8px', textAlign: 'center' }}>{s.exam_score ?? '—'}</td>
-                    <td style={{ border: '1px solid #e2e8f0', padding: '4px 8px', textAlign: 'center', fontWeight: 700 }}>{s.total ?? '—'}</td>
-                    <td style={{ border: '1px solid #e2e8f0', padding: '4px 8px', textAlign: 'center', fontWeight: 700 }}>{s.grade}</td>
-                    <td style={{ border: '1px solid #e2e8f0', padding: '4px 8px' }}>{s.remark}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr style={{ background: '#f8fafc', fontWeight: 700 }}>
-                  <td colSpan={3} style={{ border: '1px solid #cbd5e1', padding: '5px 8px' }}>Average</td>
-                  <td style={{ border: '1px solid #cbd5e1', padding: '5px 8px', textAlign: 'center' }}>{result.average ?? '—'}</td>
-                  <td style={{ border: '1px solid #cbd5e1', padding: '5px 8px', textAlign: 'center' }}>{result.overall_grade}</td>
-                  <td style={{ border: '1px solid #cbd5e1', padding: '5px 8px' }}>Position: {result.class_position ? `${result.class_position} / ${result.class_total}` : '—'}</td>
-                </tr>
-              </tfoot>
-            </table>
-            {result.remarks && (result.remarks.attitude || result.remarks.conduct || result.remarks.general_remarks) && (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginTop: 12 }}>
-                <tbody>
-                  {result.remarks.attitude   && <tr><td style={{ padding: '2px 8px', width: 130, fontWeight: 600 }}>Attitude:</td><td style={{ padding: '2px 8px' }}>{result.remarks.attitude}</td></tr>}
-                  {result.remarks.conduct    && <tr><td style={{ padding: '2px 8px', fontWeight: 600 }}>Conduct:</td><td style={{ padding: '2px 8px' }}>{result.remarks.conduct}</td></tr>}
-                  {result.remarks.interest   && <tr><td style={{ padding: '2px 8px', fontWeight: 600 }}>Interest:</td><td style={{ padding: '2px 8px' }}>{result.remarks.interest}</td></tr>}
-                  {result.remarks.general_remarks && <tr><td style={{ padding: '2px 8px', fontWeight: 600 }}>Remarks:</td><td style={{ padding: '2px 8px' }}>{result.remarks.general_remarks}</td></tr>}
-                </tbody>
-              </table>
-            )}
-            <div style={{ marginTop: 40, display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-              <div style={{ textAlign: 'center' }}><div style={{ borderTop: '1px solid #000', width: 160, marginBottom: 4 }} /><p>Class Teacher</p></div>
-              <div style={{ textAlign: 'center' }}><div style={{ borderTop: '1px solid #000', width: 160, marginBottom: 4 }} /><p>Head Teacher / Principal</p></div>
-            </div>
-          </div>
+          <ReportCard
+            result={result}
+            yearName={selectedYear?.name ?? ''}
+            semester={semester}
+            schoolName={school.name}
+            schoolAddress={school.address ?? ''}
+            schoolLogo={school.logo_url}
+          />
         )}
       </div>
 
@@ -178,7 +346,7 @@ export default function StudentResultsPage() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" />
             </svg>
-            Print
+            Print Report Card
           </button>
         </div>
 
@@ -259,7 +427,6 @@ export default function StudentResultsPage() {
               <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 space-y-1">
                 {result.remarks.attitude        && <p className="text-xs text-slate-600"><span className="font-semibold">Attitude: </span>{result.remarks.attitude}</p>}
                 {result.remarks.conduct         && <p className="text-xs text-slate-600"><span className="font-semibold">Conduct: </span>{result.remarks.conduct}</p>}
-                {result.remarks.interest        && <p className="text-xs text-slate-600"><span className="font-semibold">Interest: </span>{result.remarks.interest}</p>}
                 {result.remarks.general_remarks && <p className="text-xs text-slate-600"><span className="font-semibold">Remarks: </span>{result.remarks.general_remarks}</p>}
               </div>
             )}
@@ -305,7 +472,6 @@ export default function StudentResultsPage() {
               ))}
             </div>
 
-            {/* Subject count per semester */}
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mt-5 mb-3">Subjects Sat Per Semester</p>
             <div className="flex flex-wrap gap-2">
               {history.map(h => (
@@ -336,10 +502,4 @@ export default function StudentResultsPage() {
       </div>
     </>
   );
-}
-
-function ordinal(n: number): string {
-  const s = ['th', 'st', 'nd', 'rd'];
-  const v = n % 100;
-  return s[(v - 20) % 10] || s[v] || s[0];
 }
