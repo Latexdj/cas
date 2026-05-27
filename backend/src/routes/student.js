@@ -290,7 +290,7 @@ router.get('/results/history', async (req, res, next) => {
       pool.query(`SELECT ca_percentage FROM schools WHERE id = $1`, [req.schoolId]),
       pool.query(`SELECT id, name, ca_contribution FROM assessment_modes WHERE school_id = $1`, [req.schoolId]),
       pool.query(`SELECT exam_body, grade, min_pct, max_pct, remark FROM grade_boundaries WHERE school_id = $1 ORDER BY exam_body, sort_order DESC`, [req.schoolId]),
-      pool.query(`SELECT id, name, start_date FROM academic_years WHERE school_id = $1 ORDER BY start_date ASC`, [req.schoolId]),
+      pool.query(`SELECT id, name FROM academic_years WHERE school_id = $1 ORDER BY name ASC`, [req.schoolId]),
     ]);
 
     const caPercentage  = parseFloat(schoolRow.rows[0]?.ca_percentage) || 30;
@@ -472,8 +472,8 @@ router.get('/calendar', async (req, res, next) => {
 router.get('/academic-years', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name, is_current, current_semester, start_date, end_date
-       FROM academic_years WHERE school_id = $1 ORDER BY start_date DESC`,
+      `SELECT id, name, is_current, current_semester
+       FROM academic_years WHERE school_id = $1 ORDER BY name DESC`,
       [req.schoolId]
     );
     res.json(rows);
