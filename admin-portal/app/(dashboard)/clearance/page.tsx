@@ -39,6 +39,7 @@ export default function ClearancePage() {
   const [batchClasses, setBatchClasses] = useState<string[]>([]);
   const [initiating,   setInitiating]   = useState(false);
   const [batchResult,  setBatchResult]  = useState<{ initiated: number; skipped: number; total: number } | null>(null);
+  const [batchError,   setBatchError]   = useState('');
 
   // Override modal
   const [override,    setOverride]    = useState<{ item: ClearanceItem; studentId: string } | null>(null);
@@ -75,15 +76,17 @@ export default function ClearancePage() {
 
   async function handleBatchInitiate() {
     if (!batchClasses.length) return;
-    setInitiating(true); setBatchResult(null);
+    setInitiating(true); setBatchResult(null); setBatchError('');
     try {
       const r = await api.post<{ initiated: number; skipped: number; total: number }>(
         '/api/clearance-admin/initiate', { class_names: batchClasses }
       );
       setBatchResult(r.data);
       loadStudents();
-    } catch { }
-    finally { setInitiating(false); }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setBatchError(msg ?? 'Initiation failed. Please try again.');
+    } finally { setInitiating(false); }
   }
 
   function openOverride(item: ClearanceItem, studentId: string) {
@@ -116,7 +119,7 @@ export default function ClearancePage() {
           <h1 className="text-xl font-bold text-slate-800">Student Clearance</h1>
           <p className="text-sm text-slate-500 mt-0.5">Track and manage student clearance for certificate collection</p>
         </div>
-        <button onClick={() => { setShowBatch(true); setBatchResult(null); setBatchClasses([]); }}
+        <button onClick={() => { setShowBatch(true); setBatchResult(null); setBatchError(''); setBatchClasses([]); }}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
             <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" />
@@ -300,6 +303,7 @@ export default function ClearancePage() {
                       </label>
                     ))}
                   </div>
+                  {batchError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{batchError}</p>}
                   <div className="flex gap-3 pt-2">
                     <button onClick={() => setShowBatch(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</button>
                     <button onClick={handleBatchInitiate} disabled={initiating || batchClasses.length === 0}

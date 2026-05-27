@@ -241,88 +241,98 @@ router.get('/classes', async (req, res, next) => {
 // POST /api/clearance-admin/initiate  — start clearance for a batch (class names)
 // body: { class_names: string[] }
 router.post('/initiate', async (req, res, next) => {
-  const client = await pool.connect();
   try {
     const { class_names } = req.body;
     if (!Array.isArray(class_names) || class_names.length === 0) {
       return res.status(400).json({ error: 'class_names array is required' });
     }
 
-    // Fetch active offices for the school
-    const { rows: offices } = await pool.query(
-      `SELECT id, office_type, linked_programme_id, linked_house
-       FROM clearance_offices WHERE school_id = $1 AND is_active = true`,
-      [req.schoolId]
-    );
-    if (offices.length === 0) {
+    // Two parallel queries — no per-student DB calls
+    const [{ rows: offices }, { rows: students }] = await Promise.all([
+      pool.query(
+        `SELECT id, office_type, linked_programme_id, linked_house
+         FROM clearance_offices WHERE school_id = $1 AND is_active = true`,
+        [req.schoolId]
+      ),
+      pool.query(
+        `SELECT id, program_id, house FROM students
+         WHERE school_id = $1 AND status = 'Active' AND class_name = ANY($2)`,
+        [req.schoolId, class_names]
+      ),
+    ]);
+
+    if (offices.length === 0)
       return res.status(400).json({ error: 'No active clearance offices configured' });
-    }
-
-    // Fetch students in the selected classes
-    const { rows: students } = await pool.query(
-      `SELECT s.id, s.class_name, s.program_id, s.house
-       FROM students s
-       WHERE s.school_id = $1 AND s.status = 'Active'
-         AND s.class_name = ANY($2)`,
-      [req.schoolId, class_names]
-    );
-    if (students.length === 0) {
+    if (students.length === 0)
       return res.status(400).json({ error: 'No active students found in the selected classes' });
-    }
 
-    await client.query('BEGIN');
-    let initiated = 0, skipped = 0;
-
+    // Compute applicable offices per student in JS — zero DB calls
+    const studentOfficeMap = new Map(); // studentId → officeId[]
     for (const student of students) {
-      // Determine which offices apply to this student
-      const applicableOffices = offices.filter(o => {
-        if (o.office_type === 'hod') {
-          if (!o.linked_programme_id) return true; // unlinked → all students
-          return o.linked_programme_id === student.program_id;
-        }
-        if (o.office_type === 'housemaster') {
-          if (!o.linked_house) return true;
-          return o.linked_house?.toLowerCase() === student.house?.toLowerCase();
-        }
-        return true; // general offices apply to all
+      const applicable = offices.filter(o => {
+        if (o.office_type === 'hod')
+          return !o.linked_programme_id || o.linked_programme_id === student.program_id;
+        if (o.office_type === 'housemaster')
+          return !o.linked_house || o.linked_house.toLowerCase() === (student.house ?? '').toLowerCase();
+        return true;
       });
-      if (applicableOffices.length === 0) { skipped++; continue; }
-
-      // Insert student_clearances (skip if already exists)
-      const { rows: existing } = await client.query(
-        `SELECT id FROM student_clearances WHERE school_id = $1 AND student_id = $2`,
-        [req.schoolId, student.id]
-      );
-      let clearanceId;
-      if (existing.length) {
-        clearanceId = existing[0].id;
-        skipped++;
-      } else {
-        const { rows: clr } = await client.query(
-          `INSERT INTO student_clearances (school_id, student_id, initiated_by)
-           VALUES ($1, $2, $3) RETURNING id`,
-          [req.schoolId, student.id, req.user.id]
-        );
-        clearanceId = clr[0].id;
-        initiated++;
-      }
-
-      // Insert items for any office not yet tracked
-      for (const office of applicableOffices) {
-        await client.query(
-          `INSERT INTO student_clearance_items (school_id, clearance_id, office_id)
-           VALUES ($1, $2, $3) ON CONFLICT (clearance_id, office_id) DO NOTHING`,
-          [req.schoolId, clearanceId, office.id]
-        );
-      }
+      if (applicable.length > 0) studentOfficeMap.set(student.id, applicable.map(o => o.id));
     }
 
-    await client.query('COMMIT');
-    res.json({ initiated, skipped, total: students.length });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    next(err);
-  } finally { client.release(); }
+    const eligibleIds = [...studentOfficeMap.keys()];
+    const skippedNoOffice = students.length - eligibleIds.length;
+    if (eligibleIds.length === 0)
+      return res.json({ initiated: 0, skipped: skippedNoOffice, total: students.length });
+
+    // Find which already have clearance records
+    const idList  = eligibleIds.map((_, i) => `$${i + 2}`).join(',');
+    const { rows: existing } = await pool.query(
+      `SELECT id, student_id FROM student_clearances WHERE school_id = $1 AND student_id IN (${idList})`,
+      [req.schoolId, ...eligibleIds]
+    );
+    const clearanceByStudent = new Map(existing.map(r => [r.student_id, r.id]));
+
+    // Bulk INSERT new clearances (students without an existing record)
+    const newStudentIds = eligibleIds.filter(id => !clearanceByStudent.has(id));
+    let initiated = 0;
+    if (newStudentIds.length > 0) {
+      const params = [], placeholders = [];
+      for (const sid of newStudentIds) {
+        const b = params.length;
+        params.push(req.schoolId, sid, req.user.id);
+        placeholders.push(`($${b+1},$${b+2},$${b+3})`);
+      }
+      const { rows: newClr } = await pool.query(
+        `INSERT INTO student_clearances (school_id, student_id, initiated_by)
+         VALUES ${placeholders.join(',')} RETURNING id, student_id`,
+        params
+      );
+      initiated = newClr.length;
+      for (const r of newClr) clearanceByStudent.set(r.student_id, r.id);
+    }
+
+    // Bulk INSERT clearance items for all student-office pairs
+    const itemParams = [], itemPlaceholders = [];
+    for (const [studentId, officeIds] of studentOfficeMap) {
+      const clearanceId = clearanceByStudent.get(studentId);
+      if (!clearanceId) continue;
+      for (const officeId of officeIds) {
+        const b = itemParams.length;
+        itemParams.push(req.schoolId, clearanceId, officeId);
+        itemPlaceholders.push(`($${b+1},$${b+2},$${b+3})`);
+      }
+    }
+    if (itemPlaceholders.length > 0) {
+      await pool.query(
+        `INSERT INTO student_clearance_items (school_id, clearance_id, office_id)
+         VALUES ${itemPlaceholders.join(',')}
+         ON CONFLICT (clearance_id, office_id) DO NOTHING`,
+        itemParams
+      );
+    }
+
+    res.json({ initiated, skipped: skippedNoOffice + existing.length, total: students.length });
+  } catch (err) { next(err); }
 });
 
 // ── Student Clearance Overview ────────────────────────────────────────────────
