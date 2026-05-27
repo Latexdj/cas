@@ -55,6 +55,7 @@ export default function StudentsPage() {
   const [pinSaving,    setPinSaving]    = useState(false);
   const [pinMsg,       setPinMsg]       = useState('');
   const [hasPin,       setHasPin]       = useState(false);
+  const [resettingId,  setResettingId]  = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Form state
@@ -136,6 +137,15 @@ export default function StudentsPage() {
       setPinMsg((res.data as { message: string }).message ?? 'PIN updated');
     } catch { setPinMsg('Failed to set PIN'); }
     setPinSaving(false);
+  }
+
+  async function handleResetPassword(studentId: string) {
+    setResettingId(studentId);
+    try {
+      await api.post(`/api/students/${studentId}/set-pin`, {});
+      // briefly show tick by keeping resettingId set, then clear
+    } catch { /* ignore */ }
+    setTimeout(() => setResettingId(null), 1500);
   }
 
   async function handleSave() {
@@ -368,6 +378,16 @@ export default function StudentsPage() {
                         <div className="flex gap-2 justify-end items-center">
                           <Link href={`/students/${s.id}`} className="text-xs font-semibold px-2 py-1 rounded border" style={{ color: '#64748B', borderColor: '#E2E8F0' }}>Profile</Link>
                           <button className="text-xs font-semibold" style={{ color: '#2563EB' }} onClick={() => openEdit(s)}>Edit</button>
+                          <button
+                            title="Reset portal password to Student123"
+                            disabled={resettingId === s.id}
+                            onClick={() => handleResetPassword(s.id)}
+                            className="text-xs font-semibold px-2 py-1 rounded border transition-colors disabled:opacity-60"
+                            style={resettingId === s.id
+                              ? { color: '#16a34a', borderColor: '#86efac', backgroundColor: '#f0fdf4' }
+                              : { color: '#7c3aed', borderColor: '#E2E8F0' }}>
+                            {resettingId === s.id ? '✓ Reset' : 'Reset Pwd'}
+                          </button>
                           <button className="text-xs font-semibold" style={{ color: '#DC2626' }} onClick={() => handleDelete(s)}>Delete</button>
                         </div>
                       </td>

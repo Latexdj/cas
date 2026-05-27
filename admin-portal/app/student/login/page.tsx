@@ -8,11 +8,11 @@ import { saveStudent, getStudentSchoolCode, getStudentColors, saveStudentColors 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export default function StudentLoginPage() {
-  const [studentId, setStudentId] = useState('');
-  const [pin,       setPin]       = useState('');
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState('');
-  const [showPin,   setShowPin]   = useState(false);
+  const [studentId,  setStudentId]  = useState('');
+  const [password,   setPassword]   = useState('');
+  const [loading,    setLoading]    = useState(false);
+  const [error,      setError]      = useState('');
+  const [showPass,   setShowPass]   = useState(false);
 
   const colors = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
 
@@ -20,7 +20,7 @@ export default function StudentLoginPage() {
     e.preventDefault();
     setError('');
     if (!studentId.trim()) { setError('Student ID is required.'); return; }
-    if (!pin) { setError('PIN is required.'); return; }
+    if (!password) { setError('Password is required.'); return; }
 
     const schoolCode = getStudentSchoolCode();
     if (!schoolCode) { setError('No school selected. Please set up your school first.'); return; }
@@ -30,7 +30,7 @@ export default function StudentLoginPage() {
       const res = await axios.post(`${BASE}/api/auth/login`, {
         type: 'student',
         username: studentId.trim().toUpperCase(),
-        password: pin,
+        password: password,
         schoolCode,
       });
       const data = res.data;
@@ -46,7 +46,7 @@ export default function StudentLoginPage() {
       window.location.href = '/student';
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message ?? err.response?.data?.error ?? 'Invalid Student ID or PIN.');
+        setError(err.response?.data?.message ?? err.response?.data?.error ?? 'Invalid Student ID or password.');
       } else {
         setError('Login failed. Please try again.');
       }
@@ -82,17 +82,17 @@ export default function StudentLoginPage() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5">PIN</label>
+              <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5">Password</label>
               <div className="relative">
                 <input
-                  type={showPin ? 'text' : 'password'} value={pin}
-                  onChange={e => { setPin(e.target.value); setError(''); }}
-                  placeholder="Your PIN" autoComplete="current-password"
+                  type={showPass ? 'text' : 'password'} value={password}
+                  onChange={e => { setPassword(e.target.value); setError(''); }}
+                  placeholder="Your password" autoComplete="current-password"
                   className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-800"
                 />
-                <button type="button" onClick={() => setShowPin(v => !v)}
+                <button type="button" onClick={() => setShowPass(v => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
-                  {showPin ? (
+                  {showPass ? (
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
                       <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
                       <line x1="1" y1="1" x2="23" y2="23" />
@@ -125,7 +125,7 @@ export default function StudentLoginPage() {
           <Link href="/student/setup" className="font-semibold text-blue-600">Change it</Link>
         </p>
         <p className="text-center text-xs text-slate-400 mt-2">
-          Default PIN is <span className="font-semibold text-slate-500">Student123</span> — change it after first login.
+          Default password is <span className="font-semibold text-slate-500">Student123</span> — change it after first login.
         </p>
       </div>
     </div>

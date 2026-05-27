@@ -28,11 +28,11 @@ function Row({ label, value }: { label: string; value: string | null | undefined
 export default function StudentProfilePage() {
   const [profile,   setProfile]   = useState<Profile | null>(null);
   const [loading,   setLoading]   = useState(true);
-  const [pinMode,   setPinMode]   = useState(false);
-  const [curPin,    setCurPin]    = useState('');
-  const [newPin,    setNewPin]    = useState('');
-  const [pinMsg,    setPinMsg]    = useState('');
-  const [pinLoading,setPinLoading]= useState(false);
+  const [pwdMode,    setPwdMode]    = useState(false);
+  const [curPwd,     setCurPwd]    = useState('');
+  const [newPwd,     setNewPwd]    = useState('');
+  const [pwdMsg,     setPwdMsg]    = useState('');
+  const [pwdLoading, setPwdLoading]= useState(false);
   const colors = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
   const primary = colors.primary;
 
@@ -43,19 +43,19 @@ export default function StudentProfilePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleChangePin(e: React.FormEvent) {
+  async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
-    if (!curPin || !newPin) { setPinMsg('Both fields are required.'); return; }
-    if (newPin.length < 4)  { setPinMsg('New PIN must be at least 4 characters.'); return; }
-    setPinLoading(true); setPinMsg('');
+    if (!curPwd || !newPwd) { setPwdMsg('Both fields are required.'); return; }
+    if (newPwd.length < 4)  { setPwdMsg('New password must be at least 4 characters.'); return; }
+    setPwdLoading(true); setPwdMsg('');
     try {
-      await studentApi.post('/api/student/change-pin', { currentPin: curPin, newPin });
-      setPinMsg('PIN changed successfully!'); setCurPin(''); setNewPin('');
-      setTimeout(() => { setPinMode(false); setPinMsg(''); }, 2000);
+      await studentApi.post('/api/student/change-pin', { currentPin: curPwd, newPin: newPwd });
+      setPwdMsg('Password changed successfully!'); setCurPwd(''); setNewPwd('');
+      setTimeout(() => { setPwdMode(false); setPwdMsg(''); }, 2000);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setPinMsg(msg ?? 'Failed to change PIN.');
-    } finally { setPinLoading(false); }
+      setPwdMsg(msg ?? 'Failed to change password.');
+    } finally { setPwdLoading(false); }
   }
 
   if (loading) {
@@ -133,36 +133,36 @@ export default function StudentProfilePage() {
       <div className="bg-white rounded-xl border border-slate-100 p-5">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <p className="text-sm font-bold text-slate-700">Portal PIN</p>
-            <p className="text-xs text-slate-400">Change your login PIN</p>
+            <p className="text-sm font-bold text-slate-700">Portal Password</p>
+            <p className="text-xs text-slate-400">Change your login password</p>
           </div>
-          <button onClick={() => { setPinMode(m => !m); setPinMsg(''); }}
+          <button onClick={() => { setPwdMode(m => !m); setPwdMsg(''); }}
             className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-            style={pinMode ? { background: '#f1f5f9', color: '#64748b' } : { background: `${primary}15`, color: primary }}>
-            {pinMode ? 'Cancel' : 'Change PIN'}
+            style={pwdMode ? { background: '#f1f5f9', color: '#64748b' } : { background: `${primary}15`, color: primary }}>
+            {pwdMode ? 'Cancel' : 'Change Password'}
           </button>
         </div>
-        {pinMode && (
-          <form onSubmit={handleChangePin} className="space-y-3 mt-3 pt-3 border-t border-slate-100">
+        {pwdMode && (
+          <form onSubmit={handleChangePassword} className="space-y-3 mt-3 pt-3 border-t border-slate-100">
             <div>
-              <label className="text-xs font-semibold text-slate-500 block mb-1">Current PIN</label>
-              <input type="password" value={curPin} onChange={e => { setCurPin(e.target.value); setPinMsg(''); }}
-                placeholder="Current PIN"
+              <label className="text-xs font-semibold text-slate-500 block mb-1">Current Password</label>
+              <input type="password" value={curPwd} onChange={e => { setCurPwd(e.target.value); setPwdMsg(''); }}
+                placeholder="Current password"
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-500 block mb-1">New PIN</label>
-              <input type="password" value={newPin} onChange={e => { setNewPin(e.target.value); setPinMsg(''); }}
-                placeholder="New PIN (min 4 characters)"
+              <label className="text-xs font-semibold text-slate-500 block mb-1">New Password</label>
+              <input type="password" value={newPwd} onChange={e => { setNewPwd(e.target.value); setPwdMsg(''); }}
+                placeholder="New password (min 4 characters)"
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            {pinMsg && (
-              <p className={`text-xs ${pinMsg.includes('success') ? 'text-green-600' : 'text-red-500'}`}>{pinMsg}</p>
+            {pwdMsg && (
+              <p className={`text-xs ${pwdMsg.includes('success') ? 'text-green-600' : 'text-red-500'}`}>{pwdMsg}</p>
             )}
-            <button type="submit" disabled={pinLoading}
+            <button type="submit" disabled={pwdLoading}
               className="w-full py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40"
               style={{ background: primary }}>
-              {pinLoading ? 'Saving...' : 'Save New PIN'}
+              {pwdLoading ? 'Saving...' : 'Save New Password'}
             </button>
           </form>
         )}
