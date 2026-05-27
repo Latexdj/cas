@@ -218,8 +218,12 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
 
   if (NO_SHELL_PATHS.includes(pathname)) return <>{children}</>;
 
-  const isActive = (href: string) =>
-    href === '/teacher' ? pathname === '/teacher' : pathname.startsWith(href);
+  const allNavHrefs = NAV_ITEMS.map(i => i.href);
+  const isActive = (href: string) => {
+    if (href === '/teacher') return pathname === '/teacher';
+    const hasChildNavItem = allNavHrefs.some(h => h !== href && h.startsWith(href + '/'));
+    return pathname === href || (!hasChildNavItem && pathname.startsWith(href));
+  };
 
   const visibleNavItems  = NAV_ITEMS.filter(item =>
     (!item.formTeacherOnly || isFormTeacher) &&
