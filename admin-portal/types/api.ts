@@ -332,6 +332,39 @@ export interface PlcAttendanceSummary {
   attendance_pct: number | null;
 }
 
+export interface TranscriptSubject {
+  subject: string;
+  ca_score: number | null;
+  exam_score: number | null;
+  total: number | null;
+  grade: string;
+  remark: string;
+}
+
+export interface TranscriptSemester {
+  year_id: string;
+  academic_year: string;
+  semester: 1 | 2;
+  class_name: string;
+  subjects: TranscriptSubject[];
+  average: number | null;
+  overall_grade: string;
+  class_position: number | null;
+  class_total: number | null;
+}
+
+export interface StudentTranscript {
+  student_id: string;
+  student_code: string;
+  name: string;
+  gender: string | null;
+  picture_url: string | null;
+  program_name: string | null;
+  exam_body: string | null;
+  class_name: string;
+  semesters: TranscriptSemester[];
+}
+
 export interface ClassroomStatus {
   class_name: string;
   status: 'occupied' | 'vacant';
