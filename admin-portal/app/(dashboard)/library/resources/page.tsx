@@ -41,6 +41,12 @@ export default function ResourcesPage() {
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 6 * 1024 * 1024) {
+      setError(`File is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Maximum allowed size is 6 MB.`);
+      e.target.value = '';
+      return;
+    }
+    setError('');
     setFileName(file.name);
     setFileSizeKb(Math.round(file.size / 1024));
     const reader = new FileReader();
