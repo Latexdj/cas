@@ -26,6 +26,8 @@ const pageTitles: Record<string, string> = {
   '/classroom-qr':       'Classroom QR Codes',
   '/audit-log':          'Audit Log',
   '/settings':           'Settings',
+  '/clearance':          'Student Clearance',
+  '/clearance/offices':  'Clearance Offices & Staff',
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

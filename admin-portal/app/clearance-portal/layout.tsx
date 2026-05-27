@@ -3,7 +3,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
-const NO_SHELL = ['/clearance/login'];
+const NO_SHELL = ['/clearance-portal/login'];
 
 function getClearanceUser() {
   if (typeof window === 'undefined') return null;
@@ -30,7 +30,7 @@ export default function ClearanceLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (NO_SHELL.includes(pathname)) { setReady(true); return; }
     const user = getClearanceUser();
-    if (!user) { router.replace('/clearance/login'); return; }
+    if (!user) { router.replace('/clearance-portal/login'); return; }
     setName(user.name ?? '');
     const c = getClearanceColors();
     setPrimary(c.primary); setLogoUrl(c.logoUrl);
@@ -50,7 +50,7 @@ export default function ClearanceLayout({ children }: { children: ReactNode }) {
     localStorage.removeItem('cas_cl_user');
     localStorage.removeItem('cas_cl_primary');
     localStorage.removeItem('cas_cl_logo');
-    router.replace('/clearance/login');
+    router.replace('/clearance-portal/login');
   }
 
   return (
