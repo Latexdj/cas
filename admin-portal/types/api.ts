@@ -132,6 +132,7 @@ export interface StudentResult {
   student_code: string;
   name: string;
   exam_body: string | null;
+  program_name: string | null;
   picture_url: string | null;
   gender: string | null;
   subjects: SubjectResult[];

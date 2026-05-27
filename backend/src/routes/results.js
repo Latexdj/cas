@@ -27,7 +27,7 @@ router.get('/', async (req, res, next) => {
         [req.schoolId]
       ),
       pool.query(
-        `SELECT s.id, s.name, s.student_code, s.picture_url, s.gender, p.exam_body
+        `SELECT s.id, s.name, s.student_code, s.picture_url, s.gender, p.exam_body, p.name AS program_name
          FROM students s
          LEFT JOIN programs p ON p.id = s.program_id
          WHERE s.school_id = $1 AND s.status = 'Active'
@@ -277,6 +277,7 @@ router.get('/', async (req, res, next) => {
         student_code:    st.student_code,
         name:            st.name,
         exam_body:       st.exam_body,
+        program_name:    st.program_name ?? null,
         picture_url:     st.picture_url ?? null,
         gender:          st.gender ?? null,
         subjects:        subjectRows.sort((a, b) => a.subject.localeCompare(b.subject)),
