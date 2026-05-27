@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { api } from '@/lib/api';
 import type { AcademicYear, ReportRemark, StudentResult } from '@/types/api';
 
@@ -580,8 +581,8 @@ export default function ResultsPage() {
   const selectStyle = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent';
 
   function triggerPrint(target: 'all' | StudentResult) {
-    setPrintTarget(target);
-    setTimeout(() => window.print(), 200);
+    flushSync(() => setPrintTarget(target));
+    window.print();
   }
 
   const printStudents = printTarget === 'all' ? sorted : printTarget ? [printTarget] : [];
@@ -589,15 +590,25 @@ export default function ResultsPage() {
   return (
     <>
       <style>{`
+        #print-area { display: none; }
         @media print {
-          body > * { display: none !important; }
-          #print-area { display: block !important; position: fixed; inset: 0; z-index: 9999; background: white; }
+          body * { visibility: hidden; }
+          #print-area {
+            display: block !important;
+            visibility: visible !important;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%;
+            background: white;
+            z-index: 9999;
+          }
+          #print-area * { visibility: visible !important; }
           @page { size: A4 portrait; margin: 0; }
         }
       `}</style>
 
       {/* Print area */}
-      <div id="print-area" style={{ display: 'none' }}>
+      <div id="print-area">
         {printStudents.map((r, i) => (
           <ReportCard
             key={r.student_id}
