@@ -552,4 +552,81 @@ router.get('/clearance', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Library ───────────────────────────────────────────────────────────────────
+
+router.get('/library/books', async (req, res, next) => {
+  try {
+    const { search, subject, category } = req.query;
+    const conditions = ['school_id = $1', 'total_copies > 0'];
+    const params = [req.schoolId];
+    let p = 2;
+    if (search) {
+      conditions.push(`(LOWER(title) LIKE $${p} OR LOWER(author) LIKE $${p})`);
+      params.push(`%${search.toLowerCase()}%`);
+      p++;
+    }
+    if (subject)  { conditions.push(`LOWER(subject) = LOWER($${p})`); params.push(subject); p++; }
+    if (category) { conditions.push(`category = $${p}`); params.push(category); p++; }
+    const { rows } = await pool.query(
+      `SELECT id, title, author, isbn, subject, category, level, cover_url, total_copies, available_copies
+       FROM library_books WHERE ${conditions.join(' AND ')} ORDER BY title`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.get('/library/my-loans', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT ll.id, ll.status, ll.issued_at, ll.due_date, ll.returned_at,
+              ll.fine_amount, ll.fine_paid,
+              lb.title AS book_title, lb.author, lb.cover_url,
+              lc.copy_number,
+              (ll.due_date < CURRENT_DATE AND ll.status = 'active')::boolean AS is_overdue
+       FROM library_loans ll
+       JOIN library_books lb ON lb.id = ll.book_id
+       JOIN library_copies lc ON lc.id = ll.copy_id
+       WHERE ll.student_id = $1 AND ll.school_id = $2
+       ORDER BY ll.issued_at DESC`,
+      [req.user.id, req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.get('/library/resources', async (req, res, next) => {
+  try {
+    const { resource_type, subject, academic_year } = req.query;
+    const conditions = ['school_id = $1'];
+    const params = [req.schoolId];
+    let p = 2;
+    if (resource_type) { conditions.push(`resource_type = $${p}`); params.push(resource_type); p++; }
+    if (subject)       { conditions.push(`LOWER(subject) = LOWER($${p})`); params.push(subject); p++; }
+    if (academic_year) { conditions.push(`academic_year = $${p}`); params.push(academic_year); p++; }
+    const { rows } = await pool.query(
+      `SELECT id, title, subject, resource_type, academic_year, level,
+              file_url, file_name, file_size_kb, download_count, created_at
+       FROM library_resources WHERE ${conditions.join(' AND ')}
+       ORDER BY resource_type, subject, title`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.post('/library/resources/:id/download', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE library_resources
+       SET download_count = download_count + 1
+       WHERE id = $1 AND school_id = $2
+       RETURNING id, file_url, file_name, download_count`,
+      [req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Resource not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

@@ -38,6 +38,8 @@ const formTeacherRoutes       = require('./routes/form-teacher');
 const studentPortalRoutes     = require('./routes/student');
 const { router: clearanceAdminRoutes } = require('./routes/clearanceAdmin');
 const clearanceStaffRoutes    = require('./routes/clearanceStaff');
+const { router: libraryAdminRoutes }  = require('./routes/libraryAdmin');
+const libraryRoutes           = require('./routes/library');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -104,6 +106,8 @@ app.use('/api/form-teacher',       formTeacherRoutes);
 app.use('/api/student',            studentPortalRoutes);
 app.use('/api/clearance-admin',    clearanceAdminRoutes);
 app.use('/api/clearance',          clearanceStaffRoutes);
+app.use('/api/library-admin',      libraryAdminRoutes);
+app.use('/api/library',            libraryRoutes);
 
 app.use(errorHandler);
 
@@ -522,6 +526,107 @@ async function runMigrations() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_clearance_items_clearance
         ON student_clearance_items(clearance_id)
+    `);
+    // ── Library module ─────────────────────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS library_staff (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id     UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        email         TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        is_active     BOOLEAN NOT NULL DEFAULT true,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, email)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS library_settings (
+        id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id             UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        loan_period_days      INTEGER NOT NULL DEFAULT 14,
+        fine_per_day          NUMERIC(8,2) NOT NULL DEFAULT 0.50,
+        max_loans_per_student INTEGER NOT NULL DEFAULT 3,
+        UNIQUE (school_id)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS library_books (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        title            TEXT NOT NULL,
+        author           TEXT,
+        isbn             TEXT,
+        subject          TEXT,
+        category         TEXT NOT NULL DEFAULT 'general',
+        level            TEXT,
+        cover_url        TEXT,
+        total_copies     INTEGER NOT NULL DEFAULT 0,
+        available_copies INTEGER NOT NULL DEFAULT 0,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_library_books_school
+        ON library_books(school_id)
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS library_copies (
+        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id    UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        book_id      UUID NOT NULL REFERENCES library_books(id) ON DELETE CASCADE,
+        copy_number  TEXT NOT NULL,
+        condition    TEXT NOT NULL DEFAULT 'Good',
+        is_available BOOLEAN NOT NULL DEFAULT true,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (book_id, copy_number)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS library_loans (
+        id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id          UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        copy_id            UUID NOT NULL REFERENCES library_copies(id) ON DELETE RESTRICT,
+        book_id            UUID NOT NULL REFERENCES library_books(id) ON DELETE RESTRICT,
+        student_id         UUID NOT NULL REFERENCES students(id) ON DELETE RESTRICT,
+        issued_by_staff_id UUID REFERENCES library_staff(id) ON DELETE SET NULL,
+        issued_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+        due_date           DATE NOT NULL,
+        returned_at        TIMESTAMPTZ,
+        fine_amount        NUMERIC(8,2) NOT NULL DEFAULT 0,
+        fine_paid          BOOLEAN NOT NULL DEFAULT false,
+        status             TEXT NOT NULL DEFAULT 'active',
+        notes              TEXT
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_library_loans_school_status
+        ON library_loans(school_id, status)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_library_loans_student
+        ON library_loans(student_id)
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS library_resources (
+        id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id      UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        title          TEXT NOT NULL,
+        subject        TEXT,
+        resource_type  TEXT NOT NULL DEFAULT 'other',
+        academic_year  TEXT,
+        level          TEXT,
+        file_url       TEXT NOT NULL,
+        file_name      TEXT NOT NULL,
+        file_size_kb   INTEGER,
+        download_count INTEGER NOT NULL DEFAULT 0,
+        uploaded_by    UUID REFERENCES library_staff(id) ON DELETE SET NULL,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_library_resources_school
+        ON library_resources(school_id, resource_type)
     `);
     console.log('Migrations OK');
   } catch (err) {
