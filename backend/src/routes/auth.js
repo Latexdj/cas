@@ -164,10 +164,17 @@ router.post('/login', loginLimiter, (req, res, next) => {
       if (!rows.length) return res.status(401).json({ error: 'Invalid Student ID or PIN' });
 
       const student = rows[0];
-      if (!student.pin_hash) return res.status(401).json({ error: 'No PIN set. Please contact your school administrator.' });
+      const DEFAULT_STUDENT_PASSWORD = 'Student123';
+      let mustChangePassword = false;
 
-      const valid = await bcrypt.compare(String(password), student.pin_hash);
-      if (!valid) return res.status(401).json({ error: 'Invalid Student ID or PIN' });
+      if (!student.pin_hash) {
+        if (String(password) !== DEFAULT_STUDENT_PASSWORD)
+          return res.status(401).json({ error: 'Invalid Student ID or password' });
+        mustChangePassword = true;
+      } else {
+        const valid = await bcrypt.compare(String(password), student.pin_hash);
+        if (!valid) return res.status(401).json({ error: 'Invalid Student ID or password' });
+      }
 
       const token = signToken({ id: student.id, name: student.name, role: 'student', schoolId }, '12h');
       const { rows: colorRows } = await pool.query(
@@ -177,6 +184,7 @@ router.post('/login', loginLimiter, (req, res, next) => {
       return res.json({
         token, role: 'student',
         id: student.id, name: student.name, schoolId,
+        must_change_password: mustChangePassword,
         primary_color: sc.primary_color ?? '#3B82F6',
         accent_color:  sc.accent_color  ?? '#1D4ED8',
         logo_url:      sc.logo_url      ?? null,
@@ -202,6 +210,27 @@ router.post('/change-password', require('../middleware/auth').authenticate, asyn
       return res.status(400).json({ error: 'Super admin cannot use this endpoint' });
     if (String(newPassword).length < 4)
       return res.status(400).json({ error: 'Password must be at least 4 characters' });
+
+    if (req.user.role === 'student') {
+      const { rows } = await pool.query(
+        `SELECT pin_hash FROM students WHERE id = $1 AND school_id = $2`,
+        [req.user.id, req.schoolId]
+      );
+      if (!rows.length) return res.status(404).json({ error: 'Student not found' });
+
+      const DEFAULT_STUDENT_PASSWORD = 'Student123';
+      if (!rows[0].pin_hash) {
+        if (String(currentPassword) !== DEFAULT_STUDENT_PASSWORD)
+          return res.status(401).json({ error: 'Current password is incorrect' });
+      } else {
+        const valid = await bcrypt.compare(String(currentPassword), rows[0].pin_hash);
+        if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
+      }
+
+      const newHash = await bcrypt.hash(String(newPassword), 12);
+      await pool.query(`UPDATE students SET pin_hash = $1 WHERE id = $2`, [newHash, req.user.id]);
+      return res.json({ message: 'Password updated successfully' });
+    }
 
     const { rows } = await pool.query(
       `SELECT pin_hash FROM teachers WHERE id = $1 AND school_id = $2`,

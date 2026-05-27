@@ -98,6 +98,9 @@ export default function StudentShell({ children }: { children: ReactNode }) {
     if (!schoolCode) { router.replace('/student/setup'); return; }
     const student = getStudent();
     if (!student) { router.replace('/student/login'); return; }
+    if (student.mustChangePassword && pathname !== '/student/change-password') {
+      router.replace('/student/change-password'); return;
+    }
     const colors = getStudentColors();
     setPrimary(colors.primary || PRIMARY);
     setLogoUrl(colors.logoUrl ?? null);

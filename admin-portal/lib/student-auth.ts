@@ -6,6 +6,7 @@ export interface StudentUser {
   role: 'student';
   schoolId: string;
   token: string;
+  mustChangePassword?: boolean;
 }
 
 export function getStudent(): StudentUser | null {

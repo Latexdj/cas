@@ -37,13 +37,14 @@ export default function StudentLoginPage() {
       // Update colours from server response
       if (data.primary_color) saveStudentColors(data.primary_color, data.accent_color ?? '#1D4ED8', data.logo_url);
       saveStudent({
-        id:       data.id,
-        name:     data.name,
-        role:     'student',
-        schoolId: data.schoolId,
-        token:    data.token,
+        id:                data.id,
+        name:              data.name,
+        role:              'student',
+        schoolId:          data.schoolId,
+        token:             data.token,
+        mustChangePassword: !!data.must_change_password,
       });
-      window.location.href = '/student';
+      window.location.href = data.must_change_password ? '/student/change-password' : '/student';
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.response?.data?.error ?? 'Invalid Student ID or password.');
