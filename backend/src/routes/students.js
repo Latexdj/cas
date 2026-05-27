@@ -158,6 +158,7 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
 
     let inserted = 0;
     const errors = [];
+    const bulkDefaultHash = await bcrypt.hash(DEFAULT_STUDENT_PIN, 12);
 
     for (let i = 0; i < dataRows.length; i++) {
       const row    = dataRows[i];
@@ -212,13 +213,13 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
               jhs_index_number, date_of_birth, gender, hometown, residential_address,
               ghana_card_number, nhia_number, mobile_number, aggregate, house,
               residential_status, religion, religious_denomination,
-              guardian_name, guardian_occupation, guardian_mobile)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
+              guardian_name, guardian_occupation, guardian_mobile, pin_hash)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
           [req.schoolId, code, name, className, status, notes, programId,
            jhs_index_number, date_of_birth || null, gender, hometown, residential_address,
            ghana_card_number, nhia_number, mobile_number, aggregate, house,
            residential_status, religion, religious_denomination,
-           guardian_name, guardian_occupation, guardian_mobile]
+           guardian_name, guardian_occupation, guardian_mobile, bulkDefaultHash]
         );
         inserted++;
       } catch (err) {
@@ -329,16 +330,19 @@ router.get('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+const DEFAULT_STUDENT_PIN = 'Student123';
+
 /** POST /api/students/:id/set-pin — admin sets or resets a student's portal PIN */
 router.post('/:id/set-pin', adminOnly, async (req, res, next) => {
   try {
-    const { pin } = req.body;
-    if (!pin || String(pin).length < 4) return res.status(400).json({ error: 'PIN must be at least 4 characters' });
+    // Empty pin resets to the school-wide default
+    const pin = req.body.pin ? String(req.body.pin) : DEFAULT_STUDENT_PIN;
+    if (pin.length < 4) return res.status(400).json({ error: 'PIN must be at least 4 characters' });
     const { rows } = await pool.query(`SELECT id FROM students WHERE id = $1 AND school_id = $2`, [req.params.id, req.schoolId]);
     if (!rows.length) return res.status(404).json({ error: 'Student not found' });
-    const hash = await bcrypt.hash(String(pin), 12);
+    const hash = await bcrypt.hash(pin, 12);
     await pool.query(`UPDATE students SET pin_hash = $1, updated_at = now() WHERE id = $2`, [hash, req.params.id]);
-    res.json({ message: 'PIN set successfully' });
+    res.json({ message: pin === DEFAULT_STUDENT_PIN ? 'PIN reset to default (Student123)' : 'PIN set successfully' });
   } catch (err) { next(err); }
 });
 
@@ -352,11 +356,12 @@ router.post('/', adminOnly, async (req, res, next) => {
     if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
 
     const code = student_code?.trim() || await nextStudentCode(req.schoolId);
+    const defaultHash = await bcrypt.hash(DEFAULT_STUDENT_PIN, 12);
     const { rows } = await pool.query(
-      `INSERT INTO students (school_id, student_code, name, class_name, status, notes, program_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `INSERT INTO students (school_id, student_code, name, class_name, status, notes, program_id, pin_hash)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING id, student_code, name, class_name, status, notes, program_id`,
-      [req.schoolId, code, name.trim(), class_name.trim(), status, notes || null, program_id || null]
+      [req.schoolId, code, name.trim(), class_name.trim(), status, notes || null, program_id || null, defaultHash]
     );
     res.status(201).json(rows[0]);
   } catch (err) {

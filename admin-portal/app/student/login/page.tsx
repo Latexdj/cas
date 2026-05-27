@@ -108,7 +108,7 @@ export default function StudentLoginPage() {
           <Link href="/student/setup" className="font-semibold text-blue-600">Change it</Link>
         </p>
         <p className="text-center text-xs text-slate-400 mt-2">
-          Contact your school administrator if you don&apos;t have a PIN.
+          Default PIN is <span className="font-semibold text-slate-500">Student123</span> — change it after first login.
         </p>
       </div>
     </div>

@@ -127,12 +127,13 @@ export default function StudentsPage() {
   }
 
   async function handleSetPin() {
-    if (!editing || !pinValue.trim()) return;
-    if (pinValue.length < 4) { setPinMsg('PIN must be at least 4 characters'); return; }
+    if (!editing) return;
     setPinSaving(true); setPinMsg('');
     try {
-      await api.post(`/api/students/${editing.id}/set-pin`, { pin: pinValue });
-      setHasPin(true); setPinValue(''); setPinMsg('PIN set successfully');
+      // Empty pin_value → backend resets to default Student123
+      const res = await api.post(`/api/students/${editing.id}/set-pin`, { pin: pinValue.trim() || undefined });
+      setHasPin(true); setPinValue('');
+      setPinMsg((res.data as { message: string }).message ?? 'PIN updated');
     } catch { setPinMsg('Failed to set PIN'); }
     setPinSaving(false);
   }
@@ -565,7 +566,7 @@ export default function StudentsPage() {
                     type="text"
                     value={pinValue}
                     onChange={e => { setPinValue(e.target.value); setPinMsg(''); }}
-                    placeholder={hasPin ? 'Enter new PIN to reset' : 'Enter PIN to enable portal access'}
+                    placeholder="Leave blank to use Student123"
                     className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <Button variant="secondary" loading={pinSaving} onClick={handleSetPin}>
