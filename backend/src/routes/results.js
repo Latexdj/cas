@@ -124,16 +124,56 @@ router.get('/', async (req, res, next) => {
     for (const e of examScores) allSubjects.add(e.subject);
     for (const r of importedRows) allSubjects.add(r.subject);
 
-    // Grade lookup
+    // Grade lookup — uses DB boundaries if configured, falls back to built-in defaults
     function getGrade(total, examBody) {
       const body = examBody || 'WAEC';
       const bodyBounds = boundaries.filter(b => b.exam_body === body);
-      for (const b of bodyBounds) {
-        if (total >= parseFloat(b.min_pct) && total <= parseFloat(b.max_pct)) {
-          return { grade: b.grade, remark: b.remark };
+
+      if (bodyBounds.length > 0) {
+        for (const b of bodyBounds) {
+          if (total >= parseFloat(b.min_pct) && total <= parseFloat(b.max_pct)) {
+            return { grade: b.grade, remark: b.remark };
+          }
         }
+        return { grade: '-', remark: '-' };
       }
-      return { grade: '-', remark: '-' };
+
+      // Built-in defaults when no boundaries have been configured
+      if (body === 'CTVET') {
+        const grade =
+          total >= 75 ? 'A'  :
+          total >= 70 ? 'B+' :
+          total >= 65 ? 'B-' :
+          total >= 55 ? 'C+' :
+          total >= 50 ? 'C-' :
+          total >= 45 ? 'D'  :
+          total >= 40 ? 'E'  : 'F';
+        const remark =
+          total >= 75 ? 'DISTINCTION'  :
+          total >= 65 ? 'UPPER CREDIT' :
+          total >= 55 ? 'CREDIT'       :
+          total >= 50 ? 'LOWER CREDIT' :
+          total >= 40 ? 'PASS'         : 'FAIL';
+        return { grade, remark };
+      }
+
+      // WAEC / WASSCE
+      const grade =
+        total >= 75 ? 'A1' :
+        total >= 70 ? 'B2' :
+        total >= 65 ? 'B3' :
+        total >= 60 ? 'C4' :
+        total >= 55 ? 'C5' :
+        total >= 50 ? 'C6' :
+        total >= 45 ? 'D7' :
+        total >= 40 ? 'E8' : 'F9';
+      const remark =
+        total >= 75 ? 'EXCELLENT' :
+        total >= 70 ? 'VERY GOOD' :
+        total >= 65 ? 'GOOD'      :
+        total >= 50 ? 'CREDIT'    :
+        total >= 40 ? 'PASS'      : 'FAIL';
+      return { grade, remark };
     }
 
     // Calculate per-student, per-subject results
