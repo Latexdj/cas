@@ -7,10 +7,11 @@ import { getTeacher, getSchoolCode, getTeacherColors } from '@/lib/teacher-auth'
 import { teacherApi } from '@/lib/teacher-api';
 
 interface NavItem {
-  href:    string;
-  label:   string;
-  badge?:  boolean;
-  icon:    ReactNode;
+  href:            string;
+  label:           string;
+  badge?:          boolean;
+  formTeacherOnly?: boolean;
+  icon:            ReactNode;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -36,8 +37,9 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
-    href:  '/teacher/form-class',
-    label: 'Form Class',
+    href:            '/teacher/form-class',
+    label:           'Form Class',
+    formTeacherOnly: true,
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
@@ -149,21 +151,19 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-// Primary tabs shown in mobile bottom bar
 const MOBILE_BAR_HREFS = ['/teacher', '/teacher/meetings', '/teacher/absences', '/teacher/timetable'];
-const mobileBarItems  = NAV_ITEMS.filter(item => MOBILE_BAR_HREFS.includes(item.href));
-const mobileMoreItems = NAV_ITEMS.filter(item => !MOBILE_BAR_HREFS.includes(item.href));
 
 const NO_SHELL_PATHS = ['/teacher/setup', '/teacher/login'];
 
 export default function TeacherShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router   = useRouter();
-  const [ready,       setReady]       = useState(false);
-  const [primary,     setPrimary]     = useState('#2ab289');
-  const [logoUrl,     setLogoUrl]     = useState<string | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [moreOpen,    setMoreOpen]    = useState(false);
+  const [ready,         setReady]         = useState(false);
+  const [primary,       setPrimary]       = useState('#2ab289');
+  const [logoUrl,       setLogoUrl]       = useState<string | null>(null);
+  const [unreadCount,   setUnreadCount]   = useState(0);
+  const [moreOpen,      setMoreOpen]      = useState(false);
+  const [isFormTeacher, setIsFormTeacher] = useState(false);
 
   // Close More drawer on navigation
   useEffect(() => { setMoreOpen(false); }, [pathname]);
@@ -186,6 +186,9 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     setLogoUrl(colors.logoUrl ?? null);
     setReady(true);
     fetchUnread();
+    teacherApi.get('/api/form-teacher/assignment')
+      .then(r => setIsFormTeacher(!!r.data))
+      .catch(() => {});
     const interval = setInterval(fetchUnread, 60_000);
     return () => clearInterval(interval);
   }, [pathname, router, fetchUnread]);
@@ -203,7 +206,10 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const isActive = (href: string) =>
     href === '/teacher' ? pathname === '/teacher' : pathname.startsWith(href);
 
-  const isMoreActive = mobileMoreItems.some(item => isActive(item.href));
+  const visibleNavItems  = NAV_ITEMS.filter(item => !item.formTeacherOnly || isFormTeacher);
+  const mobileBarItems   = visibleNavItems.filter(item => MOBILE_BAR_HREFS.includes(item.href));
+  const mobileMoreItems  = visibleNavItems.filter(item => !MOBILE_BAR_HREFS.includes(item.href));
+  const isMoreActive     = mobileMoreItems.some(item => isActive(item.href));
 
   return (
     <div className="min-h-screen flex" style={{ background: '#F4EFE6' }}>
@@ -220,7 +226,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
           <span className="text-base font-bold leading-tight" style={{ color: primary }}>Teacher Portal</span>
         </div>
         <nav className="flex-1 py-4 space-y-1 px-3 overflow-y-auto no-scrollbar">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = isActive(item.href);
             return (
               <Link
