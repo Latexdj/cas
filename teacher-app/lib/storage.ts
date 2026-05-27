@@ -9,6 +9,7 @@ const KEYS = {
   schoolCode:   'cas_school_code',
   primaryColor: 'cas_primary_color',
   accentColor:  'cas_accent_color',
+  darkMode:     'cas_dark_mode',
 };
 
 export const storage = {
@@ -20,6 +21,8 @@ export const storage = {
   async getSchoolCode()  { return AsyncStorage.getItem(KEYS.schoolCode); },
   async getPrimaryColor() { return AsyncStorage.getItem(KEYS.primaryColor); },
   async getAccentColor()  { return AsyncStorage.getItem(KEYS.accentColor); },
+  async getDarkMode()     { return AsyncStorage.getItem(KEYS.darkMode); },
+  async saveDarkMode(isDark: boolean) { await AsyncStorage.setItem(KEYS.darkMode, isDark ? '1' : '0'); },
 
   async saveSchoolCode(code: string) {
     await AsyncStorage.setItem(KEYS.schoolCode, code.toUpperCase().trim());

@@ -1,8 +1,14 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0F172A;
+}
+
+.dark {
+  --background: #0F172A;
+  --foreground: #F1F5F9;
 }
 
 @theme inline {
@@ -12,24 +18,17 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Force dark text on all form controls — prevents faint/washed-out text */
+/* Form controls: light */
 select,
 textarea {
-  color: #0F172A !important;
-  background-color: #ffffff !important;
+  color: #0F172A;
+  background-color: #ffffff;
   font-size: 0.875rem;
   color-scheme: light;
 }
@@ -37,6 +36,20 @@ textarea {
 select option {
   color: #0F172A;
   background-color: #ffffff;
+}
+
+/* Form controls: dark */
+.dark select,
+.dark textarea {
+  color: #F1F5F9;
+  background-color: #1E293B;
+  border-color: #475569;
+  color-scheme: dark;
+}
+
+.dark select option {
+  color: #F1F5F9;
+  background-color: #1E293B;
 }
 
 /* Hide scrollbar while keeping scroll functionality */

@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useState, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useTheme } from 'next-themes';
 import Link from 'next/link';
 import { getStudent, getStudentSchoolCode, getStudentColors, clearStudent } from '@/lib/student-auth';
 
@@ -85,12 +86,17 @@ const NO_SHELL_PATHS   = ['/student/setup', '/student/login'];
 export default function StudentShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router   = useRouter();
+  const { resolvedTheme } = useTheme();
+  const [mounted,  setMounted]  = useState(false);
   const [ready,    setReady]    = useState(false);
   const [primary,  setPrimary]  = useState(PRIMARY);
   const [logoUrl,  setLogoUrl]  = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
 
+  useEffect(() => setMounted(true), []);
   useEffect(() => { setMoreOpen(false); }, [pathname]);
+
+  const isDark = mounted && resolvedTheme === 'dark';
 
   useEffect(() => {
     if (NO_SHELL_PATHS.includes(pathname)) { setReady(true); return; }
@@ -114,7 +120,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
 
   if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
         <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: PRIMARY, borderTopColor: 'transparent' }} />
       </div>
     );
@@ -130,12 +136,15 @@ export default function StudentShell({ children }: { children: ReactNode }) {
   const isMoreActive    = mobileMoreItems.some(item => isActive(item.href));
   const student         = getStudent();
 
+  const navTextColor    = isDark ? '#94A3B8' : '#64748B';
+  const navIconColor    = isDark ? '#94A3B8' : '#94A3B8';
+
   return (
-    <div className="min-h-screen flex bg-slate-50">
+    <div className={`min-h-screen flex ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
 
       {/* ── Desktop sidebar ── */}
-      <aside className="hidden md:flex flex-col w-60 bg-white border-r border-slate-200 shadow-sm shrink-0 fixed top-0 left-0 h-full z-20">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+      <aside className={`hidden md:flex flex-col w-60 shrink-0 fixed top-0 left-0 h-full z-20 shadow-sm ${isDark ? 'bg-slate-800 border-r border-slate-700' : 'bg-white border-r border-slate-200'}`}>
+        <div className={`px-5 py-4 flex items-center gap-3 ${isDark ? 'border-b border-slate-700' : 'border-b border-slate-100'}`}>
           {logoUrl ? (
             <img src={logoUrl} alt="School logo" className="w-9 h-9 rounded-lg object-cover shrink-0" />
           ) : (
@@ -146,9 +155,9 @@ export default function StudentShell({ children }: { children: ReactNode }) {
         </div>
 
         {/* Student identity chip */}
-        <div className="px-4 py-3 border-b border-slate-100">
-          <p className="text-xs text-slate-400 font-medium">Signed in as</p>
-          <p className="text-sm font-semibold text-slate-700 truncate">{student?.name}</p>
+        <div className={`px-4 py-3 ${isDark ? 'border-b border-slate-700' : 'border-b border-slate-100'}`}>
+          <p className={`text-xs font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Signed in as</p>
+          <p className={`text-sm font-semibold truncate ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{student?.name}</p>
         </div>
 
         <nav className="flex-1 py-4 space-y-1 px-3 overflow-y-auto">
@@ -157,17 +166,17 @@ export default function StudentShell({ children }: { children: ReactNode }) {
             return (
               <Link key={item.href} href={item.href}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                style={active ? { backgroundColor: `${primary}18`, color: primary } : { color: '#64748B' }}>
-                <span style={{ color: active ? primary : '#94A3B8' }}>{item.icon}</span>
+                style={active ? { backgroundColor: `${primary}18`, color: primary } : { color: navTextColor }}>
+                <span style={{ color: active ? primary : navIconColor }}>{item.icon}</span>
                 {item.label}
               </Link>
             );
           })}
         </nav>
 
-        <div className="px-4 py-3 border-t border-slate-100">
+        <div className={`px-4 py-3 ${isDark ? 'border-t border-slate-700' : 'border-t border-slate-100'}`}>
           <button onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors">
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
             </svg>
@@ -179,14 +188,14 @@ export default function StudentShell({ children }: { children: ReactNode }) {
       {/* ── Main content ── */}
       <div className="flex-1 flex flex-col md:ml-60 min-h-screen">
         {/* Mobile header */}
-        <header className="md:hidden sticky top-0 z-10 bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3">
+        <header className={`md:hidden sticky top-0 z-10 px-4 py-3 flex items-center gap-3 ${isDark ? 'bg-slate-800 border-b border-slate-700' : 'bg-white border-b border-slate-100'}`}>
           {logoUrl ? (
             <img src={logoUrl} alt="" className="w-7 h-7 rounded-lg object-cover" />
           ) : (
             <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: primary }}>S</div>
           )}
           <span className="font-bold text-sm flex-1" style={{ color: primary }}>Student Portal</span>
-          <button onClick={handleLogout} className="p-1.5 rounded-lg text-red-400 hover:bg-red-50">
+          <button onClick={handleLogout} className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-950">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
             </svg>
@@ -203,11 +212,11 @@ export default function StudentShell({ children }: { children: ReactNode }) {
 
       {/* ── Mobile More bottom-sheet ── */}
       {moreOpen && (
-        <div className="md:hidden fixed bottom-[60px] left-0 right-0 bg-white border-t border-slate-200 rounded-t-2xl shadow-2xl z-40 px-4 pt-4 pb-5">
+        <div className={`md:hidden fixed bottom-[60px] left-0 right-0 rounded-t-2xl shadow-2xl z-40 px-4 pt-4 pb-5 ${isDark ? 'bg-slate-800 border-t border-slate-700' : 'bg-white border-t border-slate-200'}`}>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-bold text-slate-800">More</p>
+            <p className={`text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>More</p>
             <button onClick={() => setMoreOpen(false)}
-              className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-xs font-bold">✕</button>
+              className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>✕</button>
           </div>
           <div className="space-y-1">
             {mobileMoreItems.map((item) => {
@@ -215,8 +224,8 @@ export default function StudentShell({ children }: { children: ReactNode }) {
               return (
                 <Link key={item.href} href={item.href} onClick={() => setMoreOpen(false)}
                   className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors"
-                  style={active ? { backgroundColor: `${primary}18`, color: primary } : { color: '#374151' }}>
-                  <span style={{ color: active ? primary : '#94A3B8' }}>{item.icon}</span>
+                  style={active ? { backgroundColor: `${primary}18`, color: primary } : { color: isDark ? '#CBD5E1' : '#374151' }}>
+                  <span style={{ color: active ? primary : navIconColor }}>{item.icon}</span>
                   <span className="flex-1">{item.label}</span>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 opacity-30">
                     <polyline points="9 18 15 12 9 6" />
@@ -229,22 +238,22 @@ export default function StudentShell({ children }: { children: ReactNode }) {
       )}
 
       {/* ── Mobile bottom tab bar ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-20 flex" style={{ height: 60 }}>
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-20 flex ${isDark ? 'bg-slate-800 border-t border-slate-700' : 'bg-white border-t border-slate-200'}`} style={{ height: 60 }}>
         {mobileBarItems.map((item) => {
           const active = isActive(item.href);
           return (
             <Link key={item.href} href={item.href}
               className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium"
-              style={{ color: active ? primary : '#94A3B8' }}>
-              <span style={{ color: active ? primary : '#94A3B8' }}>{item.icon}</span>
+              style={{ color: active ? primary : navTextColor }}>
+              <span style={{ color: active ? primary : navIconColor }}>{item.icon}</span>
               {item.label}
             </Link>
           );
         })}
         <button onClick={() => setMoreOpen(o => !o)}
           className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium"
-          style={{ color: isMoreActive || moreOpen ? primary : '#94A3B8' }}>
-          <span style={{ color: isMoreActive || moreOpen ? primary : '#94A3B8' }}>
+          style={{ color: isMoreActive || moreOpen ? primary : navTextColor }}>
+          <span style={{ color: isMoreActive || moreOpen ? primary : navIconColor }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
               <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
               <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />

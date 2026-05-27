@@ -1,3 +1,39 @@
+export const DarkColors = {
+  // Brand (same brand colors, darker context)
+  primary:      '#0B3D2E',
+  primaryMid:   '#145C44',
+  primaryLight: '#1E3A2F',
+  accent:       '#C8973A',
+  accentLight:  '#3D2E12',
+
+  // Semantic
+  success:      '#2D7A4F',
+  successLight: '#1A3324',
+  danger:       '#E05555',
+  dangerLight:  '#3B1A1A',
+  warning:      '#D98D1A',
+  warningLight: '#3D2B08',
+
+  // Layout
+  bg:           '#0F172A',
+  surface:      '#1E293B',
+  surfaceWarm:  '#1A2235',
+
+  // Text
+  text:         '#F1F5F9',
+  textSoft:     '#CBD5E1',
+  muted:        '#94A3B8',
+  placeholder:  '#64748B',
+
+  // Border
+  border:       '#334155',
+  borderStrong: '#475569',
+
+  // Tab bar
+  tabActive:    '#2ab289',
+  tabInactive:  '#64748B',
+};
+
 export const Colors = {
   // Brand
   primary:      '#0B3D2E',   // deep forest green
