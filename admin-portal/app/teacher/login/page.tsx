@@ -8,10 +8,11 @@ import { saveTeacher, getSchoolCode, getTeacherColors } from '@/lib/teacher-auth
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export default function TeacherLoginPage() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [username,  setUsername]  = useState('');
+  const [password,  setPassword]  = useState('');
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState('');
+  const [showPass,  setShowPass]  = useState(false);
 
   const colors = typeof window !== 'undefined' ? getTeacherColors() : { primary: '#2ab289', accent: '#1a8a6a' };
 
@@ -97,14 +98,30 @@ export default function TeacherLoginPage() {
               <label className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1.5">
                 Password
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                placeholder="Your password"
-                autoComplete="current-password"
-                className="w-full border border-[#E2D9CC] rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 bg-white text-[#2C2218]"
-              />
+              <div className="relative">
+                <input
+                  type={showPass ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                  placeholder="Your password"
+                  autoComplete="current-password"
+                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 bg-white text-[#2C2218]"
+                />
+                <button type="button" onClick={() => setShowPass(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8C7E6E] hover:text-[#2C2218] transition-colors">
+                  {showPass ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             {error && (
