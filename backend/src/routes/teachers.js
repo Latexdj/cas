@@ -452,6 +452,34 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/teachers/me — own full profile (must be before /:id to avoid being matched as id='me')
+router.get('/me', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, teacher_code, name, email, phone, department, status, is_admin, notes,
+              rank, gov_staff_id, gender, date_of_birth, registered_number, ntc_number, ssf_number,
+              academic_qualification, professional_qualification, additional_responsibility,
+              bank, bank_branch, account_number, religion, religious_denomination,
+              hometown, residential_address, association, ghana_card_number, photo_url,
+              certificate_url, certificate_filename, emergency_contact_name, emergency_contact_phone
+       FROM teachers WHERE id = $1 AND school_id = $2`,
+      [req.user.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
+    const teacher = rows[0];
+    const { rows: responsibilities } = await pool.query(
+      `SELECT tr.id, tr.name, tr.module_key
+       FROM teacher_responsibility_assignments tra
+       JOIN teacher_responsibilities tr ON tr.id = tra.responsibility_id
+       WHERE tra.teacher_id = $1 AND tr.school_id = $2
+       ORDER BY tr.sort_order, tr.name`,
+      [teacher.id, req.schoolId]
+    );
+    teacher.responsibilities = responsibilities;
+    res.json(teacher);
+  } catch (err) { next(err); }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -652,24 +680,6 @@ router.post('/:id/reset-pin', adminOnly, async (req, res, next) => {
     );
     if (!rowCount) return res.status(404).json({ error: 'Teacher not found' });
     res.json({ message: `PIN reset to default (${defaultPin})` });
-  } catch (err) { next(err); }
-});
-
-// GET /api/teachers/me — own full profile
-router.get('/me', async (req, res, next) => {
-  try {
-    const { rows } = await pool.query(
-      `SELECT id, teacher_code, name, email, phone, department, status, is_admin, notes,
-              rank, gov_staff_id, gender, date_of_birth, registered_number, ntc_number, ssf_number,
-              academic_qualification, professional_qualification, additional_responsibility,
-              bank, bank_branch, account_number, religion, religious_denomination,
-              hometown, residential_address, association, ghana_card_number, photo_url,
-              certificate_url, certificate_filename, emergency_contact_name, emergency_contact_phone
-       FROM teachers WHERE id = $1 AND school_id = $2`,
-      [req.user.id, req.schoolId]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
-    res.json(rows[0]);
   } catch (err) { next(err); }
 });
 

@@ -26,6 +26,7 @@ interface TeacherProfile {
   academic_qualification: string | null;
   professional_qualification: string | null;
   additional_responsibility: string | null;
+  responsibilities?: { id: string; name: string; module_key: string | null }[];
   bank: string | null;
   bank_branch: string | null;
   account_number: string | null;
@@ -258,7 +259,15 @@ export default function ProfilePage() {
         <InfoRow label="SSF Number"          value={profile?.ssf_number} />
         <InfoRow label="Academic Qual."      value={profile?.academic_qualification} />
         <InfoRow label="Professional Qual."  value={profile?.professional_qualification} />
-        <InfoRow label="Responsibility"      value={profile?.additional_responsibility} />
+        <div className="flex items-start justify-between py-2 border-b border-[#F4EFE6]">
+          <p className="text-xs text-[#8C7E6E] shrink-0 w-40">Responsibilities</p>
+          <div className="text-xs font-semibold text-[#2C2218] text-right flex-1">
+            {profile?.responsibilities && profile.responsibilities.length > 0
+              ? profile.responsibilities.map(r => r.name).join(', ')
+              : <span className="font-normal italic text-[#C0B5A5]">No responsibilities assigned</span>
+            }
+          </div>
+        </div>
         <InfoRow label="Association"         value={profile?.association} />
       </div>
 

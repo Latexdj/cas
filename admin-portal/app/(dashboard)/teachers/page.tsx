@@ -722,7 +722,6 @@ export default function TeachersPage() {
                 <Input label="Academic Qualification" value={form.academic_qualification ?? ''} onChange={field('academic_qualification')} />
                 <Input label="Professional Qualification" value={form.professional_qualification ?? ''} onChange={field('professional_qualification')} />
               </div>
-              <Input label="Additional Responsibility (e.g. HOD, Form Master)" value={form.additional_responsibility ?? ''} onChange={field('additional_responsibility')} />
             </div>
           </div>
 
