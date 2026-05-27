@@ -149,24 +149,27 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       }
     }
 
-    // Load programs and current codes in two parallel queries
-    const [{ rows: programRows }, { rows: codeRows }] = await Promise.all([
+    // Load programs + ALL existing student codes in two parallel queries
+    const [{ rows: programRows }, { rows: allCodeRows }] = await Promise.all([
       pool.query(`SELECT id, LOWER(TRIM(name)) AS name_lower FROM programs WHERE school_id = $1`, [req.schoolId]),
-      pool.query(`SELECT student_code FROM students WHERE school_id = $1 AND student_code ~ '^S[0-9]+$'`, [req.schoolId]),
+      pool.query(`SELECT student_code FROM students WHERE school_id = $1`, [req.schoolId]),
     ]);
-    const programByName = new Map(programRows.map(p => [p.name_lower, p.id]));
-    let autoCodeCounter = codeRows.reduce((m, r) => {
-      const n = parseInt(r.student_code.slice(1));
-      return n > m ? n : m;
-    }, 0);
+    const programByName    = new Map(programRows.map(p => [p.name_lower, p.id]));
+    const existingCodesDB  = new Set(allCodeRows.map(r => r.student_code));
+    let autoCodeCounter    = 0;
+    for (const r of allCodeRows) {
+      if (/^S\d+$/.test(r.student_code)) {
+        const n = parseInt(r.student_code.slice(1));
+        if (n > autoCodeCounter) autoCodeCounter = n;
+      }
+    }
 
-    // Helper: normalise a date value from Excel to ISO string or null
+    // Helper: normalise a date cell to ISO string or null
     function toISODate(val) {
       if (val == null || val === '') return null;
       if (val instanceof Date) return isNaN(val) ? null : val.toISOString().slice(0, 10);
       const s = String(val).trim();
       if (!s) return null;
-      // Try ISO first, then dd/mm/yyyy, then mm/dd/yyyy
       let d = new Date(s);
       if (!isNaN(d)) return d.toISOString().slice(0, 10);
       const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
@@ -178,8 +181,9 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     }
 
     // Pass 1: validate every row in JS — zero DB calls
-    const errors  = [];
+    const errors    = [];
     const validRows = [];
+    const seenCodes = new Set();
     const validStatuses = ['Active', 'Graduated', 'Inactive'];
 
     for (let i = 0; i < dataRows.length; i++) {
@@ -226,6 +230,16 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       const status = validStatuses.find(s => s.toLowerCase() === statusRaw.toLowerCase()) || 'Active';
       const code   = studentCode || ('S' + String(++autoCodeCounter).padStart(3, '0'));
 
+      if (existingCodesDB.has(code)) {
+        errors.push({ row: rowNum, message: `Student ID "${code}" already exists` });
+        continue;
+      }
+      if (seenCodes.has(code)) {
+        errors.push({ row: rowNum, message: `Duplicate Student ID "${code}" in file` });
+        continue;
+      }
+      seenCodes.add(code);
+
       validRows.push({ rowNum, code, name, className, status, notes, programId,
         jhs_index_number, date_of_birth, gender, hometown, residential_address,
         ghana_card_number, nhia_number, mobile_number, aggregate, house,
@@ -233,63 +247,32 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
         guardian_name, guardian_occupation, guardian_mobile });
     }
 
-    // Pass 2: single bulk INSERT — one round-trip regardless of row count
+    // Pass 2: one multi-value INSERT — each cell is its own parameter so nulls work naturally
     let inserted = 0;
     if (validRows.length > 0) {
-      const { rows: inserted_rows } = await pool.query(
+      const params       = [];
+      const placeholders = validRows.map(r => {
+        const b = params.length;
+        params.push(
+          req.schoolId, r.code, r.name, r.className, r.status, r.notes, r.programId,
+          r.jhs_index_number, r.date_of_birth || null, r.gender, r.hometown, r.residential_address,
+          r.ghana_card_number, r.nhia_number, r.mobile_number, r.aggregate, r.house,
+          r.residential_status, r.religion, r.religious_denomination,
+          r.guardian_name, r.guardian_occupation, r.guardian_mobile
+        );
+        return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},$${b+11},$${b+12},$${b+13},$${b+14},$${b+15},$${b+16},$${b+17},$${b+18},$${b+19},$${b+20},$${b+21},$${b+22},$${b+23})`;
+      });
+      await pool.query(
         `INSERT INTO students
            (school_id, student_code, name, class_name, status, notes, program_id,
             jhs_index_number, date_of_birth, gender, hometown, residential_address,
             ghana_card_number, nhia_number, mobile_number, aggregate, house,
             residential_status, religion, religious_denomination,
             guardian_name, guardian_occupation, guardian_mobile)
-         SELECT
-           unnest($1::uuid[]),  unnest($2::text[]),  unnest($3::text[]),
-           unnest($4::text[]),  unnest($5::text[]),  unnest($6::text[]),
-           unnest($7::uuid[]),  unnest($8::text[]),
-           unnest($9::text[])::date,
-           unnest($10::text[]), unnest($11::text[]), unnest($12::text[]),
-           unnest($13::text[]), unnest($14::text[]), unnest($15::text[]),
-           unnest($16::int[]),  unnest($17::text[]), unnest($18::text[]),
-           unnest($19::text[]), unnest($20::text[]), unnest($21::text[]),
-           unnest($22::text[]), unnest($23::text[])
-         ON CONFLICT (school_id, student_code) DO NOTHING
-         RETURNING student_code`,
-        [
-          validRows.map(() => req.schoolId),
-          validRows.map(r => r.code),
-          validRows.map(r => r.name),
-          validRows.map(r => r.className),
-          validRows.map(r => r.status),
-          validRows.map(r => r.notes),
-          validRows.map(r => r.programId),
-          validRows.map(r => r.jhs_index_number),
-          validRows.map(r => r.date_of_birth),     // already ISO string or null
-          validRows.map(r => r.gender),
-          validRows.map(r => r.hometown),
-          validRows.map(r => r.residential_address),
-          validRows.map(r => r.ghana_card_number),
-          validRows.map(r => r.nhia_number),
-          validRows.map(r => r.mobile_number),
-          validRows.map(r => r.aggregate),
-          validRows.map(r => r.house),
-          validRows.map(r => r.residential_status),
-          validRows.map(r => r.religion),
-          validRows.map(r => r.religious_denomination),
-          validRows.map(r => r.guardian_name),
-          validRows.map(r => r.guardian_occupation),
-          validRows.map(r => r.guardian_mobile),
-        ]
+         VALUES ${placeholders.join(',')}`,
+        params
       );
-      inserted = inserted_rows.length;
-      // Report any codes that were silently skipped due to conflict
-      if (inserted < validRows.length) {
-        const returnedCodes = new Set(inserted_rows.map(r => r.student_code));
-        validRows.forEach(r => {
-          if (!returnedCodes.has(r.code))
-            errors.push({ row: r.rowNum, message: `Student ID "${r.code}" already exists` });
-        });
-      }
+      inserted = validRows.length;
     }
 
     res.json({ inserted, errors });
