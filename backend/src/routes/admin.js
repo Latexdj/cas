@@ -23,6 +23,17 @@ router.get('/test-email', async (_req, res) => {
 
 router.use(authenticate, requireActiveSubscription, adminOnly);
 
+// GET /api/admin/school-profile — name, address, logo for report cards
+router.get('/school-profile', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT name, address, logo_url FROM schools WHERE id = $1`,
+      [req.schoolId]
+    );
+    res.json(rows[0] ?? {});
+  } catch (err) { next(err); }
+});
+
 // GET /api/admin/stats — dashboard counters
 router.get('/stats', async (req, res, next) => {
   try {
