@@ -58,12 +58,16 @@ export default function ResourcesPage() {
         file_data: fileData,
         file_name: fileName,
         file_size_kb: fileSizeKb,
-      });
+      }, { timeout: 120000 });
       setResources(prev => [r.data, ...prev]);
       setShowModal(false);
       setForm(emptyForm); setFileData(''); setFileName('');
     } catch (e: any) {
-      setError(e.response?.data?.error ?? 'Upload failed');
+      if (e.code === 'ECONNABORTED') {
+        setError('Upload timed out — try a smaller file or check your connection.');
+      } else {
+        setError(e.response?.data?.error ?? 'Upload failed. Check your connection and try again.');
+      }
     } finally { setSaving(false); }
   }
 
