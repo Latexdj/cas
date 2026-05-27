@@ -107,7 +107,7 @@ export default function ClearancePage() {
     finally { setOvSaving(false); }
   }
 
-  const sel = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500';
+  const sel = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500';
 
   return (
     <div className="space-y-5">

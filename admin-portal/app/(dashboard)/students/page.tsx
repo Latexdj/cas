@@ -303,7 +303,7 @@ export default function StudentsPage() {
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <input
-          className="border rounded-lg px-3 py-2 text-sm"
+          className="border rounded-lg px-3 py-2 text-sm text-[#2C2218]"
           style={{ borderColor: '#E2D9CC', minWidth: 200 }}
           placeholder="Search name or ID…"
           value={search} onChange={e => setSearch(e.target.value)}

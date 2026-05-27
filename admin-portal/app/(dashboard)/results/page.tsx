@@ -301,7 +301,7 @@ function RemarksModal({
     finally { setSaving(false); }
   }
 
-  const sel = 'border border-[#E2D9CC] rounded-lg px-2 py-1.5 text-xs bg-[#F4EFE6] focus:outline-none focus:ring-1 focus:ring-green-500 w-full';
+  const sel = 'border border-[#E2D9CC] rounded-lg px-2 py-1.5 text-xs bg-[#F4EFE6] text-[#2C2218] focus:outline-none focus:ring-1 focus:ring-green-500 w-full';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>

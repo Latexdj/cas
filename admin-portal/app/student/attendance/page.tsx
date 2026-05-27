@@ -54,7 +54,7 @@ export default function StudentAttendancePage() {
         <div>
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-1">Academic Year</label>
           <select value={yearId} onChange={e => setYearId(e.target.value)} disabled={!yearsReady}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
             {!yearsReady && <option value="">Loading…</option>}
             {yearsReady && years.length === 0 && <option value="">No academic years found</option>}
             {years.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>)}
@@ -63,7 +63,7 @@ export default function StudentAttendancePage() {
         <div>
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-1">Semester</label>
           <select value={semester} onChange={e => setSemester(e.target.value)}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="">All</option>
             <option value="1">Semester 1</option>
             <option value="2">Semester 2</option>

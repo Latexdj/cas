@@ -244,7 +244,7 @@ export default function FormClassPage() {
   const drawerAttRow    = drawerStudent ? attData[drawerStudent.id] ?? null : null;
   const drawerRemark    = drawerStudent ? (remarksMap[drawerStudent.id] ?? draft[drawerStudent.id] ?? null) : null;
 
-  const selectCls = 'border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500';
+  const selectCls = 'border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500';
 
   // ── No assignment state ───────────────────────────────────────────────────
   if (assignment === null) {

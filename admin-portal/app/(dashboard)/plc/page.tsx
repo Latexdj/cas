@@ -103,7 +103,7 @@ function SessionFormModal({
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">Session Title</label>
             <input
-              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="e.g. Weekly PLC Meeting"
               value={title} onChange={e => setTitle(e.target.value)}
             />
@@ -112,7 +112,7 @@ function SessionFormModal({
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Day of Week</label>
               <select
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={dayOfWeek} onChange={e => setDayOfWeek(Number(e.target.value))}
               >
                 {DAYS.slice(1).map((d, i) => <option key={i + 1} value={i + 1}>{d}</option>)}
@@ -121,7 +121,7 @@ function SessionFormModal({
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Location / Venue</label>
               <select
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={locationId} onChange={e => setLocationId(e.target.value)}
               >
                 <option value="">Select location…</option>
@@ -132,11 +132,11 @@ function SessionFormModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Start Time</label>
-              <input type="time" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" value={startTime} onChange={e => setStartTime(e.target.value)} />
+              <input type="time" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={startTime} onChange={e => setStartTime(e.target.value)} />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">End Time</label>
-              <input type="time" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" value={endTime} onChange={e => setEndTime(e.target.value)} />
+              <input type="time" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={endTime} onChange={e => setEndTime(e.target.value)} />
             </div>
           </div>
           {initial?.id && (
@@ -350,15 +350,15 @@ export default function PlcPage() {
         <form onSubmit={search} className="flex flex-wrap gap-3 items-end">
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">From</label>
-            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">To</label>
-            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={dateTo} onChange={e => setDateTo(e.target.value)} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Teacher</label>
-            <select className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" value={teacherId} onChange={e => setTeacherId(e.target.value)}>
+            <select className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={teacherId} onChange={e => setTeacherId(e.target.value)}>
               <option value="">All teachers</option>
               {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>

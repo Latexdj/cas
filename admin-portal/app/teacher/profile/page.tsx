@@ -345,7 +345,7 @@ export default function ProfilePage() {
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Phone</label>
                 <input type="tel" value={editForm.phone ?? ''} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
-                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm focus:outline-none" placeholder="+233..." />
+                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" placeholder="+233..." />
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1.5">Gender</label>
@@ -362,17 +362,17 @@ export default function ProfilePage() {
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Date of Birth</label>
                 <input type="date" value={editForm.date_of_birth ?? ''} onChange={e => setEditForm(f => ({ ...f, date_of_birth: e.target.value }))}
-                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
+                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" />
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Hometown</label>
                 <input type="text" value={editForm.hometown ?? ''} onChange={e => setEditForm(f => ({ ...f, hometown: e.target.value }))}
-                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
+                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" />
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Residential Address</label>
                 <textarea value={editForm.residential_address ?? ''} onChange={e => setEditForm(f => ({ ...f, residential_address: e.target.value }))} rows={2}
-                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm focus:outline-none resize-none" />
+                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none resize-none" />
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1.5">Religion</label>
@@ -389,17 +389,17 @@ export default function ProfilePage() {
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Religious Denomination</label>
                 <input type="text" value={editForm.religious_denomination ?? ''} onChange={e => setEditForm(f => ({ ...f, religious_denomination: e.target.value }))}
-                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm focus:outline-none" placeholder="e.g. Catholic, Methodist" />
+                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" placeholder="e.g. Catholic, Methodist" />
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Emergency Contact Name</label>
                 <input type="text" value={editForm.emergency_contact_name ?? ''} onChange={e => setEditForm(f => ({ ...f, emergency_contact_name: e.target.value }))}
-                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm focus:outline-none" />
+                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" />
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Emergency Contact Phone</label>
                 <input type="tel" value={editForm.emergency_contact_phone ?? ''} onChange={e => setEditForm(f => ({ ...f, emergency_contact_phone: e.target.value }))}
-                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm focus:outline-none" placeholder="+233..." />
+                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" placeholder="+233..." />
               </div>
               {editError && <p className="text-xs text-[#B83232] bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</p>}
               <div className="flex gap-3 pt-1">

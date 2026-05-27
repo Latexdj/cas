@@ -153,7 +153,7 @@ export default function TeacherClearancePage() {
         <div className="space-y-3">
           {offices.length > 1 && (
             <select value={officeFilter} onChange={e => setOfficeFilter(e.target.value)}
-              className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 w-full">
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 w-full">
               <option value="">All my offices</option>
               {offices.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
             </select>
@@ -197,7 +197,7 @@ export default function TeacherClearancePage() {
           <form onSubmit={handleLookup} className="flex gap-2">
             <input value={lookupCode} onChange={e => { setLookupCode(e.target.value.toUpperCase()); setLookupError(''); setLookupResult(null); }}
               placeholder="Enter Student ID…" maxLength={20}
-              className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-mono uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 font-mono uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-green-500" />
             <button type="submit" disabled={lookupLoading || !lookupCode.trim()}
               className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center gap-2"
               style={{ background: primary }}>
@@ -306,7 +306,7 @@ export default function TeacherClearancePage() {
                 </label>
                 <textarea value={acNotes} onChange={e => { setAcNotes(e.target.value); setAcError(''); }} rows={3}
                   placeholder={acStatus === 'not_cleared' ? 'Required — state the reason clearly…' : 'Optional notes…'}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" />
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" />
               </div>
               {acError && <p className="text-sm text-red-600">{acError}</p>}
               <div className="flex gap-3">

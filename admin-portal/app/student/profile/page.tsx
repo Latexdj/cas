@@ -151,13 +151,13 @@ export default function StudentProfilePage() {
               <label className="text-xs font-semibold text-slate-500 block mb-1">Current Password</label>
               <input type="password" value={curPwd} onChange={e => { setCurPwd(e.target.value); setPwdMsg(''); }}
                 placeholder="Current password"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-500 block mb-1">New Password</label>
               <input type="password" value={newPwd} onChange={e => { setNewPwd(e.target.value); setPwdMsg(''); }}
                 placeholder="New password (min 4 characters)"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             {pwdMsg && (
               <p className={`text-xs ${pwdMsg.includes('success') ? 'text-green-600' : 'text-red-500'}`}>{pwdMsg}</p>

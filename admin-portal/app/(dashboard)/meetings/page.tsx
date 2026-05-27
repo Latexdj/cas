@@ -911,7 +911,7 @@ export default function MeetingsPage() {
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">From</label>
               <input
                 type="date"
-                className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={mFrom} onChange={e => setMFrom(e.target.value)}
               />
             </div>
@@ -919,7 +919,7 @@ export default function MeetingsPage() {
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">To</label>
               <input
                 type="date"
-                className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={mTo} onChange={e => setMTo(e.target.value)}
               />
             </div>
@@ -940,17 +940,17 @@ export default function MeetingsPage() {
         <form onSubmit={searchAttendanceAbsences} className="flex flex-wrap gap-3 items-end">
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">From</label>
-            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" value={aFrom} onChange={e => setAFrom(e.target.value)} />
+            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={aFrom} onChange={e => setAFrom(e.target.value)} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">To</label>
-            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" value={aTo} onChange={e => setATo(e.target.value)} />
+            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={aTo} onChange={e => setATo(e.target.value)} />
           </div>
           {tab === 'attendance' && (
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Type</label>
               <select
-                className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
                 value={aType}
                 onChange={e => setAType(e.target.value as MeetingType | '')}
               >

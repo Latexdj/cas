@@ -56,21 +56,21 @@ export default function ClearanceLoginPage() {
               <input type="text" value={schoolCode}
                 onChange={e => { setSchoolCode(e.target.value.toUpperCase()); setError(''); }}
                 placeholder="e.g. ABC123" maxLength={20} autoCapitalize="characters"
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-slate-900" />
             </div>
             <div>
               <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5">Email</label>
               <input type="email" value={email}
                 onChange={e => { setEmail(e.target.value); setError(''); }}
                 placeholder="your@email.com"
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-slate-900" />
             </div>
             <div>
               <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5">Password</label>
               <input type="password" value={password}
                 onChange={e => { setPassword(e.target.value); setError(''); }}
                 placeholder="Your password"
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white" />
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-slate-900" />
             </div>
             {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
             <button type="submit" disabled={loading}
