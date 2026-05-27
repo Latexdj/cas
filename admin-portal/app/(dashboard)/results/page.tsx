@@ -126,7 +126,7 @@ function ReportCard({ result, className, yearName, semester, caLabel, exLabel, s
               <td style={{ fontWeight: 700, color: '#555', paddingTop: '3px' }}>Student ID</td>
               <td style={{ paddingTop: '3px' }}>{result.student_code}</td>
               <td style={{ fontWeight: 700, color: '#555', paddingLeft: '12px', paddingTop: '3px' }}>Programme</td>
-              <td style={{ paddingTop: '3px' }}>{result.program_name ?? result.exam_body ?? '—'}</td>
+              <td style={{ paddingTop: '3px' }}>{result.program_name ?? '—'}</td>
             </tr>
           </tbody>
         </table>
