@@ -156,9 +156,18 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     );
     const programByName = new Map(programRows.map(p => [p.name_lower, p.id]));
 
+    // Pre-compute the starting auto-code counter to avoid per-row table scans
+    const { rows: codeRows } = await pool.query(
+      `SELECT student_code FROM students WHERE school_id = $1 AND student_code ~ '^S[0-9]+$'`,
+      [req.schoolId]
+    );
+    let autoCodeCounter = codeRows.reduce((m, r) => {
+      const n = parseInt(r.student_code.slice(1));
+      return n > m ? n : m;
+    }, 0);
+
     let inserted = 0;
     const errors = [];
-    const bulkDefaultHash = await bcrypt.hash(DEFAULT_STUDENT_PIN, 12);
 
     for (let i = 0; i < dataRows.length; i++) {
       const row    = dataRows[i];
@@ -204,7 +213,7 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
 
       const validStatuses = ['Active', 'Graduated', 'Inactive'];
       const status = validStatuses.find(s => s.toLowerCase() === statusRaw.toLowerCase()) || 'Active';
-      const code   = studentCode || await nextStudentCode(req.schoolId);
+      const code   = studentCode || ('S' + String(++autoCodeCounter).padStart(3, '0'));
 
       try {
         await pool.query(
@@ -213,13 +222,13 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
               jhs_index_number, date_of_birth, gender, hometown, residential_address,
               ghana_card_number, nhia_number, mobile_number, aggregate, house,
               residential_status, religion, religious_denomination,
-              guardian_name, guardian_occupation, guardian_mobile, pin_hash)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+              guardian_name, guardian_occupation, guardian_mobile)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
           [req.schoolId, code, name, className, status, notes, programId,
            jhs_index_number, date_of_birth || null, gender, hometown, residential_address,
            ghana_card_number, nhia_number, mobile_number, aggregate, house,
            residential_status, religion, religious_denomination,
-           guardian_name, guardian_occupation, guardian_mobile, bulkDefaultHash]
+           guardian_name, guardian_occupation, guardian_mobile]
         );
         inserted++;
       } catch (err) {

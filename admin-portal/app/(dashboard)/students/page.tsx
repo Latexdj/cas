@@ -199,7 +199,7 @@ export default function StudentsPage() {
     setUploading(true); setUploadResult(null);
     try {
       const fd = new FormData(); fd.append('file', file);
-      const res = await api.post<UploadResult>('/api/students/upload', fd);
+      const res = await api.post<UploadResult>('/api/students/upload', fd, { timeout: 120000 });
       setUploadResult(res.data); await load();
     } catch (err: any) {
       const msg = err?.response?.data?.error || err?.message || 'Upload failed';
@@ -619,7 +619,23 @@ export default function StudentsPage() {
               <p className="mt-1 text-xs" style={{ color: '#94A3B8' }}>Program and Status are optional. See the Reference sheet in the template for valid values.</p>
               <button className="mt-2 text-xs font-semibold underline" style={{ color: '#2563EB' }} onClick={downloadTemplate}>Download template (.xlsx)</button>
             </div>
-            <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="block w-full text-sm mb-4" onChange={handleUpload} disabled={uploading} />
+            <div className="mb-4">
+              <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleUpload} disabled={uploading} />
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                className="w-full flex items-center justify-center gap-2 border-2 border-dashed rounded-xl px-4 py-4 text-sm font-semibold transition-colors disabled:opacity-50"
+                style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#F9FAFB' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#2563EB'; (e.currentTarget as HTMLButtonElement).style.color = '#2563EB'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#EFF6FF'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB'; (e.currentTarget as HTMLButtonElement).style.color = '#374151'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#F9FAFB'; }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                </svg>
+                Choose file (.xlsx / .xls / .csv)
+              </button>
+            </div>
             {uploading && <p className="text-sm text-center mb-3" style={{ color: '#64748B' }}>Uploading…</p>}
             {uploadResult && (
               <div className="rounded-lg p-3 text-sm mb-4" style={{ backgroundColor: uploadResult.errors.length ? '#FEF9F0' : '#F0FDF4', border: `1px solid ${uploadResult.errors.length ? '#FCD34D' : '#BBF7D0'}` }}>
