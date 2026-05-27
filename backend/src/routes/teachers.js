@@ -467,13 +467,24 @@ router.get('/:id', async (req, res, next) => {
     if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
 
     const teacher = rows[0];
-    const { rows: schedule } = await pool.query(
-      `SELECT id, day_of_week, start_time, end_time, subject, class_names
-       FROM timetable WHERE teacher_id = $1 AND school_id = $2
-       ORDER BY day_of_week, start_time`,
-      [teacher.id, req.schoolId]
-    );
+    const [{ rows: schedule }, { rows: responsibilities }] = await Promise.all([
+      pool.query(
+        `SELECT id, day_of_week, start_time, end_time, subject, class_names
+         FROM timetable WHERE teacher_id = $1 AND school_id = $2
+         ORDER BY day_of_week, start_time`,
+        [teacher.id, req.schoolId]
+      ),
+      pool.query(
+        `SELECT tr.id, tr.name, tr.module_key
+         FROM teacher_responsibility_assignments tra
+         JOIN teacher_responsibilities tr ON tr.id = tra.responsibility_id
+         WHERE tra.teacher_id = $1 AND tr.school_id = $2
+         ORDER BY tr.sort_order, tr.name`,
+        [teacher.id, req.schoolId]
+      ),
+    ]);
     teacher.schedule = schedule;
+    teacher.responsibilities = responsibilities;
     res.json(teacher);
   } catch (err) { next(err); }
 });
@@ -536,6 +547,7 @@ router.put('/:id', adminOnly, async (req, res, next) => {
       bank, bank_branch, account_number, religion, religious_denomination,
       hometown, residential_address, association, ghana_card_number,
       emergency_contact_name, emergency_contact_phone,
+      responsibility_ids,
     } = req.body;
     const valErrors = validateTeacherFields(req.body);
     if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
@@ -590,6 +602,28 @@ router.put('/:id', adminOnly, async (req, res, next) => {
        req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
+
+    // Sync responsibility assignments if provided
+    if (Array.isArray(responsibility_ids)) {
+      await pool.query(
+        `DELETE FROM teacher_responsibility_assignments WHERE teacher_id = $1`,
+        [req.params.id]
+      );
+      if (responsibility_ids.length > 0) {
+        const params = [], placeholders = [];
+        for (const rid of responsibility_ids) {
+          const b = params.length;
+          params.push(req.params.id, rid, req.schoolId);
+          placeholders.push(`($${b+1},$${b+2},$${b+3})`);
+        }
+        await pool.query(
+          `INSERT INTO teacher_responsibility_assignments (teacher_id, responsibility_id, school_id)
+           VALUES ${placeholders.join(',')} ON CONFLICT DO NOTHING`,
+          params
+        );
+      }
+    }
+
     res.json(rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'That Teacher ID is already in use' });

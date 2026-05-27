@@ -14,6 +14,7 @@ interface NavItem {
   badge?:           boolean;
   formTeacherOnly?: boolean;
   clearanceOnly?:   boolean;
+  libraryOnly?:     boolean;
   icon:             ReactNode;
 }
 
@@ -49,6 +50,16 @@ const NAV_ITEMS: NavItem[] = [
         <circle cx="9" cy="7" r="4" />
         <path d="M23 21v-2a4 4 0 00-3-3.87" />
         <path d="M16 3.13a4 4 0 010 7.75" />
+      </svg>
+    ),
+  },
+  {
+    href:        '/teacher/library',
+    label:       'Library',
+    libraryOnly: true,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
       </svg>
     ),
   },
@@ -180,6 +191,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const [moreOpen,         setMoreOpen]         = useState(false);
   const [isFormTeacher,    setIsFormTeacher]    = useState(false);
   const [isClearanceStaff, setIsClearanceStaff] = useState(false);
+  const [isLibraryTeacher, setIsLibraryTeacher] = useState(false);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => { setMoreOpen(false); }, [pathname]);
@@ -225,6 +237,9 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     teacherApi.get<unknown[]>('/api/clearance/my-offices')
       .then(r => setIsClearanceStaff(Array.isArray(r.data) && r.data.length > 0))
       .catch(() => {});
+    teacherApi.get<{ module_keys: string[] }>('/api/responsibilities/my-modules')
+      .then(r => setIsLibraryTeacher(r.data.module_keys?.includes('library') ?? false))
+      .catch(() => {});
     const interval = setInterval(fetchUnread, 60_000);
     return () => clearInterval(interval);
   }, [pathname, router, fetchUnread]);
@@ -248,7 +263,8 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
 
   const visibleNavItems  = NAV_ITEMS.filter(item =>
     (!item.formTeacherOnly || isFormTeacher) &&
-    (!item.clearanceOnly   || isClearanceStaff)
+    (!item.clearanceOnly   || isClearanceStaff) &&
+    (!item.libraryOnly     || isLibraryTeacher)
   );
   const mobileBarItems   = visibleNavItems.filter(item => MOBILE_BAR_HREFS.includes(item.href));
   const mobileMoreItems  = visibleNavItems.filter(item => !MOBILE_BAR_HREFS.includes(item.href));

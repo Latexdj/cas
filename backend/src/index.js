@@ -41,6 +41,7 @@ const clearanceStaffRoutes    = require('./routes/clearanceStaff');
 const { router: libraryAdminRoutes }  = require('./routes/libraryAdmin');
 const libraryRoutes           = require('./routes/library');
 const schoolStaffRoutes       = require('./routes/schoolStaff');
+const responsibilitiesRoutes  = require('./routes/responsibilities');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -110,6 +111,7 @@ app.use('/api/clearance',          clearanceStaffRoutes);
 app.use('/api/library-admin',      libraryAdminRoutes);
 app.use('/api/library',            libraryRoutes);
 app.use('/api/school-staff',       schoolStaffRoutes);
+app.use('/api/responsibilities',   responsibilitiesRoutes);
 
 app.use(errorHandler);
 
@@ -632,15 +634,32 @@ async function runMigrations() {
         UNIQUE (staff_id, role)
       )
     `);
+    await pool.query(`DROP TABLE IF EXISTS library_teacher_staff CASCADE`);
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS library_teacher_staff (
-        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        school_id  UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-        teacher_id UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
-        is_active  BOOLEAN NOT NULL DEFAULT true,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        UNIQUE (school_id, teacher_id)
+      CREATE TABLE IF NOT EXISTS teacher_responsibilities (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name        VARCHAR(100) NOT NULL,
+        description TEXT,
+        module_key  VARCHAR(50),
+        sort_order  INTEGER NOT NULL DEFAULT 0,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (school_id, name)
       )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS teacher_responsibility_assignments (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id         UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id        UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        responsibility_id UUID NOT NULL REFERENCES teacher_responsibilities(id) ON DELETE CASCADE,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (teacher_id, responsibility_id)
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_responsibility_assignments_teacher
+        ON teacher_responsibility_assignments(teacher_id)
     `);
     // Add school_staff_id to clearance_office_staff (fresh deployments already have it from CREATE TABLE above)
     await pool.query(`ALTER TABLE clearance_office_staff ADD COLUMN IF NOT EXISTS school_staff_id UUID REFERENCES school_staff(id) ON DELETE CASCADE`);

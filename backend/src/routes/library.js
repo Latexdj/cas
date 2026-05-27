@@ -14,8 +14,10 @@ async function libraryStaffOnly(req, res, next) {
     if (role === 'staff' && req.staffRoles?.includes('library')) return next();
     if (role === 'teacher') {
       const { rows } = await pool.query(
-        `SELECT id FROM library_teacher_staff WHERE school_id = $1 AND teacher_id = $2 AND is_active = true`,
-        [req.schoolId, req.user.id]
+        `SELECT 1 FROM teacher_responsibility_assignments tra
+         JOIN teacher_responsibilities tr ON tr.id = tra.responsibility_id
+         WHERE tra.teacher_id = $1 AND tr.school_id = $2 AND tr.module_key = 'library'`,
+        [req.user.id, req.schoolId]
       );
       if (rows.length) { req.isLibraryTeacher = true; return next(); }
     }

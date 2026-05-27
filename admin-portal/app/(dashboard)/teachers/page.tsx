@@ -45,6 +45,10 @@ export default function TeachersPage() {
   const [uploadErr,    setUploadErr]    = useState('');
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
 
+  // Responsibilities
+  const [availableResp,    setAvailableResp]    = useState<{ id: string; name: string; module_key: string | null }[]>([]);
+  const [selectedRespIds,  setSelectedRespIds]  = useState<string[]>([]);
+
   // Reset PIN state
   const [pinTarget,    setPinTarget]    = useState<Teacher | null>(null);
   const [pinInput,     setPinInput]     = useState('');
@@ -98,11 +102,20 @@ export default function TeachersPage() {
     } finally { setUploading(false); }
   }
 
-  function openCreate() { setForm(EMPTY); setError(''); setFieldErrors({}); setEditId(null); setModal('create'); }
+  function openCreate() {
+    setForm(EMPTY); setError(''); setFieldErrors({}); setEditId(null);
+    setSelectedRespIds([]);
+    api.get<{ id: string; name: string; module_key: string | null }[]>('/api/responsibilities')
+      .then(r => setAvailableResp(r.data)).catch(() => {});
+    setModal('create');
+  }
   async function openEdit(t: Teacher) {
     setEditId(t.id); setError(''); setFieldErrors({});
+    setSelectedRespIds([]);
+    api.get<{ id: string; name: string; module_key: string | null }[]>('/api/responsibilities')
+      .then(r => setAvailableResp(r.data)).catch(() => {});
     try {
-      const { data } = await api.get<TeacherProfile>(`/api/teachers/${t.id}`);
+      const { data } = await api.get<TeacherProfile & { responsibilities?: { id: string }[] }>(`/api/teachers/${t.id}`);
       setForm({
         teacher_code: data.teacher_code, name: data.name, email: data.email ?? '', phone: data.phone ?? '',
         department: data.department ?? '', status: data.status, is_admin: data.is_admin, notes: data.notes ?? '', password: '',
@@ -117,6 +130,7 @@ export default function TeachersPage() {
         association: data.association ?? '', ghana_card_number: data.ghana_card_number ?? '',
         emergency_contact_name: data.emergency_contact_name ?? '', emergency_contact_phone: data.emergency_contact_phone ?? '',
       });
+      setSelectedRespIds((data.responsibilities ?? []).map((r) => r.id));
     } catch {
       setForm({ ...EMPTY, teacher_code: t.teacher_code, name: t.name, email: t.email ?? '',
         phone: t.phone ?? '', department: t.department ?? '', status: t.status, is_admin: t.is_admin, notes: t.notes ?? '' });
@@ -133,6 +147,7 @@ export default function TeachersPage() {
       const body: Record<string, unknown> = { ...form };
       if (!body.password) delete body.password;
       for (const k of Object.keys(body)) { if (body[k] === '') body[k] = null; }
+      body.responsibility_ids = selectedRespIds;
       if (modal === 'create') await api.post('/api/teachers', body);
       else await api.put(`/api/teachers/${editId}`, body);
       setModal(null); await load();
@@ -744,6 +759,40 @@ export default function TeachersPage() {
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</label>
             <textarea value={form.notes ?? ''} onChange={field('notes')} rows={2}
               className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Responsibilities */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Responsibilities</p>
+            {availableResp.length === 0 ? (
+              <p className="text-sm text-slate-400 italic">
+                No responsibilities defined.{' '}
+                <a href="/responsibilities" className="text-green-700 hover:underline font-medium">Add them in Setup → Responsibilities</a>
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {availableResp.map(r => (
+                  <label key={r.id} className="flex items-center gap-2 text-sm cursor-pointer rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 hover:bg-slate-100 select-none">
+                    <input
+                      type="checkbox"
+                      className="rounded"
+                      checked={selectedRespIds.includes(r.id)}
+                      onChange={e => setSelectedRespIds(prev =>
+                        e.target.checked ? [...prev, r.id] : prev.filter(id => id !== r.id)
+                      )}
+                    />
+                    <span className="font-medium text-slate-700 flex-1 truncate">{r.name}</span>
+                    {r.module_key && (
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-700 flex-shrink-0">
+                        {r.module_key}
+                      </span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
         </div>
