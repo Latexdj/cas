@@ -40,6 +40,7 @@ const { router: clearanceAdminRoutes } = require('./routes/clearanceAdmin');
 const clearanceStaffRoutes    = require('./routes/clearanceStaff');
 const { router: libraryAdminRoutes }  = require('./routes/libraryAdmin');
 const libraryRoutes           = require('./routes/library');
+const schoolStaffRoutes       = require('./routes/schoolStaff');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -108,6 +109,7 @@ app.use('/api/clearance-admin',    clearanceAdminRoutes);
 app.use('/api/clearance',          clearanceStaffRoutes);
 app.use('/api/library-admin',      libraryAdminRoutes);
 app.use('/api/library',            libraryRoutes);
+app.use('/api/school-staff',       schoolStaffRoutes);
 
 app.use(errorHandler);
 
@@ -628,6 +630,114 @@ async function runMigrations() {
       CREATE INDEX IF NOT EXISTS idx_library_resources_school
         ON library_resources(school_id, resource_type)
     `);
+
+    // ── Unified non-teaching staff ─────────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_staff (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id     UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        email         TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        is_active     BOOLEAN NOT NULL DEFAULT true,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, email)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_staff_roles (
+        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        staff_id   UUID NOT NULL REFERENCES school_staff(id) ON DELETE CASCADE,
+        school_id  UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        role       TEXT NOT NULL CHECK (role IN ('clearance','library')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (staff_id, role)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS library_teacher_staff (
+        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id  UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        is_active  BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, teacher_id)
+      )
+    `);
+    // Migrate clearance_staff → school_staff with role 'clearance'
+    await pool.query(`
+      INSERT INTO school_staff (school_id, name, email, password_hash, is_active, created_at)
+      SELECT school_id, name, email, password_hash, is_active, created_at
+      FROM clearance_staff
+      ON CONFLICT (school_id, email) DO NOTHING
+    `);
+    await pool.query(`
+      INSERT INTO school_staff_roles (staff_id, school_id, role)
+      SELECT ss.id, ss.school_id, 'clearance'
+      FROM school_staff ss
+      WHERE EXISTS (
+        SELECT 1 FROM clearance_staff cs WHERE cs.email = ss.email AND cs.school_id = ss.school_id
+      )
+      ON CONFLICT (staff_id, role) DO NOTHING
+    `);
+    // Migrate library_staff → school_staff with role 'library'
+    await pool.query(`
+      INSERT INTO school_staff (school_id, name, email, password_hash, is_active, created_at)
+      SELECT school_id, name, email, password_hash, is_active, created_at
+      FROM library_staff
+      ON CONFLICT (school_id, email) DO NOTHING
+    `);
+    await pool.query(`
+      INSERT INTO school_staff_roles (staff_id, school_id, role)
+      SELECT ss.id, ss.school_id, 'library'
+      FROM school_staff ss
+      WHERE EXISTS (
+        SELECT 1 FROM library_staff ls WHERE ls.email = ss.email AND ls.school_id = ss.school_id
+      )
+      ON CONFLICT (staff_id, role) DO NOTHING
+    `);
+    // Add school_staff_id to clearance_office_staff and backfill
+    await pool.query(`ALTER TABLE clearance_office_staff ADD COLUMN IF NOT EXISTS school_staff_id UUID REFERENCES school_staff(id) ON DELETE CASCADE`);
+    await pool.query(`
+      UPDATE clearance_office_staff cos
+      SET school_staff_id = ss.id
+      FROM school_staff ss, clearance_staff cs
+      WHERE cos.clearance_staff_id = cs.id
+        AND cs.email = ss.email AND cs.school_id = ss.school_id
+        AND cos.school_staff_id IS NULL
+    `);
+    // Add actioned_by_school_staff_id to student_clearance_items and backfill
+    await pool.query(`ALTER TABLE student_clearance_items ADD COLUMN IF NOT EXISTS actioned_by_school_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
+    await pool.query(`
+      UPDATE student_clearance_items sci
+      SET actioned_by_school_staff_id = ss.id
+      FROM school_staff ss, clearance_staff cs
+      WHERE sci.actioned_by_clearance_staff_id = cs.id
+        AND cs.email = ss.email AND cs.school_id = ss.school_id
+        AND sci.actioned_by_school_staff_id IS NULL
+    `);
+    // Add new loan tracking columns
+    await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS issued_by_school_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS issued_by_teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL`);
+    await pool.query(`
+      UPDATE library_loans ll
+      SET issued_by_school_staff_id = ss.id
+      FROM school_staff ss, library_staff ls
+      WHERE ll.issued_by_staff_id = ls.id
+        AND ls.email = ss.email AND ls.school_id = ss.school_id
+        AND ll.issued_by_school_staff_id IS NULL
+    `);
+    // Add uploaded_by_school_staff_id to library_resources and backfill
+    await pool.query(`ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS uploaded_by_school_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
+    await pool.query(`
+      UPDATE library_resources lr
+      SET uploaded_by_school_staff_id = ss.id
+      FROM school_staff ss, library_staff ls
+      WHERE lr.uploaded_by = ls.id
+        AND ls.email = ss.email AND ls.school_id = ss.school_id
+        AND lr.uploaded_by_school_staff_id IS NULL
+    `);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

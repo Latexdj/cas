@@ -9,9 +9,9 @@ interface Office {
   linked_house: string | null; sort_order: number; is_active: boolean; staff_count: number;
 }
 interface OfficeStaff {
-  id: string; teacher_id: string | null; clearance_staff_id: string | null;
+  id: string; teacher_id: string | null; school_staff_id: string | null;
   teacher_name: string | null; teacher_code: string | null;
-  clearance_staff_name: string | null; clearance_staff_email: string | null;
+  school_staff_name: string | null; school_staff_email: string | null;
 }
 interface ClearanceStaff { id: string; name: string; email: string; is_active: boolean; offices: string[] | null; }
 interface Program { id: string; name: string; }
@@ -103,11 +103,11 @@ export default function OfficesPage() {
     } catch { }
   }
 
-  async function assignStaff(type: 'teacher' | 'clearance_staff', staffId: string) {
+  async function assignStaff(type: 'teacher' | 'school_staff', staffId: string) {
     if (!selectedOffice) return;
     try {
       await api.post(`/api/clearance-admin/offices/${selectedOffice.id}/staff`, {
-        [type === 'teacher' ? 'teacher_id' : 'clearance_staff_id']: staffId,
+        [type === 'teacher' ? 'teacher_id' : 'school_staff_id']: staffId,
       });
       await loadOfficeStaff(selectedOffice);
       setOffices(prev => prev.map(o => o.id === selectedOffice.id ? { ...o, staff_count: o.staff_count + 1 } : o));
@@ -158,7 +158,7 @@ export default function OfficesPage() {
       (t.name.toLowerCase().includes(assignQuery.toLowerCase()) || t.teacher_code.toLowerCase().includes(assignQuery.toLowerCase()))
     ),
     cstaff: staff.filter(s =>
-      !officeStaff.some(os => os.clearance_staff_id === s.id) &&
+      !officeStaff.some(os => os.school_staff_id === s.id) &&
       (s.name.toLowerCase().includes(assignQuery.toLowerCase()) || s.email.toLowerCase().includes(assignQuery.toLowerCase()))
     ),
   };
@@ -284,8 +284,8 @@ export default function OfficesPage() {
                       {officeStaff.map(s => (
                         <div key={s.id} className="flex items-center justify-between gap-2 bg-green-50 rounded-lg px-3 py-2.5">
                           <div>
-                            <p className="text-sm font-semibold text-slate-800">{s.teacher_name ?? s.clearance_staff_name}</p>
-                            <p className="text-xs text-slate-400">{s.teacher_code ?? s.clearance_staff_email} · {s.teacher_id ? 'Teacher' : 'Clearance Staff'}</p>
+                            <p className="text-sm font-semibold text-slate-800">{s.teacher_name ?? s.school_staff_name}</p>
+                            <p className="text-xs text-slate-400">{s.teacher_code ?? s.school_staff_email} · {s.teacher_id ? 'Teacher' : 'Staff'}</p>
                           </div>
                           <button onClick={() => removeAssignment(s.id)} className="text-xs text-red-500 hover:text-red-700 font-semibold">Remove</button>
                         </div>
@@ -305,7 +305,7 @@ export default function OfficesPage() {
                         </button>
                       ))}
                       {assignable.cstaff.slice(0, 10).map(s => (
-                        <button key={s.id} onClick={() => assignStaff('clearance_staff', s.id)}
+                        <button key={s.id} onClick={() => assignStaff('school_staff', s.id)}
                           className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 border border-slate-100">
                           <p className="text-sm font-medium text-slate-700">{s.name}</p>
                           <p className="text-xs text-slate-400">{s.email} · Clearance Staff</p>

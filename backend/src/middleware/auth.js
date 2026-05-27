@@ -47,6 +47,24 @@ async function authenticate(req, res, next) {
         });
       }
     }
+    if (req.user.role === 'staff') {
+      const { rows } = await pool.query(
+        `SELECT ss.is_active,
+                COALESCE(ARRAY_AGG(ssr.role) FILTER (WHERE ssr.role IS NOT NULL), '{}') AS roles
+         FROM school_staff ss
+         LEFT JOIN school_staff_roles ssr ON ssr.staff_id = ss.id
+         WHERE ss.id = $1 AND ss.school_id = $2
+         GROUP BY ss.id`,
+        [req.user.id, req.schoolId]
+      );
+      if (!rows.length || !rows[0].is_active) {
+        return res.status(401).json({
+          error: 'Your account has been deactivated. Please contact your administrator.',
+        });
+      }
+      req.staffRoles = rows[0].roles;
+    }
+    // Legacy role checks (tokens issued before migration expire within 12h)
     if (req.user.role === 'clearance_staff') {
       const { rows } = await pool.query(
         `SELECT is_active FROM clearance_staff WHERE id = $1 AND school_id = $2`,
@@ -57,6 +75,7 @@ async function authenticate(req, res, next) {
           error: 'Your account has been deactivated. Please contact your administrator.',
         });
       }
+      req.staffRoles = ['clearance'];
     }
     if (req.user.role === 'library_staff') {
       const { rows } = await pool.query(
@@ -68,6 +87,7 @@ async function authenticate(req, res, next) {
           error: 'Your account has been deactivated. Please contact your administrator.',
         });
       }
+      req.staffRoles = ['library'];
     }
 
     next();

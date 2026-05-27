@@ -5,23 +5,31 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
-const NO_SHELL = ['/library-portal/login'];
+const NO_SHELL = ['/staff-portal/login'];
 
-function getLibraryUser() {
-  if (typeof window === 'undefined') return null;
-  try { return JSON.parse(localStorage.getItem('cas_lib_user') ?? 'null'); } catch { return null; }
+export interface StaffUser {
+  id: string; name: string; role: string; staffRoles: string[]; schoolId: string;
 }
-function getLibraryColors() {
+
+export function getStaffUser(): StaffUser | null {
+  if (typeof window === 'undefined') return null;
+  try { return JSON.parse(localStorage.getItem('cas_st_user') ?? 'null'); } catch { return null; }
+}
+
+export function getStaffColors() {
   if (typeof window === 'undefined') return { primary: '#1a5c38', logoUrl: null };
   return {
-    primary: localStorage.getItem('cas_lib_primary') ?? '#1a5c38',
-    logoUrl: localStorage.getItem('cas_lib_logo') ?? null,
+    primary: localStorage.getItem('cas_st_primary') ?? '#1a5c38',
+    logoUrl: localStorage.getItem('cas_st_logo') ?? null,
   };
 }
 
-export { getLibraryUser, getLibraryColors };
+export function getStaffToken() {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem('cas_st_token') ?? '';
+}
 
-export default function LibraryPortalLayout({ children }: { children: ReactNode }) {
+export default function StaffPortalLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router   = useRouter();
   const { resolvedTheme } = useTheme();
@@ -32,14 +40,15 @@ export default function LibraryPortalLayout({ children }: { children: ReactNode 
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
+
   const isDark = mounted && resolvedTheme === 'dark';
 
   useEffect(() => {
     if (NO_SHELL.includes(pathname)) { setReady(true); return; }
-    const user = getLibraryUser();
-    if (!user) { router.replace('/library-portal/login'); return; }
+    const user = getStaffUser();
+    if (!user) { router.replace('/staff-portal/login'); return; }
     setName(user.name ?? '');
-    const c = getLibraryColors();
+    const c = getStaffColors();
     setPrimary(c.primary); setLogoUrl(c.logoUrl);
     setReady(true);
   }, [pathname, router]);
@@ -53,11 +62,12 @@ export default function LibraryPortalLayout({ children }: { children: ReactNode 
   if (NO_SHELL.includes(pathname)) return <>{children}</>;
 
   function handleLogout() {
-    localStorage.removeItem('cas_lib_token');
-    localStorage.removeItem('cas_lib_user');
-    localStorage.removeItem('cas_lib_primary');
-    localStorage.removeItem('cas_lib_logo');
-    router.replace('/library-portal/login');
+    localStorage.removeItem('cas_st_token');
+    localStorage.removeItem('cas_st_user');
+    localStorage.removeItem('cas_st_primary');
+    localStorage.removeItem('cas_st_accent');
+    localStorage.removeItem('cas_st_logo');
+    router.replace('/staff-portal/login');
   }
 
   return (
@@ -66,13 +76,9 @@ export default function LibraryPortalLayout({ children }: { children: ReactNode 
         {logoUrl ? (
           <img src={logoUrl} alt="logo" className="w-8 h-8 rounded-lg object-cover shrink-0" />
         ) : (
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: primary }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-              <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-          </div>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0" style={{ background: primary }}>S</div>
         )}
-        <span className={`font-bold text-sm flex-1 ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>Library Portal</span>
+        <span className={`font-bold text-sm flex-1 ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>Staff Portal</span>
         <span className={`text-xs hidden sm:block ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{name}</span>
         <ThemeToggle />
         <button
@@ -82,7 +88,7 @@ export default function LibraryPortalLayout({ children }: { children: ReactNode 
           Logout
         </button>
       </header>
-      <main className="max-w-3xl mx-auto p-4 md:p-6">
+      <main className="max-w-2xl mx-auto p-4 md:p-6">
         {children}
       </main>
     </div>

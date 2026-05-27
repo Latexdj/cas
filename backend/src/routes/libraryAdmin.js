@@ -193,13 +193,15 @@ router.delete('/books/:id/copies/:copyId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Library Staff ─────────────────────────────────────────────────────────────
+// ── Library Staff (now backed by school_staff) ────────────────────────────────
 
 router.get('/staff', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name, email, is_active, created_at FROM library_staff
-       WHERE school_id = $1 ORDER BY name`,
+      `SELECT ss.id, ss.name, ss.email, ss.is_active, ss.created_at
+       FROM school_staff ss
+       JOIN school_staff_roles ssr ON ssr.staff_id = ss.id AND ssr.role = 'library'
+       WHERE ss.school_id = $1 ORDER BY ss.name`,
       [req.schoolId]
     );
     res.json(rows);
@@ -214,9 +216,13 @@ router.post('/staff', async (req, res, next) => {
     if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
     const hash = await bcrypt.hash(String(password), 12);
     const { rows } = await pool.query(
-      `INSERT INTO library_staff (school_id, name, email, password_hash)
+      `INSERT INTO school_staff (school_id, name, email, password_hash)
        VALUES ($1,$2,$3,$4) RETURNING id, name, email, is_active, created_at`,
       [req.schoolId, name.trim(), email.trim().toLowerCase(), hash]
+    );
+    await pool.query(
+      `INSERT INTO school_staff_roles (staff_id, school_id, role) VALUES ($1,$2,'library') ON CONFLICT DO NOTHING`,
+      [rows[0].id, req.schoolId]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -234,7 +240,7 @@ router.put('/staff/:id', async (req, res, next) => {
       hash = await bcrypt.hash(String(password), 12);
     }
     const { rows } = await pool.query(
-      `UPDATE library_staff
+      `UPDATE school_staff
        SET name          = COALESCE($1, name),
            email         = COALESCE($2, email),
            password_hash = COALESCE($3, password_hash),
@@ -256,7 +262,7 @@ router.put('/staff/:id', async (req, res, next) => {
 router.delete('/staff/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `DELETE FROM library_staff WHERE id = $1 AND school_id = $2 RETURNING id`,
+      `DELETE FROM school_staff WHERE id = $1 AND school_id = $2 RETURNING id`,
       [req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Staff not found' });
@@ -284,12 +290,14 @@ router.get('/loans', async (req, res, next) => {
               lb.title AS book_title, lb.author,
               lc.copy_number,
               s.name AS student_name, s.student_code, s.class_name,
-              lst.name AS issued_by,
+              COALESCE(ss.name, t.name, lst.name) AS issued_by,
               (ll.due_date < CURRENT_DATE AND ll.status = 'active')::boolean AS is_overdue
        FROM library_loans ll
        JOIN library_books lb ON lb.id = ll.book_id
        JOIN library_copies lc ON lc.id = ll.copy_id
        JOIN students s ON s.id = ll.student_id
+       LEFT JOIN school_staff ss  ON ss.id = ll.issued_by_school_staff_id
+       LEFT JOIN teachers t       ON t.id  = ll.issued_by_teacher_id
        LEFT JOIN library_staff lst ON lst.id = ll.issued_by_staff_id
        WHERE ${conditions.join(' AND ')}
        ORDER BY ll.issued_at DESC

@@ -89,12 +89,12 @@ router.delete('/offices/:id', async (req, res, next) => {
 router.get('/offices/:id/staff', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT cos.id, cos.teacher_id, cos.clearance_staff_id,
+      `SELECT cos.id, cos.teacher_id, cos.school_staff_id,
               t.name AS teacher_name, t.teacher_code,
-              cs.name AS clearance_staff_name, cs.email AS clearance_staff_email
+              ss.name AS school_staff_name, ss.email AS school_staff_email
        FROM clearance_office_staff cos
        LEFT JOIN teachers t ON t.id = cos.teacher_id
-       LEFT JOIN clearance_staff cs ON cs.id = cos.clearance_staff_id
+       LEFT JOIN school_staff ss ON ss.id = cos.school_staff_id
        WHERE cos.office_id = $1 AND cos.school_id = $2`,
       [req.params.id, req.schoolId]
     );
@@ -105,11 +105,10 @@ router.get('/offices/:id/staff', async (req, res, next) => {
 // POST /api/clearance-admin/offices/:id/staff
 router.post('/offices/:id/staff', async (req, res, next) => {
   try {
-    const { teacher_id, clearance_staff_id } = req.body;
-    if (!teacher_id && !clearance_staff_id) {
-      return res.status(400).json({ error: 'teacher_id or clearance_staff_id required' });
+    const { teacher_id, school_staff_id } = req.body;
+    if (!teacher_id && !school_staff_id) {
+      return res.status(400).json({ error: 'teacher_id or school_staff_id required' });
     }
-    // Verify office belongs to school
     const { rows: officeRows } = await pool.query(
       `SELECT id FROM clearance_offices WHERE id = $1 AND school_id = $2`,
       [req.params.id, req.schoolId]
@@ -117,9 +116,9 @@ router.post('/offices/:id/staff', async (req, res, next) => {
     if (!officeRows.length) return res.status(404).json({ error: 'Office not found' });
 
     const { rows } = await pool.query(
-      `INSERT INTO clearance_office_staff (school_id, office_id, teacher_id, clearance_staff_id)
+      `INSERT INTO clearance_office_staff (school_id, office_id, teacher_id, school_staff_id)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [req.schoolId, req.params.id, teacher_id || null, clearance_staff_id || null]
+      [req.schoolId, req.params.id, teacher_id || null, school_staff_id || null]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -141,20 +140,21 @@ router.delete('/offices/:officeId/staff/:assignmentId', async (req, res, next) =
   } catch (err) { next(err); }
 });
 
-// ── Non-Teaching Clearance Staff Accounts ────────────────────────────────────
+// ── Non-Teaching Clearance Staff Accounts (now backed by school_staff) ────────
 
 // GET /api/clearance-admin/staff
 router.get('/staff', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT cs.id, cs.name, cs.email, cs.is_active, cs.created_at,
+      `SELECT ss.id, ss.name, ss.email, ss.is_active, ss.created_at,
               ARRAY_AGG(co.name ORDER BY co.name) FILTER (WHERE co.id IS NOT NULL) AS offices
-       FROM clearance_staff cs
-       LEFT JOIN clearance_office_staff cos ON cos.clearance_staff_id = cs.id
+       FROM school_staff ss
+       JOIN school_staff_roles ssr ON ssr.staff_id = ss.id AND ssr.role = 'clearance'
+       LEFT JOIN clearance_office_staff cos ON cos.school_staff_id = ss.id
        LEFT JOIN clearance_offices co ON co.id = cos.office_id
-       WHERE cs.school_id = $1
-       GROUP BY cs.id
-       ORDER BY cs.name`,
+       WHERE ss.school_id = $1
+       GROUP BY ss.id
+       ORDER BY ss.name`,
       [req.schoolId]
     );
     res.json(rows);
@@ -165,15 +165,18 @@ router.get('/staff', async (req, res, next) => {
 router.post('/staff', async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
-    if (!name?.trim() || !email?.trim() || !password) {
+    if (!name?.trim() || !email?.trim() || !password)
       return res.status(400).json({ error: 'name, email and password are required' });
-    }
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
     const hash = await bcrypt.hash(String(password), 12);
     const { rows } = await pool.query(
-      `INSERT INTO clearance_staff (school_id, name, email, password_hash)
+      `INSERT INTO school_staff (school_id, name, email, password_hash)
        VALUES ($1, $2, $3, $4) RETURNING id, name, email, is_active, created_at`,
       [req.schoolId, name.trim(), email.trim().toLowerCase(), hash]
+    );
+    await pool.query(
+      `INSERT INTO school_staff_roles (staff_id, school_id, role) VALUES ($1, $2, 'clearance') ON CONFLICT DO NOTHING`,
+      [rows[0].id, req.schoolId]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -186,13 +189,13 @@ router.post('/staff', async (req, res, next) => {
 router.put('/staff/:id', async (req, res, next) => {
   try {
     const { name, email, password, is_active } = req.body;
-    let hash = undefined;
+    let hash;
     if (password) {
       if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
       hash = await bcrypt.hash(String(password), 12);
     }
     const { rows } = await pool.query(
-      `UPDATE clearance_staff
+      `UPDATE school_staff
        SET name          = COALESCE($1, name),
            email         = COALESCE($2, email),
            password_hash = COALESCE($3, password_hash),
@@ -215,7 +218,7 @@ router.put('/staff/:id', async (req, res, next) => {
 router.delete('/staff/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `DELETE FROM clearance_staff WHERE id = $1 AND school_id = $2 RETURNING id`,
+      `DELETE FROM school_staff WHERE id = $1 AND school_id = $2 RETURNING id`,
       [req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Staff not found' });
@@ -434,7 +437,9 @@ router.post('/students/:studentId/override', async (req, res, next) => {
     await pool.query(
       `UPDATE student_clearance_items
        SET status = $1, notes = $2,
-           actioned_by_teacher_id = $3, actioned_by_clearance_staff_id = NULL,
+           actioned_by_teacher_id = $3,
+           actioned_by_clearance_staff_id = NULL,
+           actioned_by_school_staff_id = NULL,
            actioned_at = $4
        WHERE id = $5`,
       [status, notes?.trim() || null, status !== 'pending' ? req.user.id : null,

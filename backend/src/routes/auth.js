@@ -283,6 +283,55 @@ router.post('/change-pin', require('../middleware/auth').authenticate, async (re
   }
 });
 
+// ── POST /api/auth/staff-login ───────────────────────────────────────────────
+// Unified login for all non-teaching staff (clearance + library)
+router.post('/staff-login', loginLimiter, async (req, res, next) => {
+  try {
+    const { email, password, schoolCode } = req.body;
+    if (!email || !password || !schoolCode)
+      return res.status(400).json({ error: 'email, password and schoolCode are required' });
+
+    const { rows: schoolRows } = await pool.query(
+      `SELECT id, name, primary_color, accent_color, logo_url
+       FROM schools WHERE UPPER(code) = UPPER($1)`,
+      [schoolCode.trim()]
+    );
+    if (!schoolRows.length) return res.status(404).json({ error: 'School not found' });
+    const school = schoolRows[0];
+
+    const { rows } = await pool.query(
+      `SELECT id, name, email, password_hash, is_active
+       FROM school_staff WHERE school_id = $1 AND LOWER(email) = LOWER($2)`,
+      [school.id, email.trim()]
+    );
+    if (!rows.length) return res.status(401).json({ error: 'Invalid email or password' });
+    const staff = rows[0];
+    if (!staff.is_active)
+      return res.status(401).json({ error: 'Account deactivated. Contact your administrator.' });
+
+    const valid = await bcrypt.compare(String(password), staff.password_hash);
+    if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+
+    const { rows: roleRows } = await pool.query(
+      `SELECT role FROM school_staff_roles WHERE staff_id = $1 ORDER BY role`, [staff.id]
+    );
+    const staffRoles = roleRows.map(r => r.role);
+
+    const token = jwt.sign(
+      { id: staff.id, name: staff.name, role: 'staff', staffRoles, schoolId: school.id },
+      process.env.JWT_SECRET,
+      { expiresIn: '12h' }
+    );
+    res.json({
+      token, role: 'staff', staffRoles,
+      id: staff.id, name: staff.name, schoolId: school.id,
+      primary_color: school.primary_color,
+      accent_color:  school.accent_color,
+      logo_url:      school.logo_url,
+    });
+  } catch (err) { next(err); }
+});
+
 // ── POST /api/auth/library-login ─────────────────────────────────────────────
 // Dedicated login for library staff
 router.post('/library-login', loginLimiter, async (req, res, next) => {

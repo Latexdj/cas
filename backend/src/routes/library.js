@@ -7,12 +7,21 @@ const { syncBookCounts } = require('./libraryAdmin');
 
 router.use(authenticate, requireActiveSubscription);
 
-function libraryStaffOnly(req, res, next) {
-  const role = req.user?.role;
-  if (role !== 'library_staff' && role !== 'admin') {
+async function libraryStaffOnly(req, res, next) {
+  try {
+    const role = req.user?.role;
+    if (role === 'admin') return next();
+    if (role === 'library_staff') return next(); // legacy tokens
+    if (role === 'staff' && req.staffRoles?.includes('library')) return next();
+    if (role === 'teacher') {
+      const { rows } = await pool.query(
+        `SELECT id FROM library_teacher_staff WHERE school_id = $1 AND teacher_id = $2 AND is_active = true`,
+        [req.schoolId, req.user.id]
+      );
+      if (rows.length) { req.isLibraryTeacher = true; return next(); }
+    }
     return res.status(403).json({ error: 'Library staff access only' });
-  }
-  next();
+  } catch (err) { next(err); }
 }
 router.use(libraryStaffOnly);
 
@@ -149,12 +158,20 @@ router.post('/loans/issue', async (req, res, next) => {
     dueDate.setDate(dueDate.getDate() + settings.loan_period_days);
     const dueDateStr = dueDate.toISOString().slice(0, 10);
 
+    const role = req.user.role;
+    const issuedByStaffId       = role === 'library_staff' ? req.user.id : null;
+    const issuedBySchoolStaffId = role === 'staff'         ? req.user.id : null;
+    const issuedByTeacherId     = (role === 'teacher' || role === 'admin' || req.isLibraryTeacher) ? req.user.id : null;
+
     await pool.query(`UPDATE library_copies SET is_available = false WHERE id = $1`, [copy_id]);
     const { rows } = await pool.query(
-      `INSERT INTO library_loans (school_id, copy_id, book_id, student_id, issued_by_staff_id, due_date, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      `INSERT INTO library_loans
+         (school_id, copy_id, book_id, student_id,
+          issued_by_staff_id, issued_by_school_staff_id, issued_by_teacher_id,
+          due_date, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [req.schoolId, copy_id, bookId, student_id,
-       req.user.role === 'library_staff' ? req.user.id : null,
+       issuedByStaffId, issuedBySchoolStaffId, issuedByTeacherId,
        dueDateStr, notes?.trim() || null]
     );
     await syncBookCounts(bookId);
@@ -289,15 +306,18 @@ router.post('/resources', async (req, res, next) => {
     const { title, subject, resource_type = 'other', academic_year, level, file_data, file_name, file_size_kb } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'title is required' });
     if (!file_data || !file_name) return res.status(400).json({ error: 'file_data and file_name are required' });
-    const staffId = req.user.role === 'library_staff' ? req.user.id : null;
+    const role = req.user.role;
+    const uploadedBy            = role === 'library_staff' ? req.user.id : null;
+    const uploadedBySchoolStaff = role === 'staff'         ? req.user.id : null;
     const { url, filename } = await uploadDocument(file_data, file_name, 'library-resources');
     const { rows } = await pool.query(
       `INSERT INTO library_resources
-         (school_id, title, subject, resource_type, academic_year, level, file_url, file_name, file_size_kb, uploaded_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+         (school_id, title, subject, resource_type, academic_year, level, file_url, file_name,
+          file_size_kb, uploaded_by, uploaded_by_school_staff_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
       [req.schoolId, title.trim(), subject?.trim() || null, resource_type,
        academic_year?.trim() || null, level?.trim() || null,
-       url, filename, file_size_kb || null, staffId]
+       url, filename, file_size_kb || null, uploadedBy, uploadedBySchoolStaff]
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
