@@ -149,96 +149,149 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       }
     }
 
-    // Load programs for name → id resolution
-    const { rows: programRows } = await pool.query(
-      `SELECT id, LOWER(TRIM(name)) AS name_lower FROM programs WHERE school_id = $1`,
-      [req.schoolId]
-    );
+    // Load programs and current codes in two parallel queries
+    const [{ rows: programRows }, { rows: codeRows }] = await Promise.all([
+      pool.query(`SELECT id, LOWER(TRIM(name)) AS name_lower FROM programs WHERE school_id = $1`, [req.schoolId]),
+      pool.query(`SELECT student_code FROM students WHERE school_id = $1 AND student_code ~ '^S[0-9]+$'`, [req.schoolId]),
+    ]);
     const programByName = new Map(programRows.map(p => [p.name_lower, p.id]));
-
-    // Pre-compute the starting auto-code counter to avoid per-row table scans
-    const { rows: codeRows } = await pool.query(
-      `SELECT student_code FROM students WHERE school_id = $1 AND student_code ~ '^S[0-9]+$'`,
-      [req.schoolId]
-    );
     let autoCodeCounter = codeRows.reduce((m, r) => {
       const n = parseInt(r.student_code.slice(1));
       return n > m ? n : m;
     }, 0);
 
-    let inserted = 0;
-    const errors = [];
+    // Helper: normalise a date value from Excel to ISO string or null
+    function toISODate(val) {
+      if (val == null || val === '') return null;
+      if (val instanceof Date) return isNaN(val) ? null : val.toISOString().slice(0, 10);
+      const s = String(val).trim();
+      if (!s) return null;
+      // Try ISO first, then dd/mm/yyyy, then mm/dd/yyyy
+      let d = new Date(s);
+      if (!isNaN(d)) return d.toISOString().slice(0, 10);
+      const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (dmy) {
+        d = new Date(`${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`);
+        if (!isNaN(d)) return d.toISOString().slice(0, 10);
+      }
+      return null;
+    }
+
+    // Pass 1: validate every row in JS — zero DB calls
+    const errors  = [];
+    const validRows = [];
+    const validStatuses = ['Active', 'Graduated', 'Inactive'];
 
     for (let i = 0; i < dataRows.length; i++) {
       const row    = dataRows[i];
       const rowNum = i + 2;
 
-      const studentCode          = String(row[0]  ?? '').trim() || null;
-      const name                 = String(row[1]  ?? '').trim();
-      const className            = String(row[2]  ?? '').trim();
-      const programName          = String(row[3]  ?? '').trim();
-      const statusRaw            = String(row[4]  ?? '').trim();
-      const jhs_index_number     = String(row[5]  ?? '').trim() || null;
-      const date_of_birth        = String(row[6]  ?? '').trim() || null;
-      const gender               = String(row[7]  ?? '').trim() || null;
-      const hometown             = String(row[8]  ?? '').trim() || null;
-      const residential_address  = String(row[9]  ?? '').trim() || null;
-      const ghana_card_number    = String(row[10] ?? '').trim() || null;
-      const nhia_number          = String(row[11] ?? '').trim() || null;
-      const mobile_number        = String(row[12] ?? '').trim() || null;
-      const aggregateRaw         = String(row[13] ?? '').trim();
-      const aggregate            = aggregateRaw ? (parseInt(aggregateRaw) || null) : null;
-      const house                = String(row[14] ?? '').trim() || null;
-      const residential_status   = String(row[15] ?? '').trim() || null;
-      const religion             = String(row[16] ?? '').trim() || null;
+      const studentCode            = String(row[0]  ?? '').trim() || null;
+      const name                   = String(row[1]  ?? '').trim();
+      const className              = String(row[2]  ?? '').trim();
+      const programName            = String(row[3]  ?? '').trim();
+      const statusRaw              = String(row[4]  ?? '').trim();
+      const jhs_index_number       = String(row[5]  ?? '').trim() || null;
+      const date_of_birth          = toISODate(row[6]);
+      const gender                 = String(row[7]  ?? '').trim() || null;
+      const hometown               = String(row[8]  ?? '').trim() || null;
+      const residential_address    = String(row[9]  ?? '').trim() || null;
+      const ghana_card_number      = String(row[10] ?? '').trim() || null;
+      const nhia_number            = String(row[11] ?? '').trim() || null;
+      const mobile_number          = String(row[12] ?? '').trim() || null;
+      const aggregateRaw           = String(row[13] ?? '').trim();
+      const aggregate              = aggregateRaw ? (parseInt(aggregateRaw) || null) : null;
+      const house                  = String(row[14] ?? '').trim() || null;
+      const residential_status     = String(row[15] ?? '').trim() || null;
+      const religion               = String(row[16] ?? '').trim() || null;
       const religious_denomination = String(row[17] ?? '').trim() || null;
-      const guardian_name        = String(row[18] ?? '').trim() || null;
-      const guardian_occupation  = String(row[19] ?? '').trim() || null;
-      const guardian_mobile      = String(row[20] ?? '').trim() || null;
-      const notes                = String(row[21] ?? '').trim() || null;
+      const guardian_name          = String(row[18] ?? '').trim() || null;
+      const guardian_occupation    = String(row[19] ?? '').trim() || null;
+      const guardian_mobile        = String(row[20] ?? '').trim() || null;
+      const notes                  = String(row[21] ?? '').trim() || null;
 
       if (!name && !studentCode) continue;
       if (!name)      { errors.push({ row: rowNum, message: 'Name is required' });  continue; }
       if (!className) { errors.push({ row: rowNum, message: 'Class is required' }); continue; }
 
-      // Resolve program (blank is fine; unknown name is an error)
       let programId = null;
       if (programName) {
         programId = programByName.get(programName.toLowerCase()) ?? null;
         if (!programId) {
-          errors.push({ row: rowNum, message: `Program "${programName}" not found. Check the Reference sheet for valid program names.` });
+          errors.push({ row: rowNum, message: `Program "${programName}" not found` });
           continue;
         }
       }
 
-      const validStatuses = ['Active', 'Graduated', 'Inactive'];
       const status = validStatuses.find(s => s.toLowerCase() === statusRaw.toLowerCase()) || 'Active';
       const code   = studentCode || ('S' + String(++autoCodeCounter).padStart(3, '0'));
 
-      try {
-        await pool.query(
-          `INSERT INTO students
-             (school_id, student_code, name, class_name, status, notes, program_id,
-              jhs_index_number, date_of_birth, gender, hometown, residential_address,
-              ghana_card_number, nhia_number, mobile_number, aggregate, house,
-              residential_status, religion, religious_denomination,
-              guardian_name, guardian_occupation, guardian_mobile)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
-          [req.schoolId, code, name, className, status, notes, programId,
-           jhs_index_number, date_of_birth || null, gender, hometown, residential_address,
-           ghana_card_number, nhia_number, mobile_number, aggregate, house,
-           residential_status, religion, religious_denomination,
-           guardian_name, guardian_occupation, guardian_mobile]
-        );
-        inserted++;
-      } catch (err) {
-        if (err.code === '23505') {
-          errors.push({ row: rowNum, message: `Student ID "${code}" already exists` });
-        } else {
-          errors.push({ row: rowNum, message: err.message });
-        }
+      validRows.push({ rowNum, code, name, className, status, notes, programId,
+        jhs_index_number, date_of_birth, gender, hometown, residential_address,
+        ghana_card_number, nhia_number, mobile_number, aggregate, house,
+        residential_status, religion, religious_denomination,
+        guardian_name, guardian_occupation, guardian_mobile });
+    }
+
+    // Pass 2: single bulk INSERT — one round-trip regardless of row count
+    let inserted = 0;
+    if (validRows.length > 0) {
+      const { rows: inserted_rows } = await pool.query(
+        `INSERT INTO students
+           (school_id, student_code, name, class_name, status, notes, program_id,
+            jhs_index_number, date_of_birth, gender, hometown, residential_address,
+            ghana_card_number, nhia_number, mobile_number, aggregate, house,
+            residential_status, religion, religious_denomination,
+            guardian_name, guardian_occupation, guardian_mobile)
+         SELECT
+           unnest($1::uuid[]),  unnest($2::text[]),  unnest($3::text[]),
+           unnest($4::text[]),  unnest($5::text[]),  unnest($6::text[]),
+           unnest($7::uuid[]),  unnest($8::text[]),
+           unnest($9::text[])::date,
+           unnest($10::text[]), unnest($11::text[]), unnest($12::text[]),
+           unnest($13::text[]), unnest($14::text[]), unnest($15::text[]),
+           unnest($16::int[]),  unnest($17::text[]), unnest($18::text[]),
+           unnest($19::text[]), unnest($20::text[]), unnest($21::text[]),
+           unnest($22::text[]), unnest($23::text[])
+         ON CONFLICT (school_id, student_code) DO NOTHING
+         RETURNING student_code`,
+        [
+          validRows.map(() => req.schoolId),
+          validRows.map(r => r.code),
+          validRows.map(r => r.name),
+          validRows.map(r => r.className),
+          validRows.map(r => r.status),
+          validRows.map(r => r.notes),
+          validRows.map(r => r.programId),
+          validRows.map(r => r.jhs_index_number),
+          validRows.map(r => r.date_of_birth),     // already ISO string or null
+          validRows.map(r => r.gender),
+          validRows.map(r => r.hometown),
+          validRows.map(r => r.residential_address),
+          validRows.map(r => r.ghana_card_number),
+          validRows.map(r => r.nhia_number),
+          validRows.map(r => r.mobile_number),
+          validRows.map(r => r.aggregate),
+          validRows.map(r => r.house),
+          validRows.map(r => r.residential_status),
+          validRows.map(r => r.religion),
+          validRows.map(r => r.religious_denomination),
+          validRows.map(r => r.guardian_name),
+          validRows.map(r => r.guardian_occupation),
+          validRows.map(r => r.guardian_mobile),
+        ]
+      );
+      inserted = inserted_rows.length;
+      // Report any codes that were silently skipped due to conflict
+      if (inserted < validRows.length) {
+        const returnedCodes = new Set(inserted_rows.map(r => r.student_code));
+        validRows.forEach(r => {
+          if (!returnedCodes.has(r.code))
+            errors.push({ row: r.rowNum, message: `Student ID "${r.code}" already exists` });
+        });
       }
     }
+
     res.json({ inserted, errors });
   } catch (err) { next(err); }
 });
