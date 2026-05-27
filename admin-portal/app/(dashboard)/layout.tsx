@@ -19,6 +19,7 @@ const pageTitles: Record<string, string> = {
   '/academic-years':     'Academic Years',
   '/results':            'Results',
   '/transcript':         'Transcript',
+  '/form-teachers':      'Form Teacher Assignments',
   '/curriculum':         'Curriculum',
   '/school-calendar':    'School Calendar',
   '/locations':          'Locations',

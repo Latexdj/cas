@@ -332,6 +332,35 @@ export interface PlcAttendanceSummary {
   attendance_pct: number | null;
 }
 
+export interface FormTeacherAssignment {
+  id: string;
+  class_name: string;
+  teacher_id: string;
+  teacher_name?: string;
+  teacher_code?: string;
+  academic_year_id: string;
+  academic_year: string;
+}
+
+export interface FormTeacherStudent {
+  id: string;
+  student_code: string;
+  name: string;
+  gender: string | null;
+  picture_url: string | null;
+  residential_status: string | null;
+  house: string | null;
+  program_name: string | null;
+  has_remarks: boolean;
+  attendance: {
+    present: number;
+    absent: number;
+    late: number;
+    total: number;
+    pct: number | null;
+  };
+}
+
 export interface TranscriptSubject {
   subject: string;
   ca_score: number | null;

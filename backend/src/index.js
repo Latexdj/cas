@@ -34,6 +34,7 @@ const assessmentsRoutes       = require('./routes/assessments');
 const examScoresRoutes        = require('./routes/exam-scores');
 const gradeBoundariesRoutes   = require('./routes/grade-boundaries');
 const resultsRoutes           = require('./routes/results');
+const formTeacherRoutes       = require('./routes/form-teacher');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -96,6 +97,7 @@ app.use('/api/assessments',        assessmentsRoutes);
 app.use('/api/exam-scores',        examScoresRoutes);
 app.use('/api/grade-boundaries',   gradeBoundariesRoutes);
 app.use('/api/results',            resultsRoutes);
+app.use('/api/form-teacher',       formTeacherRoutes);
 
 app.use(errorHandler);
 
@@ -423,6 +425,22 @@ async function runMigrations() {
         updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
         UNIQUE (school_id, student_id, academic_year_id, semester)
       )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS form_teacher_assignments (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id       UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        class_name       TEXT NOT NULL,
+        academic_year_id UUID NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, class_name, academic_year_id)
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_form_teacher_assignments_teacher
+        ON form_teacher_assignments(teacher_id)
     `);
     console.log('Migrations OK');
   } catch (err) {
