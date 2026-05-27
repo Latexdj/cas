@@ -36,6 +36,8 @@ const gradeBoundariesRoutes   = require('./routes/grade-boundaries');
 const resultsRoutes           = require('./routes/results');
 const formTeacherRoutes       = require('./routes/form-teacher');
 const studentPortalRoutes     = require('./routes/student');
+const { router: clearanceAdminRoutes } = require('./routes/clearanceAdmin');
+const clearanceStaffRoutes    = require('./routes/clearanceStaff');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -100,6 +102,8 @@ app.use('/api/grade-boundaries',   gradeBoundariesRoutes);
 app.use('/api/results',            resultsRoutes);
 app.use('/api/form-teacher',       formTeacherRoutes);
 app.use('/api/student',            studentPortalRoutes);
+app.use('/api/clearance-admin',    clearanceAdminRoutes);
+app.use('/api/clearance',          clearanceStaffRoutes);
 
 app.use(errorHandler);
 
@@ -445,6 +449,80 @@ async function runMigrations() {
         ON form_teacher_assignments(teacher_id)
     `);
     await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS pin_hash TEXT`);
+
+    // ── Clearance module ───────────────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS clearance_offices (
+        id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id           UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name                TEXT NOT NULL,
+        office_type         TEXT NOT NULL DEFAULT 'general',
+        linked_programme_id UUID REFERENCES programs(id) ON DELETE SET NULL,
+        linked_house        TEXT,
+        sort_order          INTEGER NOT NULL DEFAULT 0,
+        is_active           BOOLEAN NOT NULL DEFAULT true,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (school_id, name)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS clearance_staff (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id     UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name          TEXT NOT NULL,
+        email         TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        is_active     BOOLEAN NOT NULL DEFAULT true,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (school_id, email)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS clearance_office_staff (
+        id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id            UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        office_id            UUID NOT NULL REFERENCES clearance_offices(id) ON DELETE CASCADE,
+        teacher_id           UUID REFERENCES teachers(id) ON DELETE CASCADE,
+        clearance_staff_id   UUID REFERENCES clearance_staff(id) ON DELETE CASCADE,
+        created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (office_id, teacher_id),
+        UNIQUE (office_id, clearance_staff_id)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS student_clearances (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        student_id       UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        initiated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        initiated_by     UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        is_fully_cleared BOOLEAN NOT NULL DEFAULT false,
+        fully_cleared_at TIMESTAMPTZ,
+        UNIQUE (school_id, student_id)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS student_clearance_items (
+        id                           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id                    UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        clearance_id                 UUID NOT NULL REFERENCES student_clearances(id) ON DELETE CASCADE,
+        office_id                    UUID NOT NULL REFERENCES clearance_offices(id) ON DELETE CASCADE,
+        status                       TEXT NOT NULL DEFAULT 'pending',
+        notes                        TEXT,
+        actioned_by_teacher_id       UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        actioned_by_clearance_staff_id UUID REFERENCES clearance_staff(id) ON DELETE SET NULL,
+        actioned_at                  TIMESTAMPTZ,
+        UNIQUE (clearance_id, office_id)
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_student_clearances_student
+        ON student_clearances(student_id)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_clearance_items_clearance
+        ON student_clearance_items(clearance_id)
+    `);
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

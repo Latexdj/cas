@@ -7,11 +7,12 @@ import { getTeacher, getSchoolCode, getTeacherColors } from '@/lib/teacher-auth'
 import { teacherApi } from '@/lib/teacher-api';
 
 interface NavItem {
-  href:            string;
-  label:           string;
-  badge?:          boolean;
+  href:             string;
+  label:            string;
+  badge?:           boolean;
   formTeacherOnly?: boolean;
-  icon:            ReactNode;
+  clearanceOnly?:   boolean;
+  icon:             ReactNode;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -46,6 +47,16 @@ const NAV_ITEMS: NavItem[] = [
         <circle cx="9" cy="7" r="4" />
         <path d="M23 21v-2a4 4 0 00-3-3.87" />
         <path d="M16 3.13a4 4 0 010 7.75" />
+      </svg>
+    ),
+  },
+  {
+    href:           '/teacher/clearance',
+    label:          'Clearance',
+    clearanceOnly:  true,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.745 3.745 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
       </svg>
     ),
   },
@@ -163,7 +174,8 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const [logoUrl,       setLogoUrl]       = useState<string | null>(null);
   const [unreadCount,   setUnreadCount]   = useState(0);
   const [moreOpen,      setMoreOpen]      = useState(false);
-  const [isFormTeacher, setIsFormTeacher] = useState(false);
+  const [isFormTeacher,    setIsFormTeacher]    = useState(false);
+  const [isClearanceStaff, setIsClearanceStaff] = useState(false);
 
   // Close More drawer on navigation
   useEffect(() => { setMoreOpen(false); }, [pathname]);
@@ -189,6 +201,9 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     teacherApi.get('/api/form-teacher/assignment')
       .then(r => setIsFormTeacher(!!r.data))
       .catch(() => {});
+    teacherApi.get<unknown[]>('/api/clearance/my-offices')
+      .then(r => setIsClearanceStaff(Array.isArray(r.data) && r.data.length > 0))
+      .catch(() => {});
     const interval = setInterval(fetchUnread, 60_000);
     return () => clearInterval(interval);
   }, [pathname, router, fetchUnread]);
@@ -206,7 +221,10 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const isActive = (href: string) =>
     href === '/teacher' ? pathname === '/teacher' : pathname.startsWith(href);
 
-  const visibleNavItems  = NAV_ITEMS.filter(item => !item.formTeacherOnly || isFormTeacher);
+  const visibleNavItems  = NAV_ITEMS.filter(item =>
+    (!item.formTeacherOnly || isFormTeacher) &&
+    (!item.clearanceOnly   || isClearanceStaff)
+  );
   const mobileBarItems   = visibleNavItems.filter(item => MOBILE_BAR_HREFS.includes(item.href));
   const mobileMoreItems  = visibleNavItems.filter(item => !MOBILE_BAR_HREFS.includes(item.href));
   const isMoreActive     = mobileMoreItems.some(item => isActive(item.href));

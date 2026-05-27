@@ -1,0 +1,456 @@
+const router  = require('express').Router();
+const bcrypt  = require('bcrypt');
+const pool    = require('../config/db');
+const { authenticate, requireActiveSubscription, adminOnly } = require('../middleware/auth');
+
+router.use(authenticate, requireActiveSubscription, adminOnly);
+
+// ── Clearance Offices ─────────────────────────────────────────────────────────
+
+// GET /api/clearance-admin/offices
+router.get('/offices', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT co.id, co.name, co.office_type, co.linked_programme_id,
+              p.name AS linked_programme_name,
+              co.linked_house, co.sort_order, co.is_active,
+              COUNT(cos.id)::int AS staff_count
+       FROM clearance_offices co
+       LEFT JOIN programs p ON p.id = co.linked_programme_id
+       LEFT JOIN clearance_office_staff cos ON cos.office_id = co.id
+       WHERE co.school_id = $1
+       GROUP BY co.id, p.name
+       ORDER BY co.sort_order, co.name`,
+      [req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/clearance-admin/offices
+router.post('/offices', async (req, res, next) => {
+  try {
+    const { name, office_type = 'general', linked_programme_id, linked_house, sort_order = 0 } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'name is required' });
+    const { rows } = await pool.query(
+      `INSERT INTO clearance_offices (school_id, name, office_type, linked_programme_id, linked_house, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [req.schoolId, name.trim(), office_type, linked_programme_id || null, linked_house || null, sort_order]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'An office with this name already exists' });
+    next(err);
+  }
+});
+
+// PUT /api/clearance-admin/offices/:id
+router.put('/offices/:id', async (req, res, next) => {
+  try {
+    const { name, office_type, linked_programme_id, linked_house, sort_order, is_active } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE clearance_offices
+       SET name                = COALESCE($1, name),
+           office_type         = COALESCE($2, office_type),
+           linked_programme_id = $3,
+           linked_house        = $4,
+           sort_order          = COALESCE($5, sort_order),
+           is_active           = COALESCE($6, is_active)
+       WHERE id = $7 AND school_id = $8
+       RETURNING *`,
+      [name?.trim() || null, office_type || null,
+       linked_programme_id || null, linked_house || null,
+       sort_order ?? null, is_active ?? null,
+       req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Office not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'An office with this name already exists' });
+    next(err);
+  }
+});
+
+// DELETE /api/clearance-admin/offices/:id
+router.delete('/offices/:id', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `DELETE FROM clearance_offices WHERE id = $1 AND school_id = $2 RETURNING id`,
+      [req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Office not found' });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ── Office Staff Assignments ──────────────────────────────────────────────────
+
+// GET /api/clearance-admin/offices/:id/staff
+router.get('/offices/:id/staff', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT cos.id, cos.teacher_id, cos.clearance_staff_id,
+              t.name AS teacher_name, t.teacher_code,
+              cs.name AS clearance_staff_name, cs.email AS clearance_staff_email
+       FROM clearance_office_staff cos
+       LEFT JOIN teachers t ON t.id = cos.teacher_id
+       LEFT JOIN clearance_staff cs ON cs.id = cos.clearance_staff_id
+       WHERE cos.office_id = $1 AND cos.school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/clearance-admin/offices/:id/staff
+router.post('/offices/:id/staff', async (req, res, next) => {
+  try {
+    const { teacher_id, clearance_staff_id } = req.body;
+    if (!teacher_id && !clearance_staff_id) {
+      return res.status(400).json({ error: 'teacher_id or clearance_staff_id required' });
+    }
+    // Verify office belongs to school
+    const { rows: officeRows } = await pool.query(
+      `SELECT id FROM clearance_offices WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!officeRows.length) return res.status(404).json({ error: 'Office not found' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO clearance_office_staff (school_id, office_id, teacher_id, clearance_staff_id)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [req.schoolId, req.params.id, teacher_id || null, clearance_staff_id || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'This staff member is already assigned to this office' });
+    next(err);
+  }
+});
+
+// DELETE /api/clearance-admin/offices/:officeId/staff/:assignmentId
+router.delete('/offices/:officeId/staff/:assignmentId', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `DELETE FROM clearance_office_staff
+       WHERE id = $1 AND office_id = $2 AND school_id = $3 RETURNING id`,
+      [req.params.assignmentId, req.params.officeId, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Assignment not found' });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ── Non-Teaching Clearance Staff Accounts ────────────────────────────────────
+
+// GET /api/clearance-admin/staff
+router.get('/staff', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT cs.id, cs.name, cs.email, cs.is_active, cs.created_at,
+              ARRAY_AGG(co.name ORDER BY co.name) FILTER (WHERE co.id IS NOT NULL) AS offices
+       FROM clearance_staff cs
+       LEFT JOIN clearance_office_staff cos ON cos.clearance_staff_id = cs.id
+       LEFT JOIN clearance_offices co ON co.id = cos.office_id
+       WHERE cs.school_id = $1
+       GROUP BY cs.id
+       ORDER BY cs.name`,
+      [req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/clearance-admin/staff
+router.post('/staff', async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!name?.trim() || !email?.trim() || !password) {
+      return res.status(400).json({ error: 'name, email and password are required' });
+    }
+    if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    const hash = await bcrypt.hash(String(password), 12);
+    const { rows } = await pool.query(
+      `INSERT INTO clearance_staff (school_id, name, email, password_hash)
+       VALUES ($1, $2, $3, $4) RETURNING id, name, email, is_active, created_at`,
+      [req.schoolId, name.trim(), email.trim().toLowerCase(), hash]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A staff account with this email already exists' });
+    next(err);
+  }
+});
+
+// PUT /api/clearance-admin/staff/:id
+router.put('/staff/:id', async (req, res, next) => {
+  try {
+    const { name, email, password, is_active } = req.body;
+    let hash = undefined;
+    if (password) {
+      if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+      hash = await bcrypt.hash(String(password), 12);
+    }
+    const { rows } = await pool.query(
+      `UPDATE clearance_staff
+       SET name          = COALESCE($1, name),
+           email         = COALESCE($2, email),
+           password_hash = COALESCE($3, password_hash),
+           is_active     = COALESCE($4, is_active)
+       WHERE id = $5 AND school_id = $6
+       RETURNING id, name, email, is_active, created_at`,
+      [name?.trim() || null, email?.trim().toLowerCase() || null,
+       hash || null, is_active ?? null,
+       req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Staff not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Email already in use' });
+    next(err);
+  }
+});
+
+// DELETE /api/clearance-admin/staff/:id
+router.delete('/staff/:id', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `DELETE FROM clearance_staff WHERE id = $1 AND school_id = $2 RETURNING id`,
+      [req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Staff not found' });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ── Batch Clearance Initiation ────────────────────────────────────────────────
+
+// GET /api/clearance-admin/classes  — distinct class names of active students
+router.get('/classes', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT class_name FROM students
+       WHERE school_id = $1 AND status = 'Active'
+       ORDER BY class_name`,
+      [req.schoolId]
+    );
+    res.json(rows.map(r => r.class_name));
+  } catch (err) { next(err); }
+});
+
+// POST /api/clearance-admin/initiate  — start clearance for a batch (class names)
+// body: { class_names: string[] }
+router.post('/initiate', async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { class_names } = req.body;
+    if (!Array.isArray(class_names) || class_names.length === 0) {
+      return res.status(400).json({ error: 'class_names array is required' });
+    }
+
+    // Fetch active offices for the school
+    const { rows: offices } = await pool.query(
+      `SELECT id, office_type, linked_programme_id, linked_house
+       FROM clearance_offices WHERE school_id = $1 AND is_active = true`,
+      [req.schoolId]
+    );
+    if (offices.length === 0) {
+      return res.status(400).json({ error: 'No active clearance offices configured' });
+    }
+
+    // Fetch students in the selected classes
+    const { rows: students } = await pool.query(
+      `SELECT s.id, s.class_name, s.program_id, s.house
+       FROM students s
+       WHERE s.school_id = $1 AND s.status = 'Active'
+         AND s.class_name = ANY($2)`,
+      [req.schoolId, class_names]
+    );
+    if (students.length === 0) {
+      return res.status(400).json({ error: 'No active students found in the selected classes' });
+    }
+
+    await client.query('BEGIN');
+    let initiated = 0, skipped = 0;
+
+    for (const student of students) {
+      // Determine which offices apply to this student
+      const applicableOffices = offices.filter(o => {
+        if (o.office_type === 'hod') {
+          if (!o.linked_programme_id) return true; // unlinked → all students
+          return o.linked_programme_id === student.program_id;
+        }
+        if (o.office_type === 'housemaster') {
+          if (!o.linked_house) return true;
+          return o.linked_house?.toLowerCase() === student.house?.toLowerCase();
+        }
+        return true; // general offices apply to all
+      });
+      if (applicableOffices.length === 0) { skipped++; continue; }
+
+      // Insert student_clearances (skip if already exists)
+      const { rows: existing } = await client.query(
+        `SELECT id FROM student_clearances WHERE school_id = $1 AND student_id = $2`,
+        [req.schoolId, student.id]
+      );
+      let clearanceId;
+      if (existing.length) {
+        clearanceId = existing[0].id;
+        skipped++;
+      } else {
+        const { rows: clr } = await client.query(
+          `INSERT INTO student_clearances (school_id, student_id, initiated_by)
+           VALUES ($1, $2, $3) RETURNING id`,
+          [req.schoolId, student.id, req.user.id]
+        );
+        clearanceId = clr[0].id;
+        initiated++;
+      }
+
+      // Insert items for any office not yet tracked
+      for (const office of applicableOffices) {
+        await client.query(
+          `INSERT INTO student_clearance_items (school_id, clearance_id, office_id)
+           VALUES ($1, $2, $3) ON CONFLICT (clearance_id, office_id) DO NOTHING`,
+          [req.schoolId, clearanceId, office.id]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ initiated, skipped, total: students.length });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally { client.release(); }
+});
+
+// ── Student Clearance Overview ────────────────────────────────────────────────
+
+// GET /api/clearance-admin/students?search=&class_name=&status=
+router.get('/students', async (req, res, next) => {
+  try {
+    const { search, class_name, status } = req.query;
+    const conditions = [`s.school_id = $1`];
+    const params = [req.schoolId];
+    let p = 2;
+
+    if (search) { conditions.push(`(LOWER(s.name) LIKE $${p} OR LOWER(s.student_code) LIKE $${p})`); params.push(`%${search.toLowerCase()}%`); p++; }
+    if (class_name) { conditions.push(`s.class_name = $${p}`); params.push(class_name); p++; }
+
+    const { rows } = await pool.query(
+      `SELECT s.id, s.name, s.student_code, s.class_name,
+              sc.id AS clearance_id, sc.is_fully_cleared, sc.initiated_at, sc.fully_cleared_at,
+              COUNT(sci.id)::int AS total_offices,
+              COUNT(sci.id) FILTER (WHERE sci.status = 'cleared')::int AS cleared_count,
+              COUNT(sci.id) FILTER (WHERE sci.status = 'not_cleared')::int AS not_cleared_count
+       FROM students s
+       LEFT JOIN student_clearances sc ON sc.student_id = s.id AND sc.school_id = s.school_id
+       LEFT JOIN student_clearance_items sci ON sci.clearance_id = sc.id
+       WHERE ${conditions.join(' AND ')}
+       GROUP BY s.id, sc.id
+       ORDER BY s.class_name, s.name
+       LIMIT 200`,
+      params
+    );
+
+    // Filter by status if requested
+    const filtered = status
+      ? rows.filter(r => {
+          if (status === 'not_initiated') return !r.clearance_id;
+          if (status === 'fully_cleared') return r.is_fully_cleared;
+          if (status === 'in_progress')   return r.clearance_id && !r.is_fully_cleared;
+          return true;
+        })
+      : rows;
+
+    res.json(filtered);
+  } catch (err) { next(err); }
+});
+
+// GET /api/clearance-admin/students/:studentId
+router.get('/students/:studentId', async (req, res, next) => {
+  try {
+    const { rows: sRows } = await pool.query(
+      `SELECT id, name, student_code, class_name, picture_url FROM students
+       WHERE id = $1 AND school_id = $2`,
+      [req.params.studentId, req.schoolId]
+    );
+    if (!sRows.length) return res.status(404).json({ error: 'Student not found' });
+    const student = sRows[0];
+
+    const { rows: clRows } = await pool.query(
+      `SELECT sc.id, sc.is_fully_cleared, sc.initiated_at, sc.fully_cleared_at,
+              sci.id AS item_id, sci.office_id, sci.status, sci.notes, sci.actioned_at,
+              co.name AS office_name, co.office_type, co.sort_order,
+              t.name AS actioned_by_teacher, cs.name AS actioned_by_staff
+       FROM student_clearances sc
+       JOIN student_clearance_items sci ON sci.clearance_id = sc.id
+       JOIN clearance_offices co ON co.id = sci.office_id
+       LEFT JOIN teachers t ON t.id = sci.actioned_by_teacher_id
+       LEFT JOIN clearance_staff cs ON cs.id = sci.actioned_by_clearance_staff_id
+       WHERE sc.student_id = $1 AND sc.school_id = $2
+       ORDER BY co.sort_order, co.name`,
+      [req.params.studentId, req.schoolId]
+    );
+
+    res.json({ student, clearance: clRows });
+  } catch (err) { next(err); }
+});
+
+// POST /api/clearance-admin/students/:studentId/override
+// Admin can force a specific item to any status, or reset it to pending
+router.post('/students/:studentId/override', async (req, res, next) => {
+  try {
+    const { item_id, status, notes } = req.body;
+    if (!item_id || !status) return res.status(400).json({ error: 'item_id and status required' });
+    if (!['pending', 'cleared', 'not_cleared'].includes(status)) {
+      return res.status(400).json({ error: 'status must be pending, cleared or not_cleared' });
+    }
+    if (status === 'not_cleared' && !notes?.trim()) {
+      return res.status(400).json({ error: 'A reason is required when marking as not cleared' });
+    }
+
+    // Verify item belongs to this school and student
+    const { rows: itemRows } = await pool.query(
+      `SELECT sci.id, sci.clearance_id FROM student_clearance_items sci
+       JOIN student_clearances sc ON sc.id = sci.clearance_id
+       WHERE sci.id = $1 AND sc.student_id = $2 AND sc.school_id = $3`,
+      [item_id, req.params.studentId, req.schoolId]
+    );
+    if (!itemRows.length) return res.status(404).json({ error: 'Item not found' });
+    const clearanceId = itemRows[0].clearance_id;
+
+    await pool.query(
+      `UPDATE student_clearance_items
+       SET status = $1, notes = $2,
+           actioned_by_teacher_id = $3, actioned_by_clearance_staff_id = NULL,
+           actioned_at = $4
+       WHERE id = $5`,
+      [status, notes?.trim() || null, status !== 'pending' ? req.user.id : null,
+       status !== 'pending' ? new Date() : null, item_id]
+    );
+
+    // Recalculate fully_cleared
+    await recalcFullyCleared(clearanceId, req.schoolId);
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ── Shared helper ─────────────────────────────────────────────────────────────
+async function recalcFullyCleared(clearanceId, schoolId) {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*) FILTER (WHERE status != 'cleared')::int AS pending_count
+     FROM student_clearance_items WHERE clearance_id = $1`,
+    [clearanceId]
+  );
+  const fullyCleared = rows[0].pending_count === 0;
+  await pool.query(
+    `UPDATE student_clearances
+     SET is_fully_cleared = $1, fully_cleared_at = $2
+     WHERE id = $3`,
+    [fullyCleared, fullyCleared ? new Date() : null, clearanceId]
+  );
+}
+
+module.exports = { router, recalcFullyCleared };

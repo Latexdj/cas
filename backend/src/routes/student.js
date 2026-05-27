@@ -518,4 +518,38 @@ router.post('/change-pin', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /api/student/clearance ───────────────────────────────────────────────
+
+router.get('/clearance', async (req, res, next) => {
+  try {
+    const { rows: clRows } = await pool.query(
+      `SELECT sc.id, sc.is_fully_cleared, sc.initiated_at, sc.fully_cleared_at
+       FROM student_clearances sc
+       WHERE sc.student_id = $1 AND sc.school_id = $2`,
+      [req.user.id, req.schoolId]
+    );
+    if (!clRows.length) return res.json({ status: 'not_initiated', items: [] });
+
+    const clearance = clRows[0];
+    const { rows: items } = await pool.query(
+      `SELECT sci.id, sci.office_id, sci.status, sci.notes, sci.actioned_at,
+              co.name AS office_name, co.office_type, co.sort_order
+       FROM student_clearance_items sci
+       JOIN clearance_offices co ON co.id = sci.office_id
+       WHERE sci.clearance_id = $1
+       ORDER BY co.sort_order, co.name`,
+      [clearance.id]
+    );
+
+    res.json({
+      status: clearance.is_fully_cleared ? 'fully_cleared'
+            : items.some(i => i.status === 'not_cleared') ? 'action_required'
+            : 'in_progress',
+      initiated_at:    clearance.initiated_at,
+      fully_cleared_at: clearance.fully_cleared_at,
+      items,
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
