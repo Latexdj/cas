@@ -256,7 +256,7 @@ router.get('/results', async (req, res, next) => {
 
     // Remarks from form teacher (if any)
     const { rows: remarkRows } = await pool.query(
-      `SELECT attitude, conduct, general_remarks, interest
+      `SELECT attitude, conduct, general_remarks
        FROM report_remarks
        WHERE school_id = $1 AND student_id = $2 AND academic_year_id = $3 AND semester = $4
        LIMIT 1`,
