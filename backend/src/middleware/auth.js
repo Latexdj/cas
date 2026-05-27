@@ -64,32 +64,6 @@ async function authenticate(req, res, next) {
       }
       req.staffRoles = rows[0].roles;
     }
-    // Legacy role checks (tokens issued before migration expire within 12h)
-    if (req.user.role === 'clearance_staff') {
-      const { rows } = await pool.query(
-        `SELECT is_active FROM clearance_staff WHERE id = $1 AND school_id = $2`,
-        [req.user.id, req.schoolId]
-      );
-      if (!rows.length || !rows[0].is_active) {
-        return res.status(401).json({
-          error: 'Your account has been deactivated. Please contact your administrator.',
-        });
-      }
-      req.staffRoles = ['clearance'];
-    }
-    if (req.user.role === 'library_staff') {
-      const { rows } = await pool.query(
-        `SELECT is_active FROM library_staff WHERE id = $1 AND school_id = $2`,
-        [req.user.id, req.schoolId]
-      );
-      if (!rows.length || !rows[0].is_active) {
-        return res.status(401).json({
-          error: 'Your account has been deactivated. Please contact your administrator.',
-        });
-      }
-      req.staffRoles = ['library'];
-    }
-
     next();
   } catch (err) {
     if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {

@@ -457,6 +457,8 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS pin_hash TEXT`);
 
     // ── Clearance module ───────────────────────────────────────────────────
+    // Drop legacy tables (cascade removes FK constraints; columns cleaned up below)
+    await pool.query(`DROP TABLE IF EXISTS clearance_staff CASCADE`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS clearance_offices (
         id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -472,29 +474,16 @@ async function runMigrations() {
       )
     `);
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS clearance_staff (
-        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        school_id     UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-        name          TEXT NOT NULL,
-        email         TEXT NOT NULL,
-        password_hash TEXT NOT NULL,
-        is_active     BOOLEAN NOT NULL DEFAULT true,
-        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE (school_id, email)
-      )
-    `);
-    await pool.query(`
       CREATE TABLE IF NOT EXISTS clearance_office_staff (
-        id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        school_id            UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-        office_id            UUID NOT NULL REFERENCES clearance_offices(id) ON DELETE CASCADE,
-        teacher_id           UUID REFERENCES teachers(id) ON DELETE CASCADE,
-        clearance_staff_id   UUID REFERENCES clearance_staff(id) ON DELETE CASCADE,
-        created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE (office_id, teacher_id),
-        UNIQUE (office_id, clearance_staff_id)
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        office_id   UUID NOT NULL REFERENCES clearance_offices(id) ON DELETE CASCADE,
+        teacher_id  UUID REFERENCES teachers(id) ON DELETE CASCADE,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (office_id, teacher_id)
       )
     `);
+    await pool.query(`ALTER TABLE clearance_office_staff DROP COLUMN IF EXISTS clearance_staff_id`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS student_clearances (
         id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -509,18 +498,18 @@ async function runMigrations() {
     `);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS student_clearance_items (
-        id                           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        school_id                    UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-        clearance_id                 UUID NOT NULL REFERENCES student_clearances(id) ON DELETE CASCADE,
-        office_id                    UUID NOT NULL REFERENCES clearance_offices(id) ON DELETE CASCADE,
-        status                       TEXT NOT NULL DEFAULT 'pending',
-        notes                        TEXT,
-        actioned_by_teacher_id       UUID REFERENCES teachers(id) ON DELETE SET NULL,
-        actioned_by_clearance_staff_id UUID REFERENCES clearance_staff(id) ON DELETE SET NULL,
-        actioned_at                  TIMESTAMPTZ,
+        id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id              UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        clearance_id           UUID NOT NULL REFERENCES student_clearances(id) ON DELETE CASCADE,
+        office_id              UUID NOT NULL REFERENCES clearance_offices(id) ON DELETE CASCADE,
+        status                 TEXT NOT NULL DEFAULT 'pending',
+        notes                  TEXT,
+        actioned_by_teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        actioned_at            TIMESTAMPTZ,
         UNIQUE (clearance_id, office_id)
       )
     `);
+    await pool.query(`ALTER TABLE student_clearance_items DROP COLUMN IF EXISTS actioned_by_clearance_staff_id`);
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_student_clearances_student
         ON student_clearances(student_id)
@@ -530,18 +519,7 @@ async function runMigrations() {
         ON student_clearance_items(clearance_id)
     `);
     // ── Library module ─────────────────────────────────────────────────────────
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS library_staff (
-        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        school_id     UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-        name          TEXT NOT NULL,
-        email         TEXT NOT NULL,
-        password_hash TEXT NOT NULL,
-        is_active     BOOLEAN NOT NULL DEFAULT true,
-        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-        UNIQUE (school_id, email)
-      )
-    `);
+    await pool.query(`DROP TABLE IF EXISTS library_staff CASCADE`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS library_settings (
         id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -586,21 +564,21 @@ async function runMigrations() {
     `);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS library_loans (
-        id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        school_id          UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-        copy_id            UUID NOT NULL REFERENCES library_copies(id) ON DELETE RESTRICT,
-        book_id            UUID NOT NULL REFERENCES library_books(id) ON DELETE RESTRICT,
-        student_id         UUID NOT NULL REFERENCES students(id) ON DELETE RESTRICT,
-        issued_by_staff_id UUID REFERENCES library_staff(id) ON DELETE SET NULL,
-        issued_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-        due_date           DATE NOT NULL,
-        returned_at        TIMESTAMPTZ,
-        fine_amount        NUMERIC(8,2) NOT NULL DEFAULT 0,
-        fine_paid          BOOLEAN NOT NULL DEFAULT false,
-        status             TEXT NOT NULL DEFAULT 'active',
-        notes              TEXT
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        copy_id     UUID NOT NULL REFERENCES library_copies(id) ON DELETE RESTRICT,
+        book_id     UUID NOT NULL REFERENCES library_books(id) ON DELETE RESTRICT,
+        student_id  UUID NOT NULL REFERENCES students(id) ON DELETE RESTRICT,
+        issued_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        due_date    DATE NOT NULL,
+        returned_at TIMESTAMPTZ,
+        fine_amount NUMERIC(8,2) NOT NULL DEFAULT 0,
+        fine_paid   BOOLEAN NOT NULL DEFAULT false,
+        status      TEXT NOT NULL DEFAULT 'active',
+        notes       TEXT
       )
     `);
+    await pool.query(`ALTER TABLE library_loans DROP COLUMN IF EXISTS issued_by_staff_id`);
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_library_loans_school_status
         ON library_loans(school_id, status)
@@ -622,10 +600,10 @@ async function runMigrations() {
         file_name      TEXT NOT NULL,
         file_size_kb   INTEGER,
         download_count INTEGER NOT NULL DEFAULT 0,
-        uploaded_by    UUID REFERENCES library_staff(id) ON DELETE SET NULL,
         created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
+    await pool.query(`ALTER TABLE library_resources DROP COLUMN IF EXISTS uploaded_by`);
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_library_resources_school
         ON library_resources(school_id, resource_type)
@@ -664,79 +642,12 @@ async function runMigrations() {
         UNIQUE (school_id, teacher_id)
       )
     `);
-    // Migrate clearance_staff → school_staff with role 'clearance'
-    await pool.query(`
-      INSERT INTO school_staff (school_id, name, email, password_hash, is_active, created_at)
-      SELECT school_id, name, email, password_hash, is_active, created_at
-      FROM clearance_staff
-      ON CONFLICT (school_id, email) DO NOTHING
-    `);
-    await pool.query(`
-      INSERT INTO school_staff_roles (staff_id, school_id, role)
-      SELECT ss.id, ss.school_id, 'clearance'
-      FROM school_staff ss
-      WHERE EXISTS (
-        SELECT 1 FROM clearance_staff cs WHERE cs.email = ss.email AND cs.school_id = ss.school_id
-      )
-      ON CONFLICT (staff_id, role) DO NOTHING
-    `);
-    // Migrate library_staff → school_staff with role 'library'
-    await pool.query(`
-      INSERT INTO school_staff (school_id, name, email, password_hash, is_active, created_at)
-      SELECT school_id, name, email, password_hash, is_active, created_at
-      FROM library_staff
-      ON CONFLICT (school_id, email) DO NOTHING
-    `);
-    await pool.query(`
-      INSERT INTO school_staff_roles (staff_id, school_id, role)
-      SELECT ss.id, ss.school_id, 'library'
-      FROM school_staff ss
-      WHERE EXISTS (
-        SELECT 1 FROM library_staff ls WHERE ls.email = ss.email AND ls.school_id = ss.school_id
-      )
-      ON CONFLICT (staff_id, role) DO NOTHING
-    `);
-    // Add school_staff_id to clearance_office_staff and backfill
+    // Add school_staff_id to clearance_office_staff (fresh deployments already have it from CREATE TABLE above)
     await pool.query(`ALTER TABLE clearance_office_staff ADD COLUMN IF NOT EXISTS school_staff_id UUID REFERENCES school_staff(id) ON DELETE CASCADE`);
-    await pool.query(`
-      UPDATE clearance_office_staff cos
-      SET school_staff_id = ss.id
-      FROM school_staff ss, clearance_staff cs
-      WHERE cos.clearance_staff_id = cs.id
-        AND cs.email = ss.email AND cs.school_id = ss.school_id
-        AND cos.school_staff_id IS NULL
-    `);
-    // Add actioned_by_school_staff_id to student_clearance_items and backfill
     await pool.query(`ALTER TABLE student_clearance_items ADD COLUMN IF NOT EXISTS actioned_by_school_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
-    await pool.query(`
-      UPDATE student_clearance_items sci
-      SET actioned_by_school_staff_id = ss.id
-      FROM school_staff ss, clearance_staff cs
-      WHERE sci.actioned_by_clearance_staff_id = cs.id
-        AND cs.email = ss.email AND cs.school_id = ss.school_id
-        AND sci.actioned_by_school_staff_id IS NULL
-    `);
-    // Add new loan tracking columns
     await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS issued_by_school_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
     await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS issued_by_teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL`);
-    await pool.query(`
-      UPDATE library_loans ll
-      SET issued_by_school_staff_id = ss.id
-      FROM school_staff ss, library_staff ls
-      WHERE ll.issued_by_staff_id = ls.id
-        AND ls.email = ss.email AND ls.school_id = ss.school_id
-        AND ll.issued_by_school_staff_id IS NULL
-    `);
-    // Add uploaded_by_school_staff_id to library_resources and backfill
     await pool.query(`ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS uploaded_by_school_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
-    await pool.query(`
-      UPDATE library_resources lr
-      SET uploaded_by_school_staff_id = ss.id
-      FROM school_staff ss, library_staff ls
-      WHERE lr.uploaded_by = ls.id
-        AND ls.email = ss.email AND ls.school_id = ss.school_id
-        AND lr.uploaded_by_school_staff_id IS NULL
-    `);
 
     console.log('Migrations OK');
   } catch (err) {

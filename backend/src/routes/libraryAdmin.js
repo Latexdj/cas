@@ -290,15 +290,14 @@ router.get('/loans', async (req, res, next) => {
               lb.title AS book_title, lb.author,
               lc.copy_number,
               s.name AS student_name, s.student_code, s.class_name,
-              COALESCE(ss.name, t.name, lst.name) AS issued_by,
+              COALESCE(ss.name, t.name) AS issued_by,
               (ll.due_date < CURRENT_DATE AND ll.status = 'active')::boolean AS is_overdue
        FROM library_loans ll
        JOIN library_books lb ON lb.id = ll.book_id
        JOIN library_copies lc ON lc.id = ll.copy_id
        JOIN students s ON s.id = ll.student_id
-       LEFT JOIN school_staff ss  ON ss.id = ll.issued_by_school_staff_id
-       LEFT JOIN teachers t       ON t.id  = ll.issued_by_teacher_id
-       LEFT JOIN library_staff lst ON lst.id = ll.issued_by_staff_id
+       LEFT JOIN school_staff ss ON ss.id = ll.issued_by_school_staff_id
+       LEFT JOIN teachers t      ON t.id  = ll.issued_by_teacher_id
        WHERE ${conditions.join(' AND ')}
        ORDER BY ll.issued_at DESC
        LIMIT 200`,
@@ -339,9 +338,8 @@ router.get('/resources', async (req, res, next) => {
     if (resource_type) { conditions.push(`lr.resource_type = $${p}`); params.push(resource_type); p++; }
     if (subject)       { conditions.push(`LOWER(lr.subject) = LOWER($${p})`); params.push(subject); p++; }
     const { rows } = await pool.query(
-      `SELECT lr.*, lst.name AS uploaded_by_name
+      `SELECT lr.*
        FROM library_resources lr
-       LEFT JOIN library_staff lst ON lst.id = lr.uploaded_by
        WHERE ${conditions.join(' AND ')}
        ORDER BY lr.created_at DESC`,
       params

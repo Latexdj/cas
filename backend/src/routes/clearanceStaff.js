@@ -5,28 +5,22 @@ const { recalcFullyCleared } = require('./clearanceAdmin');
 
 router.use(authenticate, requireActiveSubscription);
 
-// Teachers, admins, and staff with clearance role can use these routes
 function clearanceStaffOnly(req, res, next) {
   const role = req.user?.role;
   if (role === 'teacher' || role === 'admin') return next();
-  if (role === 'clearance_staff') return next(); // legacy tokens
   if (role === 'staff' && req.staffRoles?.includes('clearance')) return next();
   return res.status(403).json({ error: 'Clearance staff access only' });
 }
 router.use(clearanceStaffOnly);
 
-// Helper: get all office IDs this user is responsible for
 async function getMyOfficeIds(schoolId, userId, role) {
-  if (role === 'staff' || role === 'clearance_staff') {
-    // For unified staff: look up by school_staff_id; for legacy: by clearance_staff_id
-    const col = role === 'staff' ? 'school_staff_id' : 'clearance_staff_id';
+  if (role === 'staff') {
     const { rows } = await pool.query(
-      `SELECT office_id FROM clearance_office_staff WHERE school_id = $1 AND ${col} = $2`,
+      `SELECT office_id FROM clearance_office_staff WHERE school_id = $1 AND school_staff_id = $2`,
       [schoolId, userId]
     );
     return rows.map(r => r.office_id);
   }
-  // teacher or admin
   const { rows } = await pool.query(
     `SELECT office_id FROM clearance_office_staff WHERE school_id = $1 AND teacher_id = $2`,
     [schoolId, userId]
@@ -132,21 +126,18 @@ router.post('/action', async (req, res, next) => {
     const clearanceId = itemRows[0].clearance_id;
 
     const role = req.user.role;
-    const isTeacher      = role === 'teacher' || role === 'admin';
-    const isUnifiedStaff = role === 'staff';
-    const isLegacyStaff  = role === 'clearance_staff';
+    const isTeacher = role === 'teacher' || role === 'admin';
+    const isStaff   = role === 'staff';
     await pool.query(
       `UPDATE student_clearance_items
        SET status = $1, notes = $2,
-           actioned_by_teacher_id         = $3,
-           actioned_by_clearance_staff_id = $4,
-           actioned_by_school_staff_id    = $5,
+           actioned_by_teacher_id      = $3,
+           actioned_by_school_staff_id = $4,
            actioned_at = NOW()
-       WHERE id = $6`,
+       WHERE id = $5`,
       [status, notes?.trim() || null,
-       isTeacher      ? req.user.id : null,
-       isLegacyStaff  ? req.user.id : null,
-       isUnifiedStaff ? req.user.id : null,
+       isTeacher ? req.user.id : null,
+       isStaff   ? req.user.id : null,
        item_id]
     );
 

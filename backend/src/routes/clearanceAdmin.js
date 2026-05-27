@@ -396,12 +396,12 @@ router.get('/students/:studentId', async (req, res, next) => {
       `SELECT sc.id, sc.is_fully_cleared, sc.initiated_at, sc.fully_cleared_at,
               sci.id AS item_id, sci.office_id, sci.status, sci.notes, sci.actioned_at,
               co.name AS office_name, co.office_type, co.sort_order,
-              t.name AS actioned_by_teacher, cs.name AS actioned_by_staff
+              t.name AS actioned_by_teacher, ss2.name AS actioned_by_staff
        FROM student_clearances sc
        JOIN student_clearance_items sci ON sci.clearance_id = sc.id
        JOIN clearance_offices co ON co.id = sci.office_id
-       LEFT JOIN teachers t ON t.id = sci.actioned_by_teacher_id
-       LEFT JOIN clearance_staff cs ON cs.id = sci.actioned_by_clearance_staff_id
+       LEFT JOIN teachers t    ON t.id   = sci.actioned_by_teacher_id
+       LEFT JOIN school_staff ss2 ON ss2.id = sci.actioned_by_school_staff_id
        WHERE sc.student_id = $1 AND sc.school_id = $2
        ORDER BY co.sort_order, co.name`,
       [req.params.studentId, req.schoolId]
@@ -437,8 +437,7 @@ router.post('/students/:studentId/override', async (req, res, next) => {
     await pool.query(
       `UPDATE student_clearance_items
        SET status = $1, notes = $2,
-           actioned_by_teacher_id = $3,
-           actioned_by_clearance_staff_id = NULL,
+           actioned_by_teacher_id      = $3,
            actioned_by_school_staff_id = NULL,
            actioned_at = $4
        WHERE id = $5`,
