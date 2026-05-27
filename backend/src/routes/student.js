@@ -115,8 +115,8 @@ router.get('/results', async (req, res, next) => {
         [req.schoolId, academic_year_id, semInt, className, student.id]
       ),
       pool.query(
-        `SELECT subject, ca_score, exam_score, total_score
-         FROM imported_results
+        `SELECT subject, class_score AS ca_score, exam_score, total_score
+         FROM results_import
          WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
            AND student_id = $4`,
         [req.schoolId, academic_year_id, semInt, student.id]
@@ -221,7 +221,7 @@ router.get('/results', async (req, res, next) => {
             [req.schoolId, academic_year_id, semInt, className, cm.id]
           ),
           pool.query(
-            `SELECT subject, total_score FROM imported_results
+            `SELECT subject, total_score FROM results_import
              WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3 AND student_id = $4`,
             [req.schoolId, academic_year_id, semInt, cm.id]
           ),
@@ -316,7 +316,7 @@ router.get('/results/history', async (req, res, next) => {
       ),
       pool.query(
         `SELECT academic_year_id, semester, subject, total_score
-         FROM imported_results WHERE school_id = $1 AND student_id = $2`,
+         FROM results_import WHERE school_id = $1 AND student_id = $2`,
         [req.schoolId, student.id]
       ),
     ]);
