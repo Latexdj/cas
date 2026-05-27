@@ -183,7 +183,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               {section.label}
             </p>
             {section.items.map(({ href, label, icon }) => {
-              const active = pathname === href || pathname.startsWith(href + '/');
+              const allHrefs = sections.flatMap(s => s.items.map(i => i.href));
+              const hasChildNavItem = allHrefs.some(h => h !== href && h.startsWith(href + '/'));
+              const active = pathname === href || (!hasChildNavItem && pathname.startsWith(href + '/'));
               return (
                 <Link
                   key={href}
