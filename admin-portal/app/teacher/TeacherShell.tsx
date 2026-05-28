@@ -199,18 +199,21 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const isDark = mounted && resolvedTheme === 'dark';
 
   const dk = {
-    pageBg:       isDark ? '#0F172A' : '#F4EFE6',
-    sidebarBg:    isDark ? '#1E293B' : '#ffffff',
-    border:       isDark ? '#334155' : '#E2D9CC',
-    navText:      isDark ? '#94A3B8' : '#8C7E6E',
-    sheetBg:      isDark ? '#1E293B' : '#ffffff',
-    closeBtnBg:   isDark ? '#334155' : '#F4EFE6',
-    closeBtnText: isDark ? '#94A3B8' : '#8C7E6E',
-    moreTitle:    isDark ? '#F1F5F9' : '#2C2218',
-    moreItemText: isDark ? '#CBD5E1' : '#5C4F42',
-    tabBarBg:     isDark ? '#1E293B' : '#ffffff',
-    footerText:   isDark ? '#64748B' : '#8C7E6E',
-    brandText:    isDark ? '#94A3B8' : '#8C7E6E',
+    pageBg:        isDark ? '#0F172A' : '#F4EFE6',
+    sidebarBg:     isDark ? '#0F172A' : '#ffffff',
+    border:        isDark ? 'rgba(255,255,255,0.07)' : '#E2D9CC',
+    navText:       isDark ? '#94A3B8' : '#8C7E6E',
+    navActiveBg:   isDark ? 'rgba(21,128,61,0.15)' : `${primary}18`,
+    navActiveText: isDark ? '#4ADE80' : primary,
+    sheetBg:       isDark ? '#0F172A' : '#ffffff',
+    closeBtnBg:    isDark ? '#1E293B' : '#F4EFE6',
+    closeBtnText:  isDark ? '#94A3B8' : '#8C7E6E',
+    moreTitle:     isDark ? '#F1F5F9' : '#2C2218',
+    moreItemText:  isDark ? '#CBD5E1' : '#5C4F42',
+    tabBarBg:      isDark ? '#0F172A' : '#ffffff',
+    footerText:    isDark ? '#475569' : '#8C7E6E',
+    brandText:     isDark ? '#4ADE80' : primary,
+    sectionLabel:  isDark ? '#334155' : '#94A3B8',
   };
 
   const fetchUnread = useCallback(async () => {
@@ -293,9 +296,9 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                style={active ? { backgroundColor: `${primary}18`, color: primary } : { color: dk.navText }}
+                style={active ? { backgroundColor: dk.navActiveBg, color: dk.navActiveText } : { color: dk.navText }}
               >
-                <span style={{ color: active ? primary : dk.navText }} className="relative">
+                <span style={{ color: active ? dk.navActiveText : dk.navText }} className="relative">
                   {item.icon}
                   {item.badge && unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
@@ -304,11 +307,13 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
                   )}
                 </span>
                 {item.label}
-                {item.badge && unreadCount > 0 && (
+                {item.badge && unreadCount > 0 ? (
                   <span className="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">
                     {unreadCount}
                   </span>
-                )}
+                ) : active ? (
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: dk.navActiveText }} />
+                ) : null}
               </Link>
             );
           })}
@@ -318,7 +323,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
             <ThemeToggle />
           </div>
           <p className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: dk.footerText }}>Designed by</p>
-          <p className="text-[11px] font-bold mt-0.5" style={{ color: primary }}>LatexTech</p>
+          <p className="text-[11px] font-bold mt-0.5" style={{ color: dk.brandText }}>LatexTech</p>
           <p className="text-[9px] mt-0.5" style={{ color: dk.footerText }}>+233 24 8234 649</p>
         </div>
       </aside>
@@ -362,9 +367,9 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
                   href={item.href}
                   onClick={() => setMoreOpen(false)}
                   className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors"
-                  style={active ? { backgroundColor: `${primary}18`, color: primary } : { color: dk.moreItemText }}
+                  style={active ? { backgroundColor: dk.navActiveBg, color: dk.navActiveText } : { color: dk.moreItemText }}
                 >
-                  <span style={{ color: active ? primary : dk.navText }} className="relative">
+                  <span style={{ color: active ? dk.navActiveText : dk.navText }} className="relative">
                     {item.icon}
                     {item.badge && unreadCount > 0 && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
@@ -395,9 +400,9 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
               key={item.href}
               href={item.href}
               className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-colors"
-              style={{ color: active ? primary : dk.navText }}
+              style={{ color: active ? dk.navActiveText : dk.navText }}
             >
-              <span style={{ color: active ? primary : dk.navText }}>{item.icon}</span>
+              <span style={{ color: active ? dk.navActiveText : dk.navText }}>{item.icon}</span>
               {item.label}
             </Link>
           );
@@ -407,9 +412,9 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
         <button
           onClick={() => setMoreOpen(o => !o)}
           className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition-colors"
-          style={{ color: isMoreActive || moreOpen ? primary : dk.navText }}
+          style={{ color: isMoreActive || moreOpen ? dk.navActiveText : dk.navText }}
         >
-          <span style={{ color: isMoreActive || moreOpen ? primary : dk.navText }}>
+          <span style={{ color: isMoreActive || moreOpen ? dk.navActiveText : dk.navText }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
               <rect x="3" y="3" width="7" height="7" rx="1" />
               <rect x="14" y="3" width="7" height="7" rx="1" />
