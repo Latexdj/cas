@@ -92,6 +92,7 @@ router.post('/', async (req, res, next) => {
       const { rows: planRows } = await client.query(
         `SELECT id FROM plans WHERE name = 'trial' LIMIT 1`
       );
+      if (!planRows.length) throw new Error('Trial plan not found in database.');
       const trialPlanId = planRows[0].id;
       const trialEnd    = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 
@@ -176,6 +177,7 @@ router.post('/:id/activate', async (req, res, next) => {
     const { rows: planRows } = await pool.query(
       `SELECT id FROM plans WHERE name = 'paid' LIMIT 1`
     );
+    if (!planRows.length) return res.status(500).json({ error: 'Paid plan not found in database. Contact support.' });
     const paidPlanId = planRows[0].id;
 
     // Preserve teacher_limit from current subscription unless explicitly overridden
@@ -227,6 +229,7 @@ router.post('/:id/revert-to-trial', async (req, res, next) => {
     if (!schoolRows.length) return res.status(404).json({ error: 'School not found' });
 
     const { rows: planRows } = await pool.query(`SELECT id FROM plans WHERE name = 'trial' LIMIT 1`);
+    if (!planRows.length) return res.status(500).json({ error: 'Trial plan not found in database. Contact support.' });
     const trialPlanId = planRows[0].id;
     const trialEnd    = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 

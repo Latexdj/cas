@@ -118,6 +118,25 @@ app.use(errorHandler);
 async function runMigrations() {
   try {
     const pool = require('./config/db');
+
+    // Ensure plans table and seed rows exist (may be missing on fresh deployments)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS plans (
+        id             UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+        name           TEXT          NOT NULL UNIQUE,
+        display_name   TEXT          NOT NULL,
+        max_teachers   INTEGER,
+        price_monthly  NUMERIC(10,2) NOT NULL DEFAULT 0,
+        duration_days  INTEGER
+      )
+    `);
+    await pool.query(`
+      INSERT INTO plans (name, display_name, max_teachers, price_monthly, duration_days) VALUES
+        ('trial', 'Free Trial (14 days)', 50,   0, 14),
+        ('paid',  'Standard Plan',        NULL, 0, NULL)
+      ON CONFLICT (name) DO NOTHING
+    `);
+
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS notes TEXT`);
     await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS teacher_limit INTEGER NOT NULL DEFAULT 10`);
     await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ`);
