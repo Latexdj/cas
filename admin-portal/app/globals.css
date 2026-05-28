@@ -184,3 +184,52 @@ select option {
 .dark ::-webkit-scrollbar-track       { background: #0F172A; }
 .dark ::-webkit-scrollbar-thumb       { background: #334155; border-radius: 3px; }
 .dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* ═══════════════════════════════════════════════════════════════
+   DARK MODE — TEACHER APP FIXES
+   The existing rules above only catch `background-color:` (set via
+   style={{ backgroundColor: ... }}). React's style={{ background: ... }}
+   renders as the `background` shorthand in the DOM, so we need a
+   duplicate set of selectors for that form.
+   Also adds Tailwind arbitrary-value class overrides for the warm
+   colour palette used throughout teacher pages.
+═══════════════════════════════════════════════════════════════ */
+
+/* ── background: shorthand (React style={{ background: '...' }}) ── */
+.dark [style*="background: rgb(255, 255, 255)"]  { background: #1E293B !important; } /* white      */
+.dark [style*="background: rgb(244, 239, 230)"]  { background: #0F172A !important; } /* #F4EFE6    */
+.dark [style*="background: rgb(248, 250, 252)"]  { background: #0F172A !important; } /* #F8FAFC    */
+.dark [style*="background: rgb(249, 250, 251)"]  { background: #0F172A !important; } /* #F9FAFB    */
+.dark [style*="background: rgb(241, 245, 249)"]  { background: #1E293B !important; } /* #F1F5F9    */
+.dark [style*="background: rgb(253, 250, 245)"]  { background: #1E293B !important; } /* #FDFAF5    */
+/* Badge/tint versions of the shorthand */
+.dark [style*="background: rgb(240, 253, 244)"]  { background: rgba(20,  83,  45,  0.35) !important; } /* #F0FDF4 green  */
+.dark [style*="background: rgb(239, 246, 255)"]  { background: rgba(30,  58,  138, 0.35) !important; } /* #EFF6FF blue   */
+.dark [style*="background: rgb(224, 242, 254)"]  { background: rgba(30,  58,  138, 0.35) !important; } /* #E0F2FE blue   */
+.dark [style*="background: rgb(255, 251, 235)"]  { background: rgba(120, 53,  15,  0.35) !important; } /* #FFFBEB yellow */
+.dark [style*="background: rgb(254, 243, 199)"]  { background: rgba(120, 53,  15,  0.35) !important; } /* #FEF3C7 amber  */
+.dark [style*="background: rgb(254, 243, 220)"]  { background: rgba(120, 53,  15,  0.35) !important; } /* #FEF3DC yellow */
+.dark [style*="background: rgb(254, 242, 242)"]  { background: rgba(127, 29,  29,  0.35) !important; } /* #FEF2F2 red    */
+.dark [style*="background: rgb(254, 226, 226)"]  { background: rgba(127, 29,  29,  0.35) !important; } /* #FEE2E2 red    */
+.dark [style*="background: rgb(220, 252, 231)"]  { background: rgba(20,  83,  45,  0.35) !important; } /* #DCFCE7 green  */
+.dark [style*="background: rgb(245, 243, 255)"]  { background: rgba(76,  29,  149, 0.35) !important; } /* #F5F3FF purple */
+
+/* ── Tailwind arbitrary-value classes (teacher warm palette) ── */
+.dark .bg-\[\#F4EFE6\]              { background-color: #0F172A !important; }
+.dark .border-\[\#E2D9CC\]          { border-color: #334155 !important; }
+.dark .border-\[\#F4EFE6\]          { border-color: #1E293B !important; }
+.dark .text-\[\#2C2218\]            { color: #F1F5F9  !important; }
+.dark .text-\[\#1C1208\]            { color: #F1F5F9  !important; }
+.dark .text-\[\#8C7E6E\]            { color: #94A3B8  !important; }
+.dark .text-\[\#B83232\]            { color: #f87171  !important; }
+.dark .text-\[\#C0B5A5\]            { color: #64748B  !important; }
+.dark .hover\:bg-\[\#F4EFE6\]:hover { background-color: #1E293B !important; }
+.dark .divide-\[\#F4EFE6\]          { border-color: #1E293B !important; }
+
+/* ── Additional inline colour overrides missed above ── */
+.dark [style*="color: rgb(140, 126, 110)"] { color: #94A3B8 !important; } /* #8C7E6E muted warm  */
+.dark [style*="color: rgb(184, 50, 50)"]   { color: #f87171 !important; } /* #B83232 teacher red */
+.dark [style*="color: rgb(192, 181, 165)"] { color: #64748B !important; } /* #C0B5A5 placeholder */
+
+/* ── border shorthand for inline border-color hex values ── */
+.dark [style*="rgb(226, 217, 204)"]        { border-color: #334155 !important; } /* #E2D9CC (already in border, but also catches background use) */
