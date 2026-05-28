@@ -119,25 +119,25 @@ async function runMigrations() {
   try {
     const pool = require('./config/db');
 
-    // Ensure plans table and seed rows exist (may be missing on fresh deployments)
+    // Ensure plans table exists and has all required columns
     await pool.query(`
       CREATE TABLE IF NOT EXISTS plans (
         id             UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-        name           TEXT          NOT NULL UNIQUE,
+        name           TEXT          NOT NULL,
         display_name   TEXT          NOT NULL,
         max_teachers   INTEGER,
         price_monthly  NUMERIC(10,2) NOT NULL DEFAULT 0,
         duration_days  INTEGER
       )
     `);
-    await pool.query(`
-      INSERT INTO plans (name, display_name, max_teachers, price_monthly, duration_days) VALUES
-        ('trial', 'Free Trial (14 days)', 50,   0, 14),
-        ('paid',  'Standard Plan',        NULL, 0, NULL)
-      ON CONFLICT (name) DO NOTHING
-    `);
+    await pool.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS duration_days INTEGER`);
+    // Use WHERE NOT EXISTS to avoid ON CONFLICT dependency on a named unique constraint
+    await pool.query(`INSERT INTO plans (name, display_name, max_teachers, price_monthly, duration_days) SELECT 'trial','Free Trial (14 days)',50,0,14 WHERE NOT EXISTS (SELECT 1 FROM plans WHERE name='trial')`);
+    await pool.query(`INSERT INTO plans (name, display_name, max_teachers, price_monthly, duration_days) SELECT 'paid','Standard Plan',NULL,0,NULL WHERE NOT EXISTS (SELECT 1 FROM plans WHERE name='paid')`);
 
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS notes TEXT`);
+    await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS plan_id UUID`);
+    await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now()`);
     await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS teacher_limit INTEGER NOT NULL DEFAULT 10`);
     await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ`);
     await pool.query(`

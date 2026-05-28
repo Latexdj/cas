@@ -217,6 +217,7 @@ router.post('/:id/activate', async (req, res, next) => {
 
     res.json({ message: 'School activated on paid plan', subscription: rows[0] });
   } catch (err) {
+    console.error('[activate]', err.code, err.message, err.detail);
     next(err);
   }
 });
