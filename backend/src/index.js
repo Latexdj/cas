@@ -215,6 +215,20 @@ async function runMigrations() {
       )
     `);
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS locations (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id       UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name            TEXT NOT NULL,
+        type            TEXT NOT NULL DEFAULT 'Classroom',
+        latitude        DOUBLE PRECISION,
+        longitude       DOUBLE PRECISION,
+        radius_meters   INTEGER NOT NULL DEFAULT 30,
+        has_coordinates BOOLEAN NOT NULL DEFAULT false,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, name)
+      )
+    `);
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS plc_sessions (
         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,

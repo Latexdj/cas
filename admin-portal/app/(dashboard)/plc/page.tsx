@@ -7,8 +7,9 @@ const DAYS = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satur
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return '—';
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 interface PlcSession {
@@ -227,14 +228,12 @@ export default function PlcPage() {
   const [qrLoading,    setQrLoading]    = useState(false);
 
   const loadSessions = useCallback(async () => {
-    try {
-      const [s, l] = await Promise.all([
-        api.get<PlcSession[]>('/api/plc/sessions'),
-        api.get<Location[]>('/api/locations'),
-      ]);
-      setSessions(s.data);
-      setLocations(l.data);
-    } catch {}
+    const [s, l] = await Promise.allSettled([
+      api.get<PlcSession[]>('/api/plc/sessions'),
+      api.get<Location[]>('/api/locations'),
+    ]);
+    if (s.status === 'fulfilled') setSessions(s.value.data);
+    if (l.status === 'fulfilled') setLocations(l.value.data);
   }, []);
 
   const loadAttendance = useCallback(async () => {
