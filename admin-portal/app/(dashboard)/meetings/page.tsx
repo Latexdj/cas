@@ -791,12 +791,12 @@ export default function MeetingsPage() {
     if (typeFilter) params.type = typeFilter;
     if (mFrom)      params.from = mFrom;
     if (mTo)        params.to   = mTo;
-    const [m, l] = await Promise.all([
+    const [m, l] = await Promise.allSettled([
       api.get<Meeting[]>('/api/meetings', { params }),
       locations.length ? Promise.resolve({ data: locations }) : api.get<Location[]>('/api/locations'),
     ]);
-    setMeetings(m.data);
-    setLocations(l.data);
+    if (m.status === 'fulfilled') setMeetings(m.value.data);
+    if (l.status === 'fulfilled') setLocations(l.value.data);
   }, [typeFilter, mFrom, mTo, locations]);
 
   const loadAttendance = useCallback(async () => {
