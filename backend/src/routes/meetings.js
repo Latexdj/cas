@@ -241,7 +241,8 @@ router.put('/:id', adminOnly, async (req, res, next) => {
          start_time   = COALESCE($4, start_time),
          end_time     = COALESCE($5, end_time),
          location_id  = COALESCE($6, location_id),
-         is_active    = COALESCE($7, is_active)
+         is_active    = COALESCE($7, is_active),
+         updated_at   = now()
        WHERE id = $8 AND school_id = $9
        RETURNING *`,
       [

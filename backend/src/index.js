@@ -303,6 +303,10 @@ async function runMigrations() {
         created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
+    await pool.query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS minutes_url TEXT`);
+    await pool.query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS minutes_filename TEXT`);
+    await pool.query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS minutes_uploaded_at TIMESTAMPTZ`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS meeting_attendance (
         id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
