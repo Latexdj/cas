@@ -39,8 +39,8 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
     }
     const { rows } = await pool.query(
       `SELECT
-         id, original_absence_date, subject, class_name,
-         remedial_date, remedial_time, duration_periods,
+         id, original_absence_date::text AS original_absence_date, subject, class_name,
+         remedial_date::text AS remedial_date, remedial_time, duration_periods,
          topic, location_name, status, notes, created_at
        FROM remedial_lessons
        WHERE school_id = $1 AND teacher_id = $2

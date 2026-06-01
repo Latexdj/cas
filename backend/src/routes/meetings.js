@@ -84,7 +84,11 @@ router.get('/', adminOnly, async (req, res, next) => {
     if (to)   { params.push(to);   conds.push(`m.date <= $${params.length}`); }
 
     const { rows } = await pool.query(
-      `SELECT m.*, l.name AS location_name, l.has_coordinates
+      `SELECT m.id, m.title, m.meeting_type, m.date::text AS date,
+              m.start_time, m.end_time, m.location_id, m.is_active,
+              m.minutes_url, m.minutes_filename, m.minutes_uploaded_at,
+              m.created_at, m.updated_at,
+              l.name AS location_name, l.has_coordinates
        FROM meetings m
        LEFT JOIN locations l ON l.id = m.location_id
        WHERE ${conds.join(' AND ')}
@@ -501,7 +505,8 @@ router.get('/today', async (req, res, next) => {
 
     const { rows } = await pool.query(
       `SELECT
-         m.*,
+         m.id, m.title, m.meeting_type, m.date::text AS date,
+         m.start_time, m.end_time, m.location_id, m.is_active,
          l.name AS location_name, l.has_coordinates,
          l.latitude, l.longitude, l.radius_meters,
          ma.id       AS submitted_id,

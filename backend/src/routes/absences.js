@@ -23,7 +23,7 @@ router.get('/', adminOnly, async (req, res, next) => {
 
     const { rows } = await pool.query(
       `SELECT
-         ab.id, ab.date, ab.detected_at, ab.subject, ab.class_name,
+         ab.id, ab.date::text AS date, ab.detected_at, ab.subject, ab.class_name,
          ab.scheduled_period, ab.status, ab.is_auto_generated, ab.reason,
          ab.created_at, ab.updated_at,
          te.id AS teacher_id, te.name AS teacher_name
@@ -65,7 +65,7 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
     }
     const { rows } = await pool.query(
       `SELECT
-         id, date, subject, class_name, scheduled_period,
+         id, date::text AS date, subject, class_name, scheduled_period,
          status, reason, created_at
        FROM absences
        WHERE school_id = $1 AND teacher_id = $2

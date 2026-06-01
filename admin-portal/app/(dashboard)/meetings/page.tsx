@@ -71,8 +71,9 @@ function fmt(t: string) { return t?.slice(0, 5) ?? '—'; }
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return '—';
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function dayName(dateStr: string) {
@@ -392,8 +393,9 @@ async function buildPrintSheet(
   // ── Details ──
   const meetDate = (() => {
     if (!meeting.date) return '—';
-    const d = new Date(meeting.date + 'T00:00:00');
-    return d.toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    const [y, m, d] = meeting.date.slice(0, 10).split('-').map(Number);
+    if (!y || !m || !d) return '—';
+    return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   })();
 
   ctx.font = '13px Arial, Helvetica, sans-serif';
