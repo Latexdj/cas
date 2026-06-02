@@ -55,21 +55,23 @@ function SubmitProofModal({
   const [topic,       setTopic]       = useState(remedial.topic ?? '');
   const [submitting,  setSubmitting]  = useState(false);
   const [error,       setError]       = useState('');
+  const [facingMode,  setFacingMode]  = useState<'environment' | 'user'>('environment');
+
+  async function startCamera(facing: 'environment' | 'user') {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: false });
+      streamRef.current = stream;
+      if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
+      setError('');
+    } catch {
+      setError('Camera not available. Please allow camera access.');
+    }
+  }
 
   // Start camera and get GPS on mount
   useEffect(() => {
-    (async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play();
-        }
-      } catch {
-        setError('Camera not available. Please allow camera access.');
-      }
-    })();
+    startCamera('environment');
 
     navigator.geolocation?.getCurrentPosition(
       pos => setGps(`${pos.coords.latitude},${pos.coords.longitude}`),
@@ -78,7 +80,13 @@ function SubmitProofModal({
     );
 
     return () => { streamRef.current?.getTracks().forEach(t => t.stop()); };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function flipCamera() {
+    const next = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(next);
+    await startCamera(next);
+  }
 
   function capture() {
     const video  = videoRef.current;
@@ -98,7 +106,7 @@ function SubmitProofModal({
     setStep('camera');
     (async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: false });
         streamRef.current = stream;
         if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
       } catch { setError('Camera not available.'); }
@@ -148,10 +156,26 @@ function SubmitProofModal({
             </p>
             {gpsError && <p className="text-amber-400 text-xs text-center">{gpsError}</p>}
             {error && <p className="text-red-400 text-xs text-center">{error}</p>}
-            <button
-              onClick={capture}
-              className="w-16 h-16 rounded-full border-4 border-white bg-white/20 active:bg-white/40"
-            />
+            <div className="flex items-center gap-8">
+              {/* Flip camera */}
+              <button
+                onClick={flipCamera}
+                className="w-10 h-10 rounded-full bg-white/15 active:bg-white/30 flex items-center justify-center"
+                title={facingMode === 'environment' ? 'Switch to front camera' : 'Switch to back camera'}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={1.8} className="w-5 h-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5M20 20v-5h-5" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 9A8 8 0 0 0 5.5 5.5L4 9m16 6A8 8 0 0 1 4 15l-1.5 3.5" />
+                </svg>
+              </button>
+              {/* Capture */}
+              <button
+                onClick={capture}
+                className="w-16 h-16 rounded-full border-4 border-white bg-white/20 active:bg-white/40"
+              />
+              {/* Spacer to keep capture centred */}
+              <div className="w-10 h-10" />
+            </div>
           </div>
         </>
       ) : (
