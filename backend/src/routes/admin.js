@@ -372,8 +372,9 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
       abs AS (
         SELECT
           ab.teacher_id,
-          COUNT(*) FILTER (WHERE ab.status != 'Excused') AS absent_periods,
-          COUNT(*) FILTER (WHERE ab.status  = 'Excused') AS excused_periods
+          COUNT(*) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')) AS absent_periods,
+          COUNT(*) FILTER (WHERE ab.status  = 'Excused')                            AS excused_periods,
+          COUNT(*) FILTER (WHERE ab.status IN ('Made Up','Verified'))               AS made_up_periods
         FROM absences ab, dr
         WHERE ab.school_id = $1
           AND ab.date >= dr.min_date
@@ -384,15 +385,16 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
         t.id,
         t.name,
         COALESCE(t.department, '—') AS department,
-        COALESCE(att.present_periods, 0)::int AS present_periods,
-        COALESCE(abs.absent_periods, 0)::int  AS absent_periods,
-        COALESCE(abs.excused_periods, 0)::int AS excused_periods,
-        (COALESCE(att.present_periods, 0) + COALESCE(abs.absent_periods, 0))::int AS total_scheduled,
+        (COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0))::int AS present_periods,
+        COALESCE(abs.absent_periods, 0)::int                                        AS absent_periods,
+        COALESCE(abs.excused_periods, 0)::int                                       AS excused_periods,
+        COALESCE(abs.made_up_periods, 0)::int                                       AS made_up_periods,
+        (COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0) + COALESCE(abs.absent_periods, 0))::int AS total_scheduled,
         CASE
-          WHEN (COALESCE(att.present_periods, 0) + COALESCE(abs.absent_periods, 0)) = 0 THEN NULL
+          WHEN (COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0) + COALESCE(abs.absent_periods, 0)) = 0 THEN NULL
           ELSE ROUND(
-            100.0 * COALESCE(att.present_periods, 0) /
-            NULLIF(COALESCE(att.present_periods, 0) + COALESCE(abs.absent_periods, 0), 0), 1)
+            100.0 * (COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0)) /
+            NULLIF(COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0) + COALESCE(abs.absent_periods, 0), 0), 1)
         END AS attendance_pct
       FROM teachers t
       LEFT JOIN att ON att.teacher_id = t.id

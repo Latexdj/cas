@@ -286,8 +286,9 @@ router.get('/my-summary', async (req, res, next) => {
       ),
       abs AS (
         SELECT
-          COUNT(*) FILTER (WHERE ab.status != 'Excused') AS absent_periods,
-          COUNT(*) FILTER (WHERE ab.status  = 'Excused') AS excused_periods
+          COUNT(*) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')) AS absent_periods,
+          COUNT(*) FILTER (WHERE ab.status  = 'Excused')                            AS excused_periods,
+          COUNT(*) FILTER (WHERE ab.status IN ('Made Up','Verified'))               AS made_up_periods
         FROM absences ab, dr
         WHERE ab.teacher_id = $4
           AND ab.school_id  = $1
@@ -295,22 +296,23 @@ router.get('/my-summary', async (req, res, next) => {
           AND ab.date <= dr.max_date
       )
       SELECT
-        att.present_periods::int,
+        (att.present_periods + abs.made_up_periods)::int                         AS present_periods,
         abs.absent_periods::int,
         abs.excused_periods::int,
-        (att.present_periods + abs.absent_periods)::int AS total_scheduled,
+        abs.made_up_periods::int,
+        (att.present_periods + abs.made_up_periods + abs.absent_periods)::int    AS total_scheduled,
         CASE
-          WHEN (att.present_periods + abs.absent_periods) = 0 THEN NULL
+          WHEN (att.present_periods + abs.made_up_periods + abs.absent_periods) = 0 THEN NULL
           ELSE ROUND(
-            100.0 * att.present_periods /
-            NULLIF(att.present_periods + abs.absent_periods, 0), 1)
+            100.0 * (att.present_periods + abs.made_up_periods) /
+            NULLIF(att.present_periods + abs.made_up_periods + abs.absent_periods, 0), 1)
         END AS attendance_pct
       FROM att, abs
     `, [req.schoolId, yearId || null, sem || null, req.user.id]);
 
     res.json(rows[0] || {
       present_periods: 0, absent_periods: 0, excused_periods: 0,
-      total_scheduled: 0, attendance_pct: null,
+      made_up_periods: 0, total_scheduled: 0, attendance_pct: null,
     });
   } catch (err) { next(err); }
 });
