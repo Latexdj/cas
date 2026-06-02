@@ -358,6 +358,8 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE meeting_attendance ADD COLUMN IF NOT EXISTS photo_size_kb INTEGER`);
     await pool.query(`ALTER TABLE meeting_attendance ADD COLUMN IF NOT EXISTS location_name TEXT`);
     await pool.query(`ALTER TABLE meeting_attendance ADD COLUMN IF NOT EXISTS location_verified BOOLEAN NOT NULL DEFAULT false`);
+    await pool.query(`ALTER TABLE meeting_attendance ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_meeting_attendance_unique ON meeting_attendance(meeting_id, teacher_id, date)`);
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_meeting_attendance_school_date
         ON meeting_attendance(school_id, date DESC)

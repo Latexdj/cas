@@ -441,13 +441,23 @@ router.post('/attendance/manual', adminOnly, async (req, res, next) => {
     const yearId = ayRows[0]?.id ?? null;
     const sem    = ayRows[0]?.current_semester ?? null;
 
+    // Check for duplicate entry first — return a clear error instead of relying
+    // on ON CONFLICT (which requires the UNIQUE constraint to exist on all envs)
+    const { rows: existing } = await pool.query(
+      'SELECT id FROM meeting_attendance WHERE meeting_id = $1 AND teacher_id = $2 AND date = $3',
+      [meetingId, teacherId, date]
+    );
+    if (existing.length) {
+      return res.status(409).json({
+        error: `${tRows[0].name} already has an attendance record for this meeting on ${date}.`,
+      });
+    }
+
     const { rows: inserted } = await pool.query(
       `INSERT INTO meeting_attendance
          (school_id, meeting_id, teacher_id, date, academic_year_id, semester,
           notes, location_name, location_verified)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false)
-       ON CONFLICT (meeting_id, teacher_id, date) DO UPDATE
-         SET notes = EXCLUDED.notes, updated_at = now()
        RETURNING *`,
       [
         req.schoolId, meetingId, teacherId, date, yearId, sem,
