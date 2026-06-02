@@ -56,7 +56,23 @@ router.post('/', adminOnly, async (req, res, next) => {
        RETURNING *`,
       [req.schoolId, date, name.trim(), type, notes || null]
     );
-    res.status(201).json(rows[0]);
+
+    // Retroactively clear any auto-generated absences already recorded for this date.
+    // All teachers in the school should be excused — the day is no longer a working day.
+    const { rowCount } = await pool.query(
+      `UPDATE absences
+       SET status = 'Excused', updated_at = now()
+       WHERE school_id = $1
+         AND date = $2
+         AND is_auto_generated = true
+         AND status = 'Absent'`,
+      [req.schoolId, date]
+    );
+    if (rowCount > 0) {
+      console.log(`[Calendar] Retroactively excused ${rowCount} absence(s) on ${date} for school ${req.schoolId} (${type}: ${name})`);
+    }
+
+    res.status(201).json({ ...rows[0], absences_excused: rowCount });
   } catch (err) { next(err); }
 });
 
