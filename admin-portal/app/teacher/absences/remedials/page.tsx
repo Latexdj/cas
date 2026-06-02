@@ -48,6 +48,21 @@ function SubmitProofModal({
   const canvasRef  = useRef<HTMLCanvasElement>(null);
   const streamRef  = useRef<MediaStream | null>(null);
 
+  // Mirror the same compression used by classroom attendance: 640px/0.4 → 480px/0.25 fallback
+  function compressFrame(src: HTMLCanvasElement): string {
+    const compress = (maxW: number, q: number) => {
+      const c = document.createElement('canvas');
+      const scale = Math.min(1, maxW / src.width);
+      c.width  = Math.round(src.width  * scale);
+      c.height = Math.round(src.height * scale);
+      c.getContext('2d')!.drawImage(src, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', q);
+    };
+    let dataUrl = compress(640, 0.4);
+    if (dataUrl.length * 0.75 > 40 * 1024) dataUrl = compress(480, 0.25);
+    return dataUrl;
+  }
+
   const [step,        setStep]        = useState<'camera' | 'preview'>('camera');
   const [imageBase64, setImageBase64] = useState('');
   const [gps,         setGps]         = useState('');
@@ -95,8 +110,7 @@ function SubmitProofModal({
     canvas.width  = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d')?.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-    setImageBase64(dataUrl);
+    setImageBase64(compressFrame(canvas));
     streamRef.current?.getTracks().forEach(t => t.stop());
     setStep('preview');
   }
