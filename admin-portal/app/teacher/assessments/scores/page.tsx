@@ -91,7 +91,7 @@ function ScoresContent() {
   const maxScore = assessment?.max_score ?? 100;
 
   return (
-    <div className="min-h-screen pb-32" style={{ background: '#F4EFE6' }}>
+    <div className="min-h-screen pb-40" style={{ background: '#F4EFE6' }}>
       {/* Header */}
       <div className="sticky top-0 z-10 bg-[#F4EFE6] px-4 pt-6 pb-3">
         <div className="flex items-center gap-3 mb-3">
@@ -184,8 +184,8 @@ function ScoresContent() {
         )}
       </div>
 
-      {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 md:left-60 bg-white border-t border-[#E2D9CC] px-4 py-3 flex items-center gap-3 z-20">
+      {/* Footer — sits above the bottom tab bar (≈64 px) */}
+      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-[#E2D9CC] px-4 py-3 flex items-center gap-3 z-20 shadow-lg">
         <p className="flex-1 text-sm text-[#8C7E6E]">{rows.length} student{rows.length !== 1 ? 's' : ''}</p>
         <button
           onClick={save}
