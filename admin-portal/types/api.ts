@@ -213,11 +213,15 @@ export interface RemedialLesson {
   class_name: string;
   remedial_date: string;
   remedial_time: string;
+  remedial_end_time: string | null;
   duration_periods: number | null;
   topic: string | null;
   location_name: string | null;
   status: string;
+  photo_url: string | null;
+  gps_coordinates: string | null;
   verified_by: string | null;
+  verified_at: string | null;
   notes: string | null;
   created_at: string;
 }

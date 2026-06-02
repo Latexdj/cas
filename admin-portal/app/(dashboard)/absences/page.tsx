@@ -307,18 +307,73 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
 
       <Modal open={!!notesModal} onClose={() => setNotesModal(null)} title="Verify Remedial Lesson">
         {notesModal && (
-          <div className="space-y-3">
-            <p className="text-sm" style={{ color: '#475569' }}>
-              <strong style={{ color: '#0F172A' }}>{notesModal.teacher_name}</strong> — {notesModal.subject} / {notesModal.class_name}<br />
-              Scheduled: {fmtDate(notesModal.remedial_date)} at {notesModal.remedial_time}
-            </p>
+          <div className="space-y-4">
+
+            {/* Proof photo */}
+            {notesModal.photo_url ? (
+              <div className="rounded-xl overflow-hidden border" style={{ borderColor: '#E2E8F0' }}>
+                <img
+                  src={notesModal.photo_url}
+                  alt="Proof of attendance"
+                  className="w-full object-cover max-h-64"
+                />
+              </div>
+            ) : (
+              <div className="rounded-xl flex items-center justify-center h-32 text-sm" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', color: '#94A3B8' }}>
+                No photo submitted
+              </div>
+            )}
+
+            {/* Details grid */}
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              {[
+                { label: 'Teacher',      value: notesModal.teacher_name },
+                { label: 'Subject',      value: `${notesModal.subject} — ${notesModal.class_name}` },
+                { label: 'Absence date', value: fmtDate(notesModal.original_absence_date) },
+                { label: 'Remedial date', value: fmtDate(notesModal.remedial_date) },
+                {
+                  label: 'Time',
+                  value: notesModal.remedial_end_time
+                    ? `${notesModal.remedial_time?.slice(0,5)} – ${notesModal.remedial_end_time?.slice(0,5)}`
+                    : notesModal.remedial_time?.slice(0,5) ?? '—',
+                },
+                { label: 'Periods covered', value: notesModal.duration_periods ? `${notesModal.duration_periods}` : '—' },
+                { label: 'Location',     value: notesModal.location_name ?? '—' },
+                { label: 'Topic',        value: notesModal.topic ?? '—' },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-lg p-2.5" style={{ backgroundColor: '#F8FAFC' }}>
+                  <p className="text-xs font-semibold uppercase tracking-wide mb-0.5" style={{ color: '#94A3B8' }}>{label}</p>
+                  <p className="font-medium" style={{ color: '#0F172A' }}>{value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* GPS */}
+            {notesModal.gps_coordinates && (
+              <a
+                href={`https://www.google.com/maps?q=${notesModal.gps_coordinates}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm font-medium rounded-lg px-3 py-2.5"
+                style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 shrink-0">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                  <circle cx="12" cy="9" r="2.5"/>
+                </svg>
+                View on map — {notesModal.gps_coordinates}
+              </a>
+            )}
+
+            {/* Verification notes */}
             <div>
               <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Verification Notes (optional)</label>
-              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
+              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}
                 placeholder="Add verification notes…" />
             </div>
-            <div className="flex justify-end gap-2 pt-2">
+
+            <div className="flex justify-end gap-2 pt-1">
               <Button variant="secondary" onClick={() => setNotesModal(null)}>Cancel</Button>
               <Button onClick={saveVerify} loading={saving}>Mark Verified</Button>
             </div>

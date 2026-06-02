@@ -18,7 +18,16 @@ router.get('/', adminOnly, async (req, res, next) => {
     if (teacherId) { params.push(teacherId); conditions.push(`rl.teacher_id = $${params.length}`); }
 
     const { rows } = await pool.query(
-      `SELECT rl.*, te.name AS teacher_name
+      `SELECT rl.id, rl.teacher_id, rl.absence_id,
+              rl.original_absence_date::text AS original_absence_date,
+              rl.subject, rl.class_name,
+              rl.remedial_date::text AS remedial_date,
+              rl.remedial_time, rl.remedial_end_time,
+              rl.duration_periods, rl.topic,
+              rl.location_id, rl.location_name, rl.notes, rl.status,
+              rl.photo_url, rl.gps_coordinates,
+              rl.verified_by, rl.verified_at, rl.created_at, rl.updated_at,
+              te.name AS teacher_name
        FROM remedial_lessons rl
        JOIN teachers te ON te.id = rl.teacher_id
        WHERE ${conditions.join(' AND ')}
