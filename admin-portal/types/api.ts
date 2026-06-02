@@ -287,6 +287,8 @@ export interface SchoolCalendarEntry {
   name: string;
   type: 'Holiday' | 'School Event' | 'Closed Day';
   notes: string | null;
+  start_time: string | null;
+  end_time: string | null;
   created_at: string;
 }
 

@@ -164,6 +164,22 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS photo_url TEXT`);
     await pool.query(`ALTER TABLE schools  ADD COLUMN IF NOT EXISTS logo_url  TEXT`);
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_calendar (
+        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id  UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        date       DATE NOT NULL,
+        name       TEXT NOT NULL,
+        type       TEXT NOT NULL DEFAULT 'Holiday',
+        notes      TEXT,
+        start_time TIME,
+        end_time   TIME,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, date, name)
+      )
+    `);
+    await pool.query(`ALTER TABLE school_calendar ADD COLUMN IF NOT EXISTS start_time TIME`);
+    await pool.query(`ALTER TABLE school_calendar ADD COLUMN IF NOT EXISTS end_time TIME`);
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS school_audit_logs (
         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         school_id   UUID REFERENCES schools(id) ON DELETE CASCADE,

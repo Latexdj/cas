@@ -60,15 +60,18 @@ async function runAbsenceCheck(schoolId) {
   );
   const periodMins = schoolSettingRows[0]?.period_duration_minutes ?? 60;
 
-  // Skip entirely if today is a school holiday or event
+  // Skip entirely if today is a whole-day school event; skip individual lessons for partial-day events
   const { rows: calRows } = await pool.query(
-    `SELECT name, type FROM school_calendar WHERE school_id = $1 AND date = $2 LIMIT 1`,
+    `SELECT name, type, start_time::text AS start_time, end_time::text AS end_time
+     FROM school_calendar WHERE school_id = $1 AND date = $2`,
     [schoolId, today]
   );
-  if (calRows.length) {
-    console.log(`[AbsenceCheck] Skipping — ${calRows[0].type}: "${calRows[0].name}"`);
-    return { date: today, schoolId, newAbsences: 0, skipped: calRows[0].name };
+  const wholeDayEvent = calRows.find(e => !e.start_time && !e.end_time);
+  if (wholeDayEvent) {
+    console.log(`[AbsenceCheck] Skipping — ${wholeDayEvent.type}: "${wholeDayEvent.name}"`);
+    return { date: today, schoolId, newAbsences: 0, skipped: wholeDayEvent.name };
   }
+  const partialEvents = calRows.filter(e => e.start_time && e.end_time);
 
   // Fetch approved teacher excuses covering today
   const { rows: excuseRows } = await pool.query(
@@ -109,6 +112,16 @@ async function runAbsenceCheck(schoolId) {
     if (excusedTeacherIds.has(lesson.teacher_id)) {
       console.log(`[AbsenceCheck] Excused: ${lesson.teacher_name}`);
       continue;
+    }
+
+    // Skip lessons covered by a partial-day event
+    if (partialEvents.length > 0) {
+      const lStart = timeToMinutes(lesson.start_time);
+      const lEnd   = timeToMinutes(lesson.end_time);
+      const covered = partialEvents.some(ev =>
+        lStart < timeToMinutes(ev.end_time) && lEnd > timeToMinutes(ev.start_time)
+      );
+      if (covered) continue;
     }
 
     const individualClasses = lesson.class_names
@@ -183,10 +196,13 @@ async function runPerLessonCheck(schoolId) {
   const periodMins = schoolSettingRows[0]?.period_duration_minutes ?? 60;
 
   const { rows: calRows } = await pool.query(
-    `SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 LIMIT 1`,
+    `SELECT name, start_time::text AS start_time, end_time::text AS end_time
+     FROM school_calendar WHERE school_id = $1 AND date = $2`,
     [schoolId, today]
   );
-  if (calRows.length) return;
+  const wholeDayEv = calRows.find(e => !e.start_time && !e.end_time);
+  if (wholeDayEv) return;
+  const partialEvs = calRows.filter(e => e.start_time && e.end_time);
 
   const { rows: excuseRows } = await pool.query(
     `SELECT DISTINCT teacher_id FROM teacher_excuses
@@ -210,6 +226,16 @@ async function runPerLessonCheck(schoolId) {
   for (const lesson of lessons) {
     if (excusedIds.has(lesson.teacher_id)) continue;
     if (timeToMinutes(lesson.end_time) + 30 > nowMins) continue;
+
+    // Skip lessons covered by a partial-day event
+    if (partialEvs.length > 0) {
+      const lStart = timeToMinutes(lesson.start_time);
+      const lEnd   = timeToMinutes(lesson.end_time);
+      const covered = partialEvs.some(ev =>
+        lStart < timeToMinutes(ev.end_time) && lEnd > timeToMinutes(ev.start_time)
+      );
+      if (covered) continue;
+    }
 
     const individualClasses = lesson.class_names.split(',').map(c => c.trim()).filter(Boolean);
     for (const className of individualClasses) {

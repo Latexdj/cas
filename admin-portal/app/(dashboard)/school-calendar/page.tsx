@@ -30,7 +30,7 @@ export default function SchoolCalendarPage() {
 
   // Add form
   const [adding,  setAdding]  = useState(false);
-  const [form,    setForm]    = useState({ date: '', name: '', type: 'Holiday' as typeof TYPES[number], notes: '' });
+  const [form,    setForm]    = useState({ date: '', name: '', type: 'Holiday' as typeof TYPES[number], notes: '', start_time: '', end_time: '' });
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState('');
 
@@ -48,9 +48,13 @@ export default function SchoolCalendarPage() {
     if (!form.date || !form.name.trim()) { setError('Date and name are required.'); return; }
     setSaving(true); setError('');
     try {
-      await api.post('/api/school-calendar', form);
+      await api.post('/api/school-calendar', {
+        ...form,
+        start_time: form.start_time || undefined,
+        end_time:   form.end_time   || undefined,
+      });
       setAdding(false);
-      setForm({ date: '', name: '', type: 'Holiday', notes: '' });
+      setForm({ date: '', name: '', type: 'Holiday', notes: '', start_time: '', end_time: '' });
       await load();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -83,7 +87,7 @@ export default function SchoolCalendarPage() {
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#0F172A' }}>School Calendar</h1>
           <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>
-            Holidays and events — teachers are not marked absent on these days
+            Holidays and events — whole-day or partial-day; only affected lessons are excused
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -135,6 +139,30 @@ export default function SchoolCalendarPage() {
                 placeholder="Optional" />
             </div>
           </div>
+          {/* Partial-day times */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>
+                Start Time <span style={{ color: '#94A3B8', fontWeight: 400 }}>(optional — leave empty for whole day)</span>
+              </label>
+              <input type="time" className={inputCls} value={form.start_time}
+                onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>
+                End Time <span style={{ color: '#94A3B8', fontWeight: 400 }}>(optional)</span>
+              </label>
+              <input type="time" className={inputCls} value={form.end_time}
+                onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} />
+            </div>
+            <div className="flex items-end pb-0.5">
+              <p className="text-xs" style={{ color: '#94A3B8' }}>
+                {form.start_time && form.end_time
+                  ? `Only lessons from ${form.start_time} – ${form.end_time} will be affected.`
+                  : 'No times set — affects all lessons on this day.'}
+              </p>
+            </div>
+          </div>
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
           <div className="flex justify-end">
             <button onClick={save} disabled={saving}
@@ -164,7 +192,7 @@ export default function SchoolCalendarPage() {
                 <p className="text-xs font-bold uppercase tracking-widest mb-2 px-1" style={{ color: '#94A3B8' }}>{label}</p>
                 <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
                   <div className="overflow-x-auto">
-                  <table className="min-w-[600px] w-full text-sm">
+                  <table className="min-w-[700px] w-full text-sm">
                     <tbody>
                       {byMonth[month].map((e, i) => (
                         <tr key={e.id} className="hover:bg-slate-50 transition-colors"
@@ -174,6 +202,11 @@ export default function SchoolCalendarPage() {
                           </td>
                           <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{e.name}</td>
                           <td className="px-4 py-3"><Badge type={e.type} /></td>
+                          <td className="px-4 py-3 text-xs" style={{ color: '#64748B' }}>
+                            {e.start_time && e.end_time
+                              ? `${e.start_time.slice(0,5)} – ${e.end_time.slice(0,5)}`
+                              : <span style={{ color: '#CBD5E1' }}>Whole day</span>}
+                          </td>
                           <td className="px-4 py-3 text-xs" style={{ color: '#94A3B8' }}>{e.notes ?? ''}</td>
                           <td className="px-4 py-3 text-right">
                             <button onClick={() => del(e.id, e.name)}
