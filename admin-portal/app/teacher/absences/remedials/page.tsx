@@ -96,7 +96,7 @@ function SubmitProofModal({
     canvas.height = video.videoHeight;
     canvas.getContext('2d')?.drawImage(video, 0, 0);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-    setImageBase64(dataUrl.split(',')[1]);
+    setImageBase64(dataUrl);
     streamRef.current?.getTracks().forEach(t => t.stop());
     setStep('preview');
   }
@@ -181,7 +181,7 @@ function SubmitProofModal({
       ) : (
         <div className="flex-1 overflow-y-auto bg-[#F4EFE6]">
           <img
-            src={`data:image/jpeg;base64,${imageBase64}`}
+            src={imageBase64}
             alt="Captured proof"
             className="w-full max-h-64 object-cover"
           />
