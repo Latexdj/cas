@@ -276,6 +276,14 @@ async function runMigrations() {
         UNIQUE (session_id, teacher_id, date)
       )
     `);
+    await pool.query(`ALTER TABLE plc_attendance ADD COLUMN IF NOT EXISTS academic_year_id UUID REFERENCES academic_years(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE plc_attendance ADD COLUMN IF NOT EXISTS semester SMALLINT`);
+    await pool.query(`ALTER TABLE plc_attendance ADD COLUMN IF NOT EXISTS agenda TEXT`);
+    await pool.query(`ALTER TABLE plc_attendance ADD COLUMN IF NOT EXISTS gps_coordinates TEXT`);
+    await pool.query(`ALTER TABLE plc_attendance ADD COLUMN IF NOT EXISTS photo_url TEXT`);
+    await pool.query(`ALTER TABLE plc_attendance ADD COLUMN IF NOT EXISTS photo_size_kb INTEGER`);
+    await pool.query(`ALTER TABLE plc_attendance ADD COLUMN IF NOT EXISTS location_name TEXT`);
+    await pool.query(`ALTER TABLE plc_attendance ADD COLUMN IF NOT EXISTS location_verified BOOLEAN NOT NULL DEFAULT false`);
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_plc_attendance_school_date
         ON plc_attendance(school_id, date DESC)
@@ -342,6 +350,14 @@ async function runMigrations() {
         UNIQUE (meeting_id, teacher_id, date)
       )
     `);
+    await pool.query(`ALTER TABLE meeting_attendance ADD COLUMN IF NOT EXISTS academic_year_id UUID REFERENCES academic_years(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE meeting_attendance ADD COLUMN IF NOT EXISTS semester SMALLINT`);
+    await pool.query(`ALTER TABLE meeting_attendance ADD COLUMN IF NOT EXISTS notes TEXT`);
+    await pool.query(`ALTER TABLE meeting_attendance ADD COLUMN IF NOT EXISTS gps_coordinates TEXT`);
+    await pool.query(`ALTER TABLE meeting_attendance ADD COLUMN IF NOT EXISTS photo_url TEXT`);
+    await pool.query(`ALTER TABLE meeting_attendance ADD COLUMN IF NOT EXISTS photo_size_kb INTEGER`);
+    await pool.query(`ALTER TABLE meeting_attendance ADD COLUMN IF NOT EXISTS location_name TEXT`);
+    await pool.query(`ALTER TABLE meeting_attendance ADD COLUMN IF NOT EXISTS location_verified BOOLEAN NOT NULL DEFAULT false`);
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_meeting_attendance_school_date
         ON meeting_attendance(school_id, date DESC)
