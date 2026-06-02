@@ -352,6 +352,50 @@ async function runMigrations() {
       CREATE INDEX IF NOT EXISTS idx_meeting_absences_school_date
         ON meeting_absences(school_id, date DESC)
     `);
+    // Absences + Remedial Module
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS absences (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id         UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id        UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        date              DATE NOT NULL,
+        subject           TEXT,
+        class_name        TEXT,
+        scheduled_period  INTEGER,
+        status            TEXT NOT NULL DEFAULT 'Absent',
+        is_auto_generated BOOLEAN NOT NULL DEFAULT false,
+        reason            TEXT,
+        detected_at       TIMESTAMPTZ,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at        TIMESTAMPTZ
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS remedial_lessons (
+        id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id             UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id            UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        absence_id            UUID REFERENCES absences(id) ON DELETE SET NULL,
+        original_absence_date DATE NOT NULL,
+        subject               TEXT NOT NULL,
+        class_name            TEXT NOT NULL,
+        remedial_date         DATE NOT NULL,
+        remedial_time         TIME NOT NULL,
+        duration_periods      INTEGER,
+        topic                 TEXT,
+        location_id           UUID REFERENCES locations(id) ON DELETE SET NULL,
+        location_name         TEXT,
+        notes                 TEXT,
+        status                TEXT NOT NULL DEFAULT 'Scheduled',
+        photo_url             TEXT,
+        gps_coordinates       TEXT,
+        verified_by           TEXT,
+        verified_at           TIMESTAMPTZ,
+        created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at            TIMESTAMPTZ
+      )
+    `);
+
     // Assessment Module
     await pool.query(`ALTER TABLE programs ADD COLUMN IF NOT EXISTS exam_body TEXT NOT NULL DEFAULT 'WAEC'`);
     await pool.query(`ALTER TABLE schools  ADD COLUMN IF NOT EXISTS ca_percentage INTEGER NOT NULL DEFAULT 30`);

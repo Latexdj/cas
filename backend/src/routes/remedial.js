@@ -80,12 +80,15 @@ router.get('/outstanding/:teacherId', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const {
-      teacherId, absenceId, originalAbsenceDate,
+      absenceId, originalAbsenceDate,
       subject, className, remedialDate, remedialTime,
       durationPeriods, topic, locationName, notes,
     } = req.body;
 
-    const missing = ['teacherId', 'originalAbsenceDate', 'subject', 'className', 'remedialDate', 'remedialTime']
+    // Allow the frontend to pass either teacherId explicitly or rely on the authenticated user
+    const teacherId = req.body.teacherId || req.user.id;
+
+    const missing = ['originalAbsenceDate', 'subject', 'className', 'remedialDate', 'remedialTime']
       .filter(f => !req.body[f]);
     if (missing.length) {
       return res.status(400).json({ error: `Missing required fields: ${missing.join(', ')}` });
@@ -100,13 +103,21 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Remedial date cannot be in the past' });
     }
 
-    let locationId = null;
-    if (locationName) {
-      const { rows } = await pool.query(
+    // Resolve location — accept either a locationId or a locationName
+    let locationId = req.body.locationId || null;
+    let resolvedLocationName = locationName || null;
+    if (locationId && !resolvedLocationName) {
+      const { rows: locRows } = await pool.query(
+        `SELECT name FROM locations WHERE id = $1 AND school_id = $2 LIMIT 1`,
+        [locationId, req.schoolId]
+      );
+      if (locRows.length) resolvedLocationName = locRows[0].name;
+    } else if (locationName && !locationId) {
+      const { rows: locRows } = await pool.query(
         `SELECT id FROM locations WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
         [req.schoolId, locationName]
       );
-      if (rows.length) locationId = rows[0].id;
+      if (locRows.length) locationId = locRows[0].id;
     }
 
     const { rows } = await pool.query(
@@ -119,7 +130,7 @@ router.post('/', async (req, res, next) => {
       [
         req.schoolId, teacherId, absenceId || null, originalAbsenceDate, subject, className,
         remedialDate, remedialTime, durationPeriods || null, topic || null,
-        locationId, locationName || null, notes || null,
+        locationId, resolvedLocationName, notes || null,
       ]
     );
 

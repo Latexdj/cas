@@ -66,14 +66,16 @@ export default function RemedialPage() {
     setLoading(true);
     setError('');
     try {
+      const teacher = (await import('@/lib/teacher-auth')).getTeacher();
       await teacherApi.post('/api/remedial', {
+        teacherId: teacher?.id,
         absenceId,
         subject,
         className,
-        originalDate: date,
+        originalAbsenceDate: date,
         remedialDate,
         remedialTime,
-        duration: Number(duration),
+        durationPeriods: Number(duration),
         topic: topic.trim(),
         locationId,
         notes: notes.trim(),
