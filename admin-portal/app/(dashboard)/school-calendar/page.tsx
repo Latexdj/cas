@@ -68,6 +68,17 @@ export default function SchoolCalendarPage() {
     catch { alert('Failed to delete.'); }
   }
 
+  async function reapply(id: string, name: string) {
+    try {
+      const { data } = await api.post<{ absences_excused: number }>(`/api/school-calendar/${id}/reapply`);
+      const n = data.absences_excused;
+      alert(n > 0
+        ? `Done — ${n} absence record${n !== 1 ? 's' : ''} for "${name}" have been excused.`
+        : `No outstanding absences found for "${name}" on that date.`
+      );
+    } catch { alert('Failed to reapply. Please try again.'); }
+  }
+
   // Group by month
   const byMonth: Record<string, SchoolCalendarEntry[]> = {};
   for (const e of entries) {
@@ -209,10 +220,17 @@ export default function SchoolCalendarPage() {
                           </td>
                           <td className="px-4 py-3 text-xs" style={{ color: '#94A3B8' }}>{e.notes ?? ''}</td>
                           <td className="px-4 py-3 text-right">
-                            <button onClick={() => del(e.id, e.name)}
-                              className="text-xs font-semibold" style={{ color: '#DC2626' }}>
-                              Remove
-                            </button>
+                            <div className="flex items-center justify-end gap-3">
+                              <button onClick={() => reapply(e.id, e.name)}
+                                className="text-xs font-semibold" style={{ color: '#2563EB' }}
+                                title="Re-run absence clearing for this event (use if teachers were already marked absent when this event was added)">
+                                Fix Absences
+                              </button>
+                              <button onClick={() => del(e.id, e.name)}
+                                className="text-xs font-semibold" style={{ color: '#DC2626' }}>
+                                Remove
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

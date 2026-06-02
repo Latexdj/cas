@@ -105,6 +105,46 @@ router.post('/', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/school-calendar/:id/reapply — re-run retroactive absence clearing for an existing event
+router.post('/:id/reapply', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT date::text AS date, name, type, start_time::text AS start_time, end_time::text AS end_time
+       FROM school_calendar WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Entry not found' });
+    const { date, name, type, start_time, end_time } = rows[0];
+
+    let rowCount = 0;
+    if (!start_time || !end_time) {
+      ({ rowCount } = await pool.query(
+        `UPDATE absences SET status = 'Excused', updated_at = now()
+         WHERE school_id = $1 AND date = $2
+           AND is_auto_generated = true AND status = 'Absent'`,
+        [req.schoolId, date]
+      ));
+    } else {
+      ({ rowCount } = await pool.query(
+        `UPDATE absences a SET status = 'Excused', updated_at = now()
+         WHERE a.school_id = $1 AND a.date = $2
+           AND a.is_auto_generated = true AND a.status = 'Absent'
+           AND EXISTS (
+             SELECT 1 FROM timetable tt
+             WHERE tt.school_id  = a.school_id
+               AND tt.teacher_id = a.teacher_id
+               AND tt.start_time < $4::time
+               AND tt.end_time   > $3::time
+           )`,
+        [req.schoolId, date, start_time, end_time]
+      ));
+    }
+
+    console.log(`[Calendar] Reapply: excused ${rowCount} absence(s) on ${date} (${type}: ${name})`);
+    res.json({ date, name, absences_excused: rowCount });
+  } catch (err) { next(err); }
+});
+
 // DELETE /api/school-calendar/:id — admin only
 router.delete('/:id', adminOnly, async (req, res, next) => {
   try {
