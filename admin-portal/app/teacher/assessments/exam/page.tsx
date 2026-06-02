@@ -84,7 +84,7 @@ function ExamContent() {
   }
 
   return (
-    <div className="min-h-screen pb-40" style={{ background: '#F4EFE6' }}>
+    <div className="min-h-screen pb-8" style={{ background: '#F4EFE6' }}>
       {/* Header */}
       <div className="sticky top-0 z-10 bg-[#F4EFE6] px-4 pt-6 pb-3">
         <div className="flex items-center gap-3 mb-3">
@@ -162,17 +162,20 @@ function ExamContent() {
       </div>
 
       {/* Footer */}
-      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-[#E2D9CC] px-4 py-3 flex items-center gap-3 z-20 shadow-lg">
-        <p className="flex-1 text-sm text-[#8C7E6E]">{rows.length} student{rows.length !== 1 ? 's' : ''}</p>
-        <button
-          onClick={save}
-          disabled={saving || loading}
-          className="px-6 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-60 transition-opacity"
-          style={{ background: primary }}
-        >
-          {saving ? 'Saving…' : 'Save Exam Scores'}
-        </button>
-      </div>
+      {/* Save button — inline, after the student list */}
+      {!loading && rows.length > 0 && (
+        <div className="px-4 pt-4 pb-6 flex flex-col items-center gap-2">
+          <button
+            onClick={save}
+            disabled={saving}
+            className="w-full max-w-sm px-6 py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-60 transition-opacity shadow-sm"
+            style={{ background: primary }}
+          >
+            {saving ? 'Saving…' : 'Save Exam Scores'}
+          </button>
+          <p className="text-xs text-[#8C7E6E]">{rows.length} student{rows.length !== 1 ? 's' : ''}</p>
+        </div>
+      )}
     </div>
   );
 }
