@@ -361,15 +361,17 @@ async function runMigrations() {
         date              DATE NOT NULL,
         subject           TEXT,
         class_name        TEXT,
-        scheduled_period  INTEGER,
+        scheduled_period  TEXT,
         status            TEXT NOT NULL DEFAULT 'Absent',
         is_auto_generated BOOLEAN NOT NULL DEFAULT false,
         reason            TEXT,
         detected_at       TIMESTAMPTZ,
+        periods_lost      INTEGER NOT NULL DEFAULT 1,
         created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at        TIMESTAMPTZ
       )
     `);
+    await pool.query(`ALTER TABLE absences ADD COLUMN IF NOT EXISTS periods_lost INTEGER NOT NULL DEFAULT 1`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS remedial_lessons (
         id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -381,6 +383,7 @@ async function runMigrations() {
         class_name            TEXT NOT NULL,
         remedial_date         DATE NOT NULL,
         remedial_time         TIME NOT NULL,
+        remedial_end_time     TIME,
         duration_periods      INTEGER,
         topic                 TEXT,
         location_id           UUID REFERENCES locations(id) ON DELETE SET NULL,
@@ -395,6 +398,7 @@ async function runMigrations() {
         updated_at            TIMESTAMPTZ
       )
     `);
+    await pool.query(`ALTER TABLE remedial_lessons ADD COLUMN IF NOT EXISTS remedial_end_time TIME`);
 
     // Assessment Module
     await pool.query(`ALTER TABLE programs ADD COLUMN IF NOT EXISTS exam_body TEXT NOT NULL DEFAULT 'WAEC'`);

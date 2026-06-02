@@ -61,13 +61,16 @@ router.get('/outstanding/:teacherId', async (req, res, next) => {
       return res.status(403).json({ error: 'Access denied' });
     }
     const { rows } = await pool.query(
-      `SELECT id, date, subject, class_name, scheduled_period, reason
-       FROM absences
-       WHERE school_id = $1 AND teacher_id = $2
-         AND status = 'Absent'
-         AND is_auto_generated = true
-         AND date >= CURRENT_DATE - INTERVAL '30 days'
-       ORDER BY date DESC`,
+      `SELECT ab.id, ab.date::text AS date, ab.subject, ab.class_name,
+              ab.scheduled_period, ab.reason, ab.periods_lost,
+              s.period_duration_minutes
+       FROM absences ab
+       JOIN schools s ON s.id = ab.school_id
+       WHERE ab.school_id = $1 AND ab.teacher_id = $2
+         AND ab.status = 'Absent'
+         AND ab.is_auto_generated = true
+         AND ab.date >= CURRENT_DATE - INTERVAL '30 days'
+       ORDER BY ab.date DESC`,
       [req.schoolId, req.params.teacherId]
     );
     res.json(rows);
@@ -82,7 +85,8 @@ router.post('/', async (req, res, next) => {
     const {
       absenceId, originalAbsenceDate,
       subject, className, remedialDate, remedialTime,
-      durationPeriods, topic, locationName, notes,
+      remedialEndTime, durationPeriods, periodsCovered,
+      topic, locationName, notes,
     } = req.body;
 
     // Allow the frontend to pass either teacherId explicitly or rely on the authenticated user
@@ -120,16 +124,17 @@ router.post('/', async (req, res, next) => {
       if (locRows.length) locationId = locRows[0].id;
     }
 
+    const storedPeriods = periodsCovered ?? durationPeriods ?? null;
     const { rows } = await pool.query(
       `INSERT INTO remedial_lessons
          (school_id, teacher_id, absence_id, original_absence_date, subject, class_name,
-          remedial_date, remedial_time, duration_periods, topic,
+          remedial_date, remedial_time, remedial_end_time, duration_periods, topic,
           location_id, location_name, notes, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'Scheduled')
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'Scheduled')
        RETURNING *`,
       [
         req.schoolId, teacherId, absenceId || null, originalAbsenceDate, subject, className,
-        remedialDate, remedialTime, durationPeriods || null, topic || null,
+        remedialDate, remedialTime, remedialEndTime || null, storedPeriods, topic || null,
         locationId, resolvedLocationName, notes || null,
       ]
     );
@@ -245,11 +250,31 @@ router.patch('/:id/verify', adminOnly, async (req, res, next) => {
     }
 
     if (rows[0].absence_id) {
-      await pool.query(
-        `UPDATE absences SET status = 'Verified', updated_at = now()
-         WHERE id = $1 AND school_id = $2`,
+      const periodsCovered = rows[0].duration_periods ?? 1;
+
+      // Fetch current periods_lost on the absence
+      const { rows: absRows } = await pool.query(
+        `SELECT periods_lost FROM absences WHERE id = $1 AND school_id = $2`,
         [rows[0].absence_id, req.schoolId]
       );
+      const periodsLost = absRows[0]?.periods_lost ?? 1;
+      const remaining   = periodsLost - periodsCovered;
+
+      if (remaining <= 0) {
+        // All periods covered — fully resolve the absence
+        await pool.query(
+          `UPDATE absences SET status = 'Made Up', periods_lost = 0, updated_at = now()
+           WHERE id = $1 AND school_id = $2`,
+          [rows[0].absence_id, req.schoolId]
+        );
+      } else {
+        // Partial coverage — reduce periods_lost, leave status 'Absent' so it reappears in outstanding
+        await pool.query(
+          `UPDATE absences SET periods_lost = $1, updated_at = now()
+           WHERE id = $2 AND school_id = $3`,
+          [remaining, rows[0].absence_id, req.schoolId]
+        );
+      }
     }
 
     res.json(rows[0]);

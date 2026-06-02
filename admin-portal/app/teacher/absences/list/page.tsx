@@ -13,6 +13,8 @@ interface AbsenceRecord {
   scheduled_period: string | null;
   status: string;
   reason: string | null;
+  periods_lost: number;
+  period_duration_minutes: number;
 }
 
 function fmt(iso: string) {
@@ -99,6 +101,7 @@ export default function AbsenceListPage() {
               <p className="text-sm font-semibold text-[#2C2218]">{ab.subject} — {ab.class_name}</p>
               <p className="text-xs text-[#8C7E6E]">
                 {fmt(ab.date)}{ab.scheduled_period ? ` · ${ab.scheduled_period}` : ''}
+                {ab.periods_lost > 1 ? ` · ${ab.periods_lost} periods outstanding` : ' · 1 period outstanding'}
               </p>
               {ab.reason && <p className="text-xs text-[#8C7E6E] mt-1 italic">&ldquo;{ab.reason}&rdquo;</p>}
 
@@ -114,7 +117,7 @@ export default function AbsenceListPage() {
                 </button>
                 <button
                   onClick={() => router.push(
-                    `/teacher/absences/remedial?absenceId=${ab.id}&subject=${encodeURIComponent(ab.subject)}&className=${encodeURIComponent(ab.class_name)}&date=${ab.date}`
+                    `/teacher/absences/remedial?absenceId=${ab.id}&subject=${encodeURIComponent(ab.subject)}&className=${encodeURIComponent(ab.class_name)}&date=${ab.date}&periodsLost=${ab.periods_lost ?? 1}&periodDuration=${ab.period_duration_minutes ?? 60}`
                   )}
                   className="flex-1 py-2 rounded-xl text-xs font-semibold text-white"
                   style={{ background: primary }}

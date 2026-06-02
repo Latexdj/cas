@@ -54,6 +54,12 @@ async function runAbsenceCheck(schoolId) {
 
   console.log(`[AbsenceCheck] school=${schoolId} date=${today} day=${dayOfWeek} time=${now}`);
 
+  // Fetch school's period duration for periods_lost calculation
+  const { rows: schoolSettingRows } = await pool.query(
+    'SELECT period_duration_minutes FROM schools WHERE id = $1', [schoolId]
+  );
+  const periodMins = schoolSettingRows[0]?.period_duration_minutes ?? 60;
+
   // Skip entirely if today is a school holiday or event
   const { rows: calRows } = await pool.query(
     `SELECT name, type FROM school_calendar WHERE school_id = $1 AND date = $2 LIMIT 1`,
@@ -114,12 +120,14 @@ async function runAbsenceCheck(schoolId) {
       try {
         if (hasAttendance(lesson.teacher_id, lesson.subject, className)) continue;
 
+        const lessonMins  = timeToMinutes(lesson.end_time) - timeToMinutes(lesson.start_time);
+        const periodsLost = Math.max(1, Math.round(lessonMins / periodMins));
         const { rows: inserted } = await pool.query(`
           INSERT INTO absences
             (school_id, date, detected_at, teacher_id, subject, class_name,
-             scheduled_period, status, is_auto_generated, reason)
+             scheduled_period, status, is_auto_generated, reason, periods_lost)
           VALUES
-            ($1, $2, $3::time, $4, $5, $6, $7, 'Absent', true, 'Daily automated check')
+            ($1, $2, $3::time, $4, $5, $6, $7, 'Absent', true, 'Daily automated check', $8)
           ON CONFLICT (date, teacher_id, subject, class_name)
             WHERE is_auto_generated = true
           DO NOTHING
@@ -132,6 +140,7 @@ async function runAbsenceCheck(schoolId) {
           lesson.subject,
           className,
           `${lesson.start_time}–${lesson.end_time}`,
+          periodsLost,
         ]);
 
         if (inserted.length) {
@@ -168,6 +177,11 @@ async function runPerLessonCheck(schoolId) {
   const now       = new Date().toTimeString().slice(0, 5);
   const nowMins   = timeToMinutes(now);
 
+  const { rows: schoolSettingRows } = await pool.query(
+    'SELECT period_duration_minutes FROM schools WHERE id = $1', [schoolId]
+  );
+  const periodMins = schoolSettingRows[0]?.period_duration_minutes ?? 60;
+
   const { rows: calRows } = await pool.query(
     `SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 LIMIT 1`,
     [schoolId, today]
@@ -202,16 +216,18 @@ async function runPerLessonCheck(schoolId) {
       try {
         if (hasAttendance(lesson.teacher_id, lesson.subject, className)) continue;
 
+        const lessonMins  = timeToMinutes(lesson.end_time) - timeToMinutes(lesson.start_time);
+        const periodsLost = Math.max(1, Math.round(lessonMins / periodMins));
         await pool.query(`
           INSERT INTO absences
             (school_id, date, detected_at, teacher_id, subject, class_name,
-             scheduled_period, status, is_auto_generated, reason)
-          VALUES ($1,$2,$3::time,$4,$5,$6,$7,'Absent',true,'Grace period expired — no attendance submitted')
+             scheduled_period, status, is_auto_generated, reason, periods_lost)
+          VALUES ($1,$2,$3::time,$4,$5,$6,$7,'Absent',true,'Grace period expired — no attendance submitted',$8)
           ON CONFLICT (date, teacher_id, subject, class_name)
             WHERE is_auto_generated = true
           DO NOTHING
         `, [schoolId, today, now, lesson.teacher_id, lesson.subject, className,
-            `${lesson.start_time}–${lesson.end_time}`]);
+            `${lesson.start_time}–${lesson.end_time}`, periodsLost]);
       } catch (err) {
         console.error(`[PerLessonCheck] Error: ${lesson.teacher_name} / ${className}:`, err.message);
       }

@@ -65,14 +65,17 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
     }
     const { rows } = await pool.query(
       `SELECT
-         id, date::text AS date, subject, class_name, scheduled_period,
-         status, reason, created_at
-       FROM absences
-       WHERE school_id = $1 AND teacher_id = $2
-         AND status = 'Absent'
-         AND is_auto_generated = true
-         AND date >= CURRENT_DATE - INTERVAL '30 days'
-       ORDER BY date DESC`,
+         ab.id, ab.date::text AS date, ab.subject, ab.class_name,
+         ab.scheduled_period, ab.status, ab.reason, ab.created_at,
+         ab.periods_lost,
+         s.period_duration_minutes
+       FROM absences ab
+       JOIN schools s ON s.id = ab.school_id
+       WHERE ab.school_id = $1 AND ab.teacher_id = $2
+         AND ab.status = 'Absent'
+         AND ab.is_auto_generated = true
+         AND ab.date >= CURRENT_DATE - INTERVAL '30 days'
+       ORDER BY ab.date DESC`,
       [req.schoolId, req.params.teacherId]
     );
     res.json(rows);
