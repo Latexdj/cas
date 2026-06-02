@@ -48,6 +48,12 @@ interface AbsenceRecord {
   status: string;
 }
 
+interface Teacher {
+  id: string;
+  name: string;
+  department: string | null;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MEETING_TYPES: MeetingType[] = ['PLC', 'Morning Briefing', 'Staff Meeting', 'PTA', 'Other'];
@@ -758,6 +764,123 @@ function QrIcon() {
   );
 }
 
+// ─── ManualAttendanceModal ─────────────────────────────────────────────────────
+
+function ManualAttendanceModal({
+  meetings,
+  onSaved,
+  onClose,
+}: {
+  meetings: Meeting[];
+  onSaved: () => void;
+  onClose: () => void;
+}) {
+  const [meetingId,  setMeetingId]  = useState('');
+  const [teacherId,  setTeacherId]  = useState('');
+  const [date,       setDate]       = useState('');
+  const [notes,      setNotes]      = useState('');
+  const [teachers,   setTeachers]   = useState<Teacher[]>([]);
+  const [saving,     setSaving]     = useState(false);
+  const [error,      setError]      = useState('');
+
+  useEffect(() => {
+    api.get<Teacher[]>('/api/teachers').then(r => setTeachers(r.data)).catch(() => {});
+  }, []);
+
+  // Pre-fill date when a meeting is selected
+  useEffect(() => {
+    if (meetingId) {
+      const m = meetings.find(x => x.id === meetingId);
+      if (m?.date) setDate(m.date.slice(0, 10));
+    }
+  }, [meetingId, meetings]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!meetingId || !teacherId || !date) { setError('Meeting, teacher, and date are required.'); return; }
+    setSaving(true); setError('');
+    try {
+      await api.post('/api/meetings/attendance/manual', { meetingId, teacherId, date, notes: notes.trim() || undefined });
+      onSaved();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Failed to record attendance.');
+    } finally { setSaving(false); }
+  }
+
+  const INPUT = 'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-5 border-b border-slate-100">
+          <h3 className="text-base font-bold text-slate-800">Record Attendance Manually</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Use when a teacher attended but could not log in</p>
+        </div>
+        <form onSubmit={submit} className="px-6 py-5 space-y-4">
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Meeting *</label>
+            <select className={INPUT} value={meetingId} onChange={e => setMeetingId(e.target.value)}>
+              <option value="">Select a meeting…</option>
+              {meetings.map(m => (
+                <option key={m.id} value={m.id}>
+                  {fmtDate(m.date)} — {m.title} ({m.meeting_type})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Teacher *</label>
+            <select className={INPUT} value={teacherId} onChange={e => setTeacherId(e.target.value)}>
+              <option value="">Select a teacher…</option>
+              {teachers.map(t => (
+                <option key={t.id} value={t.id}>{t.name}{t.department ? ` — ${t.department}` : ''}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Date *</label>
+            <input type="date" className={INPUT} value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+              Reason / Notes <span className="font-normal text-slate-400">(optional)</span>
+            </label>
+            <input
+              className={INPUT}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="e.g. Phone battery died, network issue…"
+            />
+          </div>
+
+          <div className="rounded-xl px-3 py-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200">
+            This will create an attendance record without GPS or photo proof and clear any absence recorded for this teacher on this date.
+          </div>
+
+          {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+              style={{ backgroundColor: GREEN }}>
+              {saving ? 'Saving…' : 'Record Attendance'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MeetingsPage() {
@@ -783,6 +906,7 @@ export default function MeetingsPage() {
   const [qrMeeting,      setQrMeeting]      = useState<Meeting | null>(null);
   const [photoRecord,    setPhotoRecord]    = useState<AttendanceRecord | null>(null);
   const [minutesMeeting, setMinutesMeeting] = useState<Meeting | null>(null);
+  const [manualModal,    setManualModal]    = useState(false);
 
   // ── Loaders ────────────────────────────────────────────────────
 
@@ -1067,6 +1191,16 @@ export default function MeetingsPage() {
                 <p className="text-sm font-semibold text-slate-600">
                   {attendance.length} record{attendance.length !== 1 ? 's' : ''}
                 </p>
+                <button
+                  onClick={() => setManualModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                  style={{ backgroundColor: GREEN }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Record Manually
+                </button>
               </div>
               {attendance.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 text-sm">No attendance records found.</div>
@@ -1179,6 +1313,14 @@ export default function MeetingsPage() {
           meeting={minutesMeeting}
           onClose={() => setMinutesMeeting(null)}
           onSaved={async () => { setLoading(true); await loadMeetings(); setLoading(false); }}
+        />
+      )}
+
+      {manualModal && (
+        <ManualAttendanceModal
+          meetings={meetings}
+          onClose={() => setManualModal(false)}
+          onSaved={async () => { setManualModal(false); setLoading(true); await loadAttendance(); setLoading(false); }}
         />
       )}
     </div>

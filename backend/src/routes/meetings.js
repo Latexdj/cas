@@ -410,6 +410,68 @@ router.get('/absences', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/meetings/attendance/manual — admin manually records attendance for a teacher
+router.post('/attendance/manual', adminOnly, async (req, res, next) => {
+  try {
+    const { meetingId, teacherId, date, notes } = req.body;
+    if (!meetingId || !teacherId || !date) {
+      return res.status(400).json({ error: 'meetingId, teacherId, and date are required' });
+    }
+
+    const { rows: mtgRows } = await pool.query(
+      `SELECT m.id, m.title, m.meeting_type, l.name AS location_name
+       FROM meetings m
+       LEFT JOIN locations l ON l.id = m.location_id
+       WHERE m.id = $1 AND m.school_id = $2`,
+      [meetingId, req.schoolId]
+    );
+    if (!mtgRows.length) return res.status(404).json({ error: 'Meeting not found' });
+    const meeting = mtgRows[0];
+
+    const { rows: tRows } = await pool.query(
+      'SELECT id, name FROM teachers WHERE id = $1 AND school_id = $2 AND status = $3',
+      [teacherId, req.schoolId, 'Active']
+    );
+    if (!tRows.length) return res.status(404).json({ error: 'Teacher not found' });
+
+    const { rows: ayRows } = await pool.query(
+      'SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1',
+      [req.schoolId]
+    );
+    const yearId = ayRows[0]?.id ?? null;
+    const sem    = ayRows[0]?.current_semester ?? null;
+
+    const { rows: inserted } = await pool.query(
+      `INSERT INTO meeting_attendance
+         (school_id, meeting_id, teacher_id, date, academic_year_id, semester,
+          notes, location_name, location_verified)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false)
+       ON CONFLICT (meeting_id, teacher_id, date) DO UPDATE
+         SET notes = EXCLUDED.notes, updated_at = now()
+       RETURNING *`,
+      [
+        req.schoolId, meetingId, teacherId, date, yearId, sem,
+        notes?.trim() || 'Manually recorded by admin',
+        meeting.location_name || null,
+      ]
+    );
+
+    // Clear any auto-generated absence for this teacher/meeting/date
+    await pool.query(
+      'DELETE FROM meeting_absences WHERE meeting_id = $1 AND teacher_id = $2 AND date = $3',
+      [meetingId, teacherId, date]
+    );
+
+    await logAudit(
+      req.schoolId, 'MEETING_ATTENDANCE_MANUAL', req.user.id, req.user.name,
+      'meeting_attendance', inserted[0].id,
+      { teacher: tRows[0].name, meeting: meeting.title, date, notes: notes?.trim() || null }
+    );
+
+    res.status(201).json(inserted[0]);
+  } catch (err) { next(err); }
+});
+
 // DELETE /api/meetings/attendance/:id — admin delete attendance record
 router.delete('/attendance/:id', adminOnly, async (req, res, next) => {
   try {
