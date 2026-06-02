@@ -315,8 +315,8 @@ router.get('/summary', adminOnly, async (req, res, next) => {
         SELECT teacher_id, COUNT(*) AS present_count
         FROM meeting_attendance
         WHERE school_id = $1
-          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
-          AND ($3::int  IS NULL OR semester = $3::int)
+          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid OR academic_year_id IS NULL)
+          AND ($3::int  IS NULL OR semester = $3::int         OR semester          IS NULL)
         GROUP BY teacher_id
       ),
       dr AS (
@@ -325,8 +325,8 @@ router.get('/summary', adminOnly, async (req, res, next) => {
           COALESCE(MAX(date), CURRENT_DATE) AS max_date
         FROM meeting_attendance
         WHERE school_id = $1
-          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
-          AND ($3::int  IS NULL OR semester = $3::int)
+          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid OR academic_year_id IS NULL)
+          AND ($3::int  IS NULL OR semester = $3::int         OR semester          IS NULL)
       ),
       abs AS (
         SELECT ab.teacher_id, COUNT(*) AS absent_count
