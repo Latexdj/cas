@@ -179,10 +179,50 @@ async function sendTestEmail() {
   });
 }
 
+async function sendStaffCredentials({ staffName, staffEmail, password, schoolName, schoolCode, loginUrl }) {
+  const url = loginUrl || 'https://admin-portal-eta-topaz.vercel.app/staff-portal/login';
+  return sendMail({
+    to: staffEmail,
+    subject: `Your Staff Portal Login — ${schoolName}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#ffffff;">
+        <div style="background:#1a5c38;padding:28px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:20px;">Staff Portal Access</h1>
+          <p style="margin:6px 0 0;color:#a7d4b8;font-size:14px;">${schoolName}</p>
+        </div>
+        <div style="padding:28px 32px;">
+          <p style="color:#334155;font-size:15px;">Hi ${staffName},</p>
+          <p style="color:#334155;font-size:14px;">Your staff portal account has been created. Use the details below to sign in.</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#F0FDF4;border-radius:10px;border:1px solid #BBF7D0;margin:20px 0;">
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #BBF7D0;">
+              <p style="margin:0;font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:0.6px;">School Code</p>
+              <p style="margin:4px 0 0;font-size:22px;font-weight:800;color:#14532d;letter-spacing:2px;font-family:monospace;">${schoolCode}</p>
+            </td></tr>
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #BBF7D0;">
+              <p style="margin:0;font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:0.6px;">Email</p>
+              <p style="margin:4px 0 0;font-size:16px;font-weight:700;color:#14532d;font-family:monospace;">${staffEmail}</p>
+            </td></tr>
+            <tr><td style="padding:14px 20px;">
+              <p style="margin:0;font-size:11px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:0.6px;">Password</p>
+              <p style="margin:4px 0 0;font-size:22px;font-weight:800;color:#14532d;letter-spacing:2px;font-family:monospace;">${password}</p>
+            </td></tr>
+          </table>
+          <p style="color:#334155;font-size:14px;">Login at: <a href="${url}" style="color:#1a5c38;font-weight:600;">${url}</a></p>
+          <p style="color:#64748b;font-size:12px;margin-top:24px;">Please keep this email private. You can change your password after logging in.</p>
+        </div>
+        <div style="background:#F8FAFC;padding:16px 32px;border-top:1px solid #E2E8F0;">
+          <p style="margin:0;font-size:11px;color:#94A3B8;text-align:center;">${schoolName} · Staff Portal</p>
+        </div>
+      </div>`,
+    text: `Staff Portal Login\n\nSchool: ${schoolName}\nSchool Code: ${schoolCode}\nEmail: ${staffEmail}\nPassword: ${password}\n\nLogin at: ${url}\n\nKeep this email private.`,
+  });
+}
+
 module.exports = {
   sendAbsenceNotification,
   sendRemedialScheduledNotification,
   sendDailyAbsenceReport,
   sendTeacherCredentials,
+  sendStaffCredentials,
   sendTestEmail,
 };

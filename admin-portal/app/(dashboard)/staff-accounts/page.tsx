@@ -81,6 +81,14 @@ export default function SupportStaffPage() {
     } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to delete'); }
   }
 
+  async function resendCredentials(id: string, name: string) {
+    if (!confirm(`Reset password and send new login credentials to ${name}?`)) return;
+    try {
+      const r = await api.post(`/api/school-staff/${id}/resend-credentials`);
+      alert((r.data as { message: string }).message);
+    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to send credentials'); }
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -131,6 +139,7 @@ export default function SupportStaffPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <button onClick={() => openEdit(s)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Edit</button>
+                      <button onClick={() => resendCredentials(s.id, s.name)} className="text-xs text-green-700 dark:text-green-400 hover:underline whitespace-nowrap">Send Login</button>
                       <button onClick={() => deleteStaff(s.id)} className="text-xs text-red-600 dark:text-red-400 hover:underline">Delete</button>
                     </div>
                   </td>
@@ -163,6 +172,11 @@ export default function SupportStaffPage() {
               ))}
             </div>
           </div>
+          {modal === 'add' && (
+            <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700 rounded-lg px-3 py-2">
+              Login credentials will be emailed to the staff member automatically on account creation.
+            </p>
+          )}
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="secondary" onClick={() => setModal('none')}>Cancel</Button>

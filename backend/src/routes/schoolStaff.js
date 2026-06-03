@@ -3,6 +3,7 @@ const router = require('express').Router();
 const bcrypt = require('bcrypt');
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription, adminOnly } = require('../middleware/auth');
+const { sendStaffCredentials } = require('../services/email.service');
 
 router.use(authenticate, requireActiveSubscription, adminOnly);
 
@@ -47,6 +48,21 @@ router.post('/', async (req, res, next) => {
         [staff.id, req.schoolId, role]
       );
     }
+
+    // Send credentials email (non-blocking — never fails the request)
+    const { rows: schoolRows } = await pool.query(
+      'SELECT name, code FROM schools WHERE id = $1', [req.schoolId]
+    );
+    if (schoolRows.length) {
+      sendStaffCredentials({
+        staffName:  staff.name,
+        staffEmail: staff.email,
+        password,
+        schoolName: schoolRows[0].name,
+        schoolCode: schoolRows[0].code,
+      }).catch(err => console.error('[StaffCredentials] Email failed:', err.message));
+    }
+
     res.status(201).json({ ...staff, roles });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'A staff account with this email already exists' });
@@ -94,6 +110,41 @@ router.put('/:id', async (req, res, next) => {
     if (err.code === '23505') return res.status(409).json({ error: 'Email already in use' });
     next(err);
   }
+});
+
+// POST /api/school-staff/:id/resend-credentials — resend login details with a new password
+router.post('/:id/resend-credentials', async (req, res, next) => {
+  try {
+    const { rows: staffRows } = await pool.query(
+      'SELECT id, name, email FROM school_staff WHERE id = $1 AND school_id = $2',
+      [req.params.id, req.schoolId]
+    );
+    if (!staffRows.length) return res.status(404).json({ error: 'Staff not found' });
+    const staff = staffRows[0];
+
+    // Generate a new random password and update it
+    const newPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-4).toUpperCase();
+    const hash = await bcrypt.hash(newPassword, 12);
+    await pool.query(
+      'UPDATE school_staff SET password_hash = $1 WHERE id = $2',
+      [hash, staff.id]
+    );
+
+    const { rows: schoolRows } = await pool.query(
+      'SELECT name, code FROM schools WHERE id = $1', [req.schoolId]
+    );
+    if (!schoolRows.length) return res.status(404).json({ error: 'School not found' });
+
+    await sendStaffCredentials({
+      staffName:  staff.name,
+      staffEmail: staff.email,
+      password:   newPassword,
+      schoolName: schoolRows[0].name,
+      schoolCode: schoolRows[0].code,
+    });
+
+    res.json({ message: `Login credentials sent to ${staff.email}` });
+  } catch (err) { next(err); }
 });
 
 // DELETE /api/school-staff/:id
