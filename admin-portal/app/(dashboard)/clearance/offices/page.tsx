@@ -17,7 +17,7 @@ interface ClearanceStaff { id: string; name: string; email: string; is_active: b
 interface Program { id: string; name: string; }
 interface House   { id: string; name: string; }
 
-const TYPE_LABELS: Record<string, string> = { general: 'General', hod: 'HOD', housemaster: 'Housemaster' };
+const TYPE_LABELS: Record<string, string> = { general: 'General', hod: 'HOD', housemaster: 'Housemaster', senior_housemaster: 'Senior Housemaster' };
 
 export default function OfficesPage() {
   const [offices,  setOffices]  = useState<Office[]>([]);
@@ -232,6 +232,7 @@ export default function OfficesPage() {
                   <option value="general">General (applies to all students)</option>
                   <option value="hod">HOD (applies by programme)</option>
                   <option value="housemaster">Housemaster (applies by house)</option>
+                  <option value="senior_housemaster">Senior Housemaster (all houses)</option>
                 </select>
               </div>
               {officeForm.office_type === 'hod' && (
