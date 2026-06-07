@@ -161,6 +161,28 @@ async function runMigrations() {
         UNIQUE (school_id, name)
       )
     `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS house_rooms (
+        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id  UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        house_name TEXT NOT NULL,
+        room_name  TEXT NOT NULL,
+        capacity   INTEGER,
+        notes      TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (school_id, house_name, room_name)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS house_room_assignments (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        room_id     UUID NOT NULL REFERENCES house_rooms(id) ON DELETE CASCADE,
+        student_id  UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (school_id, student_id)
+      )
+    `);
     await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS photo_url TEXT`);
     await pool.query(`ALTER TABLE schools  ADD COLUMN IF NOT EXISTS logo_url  TEXT`);
     await pool.query(`
