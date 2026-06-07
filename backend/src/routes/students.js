@@ -279,6 +279,129 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
   } catch (err) { next(err); }
 });
 
+/** POST /api/students/bulk-update — update existing students by student_code */
+router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const wb   = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const ws   = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', cellDates: true });
+    if (!rows.length) return res.status(400).json({ error: 'File is empty' });
+
+    let dataRows = rows.filter(row => !String(row[0] ?? '').trim().startsWith('#'));
+    if (dataRows.length > 0) {
+      const firstCell = String(dataRows[0][0] ?? '').trim().toLowerCase();
+      if (['student', 'name', 'id'].some(k => firstCell.includes(k))) {
+        dataRows = dataRows.slice(1);
+      }
+    }
+
+    function toISODate(val) {
+      if (val == null || val === '') return undefined;
+      if (val instanceof Date) return isNaN(val) ? undefined : val.toISOString().slice(0, 10);
+      const s = String(val).trim();
+      if (!s) return undefined;
+      let d = new Date(s);
+      if (!isNaN(d)) return d.toISOString().slice(0, 10);
+      const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (dmy) {
+        d = new Date(`${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`);
+        if (!isNaN(d)) return d.toISOString().slice(0, 10);
+      }
+      return undefined;
+    }
+
+    const [{ rows: programRows }, { rows: studentRows }] = await Promise.all([
+      pool.query(`SELECT id, LOWER(TRIM(name)) AS name_lower FROM programs WHERE school_id = $1`, [req.schoolId]),
+      pool.query(`SELECT id, student_code FROM students WHERE school_id = $1`, [req.schoolId]),
+    ]);
+    const programByName = new Map(programRows.map(p => [p.name_lower, p.id]));
+    const studentById   = new Map(studentRows.map(s => [s.student_code, s.id]));
+    const validStatuses = ['Active', 'Graduated', 'Inactive'];
+
+    const errors   = [];
+    const notFound = [];
+    let updated    = 0;
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row    = dataRows[i];
+      const rowNum = i + 2;
+
+      const studentCode = String(row[0] ?? '').trim();
+      if (!studentCode) { errors.push({ row: rowNum, message: 'Student ID is required for updates' }); continue; }
+
+      const studentId = studentById.get(studentCode);
+      if (!studentId) { notFound.push({ row: rowNum, code: studentCode }); continue; }
+
+      // Collect only fields that are non-empty — blank = skip (don't overwrite)
+      const sets = [];
+      const params = [];
+
+      function add(col, val) {
+        if (val === undefined || val === null || val === '') return;
+        params.push(val);
+        sets.push(`${col} = $${params.length}`);
+      }
+
+      const name      = String(row[1] ?? '').trim();
+      const className = String(row[2] ?? '').trim();
+      const programName = String(row[3] ?? '').trim();
+      const statusRaw = String(row[4] ?? '').trim();
+
+      add('name',                  name || undefined);
+      add('class_name',            className || undefined);
+      add('jhs_index_number',      String(row[5] ?? '').trim() || undefined);
+      add('date_of_birth',         toISODate(row[6]));
+      add('gender',                String(row[7] ?? '').trim() || undefined);
+      add('hometown',              String(row[8] ?? '').trim() || undefined);
+      add('residential_address',   String(row[9] ?? '').trim() || undefined);
+      add('ghana_card_number',     String(row[10] ?? '').trim() || undefined);
+      add('nhia_number',           String(row[11] ?? '').trim() || undefined);
+      add('mobile_number',         String(row[12] ?? '').trim() || undefined);
+      const aggRaw = String(row[13] ?? '').trim();
+      if (aggRaw) add('aggregate', parseInt(aggRaw) || undefined);
+      add('house',                 String(row[14] ?? '').trim() || undefined);
+      add('residential_status',    String(row[15] ?? '').trim() || undefined);
+      add('religion',              String(row[16] ?? '').trim() || undefined);
+      add('religious_denomination',String(row[17] ?? '').trim() || undefined);
+      add('guardian_name',         String(row[18] ?? '').trim() || undefined);
+      add('guardian_occupation',   String(row[19] ?? '').trim() || undefined);
+      add('guardian_mobile',       String(row[20] ?? '').trim() || undefined);
+      add('notes',                 String(row[21] ?? '').trim() || undefined);
+
+      if (statusRaw) {
+        const status = validStatuses.find(s => s.toLowerCase() === statusRaw.toLowerCase());
+        if (status) add('status', status);
+      }
+      if (programName) {
+        const progId = programByName.get(programName.toLowerCase());
+        if (!progId) { errors.push({ row: rowNum, message: `Program "${programName}" not found` }); continue; }
+        add('program_id', progId);
+      }
+
+      const fieldErrors = validateStudentFields({
+        mobile_number:    sets.some(s => s.startsWith('mobile_number')) ? params[sets.findIndex(s => s.startsWith('mobile_number'))] : null,
+        guardian_mobile:  sets.some(s => s.startsWith('guardian_mobile')) ? params[sets.findIndex(s => s.startsWith('guardian_mobile'))] : null,
+        ghana_card_number: sets.some(s => s.startsWith('ghana_card_number')) ? params[sets.findIndex(s => s.startsWith('ghana_card_number'))] : null,
+      });
+      if (fieldErrors.length) { errors.push({ row: rowNum, message: fieldErrors.join('; ') }); continue; }
+
+      if (!sets.length) continue; // nothing to update on this row
+
+      params.push(req.schoolId, studentId);
+      await pool.query(
+        `UPDATE students SET ${sets.join(', ')}, updated_at = now()
+         WHERE school_id = $${params.length - 1} AND id = $${params.length}`,
+        params
+      );
+      updated++;
+    }
+
+    res.json({ updated, notFound, errors });
+  } catch (err) { next(err); }
+});
+
 /** POST /api/students/promote — bulk promote a class */
 router.post('/promote', adminOnly, async (req, res, next) => {
   try {

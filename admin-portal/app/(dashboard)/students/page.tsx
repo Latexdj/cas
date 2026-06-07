@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/Button';
 import type { Student, StudentProfile, Program, ClassItem, House } from '@/types/api';
 
 interface UploadResult { inserted: number; errors: { row: number; message: string }[]; }
-type ModalMode = 'add' | 'edit' | 'upload' | 'promote' | 'graduate' | null;
+interface UpdateResult { updated: number; notFound: { row: number; code: string }[]; errors: { row: number; message: string }[]; }
+type ModalMode = 'add' | 'edit' | 'upload' | 'update' | 'promote' | 'graduate' | null;
 
 type StudentForm = {
   student_code: string; name: string; class_name: string; status: string; program_id: string; notes: string;
@@ -51,12 +52,15 @@ export default function StudentsPage() {
   const [fieldErrors,  setFieldErrors]  = useState<Record<string, string>>({});
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [uploading,    setUploading]    = useState(false);
+  const [updateResult, setUpdateResult] = useState<UpdateResult | null>(null);
+  const [updating,     setUpdating]     = useState(false);
   const [pinValue,     setPinValue]     = useState('');
   const [pinSaving,    setPinSaving]    = useState(false);
   const [pinMsg,       setPinMsg]       = useState('');
   const [hasPin,       setHasPin]       = useState(false);
   const [resettingId,  setResettingId]  = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef       = useRef<HTMLInputElement>(null);
+  const updateFileRef = useRef<HTMLInputElement>(null);
 
   // Form state
   const [form, setForm] = useState<StudentForm>(STUDENT_EMPTY);
@@ -207,6 +211,19 @@ export default function StudentsPage() {
     } finally { setUploading(false); if (fileRef.current) fileRef.current.value = ''; }
   }
 
+  async function handleBulkUpdate(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    setUpdating(true); setUpdateResult(null);
+    try {
+      const fd = new FormData(); fd.append('file', file);
+      const res = await api.post<UpdateResult>('/api/students/bulk-update', fd, { timeout: 120000 });
+      setUpdateResult(res.data); await load();
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.message || 'Update failed';
+      setUpdateResult({ updated: 0, notFound: [], errors: [{ row: 0, message: msg }] });
+    } finally { setUpdating(false); if (updateFileRef.current) updateFileRef.current.value = ''; }
+  }
+
   async function handlePromote() {
     if (!fromClass || !toClass) { setActionResult('Please select both classes'); return; }
     if (fromClass === toClass)  { setActionResult('Source and destination cannot be the same'); return; }
@@ -295,7 +312,8 @@ export default function StudentsPage() {
           <Button variant="secondary" size="sm" onClick={printStudents}>⎙ Print List</Button>
           <Button variant="secondary" size="sm" onClick={() => { setFromClass(''); setToClass(''); setActionResult(''); setModal('graduate'); }}>Graduate Class</Button>
           <Button variant="secondary" size="sm" onClick={() => { setFromClass(''); setToClass(''); setActionResult(''); setModal('promote'); }}>Promote Class</Button>
-          <Button variant="secondary" size="sm" onClick={() => { setUploadResult(null); setModal('upload'); }}>↑ Upload Excel</Button>
+          <Button variant="secondary" size="sm" onClick={() => { setUploadResult(null); setModal('upload'); }}>↑ Import Students</Button>
+          <Button variant="secondary" size="sm" onClick={() => { setUpdateResult(null); setModal('update'); }}>↑ Update Records</Button>
           <Button size="sm" onClick={openAdd}>+ Add Student</Button>
         </div>
       </div>
@@ -641,6 +659,52 @@ export default function StudentsPage() {
               <div className="rounded-lg p-3 text-sm mb-4" style={{ backgroundColor: uploadResult.errors.length ? '#FEF9F0' : '#F0FDF4', border: `1px solid ${uploadResult.errors.length ? '#FCD34D' : '#BBF7D0'}` }}>
                 <p className="font-semibold mb-1" style={{ color: '#0F172A' }}>✓ {uploadResult.inserted} student(s) imported</p>
                 {uploadResult.errors.map((e, i) => <p key={i} className="text-xs" style={{ color: '#DC2626' }}>Row {e.row}: {e.message}</p>)}
+              </div>
+            )}
+            <div className="flex justify-end"><Button variant="secondary" onClick={() => setModal(null)}>Close</Button></div>
+          </div>
+        </div>
+      )}
+
+      {/* Update Records modal */}
+      {modal === 'update' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+            <h2 className="text-lg font-bold mb-1" style={{ color: '#0F172A' }}>Update Student Records</h2>
+            <p className="text-sm mb-4" style={{ color: '#64748B' }}>Upload a file where column A is the Student ID. Only non-blank fields will be updated — blank cells are skipped.</p>
+            <div className="rounded-lg p-4 mb-4 text-sm" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2D9CC' }}>
+              <p className="font-semibold mb-1" style={{ color: '#0F172A' }}>Same column format as the import template:</p>
+              <p style={{ color: '#475569' }}>A: Student ID (required) &nbsp;·&nbsp; B: Name &nbsp;·&nbsp; C: Class &nbsp;·&nbsp; D: Program &nbsp;·&nbsp; E: Status &nbsp;·&nbsp; F–V: Profile fields</p>
+              <p className="mt-1 text-xs" style={{ color: '#94A3B8' }}>Leave any column blank to keep the existing value unchanged.</p>
+              <button className="mt-2 text-xs font-semibold underline" style={{ color: '#2563EB' }} onClick={downloadTemplate}>Download template (.xlsx)</button>
+            </div>
+            <div className="mb-4">
+              <input ref={updateFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleBulkUpdate} disabled={updating} />
+              <button
+                type="button"
+                onClick={() => updateFileRef.current?.click()}
+                disabled={updating}
+                className="w-full flex items-center justify-center gap-2 border-2 border-dashed rounded-xl px-4 py-4 text-sm font-semibold transition-colors disabled:opacity-50"
+                style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#F9FAFB' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#2563EB'; (e.currentTarget as HTMLButtonElement).style.color = '#2563EB'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#EFF6FF'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB'; (e.currentTarget as HTMLButtonElement).style.color = '#374151'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#F9FAFB'; }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                </svg>
+                Choose file (.xlsx / .xls / .csv)
+              </button>
+            </div>
+            {updating && <p className="text-sm text-center mb-3" style={{ color: '#64748B' }}>Processing…</p>}
+            {updateResult && (
+              <div className="rounded-lg p-3 text-sm mb-4 space-y-1" style={{ backgroundColor: updateResult.errors.length || updateResult.notFound.length ? '#FEF9F0' : '#F0FDF4', border: `1px solid ${updateResult.errors.length || updateResult.notFound.length ? '#FCD34D' : '#BBF7D0'}` }}>
+                <p className="font-semibold" style={{ color: '#0F172A' }}>✓ {updateResult.updated} student(s) updated</p>
+                {updateResult.notFound.map((e, i) => (
+                  <p key={i} className="text-xs" style={{ color: '#B45309' }}>Row {e.row}: Student ID "{e.code}" not found</p>
+                ))}
+                {updateResult.errors.map((e, i) => (
+                  <p key={i} className="text-xs" style={{ color: '#DC2626' }}>Row {e.row}: {e.message}</p>
+                ))}
               </div>
             )}
             <div className="flex justify-end"><Button variant="secondary" onClick={() => setModal(null)}>Close</Button></div>
