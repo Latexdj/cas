@@ -254,8 +254,9 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     teacherApi.get<{ id: string; office_type: string }[]>('/api/clearance/my-offices')
       .then(r => {
         const offices = Array.isArray(r.data) ? r.data : [];
-        setIsClearanceStaff(offices.some(o => o.office_type !== 'housemaster'));
-        setIsHousemaster(offices.some(o => o.office_type === 'housemaster'));
+        const houseTypes = ['housemaster', 'senior_housemaster'];
+        setIsClearanceStaff(offices.some(o => !houseTypes.includes(o.office_type)));
+        setIsHousemaster(offices.some(o => houseTypes.includes(o.office_type)));
       })
       .catch(() => {});
     teacherApi.get<{ module_keys: string[] }>('/api/responsibilities/my-modules')

@@ -58,6 +58,87 @@ router.get('/overview', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Helper: check if the teacher is a senior housemaster for this school
+async function isSeniorHousemaster(teacherId, schoolId) {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM clearance_offices co
+     JOIN clearance_office_staff cos ON cos.office_id = co.id
+     WHERE co.office_type = 'senior_housemaster'
+       AND cos.teacher_id = $1
+       AND co.school_id = $2
+       AND co.is_active = true
+     LIMIT 1`,
+    [teacherId, schoolId]
+  );
+  return rows.length > 0;
+}
+
+// GET /api/houses/all-dashboard — senior housemaster: stats for every house
+router.get('/all-dashboard', async (req, res, next) => {
+  try {
+    if (!await isSeniorHousemaster(req.user.id, req.schoolId))
+      return res.status(403).json({ error: 'Senior housemaster access required' });
+
+    const { rows: houses } = await pool.query(
+      `SELECT name FROM houses WHERE school_id = $1 ORDER BY name`,
+      [req.schoolId]
+    );
+
+    const results = await Promise.all(houses.map(async ({ name }) => {
+      const [statsRes, classRes] = await Promise.all([
+        pool.query(
+          `SELECT
+             COUNT(*)::int                                                                AS total,
+             COUNT(*) FILTER (WHERE LOWER(gender) = 'male')::int                         AS male,
+             COUNT(*) FILTER (WHERE LOWER(gender) = 'female')::int                       AS female,
+             COUNT(*) FILTER (WHERE LOWER(residential_status) = 'boarding')::int         AS boarding,
+             COUNT(*) FILTER (WHERE LOWER(residential_status) = 'day')::int              AS day
+           FROM students
+           WHERE LOWER(house) = LOWER($1) AND school_id = $2 AND LOWER(status) = 'active'`,
+          [name, req.schoolId]
+        ),
+        pool.query(
+          `SELECT class_name, COUNT(*)::int AS count
+           FROM students
+           WHERE LOWER(house) = LOWER($1) AND school_id = $2 AND LOWER(status) = 'active'
+           GROUP BY class_name ORDER BY class_name`,
+          [name, req.schoolId]
+        ),
+      ]);
+      const s = statsRes.rows[0];
+      return { house_name: name, total: s.total, male: s.male, female: s.female, boarding: s.boarding, day: s.day, by_class: classRes.rows };
+    }));
+
+    res.json(results);
+  } catch (err) { next(err); }
+});
+
+// GET /api/houses/all-students — senior housemaster: students across all houses
+router.get('/all-students', async (req, res, next) => {
+  try {
+    if (!await isSeniorHousemaster(req.user.id, req.schoolId))
+      return res.status(403).json({ error: 'Senior housemaster access required' });
+
+    const { house, class_name, residential_status, gender } = req.query;
+    const conditions = [`s.school_id = $1`, `LOWER(s.status) = 'active'`];
+    const params = [req.schoolId];
+
+    if (house)             { params.push(house);             conditions.push(`LOWER(s.house) = LOWER($${params.length})`); }
+    if (class_name)        { params.push(class_name);        conditions.push(`s.class_name = $${params.length}`); }
+    if (residential_status){ params.push(residential_status); conditions.push(`LOWER(s.residential_status) = LOWER($${params.length})`); }
+    if (gender)            { params.push(gender);             conditions.push(`LOWER(s.gender) = LOWER($${params.length})`); }
+
+    const { rows } = await pool.query(
+      `SELECT s.id, s.student_code, s.name, s.class_name, s.gender, s.residential_status, s.house
+       FROM students s
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY s.house, s.class_name, s.name`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // GET /api/houses/my-dashboard — teacher: stats for their assigned house
 router.get('/my-dashboard', async (req, res, next) => {
   try {
