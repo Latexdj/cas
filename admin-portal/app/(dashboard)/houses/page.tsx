@@ -14,7 +14,7 @@ interface House {
   female_count:     number;
   boarding_count:   number;
   day_count:        number;
-  housemaster_name: string | null;
+  housemaster_names: string | null;
 }
 
 const emptyForm = { id: '', name: '', notes: '' };
@@ -58,7 +58,7 @@ export default function HousesPage() {
     try {
       if (modal === 'add') {
         const r = await api.post<House>('/api/houses', { name: form.name.trim(), notes: form.notes || null });
-        setHouses(prev => [...prev, { ...r.data, student_count: 0, male_count: 0, female_count: 0, boarding_count: 0, day_count: 0, housemaster_name: null }].sort((a, b) => a.name.localeCompare(b.name)));
+        setHouses(prev => [...prev, { ...r.data, student_count: 0, male_count: 0, female_count: 0, boarding_count: 0, day_count: 0, housemaster_names: null }].sort((a, b) => a.name.localeCompare(b.name)));
       } else {
         const r = await api.put<House>(`/api/houses/${form.id}`, { name: form.name.trim(), notes: form.notes || null });
         setHouses(prev => prev.map(h => h.id === form.id ? { ...h, name: r.data.name, notes: r.data.notes } : h));
@@ -109,7 +109,7 @@ export default function HousesPage() {
             <p className="text-xs text-slate-500 mt-0.5">Boarding</p>
           </div>
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
-            <p className="text-2xl font-bold text-slate-900 dark:text-white">{houses.filter(h => h.housemaster_name).length}</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white">{houses.filter(h => h.housemaster_names).length}</p>
             <p className="text-xs text-slate-500 mt-0.5">With Housemaster</p>
           </div>
         </div>
@@ -137,8 +137,8 @@ export default function HousesPage() {
                     <tr key={h.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                       <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">{h.name}</td>
                       <td className="px-4 py-3">
-                        {h.housemaster_name ? (
-                          <span className="text-sm text-slate-700 dark:text-slate-300">{h.housemaster_name}</span>
+                        {h.housemaster_names ? (
+                          <span className="text-sm text-slate-700 dark:text-slate-300">{h.housemaster_names}</span>
                         ) : (
                           <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full font-medium">Unassigned</span>
                         )}
@@ -174,8 +174,8 @@ export default function HousesPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-semibold text-slate-900 dark:text-white">{h.name}</p>
-                      {h.housemaster_name ? (
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{h.housemaster_name}</p>
+                      {h.housemaster_names ? (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{h.housemaster_names}</p>
                       ) : (
                         <span className="text-[11px] text-amber-600 font-medium">No housemaster assigned</span>
                       )}

@@ -41,7 +41,7 @@ router.get('/overview', adminOnly, async (req, res, next) => {
               (SELECT COUNT(*)::int FROM students s WHERE LOWER(s.house) = LOWER(h.name) AND s.school_id = h.school_id AND LOWER(s.status) = 'active' AND LOWER(s.gender) = 'female') AS female_count,
               (SELECT COUNT(*)::int FROM students s WHERE LOWER(s.house) = LOWER(h.name) AND s.school_id = h.school_id AND LOWER(s.status) = 'active' AND LOWER(s.residential_status) = 'boarding') AS boarding_count,
               (SELECT COUNT(*)::int FROM students s WHERE LOWER(s.house) = LOWER(h.name) AND s.school_id = h.school_id AND LOWER(s.status) = 'active' AND LOWER(s.residential_status) = 'day') AS day_count,
-              t.name AS housemaster_name
+              STRING_AGG(t.name, ', ' ORDER BY t.name) AS housemaster_names
        FROM houses h
        LEFT JOIN clearance_offices co ON co.school_id = h.school_id
          AND co.office_type = 'housemaster'
@@ -50,7 +50,7 @@ router.get('/overview', adminOnly, async (req, res, next) => {
        LEFT JOIN clearance_office_staff cos ON cos.office_id = co.id AND cos.teacher_id IS NOT NULL
        LEFT JOIN teachers t ON t.id = cos.teacher_id
        WHERE h.school_id = $1
-       GROUP BY h.id, h.name, h.notes, h.school_id, t.name
+       GROUP BY h.id, h.name, h.notes, h.school_id
        ORDER BY h.name`,
       [req.schoolId]
     );
