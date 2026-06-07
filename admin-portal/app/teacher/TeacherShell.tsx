@@ -9,13 +9,14 @@ import { teacherApi } from '@/lib/teacher-api';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface NavItem {
-  href:             string;
-  label:            string;
-  badge?:           boolean;
-  formTeacherOnly?: boolean;
-  clearanceOnly?:   boolean;
-  libraryOnly?:     boolean;
-  icon:             ReactNode;
+  href:              string;
+  label:             string;
+  badge?:            boolean;
+  formTeacherOnly?:  boolean;
+  clearanceOnly?:    boolean;
+  libraryOnly?:      boolean;
+  housemasterOnly?:  boolean;
+  icon:              ReactNode;
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -50,6 +51,18 @@ const NAV_ITEMS: NavItem[] = [
         <circle cx="9" cy="7" r="4" />
         <path d="M23 21v-2a4 4 0 00-3-3.87" />
         <path d="M16 3.13a4 4 0 010 7.75" />
+      </svg>
+    ),
+  },
+  {
+    href:             '/teacher/house-students',
+    label:            'My House',
+    housemasterOnly:  true,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+        <path d="M9 22V12h6v10" />
+        <circle cx="12" cy="7" r="1" fill="currentColor" />
       </svg>
     ),
   },
@@ -192,6 +205,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const [isFormTeacher,    setIsFormTeacher]    = useState(false);
   const [isClearanceStaff, setIsClearanceStaff] = useState(false);
   const [isLibraryTeacher, setIsLibraryTeacher] = useState(false);
+  const [isHousemaster,    setIsHousemaster]    = useState(false);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => { setMoreOpen(false); }, [pathname]);
@@ -237,8 +251,12 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     teacherApi.get('/api/form-teacher/assignment')
       .then(r => setIsFormTeacher(!!r.data))
       .catch(() => {});
-    teacherApi.get<unknown[]>('/api/clearance/my-offices')
-      .then(r => setIsClearanceStaff(Array.isArray(r.data) && r.data.length > 0))
+    teacherApi.get<{ id: string; office_type: string }[]>('/api/clearance/my-offices')
+      .then(r => {
+        const offices = Array.isArray(r.data) ? r.data : [];
+        setIsClearanceStaff(offices.some(o => o.office_type !== 'housemaster'));
+        setIsHousemaster(offices.some(o => o.office_type === 'housemaster'));
+      })
       .catch(() => {});
     teacherApi.get<{ module_keys: string[] }>('/api/responsibilities/my-modules')
       .then(r => setIsLibraryTeacher(r.data.module_keys?.includes('library') ?? false))
@@ -265,9 +283,10 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   };
 
   const visibleNavItems  = NAV_ITEMS.filter(item =>
-    (!item.formTeacherOnly || isFormTeacher) &&
-    (!item.clearanceOnly   || isClearanceStaff) &&
-    (!item.libraryOnly     || isLibraryTeacher)
+    (!item.formTeacherOnly  || isFormTeacher) &&
+    (!item.clearanceOnly    || isClearanceStaff) &&
+    (!item.libraryOnly      || isLibraryTeacher) &&
+    (!item.housemasterOnly  || isHousemaster)
   );
   const mobileBarItems   = visibleNavItems.filter(item => MOBILE_BAR_HREFS.includes(item.href));
   const mobileMoreItems  = visibleNavItems.filter(item => !MOBILE_BAR_HREFS.includes(item.href));
