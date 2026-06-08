@@ -8,6 +8,7 @@ import { teacherApi } from '@/lib/teacher-api';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Overview {
+  hod_type:             'subject' | 'programme';
   programme_name:       string;
   department:           string;
   teacher_count:        number;
@@ -19,13 +20,20 @@ interface Overview {
   assessments_scored:   number;
 }
 
+// Programme HOD — form teacher per class
 interface ClassRow {
   class_name:          string;
   student_count:       number;
-  form_teacher_id:     string | null;
-  form_teacher_name:   string | null;
-  form_teacher_phone:  string | null;
-  form_teacher_email:  string | null;
+  // programme HOD fields
+  form_teacher_id?:    string | null;
+  form_teacher_name?:  string | null;
+  form_teacher_phone?: string | null;
+  form_teacher_email?: string | null;
+  // subject HOD fields
+  teacher_id?:         string | null;
+  teacher_name?:       string | null;
+  teacher_phone?:      string | null;
+  teacher_email?:      string | null;
 }
 
 interface TeacherRow {
@@ -193,7 +201,9 @@ export default function HodPage() {
             <h1 className="text-xl font-bold text-[#2C2218]">
               {overview?.programme_name ?? 'My Department'}
             </h1>
-            <p className="text-xs text-[#8C7E6E]">HOD Dashboard</p>
+            <p className="text-xs text-[#8C7E6E]">
+              {overview?.hod_type === 'subject' ? 'Subject HOD Dashboard' : 'HOD Dashboard'}
+            </p>
           </div>
         </div>
       </div>
@@ -266,50 +276,72 @@ export default function HodPage() {
         {tab === 'classes' && (
           loadingCl ? <Spinner /> : classes.length === 0 ? (
             <div className="bg-white rounded-2xl border border-[#E2D9CC] p-8 text-center">
-              <p className="text-sm text-[#8C7E6E]">No classes found for this programme.</p>
-              <p className="text-xs text-[#C0B5A5] mt-1">Ensure students have the correct programme assigned.</p>
+              <p className="text-sm text-[#8C7E6E]">
+                {overview?.hod_type === 'subject'
+                  ? 'No timetable entries found for this subject.'
+                  : 'No classes found for this programme.'}
+              </p>
+              <p className="text-xs text-[#C0B5A5] mt-1">
+                {overview?.hod_type === 'subject'
+                  ? 'Ensure the timetable is set up and teachers have the correct department.'
+                  : 'Ensure students have the correct programme assigned.'}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {classes.map(cls => (
-                <div key={cls.class_name} className="bg-white rounded-2xl border border-[#E2D9CC] p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-bold text-[#2C2218]">{cls.class_name}</p>
-                      <p className="text-xs text-[#8C7E6E] mt-0.5">{cls.student_count} student{cls.student_count !== 1 ? 's' : ''}</p>
+              {classes.map(cls => {
+                const isSubject = overview?.hod_type === 'subject';
+                const teacherName  = isSubject ? cls.teacher_name  : cls.form_teacher_name;
+                const teacherPhone = isSubject ? cls.teacher_phone : cls.form_teacher_phone;
+                const teacherEmail = isSubject ? cls.teacher_email : cls.form_teacher_email;
+                const roleLabel    = isSubject ? `${overview?.department} Teacher` : 'Form Teacher';
+                const assignedLabel = isSubject ? 'Teacher assigned' : 'Form teacher assigned';
+                const missingLabel  = isSubject ? 'No teacher on timetable' : 'Unassigned';
+
+                return (
+                  <div key={cls.class_name} className="bg-white rounded-2xl border border-[#E2D9CC] p-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-[#2C2218]">{cls.class_name}</p>
+                        <p className="text-xs text-[#8C7E6E] mt-0.5">{cls.student_count} student{cls.student_count !== 1 ? 's' : ''}</p>
+                      </div>
+                      {teacherName ? (
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ml-2" style={{ background: '#F0FDF4', color: '#15803D' }}>
+                          {assignedLabel}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ml-2" style={{ background: '#FEF9C3', color: '#92400E' }}>
+                          {missingLabel}
+                        </span>
+                      )}
                     </div>
-                    {cls.form_teacher_name ? (
-                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#F0FDF4', color: '#15803D' }}>
-                        Form teacher assigned
-                      </span>
+                    {teacherName ? (
+                      <div className="mt-3 pt-3 border-t border-[#F4EFE6]">
+                        <p className="text-xs font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">{roleLabel}</p>
+                        <p className="text-sm font-semibold text-[#2C2218]">{teacherName}</p>
+                        <div className="flex gap-4 mt-1">
+                          {teacherPhone && (
+                            <a href={`tel:${teacherPhone}`} className="text-xs text-[#8C7E6E]">
+                              📞 {teacherPhone}
+                            </a>
+                          )}
+                          {teacherEmail && (
+                            <a href={`mailto:${teacherEmail}`} className="text-xs text-[#8C7E6E]">
+                              ✉ {teacherEmail}
+                            </a>
+                          )}
+                        </div>
+                      </div>
                     ) : (
-                      <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#FEF9C3', color: '#92400E' }}>
-                        Unassigned
-                      </span>
+                      <p className="text-xs text-[#C0B5A5] mt-2 italic">
+                        {isSubject
+                          ? `No ${overview?.department} lesson found on the timetable for this class.`
+                          : 'No form teacher assigned for this class this term.'}
+                      </p>
                     )}
                   </div>
-                  {cls.form_teacher_name ? (
-                    <div className="mt-3 pt-3 border-t border-[#F4EFE6]">
-                      <p className="text-xs font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Form Teacher</p>
-                      <p className="text-sm font-semibold text-[#2C2218]">{cls.form_teacher_name}</p>
-                      <div className="flex gap-4 mt-1">
-                        {cls.form_teacher_phone && (
-                          <a href={`tel:${cls.form_teacher_phone}`} className="text-xs text-[#8C7E6E]">
-                            📞 {cls.form_teacher_phone}
-                          </a>
-                        )}
-                        {cls.form_teacher_email && (
-                          <a href={`mailto:${cls.form_teacher_email}`} className="text-xs text-[#8C7E6E]">
-                            ✉ {cls.form_teacher_email}
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-[#C0B5A5] mt-2 italic">No form teacher assigned for this class this term.</p>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )
         )}
