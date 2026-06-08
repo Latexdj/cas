@@ -24,6 +24,7 @@ interface StudentRecord {
   id: string;
   student_code: string;
   name: string;
+  class_name: string;
   status: 'Present' | 'Absent' | 'Late' | null;
 }
 
@@ -109,6 +110,7 @@ function RegisterModal({
   const present = students.filter(s => (statuses[s.id] || 'Present') === 'Present').length;
   const absent  = students.filter(s => statuses[s.id] === 'Absent').length;
   const late    = students.filter(s => statuses[s.id] === 'Late').length;
+  const isMerged = new Set(students.map(s => s.class_name)).size > 1;
 
   function statusBadge(s: 'Present' | 'Absent' | 'Late') {
     if (s === 'Present') return { bg: '#DCFCE7', color: '#15803D', label: 'P' };
@@ -161,7 +163,7 @@ function RegisterModal({
             <div key={s.id} className="bg-white rounded-2xl border border-[#E2D9CC] flex items-center px-4 py-3 gap-3">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-[#2C2218] truncate">{s.name}</p>
-                <p className="text-xs text-[#C0B5A5]">{s.student_code}</p>
+                <p className="text-xs text-[#C0B5A5]">{s.student_code}{isMerged ? ` · ${s.class_name}` : ''}</p>
               </div>
               <button
                 onClick={() => toggle(s.id)}

@@ -192,9 +192,13 @@ router.get('/:id/register', async (req, res, next) => {
 
     const [{ rows: students }, { rows: sessRows }] = await Promise.all([
       pool.query(
-        `SELECT id, student_code, name FROM students
-         WHERE school_id = $1 AND LOWER(class_name) = LOWER($2) AND LOWER(status) = 'active'
-         ORDER BY name`,
+        `SELECT id, student_code, name, class_name FROM students
+         WHERE school_id = $1
+           AND LOWER(class_name) = ANY(
+             ARRAY(SELECT LOWER(TRIM(c)) FROM unnest(string_to_array($2, ',')) AS c)
+           )
+           AND LOWER(status) = 'active'
+         ORDER BY class_name, name`,
         [req.schoolId, rl.class_name]
       ),
       pool.query(

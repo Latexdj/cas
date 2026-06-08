@@ -192,10 +192,11 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
 }
 
 // ── Admin Register Modal ────────────────────────────────────────
-interface StudentRec { id: string; student_code: string; name: string; status: 'Present' | 'Absent' | 'Late' | null; }
+interface StudentRec { id: string; student_code: string; name: string; class_name: string; status: 'Present' | 'Absent' | 'Late' | null; }
 
 function AdminRegisterModal({ remedial, onClose, onSuccess }: { remedial: RemedialLesson; onClose: () => void; onSuccess: () => void }) {
   const [students,   setStudents]   = useState<StudentRec[]>([]);
+  const isMerged = new Set(students.map(s => s.class_name)).size > 1;
   const [loading,    setLoading]    = useState(true);
   const [saving,     setSaving]     = useState(false);
   const [error,      setError]      = useState('');
@@ -281,7 +282,7 @@ function AdminRegisterModal({ remedial, onClose, onSuccess }: { remedial: Remedi
                   style={{ borderBottom: '1px solid #F8FAFC' }}>
                   <div>
                     <p className="text-sm font-medium" style={{ color: '#0F172A' }}>{s.name}</p>
-                    <p className="text-xs" style={{ color: '#94A3B8' }}>{s.student_code}</p>
+                    <p className="text-xs" style={{ color: '#94A3B8' }}>{s.student_code}{isMerged ? ` · ${s.class_name}` : ''}</p>
                   </div>
                   <button onClick={() => toggle(s.id)}
                     className="w-8 h-8 rounded-full text-xs font-bold flex items-center justify-center"
