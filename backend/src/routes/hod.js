@@ -9,19 +9,34 @@ router.use(authenticate, requireActiveSubscription);
 //   req.programmeId  — UUID if a programme is linked, null for subject HODs
 //   req.programmeName — display name
 //   req.isSubjectHod — true when department is a subject (Maths, English…), not a programme
+//
+// Access is granted via EITHER:
+//   (a) a clearance office with office_type = 'hod'  (programme HODs who do clearance)
+//   (b) a responsibility assignment with module_key = 'hod'  (subject HODs — no clearance)
 async function hodOnly(req, res, next) {
   try {
-    const { rows: officeRows } = await pool.query(
-      `SELECT co.linked_programme_id, p.name AS programme_name
-       FROM clearance_office_staff cos
-       JOIN clearance_offices co ON co.id = cos.office_id
-       LEFT JOIN programs p ON p.id = co.linked_programme_id
-       WHERE cos.school_id = $1 AND cos.teacher_id = $2
-         AND co.office_type = 'hod' AND co.is_active = true
-       LIMIT 1`,
-      [req.schoolId, req.user.id]
-    );
-    if (!officeRows.length) return res.status(403).json({ error: 'HOD access only' });
+    const [{ rows: officeRows }, { rows: respRows }] = await Promise.all([
+      pool.query(
+        `SELECT co.linked_programme_id, p.name AS programme_name
+         FROM clearance_office_staff cos
+         JOIN clearance_offices co ON co.id = cos.office_id
+         LEFT JOIN programs p ON p.id = co.linked_programme_id
+         WHERE cos.school_id = $1 AND cos.teacher_id = $2
+           AND co.office_type = 'hod' AND co.is_active = true
+         LIMIT 1`,
+        [req.schoolId, req.user.id]
+      ),
+      pool.query(
+        `SELECT 1 FROM teacher_responsibility_assignments tra
+         JOIN teacher_responsibilities tr ON tr.id = tra.responsibility_id
+         WHERE tra.teacher_id = $1 AND tr.school_id = $2 AND tr.module_key = 'hod'
+         LIMIT 1`,
+        [req.user.id, req.schoolId]
+      ),
+    ]);
+
+    if (!officeRows.length && !respRows.length)
+      return res.status(403).json({ error: 'HOD access only' });
 
     const { rows: tRows } = await pool.query(
       `SELECT department FROM teachers WHERE id = $1 AND school_id = $2 LIMIT 1`,
@@ -29,8 +44,8 @@ async function hodOnly(req, res, next) {
     );
 
     req.hodDept      = tRows[0]?.department ?? null;
-    req.programmeId  = officeRows[0].linked_programme_id ?? null;
-    req.programmeName = officeRows[0].programme_name ?? req.hodDept;
+    req.programmeId  = officeRows[0]?.linked_programme_id ?? null;
+    req.programmeName = officeRows[0]?.programme_name ?? req.hodDept;
 
     // Try to match department name to a programme (programme HODs without explicit link)
     if (!req.programmeId && req.hodDept) {

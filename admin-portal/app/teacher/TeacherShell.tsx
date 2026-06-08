@@ -276,7 +276,11 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
       })
       .catch(() => {});
     teacherApi.get<{ module_keys: string[] }>('/api/responsibilities/my-modules')
-      .then(r => setIsLibraryTeacher(r.data.module_keys?.includes('library') ?? false))
+      .then(r => {
+        const keys = r.data.module_keys ?? [];
+        setIsLibraryTeacher(keys.includes('library'));
+        if (keys.includes('hod')) setIsHod(true);
+      })
       .catch(() => {});
     const interval = setInterval(fetchUnread, 60_000);
     return () => clearInterval(interval);

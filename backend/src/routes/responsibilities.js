@@ -5,7 +5,7 @@ const { authenticate, requireActiveSubscription, adminOnly } = require('../middl
 
 router.use(authenticate, requireActiveSubscription);
 
-const VALID_MODULES = ['library'];
+const VALID_MODULES = ['library', 'hod'];
 
 // GET /api/responsibilities/my-modules — teacher-facing (no adminOnly)
 router.get('/my-modules', async (req, res, next) => {
