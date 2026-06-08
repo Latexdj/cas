@@ -244,6 +244,13 @@ router.post('/:id/register', async (req, res, next) => {
     if (rl.status === 'Cancelled')
       return res.status(400).json({ error: 'Cannot mark register for a cancelled remedial' });
 
+    const { rows: timeRows } = await pool.query(
+      `SELECT (remedial_date + remedial_time) > NOW() AS not_started FROM remedial_lessons WHERE id = $1`,
+      [req.params.id]
+    );
+    if (timeRows[0]?.not_started)
+      return res.status(400).json({ error: 'Lesson has not started yet' });
+
     const { rows: ayRows } = await pool.query(
       `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
       [req.schoolId]
@@ -316,6 +323,13 @@ router.post('/:id/submit', async (req, res, next) => {
     if (rl.status !== 'Scheduled') {
       return res.status(400).json({ error: `Cannot submit — lesson is already '${rl.status}'` });
     }
+
+    const { rows: timeRows } = await pool.query(
+      `SELECT (remedial_date + remedial_time) > NOW() AS not_started FROM remedial_lessons WHERE id = $1`,
+      [req.params.id]
+    );
+    if (timeRows[0]?.not_started)
+      return res.status(400).json({ error: 'Lesson has not started yet' });
 
     let locationMsg = 'Location not verified';
     if (rl.location_id && gpsCoordinates) {

@@ -33,6 +33,58 @@ function fmt(iso: string) {
   return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function remedialStartDate(date: string, time: string): Date {
+  // Combines "2026-06-10" + "08:30:00" into a local Date
+  const [y, mo, d] = date.slice(0, 10).split('-').map(Number);
+  const [h, mi, s] = time.slice(0, 8).split(':').map(Number);
+  return new Date(y, mo - 1, d, h, mi, s ?? 0);
+}
+
+function isStarted(date: string, time: string): boolean {
+  return Date.now() >= remedialStartDate(date, time).getTime();
+}
+
+function RemedialCountdown({ target, onExpired }: { target: Date; onExpired: () => void }) {
+  const [remaining, setRemaining] = useState(() => target.getTime() - Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const diff = target.getTime() - Date.now();
+      if (diff <= 0) {
+        clearInterval(id);
+        setRemaining(0);
+        onExpired();
+      } else {
+        setRemaining(diff);
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [target, onExpired]);
+
+  if (remaining <= 0) return null;
+
+  const totalSec = Math.floor(remaining / 1000);
+  const days  = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const mins  = Math.floor((totalSec % 3600) / 60);
+  const secs  = totalSec % 60;
+
+  const parts = days > 0
+    ? `${days}d ${hours}h ${mins}m`
+    : `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+  return (
+    <div className="mt-2 flex items-center gap-2 rounded-xl px-3 py-2 border border-[#E2D9CC] bg-[#F4EFE6]">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5 text-[#8C7E6E] shrink-0">
+        <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+      </svg>
+      <p className="text-xs text-[#8C7E6E]">
+        Starts in <span className="font-bold text-[#4A3F32] tabular-nums">{parts}</span>
+      </p>
+    </div>
+  );
+}
+
 function statusColor(status: string, primary: string): { bg: string; color: string } {
   if (status === 'Completed')  return { bg: '#DCFCE7', color: '#15803D' };
   if (status === 'Verified')   return { bg: '#DBEAFE', color: '#1D4ED8' };
@@ -406,6 +458,8 @@ export default function RemedialsPage() {
   const [registering, setRegistering] = useState<RemedialLesson | null>(null);
   const [successId,  setSuccessId]  = useState<string | null>(null);
   const [regSuccessId, setRegSuccessId] = useState<string | null>(null);
+  // tracks which scheduled remedial IDs have had their timer expire mid-session
+  const [liveIds, setLiveIds] = useState<Set<string>>(new Set());
 
   const loadData = useCallback(async () => {
     const teacher = getTeacher();
@@ -482,6 +536,10 @@ export default function RemedialsPage() {
         <div className="space-y-3">
           {remedials.map(rem => {
             const sc = statusColor(rem.status, primary);
+            const started = rem.status === 'Scheduled'
+              ? (liveIds.has(rem.id) || isStarted(rem.remedial_date, rem.remedial_time))
+              : true;
+
             return (
               <div key={rem.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
                 <div className="flex items-start justify-between mb-2">
@@ -505,12 +563,21 @@ export default function RemedialsPage() {
                   </span>
                 </div>
 
+                {/* Countdown — only shown while lesson hasn't started */}
+                {rem.status === 'Scheduled' && !started && (
+                  <RemedialCountdown
+                    target={remedialStartDate(rem.remedial_date, rem.remedial_time)}
+                    onExpired={() => setLiveIds(prev => new Set(prev).add(rem.id))}
+                  />
+                )}
+
                 {rem.status !== 'Cancelled' && (
-                  <div className="flex gap-2 mt-1">
+                  <div className={`flex gap-2 mt-2 ${!started ? 'opacity-40 pointer-events-none' : ''}`}>
                     {rem.status === 'Scheduled' && (
                       <button
+                        disabled={!started}
                         onClick={() => setSubmitting(rem)}
-                        className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold"
+                        className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold disabled:cursor-not-allowed"
                         style={{ background: primary }}
                       >
                         Submit Proof
@@ -518,8 +585,9 @@ export default function RemedialsPage() {
                     )}
 
                     <button
-                      onClick={() => setRegistering(rem)}
-                      className={`py-2.5 rounded-xl text-sm font-semibold border ${rem.has_register
+                      disabled={!started}
+                      onClick={() => started && setRegistering(rem)}
+                      className={`py-2.5 rounded-xl text-sm font-semibold border disabled:cursor-not-allowed ${rem.has_register
                         ? 'text-green-700 bg-green-50 border-green-200'
                         : 'text-[#8C7E6E] bg-[#F4EFE6] border-[#E2D9CC]'
                       } ${rem.status === 'Scheduled' ? 'flex-none px-4' : 'flex-1'}`}
