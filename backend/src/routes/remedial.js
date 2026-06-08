@@ -27,7 +27,11 @@ router.get('/', adminOnly, async (req, res, next) => {
               rl.location_id, rl.location_name, rl.notes, rl.status,
               rl.photo_url, rl.gps_coordinates,
               rl.verified_by, rl.verified_at, rl.created_at, rl.updated_at,
-              te.name AS teacher_name
+              te.name AS teacher_name,
+              EXISTS (
+                SELECT 1 FROM student_attendance_sessions sas
+                WHERE sas.remedial_id = rl.id AND sas.school_id = rl.school_id
+              ) AS has_register
        FROM remedial_lessons rl
        JOIN teachers te ON te.id = rl.teacher_id
        WHERE ${conditions.join(' AND ')}

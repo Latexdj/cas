@@ -191,15 +191,140 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
   );
 }
 
+// ── Admin Register Modal ────────────────────────────────────────
+interface StudentRec { id: string; student_code: string; name: string; status: 'Present' | 'Absent' | 'Late' | null; }
+
+function AdminRegisterModal({ remedial, onClose, onSuccess }: { remedial: RemedialLesson; onClose: () => void; onSuccess: () => void }) {
+  const [students,   setStudents]   = useState<StudentRec[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [saving,     setSaving]     = useState(false);
+  const [error,      setError]      = useState('');
+  const [statuses,   setStatuses]   = useState<Record<string, 'Present' | 'Absent' | 'Late'>>({});
+
+  useEffect(() => {
+    api.get<{ students: StudentRec[] }>(`/api/remedial/${remedial.id}/register`)
+      .then(res => {
+        setStudents(res.data.students);
+        const init: Record<string, 'Present' | 'Absent' | 'Late'> = {};
+        res.data.students.forEach(s => { init[s.id] = (s.status as 'Present' | 'Absent' | 'Late') || 'Present'; });
+        setStatuses(init);
+      })
+      .catch(() => setError('Failed to load student list.'))
+      .finally(() => setLoading(false));
+  }, [remedial.id]);
+
+  function toggle(id: string) {
+    setStatuses(prev => {
+      const cur = prev[id] || 'Present';
+      return { ...prev, [id]: cur === 'Present' ? 'Absent' : cur === 'Absent' ? 'Late' : 'Present' };
+    });
+  }
+
+  function markAll(s: 'Present' | 'Absent') {
+    setStatuses(prev => { const n = { ...prev }; students.forEach(st => { n[st.id] = s; }); return n; });
+  }
+
+  async function save() {
+    setSaving(true); setError('');
+    try {
+      await api.post(`/api/remedial/${remedial.id}/register`, {
+        records: students.map(s => ({ studentId: s.id, status: statuses[s.id] || 'Present' })),
+      });
+      onSuccess();
+    } catch { setError('Failed to save register.'); }
+    finally { setSaving(false); }
+  }
+
+  const present = students.filter(s => (statuses[s.id] || 'Present') === 'Present').length;
+  const absent  = students.filter(s => statuses[s.id] === 'Absent').length;
+  const late    = students.filter(s => statuses[s.id] === 'Late').length;
+
+  return (
+    <Modal open onClose={onClose} title={`Mark Register — ${remedial.subject} ${remedial.class_name}`}>
+      <div className="space-y-3">
+        <p className="text-xs" style={{ color: '#64748B' }}>
+          {remedial.teacher_name} · {fmtDate(remedial.remedial_date)}
+        </p>
+
+        {/* Quick-mark */}
+        <div className="flex gap-2">
+          <button onClick={() => markAll('Present')}
+            className="flex-1 text-xs font-semibold py-1.5 rounded-lg border"
+            style={{ background: '#F0FDF4', color: '#15803D', borderColor: '#BBF7D0' }}>
+            All Present
+          </button>
+          <button onClick={() => markAll('Absent')}
+            className="flex-1 text-xs font-semibold py-1.5 rounded-lg border"
+            style={{ background: '#FEF2F2', color: '#B91C1C', borderColor: '#FECACA' }}>
+            All Absent
+          </button>
+        </div>
+
+        {/* Student list */}
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          </div>
+        ) : students.length === 0 ? (
+          <p className="text-sm text-center py-6" style={{ color: '#94A3B8' }}>No students found in {remedial.class_name}</p>
+        ) : (
+          <div className="max-h-80 overflow-y-auto space-y-1 rounded-xl border" style={{ borderColor: '#F1F5F9' }}>
+            {students.map(s => {
+              const st = statuses[s.id] || 'Present';
+              const style = st === 'Present'
+                ? { bg: '#F0FDF4', color: '#15803D', label: 'P' }
+                : st === 'Absent'
+                  ? { bg: '#FEF2F2', color: '#B91C1C', label: 'A' }
+                  : { bg: '#FEFCE8', color: '#92400E', label: 'L' };
+              return (
+                <div key={s.id} className="flex items-center justify-between px-3 py-2.5"
+                  style={{ borderBottom: '1px solid #F8FAFC' }}>
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: '#0F172A' }}>{s.name}</p>
+                    <p className="text-xs" style={{ color: '#94A3B8' }}>{s.student_code}</p>
+                  </div>
+                  <button onClick={() => toggle(s.id)}
+                    className="w-8 h-8 rounded-full text-xs font-bold flex items-center justify-center"
+                    style={{ background: style.bg, color: style.color }}>
+                    {style.label}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Summary */}
+        {students.length > 0 && (
+          <p className="text-xs font-semibold" style={{ color: '#475569' }}>
+            Present: {present} &nbsp;·&nbsp; Absent: {absent} &nbsp;·&nbsp; Late: {late}
+          </p>
+        )}
+
+        {error && <p className="text-sm" style={{ color: '#B91C1C' }}>{error}</p>}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={save} loading={saving} disabled={loading || students.length === 0}>
+            {remedial.has_register ? 'Update Register' : 'Save Register'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Remedials tab ──────────────────────────────────────────────
 function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
-  const [items,       setItems]       = useState<RemedialLesson[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [teacherId,   setTeacherId]   = useState('');
-  const [status,      setStatus]      = useState('');
-  const [notesModal,  setNotesModal]  = useState<RemedialLesson | null>(null);
-  const [notes,       setNotes]       = useState('');
-  const [saving,      setSaving]      = useState(false);
+  const [items,         setItems]         = useState<RemedialLesson[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [teacherId,     setTeacherId]     = useState('');
+  const [status,        setStatus]        = useState('');
+  const [missingOnly,   setMissingOnly]   = useState(false);
+  const [notesModal,    setNotesModal]    = useState<RemedialLesson | null>(null);
+  const [registerModal, setRegisterModal] = useState<RemedialLesson | null>(null);
+  const [notes,         setNotes]         = useState('');
+  const [saving,        setSaving]        = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -213,6 +338,10 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
   }, [teacherId, status]);
 
   useEffect(() => { load(); }, [load]);
+
+  const displayed = missingOnly
+    ? items.filter(r => !r.has_register && r.status !== 'Cancelled')
+    : items;
 
   async function cancel(id: string) {
     if (!confirm('Cancel this remedial lesson?')) return;
@@ -228,6 +357,8 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
       setNotesModal(null); await load();
     } finally { setSaving(false); }
   }
+
+  const missingCount = items.filter(r => !r.has_register && r.status !== 'Cancelled').length;
 
   return (
     <div className="space-y-4">
@@ -250,10 +381,19 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
           </select>
         </div>
         <Button type="submit">Filter</Button>
-        <Button type="button" variant="secondary" onClick={() => { setTeacherId(''); setStatus(''); }}>Clear</Button>
+        <Button type="button" variant="secondary" onClick={() => { setTeacherId(''); setStatus(''); setMissingOnly(false); }}>Clear</Button>
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none" style={{ color: missingCount > 0 ? '#B45309' : '#64748B' }}>
+          <input type="checkbox" checked={missingOnly} onChange={e => setMissingOnly(e.target.checked)} className="rounded" />
+          Missing register
+          {missingCount > 0 && (
+            <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#FEF9C3', color: '#92400E' }}>
+              {missingCount}
+            </span>
+          )}
+        </label>
       </form>
 
-      <p className="text-sm" style={{ color: '#64748B' }}>{items.length} remedial{items.length !== 1 ? 's' : ''}</p>
+      <p className="text-sm" style={{ color: '#64748B' }}>{displayed.length} remedial{displayed.length !== 1 ? 's' : ''}</p>
 
       {loading ? (
         <div className="flex justify-center h-32 items-center">
@@ -262,18 +402,18 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
       ) : (
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
           <div className="overflow-x-auto">
-            <table className="min-w-[1000px] w-full text-sm">
+            <table className="min-w-[1100px] w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
-                  {['Absence Date','Remedial Date','Teacher','Subject','Class','Location','Duration','Status',''].map(h => (
+                  {['Absence Date','Remedial Date','Teacher','Subject','Class','Location','Duration','Status','Register',''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {items.map((r, i) => (
+                {displayed.map((r, i) => (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors"
-                    style={{ borderBottom: i < items.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                    style={{ borderBottom: i < displayed.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
                     <td className="px-4 py-3 text-xs" style={{ color: '#64748B' }}>{fmtDate(r.original_absence_date)}</td>
                     <td className="px-4 py-3 text-xs" style={{ color: '#0F172A' }}>
                       {fmtDate(r.remedial_date)} <span style={{ color: '#94A3B8' }}>{r.remedial_time}</span>
@@ -285,9 +425,25 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
                     <td className="px-4 py-3 text-xs" style={{ color: '#64748B' }}>{r.duration_periods ? `${r.duration_periods}p` : '—'}</td>
                     <td className="px-4 py-3"><Badge status={r.status} /></td>
                     <td className="px-4 py-3 whitespace-nowrap">
+                      {r.status === 'Cancelled' ? (
+                        <span className="text-xs" style={{ color: '#CBD5E1' }}>—</span>
+                      ) : r.has_register ? (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                          style={{ background: '#F0FDF4', color: '#15803D' }}>✓ Taken</span>
+                      ) : (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                          style={{ background: '#FEF9C3', color: '#92400E' }}>Missing</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex gap-2">
                         {r.status === 'Completed' && (
                           <Button variant="ghost" size="sm" onClick={() => { setNotes(r.notes ?? ''); setNotesModal(r); }}>Verify</Button>
+                        )}
+                        {r.status !== 'Cancelled' && (
+                          <Button variant="ghost" size="sm" onClick={() => setRegisterModal(r)}>
+                            {r.has_register ? 'Register' : 'Mark Register'}
+                          </Button>
                         )}
                         {r.status === 'Scheduled' && (
                           <Button variant="danger" size="sm" onClick={() => cancel(r.id)}>Cancel</Button>
@@ -296,13 +452,21 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
                     </td>
                   </tr>
                 ))}
-                {items.length === 0 && (
-                  <tr><td colSpan={9} className="px-4 py-10 text-center text-sm" style={{ color: '#94A3B8' }}>No remedial lessons found.</td></tr>
+                {displayed.length === 0 && (
+                  <tr><td colSpan={10} className="px-4 py-10 text-center text-sm" style={{ color: '#94A3B8' }}>No remedial lessons found.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         </div>
+      )}
+
+      {registerModal && (
+        <AdminRegisterModal
+          remedial={registerModal}
+          onClose={() => setRegisterModal(null)}
+          onSuccess={() => { setRegisterModal(null); load(); }}
+        />
       )}
 
       <Modal open={!!notesModal} onClose={() => setNotesModal(null)} title="Verify Remedial Lesson">

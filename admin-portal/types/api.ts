@@ -223,6 +223,7 @@ export interface RemedialLesson {
   verified_by: string | null;
   verified_at: string | null;
   notes: string | null;
+  has_register: boolean;
   created_at: string;
 }
 
