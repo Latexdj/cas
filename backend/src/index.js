@@ -42,6 +42,7 @@ const { router: libraryAdminRoutes }  = require('./routes/libraryAdmin');
 const libraryRoutes           = require('./routes/library');
 const schoolStaffRoutes       = require('./routes/schoolStaff');
 const responsibilitiesRoutes  = require('./routes/responsibilities');
+const hodRoutes               = require('./routes/hod');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -112,6 +113,7 @@ app.use('/api/library-admin',      libraryAdminRoutes);
 app.use('/api/library',            libraryRoutes);
 app.use('/api/school-staff',       schoolStaffRoutes);
 app.use('/api/responsibilities',   responsibilitiesRoutes);
+app.use('/api/hod',                hodRoutes);
 
 app.use(errorHandler);
 

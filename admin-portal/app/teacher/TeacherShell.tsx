@@ -16,6 +16,7 @@ interface NavItem {
   clearanceOnly?:    boolean;
   libraryOnly?:      boolean;
   housemasterOnly?:  boolean;
+  hodOnly?:          boolean;
   icon:              ReactNode;
 }
 
@@ -51,6 +52,19 @@ const NAV_ITEMS: NavItem[] = [
         <circle cx="9" cy="7" r="4" />
         <path d="M23 21v-2a4 4 0 00-3-3.87" />
         <path d="M16 3.13a4 4 0 010 7.75" />
+      </svg>
+    ),
+  },
+  {
+    href:     '/teacher/hod',
+    label:    'My Dept',
+    hodOnly:  true,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
       </svg>
     ),
   },
@@ -206,6 +220,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const [isClearanceStaff, setIsClearanceStaff] = useState(false);
   const [isLibraryTeacher, setIsLibraryTeacher] = useState(false);
   const [isHousemaster,    setIsHousemaster]    = useState(false);
+  const [isHod,            setIsHod]            = useState(false);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => { setMoreOpen(false); }, [pathname]);
@@ -257,6 +272,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
         const houseTypes = ['housemaster', 'senior_housemaster'];
         setIsClearanceStaff(offices.some(o => !houseTypes.includes(o.office_type)));
         setIsHousemaster(offices.some(o => houseTypes.includes(o.office_type)));
+        setIsHod(offices.some(o => o.office_type === 'hod'));
       })
       .catch(() => {});
     teacherApi.get<{ module_keys: string[] }>('/api/responsibilities/my-modules')
@@ -287,7 +303,8 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     (!item.formTeacherOnly  || isFormTeacher) &&
     (!item.clearanceOnly    || isClearanceStaff) &&
     (!item.libraryOnly      || isLibraryTeacher) &&
-    (!item.housemasterOnly  || isHousemaster)
+    (!item.housemasterOnly  || isHousemaster) &&
+    (!item.hodOnly          || isHod)
   );
   const mobileBarItems   = visibleNavItems.filter(item => MOBILE_BAR_HREFS.includes(item.href));
   const mobileMoreItems  = visibleNavItems.filter(item => !MOBILE_BAR_HREFS.includes(item.href));
