@@ -48,12 +48,16 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
     }
     const { rows } = await pool.query(
       `SELECT
-         id, original_absence_date::text AS original_absence_date, subject, class_name,
-         remedial_date::text AS remedial_date, remedial_time, duration_periods,
-         topic, location_name, status, notes, created_at
-       FROM remedial_lessons
-       WHERE school_id = $1 AND teacher_id = $2
-       ORDER BY remedial_date DESC`,
+         rl.id, rl.original_absence_date::text AS original_absence_date, rl.subject, rl.class_name,
+         rl.remedial_date::text AS remedial_date, rl.remedial_time, rl.duration_periods,
+         rl.topic, rl.location_name, rl.status, rl.notes, rl.created_at,
+         EXISTS (
+           SELECT 1 FROM student_attendance_sessions sas
+           WHERE sas.remedial_id = rl.id AND sas.school_id = rl.school_id
+         ) AS has_register
+       FROM remedial_lessons rl
+       WHERE rl.school_id = $1 AND rl.teacher_id = $2
+       ORDER BY rl.remedial_date DESC`,
       [req.schoolId, req.params.teacherId]
     );
     res.json(rows);
@@ -168,6 +172,118 @@ router.post('/', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// GET /api/remedial/:id/register — students + current register state
+router.get('/:id/register', async (req, res, next) => {
+  try {
+    const { rows: rlRows } = await pool.query(
+      `SELECT id, teacher_id, subject, class_name FROM remedial_lessons WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!rlRows.length) return res.status(404).json({ error: 'Remedial lesson not found' });
+    const rl = rlRows[0];
+    if (req.user.role === 'teacher' && req.user.id !== rl.teacher_id)
+      return res.status(403).json({ error: 'Access denied' });
+
+    const [{ rows: students }, { rows: sessRows }] = await Promise.all([
+      pool.query(
+        `SELECT id, student_code, name FROM students
+         WHERE school_id = $1 AND LOWER(class_name) = LOWER($2) AND LOWER(status) = 'active'
+         ORDER BY name`,
+        [req.schoolId, rl.class_name]
+      ),
+      pool.query(
+        `SELECT id FROM student_attendance_sessions WHERE remedial_id = $1 AND school_id = $2 LIMIT 1`,
+        [req.params.id, req.schoolId]
+      ),
+    ]);
+
+    let recordMap = new Map();
+    let sessionId = null;
+    if (sessRows.length) {
+      sessionId = sessRows[0].id;
+      const { rows: recRows } = await pool.query(
+        `SELECT student_id, status FROM student_attendance_records WHERE session_id = $1`,
+        [sessionId]
+      );
+      recRows.forEach(r => recordMap.set(r.student_id, r.status));
+    }
+
+    res.json({
+      sessionId,
+      students: students.map(s => ({ ...s, status: recordMap.get(s.id) || null })),
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/remedial/:id/register — submit or update the student register
+router.post('/:id/register', async (req, res, next) => {
+  try {
+    const { records } = req.body;
+    if (!Array.isArray(records) || !records.length)
+      return res.status(400).json({ error: 'records[] is required' });
+
+    const { rows: rlRows } = await pool.query(
+      `SELECT id, teacher_id, subject, class_name, remedial_date::text AS remedial_date, status
+       FROM remedial_lessons WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!rlRows.length) return res.status(404).json({ error: 'Remedial lesson not found' });
+    const rl = rlRows[0];
+    if (req.user.role === 'teacher' && req.user.id !== rl.teacher_id)
+      return res.status(403).json({ error: 'Access denied' });
+    if (rl.status === 'Cancelled')
+      return res.status(400).json({ error: 'Cannot mark register for a cancelled remedial' });
+
+    const { rows: ayRows } = await pool.query(
+      `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+      [req.schoolId]
+    );
+    const yearId = ayRows[0]?.id || null;
+    const sem    = ayRows[0]?.current_semester || null;
+    const validStatuses = new Set(['Present', 'Absent', 'Late']);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const { rows: sessRows } = await client.query(
+        `SELECT id FROM student_attendance_sessions WHERE remedial_id = $1 AND school_id = $2 LIMIT 1`,
+        [req.params.id, req.schoolId]
+      );
+      let sessionId;
+      if (sessRows.length) {
+        sessionId = sessRows[0].id;
+        await client.query(`DELETE FROM student_attendance_records WHERE session_id = $1`, [sessionId]);
+      } else {
+        const { rows: newSess } = await client.query(
+          `INSERT INTO student_attendance_sessions
+             (school_id, date, subject, class_name, teacher_id, academic_year_id, semester, remedial_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+          [req.schoolId, rl.remedial_date, rl.subject, rl.class_name,
+           rl.teacher_id, yearId, sem, req.params.id]
+        );
+        sessionId = newSess[0].id;
+      }
+
+      for (const rec of records) {
+        const status = validStatuses.has(rec.status) ? rec.status : 'Present';
+        await client.query(
+          `INSERT INTO student_attendance_records (school_id, session_id, student_id, status)
+           VALUES ($1,$2,$3,$4)`,
+          [req.schoolId, sessionId, rec.studentId, status]
+        );
+      }
+
+      await client.query('COMMIT');
+      const present = records.filter(r => r.status === 'Present').length;
+      const absent  = records.filter(r => r.status === 'Absent').length;
+      const late    = records.filter(r => r.status === 'Late').length;
+      res.json({ sessionId, total: records.length, present, absent, late });
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+  } catch (err) { next(err); }
 });
 
 // POST /api/remedial/:id/submit — submit attendance for a remedial lesson

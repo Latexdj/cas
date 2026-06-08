@@ -17,6 +17,14 @@ interface RemedialLesson {
   location_name: string | null;
   status: string;
   photo_url?: string | null;
+  has_register: boolean;
+}
+
+interface StudentRecord {
+  id: string;
+  student_code: string;
+  name: string;
+  status: 'Present' | 'Absent' | 'Late' | null;
 }
 
 function fmt(iso: string) {
@@ -28,7 +36,164 @@ function statusColor(status: string, primary: string): { bg: string; color: stri
   if (status === 'Completed')  return { bg: '#DCFCE7', color: '#15803D' };
   if (status === 'Verified')   return { bg: '#DBEAFE', color: '#1D4ED8' };
   if (status === 'Cancelled')  return { bg: '#F1F5F9', color: '#64748B' };
-  return { bg: `${primary}18`, color: primary }; // Scheduled
+  return { bg: `${primary}18`, color: primary };
+}
+
+// ── Register Modal ────────────────────────────────────────────────────────────
+
+function RegisterModal({
+  remedial,
+  primary,
+  onClose,
+  onSuccess,
+}: {
+  remedial: RemedialLesson;
+  primary: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [students,    setStudents]    = useState<StudentRecord[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [submitting,  setSubmitting]  = useState(false);
+  const [error,       setError]       = useState('');
+  const [statuses,    setStatuses]    = useState<Record<string, 'Present' | 'Absent' | 'Late'>>({});
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await teacherApi.get(`/api/remedial/${remedial.id}/register`);
+        const data: { students: StudentRecord[] } = res.data;
+        setStudents(data.students);
+        const init: Record<string, 'Present' | 'Absent' | 'Late'> = {};
+        data.students.forEach(s => { init[s.id] = (s.status as 'Present' | 'Absent' | 'Late') || 'Present'; });
+        setStatuses(init);
+      } catch {
+        setError('Failed to load student list.');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [remedial.id]);
+
+  function toggle(studentId: string) {
+    setStatuses(prev => {
+      const cur = prev[studentId] || 'Present';
+      const next = cur === 'Present' ? 'Absent' : cur === 'Absent' ? 'Late' : 'Present';
+      return { ...prev, [studentId]: next };
+    });
+  }
+
+  function markAll(status: 'Present' | 'Absent') {
+    setStatuses(prev => {
+      const next = { ...prev };
+      students.forEach(s => { next[s.id] = status; });
+      return next;
+    });
+  }
+
+  async function submit() {
+    if (!students.length) return;
+    setSubmitting(true); setError('');
+    try {
+      const records = students.map(s => ({ studentId: s.id, status: statuses[s.id] || 'Present' }));
+      await teacherApi.post(`/api/remedial/${remedial.id}/register`, { records });
+      onSuccess();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Failed to save register.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const present = students.filter(s => (statuses[s.id] || 'Present') === 'Present').length;
+  const absent  = students.filter(s => statuses[s.id] === 'Absent').length;
+  const late    = students.filter(s => statuses[s.id] === 'Late').length;
+
+  function statusBadge(s: 'Present' | 'Absent' | 'Late') {
+    if (s === 'Present') return { bg: '#DCFCE7', color: '#15803D', label: 'P' };
+    if (s === 'Absent')  return { bg: '#FEE2E2', color: '#B91C1C', label: 'A' };
+    return { bg: '#FEF9C3', color: '#92400E', label: 'L' };
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#F4EFE6' }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#E2D9CC]">
+        <button onClick={onClose} className="text-sm font-semibold text-[#8C7E6E] py-1 px-3 rounded-lg bg-[#F4EFE6]">
+          Cancel
+        </button>
+        <div className="text-center">
+          <p className="text-sm font-bold text-[#2C2218]">Mark Register</p>
+          <p className="text-xs text-[#8C7E6E]">{remedial.subject} · {remedial.class_name}</p>
+        </div>
+        <div className="w-16" />
+      </div>
+
+      {/* Quick-mark row */}
+      <div className="flex gap-2 px-4 py-2 bg-white border-b border-[#E2D9CC]">
+        <button
+          onClick={() => markAll('Present')}
+          className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-green-50 text-green-700 border border-green-200"
+        >
+          All Present
+        </button>
+        <button
+          onClick={() => markAll('Absent')}
+          className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200"
+        >
+          All Absent
+        </button>
+      </div>
+
+      {/* Student list */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+        {loading ? (
+          [1,2,3,4,5].map(i => <div key={i} className="bg-white rounded-2xl h-14 animate-pulse border border-[#E2D9CC]" />)
+        ) : students.length === 0 ? (
+          <div className="bg-white rounded-2xl p-6 text-center border border-[#E2D9CC]">
+            <p className="text-sm text-[#8C7E6E]">No students found in {remedial.class_name}</p>
+          </div>
+        ) : students.map(s => {
+          const st = statuses[s.id] || 'Present';
+          const badge = statusBadge(st);
+          return (
+            <div key={s.id} className="bg-white rounded-2xl border border-[#E2D9CC] flex items-center px-4 py-3 gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-[#2C2218] truncate">{s.name}</p>
+                <p className="text-xs text-[#C0B5A5]">{s.student_code}</p>
+              </div>
+              <button
+                onClick={() => toggle(s.id)}
+                className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                style={{ background: badge.bg, color: badge.color }}
+              >
+                {badge.label}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Summary + Submit */}
+      <div className="bg-white border-t border-[#E2D9CC] px-4 py-3">
+        {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+        <div className="flex gap-4 text-xs font-semibold mb-3">
+          <span className="text-green-700">Present: {present}</span>
+          <span className="text-red-700">Absent: {absent}</span>
+          <span className="text-amber-700">Late: {late}</span>
+        </div>
+        <button
+          onClick={submit}
+          disabled={submitting || loading || students.length === 0}
+          className="w-full py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
+          style={{ background: primary }}
+        >
+          {submitting ? 'Saving…' : 'Save Register'}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ── Submit Proof Modal ────────────────────────────────────────────────────────
@@ -48,7 +213,6 @@ function SubmitProofModal({
   const canvasRef  = useRef<HTMLCanvasElement>(null);
   const streamRef  = useRef<MediaStream | null>(null);
 
-  // Mirror the same compression used by classroom attendance: 640px/0.4 → 480px/0.25 fallback
   function compressFrame(src: HTMLCanvasElement): string {
     const compress = (maxW: number, q: number) => {
       const c = document.createElement('canvas');
@@ -84,16 +248,13 @@ function SubmitProofModal({
     }
   }
 
-  // Start camera and get GPS on mount
   useEffect(() => {
     startCamera('environment');
-
     navigator.geolocation?.getCurrentPosition(
       pos => setGps(`${pos.coords.latitude},${pos.coords.longitude}`),
       () => setGpsError('GPS unavailable — submission will proceed without location verification.'),
       { enableHighAccuracy: true, timeout: 10000 }
     );
-
     return () => { streamRef.current?.getTracks().forEach(t => t.stop()); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -145,7 +306,6 @@ function SubmitProofModal({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-black/80">
         <button onClick={onClose} className="text-white text-sm font-semibold py-1 px-3 rounded-lg bg-white/10">
           Cancel
@@ -156,13 +316,7 @@ function SubmitProofModal({
 
       {step === 'camera' ? (
         <>
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="flex-1 w-full object-cover"
-          />
+          <video ref={videoRef} autoPlay playsInline muted className="flex-1 w-full object-cover" />
           <canvas ref={canvasRef} className="hidden" />
           <div className="bg-black px-4 py-6 flex flex-col items-center gap-3">
             <p className="text-white/70 text-xs text-center">
@@ -171,34 +325,23 @@ function SubmitProofModal({
             {gpsError && <p className="text-amber-400 text-xs text-center">{gpsError}</p>}
             {error && <p className="text-red-400 text-xs text-center">{error}</p>}
             <div className="flex items-center gap-8">
-              {/* Flip camera */}
               <button
                 onClick={flipCamera}
                 className="w-10 h-10 rounded-full bg-white/15 active:bg-white/30 flex items-center justify-center"
-                title={facingMode === 'environment' ? 'Switch to front camera' : 'Switch to back camera'}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={1.8} className="w-5 h-5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5M20 20v-5h-5" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M20 9A8 8 0 0 0 5.5 5.5L4 9m16 6A8 8 0 0 1 4 15l-1.5 3.5" />
                 </svg>
               </button>
-              {/* Capture */}
-              <button
-                onClick={capture}
-                className="w-16 h-16 rounded-full border-4 border-white bg-white/20 active:bg-white/40"
-              />
-              {/* Spacer to keep capture centred */}
+              <button onClick={capture} className="w-16 h-16 rounded-full border-4 border-white bg-white/20 active:bg-white/40" />
               <div className="w-10 h-10" />
             </div>
           </div>
         </>
       ) : (
         <div className="flex-1 overflow-y-auto bg-[#F4EFE6]">
-          <img
-            src={imageBase64}
-            alt="Captured proof"
-            className="w-full max-h-64 object-cover"
-          />
+          <img src={imageBase64} alt="Captured proof" className="w-full max-h-64 object-cover" />
           <div className="px-4 py-4 space-y-3">
             <div className="bg-white rounded-2xl border border-[#E2D9CC] p-4">
               <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-1">Remedial</p>
@@ -221,24 +364,17 @@ function SubmitProofModal({
             </div>
 
             {gps ? (
-              <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
-                GPS captured ✓
-              </p>
+              <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">GPS captured ✓</p>
             ) : (
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
                 {gpsError || 'Acquiring GPS…'}
               </p>
             )}
 
-            {error && (
-              <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>
-            )}
+            {error && <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>}
 
             <div className="flex gap-3 pt-1">
-              <button
-                onClick={retake}
-                className="flex-1 py-3 rounded-xl border border-[#E2D9CC] text-sm font-semibold text-[#8C7E6E]"
-              >
+              <button onClick={retake} className="flex-1 py-3 rounded-xl border border-[#E2D9CC] text-sm font-semibold text-[#8C7E6E]">
                 Retake
               </button>
               <button
@@ -261,11 +397,13 @@ function SubmitProofModal({
 
 export default function RemedialsPage() {
   const router = useRouter();
-  const [primary,   setPrimary]   = useState('#2ab289');
-  const [remedials, setRemedials] = useState<RemedialLesson[]>([]);
-  const [loading,   setLoading]   = useState(true);
+  const [primary,    setPrimary]    = useState('#2ab289');
+  const [remedials,  setRemedials]  = useState<RemedialLesson[]>([]);
+  const [loading,    setLoading]    = useState(true);
   const [submitting, setSubmitting] = useState<RemedialLesson | null>(null);
+  const [registering, setRegistering] = useState<RemedialLesson | null>(null);
   const [successId,  setSuccessId]  = useState<string | null>(null);
+  const [regSuccessId, setRegSuccessId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     const teacher = getTeacher();
@@ -284,16 +422,22 @@ export default function RemedialsPage() {
     loadData();
   }, [loadData]);
 
-  async function handleSuccess() {
+  async function handleProofSuccess() {
     setSuccessId(submitting?.id ?? null);
     setSubmitting(null);
     await loadData();
     setTimeout(() => setSuccessId(null), 3000);
   }
 
+  async function handleRegisterSuccess() {
+    setRegSuccessId(registering?.id ?? null);
+    setRegistering(null);
+    await loadData();
+    setTimeout(() => setRegSuccessId(null), 3000);
+  }
+
   return (
     <div className="min-h-screen px-4 pt-6 pb-24" style={{ background: '#F4EFE6' }}>
-      {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => router.push('/teacher/absences')}
@@ -312,6 +456,11 @@ export default function RemedialsPage() {
       {successId && (
         <div className="mb-4 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 text-sm text-green-700 font-semibold">
           Proof submitted successfully! The admin will review and verify it.
+        </div>
+      )}
+      {regSuccessId && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 text-sm text-green-700 font-semibold">
+          Register saved successfully!
         </div>
       )}
 
@@ -354,24 +503,38 @@ export default function RemedialsPage() {
                   </span>
                 </div>
 
-                {rem.status === 'Scheduled' && (
-                  <button
-                    onClick={() => setSubmitting(rem)}
-                    className="mt-1 w-full py-2.5 rounded-xl text-white text-sm font-semibold"
-                    style={{ background: primary }}
-                  >
-                    Submit Proof of Attendance
-                  </button>
+                {rem.status !== 'Cancelled' && (
+                  <div className="flex gap-2 mt-1">
+                    {rem.status === 'Scheduled' && (
+                      <button
+                        onClick={() => setSubmitting(rem)}
+                        className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold"
+                        style={{ background: primary }}
+                      >
+                        Submit Proof
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => setRegistering(rem)}
+                      className={`py-2.5 rounded-xl text-sm font-semibold border ${rem.has_register
+                        ? 'text-green-700 bg-green-50 border-green-200'
+                        : 'text-[#8C7E6E] bg-[#F4EFE6] border-[#E2D9CC]'
+                      } ${rem.status === 'Scheduled' ? 'flex-none px-4' : 'flex-1'}`}
+                    >
+                      {rem.has_register ? 'Register taken ✓' : 'Mark Register'}
+                    </button>
+                  </div>
                 )}
 
-                {rem.status === 'Completed' && (
-                  <p className="mt-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                {rem.status === 'Completed' && !rem.has_register && (
+                  <p className="mt-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
                     Proof submitted — awaiting admin verification.
                   </p>
                 )}
 
                 {rem.status === 'Verified' && (
-                  <p className="mt-1 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
+                  <p className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
                     Verified by admin ✓
                   </p>
                 )}
@@ -386,7 +549,16 @@ export default function RemedialsPage() {
           remedial={submitting}
           primary={primary}
           onClose={() => setSubmitting(null)}
-          onSuccess={handleSuccess}
+          onSuccess={handleProofSuccess}
+        />
+      )}
+
+      {registering && (
+        <RegisterModal
+          remedial={registering}
+          primary={primary}
+          onClose={() => setRegistering(null)}
+          onSuccess={handleRegisterSuccess}
         />
       )}
     </div>

@@ -183,6 +183,7 @@ async function runMigrations() {
         UNIQUE (school_id, student_id)
       )
     `);
+    await pool.query(`ALTER TABLE student_attendance_sessions ADD COLUMN IF NOT EXISTS remedial_id UUID REFERENCES remedial_lessons(id) ON DELETE SET NULL`);
     await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS photo_url TEXT`);
     await pool.query(`ALTER TABLE schools  ADD COLUMN IF NOT EXISTS logo_url  TEXT`);
     await pool.query(`
