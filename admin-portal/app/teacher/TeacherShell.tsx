@@ -270,7 +270,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
       .then(r => {
         const offices = Array.isArray(r.data) ? r.data : [];
         const houseTypes = ['housemaster', 'senior_housemaster'];
-        setIsClearanceStaff(offices.some(o => !houseTypes.includes(o.office_type)));
+        setIsClearanceStaff(offices.length > 0);
         setIsHousemaster(offices.some(o => houseTypes.includes(o.office_type)));
         setIsHod(offices.some(o => o.office_type === 'hod'));
       })
