@@ -51,15 +51,28 @@ async function autoMarkOverdue(schoolId) {
 async function sendParentSms(phone, message) {
   const apiKey   = process.env.SMS_API_KEY;
   const senderId = process.env.SMS_SENDER_ID || 'SCHOOL';
-  if (!apiKey || !phone) return;
+  if (!apiKey) {
+    console.warn('[Exeat SMS] SMS_API_KEY not set — SMS not sent. Configure SMS_API_KEY and SMS_SENDER_ID on Render.');
+    return false;
+  }
+  if (!phone) {
+    console.warn('[Exeat SMS] No phone number — SMS not sent.');
+    return false;
+  }
   try {
     // Arkesel SMS API (Ghana) — set SMS_API_KEY and SMS_SENDER_ID env vars to enable
-    await fetch(
-      `https://sms.arkesel.com/sms/api?action=send-sms&api_key=${encodeURIComponent(apiKey)}&to=${encodeURIComponent(phone)}&from=${encodeURIComponent(senderId)}&sms=${encodeURIComponent(message)}`,
-      { method: 'GET' }
-    );
+    const url = `https://sms.arkesel.com/sms/api?action=send-sms&api_key=${encodeURIComponent(apiKey)}&to=${encodeURIComponent(phone)}&from=${encodeURIComponent(senderId)}&sms=${encodeURIComponent(message)}`;
+    const res  = await fetch(url, { method: 'GET' });
+    const body = await res.json().catch(() => ({}));
+    if (body.status === 'success' || body.code === '0100') {
+      console.log(`[Exeat SMS] Sent to ${phone}`);
+      return true;
+    }
+    console.error('[Exeat SMS] Arkesel rejected:', JSON.stringify(body));
+    return false;
   } catch (err) {
-    console.error('[Exeat SMS] Failed:', err.message);
+    console.error('[Exeat SMS] Request failed:', err.message);
+    return false;
   }
 }
 

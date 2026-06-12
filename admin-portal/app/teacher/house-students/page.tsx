@@ -518,10 +518,12 @@ const STATUS_META: Record<string, { label: string; dot: string; badge: string }>
   rejected: { label: 'Rejected', dot: 'bg-slate-400',  badge: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300' },
 };
 
-function fmtTime(t: string) { return t?.slice(0, 5) ?? ''; }
-function fmtDate(d: string) {
-  if (!d) return '';
-  const dt = new Date(d + 'T00:00:00');
+function fmtTime(t: string | null | undefined) { return t?.slice(0, 5) ?? ''; }
+function fmtDate(d: string | null | undefined) {
+  if (!d) return '—';
+  // Use first 10 chars to handle both 'YYYY-MM-DD' and full ISO timestamps
+  const dt = new Date(d.slice(0, 10) + 'T12:00:00');
+  if (isNaN(dt.getTime())) return d;
   return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 

@@ -24,7 +24,9 @@ const STATUS_META: Record<string, { label: string; badge: string }> = {
 function fmtTime(t: string | null) { return t?.slice(0, 5) ?? '—'; }
 function fmtDate(d: string | null) {
   if (!d) return '—';
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dt = new Date(d.slice(0, 10) + 'T12:00:00');
+  if (isNaN(dt.getTime())) return d;
+  return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export default function AdminExeatPage() {
