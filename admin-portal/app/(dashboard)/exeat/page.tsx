@@ -2,6 +2,87 @@
 import { useEffect, useState, useMemo } from 'react';
 import { api } from '@/lib/api';
 
+interface ExeatSettings { max_internal: number; max_external: number; semester_start_date: string | null; }
+
+function SettingsModal({ onClose, onSaved }: { onClose: () => void; onSaved: (s: ExeatSettings) => void }) {
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [maxInt,   setMaxInt]   = useState('5');
+  const [maxExt,   setMaxExt]   = useState('2');
+  const [semStart, setSemStart] = useState('');
+  const [error,    setError]    = useState('');
+
+  useEffect(() => {
+    api.get<ExeatSettings>('/api/exeat/settings')
+      .then(r => {
+        setMaxInt(String(r.data.max_internal ?? 5));
+        setMaxExt(String(r.data.max_external ?? 2));
+        setSemStart(r.data.semester_start_date ?? '');
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function save() {
+    if (!semStart) { setError('Semester start date is required'); return; }
+    setSaving(true); setError('');
+    try {
+      const r = await api.put<ExeatSettings>('/api/exeat/settings', {
+        max_internal: parseInt(maxInt) || 0,
+        max_external: parseInt(maxExt) || 0,
+        semester_start_date: semStart,
+      });
+      onSaved(r.data);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setError(err.response?.data?.error ?? 'Failed to save');
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <p className="font-bold text-slate-900 dark:text-white">Exeat Quota Settings</p>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-6"><div className="w-6 h-6 rounded-full border-2 border-green-500 border-t-transparent animate-spin" /></div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Set the maximum number of each exeat type a student may take per semester. Leave at 0 to block all self-requests for that type.</p>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Semester Start Date *</label>
+              <input type="date" value={semStart} onChange={e => setSemStart(e.target.value)}
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+              <p className="text-[11px] text-slate-400 mt-1">Exeat counts reset from this date each semester.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Max Internal</label>
+                <input type="number" min="0" max="99" value={maxInt} onChange={e => setMaxInt(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Max External</label>
+                <input type="number" min="0" max="99" value={maxExt} onChange={e => setMaxExt(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+              </div>
+            </div>
+            {error && <p className="text-xs text-red-500">{error}</p>}
+            <div className="flex gap-3 pt-1">
+              <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-sm font-semibold text-slate-600 dark:text-slate-300">Cancel</button>
+              <button onClick={save} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-green-700 text-white text-sm font-semibold disabled:opacity-40">
+                {saving ? 'Saving…' : 'Save Settings'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface Exeat {
   id: string; exeat_type: 'internal' | 'external'; status: string;
   destination: string | null; reason: string | null; parent_contact: string | null; notes: string | null; sms_sent: boolean;
@@ -30,15 +111,23 @@ function fmtDate(d: string | null) {
 }
 
 export default function AdminExeatPage() {
-  const [exeats,  setExeats]  = useState<Exeat[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search,  setSearch]  = useState('');
-  const [fStatus, setFStatus] = useState('');
-  const [fType,   setFType]   = useState('');
-  const [fHouse,  setFHouse]  = useState('');
-  const [fFrom,   setFFrom]   = useState('');
-  const [fTo,     setFTo]     = useState('');
+  const [exeats,   setExeats]   = useState<Exeat[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [search,   setSearch]   = useState('');
+  const [fStatus,  setFStatus]  = useState('');
+  const [fType,    setFType]    = useState('');
+  const [fHouse,   setFHouse]   = useState('');
+  const [fFrom,    setFFrom]    = useState('');
+  const [fTo,      setFTo]      = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [quotaSettings, setQuotaSettings] = useState<ExeatSettings | null>(null);
+
+  useEffect(() => {
+    api.get<ExeatSettings>('/api/exeat/settings')
+      .then(r => setQuotaSettings(r.data))
+      .catch(() => {});
+  }, []);
 
   function load() {
     setLoading(true);
@@ -79,6 +168,32 @@ export default function AdminExeatPage() {
 
   return (
     <div className="space-y-6">
+      {showSettings && (
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          onSaved={s => { setQuotaSettings(s); setShowSettings(false); }}
+        />
+      )}
+
+      {/* Header row with settings button */}
+      <div className="flex items-center justify-between gap-3">
+        {quotaSettings?.semester_start_date ? (
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Semester quota — Internal: <strong className="text-slate-700 dark:text-slate-300">{quotaSettings.max_internal}</strong> · External: <strong className="text-slate-700 dark:text-slate-300">{quotaSettings.max_external}</strong> · from {fmtDate(quotaSettings.semester_start_date)}
+          </p>
+        ) : (
+          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Exeat quotas not configured — students can request without limits.</p>
+        )}
+        <button onClick={() => setShowSettings(true)}
+          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 shrink-0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+          </svg>
+          Quota Settings
+        </button>
+      </div>
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[

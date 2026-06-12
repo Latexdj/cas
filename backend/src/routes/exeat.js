@@ -91,6 +91,139 @@ const EXEAT_SELECT = `
   LEFT JOIN teachers t ON t.id = e.granted_by
 `;
 
+// ── GET /api/exeat/settings  (admin) ─────────────────────────────────────────
+router.get('/settings', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT max_internal, max_external, semester_start_date::text
+       FROM exeat_settings WHERE school_id = $1`,
+      [req.schoolId]
+    );
+    res.json(rows[0] ?? { max_internal: 5, max_external: 2, semester_start_date: null });
+  } catch (err) { next(err); }
+});
+
+// ── PUT /api/exeat/settings  (admin) ─────────────────────────────────────────
+router.put('/settings', adminOnly, async (req, res, next) => {
+  try {
+    const { max_internal, max_external, semester_start_date } = req.body;
+    if (max_internal == null || max_external == null || !semester_start_date) {
+      return res.status(400).json({ error: 'max_internal, max_external, and semester_start_date are required' });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO exeat_settings (school_id, max_internal, max_external, semester_start_date)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (school_id) DO UPDATE
+         SET max_internal = $2, max_external = $3, semester_start_date = $4, updated_at = now()
+       RETURNING max_internal, max_external, semester_start_date::text`,
+      [req.schoolId, max_internal, max_external, semester_start_date]
+    );
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/exeat/my-requests  (student) ────────────────────────────────────
+router.get('/my-requests', async (req, res, next) => {
+  try {
+    if (req.user?.role !== 'student') return res.status(403).json({ error: 'Student access only' });
+    await autoMarkOverdue(req.schoolId);
+
+    const [settingsRes, exeatsRes, stuRes] = await Promise.all([
+      pool.query(
+        `SELECT max_internal, max_external, semester_start_date::text FROM exeat_settings WHERE school_id = $1`,
+        [req.schoolId]
+      ),
+      pool.query(`${EXEAT_SELECT} WHERE e.student_id = $1 AND e.school_id = $2 ORDER BY e.created_at DESC`,
+        [req.user.id, req.schoolId]
+      ),
+      pool.query(`SELECT guardian_mobile, house FROM students WHERE id = $1`, [req.user.id]),
+    ]);
+
+    const settings = settingsRes.rows[0] ?? { max_internal: null, max_external: null, semester_start_date: null };
+    const exeats   = exeatsRes.rows;
+    const student  = stuRes.rows[0] ?? {};
+
+    let usedInternal = 0, usedExternal = 0;
+    if (settings.semester_start_date) {
+      const semExeats = exeats.filter(e =>
+        e.departure_date >= settings.semester_start_date && e.status !== 'rejected'
+      );
+      usedInternal = semExeats.filter(e => e.exeat_type === 'internal').length;
+      usedExternal = semExeats.filter(e => e.exeat_type === 'external').length;
+    }
+
+    res.json({
+      exeats, settings,
+      used: { internal: usedInternal, external: usedExternal },
+      guardian_mobile: student.guardian_mobile ?? null,
+      house: student.house ?? null,
+    });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/exeat/student-request  (student) ───────────────────────────────
+router.post('/student-request', async (req, res, next) => {
+  try {
+    if (req.user?.role !== 'student') return res.status(403).json({ error: 'Student access only' });
+
+    const { exeat_type, destination, reason, parent_contact,
+            departure_date, departure_time, expected_return_date, expected_return_time, notes } = req.body;
+
+    if (!exeat_type || !destination || !reason || !departure_date || !departure_time || !expected_return_date || !expected_return_time) {
+      return res.status(400).json({ error: 'exeat_type, destination, reason, departure date/time, and expected return date/time are required' });
+    }
+    if (!['internal', 'external'].includes(exeat_type)) {
+      return res.status(400).json({ error: 'exeat_type must be internal or external' });
+    }
+
+    const { rows: stuRows } = await pool.query(
+      `SELECT name, guardian_mobile, house FROM students WHERE id = $1 AND school_id = $2`,
+      [req.user.id, req.schoolId]
+    );
+    if (!stuRows.length) return res.status(404).json({ error: 'Student not found' });
+    const student = stuRows[0];
+    if (!student.house) return res.status(400).json({ error: 'You are not assigned to a house. Contact your administrator.' });
+
+    // Quota check
+    const { rows: setRows } = await pool.query(
+      `SELECT max_internal, max_external, semester_start_date FROM exeat_settings WHERE school_id = $1`,
+      [req.schoolId]
+    );
+    const settings = setRows[0];
+    if (settings?.semester_start_date) {
+      const maxForType = exeat_type === 'internal' ? settings.max_internal : settings.max_external;
+      if (maxForType != null) {
+        const { rows: cntRows } = await pool.query(
+          `SELECT COUNT(*) AS cnt FROM exeats
+           WHERE student_id = $1 AND school_id = $2 AND exeat_type = $3
+             AND status <> 'rejected' AND departure_date >= $4`,
+          [req.user.id, req.schoolId, exeat_type, settings.semester_start_date]
+        );
+        const used = parseInt(cntRows[0].cnt);
+        if (used >= maxForType) {
+          return res.status(403).json({
+            error: 'quota_exceeded',
+            message: `You have used all ${maxForType} ${exeat_type} exeat${maxForType !== 1 ? 's' : ''} allowed this semester. Contact your ${exeat_type === 'external' ? 'senior ' : ''}housemaster for an exception.`,
+            used, max: maxForType,
+          });
+        }
+      }
+    }
+
+    const contact = parent_contact?.trim() || student.guardian_mobile || null;
+    const { rows: ins } = await pool.query(
+      `INSERT INTO exeats
+         (school_id, student_id, exeat_type, status, destination, reason, parent_contact,
+          departure_date, departure_time, expected_return_date, expected_return_time, notes)
+       VALUES ($1,$2,$3,'pending',$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [req.schoolId, req.user.id, exeat_type, destination.trim(), reason.trim(), contact,
+       departure_date, departure_time, expected_return_date, expected_return_time, notes || null]
+    );
+    const { rows: full } = await pool.query(`${EXEAT_SELECT} WHERE e.id = $1`, [ins[0].id]);
+    res.status(201).json(full[0]);
+  } catch (err) { next(err); }
+});
+
 // ── GET /api/exeat  (admin) ───────────────────────────────────────────────────
 router.get('/', adminOnly, async (req, res, next) => {
   try {

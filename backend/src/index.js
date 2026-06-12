@@ -842,6 +842,17 @@ async function runMigrations() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_exeats_school_status ON exeats(school_id, status)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_exeats_student ON exeats(student_id)`);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS exeat_settings (
+        id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id           UUID         NOT NULL UNIQUE REFERENCES schools(id) ON DELETE CASCADE,
+        max_internal        INT          NOT NULL DEFAULT 5,
+        max_external        INT          NOT NULL DEFAULT 2,
+        semester_start_date DATE         NOT NULL DEFAULT CURRENT_DATE,
+        updated_at          TIMESTAMPTZ  NOT NULL DEFAULT now()
+      )
+    `);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

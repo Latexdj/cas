@@ -79,6 +79,16 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    href: '/student/exeat',
+    label: 'Exeat',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M13 4h3a2 2 0 012 2v14" /><path d="M2 20h3" /><path d="M13 20h9" />
+        <path d="M10 12v.01" /><path d="M13 4.562v16.157a1 1 0 01-1.242.97L4 20V5.562a2 2 0 011.515-1.94l6-1.5a1 1 0 011.485.94z" />
+      </svg>
+    ),
+  },
+  {
     href: '/student/profile',
     label: 'Profile',
     icon: (
