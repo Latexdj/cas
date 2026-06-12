@@ -765,15 +765,16 @@ function ReturnModal({ exeat, onClose, onReturned }: { exeat: Exeat; onClose: ()
 
 function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housemaster'; houseOptions: string[] }) {
   type SubTab = 'pending' | 'out' | 'history';
-  const [subTab,      setSubTab]      = useState<SubTab>('out');
-  const [exeats,      setExeats]      = useState<Exeat[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [showCreate,  setShowCreate]  = useState(false);
-  const [returning,   setReturning]   = useState<Exeat | null>(null);
-  const [actioning,   setActioning]   = useState<string | null>(null);
-  const [rejectId,    setRejectId]    = useState<string | null>(null);
-  const [rejectNote,  setRejectNote]  = useState('');
-  const [error,       setError]       = useState('');
+  const [subTab,       setSubTab]      = useState<SubTab>('out');
+  const [exeats,       setExeats]      = useState<Exeat[]>([]);
+  const [loading,      setLoading]     = useState(true);
+  const [showCreate,   setShowCreate]  = useState(false);
+  const [returning,    setReturning]   = useState<Exeat | null>(null);
+  const [actioning,    setActioning]   = useState<string | null>(null);
+  const [rejectId,     setRejectId]    = useState<string | null>(null);
+  const [rejectNote,   setRejectNote]  = useState('');
+  const [error,        setError]       = useState('');
+  const [historySearch, setHistorySearch] = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -804,8 +805,8 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
   async function reject(id: string) {
     setActioning(id); setError('');
     try {
-      await teacherApi.post(`/api/exeat/${id}/reject`, { notes: rejectNote });
-      setExeats(prev => prev.map(e => e.id === id ? { ...e, status: 'rejected', notes: rejectNote || e.notes } : e));
+      const r = await teacherApi.post<Exeat>(`/api/exeat/${id}/reject`, { notes: rejectNote });
+      setExeats(prev => prev.map(e => e.id === id ? r.data : e));
       setRejectId(null); setRejectNote('');
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
@@ -890,7 +891,14 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
     );
   }
 
-  const displayList = subTab === 'pending' ? pending : subTab === 'out' ? active : history;
+  const filteredHistory = historySearch.trim()
+    ? history.filter(e =>
+        e.student_name?.toLowerCase().includes(historySearch.toLowerCase()) ||
+        e.student_code?.toLowerCase().includes(historySearch.toLowerCase()) ||
+        e.destination?.toLowerCase().includes(historySearch.toLowerCase())
+      )
+    : history;
+  const displayList = subTab === 'pending' ? pending : subTab === 'out' ? active : filteredHistory;
 
   return (
     <div className="space-y-3">
@@ -928,6 +936,15 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
       </div>
 
       {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+
+      {subTab === 'history' && (
+        <input
+          value={historySearch}
+          onChange={e => setHistorySearch(e.target.value)}
+          placeholder="Search by student name, ID or destination…"
+          className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+        />
+      )}
 
       {loading ? (
         <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-green-500 border-t-transparent animate-spin" /></div>

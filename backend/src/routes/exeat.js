@@ -240,7 +240,8 @@ router.post('/', async (req, res, next) => {
       exeat.sms_sent = true;
     }
 
-    res.status(201).json(exeat);
+    const { rows: fullRows } = await pool.query(`${EXEAT_SELECT} WHERE e.id = $1`, [exeat.id]);
+    res.status(201).json(fullRows[0]);
   } catch (err) { next(err); }
 });
 
@@ -308,11 +309,12 @@ router.post('/:id/return', async (req, res, next) => {
       return res.status(403).json({ error: 'Student is not in your house' });
     }
 
-    const { rows } = await pool.query(
+    await pool.query(
       `UPDATE exeats SET status = 'returned', actual_return_date = $1, actual_return_time = $2
-       WHERE id = $3 RETURNING *`,
+       WHERE id = $3`,
       [retDate, retTime, req.params.id]
     );
+    const { rows } = await pool.query(`${EXEAT_SELECT} WHERE e.id = $1`, [req.params.id]);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -333,10 +335,11 @@ router.post('/:id/reject', async (req, res, next) => {
       return res.status(403).json({ error: 'Student is not in your house' });
     }
 
-    const { rows } = await pool.query(
-      `UPDATE exeats SET status = 'rejected', notes = COALESCE($1, notes) WHERE id = $2 RETURNING *`,
+    await pool.query(
+      `UPDATE exeats SET status = 'rejected', notes = COALESCE($1, notes) WHERE id = $2`,
       [req.body.notes || null, req.params.id]
     );
+    const { rows } = await pool.query(`${EXEAT_SELECT} WHERE e.id = $1`, [req.params.id]);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
