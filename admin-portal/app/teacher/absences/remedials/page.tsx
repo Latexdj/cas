@@ -171,30 +171,30 @@ function RegisterModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: '#F4EFE6' }}>
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#F4EFE6] dark:bg-slate-900">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-[#E2D9CC]">
-        <button onClick={onClose} className="text-sm font-semibold text-[#8C7E6E] py-1 px-3 rounded-lg bg-[#F4EFE6]">
+      <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-slate-800 border-b border-[#E2D9CC] dark:border-slate-700">
+        <button onClick={onClose} className="text-sm font-semibold text-[#8C7E6E] dark:text-slate-400 py-1 px-3 rounded-lg bg-[#F4EFE6] dark:bg-slate-700">
           Cancel
         </button>
         <div className="text-center">
-          <p className="text-sm font-bold text-[#2C2218]">Mark Register</p>
-          <p className="text-xs text-[#8C7E6E]">{remedial.subject} · {remedial.class_name}</p>
+          <p className="text-sm font-bold text-[#2C2218] dark:text-white">Mark Register</p>
+          <p className="text-xs text-[#8C7E6E] dark:text-slate-400">{remedial.subject} · {remedial.class_name}</p>
         </div>
         <div className="w-16" />
       </div>
 
       {/* Quick-mark row */}
-      <div className="flex gap-2 px-4 py-2 bg-white border-b border-[#E2D9CC]">
+      <div className="flex gap-2 px-4 py-2 bg-white dark:bg-slate-800 border-b border-[#E2D9CC] dark:border-slate-700">
         <button
           onClick={() => markAll('Present')}
-          className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-green-50 text-green-700 border border-green-200"
+          className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700"
         >
           All Present
         </button>
         <button
           onClick={() => markAll('Absent')}
-          className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200"
+          className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700"
         >
           All Absent
         </button>
@@ -203,19 +203,19 @@ function RegisterModal({
       {/* Student list */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
         {loading ? (
-          [1,2,3,4,5].map(i => <div key={i} className="bg-white rounded-2xl h-14 animate-pulse border border-[#E2D9CC]" />)
+          [1,2,3,4,5].map(i => <div key={i} className="bg-white dark:bg-slate-800 rounded-2xl h-14 animate-pulse border border-[#E2D9CC] dark:border-slate-700" />)
         ) : students.length === 0 ? (
-          <div className="bg-white rounded-2xl p-6 text-center border border-[#E2D9CC]">
-            <p className="text-sm text-[#8C7E6E]">No students found in {remedial.class_name}</p>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 text-center border border-[#E2D9CC] dark:border-slate-700">
+            <p className="text-sm text-[#8C7E6E] dark:text-slate-400">No students found in {remedial.class_name}</p>
           </div>
         ) : students.map(s => {
           const st = statuses[s.id] || 'Present';
           const badge = statusBadge(st);
           return (
-            <div key={s.id} className="bg-white rounded-2xl border border-[#E2D9CC] flex items-center px-4 py-3 gap-3">
+            <div key={s.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-[#E2D9CC] dark:border-slate-700 flex items-center px-4 py-3 gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-[#2C2218] truncate">{s.name}</p>
-                <p className="text-xs text-[#C0B5A5]">{s.student_code}{isMerged ? ` · ${s.class_name}` : ''}</p>
+                <p className="text-sm font-semibold text-[#2C2218] dark:text-white truncate">{s.name}</p>
+                <p className="text-xs text-[#C0B5A5] dark:text-slate-400">{s.student_code}{isMerged ? ` · ${s.class_name}` : ''}</p>
               </div>
               <button
                 onClick={() => toggle(s.id)}
@@ -230,12 +230,12 @@ function RegisterModal({
       </div>
 
       {/* Summary + Submit */}
-      <div className="bg-white border-t border-[#E2D9CC] px-4 py-3">
+      <div className="bg-white dark:bg-slate-800 border-t border-[#E2D9CC] dark:border-slate-700 px-4 py-3">
         {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
         <div className="flex gap-4 text-xs font-semibold mb-3">
-          <span className="text-green-700">Present: {present}</span>
-          <span className="text-red-700">Absent: {absent}</span>
-          <span className="text-amber-700">Late: {late}</span>
+          <span className="text-green-700 dark:text-green-400">Present: {present}</span>
+          <span className="text-red-700 dark:text-red-400">Absent: {absent}</span>
+          <span className="text-amber-700 dark:text-amber-400">Late: {late}</span>
         </div>
         <button
           onClick={submit}
