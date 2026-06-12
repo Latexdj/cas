@@ -43,6 +43,7 @@ const libraryRoutes           = require('./routes/library');
 const schoolStaffRoutes       = require('./routes/schoolStaff');
 const responsibilitiesRoutes  = require('./routes/responsibilities');
 const hodRoutes               = require('./routes/hod');
+const exeatRoutes             = require('./routes/exeat');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -114,6 +115,7 @@ app.use('/api/library',            libraryRoutes);
 app.use('/api/school-staff',       schoolStaffRoutes);
 app.use('/api/responsibilities',   responsibilitiesRoutes);
 app.use('/api/hod',                hodRoutes);
+app.use('/api/exeat',              exeatRoutes);
 
 app.use(errorHandler);
 
@@ -811,6 +813,34 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS issued_by_school_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
     await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS issued_by_teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL`);
     await pool.query(`ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS uploaded_by_school_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
+
+    // Exeat module
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS exeats (
+        id                   UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id            UUID         NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        student_id           UUID         NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        exeat_type           TEXT         NOT NULL CHECK (exeat_type IN ('internal','external')),
+        status               TEXT         NOT NULL DEFAULT 'pending'
+                               CHECK (status IN ('pending','active','returned','overdue','rejected')),
+        destination          TEXT,
+        reason               TEXT,
+        parent_contact       TEXT,
+        departure_date       DATE         NOT NULL,
+        departure_time       TIME         NOT NULL,
+        expected_return_date DATE         NOT NULL,
+        expected_return_time TIME         NOT NULL,
+        actual_return_date   DATE,
+        actual_return_time   TIME,
+        granted_by           UUID         REFERENCES teachers(id) ON DELETE SET NULL,
+        granted_at           TIMESTAMPTZ,
+        sms_sent             BOOLEAN      NOT NULL DEFAULT false,
+        notes                TEXT,
+        created_at           TIMESTAMPTZ  NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_exeats_school_status ON exeats(school_id, status)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_exeats_student ON exeats(student_id)`);
 
     console.log('Migrations OK');
   } catch (err) {

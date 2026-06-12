@@ -138,6 +138,14 @@ export default function FormClassPage() {
   const [saving,          setSaving]          = useState(false);
   const [savedMsg,        setSavedMsg]        = useState(false);
   const [drawerStudent,   setDrawerStudent]   = useState<FormTeacherStudent | null>(null);
+  const [onExeatIds,      setOnExeatIds]      = useState<Set<string>>(new Set());
+
+  // Load active exeat IDs for badge display
+  useEffect(() => {
+    teacherApi.get<string[]>('/api/exeat/on-exeat-ids')
+      .then(r => setOnExeatIds(new Set(r.data)))
+      .catch(() => {});
+  }, []);
 
   // Load years on mount
   useEffect(() => {
@@ -347,7 +355,12 @@ export default function FormClassPage() {
                       <Avatar url={s.picture_url} name={s.name} gender={s.gender} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 truncate">{s.name}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{s.name}</p>
+                        {onExeatIds.has(s.id) && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 flex-shrink-0">On Exeat</span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-400">{s.student_code}{s.program_name ? ` · ${s.program_name}` : ''}</p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
