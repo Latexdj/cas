@@ -269,6 +269,7 @@ router.get('/absence-conflicts', adminOnly, async (req, res, next) => {
         SELECT ab.id, 'Attendance submitted' AS flag_reason, NULL::text AS flag_detail
         FROM absences ab
         WHERE ab.school_id = $1 ${dateWhere}
+          AND ab.status NOT IN ('Excused', 'Made Up', 'Verified')
           AND EXISTS (
             SELECT 1 FROM attendance att
             WHERE att.school_id = ab.school_id
@@ -289,6 +290,7 @@ router.get('/absence-conflicts', adminOnly, async (req, res, next) => {
         FROM absences ab
         JOIN school_calendar sc ON sc.school_id = ab.school_id AND sc.date = ab.date
         WHERE ab.school_id = $1 ${dateWhere}
+          AND ab.status NOT IN ('Excused', 'Made Up', 'Verified')
 
         UNION ALL
 
@@ -303,6 +305,7 @@ router.get('/absence-conflicts', adminOnly, async (req, res, next) => {
          AND tex.date_from <= ab.date
          AND tex.date_to   >= ab.date
         WHERE ab.school_id = $1 ${dateWhere}
+          AND ab.status NOT IN ('Excused', 'Made Up', 'Verified')
       ),
       aggregated AS (
         SELECT id,
@@ -339,9 +342,11 @@ router.post('/absence-conflicts/clear', adminOnly, async (req, res, next) => {
       return res.status(400).json({ error: 'ids array is required' });
 
     // Re-validate server-side: only delete absences that still match at least one condition
+    // Never touch absences already resolved (Excused/Made Up/Verified) — those power the summary counts
     const { rows } = await pool.query(`
       DELETE FROM absences
       WHERE id = ANY($1) AND school_id = $2
+        AND status NOT IN ('Excused', 'Made Up', 'Verified')
         AND (
           EXISTS (
             SELECT 1 FROM attendance att
