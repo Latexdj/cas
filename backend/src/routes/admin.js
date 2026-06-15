@@ -574,6 +574,14 @@ router.post('/attendance', async (req, res, next) => {
         false, 'Manual entry by admin', null,
       ]
     );
+    // Clear any auto-generated absence records for this teacher/subject/date
+    await pool.query(
+      `DELETE FROM absences
+       WHERE school_id = $1 AND teacher_id = $2 AND date = $3
+         AND LOWER(subject) = LOWER($4)`,
+      [req.schoolId, teacherId, date, subject]
+    );
+
     const classQueue = classNames.split(',').map(c => c.trim()).filter(Boolean);
     res.status(201).json({ message: 'Attendance recorded manually', id: rows[0].id, classQueue });
   } catch (err) { next(err); }
