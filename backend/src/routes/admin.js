@@ -253,6 +253,128 @@ router.post('/run-absence-check', async (req, res, next) => {
   }
 });
 
+// GET /api/admin/absence-conflicts — find false absences matching any of 3 conditions
+router.get('/absence-conflicts', adminOnly, async (req, res, next) => {
+  try {
+    const { from, to } = req.query;
+    const params = [req.schoolId];
+    const dateFilter = [];
+    if (from) { params.push(from); dateFilter.push(`ab.date >= $${params.length}`); }
+    if (to)   { params.push(to);   dateFilter.push(`ab.date <= $${params.length}`); }
+    const dateWhere = dateFilter.length ? 'AND ' + dateFilter.join(' AND ') : '';
+
+    const { rows } = await pool.query(`
+      WITH flagged AS (
+        -- Condition 1: attendance record also exists for same teacher/subject/class/date
+        SELECT ab.id, 'Attendance submitted' AS flag_reason, NULL::text AS flag_detail
+        FROM absences ab
+        WHERE ab.school_id = $1 ${dateWhere}
+          AND EXISTS (
+            SELECT 1 FROM attendance att
+            WHERE att.school_id = ab.school_id
+              AND att.teacher_id = ab.teacher_id
+              AND att.date = ab.date
+              AND LOWER(att.subject) = LOWER(ab.subject)
+              AND EXISTS (
+                SELECT 1
+                FROM unnest(string_to_array(att.class_names, ',')) AS cls
+                WHERE trim(lower(cls)) = trim(lower(ab.class_name))
+              )
+          )
+
+        UNION ALL
+
+        -- Condition 2: school calendar event (holiday / school event) on that date
+        SELECT ab.id, 'School event' AS flag_reason, sc.name AS flag_detail
+        FROM absences ab
+        JOIN school_calendar sc ON sc.school_id = ab.school_id AND sc.date = ab.date
+        WHERE ab.school_id = $1 ${dateWhere}
+
+        UNION ALL
+
+        -- Condition 3: teacher has an approved excuse covering that date
+        SELECT ab.id, 'Teacher excused' AS flag_reason,
+               tex.date_from::text || ' – ' || tex.date_to::text AS flag_detail
+        FROM absences ab
+        JOIN teacher_excuses tex
+          ON tex.teacher_id = ab.teacher_id
+         AND tex.school_id  = ab.school_id
+         AND tex.status     = 'Approved'
+         AND tex.date_from <= ab.date
+         AND tex.date_to   >= ab.date
+        WHERE ab.school_id = $1 ${dateWhere}
+      ),
+      aggregated AS (
+        SELECT id,
+               array_agg(flag_reason || COALESCE(': ' || flag_detail, '') ORDER BY flag_reason) AS flags
+        FROM flagged
+        GROUP BY id
+      )
+      SELECT
+        ab.id,
+        ab.date::text,
+        te.id   AS teacher_id,
+        te.name AS teacher_name,
+        ab.subject,
+        ab.class_name,
+        ab.scheduled_period,
+        ab.is_auto_generated,
+        ab.reason AS recorded_reason,
+        agg.flags
+      FROM aggregated agg
+      JOIN absences  ab ON ab.id  = agg.id
+      JOIN teachers  te ON te.id  = ab.teacher_id
+      ORDER BY ab.date DESC, te.name
+    `, params);
+
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/admin/absence-conflicts/clear — delete validated false absences
+router.post('/absence-conflicts/clear', adminOnly, async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0)
+      return res.status(400).json({ error: 'ids array is required' });
+
+    // Re-validate server-side: only delete absences that still match at least one condition
+    const { rows } = await pool.query(`
+      DELETE FROM absences
+      WHERE id = ANY($1) AND school_id = $2
+        AND (
+          EXISTS (
+            SELECT 1 FROM attendance att
+            WHERE att.school_id = absences.school_id
+              AND att.teacher_id = absences.teacher_id
+              AND att.date = absences.date
+              AND LOWER(att.subject) = LOWER(absences.subject)
+              AND EXISTS (
+                SELECT 1
+                FROM unnest(string_to_array(att.class_names, ',')) AS cls
+                WHERE trim(lower(cls)) = trim(lower(absences.class_name))
+              )
+          )
+          OR EXISTS (
+            SELECT 1 FROM school_calendar sc
+            WHERE sc.school_id = absences.school_id AND sc.date = absences.date
+          )
+          OR EXISTS (
+            SELECT 1 FROM teacher_excuses tex
+            WHERE tex.teacher_id = absences.teacher_id
+              AND tex.school_id  = absences.school_id
+              AND tex.status     = 'Approved'
+              AND tex.date_from <= absences.date
+              AND tex.date_to   >= absences.date
+          )
+        )
+      RETURNING id
+    `, [ids, req.schoolId]);
+
+    res.json({ cleared: rows.length, ids: rows.map(r => r.id) });
+  } catch (err) { next(err); }
+});
+
 // GET /api/admin/settings — return school info + theme colors + scheduling config
 router.get('/settings', async (req, res, next) => {
   try {

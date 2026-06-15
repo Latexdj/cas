@@ -1,9 +1,254 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { StatCard } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import type { AdminStats, AcademicYear, ClassroomStatus, TeacherAttendanceSummary, PlcAttendanceSummary } from '@/types/api';
+
+// ── Absence Conflicts Modal ───────────────────────────────────────────────────
+
+interface AbsenceConflict {
+  id: string;
+  date: string;
+  teacher_id: string;
+  teacher_name: string;
+  subject: string;
+  class_name: string;
+  scheduled_period: string | null;
+  is_auto_generated: boolean;
+  recorded_reason: string | null;
+  flags: string[];
+}
+
+const FLAG_COLORS: Record<string, { bg: string; text: string }> = {
+  'Attendance submitted': { bg: '#DCFCE7', text: '#15803D' },
+  'School event':         { bg: '#DBEAFE', text: '#1D4ED8' },
+  'Teacher excused':      { bg: '#FEF9C3', text: '#A16207' },
+};
+
+function flagStyle(flag: string) {
+  const key = Object.keys(FLAG_COLORS).find(k => flag.startsWith(k));
+  return key ? FLAG_COLORS[key] : { bg: '#F1F5F9', text: '#475569' };
+}
+
+function fmtDate(d: string) {
+  const dt = new Date(d + 'T12:00:00');
+  return isNaN(dt.getTime()) ? d : dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function ConflictsModal({ onClose, onCleared }: { onClose: () => void; onCleared: () => void }) {
+  const [conflicts,  setConflicts]  = useState<AbsenceConflict[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [selected,   setSelected]   = useState<Set<string>>(new Set());
+  const [clearing,   setClearing]   = useState(false);
+  const [doneCount,  setDoneCount]  = useState<number | null>(null);
+  const [error,      setError]      = useState('');
+  const [from,       setFrom]       = useState('');
+  const [to,         setTo]         = useState('');
+
+  const load = useCallback(() => {
+    setLoading(true); setError(''); setSelected(new Set()); setDoneCount(null);
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to)   params.set('to', to);
+    api.get<AbsenceConflict[]>(`/api/admin/absence-conflicts?${params}`)
+      .then(r => setConflicts(r.data))
+      .catch(() => setError('Failed to load conflicts'))
+      .finally(() => setLoading(false));
+  }, [from, to]);
+
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleAll = () => {
+    setSelected(prev => prev.size === conflicts.length ? new Set() : new Set(conflicts.map(c => c.id)));
+  };
+
+  const toggle = (id: string) => {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+
+  async function clearSelected() {
+    if (!selected.size) return;
+    setClearing(true); setError('');
+    try {
+      const r = await api.post<{ cleared: number }>('/api/admin/absence-conflicts/clear', { ids: [...selected] });
+      setDoneCount(r.data.cleared);
+      setConflicts(prev => prev.filter(c => !selected.has(c.id)));
+      setSelected(new Set());
+      onCleared();
+    } catch {
+      setError('Failed to clear selected absences. Please try again.');
+    } finally { setClearing(false); }
+  }
+
+  // Group by date for display
+  const grouped = useMemo(() => {
+    const map = new Map<string, AbsenceConflict[]>();
+    for (const c of conflicts) {
+      const list = map.get(c.date) ?? [];
+      list.push(c);
+      map.set(c.date, list);
+    }
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [conflicts]);
+
+  const allSelected = conflicts.length > 0 && selected.size === conflicts.length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+          <div>
+            <p className="font-bold text-slate-900 dark:text-white text-lg">Review False Absences</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Absences flagged because attendance was submitted, a school event existed, or the teacher was excused.
+            </p>
+          </div>
+          <button onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm shrink-0">
+            ✕
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div className="px-6 py-3 border-b border-slate-100 dark:border-slate-700 flex flex-wrap gap-3 items-end">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">From</label>
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+              className="border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">To</label>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)}
+              className="border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+          </div>
+          <button onClick={load}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold hover:opacity-80">
+            Apply
+          </button>
+          {(from || to) && (
+            <button onClick={() => { setFrom(''); setTo(''); }}
+              className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+              Clear dates
+            </button>
+          )}
+        </div>
+
+        {/* Success / error banners */}
+        {doneCount !== null && (
+          <div className="mx-6 mt-3 px-4 py-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 text-sm text-green-700 dark:text-green-400 font-medium">
+            ✓ {doneCount} false absence{doneCount !== 1 ? 's' : ''} cleared successfully.
+          </div>
+        )}
+        {error && (
+          <div className="mx-6 mt-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-sm text-red-700 dark:text-red-400">
+            {error}
+          </div>
+        )}
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <div className="w-8 h-8 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />
+              <p className="text-sm text-slate-400">Scanning for conflicts…</p>
+            </div>
+          ) : conflicts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <div className="w-12 h-12 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+              <p className="font-semibold text-slate-700 dark:text-slate-300">No conflicts found</p>
+              <p className="text-sm text-slate-400 max-w-xs">All absence records look correct for the selected date range.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Select-all row */}
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-100 dark:border-slate-700">
+                <input type="checkbox" checked={allSelected} onChange={toggleAll}
+                  className="w-4 h-4 accent-green-600 rounded" />
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                  {conflicts.length} false absence{conflicts.length !== 1 ? 's' : ''} detected
+                  {selected.size > 0 && ` · ${selected.size} selected`}
+                </span>
+              </div>
+
+              {/* Grouped by date */}
+              {grouped.map(([date, rows]) => (
+                <div key={date} className="space-y-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500 sticky top-0 bg-white dark:bg-slate-800 py-1">
+                    {fmtDate(date)}
+                  </p>
+                  {rows.map(c => (
+                    <label key={c.id}
+                      className="flex items-start gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/40 cursor-pointer transition-colors"
+                      style={selected.has(c.id) ? { borderColor: '#16A34A', background: '#F0FDF4' } : {}}>
+                      <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)}
+                        className="w-4 h-4 accent-green-600 rounded mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white">{c.teacher_name}</p>
+                          <span className="text-xs text-slate-400">·</span>
+                          <p className="text-xs text-slate-600 dark:text-slate-300">{c.subject}</p>
+                          <span className="text-xs text-slate-400">·</span>
+                          <p className="text-xs text-slate-600 dark:text-slate-300">{c.class_name}</p>
+                          {c.scheduled_period && (
+                            <>
+                              <span className="text-xs text-slate-400">·</span>
+                              <p className="text-xs text-slate-400 font-mono">{c.scheduled_period}</p>
+                            </>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {c.flags.map(flag => {
+                            const style = flagStyle(flag);
+                            return (
+                              <span key={flag}
+                                className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                                style={{ background: style.bg, color: style.text }}>
+                                {flag}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-3">
+          <button onClick={onClose}
+            className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">
+            Close
+          </button>
+          <button
+            onClick={clearSelected}
+            disabled={selected.size === 0 || clearing}
+            className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40 transition-opacity"
+            style={{ backgroundColor: '#15803D' }}>
+            {clearing ? (
+              <>
+                <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                Clearing…
+              </>
+            ) : (
+              `Clear ${selected.size > 0 ? `${selected.size} ` : ''}Selected`
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -79,6 +324,7 @@ export default function DashboardPage() {
   const [running,        setRunning]        = useState(false);
   const [loading,        setLoading]        = useState(true);
   const [filter,         setFilter]         = useState<OccupancyFilter>('all');
+  const [showConflicts,  setShowConflicts]  = useState(false);
 
   // Load academic years once and set defaults to current year + current semester
   useEffect(() => {
@@ -203,15 +449,33 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
 
+      {showConflicts && (
+        <ConflictsModal
+          onClose={() => setShowConflicts(false)}
+          onCleared={load}
+        />
+      )}
+
       {/* ── header ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-lg font-bold" style={{ color: '#0F172A' }}>Overview</h2>
           <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>{today} · live snapshot · auto-refreshes every 60 s</p>
         </div>
-        <Button variant="secondary" size="sm" loading={running} onClick={runAbsenceCheck}>
-          Run Absence Check
-        </Button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowConflicts(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-400">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            Review Conflicts
+          </button>
+          <Button variant="secondary" size="sm" loading={running} onClick={runAbsenceCheck}>
+            Run Absence Check
+          </Button>
+        </div>
       </div>
 
       {/* ── stat cards ── */}
