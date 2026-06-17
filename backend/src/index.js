@@ -857,6 +857,67 @@ async function runMigrations() {
 
     await pool.query(`ALTER TABLE teacher_excuses ADD COLUMN IF NOT EXISTS rejection_reason TEXT`);
 
+    // ── One-time data normalisation (idempotent) ──────────────────────────────
+    // Normalise student gender to exact 'Male' / 'Female'
+    await pool.query(`
+      UPDATE students
+      SET gender = CASE
+        WHEN LOWER(TRIM(gender)) = 'male'   THEN 'Male'
+        WHEN LOWER(TRIM(gender)) = 'female' THEN 'Female'
+        ELSE gender
+      END
+      WHERE gender IS NOT NULL AND gender NOT IN ('Male', 'Female')
+    `);
+    // Normalise student residential_status to exact 'Day' / 'Boarding'
+    await pool.query(`
+      UPDATE students
+      SET residential_status = CASE
+        WHEN LOWER(TRIM(residential_status)) = 'day'      THEN 'Day'
+        WHEN LOWER(TRIM(residential_status)) = 'boarding' THEN 'Boarding'
+        ELSE residential_status
+      END
+      WHERE residential_status IS NOT NULL AND residential_status NOT IN ('Day', 'Boarding')
+    `);
+    // Normalise teacher gender to exact 'Male' / 'Female'
+    await pool.query(`
+      UPDATE teachers
+      SET gender = CASE
+        WHEN LOWER(TRIM(gender)) = 'male'   THEN 'Male'
+        WHEN LOWER(TRIM(gender)) = 'female' THEN 'Female'
+        ELSE gender
+      END
+      WHERE gender IS NOT NULL AND gender NOT IN ('Male', 'Female')
+    `);
+    // Normalise teacher rank to canonical GES strings
+    await pool.query(`
+      UPDATE teachers
+      SET rank = CASE LOWER(TRIM(rank))
+        WHEN 'pupil teacher'               THEN 'Pupil Teacher'
+        WHEN 'teacher ii'                  THEN 'Teacher II'
+        WHEN 'teacher i'                   THEN 'Teacher I'
+        WHEN 'senior teacher ii'           THEN 'Senior Teacher II'
+        WHEN 'senior teacher i'            THEN 'Senior Teacher I'
+        WHEN 'assistant superintendent ii' THEN 'Assistant Superintendent II'
+        WHEN 'assistant superintendent i'  THEN 'Assistant Superintendent I'
+        WHEN 'superintendent'              THEN 'Superintendent'
+        WHEN 'senior superintendent'       THEN 'Senior Superintendent'
+        WHEN 'principal superintendent'    THEN 'Principal Superintendent'
+        WHEN 'assistant director ii'       THEN 'Assistant Director II'
+        WHEN 'assistant director i'        THEN 'Assistant Director I'
+        WHEN 'deputy director'             THEN 'Deputy Director'
+        WHEN 'director'                    THEN 'Director'
+        ELSE rank
+      END
+      WHERE rank IS NOT NULL AND rank NOT IN (
+        'Pupil Teacher','Teacher II','Teacher I',
+        'Senior Teacher II','Senior Teacher I',
+        'Assistant Superintendent II','Assistant Superintendent I',
+        'Superintendent','Senior Superintendent','Principal Superintendent',
+        'Assistant Director II','Assistant Director I',
+        'Deputy Director','Director'
+      )
+    `);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);
