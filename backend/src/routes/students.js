@@ -178,6 +178,22 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Import normalizers ────────────────────────────────────────────────────────
+function normalizeGender(val) {
+  if (!val) return null;
+  const v = val.trim().toLowerCase();
+  if (v === 'male')   return 'Male';
+  if (v === 'female') return 'Female';
+  return val.trim() || null;
+}
+function normalizeResidentialStatus(val) {
+  if (!val) return null;
+  const v = val.trim().toLowerCase();
+  if (v === 'day')      return 'Day';
+  if (v === 'boarding') return 'Boarding';
+  return val.trim() || null;
+}
+
 /** POST /api/students/upload — bulk import */
 router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) => {
   try {
@@ -245,7 +261,7 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       const statusRaw              = String(row[4]  ?? '').trim();
       const jhs_index_number       = String(row[5]  ?? '').trim() || null;
       const date_of_birth          = toISODate(row[6]);
-      const gender                 = String(row[7]  ?? '').trim() || null;
+      const gender                 = normalizeGender(String(row[7] ?? ''));
       const hometown               = String(row[8]  ?? '').trim() || null;
       const residential_address    = String(row[9]  ?? '').trim() || null;
       const ghana_card_number      = String(row[10] ?? '').trim() || null;
@@ -254,7 +270,7 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       const aggregateRaw           = String(row[13] ?? '').trim();
       const aggregate              = aggregateRaw ? (parseInt(aggregateRaw) || null) : null;
       const house                  = String(row[14] ?? '').trim() || null;
-      const residential_status     = String(row[15] ?? '').trim() || null;
+      const residential_status     = normalizeResidentialStatus(String(row[15] ?? ''));
       const religion               = String(row[16] ?? '').trim() || null;
       const religious_denomination = String(row[17] ?? '').trim() || null;
       const guardian_name          = String(row[18] ?? '').trim() || null;
@@ -401,7 +417,7 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
       add('class_name',            className || undefined);
       add('jhs_index_number',      String(row[5] ?? '').trim() || undefined);
       add('date_of_birth',         toISODate(row[6]));
-      add('gender',                String(row[7] ?? '').trim() || undefined);
+      add('gender',                normalizeGender(String(row[7] ?? '')) || undefined);
       add('hometown',              String(row[8] ?? '').trim() || undefined);
       add('residential_address',   String(row[9] ?? '').trim() || undefined);
       add('ghana_card_number',     String(row[10] ?? '').trim() || undefined);
@@ -410,7 +426,7 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
       const aggRaw = String(row[13] ?? '').trim();
       if (aggRaw) add('aggregate', parseInt(aggRaw) || undefined);
       add('house',                 String(row[14] ?? '').trim() || undefined);
-      add('residential_status',    String(row[15] ?? '').trim() || undefined);
+      add('residential_status',    normalizeResidentialStatus(String(row[15] ?? '')) || undefined);
       add('religion',              String(row[16] ?? '').trim() || undefined);
       add('religious_denomination',String(row[17] ?? '').trim() || undefined);
       add('guardian_name',         String(row[18] ?? '').trim() || undefined);

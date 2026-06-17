@@ -368,6 +368,28 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Import normalizers ────────────────────────────────────────────────────────
+function normalizeGender(val) {
+  if (!val) return null;
+  const v = val.trim().toLowerCase();
+  if (v === 'male')   return 'Male';
+  if (v === 'female') return 'Female';
+  return val.trim() || null;
+}
+const GES_RANKS = [
+  'Pupil Teacher', 'Teacher II', 'Teacher I',
+  'Senior Teacher II', 'Senior Teacher I',
+  'Assistant Superintendent II', 'Assistant Superintendent I',
+  'Superintendent', 'Senior Superintendent', 'Principal Superintendent',
+  'Assistant Director II', 'Assistant Director I',
+  'Deputy Director', 'Director',
+];
+function normalizeRank(val) {
+  if (!val) return null;
+  const v = val.trim().toLowerCase();
+  return GES_RANKS.find(r => r.toLowerCase() === v) ?? val.trim() || null;
+}
+
 /** POST /api/teachers/upload — bulk-import teachers from Excel/CSV */
 router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) => {
   try {
@@ -422,9 +444,9 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       const email                    = String(row[2]  ?? '').trim() || null;
       const phone                    = String(row[3]  ?? '').trim() || null;
       const department               = String(row[4]  ?? '').trim() || null;
-      const rank                     = String(row[5]  ?? '').trim() || null;
+      const rank                     = normalizeRank(String(row[5] ?? ''));
       const gov_staff_id             = String(row[6]  ?? '').trim() || null;
-      const gender                   = String(row[7]  ?? '').trim() || null;
+      const gender                   = normalizeGender(String(row[7] ?? ''));
       const date_of_birth            = String(row[8]  ?? '').trim() || null;
       const registered_number        = String(row[9]  ?? '').trim() || null;
       const ntc_number               = String(row[10] ?? '').trim() || null;
