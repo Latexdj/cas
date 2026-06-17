@@ -62,6 +62,13 @@ export default function StudentsPage() {
   const fileRef       = useRef<HTMLInputElement>(null);
   const updateFileRef = useRef<HTMLInputElement>(null);
 
+  // Template download modal
+  const [tmplOpen,    setTmplOpen]    = useState(false);
+  const [tmplMode,    setTmplMode]    = useState<'empty' | 'populated'>('empty');
+  const [tmplClass,   setTmplClass]   = useState('');
+  const [tmplStatus,  setTmplStatus]  = useState('Active');
+  const [tmplLoading, setTmplLoading] = useState(false);
+
   // Form state
   const [form, setForm] = useState<StudentForm>(STUDENT_EMPTY);
   function sf(k: keyof StudentForm) {
@@ -191,11 +198,28 @@ export default function StudentsPage() {
     await load();
   }
 
-  async function downloadTemplate() {
-    const res = await api.get('/api/students/upload/template', { responseType: 'blob' });
-    const url = URL.createObjectURL(res.data as Blob);
-    const a   = document.createElement('a'); a.href = url; a.download = 'students_template.xlsx'; a.click();
-    URL.revokeObjectURL(url);
+  function openTemplateModal() {
+    setTmplMode('empty'); setTmplClass(''); setTmplStatus('Active'); setTmplOpen(true);
+  }
+
+  async function doTemplateDownload() {
+    setTmplLoading(true);
+    try {
+      const params = new URLSearchParams({ mode: tmplMode });
+      if (tmplMode === 'populated') {
+        if (tmplClass) params.set('class', tmplClass);
+        params.set('status', tmplStatus);
+      }
+      const res = await api.get(`/api/students/upload/template?${params}`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data as Blob);
+      const filename = tmplMode === 'populated'
+        ? `students_${(tmplClass || 'all_classes').replace(/[^a-z0-9]/gi, '_')}_${tmplStatus}.xlsx`
+        : 'students_template.xlsx';
+      const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      setTmplOpen(false);
+    } catch { alert('Could not download template.'); }
+    finally { setTmplLoading(false); }
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -635,7 +659,7 @@ export default function StudentsPage() {
               <p className="font-semibold mb-2" style={{ color: '#0F172A' }}>Column format:</p>
               <p style={{ color: '#475569' }}>A: Student ID (blank = auto-generate) &nbsp;·&nbsp; B: Name &nbsp;·&nbsp; C: Class &nbsp;·&nbsp; D: Program &nbsp;·&nbsp; E: Status &nbsp;·&nbsp; F: Notes</p>
               <p className="mt-1 text-xs" style={{ color: '#94A3B8' }}>Program and Status are optional. See the Reference sheet in the template for valid values.</p>
-              <button className="mt-2 text-xs font-semibold underline" style={{ color: '#2563EB' }} onClick={downloadTemplate}>Download template (.xlsx)</button>
+              <button className="mt-2 text-xs font-semibold underline" style={{ color: '#2563EB' }} onClick={openTemplateModal}>Download template (.xlsx)</button>
             </div>
             <div className="mb-4">
               <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleUpload} disabled={uploading} />
@@ -676,7 +700,7 @@ export default function StudentsPage() {
               <p className="font-semibold mb-1" style={{ color: '#0F172A' }}>Same column format as the import template:</p>
               <p style={{ color: '#475569' }}>A: Student ID (required) &nbsp;·&nbsp; B: Name &nbsp;·&nbsp; C: Class &nbsp;·&nbsp; D: Program &nbsp;·&nbsp; E: Status &nbsp;·&nbsp; F–V: Profile fields</p>
               <p className="mt-1 text-xs" style={{ color: '#94A3B8' }}>Leave any column blank to keep the existing value unchanged.</p>
-              <button className="mt-2 text-xs font-semibold underline" style={{ color: '#2563EB' }} onClick={downloadTemplate}>Download template (.xlsx)</button>
+              <button className="mt-2 text-xs font-semibold underline" style={{ color: '#2563EB' }} onClick={openTemplateModal}>Download template (.xlsx)</button>
             </div>
             <div className="mb-4">
               <input ref={updateFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleBulkUpdate} disabled={updating} />
@@ -758,6 +782,57 @@ export default function StudentsPage() {
             <div className="flex gap-3 mt-6">
               <Button variant="secondary" className="flex-1" onClick={() => setModal(null)}>Close</Button>
               <Button className="flex-1" loading={saving} onClick={handleGraduate} style={{ backgroundColor: '#0369A1' }}>Graduate</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Template download modal */}
+      {tmplOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+            <h2 className="text-lg font-bold mb-1" style={{ color: '#0F172A' }}>Download Template</h2>
+            <p className="text-sm mb-5" style={{ color: '#64748B' }}>Download a blank template or one pre-filled with existing students for editing and re-upload.</p>
+
+            <div className="flex rounded-xl overflow-hidden border border-slate-200 mb-5 text-sm">
+              {(['empty', 'populated'] as const).map(m => (
+                <button key={m} onClick={() => setTmplMode(m)}
+                  className="flex-1 py-2.5 font-semibold transition-colors"
+                  style={{ backgroundColor: tmplMode === m ? '#15803D' : '#F8FAFC', color: tmplMode === m ? '#FFFFFF' : '#64748B' }}>
+                  {m === 'empty' ? 'Empty template' : 'Pre-filled with students'}
+                </button>
+              ))}
+            </div>
+
+            {tmplMode === 'populated' && (
+              <div className="space-y-3 mb-5">
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Class (optional)</label>
+                  <select value={tmplClass} onChange={e => setTmplClass(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}>
+                    <option value="">All classes</option>
+                    {allClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Status</label>
+                  <select value={tmplStatus} onChange={e => setTmplStatus(e.target.value)}
+                    className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Graduated">Graduated</option>
+                    <option value="all">All statuses</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <Button variant="secondary" className="flex-1" onClick={() => setTmplOpen(false)}>Cancel</Button>
+              <Button className="flex-1" loading={tmplLoading} onClick={doTemplateDownload}
+                style={{ backgroundColor: '#15803D' }}>
+                Download
+              </Button>
             </div>
           </div>
         </div>

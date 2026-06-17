@@ -36,9 +36,15 @@ async function nextStudentCode(schoolId) {
   return 'S' + String(max + 1).padStart(3, '0');
 }
 
-/** GET /api/students/upload/template — returns a styled XLSX workbook */
+/** GET /api/students/upload/template — returns a styled XLSX workbook
+ *  ?mode=empty|populated  &class=<class_name>  &status=Active|Inactive|Graduated|all
+ */
 router.get('/upload/template', adminOnly, async (req, res, next) => {
   try {
+    const mode         = req.query.mode   || 'empty';
+    const classFilter  = req.query.class  || '';
+    const statusFilter = req.query.status || 'Active';
+
     const { rows: programs } = await pool.query(
       `SELECT name FROM programs WHERE school_id = $1 ORDER BY name`,
       [req.schoolId]
@@ -56,15 +62,60 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
       'Guardian Name', 'Guardian Occupation', 'Guardian Mobile',
       'Notes',
     ];
-    const p0 = programs[0]?.name ?? '';
-    const p1 = programs[1]?.name ?? p0;
-    const examples = [
-      ['',     'Kwame Mensah', '1A', p0, 'Active', 'GHA-JHS-001', '2008-03-15', 'Male',   'Accra',   '12 Main St', 'GHA-001', 'NHIA-001', '024-000-0001', 8,  'Blue',  'Day',      'Christianity', 'Methodist',  'Kofi Mensah',  'Farmer',    '020-000-0001', ''],
-      ['',     'Abena Osei',   '2B', p1, 'Active', 'GHA-JHS-002', '2007-07-20', 'Female', 'Kumasi',  '5 Ring Rd',  '',        '',          '',             12, 'Red',   'Boarding', 'Islam',        'Sunni',      'Ama Osei',     'Teacher',   '024-000-0002', 'Transferred in'],
-      ['S003', 'Kofi Asante',  '3C', p0, 'Active', 'GHA-JHS-003', '2006-11-05', 'Male',   'Takoradi','3 Beach Rd', 'GHA-003', 'NHIA-003', '027-000-0003', 10, 'Green', 'Day',      'Christianity', 'Catholic',   'Yaw Asante',   'Engineer',  '027-000-0003', ''],
-    ];
 
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
+    let dataRows;
+    let dataStyle;
+
+    if (mode === 'populated') {
+      const qParams = [req.schoolId];
+      const conds   = ['s.school_id = $1'];
+      if (classFilter)            { qParams.push(classFilter);  conds.push(`s.class_name = $${qParams.length}`); }
+      if (statusFilter !== 'all') { qParams.push(statusFilter); conds.push(`s.status = $${qParams.length}`); }
+      const { rows: students } = await pool.query(`
+        SELECT s.*, p.name AS program_name
+        FROM students s
+        LEFT JOIN programs p ON p.id = s.program_id
+        WHERE ${conds.join(' AND ')}
+        ORDER BY s.class_name, s.name
+      `, qParams);
+
+      dataRows = students.map(s => [
+        s.student_code        ?? '',
+        s.name                ?? '',
+        s.class_name          ?? '',
+        s.program_name        ?? '',
+        s.status              ?? '',
+        s.jhs_index_number    ?? '',
+        s.date_of_birth ? String(s.date_of_birth).slice(0, 10) : '',
+        s.gender              ?? '',
+        s.hometown            ?? '',
+        s.residential_address ?? '',
+        s.ghana_card_number   ?? '',
+        s.nhia_number         ?? '',
+        s.mobile_number       ?? '',
+        s.aggregate != null ? s.aggregate : '',
+        s.house               ?? '',
+        s.residential_status  ?? '',
+        s.religion            ?? '',
+        s.religious_denomination ?? '',
+        s.guardian_name       ?? '',
+        s.guardian_occupation ?? '',
+        s.guardian_mobile     ?? '',
+        s.notes               ?? '',
+      ]);
+      dataStyle = { fill: { patternType: 'solid', fgColor: { rgb: 'F0FDF4' } } };
+    } else {
+      const p0 = programs[0]?.name ?? '';
+      const p1 = programs[1]?.name ?? p0;
+      dataRows = [
+        ['',     'Kwame Mensah', '1A', p0, 'Active', 'GHA-JHS-001', '2008-03-15', 'Male',   'Accra',    '12 Main St', 'GHA-001', 'NHIA-001', '024-000-0001', 8,  'Blue',  'Day',      'Christianity', 'Methodist', 'Kofi Mensah',  'Farmer',   '020-000-0001', ''],
+        ['',     'Abena Osei',   '2B', p1, 'Active', 'GHA-JHS-002', '2007-07-20', 'Female', 'Kumasi',   '5 Ring Rd',  '',        '',          '',             12, 'Red',   'Boarding', 'Islam',        'Sunni',     'Ama Osei',     'Teacher',  '024-000-0002', 'Transferred in'],
+        ['S003', 'Kofi Asante',  '3C', p0, 'Active', 'GHA-JHS-003', '2006-11-05', 'Male',   'Takoradi', '3 Beach Rd', 'GHA-003', 'NHIA-003', '027-000-0003', 10, 'Green', 'Day',      'Christianity', 'Catholic',  'Yaw Asante',   'Engineer', '027-000-0003', ''],
+      ];
+      dataStyle = { fill: { patternType: 'solid', fgColor: { rgb: 'EFF6FF' } } };
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
 
     ws['!cols'] = [
       { wch: 14 }, { wch: 28 }, { wch: 10 }, { wch: 22 }, { wch: 12 },
@@ -73,11 +124,8 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
       { wch: 28 }, { wch: 18 }, { wch: 24 }, { wch: 26 }, { wch: 22 },
       { wch: 18 }, { wch: 28 },
     ];
-
-    // Freeze the header row
     ws['!freeze'] = { xSplit: 0, ySplit: 1 };
 
-    // Bold + dark background on header row
     const hStyle = {
       font: { bold: true, color: { rgb: 'FFFFFF' } },
       fill: { patternType: 'solid', fgColor: { rgb: '0F172A' } },
@@ -87,13 +135,10 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
       const ref = XLSX.utils.encode_cell({ r: 0, c });
       if (ws[ref]) ws[ref].s = hStyle;
     });
-
-    // Light blue tint on example rows
-    const exStyle = { fill: { patternType: 'solid', fgColor: { rgb: 'EFF6FF' } } };
-    examples.forEach((_, r) => {
+    dataRows.forEach((_, r) => {
       headers.forEach((__, c) => {
         const ref = XLSX.utils.encode_cell({ r: r + 1, c });
-        if (ws[ref]) ws[ref].s = exStyle;
+        if (ws[ref]) ws[ref].s = dataStyle;
       });
     });
 
@@ -117,15 +162,18 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
 
     const wsRef = XLSX.utils.aoa_to_sheet(refData);
     wsRef['!cols'] = [{ wch: 18 }, { wch: 3 }, { wch: 30 }, { wch: 3 }, { wch: 50 }];
-
     const refHStyle = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '15803D' } } };
     ['A1', 'C1', 'E1'].forEach(ref => { if (wsRef[ref]) wsRef[ref].s = refHStyle; });
-
     XLSX.utils.book_append_sheet(wb, wsRef, 'Reference');
 
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="students_template.xlsx"');
+    let filename = 'students_template.xlsx';
+    if (mode === 'populated') {
+      const parts = ['students', classFilter ? classFilter.replace(/[^a-z0-9]/gi, '_') : 'all_classes', statusFilter];
+      filename = parts.join('_') + '.xlsx';
+    }
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(buf);
   } catch (err) { next(err); }
 });

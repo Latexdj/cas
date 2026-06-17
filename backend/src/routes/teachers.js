@@ -44,9 +44,14 @@ async function nextTeacherCode(schoolId) {
   return 'T' + String(max + 1).padStart(3, '0');
 }
 
-/** GET /api/teachers/upload/template — styled XLSX template */
+/** GET /api/teachers/upload/template — styled XLSX template
+ *  ?mode=empty|populated  &status=Active|Inactive|all
+ */
 router.get('/upload/template', adminOnly, async (req, res, next) => {
   try {
+    const mode         = req.query.mode   || 'empty';
+    const statusFilter = req.query.status || 'Active';
+
     const wb = new ExcelJS.Workbook();
     wb.creator = 'CAS – Classroom Attendance System';
     wb.created = new Date();
@@ -109,37 +114,105 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
       cell.border     = { right: { style: 'thin', color: { argb: '1A7A50' } } };
     });
 
-    // Rows 2–200 — empty data rows with alternating background + dropdown
-    for (let row = 2; row <= 200; row++) {
-      const r  = ws.getRow(row);
-      r.height = 18;
-      const bg = row % 2 === 0 ? GREY_ALT : WHITE;
-      cols.forEach((_, idx) => {
-        const cell     = r.getCell(idx + 1);
-        cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
-        cell.font      = { color: { argb: TEXT_DARK }, size: 10, name: 'Calibri' };
-        cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-        cell.border    = { bottom: { style: 'hair', color: { argb: 'E2E8F0' } } };
+    // Data rows — populated or empty
+    let dataRowCount = 0;
+    if (mode === 'populated') {
+      const qParams = [req.schoolId];
+      const conds   = ['school_id = $1'];
+      if (statusFilter !== 'all') { qParams.push(statusFilter); conds.push(`status = $${qParams.length}`); }
+      const { rows: teachers } = await pool.query(
+        `SELECT * FROM teachers WHERE ${conds.join(' AND ')} ORDER BY name`,
+        qParams
+      );
+      dataRowCount = teachers.length;
+
+      teachers.forEach((t, i) => {
+        const r  = ws.addRow({
+          teacher_code:               t.teacher_code              ?? '',
+          name:                       t.name                      ?? '',
+          email:                      t.email                     ?? '',
+          phone:                      t.phone                     ?? '',
+          department:                 t.department                ?? '',
+          rank:                       t.rank                      ?? '',
+          gov_staff_id:               t.gov_staff_id              ?? '',
+          gender:                     t.gender                    ?? '',
+          date_of_birth:              t.date_of_birth ? String(t.date_of_birth).slice(0, 10) : '',
+          registered_number:          t.registered_number         ?? '',
+          ntc_number:                 t.ntc_number                ?? '',
+          ssf_number:                 t.ssf_number                ?? '',
+          academic_qualification:     t.academic_qualification    ?? '',
+          professional_qualification: t.professional_qualification ?? '',
+          additional_responsibility:  t.additional_responsibility ?? '',
+          bank:                       t.bank                      ?? '',
+          bank_branch:                t.bank_branch               ?? '',
+          account_number:             t.account_number            ?? '',
+          religion:                   t.religion                  ?? '',
+          religious_denomination:     t.religious_denomination    ?? '',
+          hometown:                   t.hometown                  ?? '',
+          residential_address:        t.residential_address       ?? '',
+          association:                t.association               ?? '',
+          ghana_card_number:          t.ghana_card_number         ?? '',
+          emergency_contact_name:     t.emergency_contact_name    ?? '',
+          emergency_contact_phone:    t.emergency_contact_phone   ?? '',
+          is_admin:                   t.is_admin ? 'Yes' : 'No',
+          notes:                      t.notes                     ?? '',
+        });
+        r.height = 18;
+        const rowNum = r.number;
+        cols.forEach((_, idx) => {
+          const cell     = r.getCell(idx + 1);
+          cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F0FDF4' } };
+          cell.font      = { color: { argb: TEXT_DARK }, size: 10, name: 'Calibri' };
+          cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+          cell.border    = { bottom: { style: 'hair', color: { argb: 'E2E8F0' } } };
+        });
+        ws.getCell(`H${rowNum}`).dataValidation = {
+          type: 'list', allowBlank: true, formulae: ['"Male,Female"'],
+          showErrorMessage: true, errorStyle: 'stop',
+          errorTitle: 'Invalid value', error: 'Please enter Male or Female',
+        };
+        ws.getCell(`F${rowNum}`).dataValidation = {
+          type: 'list', allowBlank: true,
+          formulae: ['"Pupil Teacher,Teacher II,Teacher I,Senior Teacher II,Senior Teacher I,Assistant Superintendent II,Assistant Superintendent I,Superintendent,Senior Superintendent,Principal Superintendent,Assistant Director II,Assistant Director I,Deputy Director,Director"'],
+          showErrorMessage: true, errorStyle: 'stop',
+          errorTitle: 'Invalid value', error: 'Select a rank from the list',
+        };
+        ws.getCell(`AB${rowNum}`).dataValidation = {
+          type: 'list', allowBlank: true, formulae: ['"Yes,No"'],
+          showErrorMessage: true, errorStyle: 'stop',
+          errorTitle: 'Invalid value', error: 'Please enter Yes or No',
+        };
       });
-      // Gender dropdown (column H)
-      ws.getCell(`H${row}`).dataValidation = {
-        type: 'list', allowBlank: true, formulae: ['"Male,Female"'],
-        showErrorMessage: true, errorStyle: 'stop',
-        errorTitle: 'Invalid value', error: 'Please enter Male or Female',
-      };
-      // GES Rank dropdown (column F)
-      ws.getCell(`F${row}`).dataValidation = {
-        type: 'list', allowBlank: true,
-        formulae: ['"Pupil Teacher,Teacher II,Teacher I,Senior Teacher II,Senior Teacher I,Assistant Superintendent II,Assistant Superintendent I,Superintendent,Senior Superintendent,Principal Superintendent,Assistant Director II,Assistant Director I,Deputy Director,Director"'],
-        showErrorMessage: true, errorStyle: 'stop',
-        errorTitle: 'Invalid value', error: 'Select a rank from the list',
-      };
-      // Yes/No dropdown for Is Admin (column AB — index 27)
-      ws.getCell(`AB${row}`).dataValidation = {
-        type: 'list', allowBlank: true, formulae: ['"Yes,No"'],
-        showErrorMessage: true, errorStyle: 'stop',
-        errorTitle: 'Invalid value', error: 'Please enter Yes or No',
-      };
+    } else {
+      // Rows 2–200 — empty data rows with alternating background + dropdown
+      for (let row = 2; row <= 200; row++) {
+        const r  = ws.getRow(row);
+        r.height = 18;
+        const bg = row % 2 === 0 ? GREY_ALT : WHITE;
+        cols.forEach((_, idx) => {
+          const cell     = r.getCell(idx + 1);
+          cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+          cell.font      = { color: { argb: TEXT_DARK }, size: 10, name: 'Calibri' };
+          cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+          cell.border    = { bottom: { style: 'hair', color: { argb: 'E2E8F0' } } };
+        });
+        ws.getCell(`H${row}`).dataValidation = {
+          type: 'list', allowBlank: true, formulae: ['"Male,Female"'],
+          showErrorMessage: true, errorStyle: 'stop',
+          errorTitle: 'Invalid value', error: 'Please enter Male or Female',
+        };
+        ws.getCell(`F${row}`).dataValidation = {
+          type: 'list', allowBlank: true,
+          formulae: ['"Pupil Teacher,Teacher II,Teacher I,Senior Teacher II,Senior Teacher I,Assistant Superintendent II,Assistant Superintendent I,Superintendent,Senior Superintendent,Principal Superintendent,Assistant Director II,Assistant Director I,Deputy Director,Director"'],
+          showErrorMessage: true, errorStyle: 'stop',
+          errorTitle: 'Invalid value', error: 'Select a rank from the list',
+        };
+        ws.getCell(`AB${row}`).dataValidation = {
+          type: 'list', allowBlank: true, formulae: ['"Yes,No"'],
+          showErrorMessage: true, errorStyle: 'stop',
+          errorTitle: 'Invalid value', error: 'Please enter Yes or No',
+        };
+      }
     }
 
     // ── Sheet 2: Instructions ─────────────────────────────────────
@@ -286,8 +359,10 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
 
     // ── Send buffer ───────────────────────────────────────────────
     const buffer = await wb.xlsx.writeBuffer();
-    res.setHeader('Content-Type',        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="teachers_template.xlsx"');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    let filename = 'teachers_template.xlsx';
+    if (mode === 'populated') filename = `teachers_${statusFilter}.xlsx`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length',      buffer.length);
     res.end(buffer);
   } catch (err) { next(err); }
