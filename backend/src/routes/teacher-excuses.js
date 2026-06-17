@@ -53,7 +53,7 @@ router.get('/', async (req, res, next) => {
       `SELECT
          te.id, te.date_from, te.date_to, te.type, te.reason,
          te.status, te.approved_at, te.created_at,
-         te.document_url, te.document_filename,
+         te.document_url, te.document_filename, te.rejection_reason,
          t.id   AS teacher_id,
          t.name AS teacher_name,
          a.name AS approved_by_name
@@ -177,13 +177,17 @@ router.patch('/:id/approve', adminOnly, async (req, res, next) => {
 // PATCH /api/teacher-excuses/:id/reject
 router.patch('/:id/reject', adminOnly, async (req, res, next) => {
   try {
+    const reason = req.body?.reason?.trim();
+    if (!reason) return res.status(400).json({ error: 'A reason is required when rejecting a leave request' });
+
     const approver = req.user.id || null;
     const { rows } = await pool.query(
       `UPDATE teacher_excuses
-       SET status = 'Rejected', approved_by = $1, approved_at = now(), updated_at = now()
-       WHERE id = $2 AND school_id = $3
-       RETURNING id, status`,
-      [approver, req.params.id, req.schoolId]
+       SET status = 'Rejected', approved_by = $1, approved_at = now(), updated_at = now(),
+           rejection_reason = $2
+       WHERE id = $3 AND school_id = $4
+       RETURNING id, status, rejection_reason`,
+      [approver, reason, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Excuse not found' });
     res.json(rows[0]);

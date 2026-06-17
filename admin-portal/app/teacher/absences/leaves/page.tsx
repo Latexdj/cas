@@ -15,6 +15,7 @@ interface TeacherExcuse {
   approved_by_name: string | null;
   document_url: string | null;
   document_filename: string | null;
+  rejection_reason: string | null;
 }
 
 const LEAVE_TYPES = ['Sick Leave', 'Official Duty', 'Permission', 'Other'];
@@ -246,6 +247,9 @@ function LeavesContent() {
                       <p className="text-xs text-[#8C7E6E] mt-1">
                         {lv.status === 'Approved' ? 'Approved' : 'Reviewed'} by {lv.approved_by_name}
                       </p>
+                    )}
+                    {lv.status === 'Rejected' && lv.rejection_reason && (
+                      <p className="text-xs text-[#B83232] mt-1">Reason: {lv.rejection_reason}</p>
                     )}
                   </div>
                   <span className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0"

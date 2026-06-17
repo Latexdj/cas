@@ -566,6 +566,9 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
   const [form,       setForm]       = useState({ teacherId: '', dateFrom: '', dateTo: '', type: 'Official Duty', reason: '' });
   const [saving,     setSaving]     = useState(false);
   const [formError,  setFormError]  = useState('');
+  const [rejectId,     setRejectId]     = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectError,  setRejectError]  = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -587,12 +590,22 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
     finally { setActing(null); }
   }
 
-  async function reject(id: string) {
-    if (!confirm('Reject this excuse?')) return;
-    setActing(id);
-    try { await api.patch(`/api/teacher-excuses/${id}/reject`); await load(); }
-    catch { alert('Failed to reject.'); }
-    finally { setActing(null); }
+  function openReject(id: string) {
+    setRejectId(id); setRejectReason(''); setRejectError('');
+  }
+
+  async function submitReject() {
+    if (!rejectId) return;
+    if (!rejectReason.trim()) { setRejectError('A reason is required when rejecting a leave request.'); return; }
+    setActing(rejectId);
+    try {
+      await api.patch(`/api/teacher-excuses/${rejectId}/reject`, { reason: rejectReason.trim() });
+      setRejectId(null);
+      await load();
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setRejectError(e.response?.data?.error ?? 'Failed to reject.');
+    } finally { setActing(null); }
   }
 
   async function del(id: string) {
@@ -744,6 +757,11 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold"
                           style={{ backgroundColor: ss.bg, color: ss.color }}>{ex.status}</span>
+                        {ex.status === 'Rejected' && ex.rejection_reason && (
+                          <p className="text-xs mt-1 max-w-[180px] truncate" style={{ color: '#DC2626' }} title={ex.rejection_reason}>
+                            {ex.rejection_reason}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: '#94A3B8' }}>{ex.approved_by_name ?? '—'}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -761,7 +779,7 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
                                   {acting === ex.id ? '…' : 'Approve'}
                                 </button>
                                 <button disabled={acting === ex.id}
-                                  onClick={() => reject(ex.id)}
+                                  onClick={() => openReject(ex.id)}
                                   className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors"
                                   style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>
                                   Reject
@@ -783,6 +801,39 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
           </div>
         )}
       </div>
+
+      {/* Reject modal */}
+      {rejectId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="font-bold" style={{ color: '#0F172A' }}>Reject Leave Request</p>
+              <button onClick={() => setRejectId(null)}
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm">✕</button>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide block mb-1" style={{ color: '#64748B' }}>
+                Reason <span className="text-red-500">*</span>
+              </label>
+              <textarea value={rejectReason} rows={3}
+                onChange={e => { setRejectReason(e.target.value); setRejectError(''); }}
+                placeholder="Required — state the reason clearly…"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-600 resize-none" />
+            </div>
+            {rejectError && <p className="text-sm text-red-600">{rejectError}</p>}
+            <div className="flex gap-3">
+              <button onClick={() => setRejectId(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600">
+                Cancel
+              </button>
+              <button onClick={submitReject} disabled={acting === rejectId || !rejectReason.trim()}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-600 disabled:opacity-50">
+                {acting === rejectId ? 'Rejecting…' : 'Confirm Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

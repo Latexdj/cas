@@ -44,6 +44,7 @@ const schoolStaffRoutes       = require('./routes/schoolStaff');
 const responsibilitiesRoutes  = require('./routes/responsibilities');
 const hodRoutes               = require('./routes/hod');
 const exeatRoutes             = require('./routes/exeat');
+const reportRoutes            = require('./routes/reports');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -116,6 +117,7 @@ app.use('/api/school-staff',       schoolStaffRoutes);
 app.use('/api/responsibilities',   responsibilitiesRoutes);
 app.use('/api/hod',                hodRoutes);
 app.use('/api/exeat',              exeatRoutes);
+app.use('/api/reports',            reportRoutes);
 
 app.use(errorHandler);
 
@@ -852,6 +854,8 @@ async function runMigrations() {
         updated_at          TIMESTAMPTZ  NOT NULL DEFAULT now()
       )
     `);
+
+    await pool.query(`ALTER TABLE teacher_excuses ADD COLUMN IF NOT EXISTS rejection_reason TEXT`);
 
     console.log('Migrations OK');
   } catch (err) {
