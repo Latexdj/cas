@@ -22,7 +22,9 @@ function roleLabel(r: string) {
   return ROLES.find(x => x.value === r)?.label ?? r;
 }
 
-const EMPTY_FORM = { name: '', role: 'principal' as const, management_code: '', pin: '' };
+type FormRole = 'principal' | 'vice_principal';
+interface FormState { name: string; role: FormRole; management_code: string; pin: string; }
+const EMPTY_FORM: FormState = { name: '', role: 'principal', management_code: '', pin: '' };
 
 export default function ManagementUsersPage() {
   const [users,    setUsers]    = useState<ManagementUser[]>([]);
@@ -206,7 +208,7 @@ export default function ManagementUsersPage() {
               className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm
                          bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               value={form.role}
-              onChange={e => setForm(f => ({ ...f, role: e.target.value as typeof form.role }))}
+              onChange={e => setForm(f => ({ ...f, role: e.target.value as FormRole }))}
             >
               {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
