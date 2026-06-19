@@ -187,7 +187,7 @@ export default function ManagementUsersPage() {
       )}
 
       {/* Create / Edit Modal */}
-      <Modal isOpen={open} onClose={() => setOpen(false)} title={editing ? 'Edit Management User' : 'Add Management User'}>
+      <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Edit Management User' : 'Add Management User'}>
         <div className="space-y-4 mt-2">
           {err && <p className="text-sm text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-lg">{err}</p>}
 
@@ -252,7 +252,7 @@ export default function ManagementUsersPage() {
       </Modal>
 
       {/* Delete Confirmation */}
-      <Modal isOpen={!!delId} onClose={() => setDelId(null)} title="Delete Management User">
+      <Modal open={!!delId} onClose={() => setDelId(null)} title="Delete Management User">
         <div className="mt-2 space-y-4">
           <p className="text-sm text-gray-600 dark:text-gray-300">
             This will permanently remove the management user. They will no longer be able to log in.
