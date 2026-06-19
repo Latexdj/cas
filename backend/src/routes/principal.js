@@ -156,34 +156,206 @@ router.get('/occupancy', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── 3. Teacher Attendance Stats ───────────────────────────────────────────────
+// ── 3. Academic Years (for frontend dropdowns) ────────────────────────────────
+router.get('/academic-years', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, is_current, current_semester
+       FROM academic_years WHERE school_id = $1 ORDER BY start_date DESC`,
+      [req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── shared helper: resolve academic year + semester from query params ─────────
+async function resolveYearSem(schoolId, query) {
+  const { academic_year_id, semester } = query;
+  const useAll = semester === 'all' || semester === '0';
+  let yearId = academic_year_id?.trim() || null;
+  let sem    = useAll ? null : (semester ? parseInt(semester, 10) : null);
+  if (!yearId || (!useAll && sem === null)) {
+    const { rows } = await pool.query(
+      `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+      [schoolId]
+    );
+    if (!yearId) yearId = rows[0]?.id || null;
+    if (!useAll && sem === null) sem = rows[0]?.current_semester || null;
+  }
+  return [yearId || null, sem || null];
+}
+
+// ── 3. Teacher Class Attendance Summary ───────────────────────────────────────
 router.get('/teacher-attendance', async (req, res, next) => {
   try {
-    const sid    = req.schoolId;
-    const months = Math.min(parseInt(req.query.months) || 3, 12);
-    const from   = new Date();
-    from.setMonth(from.getMonth() - months);
-    const fromDate = from.toISOString().slice(0, 10);
+    const [yearId, sem] = await resolveYearSem(req.schoolId, req.query);
 
     const { rows } = await pool.query(`
+      WITH att AS (
+        SELECT teacher_id, COALESCE(SUM(periods), 0) AS present_periods
+        FROM attendance
+        WHERE school_id = $1
+          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
+          AND ($3::int  IS NULL OR semester = $3::int)
+        GROUP BY teacher_id
+      ),
+      dr AS (
+        SELECT
+          COALESCE(MIN(date), CURRENT_DATE - INTERVAL '365 days') AS min_date,
+          COALESCE(MAX(date), CURRENT_DATE) AS max_date
+        FROM attendance
+        WHERE school_id = $1
+          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
+          AND ($3::int  IS NULL OR semester = $3::int)
+      ),
+      abs AS (
+        SELECT
+          ab.teacher_id,
+          COUNT(*) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')) AS absent_periods,
+          COUNT(*) FILTER (WHERE ab.status  = 'Excused')                            AS excused_periods,
+          COUNT(*) FILTER (WHERE ab.status IN ('Made Up','Verified'))               AS made_up_periods
+        FROM absences ab, dr
+        WHERE ab.school_id = $1
+          AND ab.date >= dr.min_date
+          AND ab.date <= dr.max_date
+        GROUP BY ab.teacher_id
+      )
       SELECT
-        t.id, t.name, t.teacher_code, t.department, t.rank,
-        COUNT(ab.id) FILTER (WHERE ab.is_auto_generated = true
-          AND ab.status NOT IN ('Excused','Made Up','Verified'))::int  AS unexcused,
-        COUNT(ab.id) FILTER (WHERE ab.status IN ('Excused','Made Up','Verified'))::int AS excused,
-        COUNT(ab.id)::int                                              AS total_absences,
-        COUNT(a.id)::int                                               AS total_submitted
+        t.id, t.name,
+        COALESCE(t.department, '—') AS department,
+        (COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0))::int AS present_periods,
+        COALESCE(abs.absent_periods, 0)::int                                        AS absent_periods,
+        COALESCE(abs.excused_periods, 0)::int                                       AS excused_periods,
+        (COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0) + COALESCE(abs.absent_periods, 0))::int AS total_scheduled,
+        CASE
+          WHEN (COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0) + COALESCE(abs.absent_periods, 0)) = 0 THEN NULL
+          ELSE ROUND(
+            100.0 * (COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0)) /
+            NULLIF(COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0) + COALESCE(abs.absent_periods, 0), 0), 1)
+        END AS attendance_pct
       FROM teachers t
-      LEFT JOIN absences ab ON ab.teacher_id = t.id AND ab.school_id = $1
-        AND ab.date >= $2
-      LEFT JOIN attendance a ON a.teacher_id = t.id AND a.school_id = $1
-        AND a.date >= $2
+      LEFT JOIN att ON att.teacher_id = t.id
+      LEFT JOIN abs ON abs.teacher_id = t.id
       WHERE t.school_id = $1 AND t.status = 'Active'
-      GROUP BY t.id
-      ORDER BY unexcused DESC, t.name
-    `, [sid, fromDate]);
+      ORDER BY attendance_pct ASC NULLS LAST, t.name
+    `, [req.schoolId, yearId, sem]);
 
-    res.json({ fromDate, months, teachers: rows });
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── 3b. PLC Attendance Summary ────────────────────────────────────────────────
+router.get('/plc-summary', async (req, res, next) => {
+  try {
+    const [yearId, sem] = await resolveYearSem(req.schoolId, req.query);
+
+    const { rows } = await pool.query(`
+      WITH att AS (
+        SELECT teacher_id, COUNT(*) AS present_count
+        FROM plc_attendance
+        WHERE school_id = $1
+          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid OR academic_year_id IS NULL)
+          AND ($3::int  IS NULL OR semester = $3::int         OR semester          IS NULL)
+        GROUP BY teacher_id
+      ),
+      dr AS (
+        SELECT
+          COALESCE(MIN(date), CURRENT_DATE - INTERVAL '365 days') AS min_date,
+          COALESCE(MAX(date), CURRENT_DATE) AS max_date
+        FROM plc_attendance
+        WHERE school_id = $1
+          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid OR academic_year_id IS NULL)
+          AND ($3::int  IS NULL OR semester = $3::int         OR semester          IS NULL)
+      ),
+      abs AS (
+        SELECT ab.teacher_id, COUNT(*) AS absent_count
+        FROM plc_absences ab, dr
+        WHERE ab.school_id = $1
+          AND ab.date >= dr.min_date
+          AND ab.date <= dr.max_date
+        GROUP BY ab.teacher_id
+      )
+      SELECT
+        t.id, t.name,
+        COALESCE(t.department, '—') AS department,
+        COALESCE(att.present_count, 0)::int AS present_count,
+        COALESCE(abs.absent_count, 0)::int  AS absent_count,
+        (COALESCE(att.present_count, 0) + COALESCE(abs.absent_count, 0))::int AS total_scheduled,
+        CASE
+          WHEN (COALESCE(att.present_count, 0) + COALESCE(abs.absent_count, 0)) = 0 THEN NULL
+          ELSE ROUND(
+            100.0 * COALESCE(att.present_count, 0) /
+            NULLIF(COALESCE(att.present_count, 0) + COALESCE(abs.absent_count, 0), 0), 1)
+        END AS attendance_pct
+      FROM teachers t
+      LEFT JOIN att ON att.teacher_id = t.id
+      LEFT JOIN abs ON abs.teacher_id = t.id
+      WHERE t.school_id = $1 AND t.status = 'Active'
+      ORDER BY attendance_pct ASC NULLS LAST, t.name
+    `, [req.schoolId, yearId, sem]);
+
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── 3c. Meeting Attendance Summary (Morning Briefing / Staff Meeting / etc.) ──
+router.get('/meetings-summary', async (req, res, next) => {
+  try {
+    const [yearId, sem] = await resolveYearSem(req.schoolId, req.query);
+    const type = req.query.type || null;
+
+    const { rows } = await pool.query(`
+      WITH att AS (
+        SELECT ma.teacher_id, COUNT(*) AS present_count
+        FROM meeting_attendance ma
+        JOIN meetings m ON m.id = ma.meeting_id
+        WHERE ma.school_id = $1
+          AND ($4::text IS NULL OR m.meeting_type = $4::text)
+          AND ($2::uuid IS NULL OR ma.academic_year_id = $2::uuid OR ma.academic_year_id IS NULL)
+          AND ($3::int  IS NULL OR ma.semester = $3::int         OR ma.semester          IS NULL)
+        GROUP BY ma.teacher_id
+      ),
+      dr AS (
+        SELECT
+          COALESCE(MIN(ma.date), CURRENT_DATE - INTERVAL '365 days') AS min_date,
+          COALESCE(MAX(ma.date), CURRENT_DATE) AS max_date
+        FROM meeting_attendance ma
+        JOIN meetings m ON m.id = ma.meeting_id
+        WHERE ma.school_id = $1
+          AND ($4::text IS NULL OR m.meeting_type = $4::text)
+          AND ($2::uuid IS NULL OR ma.academic_year_id = $2::uuid OR ma.academic_year_id IS NULL)
+          AND ($3::int  IS NULL OR ma.semester = $3::int         OR ma.semester          IS NULL)
+      ),
+      abs AS (
+        SELECT ab.teacher_id, COUNT(*) AS absent_count
+        FROM meeting_absences ab
+        JOIN meetings m ON m.id = ab.meeting_id, dr
+        WHERE ab.school_id = $1
+          AND ($4::text IS NULL OR m.meeting_type = $4::text)
+          AND ab.date >= dr.min_date
+          AND ab.date <= dr.max_date
+        GROUP BY ab.teacher_id
+      )
+      SELECT
+        t.id, t.name,
+        COALESCE(t.department, '—') AS department,
+        COALESCE(att.present_count, 0)::int AS present_count,
+        COALESCE(abs.absent_count, 0)::int  AS absent_count,
+        (COALESCE(att.present_count, 0) + COALESCE(abs.absent_count, 0))::int AS total_scheduled,
+        CASE
+          WHEN (COALESCE(att.present_count, 0) + COALESCE(abs.absent_count, 0)) = 0 THEN NULL
+          ELSE ROUND(
+            100.0 * COALESCE(att.present_count, 0) /
+            NULLIF(COALESCE(att.present_count, 0) + COALESCE(abs.absent_count, 0), 0), 1)
+        END AS attendance_pct
+      FROM teachers t
+      LEFT JOIN att ON att.teacher_id = t.id
+      LEFT JOIN abs ON abs.teacher_id = t.id
+      WHERE t.school_id = $1 AND t.status = 'Active'
+      ORDER BY attendance_pct ASC NULLS LAST, t.name
+    `, [req.schoolId, yearId, sem, type]);
+
+    res.json(rows);
   } catch (err) { next(err); }
 });
 
