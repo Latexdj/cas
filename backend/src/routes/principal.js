@@ -161,7 +161,7 @@ router.get('/academic-years', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, is_current, current_semester
-       FROM academic_years WHERE school_id = $1 ORDER BY start_date DESC`,
+       FROM academic_years WHERE school_id = $1 ORDER BY name DESC`,
       [req.schoolId]
     );
     res.json(rows);
