@@ -244,36 +244,93 @@ router.get('/teacher-attendance', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── 3b. PLC Attendance Summary ────────────────────────────────────────────────
+// ── 3b. PLC Attendance Summary (combines dedicated plc_attendance + meetings of type PLC) ──
 router.get('/plc-summary', async (req, res, next) => {
   try {
     const [yearId, sem] = await resolveYearSem(req.schoolId, req.query);
 
     const { rows } = await pool.query(`
-      WITH att AS (
-        SELECT teacher_id, COUNT(*) AS present_count
+      WITH
+      -- Present: dedicated PLC session submissions
+      plc_att AS (
+        SELECT teacher_id, COUNT(*) AS cnt
         FROM plc_attendance
         WHERE school_id = $1
           AND ($2::uuid IS NULL OR academic_year_id = $2::uuid OR academic_year_id IS NULL)
           AND ($3::int  IS NULL OR semester = $3::int         OR semester          IS NULL)
         GROUP BY teacher_id
       ),
+      -- Present: meetings recorded with meeting_type = 'PLC'
+      mtg_att AS (
+        SELECT ma.teacher_id, COUNT(*) AS cnt
+        FROM meeting_attendance ma
+        JOIN meetings m ON m.id = ma.meeting_id
+        WHERE ma.school_id = $1
+          AND m.meeting_type = 'PLC'
+          AND ($2::uuid IS NULL OR ma.academic_year_id = $2::uuid OR ma.academic_year_id IS NULL)
+          AND ($3::int  IS NULL OR ma.semester = $3::int         OR ma.semester          IS NULL)
+        GROUP BY ma.teacher_id
+      ),
+      -- Combined present counts
+      att AS (
+        SELECT teacher_id, SUM(cnt)::int AS present_count
+        FROM (SELECT teacher_id, cnt FROM plc_att
+              UNION ALL
+              SELECT teacher_id, cnt FROM mtg_att) x
+        GROUP BY teacher_id
+      ),
+      -- Date range across both sources (for scoping absences)
       dr AS (
         SELECT
-          COALESCE(MIN(date), CURRENT_DATE - INTERVAL '365 days') AS min_date,
-          COALESCE(MAX(date), CURRENT_DATE) AS max_date
-        FROM plc_attendance
-        WHERE school_id = $1
-          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid OR academic_year_id IS NULL)
-          AND ($3::int  IS NULL OR semester = $3::int         OR semester          IS NULL)
+          COALESCE(
+            LEAST(
+              (SELECT MIN(date) FROM plc_attendance
+               WHERE school_id = $1
+                 AND ($2::uuid IS NULL OR academic_year_id = $2::uuid OR academic_year_id IS NULL)
+                 AND ($3::int  IS NULL OR semester = $3::int         OR semester          IS NULL)),
+              (SELECT MIN(ma.date) FROM meeting_attendance ma
+               JOIN meetings m ON m.id = ma.meeting_id
+               WHERE ma.school_id = $1 AND m.meeting_type = 'PLC'
+                 AND ($2::uuid IS NULL OR ma.academic_year_id = $2::uuid OR ma.academic_year_id IS NULL)
+                 AND ($3::int  IS NULL OR ma.semester = $3::int         OR ma.semester          IS NULL))
+            ), CURRENT_DATE - INTERVAL '365 days') AS min_date,
+          COALESCE(
+            GREATEST(
+              (SELECT MAX(date) FROM plc_attendance
+               WHERE school_id = $1
+                 AND ($2::uuid IS NULL OR academic_year_id = $2::uuid OR academic_year_id IS NULL)
+                 AND ($3::int  IS NULL OR semester = $3::int         OR semester          IS NULL)),
+              (SELECT MAX(ma.date) FROM meeting_attendance ma
+               JOIN meetings m ON m.id = ma.meeting_id
+               WHERE ma.school_id = $1 AND m.meeting_type = 'PLC'
+                 AND ($2::uuid IS NULL OR ma.academic_year_id = $2::uuid OR ma.academic_year_id IS NULL)
+                 AND ($3::int  IS NULL OR ma.semester = $3::int         OR ma.semester          IS NULL))
+            ), CURRENT_DATE) AS max_date
       ),
-      abs AS (
-        SELECT ab.teacher_id, COUNT(*) AS absent_count
+      -- Absent: dedicated plc_absences
+      plc_abs AS (
+        SELECT ab.teacher_id, COUNT(*) AS cnt
         FROM plc_absences ab, dr
         WHERE ab.school_id = $1
-          AND ab.date >= dr.min_date
-          AND ab.date <= dr.max_date
+          AND ab.date >= dr.min_date AND ab.date <= dr.max_date
         GROUP BY ab.teacher_id
+      ),
+      -- Absent: meeting_absences for PLC-type meetings
+      mtg_abs AS (
+        SELECT ab.teacher_id, COUNT(*) AS cnt
+        FROM meeting_absences ab
+        JOIN meetings m ON m.id = ab.meeting_id, dr
+        WHERE ab.school_id = $1
+          AND m.meeting_type = 'PLC'
+          AND ab.date >= dr.min_date AND ab.date <= dr.max_date
+        GROUP BY ab.teacher_id
+      ),
+      abs AS (
+        SELECT teacher_id, SUM(cnt)::int AS absent_count
+        FROM (SELECT teacher_id, cnt FROM plc_abs
+              UNION ALL
+              SELECT teacher_id, cnt FROM mtg_abs) x
+        GROUP BY teacher_id
       )
       SELECT
         t.id, t.name,
