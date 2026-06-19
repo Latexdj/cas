@@ -387,7 +387,7 @@ const GES_RANKS = [
 function normalizeRank(val) {
   if (!val) return null;
   const v = val.trim().toLowerCase();
-  return GES_RANKS.find(r => r.toLowerCase() === v) ?? val.trim() || null;
+  return GES_RANKS.find(r => r.toLowerCase() === v) ?? (val.trim() || null);
 }
 
 /** POST /api/teachers/upload — bulk-import teachers from Excel/CSV */
