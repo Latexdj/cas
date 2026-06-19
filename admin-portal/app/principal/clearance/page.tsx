@@ -12,7 +12,7 @@ interface ClearanceRow {
 interface OfficeRow {
   office_name: string; office_type: string;
   status: 'pending' | 'cleared' | 'not_cleared';
-  actioned_at?: string; actioned_by_name?: string;
+  actioned_at?: string; actioned_by_name?: string; notes?: string;
 }
 interface DetailResult {
   student: { id: string; student_code: string; name: string; class_name: string; program_name?: string };
@@ -362,6 +362,15 @@ export default function ClearancePage() {
                             {o.actioned_at && (
                               <div style={{ fontSize: 11, color: dark ? '#64748B' : '#94A3B8' }}>
                                 {fmt(o.actioned_at)}{o.actioned_by_name ? ` · ${o.actioned_by_name}` : ''}
+                              </div>
+                            )}
+                            {o.status === 'not_cleared' && o.notes && (
+                              <div style={{
+                                fontSize: 11, marginTop: 4, padding: '4px 8px', borderRadius: 6,
+                                background: dark ? '#7F1D1D33' : '#FEF2F2',
+                                color: '#DC2626', fontStyle: 'italic',
+                              }}>
+                                {o.notes}
                               </div>
                             )}
                           </div>

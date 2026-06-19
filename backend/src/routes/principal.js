@@ -362,7 +362,7 @@ router.get('/clearance/student/:id', async (req, res, next) => {
     if (sc.length) {
       const { rows } = await pool.query(`
         SELECT co.name AS office_name, co.office_type, sci.status,
-               sci.actioned_at,
+               sci.actioned_at, sci.notes,
                COALESCE(t.name, ss.name) AS actioned_by_name
         FROM student_clearance_items sci
         JOIN clearance_offices co ON co.id = sci.office_id
