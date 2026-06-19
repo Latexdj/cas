@@ -45,6 +45,9 @@ const responsibilitiesRoutes  = require('./routes/responsibilities');
 const hodRoutes               = require('./routes/hod');
 const exeatRoutes             = require('./routes/exeat');
 const reportRoutes            = require('./routes/reports');
+const principalAuthRoutes     = require('./routes/principal-auth');
+const principalRoutes         = require('./routes/principal');
+const managementUserRoutes    = require('./routes/management-users');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -118,6 +121,9 @@ app.use('/api/responsibilities',   responsibilitiesRoutes);
 app.use('/api/hod',                hodRoutes);
 app.use('/api/exeat',              exeatRoutes);
 app.use('/api/reports',            reportRoutes);
+app.use('/api/principal/auth',     principalAuthRoutes);
+app.use('/api/principal',          principalRoutes);
+app.use('/api/admin/management-users', managementUserRoutes);
 
 app.use(errorHandler);
 
@@ -856,6 +862,21 @@ async function runMigrations() {
     `);
 
     await pool.query(`ALTER TABLE teacher_excuses ADD COLUMN IF NOT EXISTS rejection_reason TEXT`);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS management_users (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name             TEXT NOT NULL,
+        role             TEXT NOT NULL CHECK (role IN ('principal','vice_principal')),
+        management_code  TEXT NOT NULL,
+        pin_hash         TEXT NOT NULL,
+        is_active        BOOLEAN NOT NULL DEFAULT true,
+        created_at       TIMESTAMPTZ DEFAULT now(),
+        updated_at       TIMESTAMPTZ DEFAULT now(),
+        UNIQUE (school_id, management_code)
+      )
+    `);
 
     // ── One-time data normalisation (idempotent) ──────────────────────────────
     // Normalise student gender to exact 'Male' / 'Female'
