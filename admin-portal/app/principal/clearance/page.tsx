@@ -10,7 +10,9 @@ interface ClearanceRow {
 }
 
 interface OfficeRow {
-  office_name: string; office_type: string; cleared_at?: string; cleared_by_name?: string;
+  office_name: string; office_type: string;
+  status: 'pending' | 'cleared' | 'not_cleared';
+  actioned_at?: string; actioned_by_name?: string;
 }
 interface DetailResult {
   student: { id: string; student_code: string; name: string; class_name: string; program_name?: string };
@@ -156,7 +158,7 @@ export default function ClearancePage() {
                   {certResult.clearance?.is_fully_cleared
                     ? `Fully Cleared — ${fmt(certResult.clearance.fully_cleared_at)}`
                     : certResult.clearance
-                      ? `Not fully cleared · ${certResult.offices.filter(o => !o.cleared_at).length} office(s) pending`
+                      ? `Not fully cleared · ${certResult.offices.filter(o => o.status !== 'cleared').length} office(s) pending`
                       : 'Clearance not started'}
                 </div>
               </div>
@@ -167,7 +169,7 @@ export default function ClearancePage() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', marginBottom: 6 }}>
                   PENDING OFFICES:
                 </div>
-                {certResult.offices.filter(o => !o.cleared_at).map(o => (
+                {certResult.offices.filter(o => o.status !== 'cleared').map(o => (
                   <div key={o.office_name} style={{
                     fontSize: 12, color: '#DC2626', display: 'flex', gap: 6, marginBottom: 2,
                   }}>
@@ -352,17 +354,20 @@ export default function ClearancePage() {
                           borderRadius: 10, background: dark ? '#0F172A33' : '#F8FAFC',
                           border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
                         }}>
-                          <span style={{ fontSize: 18 }}>{o.cleared_at ? '✅' : '⏳'}</span>
+                          <span style={{ fontSize: 18 }}>
+                            {o.status === 'cleared' ? '✅' : o.status === 'not_cleared' ? '❌' : '⏳'}
+                          </span>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 600, fontSize: 13, color: dark ? '#F1F5F9' : '#0F172A' }}>{o.office_name}</div>
-                            {o.cleared_at && (
+                            {o.actioned_at && (
                               <div style={{ fontSize: 11, color: dark ? '#64748B' : '#94A3B8' }}>
-                                {fmt(o.cleared_at)}{o.cleared_by_name ? ` · ${o.cleared_by_name}` : ''}
+                                {fmt(o.actioned_at)}{o.actioned_by_name ? ` · ${o.actioned_by_name}` : ''}
                               </div>
                             )}
                           </div>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: o.cleared_at ? '#10B981' : '#D97706' }}>
-                            {o.cleared_at ? 'Cleared' : 'Pending'}
+                          <span style={{ fontSize: 12, fontWeight: 600,
+                            color: o.status === 'cleared' ? '#10B981' : o.status === 'not_cleared' ? '#EF4444' : '#D97706' }}>
+                            {o.status === 'cleared' ? 'Cleared' : o.status === 'not_cleared' ? 'Not Cleared' : 'Pending'}
                           </span>
                         </div>
                       ))}

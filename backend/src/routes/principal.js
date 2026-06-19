@@ -320,8 +320,8 @@ router.get('/clearance', async (req, res, next) => {
              sc.id  AS clearance_id,
              sc.is_fully_cleared,
              sc.fully_cleared_at,
-             COUNT(sci.id)::int                                       AS total_offices,
-             COUNT(sci.id) FILTER (WHERE sci.cleared_at IS NOT NULL)::int AS cleared_offices
+             COUNT(sci.id)::int                                              AS total_offices,
+             COUNT(sci.id) FILTER (WHERE sci.status = 'cleared')::int AS cleared_offices
       FROM students s
       LEFT JOIN programs p        ON p.id = s.program_id
       LEFT JOIN student_clearances sc ON sc.student_id = s.id AND sc.school_id = s.school_id
@@ -361,10 +361,13 @@ router.get('/clearance/student/:id', async (req, res, next) => {
     let offices = [];
     if (sc.length) {
       const { rows } = await pool.query(`
-        SELECT co.name AS office_name, co.office_type,
-               sci.cleared_at, sci.cleared_by_name
+        SELECT co.name AS office_name, co.office_type, sci.status,
+               sci.actioned_at,
+               COALESCE(t.name, ss.name) AS actioned_by_name
         FROM student_clearance_items sci
         JOIN clearance_offices co ON co.id = sci.office_id
+        LEFT JOIN teachers     t  ON t.id  = sci.actioned_by_teacher_id
+        LEFT JOIN school_staff ss ON ss.id = sci.actioned_by_school_staff_id
         WHERE sci.clearance_id = $1
         ORDER BY co.sort_order, co.name
       `, [sc[0].id]);
