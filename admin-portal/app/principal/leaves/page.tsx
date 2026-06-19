@@ -5,7 +5,7 @@ import { principalApi } from '@/lib/principal-api';
 
 interface Leave {
   id: string;
-  reason: string; start_date: string; end_date: string;
+  reason: string; type: string; date_from: string; date_to: string;
   status: string; rejection_reason?: string; approved_at?: string; created_at: string;
   teacher_name: string; teacher_code: string; department: string;
 }
@@ -125,9 +125,11 @@ export default function LeavesPage() {
                 </div>
 
                 <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 16px', fontSize: 13 }}>
+                  <span style={{ color: dark ? '#64748B' : '#94A3B8' }}>Type</span>
+                  <span style={{ color: dark ? '#CBD5E1' : '#374151', fontWeight: 500 }}>{l.type}</span>
                   <span style={{ color: dark ? '#64748B' : '#94A3B8' }}>Dates</span>
                   <span style={{ color: dark ? '#CBD5E1' : '#374151', fontWeight: 500 }}>
-                    {fmt(l.start_date)} – {fmt(l.end_date)}
+                    {fmt(l.date_from)} – {fmt(l.date_to)}
                   </span>
                   <span style={{ color: dark ? '#64748B' : '#94A3B8' }}>Reason</span>
                   <span style={{ color: dark ? '#CBD5E1' : '#374151' }}>{l.reason}</span>

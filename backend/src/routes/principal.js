@@ -419,14 +419,13 @@ router.get('/meetings-summary', async (req, res, next) => {
 // ── 4. Leave Requests ─────────────────────────────────────────────────────────
 router.get('/leaves', async (req, res, next) => {
   try {
-    const sid    = req.schoolId;
     const status = req.query.status || '';
-    const params = [sid];
+    const params = [req.schoolId];
     let   where  = 'te.school_id = $1';
     if (status) { params.push(status); where += ` AND te.status = $${params.length}`; }
 
     const { rows } = await pool.query(`
-      SELECT te.id, te.reason, te.start_date, te.end_date, te.status,
+      SELECT te.id, te.reason, te.type, te.date_from, te.date_to, te.status,
              te.rejection_reason, te.approved_at, te.created_at,
              t.name AS teacher_name, t.teacher_code, t.department
       FROM teacher_excuses te
@@ -444,12 +443,23 @@ router.patch('/leaves/:id/approve', async (req, res, next) => {
   try {
     const { rows } = await pool.query(`
       UPDATE teacher_excuses
-      SET status = 'Approved', approved_by = $1, approved_at = now(), updated_at = now()
-      WHERE id = $2 AND school_id = $3 AND status = 'Pending'
-      RETURNING id, status
-    `, [req.user.id, req.params.id, req.schoolId]);
+      SET status = 'Approved', approved_by = NULL, approved_at = now(), updated_at = now()
+      WHERE id = $1 AND school_id = $2 AND status = 'Pending'
+      RETURNING id, status, teacher_id, date_from, date_to
+    `, [req.params.id, req.schoolId]);
     if (!rows.length) return res.status(404).json({ error: 'Request not found or already actioned' });
-    res.json(rows[0]);
+
+    // Retroactively excuse any absence records in the approved date range
+    const { teacher_id, date_from, date_to } = rows[0];
+    await pool.query(
+      `UPDATE absences SET status = 'Excused', updated_at = now()
+       WHERE school_id = $1 AND teacher_id = $2
+         AND date BETWEEN $3 AND $4
+         AND status = 'Absent' AND is_auto_generated = true`,
+      [req.schoolId, teacher_id, date_from, date_to]
+    );
+
+    res.json({ id: rows[0].id, status: rows[0].status });
   } catch (err) { next(err); }
 });
 
@@ -459,11 +469,11 @@ router.patch('/leaves/:id/reject', async (req, res, next) => {
     if (!reason) return res.status(400).json({ error: 'A reason is required when rejecting' });
     const { rows } = await pool.query(`
       UPDATE teacher_excuses
-      SET status = 'Rejected', approved_by = $1, approved_at = now(),
-          updated_at = now(), rejection_reason = $2
-      WHERE id = $3 AND school_id = $4 AND status = 'Pending'
+      SET status = 'Rejected', approved_by = NULL, approved_at = now(),
+          updated_at = now(), rejection_reason = $1
+      WHERE id = $2 AND school_id = $3 AND status = 'Pending'
       RETURNING id, status, rejection_reason
-    `, [req.user.id, reason, req.params.id, req.schoolId]);
+    `, [reason, req.params.id, req.schoolId]);
     if (!rows.length) return res.status(404).json({ error: 'Request not found or already actioned' });
     res.json(rows[0]);
   } catch (err) { next(err); }
