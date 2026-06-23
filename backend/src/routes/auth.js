@@ -94,7 +94,7 @@ router.post('/login', loginLimiter, (req, res, next) => {
 
       const isAdminLogin = type === 'admin';
       const { rows } = await pool.query(
-        `SELECT id, name, teacher_code, pin_hash, is_admin
+        `SELECT id, name, teacher_code, pin_hash, is_admin, management_role
          FROM teachers
          WHERE school_id = $1
            AND UPPER(teacher_code) = UPPER($2)
@@ -121,6 +121,7 @@ router.post('/login', loginLimiter, (req, res, next) => {
       const schoolColors = colorRows[0] ?? {};
       return res.json({
         token, role, id: teacher.id, name: teacher.name, schoolId,
+        management_role: teacher.management_role ?? null,
         primary_color: schoolColors.primary_color ?? '#0B3D2E',
         accent_color:  schoolColors.accent_color  ?? '#C8973A',
       });

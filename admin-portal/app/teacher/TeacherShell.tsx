@@ -221,6 +221,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const [isLibraryTeacher, setIsLibraryTeacher] = useState(false);
   const [isHousemaster,    setIsHousemaster]    = useState(false);
   const [isHod,            setIsHod]            = useState(false);
+  const [managementRole,   setManagementRole]   = useState<string | null>(null);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => { setMoreOpen(false); }, [pathname]);
@@ -258,6 +259,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     if (!schoolCode) { router.replace('/teacher/setup'); return; }
     const teacher = getTeacher();
     if (!teacher)   { router.replace('/teacher/login'); return; }
+    setManagementRole(teacher.management_role ?? null);
     const colors = getTeacherColors();
     setPrimary(colors.primary);
     setLogoUrl(colors.logoUrl ?? null);
@@ -359,6 +361,20 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
+        {managementRole && (
+          <div className="px-3 pb-2">
+            <a
+              href="/principal"
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold w-full transition-colors"
+              style={{ background: isDark ? 'rgba(16,185,129,0.12)' : '#ECFDF5', color: '#059669' }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 shrink-0">
+                <path d="M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18" />
+              </svg>
+              Management Portal
+            </a>
+          </div>
+        )}
         <div className="px-4 py-3.5 text-center" style={{ borderTop: `1px solid ${dk.border}` }}>
           <div className="flex justify-center mb-2">
             <ThemeToggle />
@@ -400,6 +416,21 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
             </div>
           </div>
           <div className="space-y-1">
+            {managementRole && (
+              <a
+                href="/principal"
+                className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold transition-colors"
+                style={{ background: isDark ? 'rgba(16,185,129,0.12)' : '#ECFDF5', color: '#059669' }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 shrink-0">
+                  <path d="M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18" />
+                </svg>
+                <span className="flex-1">Management Portal</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 opacity-30">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </a>
+            )}
             {mobileMoreItems.map((item) => {
               const active = isActive(item.href);
               return (

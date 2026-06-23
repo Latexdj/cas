@@ -1,84 +1,78 @@
 'use strict';
 const router = require('express').Router();
-const bcrypt = require('bcrypt');
 const pool   = require('../config/db');
 const { authenticate, adminOnly } = require('../middleware/auth');
 
 router.use(authenticate, adminOnly);
 
-// GET /api/admin/management-users
+const VALID_ROLES = ['principal', 'vice_principal'];
+
+// GET /api/admin/management-users — list teachers who have a management role
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name, role, management_code, is_active, created_at
-       FROM management_users WHERE school_id = $1 ORDER BY role, name`,
+      `SELECT id, name, teacher_code, department, management_role AS role, status, created_at
+       FROM teachers
+       WHERE school_id = $1 AND management_role IS NOT NULL
+       ORDER BY management_role, name`,
       [req.schoolId]
     );
     res.json(rows);
   } catch (err) { next(err); }
 });
 
-// POST /api/admin/management-users
+// POST /api/admin/management-users — assign a management role to a teacher
 router.post('/', async (req, res, next) => {
   try {
-    const { name, role, management_code, pin } = req.body;
-    if (!name || !role || !management_code || !pin)
-      return res.status(400).json({ error: 'Name, role, management code and PIN are required' });
-    if (!['principal', 'vice_principal'].includes(role))
+    const { teacher_id, role } = req.body;
+    if (!teacher_id || !role)
+      return res.status(400).json({ error: 'teacher_id and role are required' });
+    if (!VALID_ROLES.includes(role))
       return res.status(400).json({ error: 'Role must be principal or vice_principal' });
-    if (String(pin).length < 4 || String(pin).length > 8)
-      return res.status(400).json({ error: 'PIN must be 4–8 digits' });
 
-    const pinHash = await bcrypt.hash(String(pin), 10);
+    const { rows: existing } = await pool.query(
+      `SELECT id, management_role FROM teachers WHERE id = $1 AND school_id = $2`,
+      [teacher_id, req.schoolId]
+    );
+    if (!existing.length)
+      return res.status(404).json({ error: 'Teacher not found' });
+    if (existing[0].management_role)
+      return res.status(409).json({ error: 'This teacher already has a management role assigned' });
+
     const { rows } = await pool.query(
-      `INSERT INTO management_users (school_id, name, role, management_code, pin_hash)
-       VALUES ($1, $2, $3, UPPER($4), $5)
-       RETURNING id, name, role, management_code, is_active, created_at`,
-      [req.schoolId, name.trim(), role, management_code.trim(), pinHash]
+      `UPDATE teachers SET management_role = $1, updated_at = now()
+       WHERE id = $2 AND school_id = $3
+       RETURNING id, name, teacher_code, department, management_role AS role, status`,
+      [role, teacher_id, req.schoolId]
     );
     res.status(201).json(rows[0]);
-  } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Management code already in use for this school' });
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
-// PUT /api/admin/management-users/:id
+// PUT /api/admin/management-users/:id — change role
 router.put('/:id', async (req, res, next) => {
   try {
-    const { name, role, management_code, pin, is_active } = req.body;
-    let pinHash = undefined;
-    if (pin) {
-      if (String(pin).length < 4 || String(pin).length > 8)
-        return res.status(400).json({ error: 'PIN must be 4–8 digits' });
-      pinHash = await bcrypt.hash(String(pin), 10);
-    }
+    const { role } = req.body;
+    if (!role || !VALID_ROLES.includes(role))
+      return res.status(400).json({ error: 'Role must be principal or vice_principal' });
+
     const { rows } = await pool.query(
-      `UPDATE management_users SET
-         name            = COALESCE($1, name),
-         role            = COALESCE($2, role),
-         management_code = COALESCE(UPPER($3), management_code),
-         pin_hash        = COALESCE($4, pin_hash),
-         is_active       = COALESCE($5, is_active),
-         updated_at      = now()
-       WHERE id = $6 AND school_id = $7
-       RETURNING id, name, role, management_code, is_active, created_at`,
-      [name?.trim() || null, role || null, management_code?.trim() || null,
-       pinHash || null, is_active ?? null, req.params.id, req.schoolId]
+      `UPDATE teachers SET management_role = $1, updated_at = now()
+       WHERE id = $2 AND school_id = $3
+       RETURNING id, name, teacher_code, department, management_role AS role, status`,
+      [role, req.params.id, req.schoolId]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Management user not found' });
+    if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
     res.json(rows[0]);
-  } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Management code already in use for this school' });
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
-// DELETE /api/admin/management-users/:id
+// DELETE /api/admin/management-users/:id — revoke management access
 router.delete('/:id', async (req, res, next) => {
   try {
     const { rowCount } = await pool.query(
-      `DELETE FROM management_users WHERE id = $1 AND school_id = $2`,
+      `UPDATE teachers SET management_role = NULL, updated_at = now()
+       WHERE id = $1 AND school_id = $2 AND management_role IS NOT NULL`,
       [req.params.id, req.schoolId]
     );
     if (!rowCount) return res.status(404).json({ error: 'Management user not found' });

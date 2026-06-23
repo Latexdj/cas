@@ -56,7 +56,7 @@ export default function PrincipalLoginPage() {
             </svg>
           </div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0F172A', marginBottom: 6 }}>Management Portal</h1>
-          <p style={{ fontSize: 13, color: '#64748B' }}>Sign in with your management credentials</p>
+          <p style={{ fontSize: 13, color: '#64748B' }}>Sign in with your Teacher ID and PIN</p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -89,13 +89,13 @@ export default function PrincipalLoginPage() {
 
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6, letterSpacing: '0.04em' }}>
-              MANAGEMENT CODE
+              TEACHER ID
             </label>
             <input
               type="text"
               value={managementCode}
               onChange={e => setManagementCode(e.target.value.toUpperCase())}
-              placeholder="e.g. PRIN01"
+              placeholder="Your Teacher ID"
               style={{
                 width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14,
                 border: '1.5px solid #D1D5DB', outline: 'none', boxSizing: 'border-box',

@@ -6,6 +6,7 @@ export interface TeacherUser {
   role: string;
   schoolId: string;
   token: string;
+  management_role?: string | null;
 }
 
 export function getTeacher(): TeacherUser | null {

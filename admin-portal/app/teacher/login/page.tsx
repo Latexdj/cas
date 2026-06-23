@@ -39,11 +39,12 @@ export default function TeacherLoginPage() {
 
       const data = res.data;
       saveTeacher({
-        id: data.user?.id ?? data.id ?? '',
-        name: data.user?.name ?? data.name ?? username,
-        role: data.user?.role ?? data.role ?? 'Teacher',
-        schoolId: data.user?.schoolId ?? data.schoolId ?? '',
-        token: data.token ?? data.accessToken ?? '',
+        id:              data.user?.id ?? data.id ?? '',
+        name:            data.user?.name ?? data.name ?? username,
+        role:            data.user?.role ?? data.role ?? 'Teacher',
+        schoolId:        data.user?.schoolId ?? data.schoolId ?? '',
+        token:           data.token ?? data.accessToken ?? '',
+        management_role: data.management_role ?? null,
       });
 
       window.location.href = '/teacher';
