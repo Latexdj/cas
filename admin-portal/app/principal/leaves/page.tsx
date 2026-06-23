@@ -7,6 +7,7 @@ interface Leave {
   id: string;
   reason: string; type: string; date_from: string; date_to: string;
   status: string; rejection_reason?: string; approved_at?: string; created_at: string;
+  document_url?: string; document_filename?: string;
   teacher_name: string; teacher_code: string; department: string;
 }
 
@@ -142,6 +143,38 @@ export default function LeavesPage() {
                   <span style={{ color: dark ? '#64748B' : '#94A3B8' }}>Requested</span>
                   <span style={{ color: dark ? '#475569' : '#94A3B8', fontSize: 12 }}>{fmt(l.created_at)}</span>
                 </div>
+
+                {/* Supporting document */}
+                {l.document_url ? (
+                  <a
+                    href={l.document_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      marginTop: 12, padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                      background: dark ? '#1E3A5F' : '#EFF6FF',
+                      color: dark ? '#93C5FD' : '#1D4ED8',
+                      border: `1px solid ${dark ? '#2563EB44' : '#BFDBFE'}`,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                      strokeLinecap="round" strokeLinejoin="round" style={{ width: 14, height: 14 }}>
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    {l.document_filename || 'View Supporting Document'}
+                  </a>
+                ) : l.type !== 'Official Duty' && l.status === 'Pending' ? (
+                  <div style={{
+                    marginTop: 10, padding: '6px 12px', borderRadius: 8, fontSize: 12,
+                    background: dark ? '#78350F22' : '#FEF3C7',
+                    color: '#D97706', border: `1px solid ${dark ? '#D9770644' : '#FDE68A'}`,
+                  }}>
+                    No supporting document attached
+                  </div>
+                ) : null}
 
                 {l.status === 'Pending' && (
                   <div style={{ marginTop: 14, display: 'flex', gap: 10 }}>

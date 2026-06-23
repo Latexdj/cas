@@ -427,6 +427,7 @@ router.get('/leaves', async (req, res, next) => {
     const { rows } = await pool.query(`
       SELECT te.id, te.reason, te.type, te.date_from, te.date_to, te.status,
              te.rejection_reason, te.approved_at, te.created_at,
+             te.document_url, te.document_filename,
              t.name AS teacher_name, t.teacher_code, t.department
       FROM teacher_excuses te
       JOIN teachers t ON t.id = te.teacher_id
