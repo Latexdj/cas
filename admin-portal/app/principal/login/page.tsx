@@ -106,18 +106,17 @@ export default function PrincipalLoginPage() {
 
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 6, letterSpacing: '0.04em' }}>
-              PIN
+              PASSWORD / PIN
             </label>
             <input
               type="password"
-              inputMode="numeric"
               value={pin}
-              onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
-              placeholder="4–8 digit PIN"
+              onChange={e => setPin(e.target.value)}
+              placeholder="Enter your password or PIN"
               style={{
-                width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 18,
+                width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14,
                 border: '1.5px solid #D1D5DB', outline: 'none', boxSizing: 'border-box',
-                letterSpacing: '0.3em', color: '#1E293B',
+                color: '#1E293B',
               }}
             />
           </div>
