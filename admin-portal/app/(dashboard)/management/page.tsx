@@ -48,7 +48,7 @@ export default function ManagementUsersPage() {
     try {
       const [mgmt, staff] = await Promise.all([
         api.get('/api/admin/management-users'),
-        api.get('/api/admin/teachers'),
+        api.get('/api/teachers'),
       ]);
       setUsers(mgmt.data);
       setTeachers(staff.data);
