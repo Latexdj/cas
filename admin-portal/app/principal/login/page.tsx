@@ -77,7 +77,7 @@ export default function PrincipalLoginPage() {
               type="text"
               value={schoolCode}
               onChange={e => setSchoolCode(e.target.value)}
-              placeholder="e.g. ACHIMOTA"
+              placeholder="e.g. CAS000"
               style={{
                 width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14,
                 border: '1.5px solid #D1D5DB', outline: 'none', boxSizing: 'border-box',
