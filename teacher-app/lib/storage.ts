@@ -9,6 +9,7 @@ const KEYS = {
   schoolCode:   'cas_school_code',
   primaryColor: 'cas_primary_color',
   accentColor:  'cas_accent_color',
+  schoolLogo:   'cas_school_logo',
   darkMode:     'cas_dark_mode',
 };
 
@@ -21,6 +22,11 @@ export const storage = {
   async getSchoolCode()  { return AsyncStorage.getItem(KEYS.schoolCode); },
   async getPrimaryColor() { return AsyncStorage.getItem(KEYS.primaryColor); },
   async getAccentColor()  { return AsyncStorage.getItem(KEYS.accentColor); },
+  async getSchoolLogo()   { return AsyncStorage.getItem(KEYS.schoolLogo); },
+  async saveSchoolLogo(url: string | null) {
+    if (url) await AsyncStorage.setItem(KEYS.schoolLogo, url);
+    else await AsyncStorage.removeItem(KEYS.schoolLogo);
+  },
   async getDarkMode()     { return AsyncStorage.getItem(KEYS.darkMode); },
   async saveDarkMode(isDark: boolean) { await AsyncStorage.setItem(KEYS.darkMode, isDark ? '1' : '0'); },
 
@@ -28,11 +34,15 @@ export const storage = {
     await AsyncStorage.setItem(KEYS.schoolCode, code.toUpperCase().trim());
   },
 
-  async saveTheme(primary: string, accent: string) {
+  async saveTheme(primary: string, accent: string, logo?: string | null) {
     await AsyncStorage.multiSet([
       [KEYS.primaryColor, primary],
       [KEYS.accentColor,  accent],
     ]);
+    if (logo !== undefined) {
+      if (logo) await AsyncStorage.setItem(KEYS.schoolLogo, logo);
+      else await AsyncStorage.removeItem(KEYS.schoolLogo);
+    }
   },
 
   async saveSession(token: string, id: string, name: string, role: string, schoolId: string) {

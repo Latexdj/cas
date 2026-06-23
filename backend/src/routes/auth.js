@@ -116,7 +116,7 @@ router.post('/login', loginLimiter, (req, res, next) => {
       );
       // Include school colors so the app can update its theme
       const { rows: colorRows } = await pool.query(
-        `SELECT primary_color, accent_color FROM schools WHERE id = $1`, [schoolId]
+        `SELECT primary_color, accent_color, logo_url FROM schools WHERE id = $1`, [schoolId]
       );
       const schoolColors = colorRows[0] ?? {};
       return res.json({
@@ -124,6 +124,7 @@ router.post('/login', loginLimiter, (req, res, next) => {
         management_role: teacher.management_role ?? null,
         primary_color: schoolColors.primary_color ?? '#0B3D2E',
         accent_color:  schoolColors.accent_color  ?? '#C8973A',
+        logo_url:      schoolColors.logo_url      ?? null,
       });
     }
 

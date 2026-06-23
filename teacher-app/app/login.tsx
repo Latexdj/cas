@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  KeyboardAvoidingView, Platform, ScrollView,
+  Image, KeyboardAvoidingView, Platform, ScrollView,
   StyleSheet, Text, View,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -18,9 +18,11 @@ export default function LoginScreen() {
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState('');
   const [schoolCode, setSchoolCode] = useState('');
+  const [schoolLogo, setSchoolLogo] = useState<string | null>(null);
 
   useEffect(() => {
     storage.getSchoolCode().then(c => setSchoolCode(c ?? ''));
+    storage.getSchoolLogo().then(l => setSchoolLogo(l));
   }, []);
 
   async function handleLogin() {
@@ -50,9 +52,13 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
 
         <View style={[styles.topBand, { backgroundColor: Colors.primary }]}>
-          <View style={[styles.logoMark, { backgroundColor: Colors.accent }]}>
-            <Text style={styles.logoLetter}>C</Text>
-          </View>
+          {schoolLogo ? (
+            <Image source={{ uri: schoolLogo }} style={styles.schoolLogo} resizeMode="contain" />
+          ) : (
+            <View style={[styles.logoMark, { backgroundColor: Colors.accent }]}>
+              <Text style={styles.logoLetter}>C</Text>
+            </View>
+          )}
           <Text style={styles.appName}>CAS Teacher</Text>
           <Text style={styles.tagline}>Classroom Attendance System</Text>
         </View>
@@ -96,6 +102,7 @@ const styles = StyleSheet.create({
   topBand:     { paddingTop: 80, paddingBottom: 48, alignItems: 'center', borderBottomLeftRadius: 32, borderBottomRightRadius: 32, marginBottom: 32 },
   logoMark:    { width: 64, height: 64, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
   logoLetter:  { fontSize: 30, fontWeight: '800', color: '#fff' },
+  schoolLogo:  { width: 72, height: 72, borderRadius: 16, marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.15)' },
   appName:     { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -0.5 },
   tagline:     { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 5 },
   card:        { backgroundColor: '#FFFFFF', marginHorizontal: 20, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#E2D9CC', shadowColor: '#1C1208', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },

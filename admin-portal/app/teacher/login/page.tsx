@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import axios from 'axios';
-import { saveTeacher, getSchoolCode, getTeacherColors } from '@/lib/teacher-auth';
+import { saveTeacher, saveTeacherColors, getSchoolCode, getTeacherColors } from '@/lib/teacher-auth';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -46,6 +46,9 @@ export default function TeacherLoginPage() {
         token:           data.token ?? data.accessToken ?? '',
         management_role: data.management_role ?? null,
       });
+      if (data.primary_color) {
+        saveTeacherColors(data.primary_color, data.accent_color ?? '#1a8a6a', data.logo_url ?? null);
+      }
 
       window.location.href = '/teacher';
     } catch (err: unknown) {

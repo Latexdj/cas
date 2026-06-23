@@ -46,6 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (data.primary_color && data.accent_color) {
       await updateTheme(data.primary_color, data.accent_color);
     }
+    await storage.saveSchoolLogo(data.logo_url ?? null);
     setUser({ id: data.id, name: data.name, role: data.role, schoolId: data.schoolId ?? '' });
   }
 

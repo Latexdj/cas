@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  KeyboardAvoidingView, Platform,
+  Image, KeyboardAvoidingView, Platform,
   ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -16,7 +16,7 @@ export default function SetupScreen() {
   const [code,        setCode]        = useState('');
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState('');
-  const [schoolData,  setSchoolData]  = useState<{ name: string; primary_color?: string; accent_color?: string } | null>(null);
+  const [schoolData,  setSchoolData]  = useState<{ name: string; primary_color?: string; accent_color?: string; logo_url?: string | null } | null>(null);
   const [confirming,  setConfirming]  = useState(false);
 
   async function handleConfirm() {
@@ -49,6 +49,7 @@ export default function SetupScreen() {
       if (schoolData.primary_color && schoolData.accent_color) {
         await updateTheme(schoolData.primary_color, schoolData.accent_color);
       }
+      await storage.saveSchoolLogo(schoolData.logo_url ?? null);
       // On web, hard-navigate so _layout re-reads localStorage from scratch,
       // avoiding the async-state race that keeps redirecting back to setup.
       if (Platform.OS === 'web') {
@@ -86,6 +87,9 @@ export default function SetupScreen() {
               <Text style={styles.cardHeading}>Confirm Your School</Text>
               <Text style={styles.cardSub}>You are about to join:</Text>
               <View style={[styles.schoolNameBox, { borderColor: Colors.primary }]}>
+                {schoolData.logo_url ? (
+                  <Image source={{ uri: schoolData.logo_url }} style={styles.schoolLogo} resizeMode="contain" />
+                ) : null}
                 <Text style={[styles.schoolNameText, { color: Colors.primary }]}>{schoolData.name}</Text>
               </View>
               <Text style={styles.cardSub}>Is this the correct school?</Text>
@@ -149,6 +153,7 @@ const styles = StyleSheet.create({
   cardHeading:    { fontSize: 20, fontWeight: '800', color: '#1C1208', marginBottom: 8, letterSpacing: -0.3 },
   cardSub:        { fontSize: 14, color: '#8C7E6E', lineHeight: 20, marginBottom: 20 },
   schoolNameBox:  { borderWidth: 2, borderRadius: 12, padding: 16, marginBottom: 16, alignItems: 'center' },
+  schoolLogo:     { width: 64, height: 64, borderRadius: 8, marginBottom: 10 },
   schoolNameText: { fontSize: 18, fontWeight: '800', textAlign: 'center' },
   btn:            { marginTop: 4 },
   backLink:       { alignItems: 'center', marginTop: 16, paddingVertical: 8 },
