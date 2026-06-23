@@ -17,6 +17,13 @@ const STATUS_STYLES: Record<string, { bg: string; bgD: string; text: string }> =
   Rejected: { bg: '#FEE2E2', bgD: '#7F1D1D33', text: '#DC2626' },
 };
 
+function viewerUrl(url: string, filename?: string): string {
+  const ext = (filename || url).split('.').pop()?.toLowerCase() ?? '';
+  if (['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(ext))
+    return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`;
+  return url; // PDF and others render natively in the iframe
+}
+
 function fmt(d: string) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -33,6 +40,7 @@ export default function LeavesPage() {
   const [reason,  setReason]  = useState('');
   const [saving,  setSaving]  = useState(false);
   const [errMsg,  setErrMsg]  = useState('');
+  const [docModal, setDocModal] = useState<{ url: string; filename: string } | null>(null);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -146,17 +154,15 @@ export default function LeavesPage() {
 
                 {/* Supporting document */}
                 {l.document_url ? (
-                  <a
-                    href={l.document_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => setDocModal({ url: l.document_url!, filename: l.document_filename || 'Supporting Document' })}
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: 6,
                       marginTop: 12, padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
                       background: dark ? '#1E3A5F' : '#EFF6FF',
                       color: dark ? '#93C5FD' : '#1D4ED8',
                       border: `1px solid ${dark ? '#2563EB44' : '#BFDBFE'}`,
-                      textDecoration: 'none',
+                      cursor: 'pointer',
                     }}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
@@ -165,7 +171,7 @@ export default function LeavesPage() {
                       <polyline points="14 2 14 8 20 8" />
                     </svg>
                     {l.document_filename || 'View Supporting Document'}
-                  </a>
+                  </button>
                 ) : l.type !== 'Official Duty' && l.status === 'Pending' ? (
                   <div style={{
                     marginTop: 10, padding: '6px 12px', borderRadius: 8, fontSize: 12,
@@ -270,6 +276,74 @@ export default function LeavesPage() {
                 {saving ? '…' : action === 'approve' ? 'Confirm Approve' : 'Confirm Reject'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Document viewer modal */}
+      {docModal && (
+        <div
+          onClick={() => setDocModal(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.75)', padding: 16,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: dark ? '#1E293B' : '#FFFFFF', borderRadius: 16,
+              width: '100%', maxWidth: 860, height: '85vh',
+              display: 'flex', flexDirection: 'column',
+              boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
+            }}
+          >
+            {/* Modal header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '14px 20px', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
+              flexShrink: 0,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke={dark ? '#93C5FD' : '#1D4ED8'} strokeWidth={2}
+                  strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                <span style={{ fontWeight: 600, fontSize: 14, color: dark ? '#F1F5F9' : '#0F172A' }}>
+                  {docModal.filename}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <a
+                  href={docModal.url}
+                  download
+                  style={{
+                    fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 7,
+                    background: dark ? '#0F172A' : '#F1F5F9', color: dark ? '#94A3B8' : '#475569',
+                    border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`, textDecoration: 'none',
+                  }}
+                >
+                  Download
+                </a>
+                <button
+                  onClick={() => setDocModal(null)}
+                  style={{
+                    width: 30, height: 30, borderRadius: 8, border: 'none', cursor: 'pointer',
+                    background: dark ? '#334155' : '#F1F5F9', color: dark ? '#CBD5E1' : '#475569',
+                    fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {/* iframe viewer */}
+            <iframe
+              src={viewerUrl(docModal.url, docModal.filename)}
+              title={docModal.filename}
+              style={{ flex: 1, border: 'none', borderRadius: '0 0 16px 16px', width: '100%' }}
+            />
           </div>
         </div>
       )}
