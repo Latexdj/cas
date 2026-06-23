@@ -40,7 +40,7 @@ router.post('/', async (req, res, next) => {
       return res.status(409).json({ error: 'This teacher already has a management role assigned' });
 
     const { rows } = await pool.query(
-      `UPDATE teachers SET management_role = $1, updated_at = now()
+      `UPDATE teachers SET management_role = $1, is_admin = true, updated_at = now()
        WHERE id = $2 AND school_id = $3
        RETURNING id, name, teacher_code, department, management_role AS role, status`,
       [role, teacher_id, req.schoolId]
@@ -71,7 +71,7 @@ router.put('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const { rowCount } = await pool.query(
-      `UPDATE teachers SET management_role = NULL, updated_at = now()
+      `UPDATE teachers SET management_role = NULL, is_admin = false, updated_at = now()
        WHERE id = $1 AND school_id = $2 AND management_role IS NOT NULL`,
       [req.params.id, req.schoolId]
     );
