@@ -167,14 +167,19 @@ export default function OccupancyPage() {
                       <div style={{ fontSize: 13, color: dark ? '#94A3B8' : '#64748B', marginBottom: 4 }}>
                         {slot.subject}
                       </div>
-                      <div style={{ fontSize: 12, color: dark ? '#64748B' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: 12, color: dark ? '#64748B' : '#94A3B8' }}>
                         <span>
                           {slot.teacherName}
                           <span style={{ marginLeft: 4, fontFamily: 'monospace', fontSize: 11 }}>
                             ({slot.teacherCode})
                           </span>
                         </span>
-                        <CallBtn phone={slot.teacherPhone} color={meta.text} />
+                        {slot.teacherPhone && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                            <span style={{ fontSize: 11 }}>{slot.teacherPhone}</span>
+                            <CallBtn phone={slot.teacherPhone} color={meta.text} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
