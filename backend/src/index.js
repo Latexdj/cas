@@ -468,6 +468,13 @@ async function runMigrations() {
       )
     `);
     await pool.query(`ALTER TABLE remedial_lessons ADD COLUMN IF NOT EXISTS remedial_end_time TIME`);
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE remedial_lessons DROP CONSTRAINT IF EXISTS remedial_lessons_status_check;
+        ALTER TABLE remedial_lessons ADD CONSTRAINT remedial_lessons_status_check
+          CHECK (status = ANY (ARRAY['Scheduled','Completed','Verified','Cancelled','Rejected']));
+      END $$;
+    `);
 
     // Assessment Module
     await pool.query(`ALTER TABLE programs ADD COLUMN IF NOT EXISTS exam_body TEXT NOT NULL DEFAULT 'WAEC'`);
