@@ -430,6 +430,58 @@ router.patch('/:id/verify', adminOnly, async (req, res, next) => {
   }
 });
 
+// PATCH /api/remedial/:id/reject — admin rejects a completed (submitted) remedial
+router.patch('/:id/reject', adminOnly, async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    if (!reason?.trim()) {
+      return res.status(400).json({ error: 'A rejection reason is required.' });
+    }
+
+    const { rows: rlRows } = await pool.query(
+      `SELECT absence_id, status FROM remedial_lessons WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!rlRows.length) return res.status(404).json({ error: 'Remedial lesson not found' });
+    const rl = rlRows[0];
+
+    if (rl.status !== 'Completed') {
+      return res.status(400).json({ error: `Cannot reject — lesson is '${rl.status}'. Only completed submissions can be rejected.` });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `UPDATE remedial_lessons
+         SET status = 'Rejected', notes = $1, verified_by = $2, verified_at = now(), updated_at = now()
+         WHERE id = $3 AND school_id = $4`,
+        [reason.trim(), req.user.name || 'Admin', req.params.id, req.schoolId]
+      );
+
+      // Delete fraudulent student attendance session (records cascade automatically)
+      await client.query(
+        `DELETE FROM student_attendance_sessions WHERE remedial_id = $1 AND school_id = $2`,
+        [req.params.id, req.schoolId]
+      );
+
+      // Revert absence back to Absent so teacher still owes the remedial
+      if (rl.absence_id) {
+        await client.query(
+          `UPDATE absences SET status = 'Absent', updated_at = now()
+           WHERE id = $1 AND school_id = $2`,
+          [rl.absence_id, req.schoolId]
+        );
+      }
+
+      await client.query('COMMIT');
+      res.json({ message: 'Remedial lesson rejected. Absence reverted to outstanding.' });
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+  } catch (err) { next(err); }
+});
+
 // PATCH /api/remedial/:id/cancel
 router.patch('/:id/cancel', async (req, res, next) => {
   try {

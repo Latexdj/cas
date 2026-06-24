@@ -326,6 +326,10 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
   const [registerModal, setRegisterModal] = useState<RemedialLesson | null>(null);
   const [notes,         setNotes]         = useState('');
   const [saving,        setSaving]        = useState(false);
+  const [rejectModal,   setRejectModal]   = useState<RemedialLesson | null>(null);
+  const [rejectReason,  setRejectReason]  = useState('');
+  const [rejectError,   setRejectError]   = useState('');
+  const [rejecting,     setRejecting]     = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -359,6 +363,20 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
     } finally { setSaving(false); }
   }
 
+  async function submitReject() {
+    if (!rejectModal) return;
+    if (!rejectReason.trim()) { setRejectError('A rejection reason is required.'); return; }
+    setRejecting(true); setRejectError('');
+    try {
+      await api.patch(`/api/remedial/${rejectModal.id}/reject`, { reason: rejectReason.trim() });
+      setRejectModal(null);
+      await load();
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setRejectError(e.response?.data?.error ?? 'Failed to reject.');
+    } finally { setRejecting(false); }
+  }
+
   const missingCount = items.filter(r => !r.has_register && r.status !== 'Cancelled').length;
 
   return (
@@ -378,7 +396,7 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
           <select value={status} onChange={e => setStatus(e.target.value)}
             className="mt-1 w-44 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}>
             <option value="">All</option>
-            {['Scheduled','Completed','Verified','Cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+            {['Scheduled','Completed','Verified','Rejected','Cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
         <Button type="submit">Filter</Button>
@@ -439,9 +457,12 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex gap-2">
                         {r.status === 'Completed' && (
-                          <Button variant="ghost" size="sm" onClick={() => { setNotes(r.notes ?? ''); setNotesModal(r); }}>Verify</Button>
+                          <>
+                            <Button variant="ghost" size="sm" onClick={() => { setNotes(r.notes ?? ''); setNotesModal(r); }}>Verify</Button>
+                            <Button variant="danger" size="sm" onClick={() => { setRejectModal(r); setRejectReason(''); setRejectError(''); }}>Reject</Button>
+                          </>
                         )}
-                        {r.status !== 'Cancelled' && (
+                        {r.status !== 'Cancelled' && r.status !== 'Rejected' && (
                           <Button variant="ghost" size="sm" onClick={() => setRegisterModal(r)}>
                             {r.has_register ? 'Register' : 'Mark Register'}
                           </Button>
@@ -468,6 +489,48 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
           onClose={() => setRegisterModal(null)}
           onSuccess={() => { setRegisterModal(null); load(); }}
         />
+      )}
+
+      {/* Reject modal */}
+      {rejectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="font-bold" style={{ color: '#0F172A' }}>Reject Remedial Submission</p>
+              <button onClick={() => setRejectModal(null)}
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm">✕</button>
+            </div>
+            <div className="rounded-lg p-3 text-sm space-y-0.5" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
+              <p style={{ color: '#0F172A' }}><strong>{rejectModal.teacher_name}</strong></p>
+              <p style={{ color: '#475569' }}>{rejectModal.subject} — {rejectModal.class_name}</p>
+              <p style={{ color: '#64748B', fontSize: 12 }}>Absence: {fmtDate(rejectModal.original_absence_date)} · Remedial: {fmtDate(rejectModal.remedial_date)}</p>
+            </div>
+            <p className="text-xs" style={{ color: '#64748B' }}>
+              Rejecting will revert the absence to <strong>Outstanding</strong> and delete the student attendance register taken during this lesson.
+            </p>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide block mb-1" style={{ color: '#64748B' }}>
+                Rejection Reason <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <textarea value={rejectReason} rows={3}
+                onChange={e => { setRejectReason(e.target.value); setRejectError(''); }}
+                placeholder="Required — state clearly why this submission is rejected…"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-500 resize-none" />
+            </div>
+            {rejectError && <p className="text-sm" style={{ color: '#DC2626' }}>{rejectError}</p>}
+            <div className="flex gap-3">
+              <button onClick={() => setRejectModal(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600">
+                Cancel
+              </button>
+              <button onClick={submitReject} disabled={rejecting || !rejectReason.trim()}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50"
+                style={{ backgroundColor: '#DC2626' }}>
+                {rejecting ? 'Rejecting…' : 'Confirm Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <Modal open={!!notesModal} onClose={() => setNotesModal(null)} title="Verify Remedial Lesson">

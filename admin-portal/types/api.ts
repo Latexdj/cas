@@ -225,6 +225,7 @@ export interface RemedialLesson {
   notes: string | null;
   has_register: boolean;
   created_at: string;
+  absence_id: string | null;
 }
 
 export interface Student {
