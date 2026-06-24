@@ -30,11 +30,30 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Field({ label, value }: { label: string; value?: string | number | null }) {
+function Field({ label, value, isPhone }: { label: string; value?: string | number | null; isPhone?: boolean }) {
   return (
     <div>
       <p className="text-xs text-gray-400 font-medium mb-0.5">{label}</p>
-      <p className="text-sm text-gray-800">{value || <span className="text-gray-300 italic">—</span>}</p>
+      {value ? (
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-gray-800">{value}</p>
+          {isPhone && (
+            <a
+              href={`tel:${value}`}
+              title={`Call ${value}`}
+              className="inline-flex items-center justify-center w-7 h-7 rounded-full flex-shrink-0"
+              style={{ background: '#DCFCE7', color: '#15803D', border: '1.5px solid #15803D55', textDecoration: 'none' }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+                <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 .82h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
+              </svg>
+            </a>
+          )}
+        </div>
+      ) : (
+        <p className="text-sm text-gray-800"><span className="text-gray-300 italic">—</span></p>
+      )}
     </div>
   );
 }
@@ -290,7 +309,7 @@ export default function TeacherProfilePage() {
           <Field label="Admin Access" value={profile.is_admin ? 'Yes' : 'No'} />
           <Field label="Total Periods / Week" value={String(profile.total_periods ?? 0)} />
           <Field label="Email" value={profile.email} />
-          <Field label="Phone" value={profile.phone} />
+          <Field label="Phone" value={profile.phone} isPhone />
         </div>
       </div>
 
@@ -411,7 +430,7 @@ export default function TeacherProfilePage() {
       ) : (
         <Section title="Emergency Contact">
           <Field label="Name"  value={profile.emergency_contact_name} />
-          <Field label="Phone" value={profile.emergency_contact_phone} />
+          <Field label="Phone" value={profile.emergency_contact_phone} isPhone />
         </Section>
       )}
 

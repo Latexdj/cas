@@ -95,7 +95,7 @@ router.get('/occupancy', async (req, res, next) => {
     const [slotRes, attRes, absRes] = await Promise.all([
       pool.query(`
         SELECT tt.id, tt.start_time, tt.end_time, tt.subject, tt.class_names,
-               t.id AS teacher_id, t.name AS teacher_name, t.teacher_code
+               t.id AS teacher_id, t.name AS teacher_name, t.teacher_code, t.phone AS teacher_phone
         FROM timetable tt
         JOIN teachers t ON t.id = tt.teacher_id
         WHERE tt.school_id = $1 AND tt.day_of_week = $2 AND t.status = 'Active'
@@ -145,9 +145,10 @@ router.get('/occupancy', async (req, res, next) => {
         endTime:     slot.end_time,
         subject:     slot.subject,
         classNames:  slot.class_names,
-        teacherId:   slot.teacher_id,
-        teacherName: slot.teacher_name,
-        teacherCode: slot.teacher_code,
+        teacherId:    slot.teacher_id,
+        teacherName:  slot.teacher_name,
+        teacherCode:  slot.teacher_code,
+        teacherPhone: slot.teacher_phone ?? null,
         status,
       };
     });

@@ -7,8 +7,30 @@ interface Slot {
   id: string;
   startTime: string; endTime: string;
   subject: string; classNames: string;
-  teacherName: string; teacherCode: string;
+  teacherName: string; teacherCode: string; teacherPhone: string | null;
   status: 'confirmed' | 'absent' | 'upcoming' | 'ongoing' | 'not_submitted';
+}
+
+function CallBtn({ phone, color }: { phone: string | null; color: string }) {
+  if (!phone) return null;
+  return (
+    <a
+      href={`tel:${phone}`}
+      title={`Call ${phone}`}
+      onClick={e => e.stopPropagation()}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+        background: `${color}22`, color, textDecoration: 'none',
+        border: `1.5px solid ${color}55`,
+      }}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+        strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+        <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 .82h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
+      </svg>
+    </a>
+  );
 }
 
 const STATUS_META: Record<Slot['status'], { label: string; bg: string; bgDark: string; text: string }> = {
@@ -145,11 +167,14 @@ export default function OccupancyPage() {
                       <div style={{ fontSize: 13, color: dark ? '#94A3B8' : '#64748B', marginBottom: 4 }}>
                         {slot.subject}
                       </div>
-                      <div style={{ fontSize: 12, color: dark ? '#64748B' : '#94A3B8' }}>
-                        {slot.teacherName}
-                        <span style={{ marginLeft: 4, fontFamily: 'monospace', fontSize: 11 }}>
-                          ({slot.teacherCode})
+                      <div style={{ fontSize: 12, color: dark ? '#64748B' : '#94A3B8', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span>
+                          {slot.teacherName}
+                          <span style={{ marginLeft: 4, fontFamily: 'monospace', fontSize: 11 }}>
+                            ({slot.teacherCode})
+                          </span>
                         </span>
+                        <CallBtn phone={slot.teacherPhone} color={meta.text} />
                       </div>
                     </div>
                   );

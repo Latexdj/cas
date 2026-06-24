@@ -259,7 +259,28 @@ export default function PersonnelPage() {
                         <td style={{ padding: '10px 14px', color: dark ? '#CBD5E1' : '#374151' }}>{t.department || '—'}</td>
                         <td style={{ padding: '10px 14px', color: dark ? '#94A3B8' : '#64748B', fontSize: 12 }}>{t.rank || '—'}</td>
                         <td style={{ padding: '10px 14px', color: dark ? '#CBD5E1' : '#374151' }}>{t.gender || '—'}</td>
-                        <td style={{ padding: '10px 14px', color: dark ? '#CBD5E1' : '#374151', fontSize: 12 }}>{t.phone || '—'}</td>
+                        <td style={{ padding: '10px 14px', fontSize: 12 }}>
+                          {t.phone ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ color: dark ? '#CBD5E1' : '#374151' }}>{t.phone}</span>
+                              <a
+                                href={`tel:${t.phone}`}
+                                title={`Call ${t.phone}`}
+                                style={{
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+                                  background: dark ? '#14532D44' : '#DCFCE7', color: '#15803D',
+                                  textDecoration: 'none', border: '1.5px solid #15803D55',
+                                }}
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                                  strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+                                  <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 .82h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
+                                </svg>
+                              </a>
+                            </div>
+                          ) : '—'}
+                        </td>
                         <td style={{ padding: '10px 14px', color: dark ? '#94A3B8' : '#64748B', fontSize: 12 }}>{t.email || '—'}</td>
                         <td style={{ padding: '10px 14px' }}>
                           <span style={{ fontSize: 11, fontWeight: 600, borderRadius: 20, padding: '2px 10px', background: dark ? st.bgD : st.bg, color: st.text }}>
