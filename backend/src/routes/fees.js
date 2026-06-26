@@ -216,7 +216,8 @@ router.post('/bills', async (req, res, next) => {
 router.delete('/bills/:id', async (req, res, next) => {
   try {
     const { rows: payments } = await pool.query(
-      `SELECT 1 FROM fee_payments WHERE bill_id=$1 LIMIT 1`, [req.params.id]
+      `SELECT 1 FROM fee_payments WHERE bill_id=$1 AND school_id=$2 LIMIT 1`,
+      [req.params.id, req.schoolId]
     );
     if (payments.length > 0) {
       return res.status(400).json({ error: 'Cannot delete a bill that has payments. Void the payments first.' });
@@ -344,7 +345,7 @@ router.get('/reports/arrears', async (req, res, next) => {
        FROM student_bills sb
        JOIN students s ON s.id = sb.student_id
        LEFT JOIN (
-         SELECT bill_id, SUM(amount) AS paid FROM fee_payments GROUP BY bill_id
+         SELECT bill_id, SUM(amount) AS paid FROM fee_payments WHERE school_id=$1 GROUP BY bill_id
        ) p ON p.bill_id = sb.id
        WHERE ${conditions.join(' AND ')}
        GROUP BY s.id, s.name, s.student_code, s.class_name
@@ -378,6 +379,23 @@ router.get('/reports/collections', async (req, res, next) => {
     );
     const grand_total = rows.reduce((s, r) => s + Number(r.total), 0);
     res.json({ rows, grand_total });
+  } catch (err) { next(err); }
+});
+
+// GET /api/fees/students/search?q= — fast student search for Collections tab
+router.get('/students/search', async (req, res, next) => {
+  try {
+    const { q } = req.query;
+    if (!q || String(q).length < 2) return res.json([]);
+    const { rows } = await pool.query(
+      `SELECT id, name, student_code, class_name
+       FROM students
+       WHERE school_id = $1 AND status = 'Active'
+         AND (name ILIKE $2 OR student_code ILIKE $2)
+       ORDER BY name LIMIT 15`,
+      [req.schoolId, `%${q}%`]
+    );
+    res.json(rows);
   } catch (err) { next(err); }
 });
 

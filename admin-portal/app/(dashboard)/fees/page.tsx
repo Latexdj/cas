@@ -198,10 +198,10 @@ function ItemsTab({ items, loading, onRefresh }: { items: FeeItem[]; loading: bo
 // ── Schedules Tab ─────────────────────────────────────────────────────────────
 
 function SchedulesTab({
-  schedules, items, years, classes, loading, onRefresh,
+  schedules, items, years, classes, loading, onRefresh, onBillsGenerated,
 }: {
   schedules: FeeSchedule[]; items: FeeItem[]; years: AcademicYear[];
-  classes: string[]; loading: boolean; onRefresh: () => void;
+  classes: string[]; loading: boolean; onRefresh: () => void; onBillsGenerated: () => void;
 }) {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeeSchedule | null>(null);
@@ -247,6 +247,7 @@ function SchedulesTab({
       const r = await api.post(`/api/fees/schedules/${id}/generate`);
       setGenMsg(r.data.message);
       onRefresh();
+      onBillsGenerated();
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
       setGenMsg(err?.response?.data?.error ?? 'Failed to generate.');
@@ -374,8 +375,8 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
     if (q.length < 2) { setResults([]); return; }
     setSearching(true);
     try {
-      const r = await api.get('/api/students', { params: { search: q, limit: 10 } });
-      setResults(r.data.students ?? r.data ?? []);
+      const r = await api.get('/api/fees/students/search', { params: { q } });
+      setResults(r.data);
     } catch { setResults([]); }
     finally { setSearching(false); }
   }, []);
@@ -736,13 +737,17 @@ export default function FeesPage() {
     catch { setSchedules([]); } finally { setLoadingSchedules(false); }
   }, []);
 
+  const loadStats = useCallback(async () => {
+    try { const r = await api.get('/api/fees/stats'); setStats(r.data); } catch {}
+  }, []);
+
   useEffect(() => {
     loadItems();
     loadSchedules();
+    loadStats();
     api.get('/api/academic-years').then(r => setYears(r.data)).catch(() => {});
     api.get('/api/fees/classes').then(r => setClasses(r.data)).catch(() => {});
-    api.get('/api/fees/stats').then(r => setStats(r.data)).catch(() => {});
-  }, [loadItems, loadSchedules]);
+  }, [loadItems, loadSchedules, loadStats]);
 
   const TABS: { id: Tab; label: string }[] = [
     { id: 'items',       label: 'Fee Items' },
@@ -790,7 +795,7 @@ export default function FeesPage() {
 
       {/* Tab content */}
       {tab === 'items'       && <ItemsTab items={items} loading={loadingItems} onRefresh={loadItems} />}
-      {tab === 'schedules'   && <SchedulesTab schedules={schedules} items={items} years={years} classes={classes} loading={loadingSchedules} onRefresh={loadSchedules} />}
+      {tab === 'schedules'   && <SchedulesTab schedules={schedules} items={items} years={years} classes={classes} loading={loadingSchedules} onRefresh={loadSchedules} onBillsGenerated={loadStats} />}
       {tab === 'collections' && <CollectionsTab items={items} />}
       {tab === 'arrears'     && <ArrearTab years={years} classes={classes} />}
     </div>
