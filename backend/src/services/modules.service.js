@@ -21,7 +21,7 @@ const MODULE_REGISTRY = [
   { key: 'clearance',          label: 'Student Clearance',    description: 'End-of-term or graduation clearance workflow',                     core: false, defaultFor: ['JHS','SHS','University'] },
   { key: 'library',            label: 'Library',              description: 'Book catalog, loans, and overdue tracking',                        core: false, defaultFor: ['JHS','SHS','University'] },
   { key: 'classroom_qr',       label: 'Classroom QR',         description: 'QR codes for classroom location verification',                     core: false, defaultFor: 'all' },
-  { key: 'fees',               label: 'Accounts & Fees',      description: 'Fee schedules, payments, and balance tracking (coming soon)',      core: false, defaultFor: [], comingSoon: true },
+  { key: 'fees',               label: 'Accounts & Fees',      description: 'Fee schedules, payments, and outstanding balance tracking',      core: false, defaultFor: [] },
 ];
 
 function defaultModulesForType(schoolType, schoolCategory) {

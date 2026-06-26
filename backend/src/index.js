@@ -48,6 +48,7 @@ const reportRoutes            = require('./routes/reports');
 const principalAuthRoutes     = require('./routes/principal-auth');
 const principalRoutes         = require('./routes/principal');
 const managementUserRoutes    = require('./routes/management-users');
+const feesRoutes              = require('./routes/fees');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -124,6 +125,7 @@ app.use('/api/reports',            reportRoutes);
 app.use('/api/principal/auth',     principalAuthRoutes);
 app.use('/api/principal',          principalRoutes);
 app.use('/api/admin/management-users', managementUserRoutes);
+app.use('/api/fees',                  feesRoutes);
 
 app.use(errorHandler);
 
@@ -972,6 +974,63 @@ async function runMigrations() {
         SELECT 1 FROM school_modules sm WHERE sm.school_id = s.id
       )
       ON CONFLICT DO NOTHING
+    `);
+
+    // ── Accounts & Fees module ────────────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS fee_items (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        description TEXT,
+        is_active   BOOLEAN NOT NULL DEFAULT true,
+        created_at  TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS fee_schedules (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        fee_item_id      UUID NOT NULL REFERENCES fee_items(id) ON DELETE CASCADE,
+        academic_year_id UUID REFERENCES academic_years(id) ON DELETE SET NULL,
+        semester         INT,
+        class_name       TEXT,
+        amount           NUMERIC(10,2) NOT NULL,
+        due_date         DATE,
+        created_at       TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS student_bills (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        student_id       UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        fee_item_id      UUID REFERENCES fee_items(id) ON DELETE SET NULL,
+        fee_schedule_id  UUID REFERENCES fee_schedules(id) ON DELETE SET NULL,
+        academic_year_id UUID REFERENCES academic_years(id) ON DELETE SET NULL,
+        semester         INT,
+        description      TEXT NOT NULL,
+        amount           NUMERIC(10,2) NOT NULL,
+        due_date         DATE,
+        created_at       TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS fee_payments (
+        id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id      UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        student_id     UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        bill_id        UUID REFERENCES student_bills(id) ON DELETE SET NULL,
+        fee_item_id    UUID REFERENCES fee_items(id) ON DELETE SET NULL,
+        amount         NUMERIC(10,2) NOT NULL,
+        payment_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+        payment_method TEXT NOT NULL DEFAULT 'Cash',
+        reference      TEXT,
+        notes          TEXT,
+        recorded_by    TEXT,
+        receipt_no     TEXT,
+        created_at     TIMESTAMPTZ DEFAULT now()
+      )
     `);
 
     console.log('Migrations OK');
