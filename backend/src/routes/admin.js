@@ -6,6 +6,7 @@ const { runAbsenceCheck } = require('../jobs/absenceCheck');
 const { getWeekNumber }   = require('../services/geo.service');
 const { uploadFile }      = require('../services/storage.service');
 const { sendTeacherCredentials } = require('../services/email.service');
+const { getEnabledModules } = require('../services/modules.service');
 
 // Public deployment-check endpoint (no auth needed)
 router.get('/version', (_req, res) => res.json({ version: '2', has_settings: true }));
@@ -22,6 +23,14 @@ router.get('/test-email', async (_req, res) => {
 });
 
 router.use(authenticate, requireActiveSubscription, adminOnly);
+
+// GET /api/admin/modules — list enabled module keys for current school
+router.get('/modules', async (req, res, next) => {
+  try {
+    const modules = await getEnabledModules(req.schoolId);
+    res.json(modules);
+  } catch (err) { next(err); }
+});
 
 // GET /api/admin/school-profile — name, address, logo for report cards
 router.get('/school-profile', async (req, res, next) => {

@@ -3,6 +3,7 @@ const bcrypt  = require('bcrypt');
 const pool    = require('../config/db');
 const { authenticate, superAdminOnly, clearSubCache } = require('../middleware/auth');
 const { auditLog } = require('../utils/audit');
+const { MODULE_REGISTRY, ALL_MODULE_KEYS, defaultModulesForType } = require('../services/modules.service');
 
 // All routes here are super-admin only
 router.use(authenticate, superAdminOnly);
@@ -65,7 +66,7 @@ router.get('/:id', async (req, res, next) => {
 // ── POST /api/schools — create school + 14-day trial ──
 router.post('/', async (req, res, next) => {
   try {
-    const { name, email, phone, address, adminName, adminPin } = req.body;
+    const { name, email, phone, address, adminName, adminPin, schoolType, schoolCategory } = req.body;
     if (!name || !email || !adminName) {
       return res.status(400).json({ error: 'name, email and adminName are required' });
     }
@@ -79,11 +80,14 @@ router.post('/', async (req, res, next) => {
       const nextNum    = parseInt(countRows[0].count) + 1;
       const schoolCode = 'CAS' + String(nextNum).padStart(3, '0');
 
+      const resolvedType     = schoolType     || 'SHS';
+      const resolvedCategory = schoolCategory || 'Public';
+
       // Create school
       const { rows: schoolRows } = await client.query(
-        `INSERT INTO schools (name, email, phone, address, code)
-         VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-        [name.trim(), email.trim(), phone || null, address || null, schoolCode]
+        `INSERT INTO schools (name, email, phone, address, code, school_type, school_category)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [name.trim(), email.trim(), phone || null, address || null, schoolCode, resolvedType, resolvedCategory]
       );
       const school = schoolRows[0];
 
@@ -111,6 +115,15 @@ router.post('/', async (req, res, next) => {
          VALUES ($1,'T001',$2,$3,'Active',true,$4) RETURNING id, name`,
         [school.id, adminName.trim(), email.trim(), pinHash]
       );
+
+      // Insert default modules based on school type and category
+      const defaults = defaultModulesForType(resolvedType, resolvedCategory);
+      for (const { key, enabled } of defaults) {
+        await client.query(
+          `INSERT INTO school_modules (school_id, module_key, enabled) VALUES ($1, $2, $3)`,
+          [school.id, key, enabled]
+        );
+      }
 
       await client.query('COMMIT');
 
@@ -144,17 +157,20 @@ router.post('/', async (req, res, next) => {
 // ── PUT /api/schools/:id — update school details ──
 router.put('/:id', async (req, res, next) => {
   try {
-    const { name, email, phone, address, notes } = req.body;
+    const { name, email, phone, address, notes, school_type, school_category } = req.body;
     const { rows } = await pool.query(
       `UPDATE schools
-       SET name    = COALESCE($1, name),
-           email   = COALESCE($2, email),
-           phone   = COALESCE($3, phone),
-           address = COALESCE($4, address),
-           notes   = COALESCE($5, notes),
-           updated_at = now()
-       WHERE id = $6 RETURNING *`,
-      [name || null, email || null, phone || null, address || null, notes !== undefined ? notes : null, req.params.id]
+       SET name            = COALESCE($1, name),
+           email           = COALESCE($2, email),
+           phone           = COALESCE($3, phone),
+           address         = COALESCE($4, address),
+           notes           = COALESCE($5, notes),
+           school_type     = COALESCE($6, school_type),
+           school_category = COALESCE($7, school_category),
+           updated_at      = now()
+       WHERE id = $8 RETURNING *`,
+      [name || null, email || null, phone || null, address || null, notes !== undefined ? notes : null,
+       school_type || null, school_category || null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'School not found' });
 
@@ -411,6 +427,49 @@ router.patch('/:id/teacher-limit', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// ── GET /api/schools/:id/modules ──
+router.get('/:id/modules', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT module_key, enabled FROM school_modules WHERE school_id = $1`,
+      [req.params.id]
+    );
+    // Build a full map: if school has no rows, all are enabled (legacy)
+    const saved = Object.fromEntries(rows.map(r => [r.module_key, r.enabled]));
+    const result = MODULE_REGISTRY.map(m => ({
+      ...m,
+      enabled: rows.length === 0 ? true : (saved[m.key] ?? false),
+    }));
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+// ── PUT /api/schools/:id/modules  body: { modules: { [key]: boolean } } ──
+router.put('/:id/modules', async (req, res, next) => {
+  try {
+    const { modules } = req.body;
+    if (!modules || typeof modules !== 'object') {
+      return res.status(400).json({ error: 'modules object required' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM school_modules WHERE school_id = $1`, [req.params.id]);
+      for (const [key, enabled] of Object.entries(modules)) {
+        if (ALL_MODULE_KEYS.includes(key)) {
+          await client.query(
+            `INSERT INTO school_modules (school_id, module_key, enabled) VALUES ($1, $2, $3)`,
+            [req.params.id, key, !!enabled]
+          );
+        }
+      }
+      await client.query('COMMIT');
+      res.json({ message: 'Modules updated' });
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+  } catch (err) { next(err); }
 });
 
 // ── DELETE /api/schools/:id ──

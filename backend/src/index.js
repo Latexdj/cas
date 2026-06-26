@@ -946,6 +946,34 @@ async function runMigrations() {
       )
     `);
 
+    // ── School type, category, and module gating ─────────────────────────────
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS school_type VARCHAR(50) DEFAULT 'SHS'`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS school_category VARCHAR(50) DEFAULT 'Public'`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_modules (
+        school_id  UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        module_key VARCHAR(50) NOT NULL,
+        enabled    BOOLEAN NOT NULL DEFAULT true,
+        PRIMARY KEY (school_id, module_key)
+      )
+    `);
+    // Backfill: insert all modules as enabled=true for every school that has no rows yet
+    await pool.query(`
+      INSERT INTO school_modules (school_id, module_key, enabled)
+      SELECT s.id, m.key, true
+      FROM schools s
+      CROSS JOIN (VALUES
+        ('teacher_attendance'), ('student_attendance'), ('timetable'),
+        ('leave_management'), ('meeting_attendance'), ('plc'),
+        ('remedial_lessons'), ('assessments'), ('houses'),
+        ('exeat'), ('clearance'), ('library'), ('classroom_qr'), ('fees')
+      ) AS m(key)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM school_modules sm WHERE sm.school_id = s.id
+      )
+      ON CONFLICT DO NOTHING
+    `);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

@@ -22,6 +22,47 @@ interface SchoolDetail {
   teacher_limit: number;
   total_attendance: number;
   last_submission: string | null;
+  school_type: string | null;
+  school_category: string | null;
+}
+
+interface ModuleItem {
+  key: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+  core: boolean;
+  comingSoon?: boolean;
+}
+
+const SCHOOL_TYPES = ['Nursery', 'KG', 'Primary', 'JHS', 'SHS', 'Technical', 'University', 'Other'];
+const SCHOOL_CATEGORIES = ['Public', 'Private', 'International'];
+
+// Inline default-modules helper (mirrors modules.service.js on the server)
+const MODULE_DEFAULTS: { key: string; core: boolean; defaultFor: string[] | 'all' }[] = [
+  { key: 'teacher_attendance', core: true,  defaultFor: 'all' },
+  { key: 'student_attendance', core: false, defaultFor: 'all' },
+  { key: 'timetable',          core: false, defaultFor: ['Primary','JHS','SHS','Technical','University','Other'] },
+  { key: 'leave_management',   core: false, defaultFor: 'all' },
+  { key: 'meeting_attendance', core: false, defaultFor: ['JHS','SHS','Technical','University','Other'] },
+  { key: 'plc',                core: false, defaultFor: ['JHS','SHS'] },
+  { key: 'remedial_lessons',   core: false, defaultFor: ['JHS','SHS','Technical'] },
+  { key: 'assessments',        core: false, defaultFor: ['Primary','JHS','SHS','Technical'] },
+  { key: 'houses',             core: false, defaultFor: ['JHS','SHS'] },
+  { key: 'exeat',              core: false, defaultFor: ['SHS'] },
+  { key: 'clearance',          core: false, defaultFor: ['JHS','SHS','University'] },
+  { key: 'library',            core: false, defaultFor: ['JHS','SHS','University'] },
+  { key: 'classroom_qr',       core: false, defaultFor: 'all' },
+  { key: 'fees',               core: false, defaultFor: [] },
+];
+
+function getDefaultEnabled(key: string, schoolType: string, schoolCategory: string): boolean {
+  const m = MODULE_DEFAULTS.find(d => d.key === key);
+  if (!m) return false;
+  if (m.core) return true;
+  if (m.defaultFor === 'all') return true;
+  if (key === 'fees') return schoolCategory === 'Private';
+  return Array.isArray(m.defaultFor) && m.defaultFor.includes(schoolType);
 }
 
 function fmtDate(iso: string | null) {
@@ -51,14 +92,16 @@ export default function SchoolDetailPage() {
   const [loading, setLoading] = useState(true);
 
   // Edit info
-  const [editName,    setEditName]    = useState('');
-  const [editEmail,   setEditEmail]   = useState('');
-  const [editPhone,   setEditPhone]   = useState('');
-  const [editAddress, setEditAddress] = useState('');
-  const [editNotes,   setEditNotes]   = useState('');
-  const [saving,      setSaving]      = useState(false);
-  const [saveMsg,     setSaveMsg]     = useState('');
-  const [saveErr,     setSaveErr]     = useState('');
+  const [editName,     setEditName]     = useState('');
+  const [editEmail,    setEditEmail]    = useState('');
+  const [editPhone,    setEditPhone]    = useState('');
+  const [editAddress,  setEditAddress]  = useState('');
+  const [editNotes,    setEditNotes]    = useState('');
+  const [editType,     setEditType]     = useState('SHS');
+  const [editCategory, setEditCategory] = useState('Public');
+  const [saving,       setSaving]       = useState(false);
+  const [saveMsg,      setSaveMsg]      = useState('');
+  const [saveErr,      setSaveErr]      = useState('');
 
   // Subscription actions
   const today = new Date().toISOString().slice(0, 10);
@@ -84,9 +127,24 @@ export default function SchoolDetailPage() {
   const [limitErr,     setLimitErr]     = useState('');
 
   // Typed delete
-  const [deleteInput,  setDeleteInput]  = useState('');
-  const [deleteLoading,setDeleteLoading]= useState(false);
-  const [deleteErr,    setDeleteErr]    = useState('');
+  const [deleteInput,   setDeleteInput]   = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteErr,     setDeleteErr]     = useState('');
+
+  // Modules
+  const [modules,      setModules]      = useState<ModuleItem[]>([]);
+  const [moduleSaving, setModuleSaving] = useState(false);
+  const [moduleMsg,    setModuleMsg]    = useState('');
+  const [moduleErr,    setModuleErr]    = useState('');
+
+  const loadModules = useCallback(async () => {
+    try {
+      const res = await saApi.get(`/api/schools/${id}/modules`);
+      setModules(res.data);
+    } catch {
+      // silently ignore
+    }
+  }, [id]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,24 +157,31 @@ export default function SchoolDetailPage() {
       setEditPhone(s.phone ?? '');
       setEditAddress(s.address ?? '');
       setEditNotes(s.notes ?? '');
+      setEditType(s.school_type ?? 'SHS');
+      setEditCategory(s.school_category ?? 'Public');
       setActivateLimit(String(s.teacher_limit ?? 10));
       if (s.starts_at) setActivateStart(s.starts_at.slice(0, 10));
       if (s.ends_at)   setActivateEnd(s.ends_at.slice(0, 10));
     } finally { setLoading(false); }
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    loadModules();
+  }, [load, loadModules]);
 
   async function handleSaveInfo(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true); setSaveMsg(''); setSaveErr('');
     try {
       await saApi.put(`/api/schools/${id}`, {
-        name:    editName.trim()    || undefined,
-        email:   editEmail.trim()   || undefined,
-        phone:   editPhone.trim()   || undefined,
-        address: editAddress.trim() || undefined,
-        notes:   editNotes,
+        name:            editName.trim()    || undefined,
+        email:           editEmail.trim()   || undefined,
+        phone:           editPhone.trim()   || undefined,
+        address:         editAddress.trim() || undefined,
+        notes:           editNotes,
+        school_type:     editType,
+        school_category: editCategory,
       });
       setSaveMsg('Saved successfully.');
       await load();
@@ -232,6 +297,34 @@ export default function SchoolDetailPage() {
     }
   }
 
+  async function handleSaveModules() {
+    setModuleSaving(true); setModuleMsg(''); setModuleErr('');
+    try {
+      const modulesMap = Object.fromEntries(modules.map(m => [m.key, m.enabled]));
+      await saApi.put(`/api/schools/${id}/modules`, { modules: modulesMap });
+      setModuleMsg('Modules saved successfully.');
+    } catch (err: unknown) {
+      setModuleErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save modules.');
+    } finally { setModuleSaving(false); }
+  }
+
+  function handleRestoreDefaults() {
+    setModules(prev => prev.map(m => ({
+      ...m,
+      enabled: getDefaultEnabled(m.key, editType, editCategory),
+    })));
+    setModuleMsg('');
+    setModuleErr('');
+  }
+
+  function toggleModule(key: string) {
+    setModules(prev => prev.map(m =>
+      m.key === key && !m.core && !m.comingSoon ? { ...m, enabled: !m.enabled } : m
+    ));
+    setModuleMsg('');
+    setModuleErr('');
+  }
+
   if (loading) return (
     <div className="p-6 space-y-4">
       {[1,2,3,4].map(i => <div key={i} className="h-32 bg-slate-800 rounded-2xl animate-pulse" />)}
@@ -313,6 +406,25 @@ export default function SchoolDetailPage() {
               />
             </div>
           ))}
+
+          {/* School Type + Category */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">School Type</label>
+              <select value={editType} onChange={e => { setEditType(e.target.value); setSaveMsg(''); setSaveErr(''); }}
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                {SCHOOL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-slate-400 block mb-1">Category</label>
+              <select value={editCategory} onChange={e => { setEditCategory(e.target.value); setSaveMsg(''); setSaveErr(''); }}
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                {SCHOOL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+
           <div>
             <label className="text-xs text-slate-400 block mb-1">Internal Notes</label>
             <textarea value={editNotes} rows={3}
@@ -329,6 +441,79 @@ export default function SchoolDetailPage() {
           </button>
         </form>
       </div>
+
+      {/* Module Management */}
+      {modules.length > 0 && (
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Module Management</p>
+            <button
+              type="button"
+              onClick={handleRestoreDefaults}
+              className="text-xs text-slate-400 hover:text-slate-200 underline transition-colors"
+            >
+              Restore Defaults
+            </button>
+          </div>
+          <p className="text-xs text-slate-500 mb-4">
+            Toggle which features are available to this school. Core modules cannot be disabled.
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {modules.map(m => (
+              <div
+                key={m.key}
+                onClick={() => toggleModule(m.key)}
+                className={[
+                  'relative flex items-start gap-3 p-3 rounded-xl border transition-all',
+                  m.core || m.comingSoon
+                    ? 'opacity-60 cursor-not-allowed border-slate-700 bg-slate-900/40'
+                    : m.enabled
+                      ? 'cursor-pointer border-indigo-700 bg-indigo-950/40 hover:border-indigo-600'
+                      : 'cursor-pointer border-slate-700 bg-slate-900/40 hover:border-slate-600',
+                ].join(' ')}
+              >
+                {/* Toggle indicator */}
+                <div className={[
+                  'mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors',
+                  m.enabled ? 'bg-indigo-600 border-indigo-600' : 'bg-slate-800 border-slate-600',
+                ].join(' ')}>
+                  {m.enabled && (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3} className="w-2.5 h-2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-sm font-semibold text-white">{m.label}</span>
+                    {m.core && (
+                      <span className="text-[9px] font-bold uppercase tracking-wide text-amber-400 bg-amber-900/40 px-1.5 py-0.5 rounded">
+                        Core
+                      </span>
+                    )}
+                    {m.comingSoon && (
+                      <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400 bg-slate-700 px-1.5 py-0.5 rounded">
+                        Coming Soon
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{m.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          {moduleMsg && <p className="text-xs text-green-400 bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-3">{moduleMsg}</p>}
+          {moduleErr && <p className="text-xs text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-3 py-2 mt-3">{moduleErr}</p>}
+          <button
+            type="button"
+            onClick={handleSaveModules}
+            disabled={moduleSaving}
+            className="w-full mt-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-colors disabled:opacity-40"
+          >
+            {moduleSaving ? 'Saving...' : 'Save Module Settings'}
+          </button>
+        </div>
+      )}
 
       {/* Subscription */}
       <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">

@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { saApi } from '@/lib/super-admin-api';
 
+const SCHOOL_TYPES = ['Nursery', 'KG', 'Primary', 'JHS', 'SHS', 'Technical', 'University', 'Other'];
+const SCHOOL_CATEGORIES = ['Public', 'Private', 'International'];
+
 interface CreatedResult {
   school: { id: string; name: string; code: string; email: string };
   admin: { id: string; name: string };
@@ -21,17 +24,19 @@ const CHECKLIST = [
 export default function NewSchoolPage() {
   const router = useRouter();
 
-  const [name,      setName]      = useState('');
-  const [email,     setEmail]     = useState('');
-  const [phone,     setPhone]     = useState('');
-  const [address,   setAddress]   = useState('');
-  const [adminName,     setAdminName]     = useState('');
-  const [adminPin,      setAdminPin]      = useState('');
-  const [teacherLimit,  setTeacherLimit]  = useState('10');
-  const [loading,       setLoading]       = useState(false);
-  const [error,     setError]     = useState('');
-  const [result,    setResult]    = useState<CreatedResult | null>(null);
-  const [checked,   setChecked]   = useState<Set<number>>(new Set());
+  const [name,         setName]         = useState('');
+  const [email,        setEmail]        = useState('');
+  const [phone,        setPhone]        = useState('');
+  const [address,      setAddress]      = useState('');
+  const [schoolType,   setSchoolType]   = useState('SHS');
+  const [schoolCategory, setSchoolCategory] = useState('Public');
+  const [adminName,    setAdminName]    = useState('');
+  const [adminPin,     setAdminPin]     = useState('');
+  const [teacherLimit, setTeacherLimit] = useState('10');
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState('');
+  const [result,       setResult]       = useState<CreatedResult | null>(null);
+  const [checked,      setChecked]      = useState<Set<number>>(new Set());
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,6 +55,8 @@ export default function NewSchoolPage() {
         email: email.trim(),
         phone: phone.trim() || undefined,
         address: address.trim() || undefined,
+        schoolType,
+        schoolCategory,
         adminName: adminName.trim(),
         adminPin: adminPin.trim() || undefined,
         teacherLimit: limitNum,
@@ -201,6 +208,22 @@ export default function NewSchoolPage() {
                 />
               </div>
             ))}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">School Type</label>
+                <select value={schoolType} onChange={e => { setSchoolType(e.target.value); setError(''); }}
+                  className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                  {SCHOOL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-slate-400 block mb-1">Category</label>
+                <select value={schoolCategory} onChange={e => { setSchoolCategory(e.target.value); setError(''); }}
+                  className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                  {SCHOOL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
           </div>
         </div>
 

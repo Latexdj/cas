@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
 
-type NavItem = { href: string; label: string; icon: React.ReactNode };
+type NavItem = { href: string; label: string; icon: React.ReactNode; module?: string };
 type Section = { label: string; items: NavItem[] };
 
 const sections: Section[] = [
@@ -36,6 +36,7 @@ const sections: Section[] = [
       {
         href: '/students', label: 'Students',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />,
+        module: 'student_attendance',
       },
       {
         href: '/staff-accounts', label: 'Support Staff',
@@ -44,10 +45,12 @@ const sections: Section[] = [
       {
         href: '/houses', label: 'Houses',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />,
+        module: 'houses',
       },
       {
         href: '/exeat', label: 'Exeat',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />,
+        module: 'exeat',
       },
     ],
   },
@@ -61,14 +64,17 @@ const sections: Section[] = [
       {
         href: '/meetings', label: 'Meetings',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />,
+        module: 'meeting_attendance',
       },
       {
         href: '/student-attendance', label: 'Student Attendance',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />,
+        module: 'student_attendance',
       },
       {
         href: '/absences', label: 'Absences & Remedials',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />,
+        module: 'remedial_lessons',
       },
       {
         href: '/manual-entry', label: 'Manual Entry',
@@ -82,10 +88,12 @@ const sections: Section[] = [
       {
         href: '/timetable', label: 'Timetable',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
+        module: 'timetable',
       },
       {
         href: '/school-breaks', label: 'Bell Schedule',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />,
+        module: 'timetable',
       },
       {
         href: '/academic-years', label: 'Academic Years',
@@ -103,10 +111,12 @@ const sections: Section[] = [
       {
         href: '/results', label: 'Results',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />,
+        module: 'assessments',
       },
       {
         href: '/transcript', label: 'Transcript',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />,
+        module: 'assessments',
       },
     ],
   },
@@ -116,10 +126,12 @@ const sections: Section[] = [
       {
         href: '/clearance', label: 'Student Clearance',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.745 3.745 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />,
+        module: 'clearance',
       },
       {
         href: '/clearance/offices', label: 'Offices & Staff',
         icon: <><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" /></>,
+        module: 'clearance',
       },
     ],
   },
@@ -129,26 +141,32 @@ const sections: Section[] = [
       {
         href: '/library', label: 'Overview',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />,
+        module: 'library',
       },
       {
         href: '/library/books', label: 'Book Catalog',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M6.429 9.75 2.25 12l4.179 2.25m0-4.5 5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L21.75 12l-4.179 2.25m0 0 4.179 2.25L12 21.75 2.25 16.5l4.179-2.25m11.142 0-5.571 3-5.571-3" />,
+        module: 'library',
       },
       {
         href: '/library/loans', label: 'Loans',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7.5 7.5h-.75A2.25 2.25 0 0 0 4.5 9.75v7.5a2.25 2.25 0 0 0 2.25 2.25h7.5a2.25 2.25 0 0 0 2.25-2.25v-7.5a2.25 2.25 0 0 0-2.25-2.25h-.75m0-3-3-3m0 0-3 3m3-3v11.25m6-2.25h.75a2.25 2.25 0 0 1 2.25 2.25v7.5a2.25 2.25 0 0 1-2.25 2.25h-7.5a2.25 2.25 0 0 1-2.25-2.25v-.75" />,
+        module: 'library',
       },
       {
         href: '/library/overdue', label: 'Overdue',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />,
+        module: 'library',
       },
       {
         href: '/library/resources', label: 'Resources',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9z" />,
+        module: 'library',
       },
       {
         href: '/library/settings', label: 'Loan Settings',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.272-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />,
+        module: 'library',
       },
     ],
   },
@@ -174,6 +192,7 @@ const sections: Section[] = [
       {
         href: '/classroom-qr', label: 'Classroom QR',
         icon: <><rect x="3" y="3" width="5" height="5" rx="1" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} /><rect x="16" y="3" width="5" height="5" rx="1" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} /><rect x="3" y="16" width="5" height="5" rx="1" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 10h5M16 14h3M21 14v5M10 3v5M10 16v5M3 10h5M10 10h.01" /></>,
+        module: 'classroom_qr',
       },
       {
         href: '/audit-log', label: 'Audit Log',
@@ -199,10 +218,25 @@ interface SidebarProps {
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [enabledModules, setEnabledModules] = useState<string[] | null>(null);
 
   useEffect(() => {
     api.get('/api/admin/settings').then(r => setLogoUrl(r.data.logo_url ?? null)).catch(() => {});
+    api.get('/api/admin/modules').then(r => setEnabledModules(r.data)).catch(() => {
+      // On error, show all items (fail open)
+      setEnabledModules(null);
+    });
   }, []);
+
+  // Filter sections based on enabled modules; null means not yet loaded or error → show all
+  const visibleSections = sections.map(section => ({
+    ...section,
+    items: section.items.filter(item => {
+      if (!item.module) return true;
+      if (enabledModules === null) return true;
+      return enabledModules.includes(item.module);
+    }),
+  })).filter(section => section.items.length > 0);
 
   return (
     <aside
@@ -235,13 +269,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto no-scrollbar py-4 px-3">
-        {sections.map((section, si) => (
+        {visibleSections.map((section, si) => (
           <div key={section.label} className={si > 0 ? 'mt-5' : ''}>
             <p className="px-3 text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: '#334155' }}>
               {section.label}
             </p>
             {section.items.map(({ href, label, icon }) => {
-              const allHrefs = sections.flatMap(s => s.items.map(i => i.href));
+              const allHrefs = visibleSections.flatMap(s => s.items.map(i => i.href));
               const hasChildNavItem = allHrefs.some(h => h !== href && h.startsWith(href + '/'));
               const active = pathname === href || (!hasChildNavItem && pathname.startsWith(href + '/'));
               return (
