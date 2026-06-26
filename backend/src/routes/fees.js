@@ -127,46 +127,44 @@ router.post('/schedules/:id/generate', async (req, res, next) => {
     );
     if (!schedule) return res.status(404).json({ error: 'Schedule not found.' });
 
-    const params = [req.schoolId];
-    let classClause = '';
-    if (schedule.class_name) {
-      classClause = 'AND s.class_name = $2';
-      params.push(schedule.class_name);
-    }
-    const { rows: students } = await pool.query(
-      `SELECT s.id FROM students s WHERE s.school_id=$1 AND s.status='Active' ${classClause}`,
-      params
-    );
-    if (students.length === 0) {
-      return res.status(400).json({ error: 'No active students found for the selected class.' });
-    }
-
     const parts = [schedule.fee_item_name];
     if (schedule.academic_year_name) parts.push(schedule.academic_year_name);
     if (schedule.semester) parts.push(`Term ${schedule.semester}`);
     const description = parts.join(' — ');
 
-    let inserted = 0;
-    let skipped = 0;
-    for (const student of students) {
-      const { rows: existing } = await pool.query(
-        `SELECT 1 FROM student_bills WHERE student_id=$1 AND fee_schedule_id=$2`,
-        [student.id, schedule.id]
-      );
-      if (existing.length > 0) { skipped++; continue; }
-      await pool.query(
-        `INSERT INTO student_bills
-           (school_id, student_id, fee_item_id, fee_schedule_id, academic_year_id, semester, description, amount, due_date)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [req.schoolId, student.id, schedule.fee_item_id, schedule.id,
-         schedule.academic_year_id, schedule.semester, description, schedule.amount, schedule.due_date]
-      );
-      inserted++;
+    // Single bulk INSERT — avoids N+1 timeouts on large student populations
+    const params = [
+      req.schoolId,              // $1
+      schedule.fee_item_id,      // $2
+      schedule.id,               // $3
+      schedule.academic_year_id, // $4
+      schedule.semester,         // $5
+      description,               // $6
+      schedule.amount,           // $7
+      schedule.due_date,         // $8
+    ];
+    let classClause = '';
+    if (schedule.class_name) {
+      classClause = 'AND s.class_name = $9';
+      params.push(schedule.class_name);
     }
-    res.json({
-      message: `Generated ${inserted} bill(s).${skipped > 0 ? ` ${skipped} already existed and were skipped.` : ''}`,
-      inserted, skipped,
-    });
+
+    const { rowCount } = await pool.query(
+      `INSERT INTO student_bills
+         (school_id, student_id, fee_item_id, fee_schedule_id, academic_year_id, semester, description, amount, due_date)
+       SELECT $1, s.id, $2, $3, $4, $5, $6, $7, $8
+       FROM students s
+       WHERE s.school_id = $1 AND s.status = 'Active' ${classClause}
+         AND NOT EXISTS (
+           SELECT 1 FROM student_bills sb WHERE sb.student_id = s.id AND sb.fee_schedule_id = $3
+         )`,
+      params
+    );
+
+    if (rowCount === 0) {
+      return res.json({ message: 'All matching students already have a bill for this schedule. Nothing to generate.', inserted: 0, skipped: 0 });
+    }
+    res.json({ message: `Generated ${rowCount} bill(s).`, inserted: rowCount, skipped: 0 });
   } catch (err) { next(err); }
 });
 
