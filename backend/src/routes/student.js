@@ -629,4 +629,65 @@ router.post('/library/resources/:id/download', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /api/student/fees ─────────────────────────────────────────────────────
+
+router.get('/fees', async (req, res, next) => {
+  try {
+    const { rows: modRows } = await pool.query(
+      `SELECT enabled FROM school_modules WHERE school_id=$1 AND module_key='fees'`,
+      [req.schoolId]
+    );
+    if (modRows.length > 0 && !modRows[0].enabled) {
+      return res.status(403).json({ error: 'Fees module not enabled.' });
+    }
+
+    const sid       = req.schoolId;
+    const studentId = req.user.id;
+
+    const [billsRes, paymentsRes] = await Promise.all([
+      pool.query(
+        `SELECT sb.id, sb.label, sb.amount, sb.due_date, sb.created_at,
+                fi.name AS fee_item_name, fs.name AS schedule_name,
+                COALESCE(p.paid, 0) AS amount_paid,
+                sb.amount - COALESCE(p.paid, 0) AS balance
+         FROM student_bills sb
+         LEFT JOIN fee_items fi ON fi.id = sb.fee_item_id
+         LEFT JOIN fee_schedules fs ON fs.id = sb.fee_schedule_id
+         LEFT JOIN (
+           SELECT bill_id, SUM(amount) AS paid
+           FROM fee_payments WHERE school_id=$1 GROUP BY bill_id
+         ) p ON p.bill_id = sb.id
+         WHERE sb.student_id = $2 AND sb.school_id = $1
+         ORDER BY sb.created_at DESC`,
+        [sid, studentId]
+      ),
+      pool.query(
+        `SELECT fp.id, fp.amount, fp.payment_date, fp.payment_method,
+                fp.receipt_number, fp.notes,
+                fi.name AS fee_item_name, sb.label AS bill_label
+         FROM fee_payments fp
+         JOIN student_bills sb ON sb.id = fp.bill_id
+         LEFT JOIN fee_items fi ON fi.id = sb.fee_item_id
+         WHERE fp.student_id = $2 AND fp.school_id = $1
+         ORDER BY fp.payment_date DESC, fp.created_at DESC`,
+        [sid, studentId]
+      ),
+    ]);
+
+    const bills    = billsRes.rows.map(b => ({
+      ...b, amount: Number(b.amount), amount_paid: Number(b.amount_paid), balance: Number(b.balance),
+    }));
+    const payments = paymentsRes.rows.map(p => ({ ...p, amount: Number(p.amount) }));
+
+    const total_billed = bills.reduce((s, b) => s + b.amount, 0);
+    const total_paid   = bills.reduce((s, b) => s + b.amount_paid, 0);
+
+    res.json({
+      summary: { total_billed, total_paid, outstanding: total_billed - total_paid },
+      bills,
+      payments,
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

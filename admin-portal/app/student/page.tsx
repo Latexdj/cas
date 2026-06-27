@@ -17,6 +17,7 @@ interface LatestResult {
 interface AttSummary { present: number; absent: number; late: number; total: number; rate: number | null; }
 interface CalEvent  { id: string; date: string; name: string; type: string; }
 interface AcademicYear { id: string; name: string; is_current: boolean; current_semester: number; }
+interface FeeSummary { total_billed: number; total_paid: number; outstanding: number; }
 
 function AttPill({ rate }: { rate: number | null }) {
   if (rate === null) return <span className="text-xs text-slate-400">—</span>;
@@ -29,6 +30,7 @@ export default function StudentDashboard() {
   const [result,     setResult]     = useState<LatestResult | null>(null);
   const [att,        setAtt]        = useState<AttSummary | null>(null);
   const [events,     setEvents]     = useState<CalEvent[]>([]);
+  const [fees,       setFees]       = useState<FeeSummary | null>(null);
   const [loading,    setLoading]    = useState(true);
   const [currentYear, setCurrentYear] = useState<AcademicYear | null>(null);
   const colors = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
@@ -41,6 +43,10 @@ export default function StudentDashboard() {
           studentApi.get<Profile>('/api/student/profile'),
           studentApi.get<AcademicYear[]>('/api/student/academic-years'),
         ]);
+        // Fetch fee summary in parallel, silently ignore if module disabled
+        studentApi.get<{ summary: FeeSummary }>('/api/student/fees')
+          .then(r => setFees(r.data.summary))
+          .catch(() => null);
         setProfile(profileRes.data);
         const cur = yearsRes.data.find(y => y.is_current) ?? yearsRes.data[0];
         setCurrentYear(cur ?? null);
@@ -101,6 +107,26 @@ export default function StudentDashboard() {
             <p className="text-xs text-red-600 mt-0.5">Your attendance is below 75% this semester. You may risk being barred from exams.</p>
           </div>
         </div>
+      )}
+
+      {/* Outstanding fees warning */}
+      {fees && fees.outstanding > 0 && (
+        <a href="/student/fees" className="block bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 no-underline">
+          <div className="flex items-start gap-3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 shrink-0 mt-0.5">
+              <path d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-amber-800">
+                Outstanding Fee Balance — GH₵ {fees.outstanding.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">Tap to view your fee statement and payment history.</p>
+            </div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0 mt-0.5">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </div>
+        </a>
       )}
 
       {/* Welcome card */}
@@ -260,6 +286,7 @@ export default function StudentDashboard() {
           { href: '/student/timetable',  label: 'My Timetable',   icon: '🗓️' },
           { href: '/student/attendance', label: 'Attendance Log',  icon: '✅' },
           { href: '/student/profile',    label: 'My Profile',      icon: '👤' },
+          ...(fees !== null ? [{ href: '/student/fees', label: 'Fee Statement', icon: '💳' }] : []),
         ].map(({ href, label, icon }) => (
           <Link key={href} href={href}
             className="bg-white rounded-xl border border-slate-100 p-4 flex items-center gap-3 hover:border-blue-200 transition-colors">

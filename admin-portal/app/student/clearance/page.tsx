@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { studentApi } from '@/lib/student-api';
 import { getStudentColors } from '@/lib/student-auth';
 
@@ -28,16 +29,23 @@ const OVERALL_STYLE = {
 };
 
 export default function StudentClearancePage() {
-  const [data,    setData]    = useState<ClearanceData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const colors = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
+  const [data,       setData]       = useState<ClearanceData | null>(null);
+  const [feeBalance, setFeeBalance] = useState<number | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const colors  = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
   const primary = colors.primary;
 
   useEffect(() => {
-    studentApi.get<ClearanceData>('/api/student/clearance')
-      .then(r => setData(r.data))
-      .catch(() => setData({ status: 'not_initiated', initiated_at: null, fully_cleared_at: null, items: [] }))
-      .finally(() => setLoading(false));
+    Promise.all([
+      studentApi.get<ClearanceData>('/api/student/clearance')
+        .catch(() => ({ data: { status: 'not_initiated' as const, initiated_at: null, fully_cleared_at: null, items: [] } })),
+      studentApi.get<{ summary: { outstanding: number } }>('/api/student/fees')
+        .then(r => r.data.summary.outstanding)
+        .catch(() => null),
+    ]).then(([clRes, outstanding]) => {
+      setData(clRes.data);
+      setFeeBalance(outstanding);
+    }).finally(() => setLoading(false));
   }, []);
 
   if (loading) return (
@@ -102,6 +110,36 @@ export default function StudentClearancePage() {
           </p>
         )}
       </div>
+
+      {/* Synthetic fees clearance item */}
+      {feeBalance !== null && (
+        <div className="space-y-3">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Finance</p>
+          <div className={`rounded-xl border p-4 flex items-start gap-3 ${feeBalance > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 mt-0.5 ${feeBalance > 0 ? 'bg-red-500' : 'bg-green-500'}`}>
+              {feeBalance > 0 ? '✗' : '✓'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className={`font-semibold text-sm ${feeBalance > 0 ? 'text-red-700' : 'text-green-700'}`}>Accounts Office</p>
+                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${feeBalance > 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                  {feeBalance > 0 ? 'Not Cleared' : 'Cleared'}
+                </span>
+              </div>
+              {feeBalance > 0 ? (
+                <div className="mt-1.5 bg-red-100 border border-red-200 rounded-lg px-3 py-2">
+                  <p className="text-xs text-red-700 font-semibold">
+                    Outstanding balance: GH₵ {feeBalance.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                  <Link href="/student/fees" className="text-xs text-red-600 underline font-medium mt-0.5 inline-block">View fee statement →</Link>
+                </div>
+              ) : (
+                <p className="text-xs text-green-600 mt-1">All fees fully paid.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Office checklist */}
       {data?.items && data.items.length > 0 && (
