@@ -108,7 +108,7 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-const MOBILE_BAR_HREFS = ['/student', '/student/results', '/student/attendance', '/student/timetable'];
+const MOBILE_BAR_HREFS = ['/student', '/student/results', '/student/attendance', '/student/timetable', '/student/fees'];
 const NO_SHELL_PATHS   = ['/student/setup', '/student/login'];
 
 export default function StudentShell({ children }: { children: ReactNode }) {
