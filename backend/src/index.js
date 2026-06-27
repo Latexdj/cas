@@ -1033,6 +1033,24 @@ async function runMigrations() {
       )
     `);
 
+    // ── Expenditure tracking ──────────────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_expenses (
+        id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id      UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        category       TEXT NOT NULL,
+        description    TEXT NOT NULL,
+        amount         NUMERIC(10,2) NOT NULL,
+        expense_date   DATE NOT NULL DEFAULT CURRENT_DATE,
+        payment_method TEXT NOT NULL DEFAULT 'Cash',
+        paid_to        TEXT,
+        reference      TEXT,
+        recorded_by    TEXT,
+        notes          TEXT,
+        created_at     TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

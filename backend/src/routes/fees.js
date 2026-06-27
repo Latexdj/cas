@@ -417,19 +417,136 @@ router.get('/stats', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT
-         COALESCE(SUM(sb.amount),0) AS total_billed,
+         COALESCE((SELECT SUM(sb.amount) FROM student_bills sb WHERE sb.school_id=$1),0) AS total_billed,
          COALESCE((SELECT SUM(fp.amount) FROM fee_payments fp WHERE fp.school_id=$1),0) AS total_collected,
-         COUNT(DISTINCT sb.student_id)::int AS students_with_bills
-       FROM student_bills sb
-       WHERE sb.school_id=$1`,
+         COALESCE((SELECT SUM(se.amount) FROM school_expenses se WHERE se.school_id=$1),0) AS total_expenses,
+         (SELECT COUNT(DISTINCT sb2.student_id) FROM student_bills sb2 WHERE sb2.school_id=$1)::int AS students_with_bills`,
       [req.schoolId]
     );
     const r = rows[0];
+    const total_collected = Number(r.total_collected);
+    const total_expenses  = Number(r.total_expenses);
     res.json({
-      total_billed:    Number(r.total_billed),
-      total_collected: Number(r.total_collected),
-      outstanding:     Number(r.total_billed) - Number(r.total_collected),
+      total_billed:        Number(r.total_billed),
+      total_collected,
+      outstanding:         Number(r.total_billed) - total_collected,
+      total_expenses,
+      net_position:        total_collected - total_expenses,
       students_with_bills: r.students_with_bills,
+    });
+  } catch (err) { next(err); }
+});
+
+// ── Expenditure ───────────────────────────────────────────────────────────────
+
+const EXPENSE_CATEGORIES = [
+  'Salaries & Wages', 'Utilities', 'Stationery & Supplies',
+  'Maintenance & Repairs', 'Transport & Fuel', 'Food & Catering',
+  'Medical & Health', 'Printing & Copying', 'Sports & Activities',
+  'Petty Cash', 'Other',
+];
+
+router.get('/expenses', async (req, res, next) => {
+  try {
+    const { from, to, category } = req.query;
+    const conditions = ['se.school_id = $1'];
+    const params = [req.schoolId];
+    let i = 2;
+    if (from)     { conditions.push(`se.expense_date >= $${i++}`); params.push(from); }
+    if (to)       { conditions.push(`se.expense_date <= $${i++}`); params.push(to); }
+    if (category) { conditions.push(`se.category = $${i++}`); params.push(category); }
+
+    const { rows } = await pool.query(
+      `SELECT * FROM school_expenses se
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY se.expense_date DESC, se.created_at DESC`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.post('/expenses', async (req, res, next) => {
+  try {
+    const { category, description, amount, expense_date, payment_method, paid_to, reference, notes } = req.body;
+    if (!category?.trim())    return res.status(400).json({ error: 'Category is required.' });
+    if (!description?.trim()) return res.status(400).json({ error: 'Description is required.' });
+    if (!amount || isNaN(amount) || Number(amount) <= 0) return res.status(400).json({ error: 'A valid amount is required.' });
+    const { rows } = await pool.query(
+      `INSERT INTO school_expenses
+         (school_id, category, description, amount, expense_date, payment_method, paid_to, reference, recorded_by, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [req.schoolId, category.trim(), description.trim(), Number(amount),
+       expense_date || new Date().toISOString().slice(0, 10),
+       payment_method || 'Cash', paid_to?.trim() || null, reference?.trim() || null,
+       req.user.name || 'Admin', notes?.trim() || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+router.put('/expenses/:id', async (req, res, next) => {
+  try {
+    const { category, description, amount, expense_date, payment_method, paid_to, reference, notes } = req.body;
+    if (!category?.trim())    return res.status(400).json({ error: 'Category is required.' });
+    if (!description?.trim()) return res.status(400).json({ error: 'Description is required.' });
+    if (!amount || isNaN(amount) || Number(amount) <= 0) return res.status(400).json({ error: 'A valid amount is required.' });
+    const { rows } = await pool.query(
+      `UPDATE school_expenses
+       SET category=$1, description=$2, amount=$3, expense_date=$4,
+           payment_method=$5, paid_to=$6, reference=$7, notes=$8
+       WHERE id=$9 AND school_id=$10 RETURNING *`,
+      [category.trim(), description.trim(), Number(amount),
+       expense_date || new Date().toISOString().slice(0, 10),
+       payment_method || 'Cash', paid_to?.trim() || null, reference?.trim() || null,
+       notes?.trim() || null, req.params.id, req.schoolId]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Not found.' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+router.delete('/expenses/:id', async (req, res, next) => {
+  try {
+    await pool.query(`DELETE FROM school_expenses WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]);
+    res.json({ message: 'Deleted.' });
+  } catch (err) { next(err); }
+});
+
+router.get('/reports/income-vs-expenditure', async (req, res, next) => {
+  try {
+    const { from, to } = req.query;
+    const incomeParams  = [req.schoolId];
+    const expenseParams = [req.schoolId];
+    let incomeClause = 'fp.school_id = $1';
+    let expenseClause = 'se.school_id = $1';
+    if (from) {
+      incomeParams.push(from);   incomeClause  += ` AND fp.payment_date >= $${incomeParams.length}`;
+      expenseParams.push(from);  expenseClause += ` AND se.expense_date >= $${expenseParams.length}`;
+    }
+    if (to) {
+      incomeParams.push(to);   incomeClause  += ` AND fp.payment_date <= $${incomeParams.length}`;
+      expenseParams.push(to);  expenseClause += ` AND se.expense_date <= $${expenseParams.length}`;
+    }
+
+    const [incomeRes, expenseRes, byCategory] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(fp.amount),0) AS total FROM fee_payments fp WHERE ${incomeClause}`, incomeParams),
+      pool.query(`SELECT COALESCE(SUM(se.amount),0) AS total FROM school_expenses se WHERE ${expenseClause}`, expenseParams),
+      pool.query(
+        `SELECT se.category, SUM(se.amount) AS total
+         FROM school_expenses se WHERE ${expenseClause}
+         GROUP BY se.category ORDER BY total DESC`,
+        expenseParams
+      ),
+    ]);
+
+    const income      = Number(incomeRes.rows[0].total);
+    const expenditure = Number(expenseRes.rows[0].total);
+    res.json({
+      income,
+      expenditure,
+      net: income - expenditure,
+      by_category: byCategory.rows,
     });
   } catch (err) { next(err); }
 });

@@ -38,9 +38,24 @@ interface ArrearRow {
   total_billed: string; total_paid: string; outstanding: string;
 }
 interface AcademicYear { id: string; name: string; is_current: boolean; }
-interface Stats { total_billed: number; total_collected: number; outstanding: number; students_with_bills: number; }
+interface Stats {
+  total_billed: number; total_collected: number; outstanding: number;
+  total_expenses: number; net_position: number; students_with_bills: number;
+}
+interface Expense {
+  id: string; category: string; description: string; amount: string;
+  expense_date: string; payment_method: string; paid_to: string | null;
+  reference: string | null; recorded_by: string | null; notes: string | null;
+}
 
-type Tab = 'items' | 'schedules' | 'collections' | 'arrears';
+const EXPENSE_CATEGORIES = [
+  'Salaries & Wages', 'Utilities', 'Stationery & Supplies',
+  'Maintenance & Repairs', 'Transport & Fuel', 'Food & Catering',
+  'Medical & Health', 'Printing & Copying', 'Sports & Activities',
+  'Petty Cash', 'Other',
+];
+
+type Tab = 'items' | 'schedules' | 'collections' | 'expenditure' | 'arrears';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -713,6 +728,242 @@ function ArrearTab({ years, classes }: { years: AcademicYear[]; classes: string[
   );
 }
 
+// ── Expenditure Tab ───────────────────────────────────────────────────────────
+
+function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
+  const [expenses, setExpenses]     = useState<Expense[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [filters, setFilters]       = useState({ from: '', to: '', category: '' });
+  const [showModal, setShowModal]   = useState(false);
+  const [editing, setEditing]       = useState<Expense | null>(null);
+  const [saving, setSaving]         = useState(false);
+  const [err, setErr]               = useState('');
+  const [summary, setSummary]       = useState<{ income: number; expenditure: number; net: number; by_category: { category: string; total: string }[] } | null>(null);
+  const [showSummary, setShowSummary] = useState(false);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+
+  const emptyForm = { category: '', description: '', amount: '', expense_date: new Date().toISOString().slice(0, 10), payment_method: 'Cash', paid_to: '', reference: '', notes: '' };
+  const [form, setForm] = useState(emptyForm);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/api/fees/expenses', { params: { ...filters, category: filters.category || undefined } });
+      setExpenses(r.data);
+    } catch { setExpenses([]); }
+    finally { setLoading(false); }
+  }, [filters]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function openNew()           { setEditing(null); setForm(emptyForm); setErr(''); setShowModal(true); }
+  function openEdit(e: Expense) {
+    setEditing(e);
+    setForm({ category: e.category, description: e.description, amount: e.amount,
+      expense_date: e.expense_date, payment_method: e.payment_method,
+      paid_to: e.paid_to ?? '', reference: e.reference ?? '', notes: e.notes ?? '' });
+    setErr(''); setShowModal(true);
+  }
+
+  async function save() {
+    setSaving(true); setErr('');
+    try {
+      if (editing) await api.put(`/api/fees/expenses/${editing.id}`, form);
+      else await api.post('/api/fees/expenses', form);
+      setShowModal(false); load(); onExpenseChange();
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setErr(err?.response?.data?.error ?? 'Failed to save.');
+    } finally { setSaving(false); }
+  }
+
+  async function del(id: string) {
+    if (!confirm('Delete this expense record?')) return;
+    try { await api.delete(`/api/fees/expenses/${id}`); load(); onExpenseChange(); }
+    catch { alert('Failed to delete.'); }
+  }
+
+  async function loadSummary() {
+    setLoadingSummary(true);
+    try {
+      const r = await api.get('/api/fees/reports/income-vs-expenditure', {
+        params: { from: filters.from || undefined, to: filters.to || undefined },
+      });
+      setSummary(r.data); setShowSummary(true);
+    } catch { alert('Failed to load summary.'); }
+    finally { setLoadingSummary(false); }
+  }
+
+  const totalShown = expenses.reduce((s, e) => s + Number(e.amount), 0);
+
+  return (
+    <div>
+      {/* Filter bar */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-end' }}>
+        <div>
+          <label style={labelStyle}>From</label>
+          <input style={{ ...inputStyle, width: 140 }} type="date" value={filters.from} onChange={e => setFilters(f => ({ ...f, from: e.target.value }))} />
+        </div>
+        <div>
+          <label style={labelStyle}>To</label>
+          <input style={{ ...inputStyle, width: 140 }} type="date" value={filters.to} onChange={e => setFilters(f => ({ ...f, to: e.target.value }))} />
+        </div>
+        <div>
+          <label style={labelStyle}>Category</label>
+          <select style={{ ...inputStyle, width: 'auto' }} value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value }))}>
+            <option value="">All Categories</option>
+            {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button style={btnPrimary} onClick={() => { setShowSummary(false); load(); }}>Filter</button>
+          <button style={{ ...btnSecondary, background: '#f0fdf4', color: '#15803d' }} onClick={loadSummary} disabled={loadingSummary}>
+            {loadingSummary ? 'Loading…' : '📊 Income vs. Expenditure'}
+          </button>
+          <button style={btnPrimary} onClick={openNew}>+ Add Expense</button>
+        </div>
+      </div>
+
+      {/* Income vs. Expenditure summary */}
+      {showSummary && summary && (
+        <div style={{ marginBottom: 20, padding: '16px 20px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h3 style={{ fontWeight: 700, fontSize: 15 }}>Income vs. Expenditure Summary</h3>
+            <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 18 }} onClick={() => setShowSummary(false)}>×</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
+            {[
+              { label: 'Total Income', value: fmt(summary.income), color: '#15803d', bg: '#f0fdf4' },
+              { label: 'Total Expenditure', value: fmt(summary.expenditure), color: '#dc2626', bg: '#fef2f2' },
+              { label: summary.net >= 0 ? 'Surplus' : 'Deficit', value: fmt(Math.abs(summary.net)),
+                color: summary.net >= 0 ? '#15803d' : '#dc2626',
+                bg: summary.net >= 0 ? '#f0fdf4' : '#fef2f2' },
+            ].map(c => (
+              <div key={c.label} style={{ background: c.bg, borderRadius: 10, padding: '12px 16px' }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>{c.label}</p>
+                <p style={{ fontWeight: 700, fontSize: 18, color: c.color }}>{c.value}</p>
+              </div>
+            ))}
+          </div>
+          {summary.by_category.length > 0 && (
+            <div>
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>EXPENDITURE BY CATEGORY</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {summary.by_category.map(c => (
+                  <div key={c.category} style={{ padding: '6px 12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                    <span style={{ color: '#374151' }}>{c.category}: </span>
+                    <span style={{ fontWeight: 700, color: '#dc2626' }}>{fmt(c.total)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Expenses table */}
+      {loading ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: 32 }}>Loading…</p> : (
+        <>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <thead>
+              <tr style={{ background: '#f8fafc' }}>
+                {['Date', 'Category', 'Description', 'Paid To', 'Method', 'Amount', ''].map(h => (
+                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {expenses.length === 0 && (
+                <tr><td colSpan={7} style={{ padding: 24, textAlign: 'center', color: '#94a3b8' }}>No expenses recorded{filters.from || filters.to || filters.category ? ' for this filter.' : '.'}</td></tr>
+              )}
+              {expenses.map(e => (
+                <tr key={e.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '10px 12px', color: '#374151' }}>{e.expense_date}</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span style={{ padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: '#f1f5f9', color: '#374151' }}>{e.category}</span>
+                  </td>
+                  <td style={{ padding: '10px 12px', fontWeight: 500 }}>{e.description}</td>
+                  <td style={{ padding: '10px 12px', color: '#64748b' }}>{e.paid_to ?? '—'}</td>
+                  <td style={{ padding: '10px 12px', color: '#64748b' }}>{e.payment_method}</td>
+                  <td style={{ padding: '10px 12px', fontWeight: 700, color: '#dc2626' }}>{fmt(e.amount)}</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button style={btnSecondary} onClick={() => openEdit(e)}>Edit</button>
+                      <button style={btnDanger} onClick={() => del(e.id)}>Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            {expenses.length > 0 && (
+              <tfoot>
+                <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
+                  <td colSpan={5} style={{ padding: '10px 12px', fontWeight: 700, fontSize: 13, color: '#374151' }}>Total</td>
+                  <td style={{ padding: '10px 12px', fontWeight: 800, color: '#dc2626', fontSize: 15 }}>{fmt(totalShown)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </>
+      )}
+
+      {showModal && (
+        <Modal title={editing ? 'Edit Expense' : 'Record Expense'} onClose={() => setShowModal(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={labelStyle}>Category *</label>
+              <select style={inputStyle} value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+                <option value="">Select category…</option>
+                {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Description *</label>
+              <input style={inputStyle} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. Electricity bill for January" />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={labelStyle}>Amount (GH₵) *</label>
+                <input style={inputStyle} type="number" min="0" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0.00" />
+              </div>
+              <div>
+                <label style={labelStyle}>Date *</label>
+                <input style={inputStyle} type="date" value={form.expense_date} onChange={e => setForm(f => ({ ...f, expense_date: e.target.value }))} />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={labelStyle}>Payment Method</label>
+                <select style={inputStyle} value={form.payment_method} onChange={e => setForm(f => ({ ...f, payment_method: e.target.value }))}>
+                  {METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Paid To (Vendor / Recipient)</label>
+                <input style={inputStyle} value={form.paid_to} onChange={e => setForm(f => ({ ...f, paid_to: e.target.value }))} placeholder="Optional" />
+              </div>
+            </div>
+            <div>
+              <label style={labelStyle}>Reference / Voucher No.</label>
+              <input style={inputStyle} value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))} placeholder="Optional" />
+            </div>
+            <div>
+              <label style={labelStyle}>Notes</label>
+              <input style={inputStyle} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional" />
+            </div>
+            {err && <p style={{ color: '#dc2626', fontSize: 13 }}>{err}</p>}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button style={btnSecondary} onClick={() => setShowModal(false)}>Cancel</button>
+              <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function FeesPage() {
@@ -753,6 +1004,7 @@ export default function FeesPage() {
     { id: 'items',       label: 'Fee Items' },
     { id: 'schedules',   label: 'Schedules' },
     { id: 'collections', label: 'Collections' },
+    { id: 'expenditure', label: 'Expenditure' },
     { id: 'arrears',     label: 'Arrears Report' },
   ];
 
@@ -766,16 +1018,20 @@ export default function FeesPage() {
 
       {/* Stats cards */}
       {stats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 12, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 12, marginBottom: 24 }}>
           {[
-            { label: 'Total Billed', value: fmt(stats.total_billed), color: '#1e40af', bg: '#eff6ff' },
-            { label: 'Total Collected', value: fmt(stats.total_collected), color: '#15803d', bg: '#f0fdf4' },
-            { label: 'Outstanding', value: fmt(stats.outstanding), color: stats.outstanding > 0 ? '#dc2626' : '#15803d', bg: stats.outstanding > 0 ? '#fef2f2' : '#f0fdf4' },
+            { label: 'Fees Collected', value: fmt(stats.total_collected), color: '#15803d', bg: '#f0fdf4' },
+            { label: 'Total Expenses', value: fmt(stats.total_expenses), color: '#dc2626', bg: '#fef2f2' },
+            { label: stats.net_position >= 0 ? 'Surplus' : 'Deficit',
+              value: fmt(Math.abs(stats.net_position)),
+              color: stats.net_position >= 0 ? '#15803d' : '#dc2626',
+              bg: stats.net_position >= 0 ? '#f0fdf4' : '#fef2f2' },
+            { label: 'Fees Outstanding', value: fmt(stats.outstanding), color: stats.outstanding > 0 ? '#f59e0b' : '#15803d', bg: stats.outstanding > 0 ? '#fffbeb' : '#f0fdf4' },
             { label: 'Students Billed', value: stats.students_with_bills.toLocaleString(), color: '#7c3aed', bg: '#f5f3ff' },
           ].map(c => (
             <div key={c.label} style={{ background: c.bg, borderRadius: 12, padding: '14px 18px', border: `1px solid ${c.color}22` }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 4 }}>{c.label}</p>
-              <p style={{ fontWeight: 700, fontSize: 20, color: c.color }}>{c.value}</p>
+              <p style={{ fontWeight: 700, fontSize: 18, color: c.color }}>{c.value}</p>
             </div>
           ))}
         </div>
@@ -796,7 +1052,8 @@ export default function FeesPage() {
       {/* Tab content */}
       {tab === 'items'       && <ItemsTab items={items} loading={loadingItems} onRefresh={loadItems} />}
       {tab === 'schedules'   && <SchedulesTab schedules={schedules} items={items} years={years} classes={classes} loading={loadingSchedules} onRefresh={loadSchedules} onBillsGenerated={loadStats} />}
-      {tab === 'collections' && <CollectionsTab items={items} />}
+      {tab === 'collections'  && <CollectionsTab items={items} />}
+      {tab === 'expenditure'  && <ExpenditureTab onExpenseChange={loadStats} />}
       {tab === 'arrears'     && <ArrearTab years={years} classes={classes} />}
     </div>
   );
