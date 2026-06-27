@@ -968,4 +968,101 @@ router.get('/reports', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Fees (read-only summary for management) ───────────────────────────────────
+
+async function feesModuleEnabled(schoolId) {
+  const { rows } = await pool.query(
+    `SELECT enabled FROM school_modules WHERE school_id=$1 AND module_key='fees'`,
+    [schoolId]
+  );
+  // No rows = legacy school, treat as enabled
+  return rows.length === 0 || rows[0].enabled;
+}
+
+router.get('/fees/summary', async (req, res, next) => {
+  try {
+    if (!await feesModuleEnabled(req.schoolId)) {
+      return res.status(403).json({ error: 'Accounts & Fees module is not enabled for this school.' });
+    }
+    const sid = req.schoolId;
+    const { rows } = await pool.query(
+      `SELECT
+         COALESCE((SELECT SUM(sb.amount) FROM student_bills sb WHERE sb.school_id=$1),0)   AS total_billed,
+         COALESCE((SELECT SUM(fp.amount) FROM fee_payments fp WHERE fp.school_id=$1),0)    AS total_collected,
+         COALESCE((SELECT SUM(se.amount) FROM school_expenses se WHERE se.school_id=$1),0) AS total_expenses,
+         (SELECT COUNT(DISTINCT sb2.student_id) FROM student_bills sb2 WHERE sb2.school_id=$1)::int AS students_with_bills`,
+      [sid]
+    );
+    const r = rows[0];
+    const total_billed    = Number(r.total_billed);
+    const total_collected = Number(r.total_collected);
+    const total_expenses  = Number(r.total_expenses);
+    res.json({
+      total_billed,
+      total_collected,
+      outstanding:      total_billed - total_collected,
+      collection_rate:  total_billed > 0 ? Math.round((total_collected / total_billed) * 100) : 0,
+      total_expenses,
+      net_position:     total_collected - total_expenses,
+      students_with_bills: r.students_with_bills,
+    });
+  } catch (err) { next(err); }
+});
+
+router.get('/fees/class-breakdown', async (req, res, next) => {
+  try {
+    if (!await feesModuleEnabled(req.schoolId)) {
+      return res.status(403).json({ error: 'Accounts & Fees module is not enabled.' });
+    }
+    const { rows } = await pool.query(
+      `SELECT
+         s.class_name,
+         COUNT(DISTINCT sb.student_id)::int AS students_billed,
+         SUM(sb.amount)                     AS total_billed,
+         COALESCE(SUM(p.paid), 0)           AS total_collected,
+         SUM(sb.amount) - COALESCE(SUM(p.paid), 0) AS outstanding
+       FROM student_bills sb
+       JOIN students s ON s.id = sb.student_id
+       LEFT JOIN (
+         SELECT bill_id, SUM(amount) AS paid
+         FROM fee_payments WHERE school_id=$1 GROUP BY bill_id
+       ) p ON p.bill_id = sb.id
+       WHERE sb.school_id = $1
+       GROUP BY s.class_name
+       ORDER BY s.class_name`,
+      [req.schoolId]
+    );
+    res.json(rows.map(r => ({
+      class_name:       r.class_name,
+      students_billed:  r.students_billed,
+      total_billed:     Number(r.total_billed),
+      total_collected:  Number(r.total_collected),
+      outstanding:      Number(r.outstanding),
+      collection_rate:  Number(r.total_billed) > 0
+        ? Math.round((Number(r.total_collected) / Number(r.total_billed)) * 100) : 0,
+    })));
+  } catch (err) { next(err); }
+});
+
+router.get('/fees/income-vs-expenditure', async (req, res, next) => {
+  try {
+    if (!await feesModuleEnabled(req.schoolId)) {
+      return res.status(403).json({ error: 'Accounts & Fees module is not enabled.' });
+    }
+    const sid = req.schoolId;
+    const [incomeRes, expenseRes, byCat] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(amount),0) AS total FROM fee_payments WHERE school_id=$1`, [sid]),
+      pool.query(`SELECT COALESCE(SUM(amount),0) AS total FROM school_expenses WHERE school_id=$1`, [sid]),
+      pool.query(
+        `SELECT category, SUM(amount) AS total FROM school_expenses
+         WHERE school_id=$1 GROUP BY category ORDER BY total DESC`,
+        [sid]
+      ),
+    ]);
+    const income      = Number(incomeRes.rows[0].total);
+    const expenditure = Number(expenseRes.rows[0].total);
+    res.json({ income, expenditure, net: income - expenditure, by_category: byCat.rows });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
