@@ -45,6 +45,7 @@ export default function StudentFeesPage() {
   const [data,     setData]     = useState<FeesData | null>(null);
   const [loading,  setLoading]  = useState(true);
   const [disabled, setDisabled] = useState(false);
+  const [error,    setError]    = useState(false);
   const [tab,      setTab]      = useState<Tab>('bills');
   const colors  = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
   const primary = colors.primary;
@@ -55,6 +56,7 @@ export default function StudentFeesPage() {
       .catch((e: unknown) => {
         const err = e as { response?: { status?: number } };
         if (err?.response?.status === 403) setDisabled(true);
+        else setError(true);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -71,7 +73,19 @@ export default function StudentFeesPage() {
     </div>
   );
 
-  if (!data) return null;
+  if (error || !data) return (
+    <div className="p-6 text-center space-y-3">
+      <p className="text-slate-500 font-semibold">Could not load your fee statement.</p>
+      <p className="text-slate-400 text-sm">Please check your connection and try again.</p>
+      <button
+        onClick={() => { setError(false); setLoading(true); studentApi.get<FeesData>('/api/student/fees').then(r => setData(r.data)).catch(() => setError(true)).finally(() => setLoading(false)); }}
+        className="text-sm font-semibold px-4 py-2 rounded-xl text-white"
+        style={{ background: primary }}
+      >
+        Retry
+      </button>
+    </div>
+  );
 
   const { summary, bills, payments } = data;
   const hasOutstanding = summary.outstanding > 0;
