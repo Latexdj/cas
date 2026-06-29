@@ -2,6 +2,9 @@ import axios from 'axios';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
+// Public API client — no auth header, no 401→/login redirect (used by admission portal)
+export const publicApi = axios.create({ baseURL: BASE, timeout: 15000 });
+
 export const api = axios.create({ baseURL: BASE, timeout: 15000 });
 
 api.interceptors.request.use((config) => {

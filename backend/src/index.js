@@ -49,6 +49,8 @@ const principalAuthRoutes     = require('./routes/principal-auth');
 const principalRoutes         = require('./routes/principal');
 const managementUserRoutes    = require('./routes/management-users');
 const feesRoutes              = require('./routes/fees');
+const admissionsRoutes        = require('./routes/admissions');
+const adminAdmissionsRoutes   = require('./routes/admin-admissions');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -126,6 +128,8 @@ app.use('/api/principal/auth',     principalAuthRoutes);
 app.use('/api/principal',          principalRoutes);
 app.use('/api/admin/management-users', managementUserRoutes);
 app.use('/api/fees',                  feesRoutes);
+app.use('/api/admissions',            admissionsRoutes);
+app.use('/api/admin/admissions',      adminAdmissionsRoutes);
 
 app.use(errorHandler);
 
@@ -1066,6 +1070,104 @@ async function runMigrations() {
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_class_subjects_school
         ON class_subjects(school_id, class_name)
+    `);
+
+    // ── Admission portal ────────────────────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_admission_settings (
+        school_id            UUID PRIMARY KEY REFERENCES schools(id) ON DELETE CASCADE,
+        portal_slug          TEXT UNIQUE,
+        admission_prefix     TEXT NOT NULL DEFAULT 'STU',
+        admission_year       SMALLINT NOT NULL DEFAULT (EXTRACT(YEAR FROM CURRENT_DATE)::int % 100),
+        next_sequence        INT NOT NULL DEFAULT 1,
+        is_portal_open       BOOLEAN NOT NULL DEFAULT false,
+        application_deadline DATE,
+        website_title        TEXT,
+        website_tagline      TEXT,
+        welcome_text         TEXT,
+        banner_image_url     TEXT,
+        portal_logo_url      TEXT,
+        contact_email        TEXT,
+        contact_phone        TEXT,
+        contact_address      TEXT,
+        portal_primary_color TEXT NOT NULL DEFAULT '#16A34A',
+        portal_accent_color  TEXT NOT NULL DEFAULT '#15803D',
+        updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admission_placement (
+        id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id          UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        index_number       VARCHAR(12) NOT NULL,
+        full_name          TEXT,
+        date_of_birth      DATE,
+        gender             TEXT,
+        aggregate          INT,
+        programme          TEXT,
+        residential_status TEXT,
+        is_registered      BOOLEAN NOT NULL DEFAULT false,
+        uploaded_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, index_number)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_admission_placement_school ON admission_placement(school_id)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admission_applications (
+        id                     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id              UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        index_number           VARCHAR(12) NOT NULL,
+        admission_number       TEXT,
+        form_token             UUID NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+        status                 TEXT NOT NULL DEFAULT 'pending'
+                                 CHECK (status IN ('pending','completed','reported','migrated')),
+        student_id             UUID REFERENCES students(id) ON DELETE SET NULL,
+        full_name              TEXT,
+        date_of_birth          DATE,
+        gender                 TEXT,
+        hometown               TEXT,
+        residential_address    TEXT,
+        mobile_number          VARCHAR(10),
+        ghana_card_number      TEXT,
+        nhia_number            TEXT,
+        aggregate              INT,
+        residential_status     TEXT,
+        religion               TEXT,
+        religious_denomination TEXT,
+        guardian_name          TEXT,
+        guardian_relationship  TEXT,
+        guardian_occupation    TEXT,
+        guardian_mobile        VARCHAR(10),
+        program_id             UUID REFERENCES programs(id) ON DELETE SET NULL,
+        house                  TEXT,
+        picture_url            TEXT,
+        bece_results_url       TEXT,
+        form_step              INT NOT NULL DEFAULT 1,
+        form_completed_at      TIMESTAMPTZ,
+        reported_at            TIMESTAMPTZ,
+        migrated_at            TIMESTAMPTZ,
+        created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, index_number)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_admission_applications_school ON admission_applications(school_id, status)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_admission_applications_token  ON admission_applications(form_token)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS admission_prospectus (
+        id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id          UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        program_id         UUID REFERENCES programs(id) ON DELETE CASCADE,
+        gender             TEXT NOT NULL DEFAULT 'All' CHECK (gender IN ('Male','Female','All')),
+        residential_status TEXT NOT NULL DEFAULT 'All' CHECK (residential_status IN ('Boarding','Day','All')),
+        file_url           TEXT NOT NULL,
+        file_name          TEXT NOT NULL,
+        uploaded_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_admission_prospectus_unique
+        ON admission_prospectus(school_id, COALESCE(program_id,'00000000-0000-0000-0000-000000000000'::uuid), gender, residential_status)
     `);
 
     console.log('Migrations OK');
