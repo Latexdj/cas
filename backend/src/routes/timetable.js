@@ -408,20 +408,60 @@ router.delete('/class-subjects/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// Seed allocations from existing timetable (idempotent)
+// Seed allocations from existing timetable (idempotent).
+// Calculates actual periods/week by summing net slot minutes (breaks excluded)
+// divided by the school's period_duration_minutes.
 router.post('/class-subjects/seed', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `INSERT INTO class_subjects (school_id, class_name, subject_id, periods_per_week)
-       SELECT DISTINCT t.school_id,
-              TRIM(cls.class_name) AS class_name,
-              s.id                 AS subject_id,
-              1                    AS periods_per_week
-       FROM timetable t
-       JOIN LATERAL unnest(string_to_array(t.class_names, ',')) AS cls(class_name) ON TRUE
-       JOIN subjects s ON LOWER(s.name) = LOWER(TRIM(t.subject)) AND s.school_id = t.school_id
-       WHERE t.school_id = $1
-       ON CONFLICT (school_id, class_name, subject_id) DO NOTHING
+       SELECT
+         sq.school_id,
+         sq.class_name,
+         sq.subject_id,
+         GREATEST(1,
+           ROUND(
+             SUM(
+               GREATEST(0,
+                 EXTRACT(EPOCH FROM (sq.end_time::time - sq.start_time::time)) / 60.0
+                 - COALESCE(sq.break_mins, 0)
+               )
+             ) / NULLIF(sq.period_duration_minutes, 0)
+           )
+         )::int AS periods_per_week
+       FROM (
+         SELECT
+           t.school_id,
+           TRIM(cls.class_name)      AS class_name,
+           s.id                      AS subject_id,
+           t.start_time,
+           t.end_time,
+           t.day_of_week,
+           sc.period_duration_minutes,
+           brk.break_mins
+         FROM timetable t
+         JOIN LATERAL unnest(string_to_array(t.class_names, ',')) AS cls(class_name) ON TRUE
+         JOIN subjects s  ON LOWER(s.name) = LOWER(TRIM(t.subject)) AND s.school_id = t.school_id
+         JOIN schools  sc ON sc.id = t.school_id
+         LEFT JOIN LATERAL (
+           SELECT COALESCE(SUM(
+             GREATEST(0,
+               EXTRACT(EPOCH FROM (
+                 LEAST(t.end_time::time, b.end_time) - GREATEST(t.start_time::time, b.start_time)
+               )) / 60.0
+             )
+           ), 0) AS break_mins
+           FROM school_breaks b
+           WHERE b.school_id = t.school_id
+             AND (b.day_of_week IS NULL OR b.day_of_week = t.day_of_week)
+             AND b.start_time < t.end_time::time
+             AND b.end_time   > t.start_time::time
+         ) brk ON true
+         WHERE t.school_id = $1
+       ) sq
+       GROUP BY sq.school_id, sq.class_name, sq.subject_id, sq.period_duration_minutes
+       ON CONFLICT (school_id, class_name, subject_id) DO UPDATE
+         SET periods_per_week = EXCLUDED.periods_per_week
        RETURNING id`,
       [req.schoolId]
     );
@@ -440,20 +480,45 @@ const COVERAGE_SQL = `
     COUNT(t.id)::int                                               AS periods_scheduled,
     COUNT(t.id) FILTER (WHERE t.teacher_id IS NOT NULL)::int       AS periods_with_teacher,
     COUNT(t.id) FILTER (WHERE t.teacher_id IS NULL)::int           AS periods_without_teacher,
+    COALESCE(SUM(
+      CASE WHEN t.id IS NOT NULL THEN
+        GREATEST(0,
+          EXTRACT(EPOCH FROM (t.end_time::time - t.start_time::time)) / 60.0
+          - COALESCE(brk.break_mins, 0)
+        )
+      ELSE 0 END
+    ), 0)::int AS net_minutes_per_week,
+    sc.period_duration_minutes,
     CASE
       WHEN COUNT(t.id) = 0                                          THEN 'unscheduled'
       WHEN COUNT(t.id) FILTER (WHERE t.teacher_id IS NULL) > 0      THEN 'unteachered'
       ELSE 'covered'
     END AS status
   FROM class_subjects cs
-  JOIN subjects s ON s.id = cs.subject_id
+  JOIN subjects s  ON s.id = cs.subject_id
+  JOIN schools  sc ON sc.id = cs.school_id
   LEFT JOIN timetable t
     ON  t.school_id = cs.school_id
     AND LOWER(t.subject) = LOWER(s.name)
     AND ',' || REPLACE(t.class_names, ' ', '') || ','
         LIKE '%,' || REPLACE(cs.class_name, ' ', '') || ',%'
+  LEFT JOIN LATERAL (
+    SELECT COALESCE(SUM(
+      GREATEST(0,
+        EXTRACT(EPOCH FROM (
+          LEAST(t.end_time::time, b.end_time) - GREATEST(t.start_time::time, b.start_time)
+        )) / 60.0
+      )
+    ), 0) AS break_mins
+    FROM school_breaks b
+    WHERE t.id IS NOT NULL
+      AND b.school_id = cs.school_id
+      AND (b.day_of_week IS NULL OR b.day_of_week = t.day_of_week)
+      AND b.start_time < t.end_time::time
+      AND b.end_time   > t.start_time::time
+  ) brk ON true
   WHERE cs.school_id = $1
-  GROUP BY cs.id, cs.class_name, s.name, cs.periods_per_week
+  GROUP BY cs.id, cs.class_name, s.name, cs.periods_per_week, sc.period_duration_minutes
   ORDER BY cs.class_name, s.name
 `;
 

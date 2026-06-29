@@ -773,7 +773,17 @@ interface CoverageRow {
   class_subject_id: string; class_name: string; subject: string;
   expected_periods: number; periods_scheduled: number;
   periods_with_teacher: number; periods_without_teacher: number;
+  net_minutes_per_week: number; period_duration_minutes: number;
   status: 'covered' | 'unteachered' | 'unscheduled';
+}
+
+function fmtDuration(mins: number): string {
+  if (!mins || mins <= 0) return '—';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m}min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
 }
 const STATUS_CFG = {
   covered:     { label: 'Covered',    color: '#15803D', bg: '#F0FDF4', dot: '#16A34A' },
@@ -894,7 +904,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  {['Subject', 'Periods/Week', 'Scheduled', 'Status', ''].map(h => (
+                  {['Subject', 'Periods/Week', 'Scheduled', 'Duration/Week', 'Status', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
                   ))}
                 </tr>
@@ -920,6 +930,9 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
                           </span>
                         ) : '—'}
                       </td>
+                      <td className="px-4 py-3 text-slate-600 font-medium">
+                        {cov ? fmtDuration(cov.net_minutes_per_week) : '—'}
+                      </td>
                       <td className="px-4 py-3">
                         {st ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold"
@@ -936,7 +949,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
                   );
                 })}
                 {allocations.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">
+                  <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
                     No subjects allocated to {selectedClass || 'this class'} yet.{' '}
                     <button className="underline text-green-600 font-medium" onClick={seed}>Auto-seed from timetable</button>
                   </td></tr>

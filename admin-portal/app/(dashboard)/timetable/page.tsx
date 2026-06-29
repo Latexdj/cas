@@ -18,6 +18,7 @@ interface CoverageRow {
   class_subject_id: string; class_name: string; subject: string;
   expected_periods: number; periods_scheduled: number;
   periods_with_teacher: number; periods_without_teacher: number;
+  net_minutes_per_week: number; period_duration_minutes: number;
   status: 'covered' | 'unteachered' | 'unscheduled';
 }
 const COV_CFG = {
@@ -25,6 +26,15 @@ const COV_CFG = {
   unteachered: { label: 'No Teacher', color: '#B45309', bg: '#FFFBEB' },
   unscheduled: { label: 'Missing',    color: '#DC2626', bg: '#FEF2F2' },
 };
+
+function fmtDuration(mins: number): string {
+  if (!mins || mins <= 0) return '—';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m}min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
+}
 
 function CoverageModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [rows,    setRows]    = useState<CoverageRow[]>([]);
@@ -67,7 +77,7 @@ function CoverageModal({ open, onClose }: { open: boolean; onClose: () => void }
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-100 sticky top-0">
                 <tr>
-                  {['Class', 'Subject', 'Expected/wk', 'Scheduled', 'Has Teacher', 'Missing Teacher', 'Status'].map(h => (
+                  {['Class', 'Subject', 'Expected/wk', 'Scheduled', 'Has Teacher', 'Missing Teacher', 'Duration/wk', 'Status'].map(h => (
                     <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -89,6 +99,9 @@ function CoverageModal({ open, onClose }: { open: boolean; onClose: () => void }
                           ? <span className="text-amber-700 font-medium">{r.periods_without_teacher}</span>
                           : <span className="text-slate-300">—</span>}
                       </td>
+                      <td className="px-3 py-2.5 text-slate-600 font-medium whitespace-nowrap">
+                        {fmtDuration(r.net_minutes_per_week)}
+                      </td>
                       <td className="px-3 py-2.5">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
                           style={{ backgroundColor: cfg.bg, color: cfg.color }}>
@@ -99,7 +112,7 @@ function CoverageModal({ open, onClose }: { open: boolean; onClose: () => void }
                   );
                 })}
                 {displayed.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
+                  <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">
                     {filter === 'issues' ? 'No issues found — all subjects are fully covered.' : 'No allocations defined yet.'}
                   </td></tr>
                 )}
@@ -107,6 +120,7 @@ function CoverageModal({ open, onClose }: { open: boolean; onClose: () => void }
             </table>
           </div>
         )}
+        <p className="text-xs text-slate-400">Duration/wk = sum of lesson times minus any overlapping Bell Schedule breaks.</p>
         <div className="flex justify-end pt-1">
           <Button variant="secondary" onClick={onClose}>Close</Button>
         </div>
