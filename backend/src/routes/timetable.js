@@ -310,13 +310,179 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     }
 
     await client.query('COMMIT');
-    res.json({ inserted: valid.length, errors });
+
+    // Attach coverage summary so the upload result can show gaps immediately
+    let coverage = null;
+    try {
+      const { rows: covRows } = await pool.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE status = 'unscheduled')::int AS unscheduled,
+           COUNT(*) FILTER (WHERE status = 'unteachered')::int AS unteachered,
+           COUNT(*)::int AS total
+         FROM (
+           SELECT
+             CASE
+               WHEN COUNT(t.id) = 0 THEN 'unscheduled'
+               WHEN COUNT(t.id) FILTER (WHERE t.teacher_id IS NULL) > 0 THEN 'unteachered'
+               ELSE 'covered'
+             END AS status
+           FROM class_subjects cs
+           JOIN subjects s ON s.id = cs.subject_id
+           LEFT JOIN timetable t
+             ON t.school_id = cs.school_id
+             AND LOWER(t.subject) = LOWER(s.name)
+             AND ',' || REPLACE(t.class_names,' ','') || ',' LIKE '%,' || REPLACE(cs.class_name,' ','') || ',%'
+           WHERE cs.school_id = $1
+           GROUP BY cs.id, cs.class_name, s.name, cs.periods_per_week
+         ) sub`,
+        [req.schoolId]
+      );
+      coverage = covRows[0];
+    } catch { /* non-fatal */ }
+
+    res.json({ inserted: valid.length, errors, coverage });
   } catch (err) {
     await client.query('ROLLBACK');
     next(err);
   } finally {
     client.release();
   }
+});
+
+// ── Class-subject allocations (curriculum matrix) ─────────────────────────────
+
+// Helper: match a class_name inside timetable.class_names (comma-separated)
+function classNameMatch(col, paramN) {
+  // Normalise by stripping spaces around commas, wrap with sentinels, do LIKE
+  return `',' || REPLACE(${col}, ' ', '') || ',' LIKE '%,' || REPLACE($${paramN}, ' ', '') || ',%'`;
+}
+
+router.get('/class-subjects', async (req, res, next) => {
+  try {
+    const { class_name } = req.query;
+    let q = `
+      SELECT cs.id, cs.class_name, cs.subject_id, cs.periods_per_week,
+             s.name AS subject_name, s.code AS subject_code
+      FROM class_subjects cs
+      JOIN subjects s ON s.id = cs.subject_id
+      WHERE cs.school_id = $1`;
+    const params = [req.schoolId];
+    if (class_name) { q += ` AND cs.class_name = $2`; params.push(class_name); }
+    q += ` ORDER BY cs.class_name, s.name`;
+    const { rows } = await pool.query(q, params);
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.post('/class-subjects', adminOnly, async (req, res, next) => {
+  try {
+    const { class_name, subject_id, periods_per_week = 1 } = req.body;
+    if (!class_name || !subject_id) {
+      return res.status(400).json({ error: 'class_name and subject_id are required' });
+    }
+    // Verify subject belongs to this school
+    const { rows: sub } = await pool.query(
+      `SELECT id FROM subjects WHERE id = $1 AND school_id = $2`, [subject_id, req.schoolId]
+    );
+    if (!sub.length) return res.status(404).json({ error: 'Subject not found' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO class_subjects (school_id, class_name, subject_id, periods_per_week)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (school_id, class_name, subject_id) DO UPDATE SET periods_per_week = $4
+       RETURNING id, class_name, subject_id, periods_per_week`,
+      [req.schoolId, class_name.trim(), subject_id, periods_per_week]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+router.delete('/class-subjects/:id', adminOnly, async (req, res, next) => {
+  try {
+    const { rowCount } = await pool.query(
+      `DELETE FROM class_subjects WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Allocation not found' });
+    res.json({ message: 'Removed' });
+  } catch (err) { next(err); }
+});
+
+// Seed allocations from existing timetable (idempotent)
+router.post('/class-subjects/seed', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO class_subjects (school_id, class_name, subject_id, periods_per_week)
+       SELECT DISTINCT t.school_id,
+              TRIM(cls.class_name) AS class_name,
+              s.id                 AS subject_id,
+              1                    AS periods_per_week
+       FROM timetable t
+       JOIN LATERAL unnest(string_to_array(t.class_names, ',')) AS cls(class_name) ON TRUE
+       JOIN subjects s ON LOWER(s.name) = LOWER(TRIM(t.subject)) AND s.school_id = t.school_id
+       WHERE t.school_id = $1
+       ON CONFLICT (school_id, class_name, subject_id) DO NOTHING
+       RETURNING id`,
+      [req.schoolId]
+    );
+    res.json({ seeded: rows.length });
+  } catch (err) { next(err); }
+});
+
+// ── Coverage analysis ──────────────────────────────────────────────────────────
+
+const COVERAGE_SQL = `
+  SELECT
+    cs.id        AS class_subject_id,
+    cs.class_name,
+    s.name       AS subject,
+    cs.periods_per_week AS expected_periods,
+    COUNT(t.id)::int                                               AS periods_scheduled,
+    COUNT(t.id) FILTER (WHERE t.teacher_id IS NOT NULL)::int       AS periods_with_teacher,
+    COUNT(t.id) FILTER (WHERE t.teacher_id IS NULL)::int           AS periods_without_teacher,
+    CASE
+      WHEN COUNT(t.id) = 0                                          THEN 'unscheduled'
+      WHEN COUNT(t.id) FILTER (WHERE t.teacher_id IS NULL) > 0      THEN 'unteachered'
+      ELSE 'covered'
+    END AS status
+  FROM class_subjects cs
+  JOIN subjects s ON s.id = cs.subject_id
+  LEFT JOIN timetable t
+    ON  t.school_id = cs.school_id
+    AND LOWER(t.subject) = LOWER(s.name)
+    AND ',' || REPLACE(t.class_names, ' ', '') || ','
+        LIKE '%,' || REPLACE(cs.class_name, ' ', '') || ',%'
+  WHERE cs.school_id = $1
+  GROUP BY cs.id, cs.class_name, s.name, cs.periods_per_week
+  ORDER BY cs.class_name, s.name
+`;
+
+router.get('/coverage', async (req, res, next) => {
+  try {
+    const { class_name } = req.query;
+    let sql = COVERAGE_SQL;
+    const params = [req.schoolId];
+    if (class_name) {
+      sql = sql.replace('WHERE cs.school_id = $1', 'WHERE cs.school_id = $1 AND cs.class_name = $2');
+      params.push(class_name);
+    }
+    const { rows } = await pool.query(sql, params);
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.get('/coverage/summary', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE status = 'unscheduled')::int  AS unscheduled,
+         COUNT(*) FILTER (WHERE status = 'unteachered')::int  AS unteachered,
+         COUNT(*)::int                                         AS total
+       FROM (${COVERAGE_SQL}) sub`,
+      [req.schoolId]
+    );
+    res.json(rows[0] ?? { unscheduled: 0, unteachered: 0, total: 0 });
+  } catch (err) { next(err); }
 });
 
 router.post('/', adminOnly, async (req, res, next) => {

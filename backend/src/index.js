@@ -1051,6 +1051,23 @@ async function runMigrations() {
       )
     `);
 
+    // ── Timetable coverage: class-subject allocations ─────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS class_subjects (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        class_name       TEXT NOT NULL,
+        subject_id       UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+        periods_per_week INT NOT NULL DEFAULT 1,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, class_name, subject_id)
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_class_subjects_school
+        ON class_subjects(school_id, class_name)
+    `);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

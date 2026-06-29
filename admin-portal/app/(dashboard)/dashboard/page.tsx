@@ -343,6 +343,7 @@ export default function DashboardPage() {
   const [loading,        setLoading]        = useState(true);
   const [filter,         setFilter]         = useState<OccupancyFilter>('all');
   const [showConflicts,  setShowConflicts]  = useState(false);
+  const [timetableGaps,  setTimetableGaps]  = useState<{ unscheduled: number; unteachered: number } | null>(null);
 
   // Load academic years once and set defaults to current year + current semester
   useEffect(() => {
@@ -377,12 +378,14 @@ export default function DashboardPage() {
 
   const load = useCallback(async () => {
     try {
-      const [s, c] = await Promise.allSettled([
+      const [s, c, g] = await Promise.allSettled([
         api.get<AdminStats>('/api/admin/stats'),
         api.get<ClassroomStatus[]>('/api/admin/classroom-status'),
+        api.get<{ unscheduled: number; unteachered: number; total: number }>('/api/timetable/coverage/summary'),
       ]);
       if (s.status === 'fulfilled') setStats(s.value.data);
       if (c.status === 'fulfilled') setClasses(c.value.data);
+      if (g.status === 'fulfilled') setTimetableGaps(g.value.data);
     } finally {
       setLoading(false);
     }
@@ -480,7 +483,19 @@ export default function DashboardPage() {
           <h2 className="text-lg font-bold" style={{ color: '#0F172A' }}>Overview</h2>
           <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>{today} · live snapshot · auto-refreshes every 60 s</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {timetableGaps && (timetableGaps.unscheduled > 0 || timetableGaps.unteachered > 0) && (
+            <a href="/timetable"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-300 bg-red-50 text-red-700 text-xs font-semibold hover:bg-red-100 transition-colors">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              {timetableGaps.unscheduled > 0 && <span>{timetableGaps.unscheduled} unscheduled</span>}
+              {timetableGaps.unscheduled > 0 && timetableGaps.unteachered > 0 && <span>·</span>}
+              {timetableGaps.unteachered > 0 && <span>{timetableGaps.unteachered} no teacher</span>}
+            </a>
+          )}
           <button
             onClick={() => setShowConflicts(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-400">

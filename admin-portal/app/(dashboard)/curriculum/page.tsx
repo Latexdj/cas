@@ -7,18 +7,19 @@ import { Modal } from '@/components/ui/Modal';
 import type { Subject, ClassItem, Program, House, AssessmentMode } from '@/types/api';
 
 /* ── Tab bar ── */
-type Tab = 'subjects' | 'classes' | 'programs' | 'houses' | 'assessment-modes';
+type Tab = 'subjects' | 'classes' | 'programs' | 'houses' | 'assessment-modes' | 'allocations';
 
-function TabBar({ active, onSelect, subjectCount, classCount, programCount, houseCount, modeCount }: {
+function TabBar({ active, onSelect, subjectCount, classCount, programCount, houseCount, modeCount, gapCount }: {
   active: Tab; onSelect: (t: Tab) => void;
-  subjectCount: number; classCount: number; programCount: number; houseCount: number; modeCount: number;
+  subjectCount: number; classCount: number; programCount: number; houseCount: number; modeCount: number; gapCount: number;
 }) {
-  const tabs: { id: Tab; label: string; count: number }[] = [
+  const tabs: { id: Tab; label: string; count: number; alert?: boolean }[] = [
     { id: 'subjects',          label: 'Subjects',     count: subjectCount },
     { id: 'classes',           label: 'Classes',      count: classCount   },
     { id: 'programs',          label: 'Programs',     count: programCount },
     { id: 'houses',            label: 'Houses',       count: houseCount   },
     { id: 'assessment-modes',  label: 'CA Modes',     count: modeCount    },
+    { id: 'allocations',       label: 'Allocations',  count: gapCount, alert: gapCount > 0 },
   ];
   return (
     <div className="flex flex-wrap gap-1 p-1 rounded-xl" style={{ backgroundColor: '#F1F5F9' }}>
@@ -35,7 +36,10 @@ function TabBar({ active, onSelect, subjectCount, classCount, programCount, hous
         >
           {t.label}
           <span className="px-1.5 py-0.5 rounded-full text-xs font-bold"
-            style={{ backgroundColor: active === t.id ? '#F1F5F9' : '#E2E8F0', color: '#64748B' }}>
+            style={{
+              backgroundColor: t.alert ? '#FEF2F2' : active === t.id ? '#F1F5F9' : '#E2E8F0',
+              color: t.alert ? '#DC2626' : '#64748B',
+            }}>
             {t.count}
           </span>
         </button>
@@ -760,6 +764,207 @@ function AssessmentModesTab() {
   );
 }
 
+/* ── Allocations tab ── */
+interface ClassSubjectRow {
+  id: string; class_name: string; subject_id: string;
+  subject_name: string; subject_code: string | null; periods_per_week: number;
+}
+interface CoverageRow {
+  class_subject_id: string; class_name: string; subject: string;
+  expected_periods: number; periods_scheduled: number;
+  periods_with_teacher: number; periods_without_teacher: number;
+  status: 'covered' | 'unteachered' | 'unscheduled';
+}
+const STATUS_CFG = {
+  covered:     { label: 'Covered',    color: '#15803D', bg: '#F0FDF4', dot: '#16A34A' },
+  unteachered: { label: 'No Teacher', color: '#B45309', bg: '#FFFBEB', dot: '#D97706' },
+  unscheduled: { label: 'Missing',    color: '#DC2626', bg: '#FEF2F2', dot: '#EF4444' },
+};
+
+function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
+  const [classes,       setClasses]       = useState<ClassItem[]>([]);
+  const [subjects,      setSubjects]      = useState<Subject[]>([]);
+  const [selectedClass, setSelectedClass] = useState('');
+  const [allocations,   setAllocations]   = useState<ClassSubjectRow[]>([]);
+  const [coverage,      setCoverage]      = useState<CoverageRow[]>([]);
+  const [loading,       setLoading]       = useState(false);
+  const [seeding,       setSeeding]       = useState(false);
+  const [addSubjectId,  setAddSubjectId]  = useState('');
+  const [addPeriods,    setAddPeriods]    = useState('1');
+  const [adding,        setAdding]        = useState(false);
+  const [seedMsg,       setSeedMsg]       = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      api.get<ClassItem[]>('/api/classes'),
+      api.get<Subject[]>('/api/subjects'),
+    ]).then(([c, s]) => {
+      setClasses(c.data);
+      setSubjects(s.data);
+      if (c.data.length > 0) setSelectedClass(c.data[0].name);
+    });
+  }, []);
+
+  const loadClass = useCallback(async (cls: string) => {
+    if (!cls) return;
+    setLoading(true);
+    try {
+      const enc = encodeURIComponent(cls);
+      const [a, c] = await Promise.all([
+        api.get<ClassSubjectRow[]>(`/api/timetable/class-subjects?class_name=${enc}`),
+        api.get<CoverageRow[]>(`/api/timetable/coverage?class_name=${enc}`),
+      ]);
+      setAllocations(a.data);
+      setCoverage(c.data);
+      const gaps = c.data.filter(r => r.status !== 'covered').length;
+      onGapChange(gaps);
+    } finally { setLoading(false); }
+  }, [onGapChange]);
+
+  useEffect(() => { loadClass(selectedClass); }, [selectedClass, loadClass]);
+
+  async function seed() {
+    setSeeding(true); setSeedMsg(null);
+    try {
+      const { data } = await api.post<{ seeded: number }>('/api/timetable/class-subjects/seed', {});
+      setSeedMsg(`✓ ${data.seeded} allocation${data.seeded !== 1 ? 's' : ''} seeded from current timetable.`);
+      await loadClass(selectedClass);
+    } catch { alert('Seed failed.'); }
+    finally { setSeeding(false); }
+  }
+
+  async function addAllocation() {
+    if (!addSubjectId || !selectedClass) return;
+    setAdding(true);
+    try {
+      await api.post('/api/timetable/class-subjects', {
+        class_name: selectedClass, subject_id: addSubjectId,
+        periods_per_week: parseInt(addPeriods) || 1,
+      });
+      setAddSubjectId('');
+      await loadClass(selectedClass);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(msg ?? 'Failed to add.');
+    } finally { setAdding(false); }
+  }
+
+  async function remove(id: string) {
+    if (!confirm('Remove this subject from the class curriculum?')) return;
+    await api.delete(`/api/timetable/class-subjects/${id}`);
+    await loadClass(selectedClass);
+  }
+
+  const covMap     = new Map(coverage.map(c => [c.subject.toLowerCase(), c]));
+  const allocIds   = new Set(allocations.map(a => a.subject_id));
+  const unalloc    = subjects.filter(s => !allocIds.has(s.id));
+  const selectCls  = 'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
+
+  return (
+    <div className="space-y-5 max-w-3xl">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <p className="text-sm text-slate-500">
+          Map which subjects each class must offer, then see gaps against the live timetable.
+        </p>
+        <Button variant="secondary" loading={seeding} onClick={seed}>↺ Auto-seed from timetable</Button>
+      </div>
+
+      {seedMsg && (
+        <div className="flex items-center justify-between rounded-lg bg-green-50 border border-green-200 px-4 py-2.5 text-sm text-green-800">
+          <span>{seedMsg}</span>
+          <button onClick={() => setSeedMsg(null)} className="text-green-600 font-bold ml-4">✕</button>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Class</label>
+        <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className={selectCls}>
+          {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+        </select>
+        <span className="text-xs text-slate-400">{allocations.length} subject{allocations.length !== 1 ? 's' : ''} allocated</span>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center h-24 items-center">
+          <div className="w-6 h-6 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+        </div>
+      ) : (
+        <>
+          <div className="bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>
+                  {['Subject', 'Periods/Week', 'Scheduled', 'Status', ''].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {allocations.map(a => {
+                  const cov = covMap.get(a.subject_name.toLowerCase());
+                  const st  = cov ? STATUS_CFG[cov.status] : null;
+                  return (
+                    <tr key={a.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-semibold text-slate-800">
+                        {a.subject_name}
+                        {a.subject_code && <span className="ml-1.5 text-xs text-slate-400">({a.subject_code})</span>}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{a.periods_per_week}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {cov ? (
+                          <span>
+                            {cov.periods_scheduled} slot{cov.periods_scheduled !== 1 ? 's' : ''}
+                            {cov.periods_without_teacher > 0 && (
+                              <span className="ml-1 text-xs text-amber-600">({cov.periods_without_teacher} no teacher)</span>
+                            )}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {st ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                            style={{ backgroundColor: st.bg, color: st.color }}>
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: st.dot }} />
+                            {st.label}
+                          </span>
+                        ) : <span className="text-xs text-slate-400">No timetable data</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Button variant="danger" size="sm" onClick={() => remove(a.id)}>Remove</Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {allocations.length === 0 && (
+                  <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">
+                    No subjects allocated to {selectedClass || 'this class'} yet.{' '}
+                    <button className="underline text-green-600 font-medium" onClick={seed}>Auto-seed from timetable</button>
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {unalloc.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <select value={addSubjectId} onChange={e => setAddSubjectId(e.target.value)} className={selectCls}>
+                <option value="">— Add subject —</option>
+                {unalloc.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <input type="number" min="1" max="20" value={addPeriods}
+                onChange={e => setAddPeriods(e.target.value)}
+                className="w-20 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+                title="Expected periods per week" />
+              <span className="text-xs text-slate-400">periods/week</span>
+              <Button onClick={addAllocation} loading={adding} disabled={!addSubjectId}>+ Add</Button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── Page ── */
 export default function CurriculumPage() {
   const searchParams = useSearchParams();
@@ -769,6 +974,7 @@ export default function CurriculumPage() {
     rawTab === 'programs' ? 'programs' :
     rawTab === 'houses' ? 'houses' :
     rawTab === 'assessment-modes' ? 'assessment-modes' :
+    rawTab === 'allocations' ? 'allocations' :
     'subjects'
   );
   const [tab,          setTab]          = useState<Tab>(initialTab);
@@ -777,6 +983,7 @@ export default function CurriculumPage() {
   const [programCount, setProgramCount] = useState(0);
   const [houseCount,   setHouseCount]   = useState(0);
   const [modeCount,    setModeCount]    = useState(0);
+  const [gapCount,     setGapCount]     = useState(0);
 
   useEffect(() => {
     Promise.allSettled([
@@ -803,13 +1010,14 @@ export default function CurriculumPage() {
 
       <TabBar active={tab} onSelect={setTab}
         subjectCount={subjectCount} classCount={classCount}
-        programCount={programCount} houseCount={houseCount} modeCount={modeCount} />
+        programCount={programCount} houseCount={houseCount} modeCount={modeCount} gapCount={gapCount} />
 
       {tab === 'subjects'          && <SubjectsTab         />}
       {tab === 'classes'           && <ClassesTab          />}
       {tab === 'programs'          && <ProgramsTab         />}
       {tab === 'houses'            && <HousesTab           />}
       {tab === 'assessment-modes'  && <AssessmentModesTab  />}
+      {tab === 'allocations'       && <AllocationsTab onGapChange={setGapCount} />}
     </div>
   );
 }

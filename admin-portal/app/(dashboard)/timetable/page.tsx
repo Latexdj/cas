@@ -8,7 +8,112 @@ import type { TimetableEntry, Teacher, Subject, ClassItem } from '@/types/api';
 const DAYS = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const EMPTY_FORM = { teacher_id: '', day_of_week: '1', start_time: '08:00', end_time: '09:00', subject: '' };
 
-interface UploadResult { inserted: number; errors: { row: number; message: string }[] }
+interface UploadResult {
+  inserted: number;
+  errors: { row: number; message: string }[];
+  coverage?: { unscheduled: number; unteachered: number; total: number } | null;
+}
+interface CoverageSummary { unscheduled: number; unteachered: number; total: number }
+interface CoverageRow {
+  class_subject_id: string; class_name: string; subject: string;
+  expected_periods: number; periods_scheduled: number;
+  periods_with_teacher: number; periods_without_teacher: number;
+  status: 'covered' | 'unteachered' | 'unscheduled';
+}
+const COV_CFG = {
+  covered:     { label: 'OK',         color: '#15803D', bg: '#F0FDF4' },
+  unteachered: { label: 'No Teacher', color: '#B45309', bg: '#FFFBEB' },
+  unscheduled: { label: 'Missing',    color: '#DC2626', bg: '#FEF2F2' },
+};
+
+function CoverageModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [rows,    setRows]    = useState<CoverageRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [filter,  setFilter]  = useState<'all' | 'issues'>('issues');
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    api.get<CoverageRow[]>('/api/timetable/coverage')
+      .then(r => setRows(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [open]);
+
+  const displayed = filter === 'all' ? rows : rows.filter(r => r.status !== 'covered');
+
+  return (
+    <Modal open={open} onClose={onClose} title="Timetable Coverage Report" maxWidth="max-w-3xl">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex gap-1 p-0.5 rounded-lg bg-slate-100">
+            {(['issues', 'all'] as const).map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className="px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
+                style={{ backgroundColor: filter === f ? '#FFFFFF' : 'transparent', color: filter === f ? '#0F172A' : '#64748B', boxShadow: filter === f ? '0 1px 3px rgba(15,23,42,0.08)' : 'none' }}>
+                {f === 'issues' ? 'Issues only' : 'All subjects'}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400">{displayed.length} row{displayed.length !== 1 ? 's' : ''}</p>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center h-32 items-center">
+            <div className="w-6 h-6 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-slate-100 max-h-[60vh] overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-100 sticky top-0">
+                <tr>
+                  {['Class', 'Subject', 'Expected/wk', 'Scheduled', 'Has Teacher', 'Missing Teacher', 'Status'].map(h => (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {displayed.map((r, i) => {
+                  const cfg = COV_CFG[r.status];
+                  return (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="px-3 py-2.5 font-semibold text-slate-800">{r.class_name}</td>
+                      <td className="px-3 py-2.5 text-slate-700">{r.subject}</td>
+                      <td className="px-3 py-2.5 text-slate-500 text-center">{r.expected_periods}</td>
+                      <td className="px-3 py-2.5 text-slate-500 text-center">{r.periods_scheduled}</td>
+                      <td className="px-3 py-2.5 text-center">
+                        <span className="text-green-700 font-medium">{r.periods_with_teacher}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        {r.periods_without_teacher > 0
+                          ? <span className="text-amber-700 font-medium">{r.periods_without_teacher}</span>
+                          : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
+                          style={{ backgroundColor: cfg.bg, color: cfg.color }}>
+                          {cfg.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {displayed.length === 0 && (
+                  <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
+                    {filter === 'issues' ? 'No issues found — all subjects are fully covered.' : 'No allocations defined yet.'}
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="flex justify-end pt-1">
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 
 export default function TimetablePage() {
   const [entries,   setEntries]   = useState<TimetableEntry[]>([]);
@@ -16,7 +121,8 @@ export default function TimetablePage() {
   const [subjects,  setSubjects]  = useState<Subject[]>([]);
   const [classes,   setClasses]   = useState<ClassItem[]>([]);
   const [loading,   setLoading]   = useState(true);
-  const [modal,     setModal]     = useState<'create' | 'edit' | 'upload' | null>(null);
+  const [modal,     setModal]     = useState<'create' | 'edit' | 'upload' | 'coverage' | null>(null);
+  const [coverage,  setCoverage]  = useState<CoverageSummary | null>(null);
   const [form,      setForm]      = useState(EMPTY_FORM);
   const [selCls,    setSelCls]    = useState<Set<string>>(new Set());
   const [editId,    setEditId]    = useState<string | null>(null);
@@ -36,13 +142,15 @@ export default function TimetablePage() {
 
   const load = useCallback(async () => {
     try {
-      const [e, t, s, c] = await Promise.all([
+      const [e, t, s, c, cov] = await Promise.all([
         api.get<TimetableEntry[]>('/api/timetable'),
         api.get<Teacher[]>('/api/teachers'),
         api.get<Subject[]>('/api/subjects'),
         api.get<ClassItem[]>('/api/classes'),
+        api.get<CoverageSummary>('/api/timetable/coverage/summary').catch(() => null),
       ]);
       setEntries(e.data); setTeachers(t.data); setSubjects(s.data); setClasses(c.data);
+      if (cov) setCoverage(cov.data);
     } finally { setLoading(false); }
   }, []);
 
@@ -135,6 +243,39 @@ export default function TimetablePage() {
 
   return (
     <div className="space-y-4">
+      {/* Coverage alert banner */}
+      {coverage && (coverage.unscheduled > 0 || coverage.unteachered > 0) && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 shrink-0">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <div className="text-sm">
+              <span className="font-semibold text-amber-800">Timetable gaps detected: </span>
+              {coverage.unscheduled > 0 && (
+                <span className="text-red-700 font-medium">{coverage.unscheduled} subject{coverage.unscheduled !== 1 ? 's' : ''} not scheduled</span>
+              )}
+              {coverage.unscheduled > 0 && coverage.unteachered > 0 && <span className="text-amber-600 mx-1">·</span>}
+              {coverage.unteachered > 0 && (
+                <span className="text-amber-700 font-medium">{coverage.unteachered} slot{coverage.unteachered !== 1 ? 's' : ''} missing a teacher</span>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={() => setModal('coverage')}
+            className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-700 text-white text-xs font-semibold hover:bg-amber-800 transition-colors">
+            View Report
+          </button>
+        </div>
+      )}
+      {coverage && coverage.total > 0 && coverage.unscheduled === 0 && coverage.unteachered === 0 && (
+        <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 text-sm text-green-800">
+          <span className="text-green-600 font-bold text-base">✓</span>
+          <span className="font-medium">All {coverage.total} allocated subjects have timetable slots and teachers assigned.</span>
+        </div>
+      )}
+
       <div className="flex items-center gap-3 flex-wrap">
         <select value={filterDay} onChange={e => setFilterDay(e.target.value)} className={selectCls}>
           <option value="0">All Days</option>
@@ -247,6 +388,14 @@ export default function TimetablePage() {
                 <span className="font-semibold">{uploadResult.inserted}</span> row{uploadResult.inserted !== 1 ? 's' : ''} imported successfully
                 {replaceAll && <span className="ml-2 text-green-600">(previous timetable replaced)</span>}
               </div>
+              {uploadResult.coverage && (uploadResult.coverage.unscheduled > 0 || uploadResult.coverage.unteachered > 0) && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+                  <p className="font-semibold">Coverage gaps detected:</p>
+                  {uploadResult.coverage.unscheduled > 0 && <p className="text-xs mt-0.5 text-red-700">• {uploadResult.coverage.unscheduled} subject{uploadResult.coverage.unscheduled !== 1 ? 's' : ''} not scheduled in any class</p>}
+                  {uploadResult.coverage.unteachered > 0 && <p className="text-xs mt-0.5 text-amber-700">• {uploadResult.coverage.unteachered} timetable slot{uploadResult.coverage.unteachered !== 1 ? 's' : ''} have no teacher</p>}
+                  <p className="text-xs mt-1 text-amber-600">See the Coverage Report on the timetable page for details.</p>
+                </div>
+              )}
               {uploadResult.errors.length > 0 && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 space-y-1 max-h-48 overflow-y-auto">
                   <p className="font-semibold">{uploadResult.errors.length} row{uploadResult.errors.length !== 1 ? 's' : ''} skipped:</p>
@@ -337,6 +486,9 @@ export default function TimetablePage() {
           </div>
         </div>
       </Modal>
+
+      {/* Coverage report modal */}
+      <CoverageModal open={modal === 'coverage'} onClose={() => setModal(null)} />
     </div>
   );
 }
