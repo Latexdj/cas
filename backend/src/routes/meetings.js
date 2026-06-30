@@ -525,35 +525,46 @@ router.post('/attendance/manual-bulk', adminOnly, async (req, res, next) => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      for (const teacherId of teacherIds) {
-        const { rows: tRows } = await client.query(
-          'SELECT id FROM teachers WHERE id = $1 AND school_id = $2 AND status = $3',
-          [teacherId, req.schoolId, 'Active']
-        );
-        if (!tRows.length) { skipped++; continue; }
 
-        const { rows: existing } = await client.query(
-          'SELECT id FROM meeting_attendance WHERE meeting_id = $1 AND teacher_id = $2 AND date = $3',
-          [meetingId, teacherId, date]
-        );
-        if (existing.length) { skipped++; continue; }
+      // Active teachers among the requested IDs that belong to this school
+      const { rows: activeTeachers } = await client.query(
+        `SELECT id FROM teachers WHERE id = ANY($1::uuid[]) AND school_id = $2 AND status = 'Active'`,
+        [teacherIds, req.schoolId]
+      );
+      const activeIds = activeTeachers.map(t => t.id);
 
+      // Of those, exclude any already recorded for this meeting+date
+      const { rows: existingRows } = activeIds.length
+        ? await client.query(
+            `SELECT teacher_id FROM meeting_attendance
+             WHERE meeting_id = $1 AND date = $2 AND teacher_id = ANY($3::uuid[])`,
+            [meetingId, date, activeIds]
+          )
+        : { rows: [] };
+      const existingIds = new Set(existingRows.map(r => r.teacher_id));
+      const toInsert = activeIds.filter(id => !existingIds.has(id));
+
+      if (toInsert.length) {
         await client.query(
           `INSERT INTO meeting_attendance
              (school_id, meeting_id, teacher_id, date, academic_year_id, semester,
               notes, location_name, location_verified)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false)`,
-          [req.schoolId, meetingId, teacherId, date, yearId, sem,
-           resolvedNotes, meeting.location_name || null]
+           SELECT $1, $2, t.id, $3, $4, $5, $6, $7, false
+           FROM UNNEST($8::uuid[]) AS t(id)`,
+          [req.schoolId, meetingId, date, yearId, sem,
+           resolvedNotes, meeting.location_name || null, toInsert]
         );
 
         await client.query(
-          'DELETE FROM meeting_absences WHERE meeting_id = $1 AND teacher_id = $2 AND date = $3',
-          [meetingId, teacherId, date]
+          `DELETE FROM meeting_absences
+           WHERE meeting_id = $1 AND date = $2 AND teacher_id = ANY($3::uuid[])`,
+          [meetingId, date, toInsert]
         );
-
-        inserted++;
       }
+
+      inserted = toInsert.length;
+      skipped  = teacherIds.length - inserted;
+
       await client.query('COMMIT');
     } catch (e) { await client.query('ROLLBACK'); throw e; }
     finally { client.release(); }
