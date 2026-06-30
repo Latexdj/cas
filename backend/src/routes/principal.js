@@ -912,14 +912,14 @@ const STUDENT_REPORTS = {
   age_distribution: {
     label: 'Age Distribution', columns: ['Age Group','Male','Female','Total'], keys: ['group','male','female','total'],
     sql: sc => `WITH aged AS (
-      SELECT gender,
+      SELECT s.gender,
         CASE
-          WHEN date_of_birth IS NULL                       THEN 'Not Recorded'
-          WHEN DATE_PART('year',AGE(date_of_birth)) < 14  THEN 'Under 14'
-          WHEN DATE_PART('year',AGE(date_of_birth)) > 20  THEN '21 and above'
-          ELSE DATE_PART('year',AGE(date_of_birth))::int::text
+          WHEN s.date_of_birth IS NULL                       THEN 'Not Recorded'
+          WHEN DATE_PART('year',AGE(s.date_of_birth)) < 14  THEN 'Under 14'
+          WHEN DATE_PART('year',AGE(s.date_of_birth)) > 20  THEN '21 and above'
+          ELSE DATE_PART('year',AGE(s.date_of_birth))::int::text
         END AS "group"
-      FROM students WHERE school_id=$1 ${sc}
+      FROM students s WHERE s.school_id=$1 ${sc}
     )
     SELECT "group",
       COUNT(*) FILTER (WHERE gender='Male') AS male,
@@ -935,17 +935,17 @@ const STUDENT_REPORTS = {
   aggregate_distribution: {
     label: 'Aggregate Range Distribution', columns: ['Aggregate Range','Male','Female','Total'], keys: ['group','male','female','total'],
     sql: sc => `WITH agg AS (
-      SELECT gender,
+      SELECT s.gender,
         CASE
-          WHEN aggregate IS NULL               THEN 'Not Recorded'
-          WHEN aggregate BETWEEN 6  AND 12     THEN '6 – 12'
-          WHEN aggregate BETWEEN 13 AND 18     THEN '13 – 18'
-          WHEN aggregate BETWEEN 19 AND 24     THEN '19 – 24'
-          WHEN aggregate BETWEEN 25 AND 30     THEN '25 – 30'
-          WHEN aggregate BETWEEN 31 AND 36     THEN '31 – 36'
+          WHEN s.aggregate IS NULL               THEN 'Not Recorded'
+          WHEN s.aggregate BETWEEN 6  AND 12     THEN '6 – 12'
+          WHEN s.aggregate BETWEEN 13 AND 18     THEN '13 – 18'
+          WHEN s.aggregate BETWEEN 19 AND 24     THEN '19 – 24'
+          WHEN s.aggregate BETWEEN 25 AND 30     THEN '25 – 30'
+          WHEN s.aggregate BETWEEN 31 AND 36     THEN '31 – 36'
           ELSE '37 and above'
         END AS "group"
-      FROM students WHERE school_id=$1 ${sc}
+      FROM students s WHERE s.school_id=$1 ${sc}
     )
     SELECT "group",
       COUNT(*) FILTER (WHERE gender='Male') AS male,
