@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
 
+interface AcademicYear { id: string; name: string; is_current: boolean }
 interface ExamRow {
   student_id: string;
   student_code: string;
@@ -23,23 +24,32 @@ function ExamContent() {
   const year_name  = sp.get('year_name')  ?? '';
 
   const [primary, setPrimary] = useState('#2ab289');
-  const [rows, setRows] = useState<ExamRow[]>([]);
-  const [scores, setScores] = useState<Record<string, string>>({});
+
+  // Year / semester selectors — seeded from URL params, changeable on-page
+  const [years,          setYears]          = useState<AcademicYear[]>([]);
+  const [selectedYearId, setSelectedYearId] = useState(year_id);
+  const [selectedSem,    setSelectedSem]    = useState(semester);
+
+  const [rows,     setRows]    = useState<ExamRow[]>([]);
+  const [scores,   setScores]  = useState<Record<string, string>>({});
   const [maxScore, setMaxScore] = useState('100');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState('');
+  const [loading,  setLoading] = useState(true);
+  const [saving,   setSaving]  = useState(false);
+  const [saved,    setSaved]   = useState(false);
+  const [error,    setError]   = useState('');
 
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
+  const selectedYearName = years.find(y => y.id === selectedYearId)?.name ?? year_name;
+
   const load = useCallback(async () => {
-    if (!year_id || !semester || !subject || !class_name) return;
+    if (!selectedYearId || !selectedSem || !subject || !class_name) return;
     setLoading(true);
     setError('');
+    setSaved(false);
     try {
       const { data } = await teacherApi.get<ExamRow[]>('/api/exam-scores', {
-        params: { academic_year_id: year_id, semester, subject, class_name },
+        params: { academic_year_id: selectedYearId, semester: selectedSem, subject, class_name },
       });
       setRows(data ?? []);
       const s: Record<string, string> = {};
@@ -52,11 +62,17 @@ function ExamContent() {
     } finally {
       setLoading(false);
     }
-  }, [year_id, semester, subject, class_name]);
+  }, [selectedYearId, selectedSem, subject, class_name]);
 
   useEffect(() => {
     const colors = getTeacherColors();
     setPrimary(colors.primary);
+
+    // Fetch all academic years for the dropdowns
+    teacherApi.get<AcademicYear[]>('/api/academic-years')
+      .then(r => setYears(r.data ?? []))
+      .catch(() => {});
+
     load();
   }, [load]);
 
@@ -68,8 +84,8 @@ function ExamContent() {
         score: scores[r.student_id] !== '' ? parseFloat(scores[r.student_id]) : null,
       }));
       await teacherApi.post('/api/exam-scores', {
-        academic_year_id: year_id,
-        semester:         parseInt(semester),
+        academic_year_id: selectedYearId,
+        semester:         parseInt(selectedSem),
         subject,
         class_name,
         max_score:        parseFloat(maxScore) || 100,
@@ -98,7 +114,45 @@ function ExamContent() {
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="text-base font-bold text-[#2C2218]">End-of-Semester Exam</h1>
-            <p className="text-xs text-[#8C7E6E] truncate">{subject} · {class_name} · {year_name} · Semester {semester}</p>
+            <p className="text-xs text-[#8C7E6E] truncate">{subject} · {class_name}</p>
+          </div>
+        </div>
+
+        {/* Year + Semester selectors */}
+        <div className="bg-white rounded-2xl border border-[#E2D9CC] px-4 py-3 flex gap-3 mb-2">
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Academic Year</p>
+            <div className="relative">
+              <select
+                value={selectedYearId}
+                onChange={e => setSelectedYearId(e.target.value)}
+                className="w-full appearance-none border border-[#E2D9CC] rounded-xl px-3 py-2 pr-7 text-sm font-semibold text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]"
+              >
+                {years.length === 0
+                  ? <option value={year_id}>{year_name}</option>
+                  : years.map(y => <option key={y.id} value={y.id}>{y.name}</option>)
+                }
+              </select>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3 h-3 text-[#8C7E6E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </div>
+          </div>
+          <div className="w-32 shrink-0">
+            <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Semester</p>
+            <div className="relative">
+              <select
+                value={selectedSem}
+                onChange={e => setSelectedSem(e.target.value)}
+                className="w-full appearance-none border border-[#E2D9CC] rounded-xl px-3 py-2 pr-7 text-sm font-semibold text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]"
+              >
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+              </select>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3 h-3 text-[#8C7E6E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </div>
           </div>
         </div>
 
@@ -118,7 +172,9 @@ function ExamContent() {
           <p className="text-xs text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-2">{error}</p>
         )}
         {saved && (
-          <p className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2 mb-2">✓ Exam scores saved.</p>
+          <p className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2 mb-2">
+            ✓ Exam scores saved for {selectedYearName} · Semester {selectedSem}.
+          </p>
         )}
       </div>
 
@@ -161,8 +217,7 @@ function ExamContent() {
         )}
       </div>
 
-      {/* Footer */}
-      {/* Save button — inline, after the student list */}
+      {/* Save button */}
       {!loading && rows.length > 0 && (
         <div className="px-4 pt-4 pb-6 flex flex-col items-center gap-2">
           <button
