@@ -902,6 +902,54 @@ const STUDENT_REPORTS = {
       COUNT(*) FILTER (WHERE s.gender='Female') AS female, COUNT(*) AS total
       FROM students s WHERE s.school_id=$1 ${sc} GROUP BY s.religion ORDER BY total DESC`,
   },
+  age_distribution: {
+    label: 'Age Distribution', columns: ['Age Group','Male','Female','Total'], keys: ['group','male','female','total'],
+    sql: sc => `WITH aged AS (
+      SELECT gender,
+        CASE
+          WHEN date_of_birth IS NULL                       THEN 'Not Recorded'
+          WHEN DATE_PART('year',AGE(date_of_birth)) < 14  THEN 'Under 14'
+          WHEN DATE_PART('year',AGE(date_of_birth)) > 20  THEN '21 and above'
+          ELSE DATE_PART('year',AGE(date_of_birth))::int::text
+        END AS "group"
+      FROM students WHERE school_id=$1 ${sc}
+    )
+    SELECT "group",
+      COUNT(*) FILTER (WHERE gender='Male') AS male,
+      COUNT(*) FILTER (WHERE gender='Female') AS female,
+      COUNT(*) AS total
+    FROM aged GROUP BY "group"
+    ORDER BY CASE "group"
+      WHEN 'Under 14' THEN 0 WHEN '14' THEN 14 WHEN '15' THEN 15 WHEN '16' THEN 16
+      WHEN '17' THEN 17 WHEN '18' THEN 18 WHEN '19' THEN 19 WHEN '20' THEN 20
+      WHEN '21 and above' THEN 98 ELSE 99
+    END`,
+  },
+  aggregate_distribution: {
+    label: 'Aggregate Range Distribution', columns: ['Aggregate Range','Male','Female','Total'], keys: ['group','male','female','total'],
+    sql: sc => `WITH agg AS (
+      SELECT gender,
+        CASE
+          WHEN aggregate IS NULL               THEN 'Not Recorded'
+          WHEN aggregate BETWEEN 6  AND 12     THEN '6 – 12'
+          WHEN aggregate BETWEEN 13 AND 18     THEN '13 – 18'
+          WHEN aggregate BETWEEN 19 AND 24     THEN '19 – 24'
+          WHEN aggregate BETWEEN 25 AND 30     THEN '25 – 30'
+          WHEN aggregate BETWEEN 31 AND 36     THEN '31 – 36'
+          ELSE '37 and above'
+        END AS "group"
+      FROM students WHERE school_id=$1 ${sc}
+    )
+    SELECT "group",
+      COUNT(*) FILTER (WHERE gender='Male') AS male,
+      COUNT(*) FILTER (WHERE gender='Female') AS female,
+      COUNT(*) AS total
+    FROM agg GROUP BY "group"
+    ORDER BY CASE "group"
+      WHEN '6 – 12' THEN 1 WHEN '13 – 18' THEN 2 WHEN '19 – 24' THEN 3
+      WHEN '25 – 30' THEN 4 WHEN '31 – 36' THEN 5 WHEN '37 and above' THEN 6 ELSE 99
+    END`,
+  },
 };
 const TEACHER_REPORTS = {
   gender_summary: {

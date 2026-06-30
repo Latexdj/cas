@@ -6,11 +6,13 @@ import { principalApi } from '@/lib/principal-api';
 type Scope = 'students' | 'teachers';
 
 const STUDENT_TYPES = [
-  { value: 'program_distribution',  label: 'Program Distribution' },
-  { value: 'program_residential',   label: 'Program × Residential Status' },
-  { value: 'class_distribution',    label: 'Class Distribution' },
-  { value: 'house_distribution',    label: 'House Distribution' },
-  { value: 'religion_distribution', label: 'Religion Distribution' },
+  { value: 'program_distribution',   label: 'Program Distribution' },
+  { value: 'program_residential',    label: 'Program × Residential Status' },
+  { value: 'class_distribution',     label: 'Class Distribution' },
+  { value: 'house_distribution',     label: 'House Distribution' },
+  { value: 'religion_distribution',  label: 'Religion Distribution' },
+  { value: 'age_distribution',       label: 'Age Distribution' },
+  { value: 'aggregate_distribution', label: 'Aggregate Range Distribution' },
 ];
 const TEACHER_TYPES = [
   { value: 'gender_summary',            label: 'Gender Summary' },
