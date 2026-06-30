@@ -881,6 +881,96 @@ function ManualAttendanceModal({
   );
 }
 
+// ─── GenerateAbsencesModal ────────────────────────────────────────────────────
+
+function GenerateAbsencesModal({
+  meeting,
+  onDone,
+  onClose,
+}: {
+  meeting: Meeting;
+  onDone: () => void;
+  onClose: () => void;
+}) {
+  const [date,    setDate]    = useState(meeting.date?.slice(0, 10) ?? '');
+  const [saving,  setSaving]  = useState(false);
+  const [error,   setError]   = useState('');
+  const [result,  setResult]  = useState<{ inserted: number; skipped: number } | null>(null);
+
+  const INPUT = 'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500';
+
+  async function generate() {
+    if (!date) { setError('Date is required.'); return; }
+    setSaving(true); setError('');
+    try {
+      const { data } = await api.post<{ inserted: number; skipped: number }>(
+        `/api/meetings/${meeting.id}/generate-absences`, { date }
+      );
+      setResult(data);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Failed to generate absences.');
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-slate-100">
+          <h3 className="text-base font-bold text-slate-800">Generate Absence Records</h3>
+          <p className="text-xs text-slate-500 mt-0.5 truncate">{meeting.title}</p>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {result ? (
+            <div className="text-center space-y-4 py-4">
+              <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto bg-red-50">
+                <svg className="w-7 h-7 text-red-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636l-12.728 12.728M5.636 5.636l12.728 12.728" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-slate-800">{result.inserted} absence{result.inserted !== 1 ? 's' : ''} recorded</p>
+                {result.skipped > 0 && (
+                  <p className="text-sm text-slate-500 mt-1">{result.skipped} skipped (already attended or excused)</p>
+                )}
+              </div>
+              <button onClick={() => { onDone(); onClose(); }}
+                className="px-8 py-2.5 rounded-xl text-sm font-semibold text-white"
+                style={{ backgroundColor: GREEN }}>Done</button>
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Date *</label>
+                <input type="date" className={INPUT} value={date} onChange={e => setDate(e.target.value)} />
+              </div>
+
+              <div className="rounded-xl px-3 py-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200">
+                This will mark <strong>all active teachers without an attendance record</strong> for this meeting on the selected date as <strong>Absent</strong>. Teachers with approved excuses are skipped. Already-absent teachers are not duplicated.
+              </div>
+
+              {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+
+              <div className="flex gap-3 pt-1">
+                <button onClick={onClose}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                  Cancel
+                </button>
+                <button onClick={generate} disabled={!date || saving}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                  style={{ backgroundColor: '#DC2626' }}>
+                  {saving ? 'Generating…' : 'Generate Absences'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── BulkAttendanceModal ──────────────────────────────────────────────────────
 
 interface BulkResult { inserted: number; skipped: number }
@@ -1161,6 +1251,7 @@ export default function MeetingsPage() {
   const [minutesMeeting, setMinutesMeeting] = useState<Meeting | null>(null);
   const [manualModal,    setManualModal]    = useState(false);
   const [bulkModal,      setBulkModal]      = useState(false);
+  const [absencesMeeting, setAbsencesMeeting] = useState<Meeting | null>(null);
 
   // ── Loaders ────────────────────────────────────────────────────
 
@@ -1422,6 +1513,12 @@ export default function MeetingsPage() {
                                 QR
                               </button>
                               <button
+                                onClick={() => setAbsencesMeeting(m)}
+                                className="text-xs font-semibold text-amber-600 hover:text-amber-800"
+                              >
+                                Absences
+                              </button>
+                              <button
                                 onClick={() => deleteMeeting(m.id)}
                                 className="text-xs font-semibold text-red-500 hover:text-red-700"
                               >
@@ -1594,6 +1691,14 @@ export default function MeetingsPage() {
           meetings={meetings}
           onClose={() => setBulkModal(false)}
           onSaved={async () => { setLoading(true); await loadAttendance(); setLoading(false); }}
+        />
+      )}
+
+      {absencesMeeting && (
+        <GenerateAbsencesModal
+          meeting={absencesMeeting}
+          onClose={() => setAbsencesMeeting(null)}
+          onDone={async () => { setLoading(true); await loadAbsences(); setLoading(false); }}
         />
       )}
     </div>
