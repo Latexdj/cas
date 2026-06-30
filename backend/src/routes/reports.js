@@ -84,6 +84,20 @@ const STUDENT_REPORTS = {
       GROUP BY s.religion ORDER BY total DESC`,
   },
 
+  denomination_distribution: {
+    label:   'Religious Denomination Distribution',
+    columns: ['Denomination', 'Male', 'Female', 'Total'],
+    keys:    ['group', 'male', 'female', 'total'],
+    sql: sc => `
+      SELECT COALESCE(s.religious_denomination, 'Not Specified') AS "group",
+             COUNT(*) FILTER (WHERE s.gender = 'Male')   AS male,
+             COUNT(*) FILTER (WHERE s.gender = 'Female') AS female,
+             COUNT(*)                                     AS total
+      FROM students s
+      WHERE s.school_id = $1 ${sc}
+      GROUP BY s.religious_denomination ORDER BY total DESC`,
+  },
+
   age_distribution: {
     label:   'Age Distribution',
     columns: ['Age Group', 'Male', 'Female', 'Total'],
