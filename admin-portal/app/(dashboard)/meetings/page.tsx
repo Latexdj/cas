@@ -1048,16 +1048,12 @@ function BulkAttendanceModal({
     } finally { setSaving(false); }
   }
 
-  const filtered = teachers.filter(t =>
-    t.name.toLowerCase().includes(search.toLowerCase()) ||
-    (t.department ?? '').toLowerCase().includes(search.toLowerCase())
-  );
-  const grouped = filtered.reduce<Record<string, Teacher[]>>((acc, t) => {
-    const dept = t.department ?? 'No Department';
-    (acc[dept] ??= []).push(t);
-    return acc;
-  }, {});
-  const depts         = Object.keys(grouped).sort();
+  const filtered = teachers
+    .filter(t =>
+      t.name.toLowerCase().includes(search.toLowerCase()) ||
+      (t.department ?? '').toLowerCase().includes(search.toLowerCase())
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
   const eligibleCount = [...checked].filter(id => !alreadyIn.has(id)).length;
   const selMeeting    = meetings.find(m => m.id === meetingId);
   const INPUT         = 'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500';
@@ -1145,36 +1141,29 @@ function BulkAttendanceModal({
               </div>
 
               <div className="border border-slate-100 rounded-xl overflow-y-auto max-h-60">
-                {depts.map(dept => (
-                  <div key={dept}>
-                    <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-400 sticky top-0">
-                      {dept}
-                    </div>
-                    {grouped[dept].map(t => {
-                      const isAlready = alreadyIn.has(t.id);
-                      const isChecked = checked.has(t.id);
-                      return (
-                        <label key={t.id}
-                          className={`flex items-center gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0 transition-colors ${isAlready ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50'}`}>
-                          <input type="checkbox" disabled={isAlready} checked={isChecked}
-                            onChange={() => {
-                              if (isAlready) return;
-                              setChecked(prev => {
-                                const next = new Set(prev);
-                                if (next.has(t.id)) next.delete(t.id); else next.add(t.id);
-                                return next;
-                              });
-                            }}
-                            className="rounded border-slate-300 text-green-600 focus:ring-green-500"
-                          />
-                          <span className="text-sm text-slate-700 flex-1">{t.name}</span>
-                          {isAlready && <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Already recorded</span>}
-                        </label>
-                      );
-                    })}
-                  </div>
-                ))}
-                {depts.length === 0 && (
+                {filtered.map(t => {
+                  const isAlready = alreadyIn.has(t.id);
+                  const isChecked = checked.has(t.id);
+                  return (
+                    <label key={t.id}
+                      className={`flex items-center gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0 transition-colors ${isAlready ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50'}`}>
+                      <input type="checkbox" disabled={isAlready} checked={isChecked}
+                        onChange={() => {
+                          if (isAlready) return;
+                          setChecked(prev => {
+                            const next = new Set(prev);
+                            if (next.has(t.id)) next.delete(t.id); else next.add(t.id);
+                            return next;
+                          });
+                        }}
+                        className="rounded border-slate-300 text-green-600 focus:ring-green-500"
+                      />
+                      <span className="text-sm text-slate-700 flex-1">{t.name}</span>
+                      {isAlready && <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Already recorded</span>}
+                    </label>
+                  );
+                })}
+                {filtered.length === 0 && (
                   <div className="py-8 text-center text-xs text-slate-400">No teachers match your search.</div>
                 )}
               </div>
