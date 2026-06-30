@@ -881,6 +881,259 @@ function ManualAttendanceModal({
   );
 }
 
+// ─── BulkAttendanceModal ──────────────────────────────────────────────────────
+
+interface BulkResult { inserted: number; skipped: number }
+
+function BulkAttendanceModal({
+  meetings,
+  onSaved,
+  onClose,
+}: {
+  meetings: Meeting[];
+  onSaved: () => void;
+  onClose: () => void;
+}) {
+  const [step,         setStep]         = useState<1 | 2>(1);
+  const [meetingId,    setMeetingId]    = useState('');
+  const [date,         setDate]         = useState('');
+  const [teachers,     setTeachers]     = useState<Teacher[]>([]);
+  const [alreadyIn,    setAlreadyIn]    = useState<Set<string>>(new Set());
+  const [checked,      setChecked]      = useState<Set<string>>(new Set());
+  const [search,       setSearch]       = useState('');
+  const [notes,        setNotes]        = useState('');
+  const [loadingStep2, setLoadingStep2] = useState(false);
+  const [saving,       setSaving]       = useState(false);
+  const [error,        setError]        = useState('');
+  const [result,       setResult]       = useState<BulkResult | null>(null);
+
+  useEffect(() => {
+    api.get<Teacher[]>('/api/teachers').then(r => setTeachers(r.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (meetingId) {
+      const m = meetings.find(x => x.id === meetingId);
+      if (m?.date) setDate(m.date.slice(0, 10));
+    }
+  }, [meetingId, meetings]);
+
+  async function goToStep2() {
+    if (!meetingId || !date) { setError('Please select a meeting and confirm the date.'); return; }
+    setError('');
+    setLoadingStep2(true);
+    try {
+      const { data } = await api.get<string[]>(`/api/meetings/${meetingId}/attendees`, { params: { date } });
+      const already = new Set(data);
+      setAlreadyIn(already);
+      setChecked(new Set(data));
+      setStep(2);
+    } catch { setError('Failed to load existing attendance. Please try again.'); }
+    finally   { setLoadingStep2(false); }
+  }
+
+  function toggleAll(visible: Teacher[]) {
+    const eligible = visible.filter(t => !alreadyIn.has(t.id)).map(t => t.id);
+    const allOn    = eligible.every(id => checked.has(id));
+    setChecked(prev => {
+      const next = new Set(prev);
+      if (allOn) eligible.forEach(id => next.delete(id));
+      else       eligible.forEach(id => next.add(id));
+      return next;
+    });
+  }
+
+  async function submit() {
+    const toSubmit = [...checked].filter(id => !alreadyIn.has(id));
+    if (toSubmit.length === 0) { setError('No new teachers selected.'); return; }
+    setSaving(true); setError('');
+    try {
+      const { data } = await api.post<BulkResult>('/api/meetings/attendance/manual-bulk', {
+        meetingId, date, teacherIds: toSubmit, notes: notes.trim() || undefined,
+      });
+      setResult(data);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Failed to save attendance.');
+    } finally { setSaving(false); }
+  }
+
+  const filtered = teachers.filter(t =>
+    t.name.toLowerCase().includes(search.toLowerCase()) ||
+    (t.department ?? '').toLowerCase().includes(search.toLowerCase())
+  );
+  const grouped = filtered.reduce<Record<string, Teacher[]>>((acc, t) => {
+    const dept = t.department ?? 'No Department';
+    (acc[dept] ??= []).push(t);
+    return acc;
+  }, {});
+  const depts         = Object.keys(grouped).sort();
+  const eligibleCount = [...checked].filter(id => !alreadyIn.has(id)).length;
+  const selMeeting    = meetings.find(m => m.id === meetingId);
+  const INPUT         = 'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 shrink-0">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-slate-800">Bulk Record Attendance</h3>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${step === 1 ? 'text-white' : 'bg-slate-100 text-slate-400'}`}
+                style={step === 1 ? { backgroundColor: GREEN } : {}}>1 Meeting</span>
+              <span className="text-slate-300">›</span>
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${step === 2 ? 'text-white' : 'bg-slate-100 text-slate-400'}`}
+                style={step === 2 ? { backgroundColor: GREEN } : {}}>2 Teachers</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          {result ? (
+            <div className="text-center space-y-4 py-6">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ backgroundColor: '#DCFCE7' }}>
+                <svg className="w-8 h-8" fill="none" stroke="#15803D" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-slate-800">{result.inserted} record{result.inserted !== 1 ? 's' : ''} saved</p>
+                {result.skipped > 0 && <p className="text-sm text-slate-500 mt-1">{result.skipped} skipped (already recorded or inactive)</p>}
+              </div>
+              <button onClick={() => { onSaved(); onClose(); }}
+                className="px-8 py-2.5 rounded-xl text-sm font-semibold text-white"
+                style={{ backgroundColor: GREEN }}>Done</button>
+            </div>
+
+          ) : step === 1 ? (
+            <>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Meeting *</label>
+                <select className={INPUT} value={meetingId} onChange={e => setMeetingId(e.target.value)}>
+                  <option value="">Select a meeting…</option>
+                  {meetings.map(m => (
+                    <option key={m.id} value={m.id}>{fmtDate(m.date)} — {m.title} ({m.meeting_type})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Date *</label>
+                <input type="date" className={INPUT} value={date} onChange={e => setDate(e.target.value)} />
+                <p className="text-xs text-slate-400 mt-1">Auto-filled from the meeting date; adjust if needed.</p>
+              </div>
+              <div className="rounded-xl px-3 py-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200">
+                Selected teachers will receive attendance records without GPS or photo proof, and any absence for this date will be cleared.
+              </div>
+              {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+            </>
+
+          ) : (
+            <>
+              <div className="bg-slate-50 rounded-xl px-3 py-2.5 text-xs text-slate-600">
+                <span className="font-semibold">{selMeeting?.title}</span> · {fmtDate(date)}
+              </div>
+
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  className="w-full border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Search teachers or departments…"
+                  value={search} onChange={e => setSearch(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500">{eligibleCount} teacher{eligibleCount !== 1 ? 's' : ''} selected</p>
+                <button onClick={() => toggleAll(filtered)} className="text-xs font-semibold text-green-700 hover:text-green-900">
+                  {filtered.filter(t => !alreadyIn.has(t.id)).every(t => checked.has(t.id)) ? 'Deselect All' : 'Select All'}
+                </button>
+              </div>
+
+              <div className="border border-slate-100 rounded-xl overflow-y-auto max-h-60">
+                {depts.map(dept => (
+                  <div key={dept}>
+                    <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 text-xs font-bold uppercase tracking-wide text-slate-400 sticky top-0">
+                      {dept}
+                    </div>
+                    {grouped[dept].map(t => {
+                      const isAlready = alreadyIn.has(t.id);
+                      const isChecked = checked.has(t.id);
+                      return (
+                        <label key={t.id}
+                          className={`flex items-center gap-3 px-4 py-2.5 border-b border-slate-50 last:border-0 transition-colors ${isAlready ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-50'}`}>
+                          <input type="checkbox" disabled={isAlready} checked={isChecked}
+                            onChange={() => {
+                              if (isAlready) return;
+                              setChecked(prev => {
+                                const next = new Set(prev);
+                                if (next.has(t.id)) next.delete(t.id); else next.add(t.id);
+                                return next;
+                              });
+                            }}
+                            className="rounded border-slate-300 text-green-600 focus:ring-green-500"
+                          />
+                          <span className="text-sm text-slate-700 flex-1">{t.name}</span>
+                          {isAlready && <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Already recorded</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                ))}
+                {depts.length === 0 && (
+                  <div className="py-8 text-center text-xs text-slate-400">No teachers match your search.</div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Notes <span className="font-normal text-slate-400">(optional)</span></label>
+                <input className={INPUT} value={notes} onChange={e => setNotes(e.target.value)}
+                  placeholder="e.g. Network was down, recorded the next day…" />
+              </div>
+
+              {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        {!result && (
+          <div className="px-6 py-4 border-t border-slate-100 flex gap-3 shrink-0">
+            {step === 2 ? (
+              <button onClick={() => { setStep(1); setError(''); }}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                Back
+              </button>
+            ) : (
+              <button onClick={onClose}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                Cancel
+              </button>
+            )}
+            {step === 1 ? (
+              <button onClick={goToStep2} disabled={!meetingId || !date || loadingStep2}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                style={{ backgroundColor: GREEN }}>
+                {loadingStep2 ? 'Loading…' : 'Next — Select Teachers'}
+              </button>
+            ) : (
+              <button onClick={submit} disabled={saving || eligibleCount === 0}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                style={{ backgroundColor: GREEN }}>
+                {saving ? 'Saving…' : `Record ${eligibleCount} Teacher${eligibleCount !== 1 ? 's' : ''}`}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function MeetingsPage() {
@@ -907,6 +1160,7 @@ export default function MeetingsPage() {
   const [photoRecord,    setPhotoRecord]    = useState<AttendanceRecord | null>(null);
   const [minutesMeeting, setMinutesMeeting] = useState<Meeting | null>(null);
   const [manualModal,    setManualModal]    = useState(false);
+  const [bulkModal,      setBulkModal]      = useState(false);
 
   // ── Loaders ────────────────────────────────────────────────────
 
@@ -1191,16 +1445,27 @@ export default function MeetingsPage() {
                 <p className="text-sm font-semibold text-slate-600">
                   {attendance.length} record{attendance.length !== 1 ? 's' : ''}
                 </p>
-                <button
-                  onClick={() => setManualModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-                  style={{ backgroundColor: GREEN }}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                  </svg>
-                  Record Manually
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setBulkModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    Bulk Record
+                  </button>
+                  <button
+                    onClick={() => setManualModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+                    style={{ backgroundColor: GREEN }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Record Manually
+                  </button>
+                </div>
               </div>
               {attendance.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 text-sm">No attendance records found.</div>
@@ -1321,6 +1586,14 @@ export default function MeetingsPage() {
           meetings={meetings}
           onClose={() => setManualModal(false)}
           onSaved={async () => { setManualModal(false); setLoading(true); await loadAttendance(); setLoading(false); }}
+        />
+      )}
+
+      {bulkModal && (
+        <BulkAttendanceModal
+          meetings={meetings}
+          onClose={() => setBulkModal(false)}
+          onSaved={async () => { setLoading(true); await loadAttendance(); setLoading(false); }}
         />
       )}
     </div>

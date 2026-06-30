@@ -482,6 +482,92 @@ router.post('/attendance/manual', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/meetings/:id/attendees — teacher IDs already recorded for a meeting+date
+router.get('/:id/attendees', adminOnly, async (req, res, next) => {
+  try {
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ error: 'date query param is required' });
+    const { rows } = await pool.query(
+      `SELECT teacher_id FROM meeting_attendance
+       WHERE meeting_id = $1 AND school_id = $2 AND date = $3`,
+      [req.params.id, req.schoolId, date]
+    );
+    res.json(rows.map(r => r.teacher_id));
+  } catch (err) { next(err); }
+});
+
+// POST /api/meetings/attendance/manual-bulk — record attendance for multiple teachers at once
+router.post('/attendance/manual-bulk', adminOnly, async (req, res, next) => {
+  try {
+    const { meetingId, date, teacherIds, notes } = req.body;
+    if (!meetingId || !date || !Array.isArray(teacherIds) || teacherIds.length === 0) {
+      return res.status(400).json({ error: 'meetingId, date, and teacherIds[] are required' });
+    }
+
+    const { rows: mtgRows } = await pool.query(
+      `SELECT m.id, m.title, l.name AS location_name
+       FROM meetings m LEFT JOIN locations l ON l.id = m.location_id
+       WHERE m.id = $1 AND m.school_id = $2`,
+      [meetingId, req.schoolId]
+    );
+    if (!mtgRows.length) return res.status(404).json({ error: 'Meeting not found' });
+    const meeting = mtgRows[0];
+
+    const { rows: ayRows } = await pool.query(
+      'SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1',
+      [req.schoolId]
+    );
+    const yearId = ayRows[0]?.id ?? null;
+    const sem    = ayRows[0]?.current_semester ?? null;
+    const resolvedNotes = notes?.trim() || 'Manually recorded by admin (bulk)';
+
+    let inserted = 0, skipped = 0;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const teacherId of teacherIds) {
+        const { rows: tRows } = await client.query(
+          'SELECT id FROM teachers WHERE id = $1 AND school_id = $2 AND status = $3',
+          [teacherId, req.schoolId, 'Active']
+        );
+        if (!tRows.length) { skipped++; continue; }
+
+        const { rows: existing } = await client.query(
+          'SELECT id FROM meeting_attendance WHERE meeting_id = $1 AND teacher_id = $2 AND date = $3',
+          [meetingId, teacherId, date]
+        );
+        if (existing.length) { skipped++; continue; }
+
+        await client.query(
+          `INSERT INTO meeting_attendance
+             (school_id, meeting_id, teacher_id, date, academic_year_id, semester,
+              notes, location_name, location_verified)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false)`,
+          [req.schoolId, meetingId, teacherId, date, yearId, sem,
+           resolvedNotes, meeting.location_name || null]
+        );
+
+        await client.query(
+          'DELETE FROM meeting_absences WHERE meeting_id = $1 AND teacher_id = $2 AND date = $3',
+          [meetingId, teacherId, date]
+        );
+
+        inserted++;
+      }
+      await client.query('COMMIT');
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+
+    await logAudit(
+      req.schoolId, 'MEETING_ATTENDANCE_BULK', req.user.id, req.user.name,
+      'meeting_attendance', meetingId,
+      { meeting: meeting.title, date, inserted, skipped }
+    );
+
+    res.status(201).json({ inserted, skipped });
+  } catch (err) { next(err); }
+});
+
 // DELETE /api/meetings/attendance/:id — admin delete attendance record
 router.delete('/attendance/:id', adminOnly, async (req, res, next) => {
   try {
