@@ -412,8 +412,8 @@ function SubjectContent() {
             <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Title (optional)</p>
             <input className={`${inputCls} mb-3`} value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Week 3 Test" />
 
-            <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Date (YYYY-MM-DD)</p>
-            <input className={`${inputCls} mb-3`} value={date} onChange={e => setDate(e.target.value)} placeholder="e.g. 2025-03-14" />
+            <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Date (optional)</p>
+            <input type="date" className={`${inputCls} mb-3`} value={date} onChange={e => setDate(e.target.value)} />
 
             <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Max Score</p>
             <input className={`${inputCls} mb-4`} value={maxScore} onChange={e => setMaxScore(e.target.value)} placeholder="100" type="number" />
