@@ -6,6 +6,7 @@ import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
 
 interface AssessmentMode { id: string; name: string; ca_contribution: number }
+interface AcademicYear  { id: string; name: string; is_current: boolean }
 interface Assessment {
   id: string;
   mode_id: string;
@@ -15,6 +16,9 @@ interface Assessment {
   date: string | null;
   max_score: number;
   score_count: number;
+  academic_year_id: string;
+  semester: number;
+  created_at: string;
 }
 
 function SubjectContent() {
@@ -41,6 +45,19 @@ function SubjectContent() {
   const [creating,  setCreating]   = useState(false);
   const [createErr, setCreateErr]  = useState('');
   const [deleting,  setDeleting]   = useState<string | null>(null);
+
+  // Edit modal state
+  const [editTarget,   setEditTarget]   = useState<Assessment | null>(null);
+  const [editYears,    setEditYears]    = useState<AcademicYear[]>([]);
+  const [editYearId,   setEditYearId]   = useState('');
+  const [editSemester, setEditSemester] = useState('');
+  const [editModeId,   setEditModeId]   = useState('');
+  const [editTitle,    setEditTitle]    = useState('');
+  const [editDate,     setEditDate]     = useState('');
+  const [editMaxScore, setEditMaxScore] = useState('');
+  const [editSaving,   setEditSaving]   = useState(false);
+  const [editErr,      setEditErr]      = useState('');
+  const [yearsLoaded,  setYearsLoaded]  = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,6 +117,42 @@ function SubjectContent() {
     } catch {
       alert('Failed to delete assessment.');
     } finally { setDeleting(null); }
+  }
+
+  function openEdit(a: Assessment) {
+    setEditTarget(a);
+    setEditYearId(a.academic_year_id);
+    setEditSemester(String(a.semester));
+    setEditModeId(a.mode_id);
+    setEditTitle(a.title ?? '');
+    setEditDate(a.date?.slice(0, 10) ?? '');
+    setEditMaxScore(String(a.max_score));
+    setEditErr('');
+    if (!yearsLoaded) {
+      teacherApi.get<AcademicYear[]>('/api/academic-years')
+        .then(r => { setEditYears(r.data ?? []); setYearsLoaded(true); })
+        .catch(() => {});
+    }
+  }
+
+  async function saveEdit() {
+    if (!editTarget || !editModeId) { setEditErr('Please select a mode.'); return; }
+    setEditSaving(true); setEditErr('');
+    try {
+      await teacherApi.put(`/api/assessments/${editTarget.id}`, {
+        academic_year_id: editYearId,
+        semester:         parseInt(editSemester),
+        mode_id:          editModeId,
+        title:            editTitle.trim() || null,
+        date:             editDate || null,
+        max_score:        parseFloat(editMaxScore) || 100,
+      });
+      setEditTarget(null);
+      load();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setEditErr(msg ?? 'Failed to save changes.');
+    } finally { setEditSaving(false); }
   }
 
   const inputCls = 'w-full border border-[#E2D9CC] rounded-xl px-3 py-2.5 text-sm text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]';
@@ -188,6 +241,15 @@ function SubjectContent() {
                   </p>
                 </button>
                 <button
+                  className="px-3 flex items-center justify-center border-l border-[#E2D9CC] hover:bg-[#F4EFE6] transition-colors"
+                  onClick={() => openEdit(item)}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-[#8C7E6E]">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+                <button
                   className="px-4 flex items-center justify-center border-l border-[#E2D9CC] hover:bg-red-50 transition-colors"
                   onClick={() => deleteAssessment(item.id, label)}
                   disabled={deleting === item.id}
@@ -217,6 +279,105 @@ function SubjectContent() {
       >
         +
       </button>
+
+      {/* Edit modal */}
+      {editTarget && (() => {
+        const ageHours = (Date.now() - new Date(editTarget.created_at).getTime()) / 3_600_000;
+        const structuralLocked = editTarget.score_count > 0 || ageHours > 48;
+        const lockReason = editTarget.score_count > 0
+          ? 'scores have already been entered'
+          : 'the assessment is more than 48 hours old';
+        return (
+          <div className="fixed inset-0 bg-black/40 z-40 flex items-end md:items-center justify-center" onClick={() => setEditTarget(null)}>
+            <div className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-3xl p-6 pb-8 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold text-[#2C2218]">Edit Assessment</h2>
+                <button onClick={() => setEditTarget(null)} className="w-7 h-7 rounded-full bg-[#F4EFE6] flex items-center justify-center text-[#8C7E6E] text-xs font-bold">✕</button>
+              </div>
+
+              {structuralLocked && (
+                <div className="flex gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-4">
+                  <svg className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  </svg>
+                  <p className="text-xs text-amber-800"><strong>Semester &amp; Year are locked</strong> — {lockReason}. You can still edit the mode, title, date, and max score.</p>
+                </div>
+              )}
+
+              <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Academic Year</p>
+              <div className="relative mb-3">
+                <select
+                  className={`${inputCls} appearance-none ${structuralLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  value={editYearId}
+                  disabled={structuralLocked}
+                  onChange={e => setEditYearId(e.target.value)}
+                >
+                  {editYears.length === 0
+                    ? <option value={editYearId}>{year_name}</option>
+                    : editYears.map(y => <option key={y.id} value={y.id}>{y.name}</option>)
+                  }
+                </select>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 text-[#8C7E6E] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
+
+              <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Semester</p>
+              <div className="relative mb-4">
+                <select
+                  className={`${inputCls} appearance-none ${structuralLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  value={editSemester}
+                  disabled={structuralLocked}
+                  onChange={e => setEditSemester(e.target.value)}
+                >
+                  <option value="1">Semester 1</option>
+                  <option value="2">Semester 2</option>
+                </select>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 text-[#8C7E6E] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
+
+              <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-2">Mode *</p>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {modes.map(m => (
+                  <button key={m.id} onClick={() => setEditModeId(m.id)}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+                    style={editModeId === m.id
+                      ? { background: primary, borderColor: primary, color: '#fff' }
+                      : { background: '#F4EFE6', borderColor: '#E2D9CC', color: '#5C4F42' }
+                    }>
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+
+              <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Title (optional)</p>
+              <input className={`${inputCls} mb-3`} value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="e.g. Week 3 Test" />
+
+              <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Date</p>
+              <input type="date" className={`${inputCls} mb-3`} value={editDate} onChange={e => setEditDate(e.target.value)} />
+
+              <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Max Score</p>
+              <input type="number" className={`${inputCls} mb-4`} value={editMaxScore} onChange={e => setEditMaxScore(e.target.value)} placeholder="100" />
+
+              {editErr && <p className="text-xs text-[#B83232] mb-3">{editErr}</p>}
+
+              <div className="flex gap-3">
+                <button onClick={() => setEditTarget(null)}
+                  className="flex-1 py-3 rounded-xl border border-[#E2D9CC] text-sm font-semibold text-[#5C4F42] bg-[#F4EFE6]">
+                  Cancel
+                </button>
+                <button onClick={saveEdit} disabled={editSaving}
+                  className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-60"
+                  style={{ background: primary }}>
+                  {editSaving ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Create modal */}
       {showModal && (

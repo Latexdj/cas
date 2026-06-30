@@ -55,6 +55,7 @@ router.get('/', async (req, res, next) => {
       `SELECT a.id, a.mode_id, m.name AS mode_name, m.ca_contribution,
               a.title, a.date, a.max_score,
               a.subject, a.class_name,
+              a.academic_year_id, a.semester, a.created_at,
               t.name AS teacher_name,
               COUNT(sc.id)::int AS score_count
        FROM assessments a
@@ -104,21 +105,69 @@ router.post('/', async (req, res, next) => {
 // PUT /api/assessments/:id
 router.put('/:id', async (req, res, next) => {
   try {
-    const { title, date, max_score, mode_id } = req.body;
+    const { title, date, max_score, mode_id, semester, academic_year_id } = req.body;
     const isAdmin = req.user.role === 'admin';
-    const params = [title||null, date||null, parseFloat(max_score)||100, mode_id||null, req.params.id, req.schoolId];
-    let ownerFilter = '';
-    if (!isAdmin) { params.push(req.user.id); ownerFilter = `AND teacher_id = $${params.length}`; }
+
+    // Fetch the assessment with score count to apply guards
+    const fetchParams = [req.params.id, req.schoolId];
+    let ownerClause = '';
+    if (!isAdmin) { fetchParams.push(req.user.id); ownerClause = `AND a.teacher_id = $${fetchParams.length}`; }
+
+    const { rows: [assessment] } = await pool.query(
+      `SELECT a.*, COUNT(sc.id)::int AS score_count
+       FROM assessments a
+       LEFT JOIN assessment_scores sc ON sc.assessment_id = a.id
+       WHERE a.id = $1 AND a.school_id = $2 ${ownerClause}
+       GROUP BY a.id`,
+      fetchParams
+    );
+    if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
+
+    // Determine if semester or academic_year is being changed
+    const newSem  = semester          !== undefined ? parseInt(semester) : null;
+    const newYear = academic_year_id  !== undefined ? academic_year_id  : null;
+    const changingSemester = newSem  !== null && newSem  !== assessment.semester;
+    const changingYear     = newYear !== null && newYear !== assessment.academic_year_id;
+
+    if ((changingSemester || changingYear) && !isAdmin) {
+      if (assessment.score_count > 0) {
+        return res.status(409).json({
+          error: 'Semester and academic year cannot be changed after scores have been entered.',
+        });
+      }
+      const ageHours = (Date.now() - new Date(assessment.created_at).getTime()) / 3_600_000;
+      if (ageHours > 48) {
+        return res.status(403).json({
+          error: 'Semester and academic year can only be changed within 48 hours of creating the assessment. Contact your administrator.',
+        });
+      }
+    }
+
+    // Validate new academic year belongs to this school
+    if (changingYear) {
+      const { rows: yr } = await pool.query(
+        'SELECT id FROM academic_years WHERE id = $1 AND school_id = $2',
+        [academic_year_id, req.schoolId]
+      );
+      if (!yr.length) return res.status(400).json({ error: 'Invalid academic year.' });
+    }
+
+    const finalSemester = changingSemester ? newSem          : assessment.semester;
+    const finalYearId   = changingYear     ? academic_year_id : assessment.academic_year_id;
+    const finalModeId   = mode_id          || assessment.mode_id;
+    const finalTitle    = title     !== undefined ? (title?.trim()       || null) : assessment.title;
+    const finalDate     = date      !== undefined ? (date                || null) : assessment.date;
+    const finalMaxScore = max_score !== undefined ? (parseFloat(max_score) || 100) : assessment.max_score;
 
     const { rows } = await pool.query(
       `UPDATE assessments
-       SET title = $1, date = $2, max_score = $3,
-           mode_id = COALESCE($4, mode_id)
-       WHERE id = $5 AND school_id = $6 ${ownerFilter}
-       RETURNING id, mode_id, title, date, max_score`,
-      params
+       SET title = $1, date = $2, max_score = $3, mode_id = $4,
+           semester = $5, academic_year_id = $6
+       WHERE id = $7 AND school_id = $8
+       RETURNING id, mode_id, title, date, max_score, semester, academic_year_id, created_at`,
+      [finalTitle, finalDate, finalMaxScore, finalModeId, finalSemester, finalYearId, req.params.id, req.schoolId]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Assessment not found' });
+
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
