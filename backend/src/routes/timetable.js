@@ -51,14 +51,34 @@ function parseTime(val) {
 
 router.get('/', async (req, res, next) => {
   try {
+    let { academic_year_id, semester } = req.query;
+
+    // Default to current year/semester if not provided
+    if (!academic_year_id || !semester) {
+      const { rows: yr } = await pool.query(
+        `SELECT id, current_semester FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1`,
+        [req.schoolId]
+      );
+      if (yr[0]) {
+        academic_year_id = academic_year_id || yr[0].id;
+        semester = semester || yr[0].current_semester;
+      }
+    }
+
+    const params = [req.schoolId];
+    let where = 'WHERE tt.school_id = $1';
+    if (academic_year_id) { params.push(academic_year_id); where += ` AND tt.academic_year_id = $${params.length}`; }
+    if (semester)         { params.push(parseInt(semester)); where += ` AND tt.semester = $${params.length}`; }
+
     const { rows } = await pool.query(`
       SELECT tt.id, tt.day_of_week, tt.start_time, tt.end_time, tt.subject, tt.class_names,
+             tt.academic_year_id, tt.semester,
              te.id AS teacher_id, te.name AS teacher_name
       FROM timetable tt
       JOIN teachers te ON te.id = tt.teacher_id
-      WHERE tt.school_id = $1
+      ${where}
       ORDER BY tt.day_of_week, tt.start_time
-    `, [req.schoolId]);
+    `, params);
     res.json(rows);
   } catch (err) { next(err); }
 });
@@ -78,6 +98,8 @@ router.get('/by-date', async (req, res, next) => {
         SELECT id, day_of_week, start_time, end_time, subject, class_names
         FROM timetable
         WHERE school_id = $1 AND teacher_id = $2 AND day_of_week = $3
+          AND academic_year_id = (SELECT id FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1)
+          AND semester = (SELECT current_semester FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1)
         ORDER BY start_time
       `, [req.schoolId, teacherId, dayOfWeek]),
       fetchBreaks(req.schoolId, dayOfWeek),
@@ -103,6 +125,8 @@ router.get('/today/:teacherId', async (req, res, next) => {
         SELECT id, day_of_week, start_time, end_time, subject, class_names
         FROM timetable
         WHERE school_id = $1 AND teacher_id = $2 AND day_of_week = $3
+          AND academic_year_id = (SELECT id FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1)
+          AND semester = (SELECT current_semester FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1)
         ORDER BY start_time
       `, [req.schoolId, req.params.teacherId, dayOfWeek]),
       fetchBreaks(req.schoolId, dayOfWeek),
@@ -119,12 +143,31 @@ router.get('/today/:teacherId', async (req, res, next) => {
 
 router.get('/teacher/:teacherId', async (req, res, next) => {
   try {
+    let { academic_year_id, semester } = req.query;
+
+    // Default to current year/semester if not provided
+    if (!academic_year_id || !semester) {
+      const { rows: yr } = await pool.query(
+        `SELECT id, current_semester FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1`,
+        [req.schoolId]
+      );
+      if (yr[0]) {
+        academic_year_id = academic_year_id || yr[0].id;
+        semester = semester || yr[0].current_semester;
+      }
+    }
+
+    const ttParams = [req.schoolId, req.params.teacherId];
+    let ttWhere = 'WHERE school_id = $1 AND teacher_id = $2';
+    if (academic_year_id) { ttParams.push(academic_year_id); ttWhere += ` AND academic_year_id = $${ttParams.length}`; }
+    if (semester)         { ttParams.push(parseInt(semester)); ttWhere += ` AND semester = $${ttParams.length}`; }
+
     const [{ rows: lessons }, { rows: plcSessions }] = await Promise.all([
       pool.query(
         `SELECT id, day_of_week, start_time::text, end_time::text, subject, class_names
-         FROM timetable WHERE school_id = $1 AND teacher_id = $2
+         FROM timetable ${ttWhere}
          ORDER BY day_of_week, start_time`,
-        [req.schoolId, req.params.teacherId]
+        ttParams
       ),
       pool.query(
         `SELECT s.id, s.day_of_week, s.start_time::text, s.end_time::text,
@@ -178,6 +221,11 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const replace = req.query.replace === 'true';
+    const { academic_year_id, semester } = req.query;
+    if (!academic_year_id || !semester) {
+      return res.status(400).json({ error: 'academic_year_id and semester query params are required' });
+    }
+    const semInt = parseInt(semester);
 
     const wb   = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
     const ws   = wb.Sheets[wb.SheetNames[0]];
@@ -277,7 +325,10 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     await client.query('BEGIN');
 
     if (replace) {
-      await client.query('DELETE FROM timetable WHERE school_id = $1', [req.schoolId]);
+      await client.query(
+        'DELETE FROM timetable WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3',
+        [req.schoolId, academic_year_id, semInt]
+      );
     }
 
     // Auto-create subjects not yet in the subjects table
@@ -303,9 +354,9 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     // Bulk insert timetable entries
     for (const r of valid) {
       await client.query(
-        `INSERT INTO timetable (school_id, teacher_id, day_of_week, start_time, end_time, subject, class_names)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [req.schoolId, r.teacherId, r.dayOfWeek, r.startTime, r.endTime, r.subject, r.classNames]
+        `INSERT INTO timetable (school_id, teacher_id, day_of_week, start_time, end_time, subject, class_names, academic_year_id, semester)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [req.schoolId, r.teacherId, r.dayOfWeek, r.startTime, r.endTime, r.subject, r.classNames, academic_year_id, semInt]
       );
     }
 
@@ -413,6 +464,25 @@ router.delete('/class-subjects/:id', adminOnly, async (req, res, next) => {
 // divided by the school's period_duration_minutes.
 router.post('/class-subjects/seed', adminOnly, async (req, res, next) => {
   try {
+    let { academic_year_id, semester } = req.query;
+
+    // Default to current year/semester if not provided
+    if (!academic_year_id || !semester) {
+      const { rows: yr } = await pool.query(
+        `SELECT id, current_semester FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1`,
+        [req.schoolId]
+      );
+      if (yr[0]) {
+        academic_year_id = academic_year_id || yr[0].id;
+        semester = semester || yr[0].current_semester;
+      }
+    }
+
+    const params = [req.schoolId];
+    let ttYearCond = '';
+    if (academic_year_id) { params.push(academic_year_id); ttYearCond += ` AND t.academic_year_id = $${params.length}`; }
+    if (semester)         { params.push(parseInt(semester)); ttYearCond += ` AND t.semester = $${params.length}`; }
+
     const { rows } = await pool.query(
       `INSERT INTO class_subjects (school_id, class_name, subject_id, periods_per_week)
        SELECT
@@ -457,13 +527,13 @@ router.post('/class-subjects/seed', adminOnly, async (req, res, next) => {
              AND b.start_time < t.end_time::time
              AND b.end_time   > t.start_time::time
          ) brk ON true
-         WHERE t.school_id = $1
+         WHERE t.school_id = $1${ttYearCond}
        ) sq
        GROUP BY sq.school_id, sq.class_name, sq.subject_id, sq.period_duration_minutes
        ON CONFLICT (school_id, class_name, subject_id) DO UPDATE
          SET periods_per_week = EXCLUDED.periods_per_week
        RETURNING id`,
-      [req.schoolId]
+      params
     );
     res.json({ seeded: rows.length });
   } catch (err) { next(err); }
@@ -502,6 +572,8 @@ const COVERAGE_SQL = `
     AND LOWER(t.subject) = LOWER(s.name)
     AND ',' || REPLACE(t.class_names, ' ', '') || ','
         LIKE '%,' || REPLACE(cs.class_name, ' ', '') || ',%'
+    AND t.academic_year_id = (SELECT id FROM academic_years WHERE school_id = cs.school_id AND is_current = true LIMIT 1)
+    AND t.semester = (SELECT current_semester FROM academic_years WHERE school_id = cs.school_id AND is_current = true LIMIT 1)
   LEFT JOIN LATERAL (
     SELECT COALESCE(SUM(
       GREATEST(0,
@@ -552,14 +624,14 @@ router.get('/coverage/summary', async (req, res, next) => {
 
 router.post('/', adminOnly, async (req, res, next) => {
   try {
-    const { day_of_week, start_time, end_time, teacher_id, subject, class_names } = req.body;
-    if (!day_of_week || !start_time || !end_time || !teacher_id || !subject || !class_names) {
-      return res.status(400).json({ error: 'All fields are required' });
+    const { day_of_week, start_time, end_time, teacher_id, subject, class_names, academic_year_id, semester } = req.body;
+    if (!day_of_week || !start_time || !end_time || !teacher_id || !subject || !class_names || !academic_year_id || !semester) {
+      return res.status(400).json({ error: 'All fields are required including academic_year_id and semester' });
     }
     const { rows } = await pool.query(
-      `INSERT INTO timetable (school_id, day_of_week, start_time, end_time, teacher_id, subject, class_names)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [req.schoolId, day_of_week, start_time, end_time, teacher_id, subject.trim(), class_names.trim()]
+      `INSERT INTO timetable (school_id, day_of_week, start_time, end_time, teacher_id, subject, class_names, academic_year_id, semester)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [req.schoolId, day_of_week, start_time, end_time, teacher_id, subject.trim(), class_names.trim(), academic_year_id, parseInt(semester)]
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
@@ -567,19 +639,23 @@ router.post('/', adminOnly, async (req, res, next) => {
 
 router.put('/:id', adminOnly, async (req, res, next) => {
   try {
-    const { day_of_week, start_time, end_time, teacher_id, subject, class_names } = req.body;
+    const { day_of_week, start_time, end_time, teacher_id, subject, class_names, academic_year_id, semester } = req.body;
     const { rows } = await pool.query(
       `UPDATE timetable
-       SET day_of_week = COALESCE($1, day_of_week),
-           start_time  = COALESCE($2, start_time),
-           end_time    = COALESCE($3, end_time),
-           teacher_id  = COALESCE($4, teacher_id),
-           subject     = COALESCE($5, subject),
-           class_names = COALESCE($6, class_names),
-           updated_at  = now()
-       WHERE id = $7 AND school_id = $8 RETURNING *`,
+       SET day_of_week      = COALESCE($1, day_of_week),
+           start_time       = COALESCE($2, start_time),
+           end_time         = COALESCE($3, end_time),
+           teacher_id       = COALESCE($4, teacher_id),
+           subject          = COALESCE($5, subject),
+           class_names      = COALESCE($6, class_names),
+           academic_year_id = COALESCE($7, academic_year_id),
+           semester         = COALESCE($8, semester),
+           updated_at       = now()
+       WHERE id = $9 AND school_id = $10 RETURNING *`,
       [day_of_week||null, start_time||null, end_time||null,
-       teacher_id||null, subject||null, class_names||null, req.params.id, req.schoolId]
+       teacher_id||null, subject||null, class_names||null,
+       academic_year_id||null, semester ? parseInt(semester) : null,
+       req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Timetable entry not found' });
     res.json(rows[0]);

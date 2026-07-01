@@ -8,6 +8,8 @@ import type { TimetableEntry, Teacher, Subject, ClassItem } from '@/types/api';
 const DAYS = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const EMPTY_FORM = { teacher_id: '', day_of_week: '1', start_time: '08:00', end_time: '09:00', subject: '' };
 
+interface AcademicYear { id: string; name: string; is_current: boolean; current_semester: number; }
+
 interface UploadResult {
   inserted: number;
   errors: { row: number; message: string }[];
@@ -147,6 +149,12 @@ export default function TimetablePage() {
   const [filterCls, setFilterCls] = useState('');
   const [filterSub, setFilterSub] = useState('');
 
+  // Academic year / semester state
+  const [years,       setYears]       = useState<AcademicYear[]>([]);
+  const [selYearId,   setSelYearId]   = useState('');
+  const [selYearName, setSelYearName] = useState('');
+  const [selSemester, setSelSemester] = useState<1|2>(1);
+
   // Upload state
   const fileRef                   = useRef<HTMLInputElement>(null);
   const [replaceAll,  setReplaceAll]  = useState(false);
@@ -154,10 +162,10 @@ export default function TimetablePage() {
   const [uploadErr,   setUploadErr]   = useState('');
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (yearId = selYearId, sem = selSemester) => {
     try {
       const [e, t, s, c, cov] = await Promise.all([
-        api.get<TimetableEntry[]>('/api/timetable'),
+        api.get<TimetableEntry[]>(`/api/timetable${yearId ? `?academic_year_id=${yearId}&semester=${sem}` : ''}`),
         api.get<Teacher[]>('/api/teachers'),
         api.get<Subject[]>('/api/subjects'),
         api.get<ClassItem[]>('/api/classes'),
@@ -166,9 +174,24 @@ export default function TimetablePage() {
       setEntries(e.data); setTeachers(t.data); setSubjects(s.data); setClasses(c.data);
       if (cov) setCoverage(cov.data);
     } finally { setLoading(false); }
-  }, []);
+  }, [selYearId, selSemester]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // Load years first, then load timetable for current year
+    api.get<AcademicYear[]>('/api/academic-years').then(r => {
+      setYears(r.data);
+      const cur = r.data.find(y => y.is_current) ?? r.data[0];
+      if (cur) {
+        setSelYearId(cur.id);
+        setSelYearName(cur.name);
+        const sem = (cur.current_semester ?? 1) as 1|2;
+        setSelSemester(sem);
+        load(cur.id, sem);
+      } else {
+        load();
+      }
+    }).catch(() => load());
+  }, [load]);
 
   function toggleClass(name: string) {
     setSelCls(prev => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n; });
@@ -192,10 +215,11 @@ export default function TimetablePage() {
     try {
       const fd = new FormData(); fd.append('file', file);
       const { data } = await api.post<UploadResult>(
-        `/api/timetable/upload?replace=${replaceAll}`, fd
+        `/api/timetable/upload?replace=${replaceAll}&academic_year_id=${selYearId}&semester=${selSemester}`,
+        fd
       );
       setUploadResult(data);
-      await load();
+      await load(selYearId, selSemester);
       if (fileRef.current) fileRef.current.value = '';
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -223,10 +247,12 @@ export default function TimetablePage() {
         ...form,
         day_of_week: parseInt(form.day_of_week),
         class_names: Array.from(selCls).join(', '),
+        academic_year_id: selYearId,
+        semester: selSemester,
       };
       if (modal === 'create') await api.post('/api/timetable', body);
       else                    await api.put(`/api/timetable/${editId}`, body);
-      setModal(null); await load();
+      setModal(null); await load(selYearId, selSemester);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? 'Failed to save entry.');
@@ -236,7 +262,7 @@ export default function TimetablePage() {
   async function del(id: string) {
     if (!confirm('Delete this timetable entry?')) return;
     await api.delete(`/api/timetable/${id}`);
-    await load();
+    await load(selYearId, selSemester);
   }
 
   function f(k: keyof typeof form) {
@@ -257,6 +283,42 @@ export default function TimetablePage() {
 
   return (
     <div className="space-y-4">
+      {/* Year / Semester selector */}
+      <div className="flex items-center gap-3 flex-wrap bg-white rounded-xl border border-slate-200 px-4 py-3 shadow-sm">
+        <span className="text-sm font-semibold text-slate-600">Timetable for:</span>
+        <select
+          value={selYearId}
+          onChange={e => {
+            const y = years.find(y => y.id === e.target.value);
+            if (!y) return;
+            setSelYearId(y.id); setSelYearName(y.name);
+            setLoading(true);
+            load(y.id, selSemester);
+          }}
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600"
+        >
+          {years.map(y => <option key={y.id} value={y.id}>{y.name}</option>)}
+        </select>
+        <select
+          value={selSemester}
+          onChange={e => {
+            const sem = parseInt(e.target.value) as 1|2;
+            setSelSemester(sem);
+            setLoading(true);
+            load(selYearId, sem);
+          }}
+          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600"
+        >
+          <option value={1}>Semester 1</option>
+          <option value={2}>Semester 2</option>
+        </select>
+        {selYearId && (
+          <span className="text-xs text-slate-400 ml-auto">
+            Showing {filtered.length} slot{filtered.length !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+
       {/* Coverage alert banner */}
       {coverage && (coverage.unscheduled > 0 || coverage.unteachered > 0) && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
@@ -358,6 +420,11 @@ export default function TimetablePage() {
       {/* Upload modal */}
       <Modal open={modal === 'upload'} onClose={() => setModal(null)} title="Upload Timetable from Excel" maxWidth="max-w-lg">
         <div className="space-y-4">
+          <p className="text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+            Importing for: <strong>{selYearName}</strong> — <strong>Semester {selSemester}</strong>
+            {replaceAll && <span className="text-amber-600 ml-2">(will replace existing entries for this period only)</span>}
+          </p>
+
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-600 space-y-1.5">
             <p className="font-semibold text-slate-700">Expected columns (row 1 = optional header):</p>
             <div className="grid grid-cols-7 gap-1 text-xs font-mono">
@@ -390,7 +457,9 @@ export default function TimetablePage() {
               className="mt-0.5 w-4 h-4 accent-amber-600 flex-shrink-0" />
             <div>
               <p className="text-sm font-semibold text-amber-800">Replace existing timetable</p>
-              <p className="text-xs text-amber-600 mt-0.5">If checked, all current timetable entries are deleted before importing. Leave unchecked to append rows.</p>
+              <p className="text-xs text-amber-600 mt-0.5">
+                If checked, only timetable entries for <strong>{selYearName} Semester {selSemester}</strong> are deleted before importing. Other semesters are unaffected.
+              </p>
             </div>
           </label>
 

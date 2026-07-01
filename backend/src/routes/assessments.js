@@ -30,8 +30,9 @@ router.get('/my-subjects', async (req, res, next) => {
       `SELECT DISTINCT subject, class_names
        FROM timetable
        WHERE school_id = $1 AND teacher_id = $2
+         AND academic_year_id = $3 AND semester = $4
        ORDER BY subject, class_names`,
-      [req.schoolId, req.user.id]
+      [req.schoolId, req.user.id, academic_year_id, parseInt(semester)]
     );
     // Expand class_names (comma-separated) into individual rows
     const subjects = [];

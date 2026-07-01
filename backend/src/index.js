@@ -52,6 +52,7 @@ const feesRoutes              = require('./routes/fees');
 const admissionsRoutes        = require('./routes/admissions');
 const adminAdmissionsRoutes   = require('./routes/admin-admissions');
 const resultSubmissionsRoutes = require('./routes/result-submissions');
+const monitoringRoutes        = require('./routes/assessment-monitoring');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -132,6 +133,7 @@ app.use('/api/fees',                  feesRoutes);
 app.use('/api/admissions',            admissionsRoutes);
 app.use('/api/admin/admissions',      adminAdmissionsRoutes);
 app.use('/api/result-submissions',    resultSubmissionsRoutes);
+app.use('/api/assessment-monitoring', monitoringRoutes);
 
 app.use(errorHandler);
 
@@ -1243,6 +1245,26 @@ async function runMigrations() {
         changed_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
         reason          TEXT
       )
+    `);
+
+    // ── Timetable: academic year + semester columns ────────────────────────────
+    await pool.query(`ALTER TABLE timetable ADD COLUMN IF NOT EXISTS academic_year_id UUID REFERENCES academic_years(id)`);
+    await pool.query(`ALTER TABLE timetable ADD COLUMN IF NOT EXISTS semester INTEGER CHECK (semester IN (1,2))`);
+    // Stamp existing rows with the current active academic year/semester per school
+    await pool.query(`
+      UPDATE timetable t
+      SET
+        academic_year_id = (
+          SELECT id FROM academic_years
+          WHERE school_id = t.school_id AND is_current = true
+          LIMIT 1
+        ),
+        semester = (
+          SELECT current_semester FROM academic_years
+          WHERE school_id = t.school_id AND is_current = true
+          LIMIT 1
+        )
+      WHERE t.academic_year_id IS NULL
     `);
 
     console.log('Migrations OK');
