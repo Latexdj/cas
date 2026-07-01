@@ -223,6 +223,7 @@ export default function TimetablePage() {
   async function handleUpload() {
     const file = fileRef.current?.files?.[0];
     if (!file) { setUploadErr('Please select a file.'); return; }
+    if (!selYearId) { setUploadErr('No academic year selected. Please reload the page.'); return; }
     setUploading(true); setUploadErr(''); setUploadResult(null);
     try {
       const fd = new FormData(); fd.append('file', file);
@@ -234,8 +235,13 @@ export default function TimetablePage() {
       await load(selYearId, selSemester);
       if (fileRef.current) fileRef.current.value = '';
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setUploadErr(msg ?? 'Upload failed.');
+      const e = err as { response?: { data?: { error?: string; errors?: { row: number; message: string }[] } }; message?: string };
+      const body = e.response?.data;
+      const msg = body?.error
+        ?? (body?.errors?.length ? `Row ${body.errors[0].row}: ${body.errors[0].message}` : null)
+        ?? e.message
+        ?? 'Upload failed.';
+      setUploadErr(msg);
     } finally { setUploading(false); }
   }
 

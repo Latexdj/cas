@@ -319,7 +319,7 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     }
 
     if (valid.length === 0 && errors.length > 0) {
-      return res.status(422).json({ inserted: 0, errors });
+      return res.status(422).json({ inserted: 0, errors, error: `All ${errors.length} row(s) failed — check errors below` });
     }
 
     await client.query('BEGIN');
