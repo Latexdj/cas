@@ -21,6 +21,25 @@ interface Assessment {
   created_at: string;
 }
 
+type SubmissionStatus = 'draft' | 'submitted' | 'hod_approved' | 'final_approved' | 'published' | 'rejected';
+
+interface SubStatus {
+  status: SubmissionStatus;
+  submitted_at: string | null;
+  hod_comment: string | null;
+  rejected_reason: string | null;
+  published_at: string | null;
+}
+
+const STATUS_CONFIG: Record<SubmissionStatus, { label: string; color: string; bg: string; border: string; desc: string }> = {
+  draft:          { label: 'Draft',           color: '#92400E', bg: '#FEF3C7', border: '#FCD34D', desc: 'Scores can still be edited. Submit when ready for HOD review.' },
+  submitted:      { label: 'Submitted',        color: '#1E40AF', bg: '#DBEAFE', border: '#93C5FD', desc: 'Awaiting HOD review. Scores are locked.' },
+  hod_approved:   { label: 'HOD Approved',     color: '#065F46', bg: '#D1FAE5', border: '#6EE7B7', desc: 'HOD approved. Awaiting final review by management.' },
+  final_approved: { label: 'Final Approved',   color: '#3730A3', bg: '#EDE9FE', border: '#C4B5FD', desc: 'Approved by management. Awaiting publication.' },
+  published:      { label: 'Published',        color: '#14532D', bg: '#F0FDF4', border: '#86EFAC', desc: 'Results are published and visible to students.' },
+  rejected:       { label: 'Returned',         color: '#991B1B', bg: '#FEE2E2', border: '#FCA5A5', desc: 'Results returned for correction. Edit scores and resubmit.' },
+};
+
 function SubjectContent() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -35,6 +54,11 @@ function SubjectContent() {
   const [modes, setModes] = useState<AssessmentMode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Submission status state
+  const [subStatus, setSubStatus] = useState<SubStatus | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [subError, setSubError] = useState('');
 
   // Modal state
   const [showModal, setShowModal]  = useState(false);
@@ -59,6 +83,8 @@ function SubjectContent() {
   const [editErr,      setEditErr]      = useState('');
   const [yearsLoaded,  setYearsLoaded]  = useState(false);
 
+  const isLocked = subStatus && ['submitted', 'hod_approved', 'final_approved', 'published'].includes(subStatus.status);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -72,6 +98,18 @@ function SubjectContent() {
       setAssessments(aRes.data ?? []);
       setModes(mRes.data ?? []);
       if (mRes.data?.length > 0) setModeId(prev => prev || mRes.data[0].id);
+
+      // Fetch submission status
+      try {
+        const { data: statuses } = await teacherApi.get<Array<SubStatus & { subject: string; class_name: string }>>(
+          `/api/result-submissions/my-status?academic_year_id=${year_id}&semester=${semester}`
+        );
+        const myStatus = statuses.find(s => s.subject === subject && s.class_name === class_name);
+        setSubStatus(myStatus ?? { status: 'draft', submitted_at: null, hod_comment: null, rejected_reason: null, published_at: null });
+      } catch {
+        // Non-fatal — default to draft
+        setSubStatus({ status: 'draft', submitted_at: null, hod_comment: null, rejected_reason: null, published_at: null });
+      }
     } catch {
       setError('Failed to load assessments.');
     } finally {
@@ -84,6 +122,27 @@ function SubjectContent() {
     setPrimary(colors.primary);
     load();
   }, [load]);
+
+  async function submitForReview() {
+    setSubmitting(true); setSubError('');
+    try {
+      await teacherApi.post('/api/result-submissions/submit', {
+        academic_year_id: year_id,
+        semester: Number(semester),
+        subject,
+        class_name,
+      });
+      // Reload status
+      const { data: statuses } = await teacherApi.get<Array<SubStatus & { subject: string; class_name: string }>>(
+        `/api/result-submissions/my-status?academic_year_id=${year_id}&semester=${semester}`
+      );
+      const myStatus = statuses.find(s => s.subject === subject && s.class_name === class_name);
+      setSubStatus(myStatus ?? null);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setSubError(msg ?? 'Failed to submit.');
+    } finally { setSubmitting(false); }
+  }
 
   async function create() {
     if (!modeId) { setCreateErr('Please select a mode.'); return; }
@@ -179,6 +238,43 @@ function SubjectContent() {
         <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{error}</p>
       )}
 
+      {/* Submission status banner */}
+      {subStatus && (() => {
+        const cfg = STATUS_CONFIG[subStatus.status];
+        return (
+          <div style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 12, padding: '12px 16px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ background: cfg.color, color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20 }}>
+                  {cfg.label}
+                </span>
+                <span style={{ fontSize: 13, color: cfg.color }}>{cfg.desc}</span>
+              </div>
+              {(subStatus.status === 'draft' || subStatus.status === 'rejected') ? (
+                <button
+                  onClick={submitForReview}
+                  disabled={submitting}
+                  style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 18px', fontSize: 13, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}
+                >
+                  {submitting ? 'Submitting…' : 'Submit for Review'}
+                </button>
+              ) : null}
+            </div>
+            {subStatus.rejected_reason && (
+              <p style={{ fontSize: 12, color: '#991B1B', marginTop: 8, fontStyle: 'italic' }}>
+                Reason: {subStatus.rejected_reason}
+              </p>
+            )}
+            {subStatus.hod_comment && subStatus.status !== 'rejected' && (
+              <p style={{ fontSize: 12, color: cfg.color, marginTop: 8, fontStyle: 'italic' }}>
+                HOD note: {subStatus.hod_comment}
+              </p>
+            )}
+            {subError && <p style={{ fontSize: 12, color: '#DC2626', marginTop: 6 }}>{subError}</p>}
+          </div>
+        );
+      })()}
+
       {/* Exam scores link */}
       <button
         onClick={() => router.push(
@@ -249,22 +345,24 @@ function SubjectContent() {
                     <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
                 </button>
-                <button
-                  className="px-4 flex items-center justify-center border-l border-[#E2D9CC] hover:bg-red-50 transition-colors"
-                  onClick={() => deleteAssessment(item.id, label)}
-                  disabled={deleting === item.id}
-                >
-                  {deleting === item.id ? (
-                    <div className="w-4 h-4 rounded-full border-2 border-red-300 border-t-transparent animate-spin" />
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-red-400">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                      <path d="M10 11v6M14 11v6" />
-                      <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                    </svg>
-                  )}
-                </button>
+                {!isLocked && (
+                  <button
+                    className="px-4 flex items-center justify-center border-l border-[#E2D9CC] hover:bg-red-50 transition-colors"
+                    onClick={() => deleteAssessment(item.id, label)}
+                    disabled={deleting === item.id}
+                  >
+                    {deleting === item.id ? (
+                      <div className="w-4 h-4 rounded-full border-2 border-red-300 border-t-transparent animate-spin" />
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-red-400">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                        <path d="M10 11v6M14 11v6" />
+                        <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                      </svg>
+                    )}
+                  </button>
+                )}
               </div>
             );
           })}

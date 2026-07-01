@@ -51,6 +51,7 @@ const managementUserRoutes    = require('./routes/management-users');
 const feesRoutes              = require('./routes/fees');
 const admissionsRoutes        = require('./routes/admissions');
 const adminAdmissionsRoutes   = require('./routes/admin-admissions');
+const resultSubmissionsRoutes = require('./routes/result-submissions');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -130,6 +131,7 @@ app.use('/api/admin/management-users', managementUserRoutes);
 app.use('/api/fees',                  feesRoutes);
 app.use('/api/admissions',            admissionsRoutes);
 app.use('/api/admin/admissions',      adminAdmissionsRoutes);
+app.use('/api/result-submissions',    resultSubmissionsRoutes);
 
 app.use(errorHandler);
 
@@ -1168,6 +1170,79 @@ async function runMigrations() {
     await pool.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_admission_prospectus_unique
         ON admission_prospectus(school_id, COALESCE(program_id,'00000000-0000-0000-0000-000000000000'::uuid), gender, residential_status)
+    `);
+
+    // ── Assessment approval workflow ───────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS result_submissions (
+        id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id           UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        academic_year_id    UUID NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        semester            SMALLINT NOT NULL CHECK (semester IN (1, 2)),
+        subject             TEXT NOT NULL,
+        class_name          TEXT NOT NULL,
+        teacher_id          UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        status              TEXT NOT NULL DEFAULT 'draft'
+                              CHECK (status IN ('draft','submitted','hod_approved','final_approved','published','rejected')),
+        submitted_at        TIMESTAMPTZ,
+        hod_reviewed_by     UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        hod_reviewed_at     TIMESTAMPTZ,
+        hod_comment         TEXT,
+        final_reviewed_by   UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        final_reviewed_at   TIMESTAMPTZ,
+        final_comment       TEXT,
+        rejected_at         TIMESTAMPTZ,
+        rejected_by         UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        rejected_reason     TEXT,
+        published_at        TIMESTAMPTZ,
+        UNIQUE (school_id, academic_year_id, semester, subject, class_name)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS subject_remarks (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id         UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        academic_year_id  UUID NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        semester          SMALLINT NOT NULL CHECK (semester IN (1, 2)),
+        subject           TEXT NOT NULL,
+        class_name        TEXT NOT NULL,
+        student_id        UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        teacher_id        UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        remarks           TEXT,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, academic_year_id, semester, subject, class_name, student_id)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        user_id     UUID NOT NULL,
+        user_type   TEXT NOT NULL CHECK (user_type IN ('teacher','admin','student','management')),
+        message     TEXT NOT NULL,
+        link        TEXT,
+        is_read     BOOLEAN NOT NULL DEFAULT false,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS score_audit_log (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id       UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        score_type      TEXT NOT NULL CHECK (score_type IN ('ca','exam')),
+        score_id        UUID,
+        assessment_id   UUID,
+        student_id      UUID REFERENCES students(id) ON DELETE SET NULL,
+        old_score       NUMERIC(5,2),
+        new_score       NUMERIC(5,2),
+        old_absent      BOOLEAN,
+        new_absent      BOOLEAN,
+        changed_by_id   UUID,
+        changed_by_name TEXT,
+        changed_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        reason          TEXT
+      )
     `);
 
     console.log('Migrations OK');

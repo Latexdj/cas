@@ -13,6 +13,7 @@ interface ExamRow {
   exam_id: string | null;
   score: number | null;
 }
+interface SubjectRemark { student_id: string; student_code: string; name: string; remarks: string; }
 
 function ExamContent() {
   const router = useRouter();
@@ -37,6 +38,12 @@ function ExamContent() {
   const [saving,   setSaving]  = useState(false);
   const [saved,    setSaved]   = useState(false);
   const [error,    setError]   = useState('');
+  const [subLocked,   setSubLocked]   = useState(false);
+  const [subStatus,   setSubStatus]   = useState<string>('draft');
+  const [subjRemarks,    setSubjRemarks]    = useState<SubjectRemark[]>([]);
+  const [remarksDirty,   setRemarksDirty]   = useState(false);
+  const [remarksSaving,  setRemarksSaving]  = useState(false);
+  const [remarksExpanded, setRemarksExpanded] = useState(false);
 
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -57,6 +64,25 @@ function ExamContent() {
         s[r.student_id] = r.score != null ? String(r.score) : '';
       }
       setScores(s);
+
+      // Fetch submission lock status
+      try {
+        const { data: statuses } = await teacherApi.get<Array<{ subject: string; class_name: string; status: string }>>(
+          `/api/result-submissions/my-status?academic_year_id=${selectedYearId}&semester=${selectedSem}`
+        );
+        const mine = statuses.find(s => s.subject === subject && s.class_name === class_name);
+        const st = mine?.status ?? 'draft';
+        setSubStatus(st);
+        setSubLocked(['submitted', 'hod_approved', 'final_approved', 'published'].includes(st));
+      } catch { /* non-fatal */ }
+
+      // Fetch subject remarks
+      try {
+        const { data: rmks } = await teacherApi.get<SubjectRemark[]>(
+          `/api/assessments/subject-remarks?academic_year_id=${selectedYearId}&semester=${selectedSem}&subject=${encodeURIComponent(subject)}&class_name=${encodeURIComponent(class_name)}`
+        );
+        setSubjRemarks(rmks.map(r => ({ ...r, remarks: r.remarks ?? '' })));
+      } catch { /* non-fatal */ }
     } catch {
       setError('Failed to load exam scores.');
     } finally {
@@ -97,6 +123,21 @@ function ExamContent() {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? 'Failed to save.');
     } finally { setSaving(false); }
+  }
+
+  async function saveRemarks() {
+    setRemarksSaving(true);
+    try {
+      await teacherApi.post('/api/assessments/subject-remarks', {
+        academic_year_id: selectedYearId,
+        semester: selectedSem,
+        subject,
+        class_name,
+        remarks: subjRemarks.map(r => ({ student_id: r.student_id, remarks: r.remarks || null })),
+      });
+      setRemarksDirty(false);
+    } catch { /* show error */ }
+    finally { setRemarksSaving(false); }
   }
 
   return (
@@ -176,10 +217,15 @@ function ExamContent() {
             ✓ Exam scores saved for {selectedYearName} · Semester {selectedSem}.
           </p>
         )}
+        {subLocked && (
+          <div style={{ background: '#DBEAFE', border: '1px solid #93C5FD', borderRadius: 10, padding: '10px 14px', marginBottom: 8, fontSize: 13, color: '#1E40AF', fontWeight: 500 }}>
+            🔒 Scores are locked — submission status is <strong>{subStatus}</strong>. Contact your HOD or admin to unlock.
+          </div>
+        )}
       </div>
 
       {/* Student list */}
-      <div className="px-4 space-y-2">
+      <div className="px-4 space-y-2" style={subLocked ? { opacity: 0.6, pointerEvents: 'none' } : undefined}>
         {loading ? (
           <>
             {[1, 2, 3, 4, 5].map(i => <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-14 animate-pulse" />)}
@@ -201,6 +247,7 @@ function ExamContent() {
               <input
                 ref={ref => { inputRefs.current[row.student_id] = ref; }}
                 type="number"
+                disabled={subLocked}
                 className="w-20 border border-[#E2D9CC] rounded-xl px-2 py-1.5 text-sm font-bold text-center text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]"
                 value={scores[row.student_id] ?? ''}
                 onChange={e => setScores(prev => ({ ...prev, [row.student_id]: e.target.value }))}
@@ -222,13 +269,61 @@ function ExamContent() {
         <div className="px-4 pt-4 pb-6 flex flex-col items-center gap-2">
           <button
             onClick={save}
-            disabled={saving}
+            disabled={subLocked || saving}
             className="w-full max-w-sm px-6 py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-60 transition-opacity shadow-sm"
             style={{ background: primary }}
           >
             {saving ? 'Saving…' : 'Save Exam Scores'}
           </button>
           <p className="text-xs text-[#8C7E6E]">{rows.length} student{rows.length !== 1 ? 's' : ''}</p>
+        </div>
+      )}
+
+      {/* Subject Remarks (Task 4) */}
+      {!loading && rows.length > 0 && (
+        <div style={{ marginTop: 24, border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', marginLeft: 16, marginRight: 16, marginBottom: 24 }}>
+          <button
+            onClick={() => setRemarksExpanded(v => !v)}
+            style={{ width: '100%', padding: '12px 16px', background: '#F8FAFC', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 14, fontWeight: 600, color: '#0F172A' }}
+          >
+            <span>Subject Remarks (optional)</span>
+            <span style={{ fontSize: 12, color: '#64748B' }}>{remarksExpanded ? '▲ Hide' : '▼ Show'}</span>
+          </button>
+          {remarksExpanded && (
+            <div style={{ padding: '0 0 16px' }}>
+              <p style={{ fontSize: 12, color: '#64748B', padding: '8px 16px 12px' }}>
+                Optional per-student feedback for this subject. Students will see these on their results.
+              </p>
+              {subjRemarks.map((r, idx) => (
+                <div key={r.student_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 16px', borderTop: '1px solid #F1F5F9' }}>
+                  <span style={{ fontSize: 13, color: '#374151', width: 180, flexShrink: 0 }}>{r.name}</span>
+                  <input
+                    disabled={subLocked}
+                    value={r.remarks}
+                    onChange={e => {
+                      const next = [...subjRemarks];
+                      next[idx] = { ...next[idx], remarks: e.target.value };
+                      setSubjRemarks(next);
+                      setRemarksDirty(true);
+                    }}
+                    placeholder="Enter remark…"
+                    style={{ flex: 1, border: '1px solid #E2E8F0', borderRadius: 8, padding: '6px 10px', fontSize: 13, outline: 'none', background: subLocked ? '#F8FAFC' : '#fff' }}
+                  />
+                </div>
+              ))}
+              {!subLocked && (
+                <div style={{ padding: '12px 16px 0', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={saveRemarks}
+                    disabled={remarksSaving || !remarksDirty}
+                    style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (remarksSaving || !remarksDirty) ? 0.5 : 1 }}
+                  >
+                    {remarksSaving ? 'Saving…' : 'Save Remarks'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -6,7 +6,12 @@ import { studentApi } from '@/lib/student-api';
 import { getStudentColors } from '@/lib/student-auth';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; current_semester: number; }
-interface SubjectResult { subject: string; ca_score: number | null; exam_score: number | null; total: number | null; grade: string; remark: string; }
+interface SubjectResult { subject: string; ca_score: number | null; exam_score: number | null; total: number | null; grade: string; remark: string; subject_remark?: string | null; }
+interface FormTeacherRemarks {
+  attitude: string | null;
+  conduct: string | null;
+  general_remarks: string | null;
+}
 interface SemesterResult {
   student: { id: string; name: string; student_code: string; class_name: string; program_name: string | null; picture_url: string | null };
   subjects: SubjectResult[];
@@ -15,6 +20,7 @@ interface SemesterResult {
   class_position: number | null;
   class_total: number | null;
   remarks: { attitude: string | null; conduct: string | null; general_remarks: string | null; interest: string | null } | null;
+  form_teacher_remarks?: FormTeacherRemarks | null;
 }
 interface HistoryPoint { label: string; academic_year: string; semester: number; average: number; grade: string; subject_count: number; }
 interface SchoolProfile { name: string; address: string | null; logo_url: string | null; }
@@ -63,6 +69,9 @@ function ReportCard({ result, yearName, semester, schoolName, schoolAddress, sch
     background: '#fff',
     display: 'flex', flexDirection: 'column', gap: '7px',
   };
+
+  // Prefer form_teacher_remarks if present, fall back to remarks
+  const teacherRemarks = result.form_teacher_remarks ?? result.remarks;
 
   return (
     <div style={page}>
@@ -205,17 +214,17 @@ function ReportCard({ result, yearName, semester, schoolName, schoolAddress, sch
             <tr>
               <td style={{ width: '12%', fontWeight: 700, color: '#555', paddingBottom: '5px' }}>Attitude</td>
               <td style={{ width: '38%', paddingBottom: '5px', borderBottom: '1px solid #b0d4c4', fontWeight: 600 }}>
-                {result.remarks?.attitude || <span style={{ color: '#bbb' }}>—</span>}
+                {teacherRemarks?.attitude || <span style={{ color: '#bbb' }}>—</span>}
               </td>
               <td style={{ width: '12%', fontWeight: 700, color: '#555', paddingLeft: '12px', paddingBottom: '5px' }}>Conduct</td>
               <td style={{ width: '38%', paddingBottom: '5px', borderBottom: '1px solid #b0d4c4', fontWeight: 600 }}>
-                {result.remarks?.conduct || <span style={{ color: '#bbb' }}>—</span>}
+                {teacherRemarks?.conduct || <span style={{ color: '#bbb' }}>—</span>}
               </td>
             </tr>
             <tr>
               <td style={{ fontWeight: 700, color: '#555', paddingTop: '5px', verticalAlign: 'top' }}>Remarks</td>
               <td colSpan={3} style={{ paddingTop: '5px', borderBottom: '1px solid #b0d4c4', paddingBottom: '5px', minHeight: '20px' }}>
-                {result.remarks?.general_remarks || <span style={{ color: '#bbb' }}>—</span>}
+                {teacherRemarks?.general_remarks || <span style={{ color: '#bbb' }}>—</span>}
               </td>
             </tr>
           </tbody>
@@ -287,6 +296,9 @@ export default function StudentResultsPage() {
 
   const maxAvg = Math.max(...history.map(h => h.average), 100);
   const selectedYear = years.find(y => y.id === yearId);
+
+  // Determine which remarks to show on screen
+  const displayRemarks = result?.form_teacher_remarks ?? result?.remarks ?? null;
 
   return (
     <>
@@ -401,7 +413,12 @@ export default function StudentResultsPage() {
                         <span className="text-xs font-bold px-2 py-0.5 rounded-full"
                           style={{ color: gradeColor(s.grade), background: `${gradeColor(s.grade)}18` }}>{s.grade}</span>
                       </td>
-                      <td className="px-3 py-3 text-xs text-slate-400 hidden sm:table-cell">{s.remark}</td>
+                      <td className="px-3 py-3 text-xs text-slate-400 hidden sm:table-cell">
+                        {s.remark}
+                        {s.subject_remark && (
+                          <p style={{ fontSize: 11, color: '#64748B', fontStyle: 'italic', marginTop: 2 }}>{s.subject_remark}</p>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -422,12 +439,30 @@ export default function StudentResultsPage() {
               </table>
             </div>
 
-            {/* Remarks */}
-            {result.remarks && (result.remarks.attitude || result.remarks.conduct || result.remarks.general_remarks) && (
-              <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 space-y-1">
-                {result.remarks.attitude        && <p className="text-xs text-slate-600"><span className="font-semibold">Attitude: </span>{result.remarks.attitude}</p>}
-                {result.remarks.conduct         && <p className="text-xs text-slate-600"><span className="font-semibold">Conduct: </span>{result.remarks.conduct}</p>}
-                {result.remarks.general_remarks && <p className="text-xs text-slate-600"><span className="font-semibold">Remarks: </span>{result.remarks.general_remarks}</p>}
+            {/* Form Teacher's Remarks */}
+            {displayRemarks && (displayRemarks.attitude || displayRemarks.conduct || displayRemarks.general_remarks) && (
+              <div style={{ marginTop: 16, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px', margin: '16px' }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Form Teacher&apos;s Remarks</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {displayRemarks.attitude && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', width: 80, flexShrink: 0 }}>Attitude:</span>
+                      <span style={{ fontSize: 13, color: '#0F172A' }}>{displayRemarks.attitude}</span>
+                    </div>
+                  )}
+                  {displayRemarks.conduct && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', width: 80, flexShrink: 0 }}>Conduct:</span>
+                      <span style={{ fontSize: 13, color: '#0F172A' }}>{displayRemarks.conduct}</span>
+                    </div>
+                  )}
+                  {displayRemarks.general_remarks && (
+                    <div style={{ marginTop: 4 }}>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>General Remarks:</p>
+                      <p style={{ fontSize: 13, color: '#0F172A', lineHeight: 1.6 }}>{displayRemarks.general_remarks}</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

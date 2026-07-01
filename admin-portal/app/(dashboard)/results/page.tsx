@@ -518,6 +518,32 @@ function GradeBadge({ grade }: { grade: string }) {
   return <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold" style={{ background: bg, color }}>{grade}</span>;
 }
 
+// ── Approval queue types ──────────────────────────────────────────────────────
+interface FinalQueueItem {
+  id: string;
+  subject: string;
+  class_name: string;
+  status: 'hod_approved' | 'final_approved' | 'published';
+  submitted_at: string;
+  hod_reviewed_at: string | null;
+  hod_comment: string | null;
+  final_reviewed_at: string | null;
+  final_comment: string | null;
+  rejected_reason: string | null;
+  published_at: string | null;
+  teacher_name: string;
+  hod_name: string | null;
+  academic_year: string;
+  semester: number;
+  student_count: number;
+}
+
+const SUB_STATUS: Record<string, { label: string; color: string; bg: string }> = {
+  hod_approved:   { label: 'HOD Approved',   color: '#065F46', bg: '#D1FAE5' },
+  final_approved: { label: 'Final Approved', color: '#3730A3', bg: '#EDE9FE' },
+  published:      { label: 'Published',      color: '#14532D', bg: '#F0FDF4' },
+};
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 interface SchoolProfile { name: string; address: string | null; logo_url: string | null; }
 
@@ -538,6 +564,16 @@ export default function ResultsPage() {
   const [remarksMap,    setRemarksMap]    = useState<Record<string, ReportRemark>>({});
   const [printTarget,   setPrintTarget]   = useState<'all' | StudentResult | null>(null);
 
+  // ── Approval queue state ──
+  const [approvalQueue,   setApprovalQueue]   = useState<FinalQueueItem[]>([]);
+  const [approvalLoading, setApprovalLoading] = useState(false);
+  const [approvalTarget,  setApprovalTarget]  = useState<FinalQueueItem | null>(null);
+  const [approvalAction,  setApprovalAction]  = useState<'approve' | 'reject' | 'publish' | 'unlock'>('approve');
+  const [approvalComment, setApprovalComment] = useState('');
+  const [approving,       setApproving]       = useState(false);
+  const [approvalError,   setApprovalError]   = useState('');
+  const [showApprovals,   setShowApprovals]   = useState(false);
+
   useEffect(() => {
     api.get<SchoolProfile>('/api/admin/school-profile').then(r => setSchool(r.data)).catch(() => {});
   }, []);
@@ -554,6 +590,18 @@ export default function ResultsPage() {
       setClasses(cRes.data);
     }).catch(() => setError('Failed to load filters.')).finally(() => setLoadingMeta(false));
   }, []);
+
+  const loadApprovalQueue = useCallback(async () => {
+    setApprovalLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (yearId) params.set('academic_year_id', yearId);
+      if (semester) params.set('semester', semester);
+      const { data } = await api.get<FinalQueueItem[]>(`/api/result-submissions/final-queue?${params}`);
+      setApprovalQueue(data);
+    } catch { /* non-fatal */ }
+    finally { setApprovalLoading(false); }
+  }, [yearId, semester]);
 
   const load = useCallback(async () => {
     if (!yearId || !semester || !className) return;
@@ -572,6 +620,42 @@ export default function ResultsPage() {
   }, [yearId, semester, className]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (yearId || semester) loadApprovalQueue();
+  }, [yearId, semester, loadApprovalQueue]);
+
+  async function doApprovalAction() {
+    if (!approvalTarget) return;
+    if ((approvalAction === 'reject' || approvalAction === 'unlock') && !approvalComment.trim()) {
+      setApprovalError('A reason is required.'); return;
+    }
+    setApproving(true); setApprovalError('');
+    try {
+      if (approvalAction === 'approve') {
+        await api.post('/api/result-submissions/final-review', { submission_id: approvalTarget.id, action: 'approve', comment: approvalComment.trim() || undefined });
+      } else if (approvalAction === 'reject') {
+        await api.post('/api/result-submissions/final-review', { submission_id: approvalTarget.id, action: 'reject', comment: approvalComment.trim() });
+      } else if (approvalAction === 'publish') {
+        await api.post('/api/result-submissions/publish', { submission_id: approvalTarget.id });
+      } else if (approvalAction === 'unlock') {
+        await api.post('/api/result-submissions/unlock', { submission_id: approvalTarget.id, reason: approvalComment.trim() });
+      }
+      setApprovalTarget(null); setApprovalComment('');
+      loadApprovalQueue();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setApprovalError(msg ?? 'Action failed.');
+    } finally { setApproving(false); }
+  }
+
+  async function publishAll() {
+    if (!yearId || !semester) return;
+    try {
+      await api.post('/api/result-submissions/publish', { academic_year_id: yearId, semester: Number(semester) });
+      loadApprovalQueue();
+    } catch { /* show error */ }
+  }
 
   const yearName = years.find(y => y.id === yearId)?.name ?? '';
   const caLabel  = results[0] ? `CA (${results[0].ca_percentage}%)` : 'CA';
@@ -672,6 +756,144 @@ export default function ResultsPage() {
         </div>
 
         {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>}
+
+        {/* Approvals Panel */}
+        <div style={{ border: '1px solid #E2E8F0', borderRadius: 14, overflow: 'hidden', background: '#fff' }}>
+          <button
+            onClick={() => { setShowApprovals(v => !v); if (!showApprovals) loadApprovalQueue(); }}
+            style={{ width: '100%', padding: '14px 20px', background: '#F8FAFC', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: showApprovals ? '1px solid #E2E8F0' : 'none' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Result Approvals</span>
+              {approvalQueue.filter(q => q.status === 'hod_approved').length > 0 && (
+                <span style={{ background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 20 }}>
+                  {approvalQueue.filter(q => q.status === 'hod_approved').length} pending
+                </span>
+              )}
+            </div>
+            <span style={{ fontSize: 12, color: '#64748B' }}>{showApprovals ? '▲ Hide' : '▼ Show'}</span>
+          </button>
+
+          {showApprovals && (
+            <div style={{ padding: 16 }}>
+              {approvalLoading ? (
+                <div style={{ textAlign: 'center', padding: 24, color: '#94A3B8' }}>Loading…</div>
+              ) : approvalQueue.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 24, color: '#94A3B8', fontSize: 13 }}>No submissions in queue for selected filters.</div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                    <button onClick={publishAll}
+                      style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      Publish All Final-Approved
+                    </button>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                          {['Subject', 'Class', 'Teacher', 'HOD', 'Status', 'Actions'].map(h => (
+                            <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {approvalQueue.map(item => {
+                          const sc = SUB_STATUS[item.status] ?? { label: item.status, color: '#64748B', bg: '#F1F5F9' };
+                          return (
+                            <tr key={item.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
+                              <td style={{ padding: '10px 12px', fontWeight: 500, color: '#0F172A' }}>{item.subject}</td>
+                              <td style={{ padding: '10px 12px', color: '#374151' }}>{item.class_name}</td>
+                              <td style={{ padding: '10px 12px', color: '#374151' }}>{item.teacher_name}</td>
+                              <td style={{ padding: '10px 12px', color: '#374151' }}>{item.hod_name ?? '—'}</td>
+                              <td style={{ padding: '10px 12px' }}>
+                                <span style={{ background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20 }}>{sc.label}</span>
+                              </td>
+                              <td style={{ padding: '10px 12px' }}>
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  {item.status === 'hod_approved' && (
+                                    <>
+                                      <button onClick={() => { setApprovalTarget(item); setApprovalAction('approve'); setApprovalComment(''); setApprovalError(''); }}
+                                        style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                                        Approve
+                                      </button>
+                                      <button onClick={() => { setApprovalTarget(item); setApprovalAction('reject'); setApprovalComment(''); setApprovalError(''); }}
+                                        style={{ background: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                                        Reject
+                                      </button>
+                                    </>
+                                  )}
+                                  {item.status === 'final_approved' && (
+                                    <button onClick={() => { setApprovalTarget(item); setApprovalAction('publish'); setApprovalComment(''); setApprovalError(''); }}
+                                      style={{ background: '#3730A3', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                                      Publish
+                                    </button>
+                                  )}
+                                  {item.status === 'published' && (
+                                    <button onClick={() => { setApprovalTarget(item); setApprovalAction('unlock'); setApprovalComment(''); setApprovalError(''); }}
+                                      style={{ background: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                                      Unlock
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {/* Action confirmation modal */}
+              {approvalTarget && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+                  onClick={() => setApprovalTarget(null)}>
+                  <div style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
+                    onClick={e => e.stopPropagation()}>
+                    <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>
+                      {approvalAction === 'approve' ? 'Final Approval' : approvalAction === 'publish' ? 'Publish Results' : approvalAction === 'unlock' ? 'Unlock Submission' : 'Reject & Return'}
+                    </h3>
+                    <p style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>{approvalTarget.subject} · {approvalTarget.class_name}</p>
+
+                    {approvalAction === 'publish' && (
+                      <p style={{ fontSize: 13, color: '#374151', background: '#FEF3C7', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
+                        This will make results visible to students immediately. This action can be undone with Unlock.
+                      </p>
+                    )}
+
+                    {(approvalAction === 'reject' || approvalAction === 'unlock' || approvalAction === 'approve') && (
+                      <>
+                        <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
+                          {approvalAction === 'reject' || approvalAction === 'unlock' ? 'Reason (required)' : 'Comment (optional)'}
+                        </label>
+                        <textarea value={approvalComment} onChange={e => { setApprovalComment(e.target.value); setApprovalError(''); }} rows={3}
+                          placeholder={approvalAction === 'unlock' ? 'Why is this being unlocked?' : approvalAction === 'reject' ? 'Why is this being returned?' : 'Optional note…'}
+                          style={{ width: '100%', border: '1px solid #E2E8F0', borderRadius: 10, padding: '8px 12px', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                      </>
+                    )}
+
+                    {approvalError && <p style={{ fontSize: 12, color: '#DC2626', marginTop: 6 }}>{approvalError}</p>}
+
+                    <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                      <button onClick={() => setApprovalTarget(null)}
+                        style={{ flex: 1, padding: '9px 0', border: '1px solid #E2E8F0', borderRadius: 10, fontSize: 13, fontWeight: 600, background: '#fff', color: '#374151', cursor: 'pointer' }}>
+                        Cancel
+                      </button>
+                      <button onClick={doApprovalAction} disabled={approving}
+                        style={{ flex: 1, padding: '9px 0', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: approving ? 0.7 : 1,
+                          background: approvalAction === 'reject' ? '#DC2626' : approvalAction === 'unlock' ? '#64748B' : approvalAction === 'publish' ? '#3730A3' : '#15803D',
+                          color: '#fff' }}>
+                        {approving ? '…' : approvalAction === 'approve' ? 'Final Approve' : approvalAction === 'publish' ? 'Publish' : approvalAction === 'unlock' ? 'Unlock' : 'Reject & Return'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {!className ? (
           <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">

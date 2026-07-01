@@ -23,6 +23,10 @@ interface FinanceSummary {
   net_position: number;
 }
 
+interface PipelineItem {
+  status: string;
+}
+
 interface StatCardProps {
   label: string; value: string | number; sub?: string;
   color: string; href?: string; dark: boolean;
@@ -54,6 +58,7 @@ export default function PrincipalDashboard() {
   const [snap, setSnap]       = useState<Snapshot | null>(null);
   const [finance, setFinance] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pipelineCounts, setPipelineCounts] = useState<Record<string, number>>({});
   const user                  = getPrincipal();
 
   useEffect(() => { setMounted(true); }, []);
@@ -67,6 +72,18 @@ export default function PrincipalDashboard() {
       if (finRes) setFinance(finRes.data);
     }).catch(console.error)
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    principalApi.get<PipelineItem[]>('/api/result-submissions/final-queue')
+      .then(r => {
+        const counts: Record<string, number> = {};
+        for (const item of r.data) {
+          counts[item.status] = (counts[item.status] ?? 0) + 1;
+        }
+        setPipelineCounts(counts);
+      })
+      .catch(() => {});
   }, []);
 
   const dark = mounted && theme === 'dark';
@@ -145,6 +162,24 @@ export default function PrincipalDashboard() {
                 dark={dark}
               />
             )}
+          </div>
+
+          {/* Academic Results Pipeline */}
+          <div style={{ marginTop: 24, marginBottom: 32 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A', marginBottom: 12 }}>Academic Results Pipeline</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+              {[
+                { label: 'Awaiting HOD Review', value: pipelineCounts['submitted'] ?? '—', color: '#1E40AF', bg: dark ? '#0A1628' : '#DBEAFE' },
+                { label: 'HOD Approved', value: pipelineCounts['hod_approved'] ?? '—', color: '#065F46', bg: dark ? '#011811' : '#D1FAE5' },
+                { label: 'Final Approved', value: pipelineCounts['final_approved'] ?? '—', color: '#3730A3', bg: dark ? '#0C0A2E' : '#EDE9FE' },
+                { label: 'Published', value: pipelineCounts['published'] ?? '—', color: '#14532D', bg: dark ? '#021408' : '#F0FDF4' },
+              ].map(kpi => (
+                <div key={kpi.label} style={{ background: kpi.bg, borderRadius: 12, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 22, fontWeight: 800, color: kpi.color }}>{kpi.value}</p>
+                  <p style={{ fontSize: 11, color: kpi.color, marginTop: 4, fontWeight: 500 }}>{kpi.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Quick links */}

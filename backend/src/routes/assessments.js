@@ -1,8 +1,22 @@
-﻿const router = require('express').Router();
+const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 
 router.use(authenticate, requireActiveSubscription);
+
+// ── Submission lock helpers ────────────────────────────────────────────────────
+
+async function getSubmissionStatus(schoolId, yearId, semester, subject, className) {
+  if (!yearId) return 'draft';
+  const { rows } = await pool.query(
+    `SELECT status FROM result_submissions
+     WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3 AND subject=$4 AND class_name=$5`,
+    [schoolId, yearId, parseInt(semester), subject, className]
+  );
+  return rows[0]?.status ?? 'draft';
+}
+
+const LOCKED_STATUSES = ['submitted','hod_approved','final_approved','published'];
 
 // GET /api/assessments/my-subjects?academic_year_id=&semester=
 // Returns subjects + classes the requesting teacher is assigned to in the timetable
@@ -102,11 +116,77 @@ router.post('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/assessments/subject-remarks — get remarks for a subject/class/semester
+// IMPORTANT: must be declared before /:id routes to avoid Express treating 'subject-remarks' as :id
+router.get('/subject-remarks', async (req, res, next) => {
+  try {
+    const { academic_year_id, semester, subject, class_name } = req.query;
+    if (!academic_year_id || !semester || !subject || !class_name) {
+      return res.status(400).json({ error: 'academic_year_id, semester, subject, class_name are required' });
+    }
+    // Get all active students in class with their remarks (NULL if none yet)
+    const { rows } = await pool.query(
+      `SELECT s.id AS student_id, s.student_code, s.name,
+              sr.remarks, sr.updated_at
+       FROM students s
+       LEFT JOIN subject_remarks sr ON sr.student_id = s.id
+         AND sr.academic_year_id = $2 AND sr.semester = $3
+         AND sr.subject = $4 AND sr.class_name = $5 AND sr.school_id = $1
+       WHERE s.school_id = $1 AND s.class_name = $5 AND s.status = 'Active'
+       ORDER BY s.name`,
+      [req.schoolId, academic_year_id, parseInt(semester), subject, class_name]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/assessments/subject-remarks — bulk upsert subject remarks
+// IMPORTANT: must be declared before /:id routes to avoid Express treating 'subject-remarks' as :id
+router.post('/subject-remarks', async (req, res, next) => {
+  try {
+    const { academic_year_id, semester, subject, class_name, remarks } = req.body;
+    if (!academic_year_id || !semester || !subject || !class_name || !Array.isArray(remarks)) {
+      return res.status(400).json({ error: 'academic_year_id, semester, subject, class_name, remarks[] are required' });
+    }
+    if (!remarks.length) return res.json({ message: 'No remarks to save.' });
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const r of remarks) {
+        await client.query(
+          `INSERT INTO subject_remarks (school_id, academic_year_id, semester, subject, class_name, student_id, teacher_id, remarks, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
+           ON CONFLICT (school_id, academic_year_id, semester, subject, class_name, student_id)
+           DO UPDATE SET remarks=$8, teacher_id=$7, updated_at=now()`,
+          [req.schoolId, academic_year_id, parseInt(semester), subject, class_name, r.student_id, req.user.id, r.remarks ?? null]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+
+    res.json({ message: 'Remarks saved.' });
+  } catch (err) { next(err); }
+});
+
 // PUT /api/assessments/:id
 router.put('/:id', async (req, res, next) => {
   try {
     const { title, date, max_score, mode_id, semester, academic_year_id } = req.body;
     const isAdmin = req.user.role === 'admin';
+
+    // Check if results are locked before applying any other guards
+    const { rows: asmtRows } = await pool.query(
+      'SELECT * FROM assessments WHERE id=$1 AND school_id=$2',
+      [req.params.id, req.schoolId]
+    );
+    if (!asmtRows.length) return res.status(404).json({ error: 'Assessment not found' });
+    const asmt = asmtRows[0];
+    const subStatus = await getSubmissionStatus(req.schoolId, asmt.academic_year_id, asmt.semester, asmt.subject, asmt.class_name);
+    if (LOCKED_STATUSES.includes(subStatus) && !isAdmin) {
+      return res.status(409).json({ error: `Assessment is locked — submission status is "${subStatus}".` });
+    }
 
     // Fetch the assessment with score count to apply guards
     const fetchParams = [req.params.id, req.schoolId];
@@ -176,6 +256,19 @@ router.put('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const isAdmin = req.user.role === 'admin';
+
+    // Check if results are locked
+    const { rows: asmtRows } = await pool.query(
+      'SELECT * FROM assessments WHERE id=$1 AND school_id=$2',
+      [req.params.id, req.schoolId]
+    );
+    if (!asmtRows.length) return res.status(404).json({ error: 'Assessment not found' });
+    const asmt = asmtRows[0];
+    const subStatus = await getSubmissionStatus(req.schoolId, asmt.academic_year_id, asmt.semester, asmt.subject, asmt.class_name);
+    if (LOCKED_STATUSES.includes(subStatus) && !isAdmin) {
+      return res.status(409).json({ error: `Assessment is locked — submission status is "${subStatus}".` });
+    }
+
     const params = [req.params.id, req.schoolId];
     let ownerFilter = '';
     if (!isAdmin) { params.push(req.user.id); ownerFilter = `AND teacher_id = $${params.length}`; }
@@ -189,7 +282,7 @@ router.delete('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/assessments/:id/scores â€” all student scores for an assessment
+// GET /api/assessments/:id/scores — all student scores for an assessment
 router.get('/:id/scores', async (req, res, next) => {
   try {
     const { rows: [assessment] } = await pool.query(
@@ -213,7 +306,7 @@ router.get('/:id/scores', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/assessments/:id/scores â€” bulk upsert scores
+// POST /api/assessments/:id/scores — bulk upsert scores
 router.post('/:id/scores', async (req, res, next) => {
   try {
     const { scores } = req.body; // [{ student_id, score, absent }]
@@ -224,6 +317,22 @@ router.post('/:id/scores', async (req, res, next) => {
       [req.params.id, req.schoolId]
     );
     if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
+
+    // Check if results are locked
+    const subStatus = await getSubmissionStatus(req.schoolId, assessment.academic_year_id, assessment.semester, assessment.subject, assessment.class_name);
+    if (LOCKED_STATUSES.includes(subStatus)) {
+      return res.status(409).json({ error: `Scores are locked — submission status is "${subStatus}". Contact your HOD or admin to unlock.` });
+    }
+
+    // Validate scores against max_score
+    for (const s of scores) {
+      if (s.score != null && !s.absent) {
+        const numScore = parseFloat(s.score);
+        if (isNaN(numScore) || numScore < 0 || numScore > parseFloat(assessment.max_score)) {
+          return res.status(400).json({ error: `Score ${s.score} exceeds max score of ${assessment.max_score}` });
+        }
+      }
+    }
 
     const client = await pool.connect();
     try {

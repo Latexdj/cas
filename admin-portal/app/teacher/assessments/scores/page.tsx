@@ -22,6 +22,8 @@ interface AssessmentInfo {
   max_score: number;
   class_name: string;
   subject: string;
+  academic_year_id: string;
+  semester: number;
 }
 
 function ScoresContent() {
@@ -39,6 +41,8 @@ function ScoresContent() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const [subLocked, setSubLocked] = useState(false);
+  const [subStatus, setSubStatus] = useState<string>('draft');
 
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -58,6 +62,20 @@ function ScoresContent() {
       }
       setScores(s);
       setAbsents(a);
+
+      // Fetch submission lock status
+      if (data.assessment) {
+        const info = data.assessment as AssessmentInfo;
+        try {
+          const { data: statuses } = await teacherApi.get<Array<{ subject: string; class_name: string; status: string }>>(
+            `/api/result-submissions/my-status?academic_year_id=${info.academic_year_id}&semester=${info.semester}`
+          );
+          const mine = statuses.find(s => s.subject === info.subject && s.class_name === info.class_name);
+          const st = mine?.status ?? 'draft';
+          setSubStatus(st);
+          setSubLocked(['submitted', 'hod_approved', 'final_approved', 'published'].includes(st));
+        } catch { /* non-fatal */ }
+      }
     } catch {
       setError('Failed to load scores.');
     } finally {
@@ -117,10 +135,15 @@ function ScoresContent() {
         {saved && (
           <p className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2 mb-2">✓ Scores saved.</p>
         )}
+        {subLocked && (
+          <div style={{ background: '#DBEAFE', border: '1px solid #93C5FD', borderRadius: 10, padding: '10px 14px', marginBottom: 8, fontSize: 13, color: '#1E40AF', fontWeight: 500 }}>
+            🔒 Scores are locked — submission status is <strong>{subStatus}</strong>. Contact your HOD or admin to unlock.
+          </div>
+        )}
       </div>
 
       {/* Student list */}
-      <div className="px-4 space-y-2">
+      <div className="px-4 space-y-2" style={subLocked ? { opacity: 0.6, pointerEvents: 'none' } : undefined}>
         {loading ? (
           <>
             {[1, 2, 3, 4, 5].map(i => <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-14 animate-pulse" />)}
@@ -150,6 +173,7 @@ function ScoresContent() {
                   <input
                     ref={ref => { inputRefs.current[row.student_id] = ref; }}
                     type="number"
+                    disabled={subLocked}
                     className="w-16 border border-[#E2D9CC] rounded-xl px-2 py-1.5 text-sm font-bold text-center text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]"
                     value={scores[row.student_id] ?? ''}
                     onChange={e => setScores(prev => ({ ...prev, [row.student_id]: e.target.value }))}
@@ -165,6 +189,7 @@ function ScoresContent() {
 
                 <button
                   onClick={() => setAbsents(prev => ({ ...prev, [row.student_id]: !prev[row.student_id] }))}
+                  disabled={subLocked}
                   className="w-8 h-8 rounded-full flex items-center justify-center border transition-colors"
                   style={
                     isAbsent
@@ -189,7 +214,7 @@ function ScoresContent() {
         <div className="px-4 pt-4 pb-6 flex flex-col items-center gap-2">
           <button
             onClick={save}
-            disabled={saving}
+            disabled={subLocked || saving}
             className="w-full max-w-sm px-6 py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-60 transition-opacity shadow-sm"
             style={{ background: primary }}
           >
