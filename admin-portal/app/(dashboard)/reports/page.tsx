@@ -146,6 +146,7 @@ export default function ReportsPage() {
   const [acadYearId,    setAcadYearId]    = useState('');
   const [acadSem,       setAcadSem]       = useState<1 | 2>(1);
   const [acadClass,     setAcadClass]     = useState('');
+  const [classInput,    setClassInput]    = useState('');
   const [status,        setStatus]        = useState<'active' | 'all'>('active');
   const [data,          setData]          = useState<ReportData | null>(null);
   const [loading,       setLoading]       = useState(false);
@@ -167,6 +168,13 @@ export default function ReportsPage() {
   }, []);
 
   const load = useCallback(async () => {
+    if (reportMode === 'academic') {
+      if (!acadYearId) return; // years not loaded yet
+      if (academicType.needsClass && !acadClass) {
+        setData(null); setError(''); setLoading(false);
+        return; // wait for user to enter class name
+      }
+    }
     setLoading(true); setError('');
     try {
       if (reportMode === 'academic') {
@@ -284,7 +292,7 @@ export default function ReportsPage() {
           {ACADEMIC_REPORTS.map(r => (
             <button
               key={r.key}
-              onClick={() => { setReportMode('academic'); setAcademicType(r); }}
+              onClick={() => { setReportMode('academic'); setAcademicType(r); setAcadClass(''); setClassInput(''); }}
               className="w-full text-left px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors font-medium"
               style={{
                 backgroundColor: reportMode === 'academic' && academicType.key === r.key ? 'rgba(21,128,61,0.1)' : 'transparent',
@@ -330,8 +338,10 @@ export default function ReportsPage() {
                   </select>
                   {academicType.needsClass && (
                     <input
-                      value={acadClass}
-                      onChange={e => setAcadClass(e.target.value)}
+                      value={classInput}
+                      onChange={e => setClassInput(e.target.value)}
+                      onBlur={e => setAcadClass(e.target.value.trim())}
+                      onKeyDown={e => { if (e.key === 'Enter') setAcadClass(classInput.trim()); }}
                       placeholder="Class name…"
                       className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-700 w-32"
                     />
@@ -399,6 +409,10 @@ export default function ReportsPage() {
                 <div className="text-center py-20 print:hidden">
                   <p className="text-red-600 text-sm">{error}</p>
                   <button onClick={load} className="mt-3 text-sm text-slate-500 underline">Retry</button>
+                </div>
+              ) : reportMode === 'academic' && academicType.needsClass && !acadClass ? (
+                <div className="text-center py-20 print:hidden">
+                  <p className="text-slate-500 text-sm">Enter a class name above and the report will load automatically.</p>
                 </div>
               ) : data ? (
                 <ReportTable data={data} />
