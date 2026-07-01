@@ -25,6 +25,12 @@ interface SemesterResult {
 interface HistoryPoint { label: string; academic_year: string; semester: number; average: number; grade: string; subject_count: number; }
 interface SchoolProfile { name: string; address: string | null; logo_url: string | null; }
 
+interface ClassStats {
+  class_name: string;
+  class_avg: number | null;
+  subjects: Array<{ subject: string; class_avg: number | null; scored_count: number }>;
+}
+
 const GRADE_COLORS: Record<string, string> = {
   A: '#16a34a', B: '#2563eb', C: '#d97706', D: '#9333ea', E: '#64748b', F: '#dc2626',
 };
@@ -257,17 +263,20 @@ function ReportCard({ result, yearName, semester, schoolName, schoolAddress, sch
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function StudentResultsPage() {
-  const [years,      setYears]      = useState<AcademicYear[]>([]);
-  const [yearsReady, setYearsReady] = useState(false);
-  const [yearId,     setYearId]     = useState('');
-  const [semester,   setSemester]   = useState('1');
-  const [result,     setResult]     = useState<SemesterResult | null>(null);
-  const [history,    setHistory]    = useState<HistoryPoint[]>([]);
-  const [loading,    setLoading]    = useState(false);
-  const [printing,   setPrinting]   = useState(false);
-  const [school,     setSchool]     = useState<SchoolProfile>({ name: '', address: null, logo_url: null });
+  const [years,        setYears]        = useState<AcademicYear[]>([]);
+  const [yearsReady,   setYearsReady]   = useState(false);
+  const [yearId,       setYearId]       = useState('');
+  const [semester,     setSemester]     = useState('1');
+  const [result,       setResult]       = useState<SemesterResult | null>(null);
+  const [classStats,   setClassStats]   = useState<ClassStats | null>(null);
+  const [history,      setHistory]      = useState<HistoryPoint[]>([]);
+  const [loading,      setLoading]      = useState(false);
+  const [printing,     setPrinting]     = useState(false);
+  const [school,       setSchool]       = useState<SchoolProfile>({ name: '', address: null, logo_url: null });
   const colors = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
   const primary = colors.primary;
+
+  const classAvg = classStats?.class_avg ?? null;
 
   useEffect(() => {
     studentApi.get<AcademicYear[]>('/api/student/academic-years').then(r => {
@@ -282,9 +291,16 @@ export default function StudentResultsPage() {
   useEffect(() => {
     if (!yearId) return;
     setLoading(true);
-    studentApi.get<SemesterResult>(`/api/student/results?academic_year_id=${yearId}&semester=${semester}`)
-      .then(r => setResult(r.data))
-      .catch(() => setResult(null))
+    const url = `/api/student/results?academic_year_id=${yearId}&semester=${semester}`;
+    studentApi.get<SemesterResult>(url)
+      .then(r => {
+        setResult(r.data);
+        // Also fetch class-wide averages for comparison (silent failure)
+        studentApi.get<ClassStats>(`/api/student/results/class?academic_year_id=${yearId}&semester=${semester}`)
+          .then(cr => setClassStats(cr.data))
+          .catch(() => setClassStats(null));
+      })
+      .catch(() => { setResult(null); setClassStats(null); })
       .finally(() => setLoading(false));
   }, [yearId, semester]);
 
@@ -379,6 +395,37 @@ export default function StudentResultsPage() {
           </div>
         )}
 
+        {/* Class average comparison */}
+        {classAvg !== null && result?.average !== null && result?.average !== undefined && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: '#64748B' }}>Class average: <strong>{classAvg}%</strong></span>
+            {result.average > classAvg ? (
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#15803D', background: '#DCFCE7', padding: '1px 8px', borderRadius: 20 }}>
+                ↑ {(result.average - classAvg).toFixed(1)}% above
+              </span>
+            ) : result.average < classAvg ? (
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', padding: '1px 8px', borderRadius: 20 }}>
+                ↓ {(classAvg - result.average).toFixed(1)}% below
+              </span>
+            ) : (
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', background: '#F1F5F9', padding: '1px 8px', borderRadius: 20 }}>= At class average</span>
+            )}
+          </div>
+        )}
+
+        {/* At-risk banner */}
+        {result && result.average !== null && result.average < 40 && (
+          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth={2} style={{ width: 20, height: 20, flexShrink: 0, marginTop: 1 }}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#DC2626', margin: 0 }}>Your average is below 40%</p>
+              <p style={{ fontSize: 12, color: '#B91C1C', margin: '3px 0 0' }}>Please speak with your form teacher or subject teachers for additional support.</p>
+            </div>
+          </div>
+        )}
+
         {/* Subject table */}
         {loading ? (
           <div className="flex justify-center py-12">
@@ -408,7 +455,17 @@ export default function StudentResultsPage() {
                       <td className="px-4 py-3 font-medium text-slate-700">{s.subject}</td>
                       <td className="px-3 py-3 text-center text-xs text-slate-500">{s.ca_score ?? '—'}</td>
                       <td className="px-3 py-3 text-center text-xs text-slate-500">{s.exam_score ?? '—'}</td>
-                      <td className={`px-3 py-3 text-center font-bold ${scoreColor(s.total)}`}>{s.total ?? '—'}</td>
+                      <td className={`px-3 py-3 text-center font-bold ${scoreColor(s.total)}`}>
+                        {s.total ?? '—'}
+                        {(() => {
+                          const avg = classStats?.subjects.find(sub => sub.subject === s.subject)?.class_avg ?? null;
+                          return avg !== null && s.total !== null ? (
+                            <span style={{ fontSize: 10, color: '#94A3B8', marginLeft: 6 }}>
+                              (class avg: {avg}%)
+                            </span>
+                          ) : null;
+                        })()}
+                      </td>
                       <td className="px-3 py-3 text-center">
                         <span className="text-xs font-bold px-2 py-0.5 rounded-full"
                           style={{ color: gradeColor(s.grade), background: `${gradeColor(s.grade)}18` }}>{s.grade}</span>

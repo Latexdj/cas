@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { clearUser, getUser } from '@/lib/auth';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { NotificationsBell } from '@/components/NotificationsBell';
 
 interface Props {
   title: string;
@@ -41,6 +42,7 @@ export function Header({ title, onMenuClick }: Props) {
 
       <div className="flex items-center gap-2">
         <ThemeToggle />
+        <NotificationsBell />
         {user && (
           <>
             <div className="text-right hidden sm:block">

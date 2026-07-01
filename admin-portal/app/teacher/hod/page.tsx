@@ -78,7 +78,30 @@ interface HodQueueItem {
   scored_count: number;
 }
 
-type Tab = 'overview' | 'approvals' | 'classes' | 'teachers' | 'absences';
+type Tab = 'overview' | 'approvals' | 'results' | 'classes' | 'teachers' | 'absences';
+
+interface HodStudentResult {
+  student_id: string;
+  student_code: string;
+  name: string;
+  subjects: Array<{
+    subject: string;
+    ca_score: number | null;
+    exam_score: number | null;
+    total: number | null;
+    grade: string | null;
+    remark: string | null;
+  }>;
+  average: number | null;
+  class_position: number | null;
+  class_total: number;
+}
+
+interface HodClass {
+  class_name: string;
+  teacher_name: string;
+  student_count: number;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -145,6 +168,17 @@ export default function HodPage() {
   const [reviewing,     setReviewing]     = useState(false);
   const [reviewError,   setReviewError]   = useState('');
 
+  // ── Results state ──
+  const [academicYears,   setAcademicYears]   = useState<Array<{id:string; name:string; is_current:boolean; current_semester:number}>>([]);
+  const [hodClasses,      setHodClasses]      = useState<HodClass[]>([]);
+  const [resultsClass,    setResultsClass]    = useState('');
+  const [resultsYear,     setResultsYear]     = useState('');
+  const [resultsSem,      setResultsSem]      = useState<1|2>(1);
+  const [hodResults,      setHodResults]      = useState<HodStudentResult[]>([]);
+  const [resultsLoading,  setResultsLoading]  = useState(false);
+  const [resultsError,    setResultsError]    = useState('');
+  const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
+
   useEffect(() => { setPrimary(getTeacherColors().primary); }, []);
 
   // Load overview once
@@ -155,6 +189,37 @@ export default function HodPage() {
       .catch(() => setError('Could not load HOD data. Make sure you are assigned as an HOD.'))
       .finally(() => setLoadingOv(false));
   }, []);
+
+  // ── Results functions ──
+  async function loadResultsTab() {
+    try {
+      const [classesRes, yearsRes] = await Promise.all([
+        teacherApi.get<HodClass[]>('/api/hod/classes'),
+        teacherApi.get<Array<{id:string;name:string;is_current:boolean;current_semester:number}>>('/api/academic-years'),
+      ]);
+      setHodClasses(classesRes.data);
+      if (!academicYears.length) setAcademicYears(yearsRes.data);
+      const current = yearsRes.data.find(y => y.is_current);
+      if (current && !resultsYear) {
+        setResultsYear(current.id);
+        setResultsSem(current.current_semester as 1|2);
+      }
+    } catch { /* ignore */ }
+  }
+
+  async function loadHodResults() {
+    if (!resultsClass || !resultsYear) { setResultsError('Select a class and academic year.'); return; }
+    setResultsLoading(true); setResultsError('');
+    try {
+      const { data } = await teacherApi.get<HodStudentResult[]>(
+        `/api/hod/results?academic_year_id=${resultsYear}&semester=${resultsSem}&class_name=${encodeURIComponent(resultsClass)}`
+      );
+      setHodResults(data);
+    } catch (err: unknown) {
+      const msg = (err as {response?:{data?:{error?:string}}})?.response?.data?.error;
+      setResultsError(msg ?? 'Failed to load results.');
+    } finally { setResultsLoading(false); }
+  }
 
   // ── Queue functions ──
   async function loadQueue() {
@@ -218,14 +283,17 @@ export default function HodPage() {
 
   useEffect(() => {
     if (tab === 'approvals') loadQueue();
+    if (tab === 'results')   loadResultsTab();
     if (tab === 'classes')   loadClasses();
     if (tab === 'teachers')  loadTeachers();
     if (tab === 'absences')  loadAbsences();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, loadClasses, loadTeachers, loadAbsences]);
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'overview',   label: 'Overview' },
     { key: 'approvals',  label: 'Approvals' },
+    { key: 'results',    label: 'Results' },
     { key: 'classes',    label: 'Classes' },
     { key: 'teachers',   label: 'Teachers' },
     { key: 'absences',   label: 'Absences' },
@@ -418,6 +486,144 @@ export default function HodPage() {
                       {reviewing ? 'Submitting…' : (reviewAction === 'approve' ? 'Approve' : 'Reject & Return')}
                     </button>
                   </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Results ── */}
+        {tab === 'results' && (
+          <div>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>Class Results</h3>
+            <p style={{ fontSize: 12, color: '#64748B', marginBottom: 16 }}>View academic results for classes in your department or programme.</p>
+
+            {/* Filters */}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-end' }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#64748B', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Class</label>
+                <select value={resultsClass} onChange={e => setResultsClass(e.target.value)}
+                  style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: '7px 12px', fontSize: 13, minWidth: 140, background: '#fff' }}>
+                  <option value="">Select class…</option>
+                  {hodClasses.map(c => <option key={c.class_name} value={c.class_name}>{c.class_name} ({c.student_count} students)</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#64748B', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Academic Year</label>
+                <select value={resultsYear} onChange={e => setResultsYear(e.target.value)}
+                  style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: '7px 12px', fontSize: 13, minWidth: 140, background: '#fff' }}>
+                  <option value="">Select year…</option>
+                  {academicYears.map(y => <option key={y.id} value={y.id}>{y.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: '#64748B', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Semester</label>
+                <select value={resultsSem} onChange={e => setResultsSem(Number(e.target.value) as 1|2)}
+                  style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: '7px 12px', fontSize: 13, background: '#fff' }}>
+                  <option value={1}>Semester 1</option>
+                  <option value={2}>Semester 2</option>
+                </select>
+              </div>
+              <button onClick={loadHodResults} disabled={resultsLoading || !resultsClass || !resultsYear}
+                style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (resultsLoading || !resultsClass || !resultsYear) ? 0.5 : 1 }}>
+                {resultsLoading ? 'Loading…' : 'View Results'}
+              </button>
+            </div>
+
+            {resultsError && <p style={{ fontSize: 13, color: '#DC2626', marginBottom: 12 }}>{resultsError}</p>}
+
+            {hodResults.length > 0 && (
+              <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
+                {/* Summary stats */}
+                <div style={{ padding: '12px 16px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                  {(() => {
+                    const withAvg = hodResults.filter(r => r.average !== null);
+                    const avg = withAvg.length ? (withAvg.reduce((s,r) => s+(r.average??0),0)/withAvg.length).toFixed(1) : '—';
+                    const passing = withAvg.filter(r => (r.average??0) >= 40).length;
+                    return (
+                      <>
+                        <span style={{ fontSize: 12, color: '#374151' }}><strong>{hodResults.length}</strong> students</span>
+                        <span style={{ fontSize: 12, color: '#374151' }}>Class avg: <strong>{avg}%</strong></span>
+                        <span style={{ fontSize: 12, color: '#374151' }}>Passing: <strong style={{ color: '#15803D' }}>{passing}</strong></span>
+                        <span style={{ fontSize: 12, color: '#374151' }}>At risk: <strong style={{ color: '#DC2626' }}>{withAvg.filter(r=>(r.average??0)<40).length}</strong></span>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* Results table */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                    <thead>
+                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11, textTransform: 'uppercase' }}>Pos</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11, textTransform: 'uppercase' }}>Student</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#64748B', fontSize: 11, textTransform: 'uppercase' }}>Average</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#64748B', fontSize: 11, textTransform: 'uppercase' }}>Subjects</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#64748B', fontSize: 11, textTransform: 'uppercase' }}>Status</th>
+                        <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#64748B', fontSize: 11, textTransform: 'uppercase' }}></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...hodResults].sort((a,b)=>(a.class_position??999)-(b.class_position??999)).map((student, idx) => (
+                        <>
+                          <tr key={student.student_id}
+                            style={{ borderBottom: '1px solid #F1F5F9', background: idx % 2 === 0 ? '#fff' : '#FAFAFA' }}>
+                            <td style={{ padding: '10px 12px', fontWeight: 700, color: '#374151' }}>{student.class_position ?? '—'}</td>
+                            <td style={{ padding: '10px 12px' }}>
+                              <p style={{ fontWeight: 600, color: '#0F172A', margin: 0 }}>{student.name}</p>
+                              <p style={{ fontSize: 11, color: '#64748B', margin: 0 }}>{student.student_code}</p>
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: student.average !== null && student.average >= 40 ? '#15803D' : '#DC2626' }}>
+                              {student.average !== null ? student.average + '%' : '—'}
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center', color: '#374151' }}>{student.subjects.length}</td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                              {student.average !== null && student.average < 40 ? (
+                                <span style={{ background: '#FEE2E2', color: '#DC2626', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>AT RISK</span>
+                              ) : student.average !== null ? (
+                                <span style={{ background: '#DCFCE7', color: '#15803D', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>PASSING</span>
+                              ) : null}
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                              <button onClick={() => setExpandedStudent(expandedStudent === student.student_id ? null : student.student_id)}
+                                style={{ background: 'none', border: '1px solid #E2E8F0', borderRadius: 6, padding: '3px 10px', fontSize: 11, cursor: 'pointer', color: '#64748B' }}>
+                                {expandedStudent === student.student_id ? 'Hide' : 'Details'}
+                              </button>
+                            </td>
+                          </tr>
+                          {expandedStudent === student.student_id && (
+                            <tr key={student.student_id + '_detail'}>
+                              <td colSpan={6} style={{ padding: '0 12px 12px 28px', background: '#F8FAFC' }}>
+                                <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                                  <thead>
+                                    <tr style={{ color: '#64748B' }}>
+                                      <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600 }}>Subject</th>
+                                      <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600 }}>CA</th>
+                                      <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600 }}>Exam</th>
+                                      <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600 }}>Total</th>
+                                      <th style={{ textAlign: 'center', padding: '6px 8px', fontWeight: 600 }}>Grade</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {student.subjects.map(sub => (
+                                      <tr key={sub.subject} style={{ borderTop: '1px solid #E2E8F0' }}>
+                                        <td style={{ padding: '5px 8px', color: '#374151' }}>{sub.subject}</td>
+                                        <td style={{ padding: '5px 8px', textAlign: 'center', color: '#64748B' }}>{sub.ca_score != null ? sub.ca_score.toFixed(1) : '—'}</td>
+                                        <td style={{ padding: '5px 8px', textAlign: 'center', color: '#64748B' }}>{sub.exam_score != null ? sub.exam_score.toFixed(1) : '—'}</td>
+                                        <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 600, color: '#0F172A' }}>{sub.total != null ? sub.total : '—'}</td>
+                                        <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 700, color: sub.grade?.startsWith('F') || sub.grade==='E8' ? '#DC2626' : '#15803D' }}>{sub.grade ?? '—'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </td>
+                            </tr>
+                          )}
+                        </>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

@@ -13,6 +13,12 @@ interface ReportDef {
   scope: Scope;
 }
 
+interface AcademicReportDef {
+  key:        string;
+  label:      string;
+  needsClass: boolean;
+}
+
 const STUDENT_REPORTS: ReportDef[] = [
   { key: 'program_distribution',   label: 'Program Distribution',                       scope: 'students' },
   { key: 'program_residential',    label: 'Program Distribution by Residential Status', scope: 'students' },
@@ -32,6 +38,14 @@ const TEACHER_REPORTS: ReportDef[] = [
   { key: 'association_distribution',   label: 'Association Distribution',    scope: 'teachers' },
 ];
 
+const ACADEMIC_REPORTS: AcademicReportDef[] = [
+  { key: 'class_performance',  label: 'Class Performance Summary',     needsClass: false },
+  { key: 'subject_pass_rate',  label: 'Subject Pass Rate',             needsClass: false },
+  { key: 'teacher_completion', label: 'Assessment Submission Tracker', needsClass: false },
+  { key: 'at_risk_students',   label: 'At-Risk Students',              needsClass: false },
+  { key: 'grade_distribution', label: 'Grade Distribution',            needsClass: true  },
+];
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ReportData {
@@ -40,6 +54,13 @@ interface ReportData {
   keys:    string[];
   rows:    Record<string, string | number>[];
   totals:  Record<string, string | number>;
+}
+
+interface AcademicYear {
+  id:               string;
+  name:             string;
+  is_current:       boolean;
+  current_semester: number;
 }
 
 // ── Report table ──────────────────────────────────────────────────────────────
@@ -118,41 +139,87 @@ function ReportTable({ data }: { data: ReportData }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
-  const [selected, setSelected] = useState<ReportDef>(STUDENT_REPORTS[0]);
-  const [status,   setStatus]   = useState<'active' | 'all'>('active');
-  const [data,     setData]     = useState<ReportData | null>(null);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState('');
+  const [reportMode,    setReportMode]    = useState<'students' | 'teachers' | 'academic'>('students');
+  const [selected,      setSelected]      = useState<ReportDef>(STUDENT_REPORTS[0]);
+  const [academicType,  setAcademicType]  = useState<AcademicReportDef>(ACADEMIC_REPORTS[0]);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [acadYearId,    setAcadYearId]    = useState('');
+  const [acadSem,       setAcadSem]       = useState<1 | 2>(1);
+  const [acadClass,     setAcadClass]     = useState('');
+  const [status,        setStatus]        = useState<'active' | 'all'>('active');
+  const [data,          setData]          = useState<ReportData | null>(null);
+  const [loading,       setLoading]       = useState(false);
+  const [error,         setError]         = useState('');
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Load academic years on mount
+  useEffect(() => {
+    api.get<AcademicYear[]>('/api/academic-years')
+      .then(r => {
+        setAcademicYears(r.data);
+        const cur = r.data.find(y => y.is_current);
+        if (cur) {
+          setAcadYearId(cur.id);
+          setAcadSem(cur.current_semester as 1 | 2);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const { data: res } = await api.get<ReportData>(
-        `/api/reports/${selected.scope}?type=${selected.key}&status=${status}`
-      );
-      setData(res);
+      if (reportMode === 'academic') {
+        const params = new URLSearchParams({
+          type:             academicType.key,
+          academic_year_id: acadYearId,
+          semester:         String(acadSem),
+          status,
+        });
+        if (academicType.needsClass && acadClass) params.set('class_name', acadClass);
+        const { data: res } = await api.get<ReportData>(`/api/reports/academic?${params}`);
+        setData(res);
+      } else {
+        const { data: res } = await api.get<ReportData>(
+          `/api/reports/${selected.scope}?type=${selected.key}&status=${status}`
+        );
+        setData(res);
+      }
     } catch {
       setError('Failed to load report. Please try again.');
     } finally {
-      setLoading(false); }
-  }, [selected, status]);
+      setLoading(false);
+    }
+  }, [reportMode, selected, status, academicType, acadYearId, acadSem, acadClass]);
 
   useEffect(() => { load(); }, [load]);
 
   function handleExcel() {
     const token = typeof window !== 'undefined' ? localStorage.getItem('cas_token') : null;
     const base  = process.env.NEXT_PUBLIC_API_URL ?? '';
-    const url   = `${base}/api/reports/${selected.scope}/excel?type=${selected.key}&status=${status}`;
-    const a     = document.createElement('a');
-    a.href      = url;
-    // Attach auth header via a fetch-and-blob approach
+
+    let url: string;
+    if (reportMode === 'academic') {
+      const params = new URLSearchParams({
+        type:             academicType.key,
+        academic_year_id: acadYearId,
+        semester:         String(acadSem),
+        status,
+      });
+      if (academicType.needsClass && acadClass) params.set('class_name', acadClass);
+      url = `${base}/api/reports/academic/excel?${params}`;
+    } else {
+      url = `${base}/api/reports/${selected.scope}/excel?type=${selected.key}&status=${status}`;
+    }
+
+    const label = reportMode === 'academic' ? academicType.label : selected.label;
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.blob())
       .then(blob => {
         const objUrl = URL.createObjectURL(blob);
+        const a      = document.createElement('a');
         a.href       = objUrl;
-        a.download   = `${selected.label}.xlsx`;
+        a.download   = `${label}.xlsx`;
         a.click();
         URL.revokeObjectURL(objUrl);
       });
@@ -162,7 +229,8 @@ export default function ReportsPage() {
     window.print();
   }
 
-  const allReports = [...STUDENT_REPORTS, ...TEACHER_REPORTS];
+  const currentLabel = reportMode === 'academic' ? academicType.label : selected.label;
+  const currentScope = reportMode === 'academic' ? 'Academic' : (selected.scope === 'students' ? 'Students' : 'Teachers');
 
   return (
     <>
@@ -186,11 +254,11 @@ export default function ReportsPage() {
           {STUDENT_REPORTS.map(r => (
             <button
               key={r.key}
-              onClick={() => setSelected(r)}
+              onClick={() => { setReportMode('students'); setSelected(r); }}
               className="w-full text-left px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors font-medium"
               style={{
-                backgroundColor: selected.key === r.key ? 'rgba(21,128,61,0.1)' : 'transparent',
-                color:           selected.key === r.key ? '#15803D' : '#475569',
+                backgroundColor: reportMode !== 'academic' && selected.key === r.key ? 'rgba(21,128,61,0.1)' : 'transparent',
+                color:           reportMode !== 'academic' && selected.key === r.key ? '#15803D' : '#475569',
               }}
             >
               {r.label}
@@ -201,11 +269,26 @@ export default function ReportsPage() {
           {TEACHER_REPORTS.map(r => (
             <button
               key={r.key}
-              onClick={() => setSelected(r)}
+              onClick={() => { setReportMode('teachers'); setSelected(r); }}
               className="w-full text-left px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors font-medium"
               style={{
-                backgroundColor: selected.key === r.key ? 'rgba(21,128,61,0.1)' : 'transparent',
-                color:           selected.key === r.key ? '#15803D' : '#475569',
+                backgroundColor: reportMode !== 'academic' && selected.key === r.key ? 'rgba(21,128,61,0.1)' : 'transparent',
+                color:           reportMode !== 'academic' && selected.key === r.key ? '#15803D' : '#475569',
+              }}
+            >
+              {r.label}
+            </button>
+          ))}
+
+          <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-5 mb-2">Academic Reports</p>
+          {ACADEMIC_REPORTS.map(r => (
+            <button
+              key={r.key}
+              onClick={() => { setReportMode('academic'); setAcademicType(r); }}
+              className="w-full text-left px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors font-medium"
+              style={{
+                backgroundColor: reportMode === 'academic' && academicType.key === r.key ? 'rgba(21,128,61,0.1)' : 'transparent',
+                color:           reportMode === 'academic' && academicType.key === r.key ? '#15803D' : '#475569',
               }}
             >
               {r.label}
@@ -219,11 +302,43 @@ export default function ReportsPage() {
           {/* Top bar */}
           <div className="border-b border-slate-200 bg-white px-6 py-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
             <div>
-              <h1 className="text-lg font-bold text-slate-900">{selected.label}</h1>
-              <p className="text-xs text-slate-400 mt-0.5 capitalize">{selected.scope}</p>
+              <h1 className="text-lg font-bold text-slate-900">{currentLabel}</h1>
+              <p className="text-xs text-slate-400 mt-0.5 capitalize">{currentScope}</p>
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
+              {/* Academic filters */}
+              {reportMode === 'academic' && (
+                <>
+                  <select
+                    value={acadYearId}
+                    onChange={e => setAcadYearId(e.target.value)}
+                    className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-700"
+                  >
+                    <option value="">Select year…</option>
+                    {academicYears.map(y => (
+                      <option key={y.id} value={y.id}>{y.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={acadSem}
+                    onChange={e => setAcadSem(Number(e.target.value) as 1 | 2)}
+                    className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-700"
+                  >
+                    <option value={1}>Semester 1</option>
+                    <option value={2}>Semester 2</option>
+                  </select>
+                  {academicType.needsClass && (
+                    <input
+                      value={acadClass}
+                      onChange={e => setAcadClass(e.target.value)}
+                      placeholder="Class name…"
+                      className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-700 w-32"
+                    />
+                  )}
+                </>
+              )}
+
               {/* Status toggle */}
               <div className="flex rounded-lg overflow-hidden border border-slate-200 text-sm">
                 {(['active', 'all'] as const).map(s => (
@@ -273,7 +388,7 @@ export default function ReportsPage() {
             <div className="print-area" ref={printRef}>
               {/* Print heading (visible only when printing) */}
               <div className="hidden print:block mb-4">
-                <p className="text-xs text-slate-500">{selected.scope === 'students' ? 'Student Report' : 'Staff Report'} · {status === 'active' ? 'Active only' : 'All statuses'}</p>
+                <p className="text-xs text-slate-500">{currentScope} Report · {status === 'active' ? 'Active only' : 'All statuses'}</p>
               </div>
 
               {loading ? (

@@ -305,4 +305,141 @@ router.get('/absences', hodOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /api/hod/results ─────────────────────────────────────────────────────
+// GET /api/hod/results?academic_year_id=&semester=&class_name=
+router.get('/results', hodOnly, async (req, res, next) => {
+  try {
+    const { academic_year_id, semester, class_name } = req.query;
+    if (!academic_year_id || !semester || !class_name) {
+      return res.status(400).json({ error: 'academic_year_id, semester, and class_name are required' });
+    }
+
+    // Verify this class belongs to HOD's dept/programme
+    if (req.programmeId) {
+      const { rows } = await pool.query(
+        `SELECT 1 FROM students WHERE school_id=$1 AND class_name=$2 AND program_id=$3 AND status='Active' LIMIT 1`,
+        [req.schoolId, class_name, req.programmeId]
+      );
+      if (!rows.length) return res.status(403).json({ error: 'Class not in your programme.' });
+    }
+    // Subject HODs don't have a programme restriction — they can see any class that has their subject
+
+    // Get CA settings
+    const { rows: schoolRows } = await pool.query('SELECT ca_percentage FROM schools WHERE id=$1', [req.schoolId]);
+    const caPercentage = schoolRows[0]?.ca_percentage ?? 30;
+    const examPercentage = 100 - caPercentage;
+
+    const { rows: students } = await pool.query(
+      `SELECT s.id, s.student_code, s.name, s.gender,
+              p.name AS program_name, p.exam_body
+       FROM students s LEFT JOIN programs p ON p.id=s.program_id
+       WHERE s.school_id=$1 AND s.class_name=$2 AND s.status='Active' ORDER BY s.name`,
+      [req.schoolId, class_name]
+    );
+    if (!students.length) return res.json([]);
+
+    const { rows: boundaries } = await pool.query(
+      'SELECT * FROM grade_boundaries WHERE school_id=$1 ORDER BY sort_order, min_pct DESC',
+      [req.schoolId]
+    );
+    const { rows: modes } = await pool.query(
+      'SELECT * FROM assessment_modes WHERE school_id=$1',
+      [req.schoolId]
+    );
+    const { rows: assessments } = await pool.query(
+      'SELECT id, subject, mode_id, max_score FROM assessments WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3 AND class_name=$4',
+      [req.schoolId, academic_year_id, parseInt(semester), class_name]
+    );
+    const { rows: caScores } = await pool.query(
+      `SELECT asc2.assessment_id, asc2.student_id, asc2.score, asc2.absent
+       FROM assessment_scores asc2 JOIN assessments a ON a.id=asc2.assessment_id
+       WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3 AND a.class_name=$4`,
+      [req.schoolId, academic_year_id, parseInt(semester), class_name]
+    );
+    const { rows: examScores } = await pool.query(
+      'SELECT student_id, subject, score, max_score FROM exam_scores WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3 AND class_name=$4',
+      [req.schoolId, academic_year_id, parseInt(semester), class_name]
+    );
+
+    const modeMap = new Map(modes.map(m => [m.id, m]));
+    const boundaryList = boundaries;
+
+    function getGrade(pct, examBody) {
+      const bounds = boundaryList.filter(b => b.exam_body === (examBody || 'WAEC'));
+      for (const b of bounds) {
+        if (pct >= parseFloat(b.min_pct) && pct <= parseFloat(b.max_pct)) return { grade: b.grade, remark: b.remark };
+      }
+      if (pct >= 75) return { grade: 'A1', remark: 'Excellent' };
+      if (pct >= 70) return { grade: 'B2', remark: 'Very Good' };
+      if (pct >= 65) return { grade: 'B3', remark: 'Good' };
+      if (pct >= 60) return { grade: 'C4', remark: 'Credit' };
+      if (pct >= 55) return { grade: 'C5', remark: 'Credit' };
+      if (pct >= 50) return { grade: 'C6', remark: 'Credit' };
+      if (pct >= 45) return { grade: 'D7', remark: 'Pass' };
+      if (pct >= 40) return { grade: 'E8', remark: 'Pass' };
+      return { grade: 'F9', remark: 'Fail' };
+    }
+
+    const caByStudent = {};
+    for (const s of caScores) (caByStudent[s.student_id] ??= {})[s.assessment_id] = s;
+    const examByStudent = {};
+    for (const e of examScores) (examByStudent[e.student_id] ??= {})[e.subject] = e;
+
+    const allSubjects = [...new Set([...assessments.map(a=>a.subject), ...examScores.map(e=>e.subject)])].sort();
+    const totalConfiguredCA = modes.reduce((s, m) => s + parseFloat(m.ca_contribution || 0), 0);
+
+    const results = students.map(student => {
+      const examBody = student.exam_body || 'WAEC';
+      const subjectResults = [];
+
+      for (const subject of allSubjects) {
+        const subAssessments = assessments.filter(a => a.subject === subject);
+        const examEntry = (examByStudent[student.id] ?? {})[subject];
+        const modeGroups = {};
+        for (const a of subAssessments) (modeGroups[a.mode_id] ??= []).push(a);
+
+        let caScore = null;
+        if (Object.keys(modeGroups).length) {
+          let wSum = 0; let hasCA = false;
+          for (const [modeId, mas] of Object.entries(modeGroups)) {
+            const mode = modeMap.get(modeId); if (!mode) continue;
+            const scores = mas.map(a => {
+              const sc = (caByStudent[student.id]??{})[a.id];
+              if (!sc||sc.absent) return null;
+              return (parseFloat(sc.score)/parseFloat(a.max_score))*100;
+            }).filter(s=>s!==null);
+            if (scores.length) { hasCA=true; wSum += (scores.reduce((a,b)=>a+b,0)/scores.length)*parseFloat(mode.ca_contribution||0); }
+          }
+          if (hasCA) caScore = totalConfiguredCA>0 ? (wSum/totalConfiguredCA)*caPercentage : wSum;
+        }
+
+        let examScore = null;
+        if (examEntry?.score != null) examScore = (parseFloat(examEntry.score)/parseFloat(examEntry.max_score||100))*examPercentage;
+
+        if (caScore === null && examScore === null) continue;
+        const total = Math.round(((caScore??0)+(examScore??0))*10)/10;
+        const { grade, remark } = getGrade(total, examBody);
+        subjectResults.push({ subject, ca_score: caScore, exam_score: examScore, total, grade, remark });
+      }
+
+      const withTotals = subjectResults.filter(s=>s.total!==null);
+      const average = withTotals.length ? Math.round((withTotals.reduce((s,sub)=>s+sub.total,0)/withTotals.length)*10)/10 : null;
+      return { student_id: student.id, student_code: student.student_code, name: student.name,
+               gender: student.gender, program_name: student.program_name, exam_body: examBody,
+               subjects: subjectResults, average };
+    });
+
+    const sorted = [...results].filter(r=>r.average!==null).sort((a,b)=>b.average-a.average);
+    let pos = 1;
+    for (let i=0;i<sorted.length;i++) {
+      if (i>0 && sorted[i].average!==sorted[i-1].average) pos=i+1;
+      const r=results.find(x=>x.student_id===sorted[i].student_id);
+      if (r) r.class_position=pos;
+    }
+    results.forEach(r=>{ r.class_total=sorted.length; r.class_position=r.class_position??null; });
+
+    res.json(results);
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

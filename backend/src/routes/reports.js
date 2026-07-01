@@ -161,6 +161,36 @@ const STUDENT_REPORTS = {
   },
 };
 
+// ── Academic report definitions ────────────────────────────────────────────────
+
+const ACADEMIC_REPORTS = {
+  grade_distribution: {
+    label: 'Grade Distribution by Subject',
+    // Returns: per subject in a class, count of each grade
+    // Params needed: academic_year_id, semester, class_name
+  },
+  class_performance: {
+    label: 'Class Performance Summary',
+    // Returns: per class, average score, pass rate, subject count
+    // Params needed: academic_year_id, semester
+  },
+  subject_pass_rate: {
+    label: 'Subject Pass Rate',
+    // Returns: per subject, pass rate across all classes
+    // Params needed: academic_year_id, semester
+  },
+  teacher_completion: {
+    label: 'Assessment Submission Tracker',
+    // Returns: per teacher, how many subjects submitted vs total
+    // Params needed: academic_year_id, semester
+  },
+  at_risk_students: {
+    label: 'At-Risk Students',
+    // Returns: students with total average below 40%
+    // Params needed: academic_year_id, semester, class_name (optional)
+  },
+};
+
 // ── Teacher report definitions ─────────────────────────────────────────────────
 
 const TEACHER_REPORTS = {
@@ -379,6 +409,372 @@ router.get('/teachers/excel', async (req, res, next) => {
     const rows = await runReport(report, req.schoolId, status, false);
     const wb   = await buildExcel(report, rows);
     const fname = report.label.replace(/[^a-z0-9]/gi, '_') + '.xlsx';
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) { next(err); }
+});
+
+router.get('/academic', async (req, res, next) => {
+  try {
+    const { type, academic_year_id, semester, class_name, status = 'active' } = req.query;
+    if (!type || !academic_year_id || !semester) {
+      return res.status(400).json({ error: 'type, academic_year_id, and semester are required' });
+    }
+
+    const sc = status === 'all' ? '' : `AND s.status = 'Active'`;
+    const sem = parseInt(semester);
+
+    if (type === 'grade_distribution') {
+      if (!class_name) return res.status(400).json({ error: 'class_name is required for grade_distribution' });
+      // Get exam scores joined with grade_boundaries
+      const { rows } = await pool.query(`
+        SELECT es.subject,
+               COALESCE(gb.grade,
+                 CASE
+                   WHEN (es.score/es.max_score*100) >= 75 THEN 'A1'
+                   WHEN (es.score/es.max_score*100) >= 70 THEN 'B2'
+                   WHEN (es.score/es.max_score*100) >= 65 THEN 'B3'
+                   WHEN (es.score/es.max_score*100) >= 60 THEN 'C4'
+                   WHEN (es.score/es.max_score*100) >= 55 THEN 'C5'
+                   WHEN (es.score/es.max_score*100) >= 50 THEN 'C6'
+                   WHEN (es.score/es.max_score*100) >= 45 THEN 'D7'
+                   WHEN (es.score/es.max_score*100) >= 40 THEN 'E8'
+                   ELSE 'F9'
+                 END
+               ) AS grade,
+               COUNT(*) AS count
+        FROM exam_scores es
+        JOIN students st ON st.id = es.student_id
+        LEFT JOIN programs p ON p.id = st.program_id
+        LEFT JOIN grade_boundaries gb ON gb.school_id = es.school_id
+          AND gb.exam_body = COALESCE(p.exam_body, 'WAEC')
+          AND (es.score/es.max_score*100) BETWEEN gb.min_pct AND gb.max_pct
+        WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3 AND es.class_name=$4
+          ${status === 'all' ? '' : "AND st.status = 'Active'"}
+        GROUP BY es.subject, grade
+        ORDER BY es.subject, grade
+      `, [req.schoolId, academic_year_id, sem, class_name]);
+
+      // Pivot: subject → { A1: n, B2: n, ... }
+      const gradeOrder = ['A1','B2','B3','C4','C5','C6','D7','E8','F9','A','B+','B-','C+','C-','D','E','F'];
+      const subjectMap = {};
+      for (const row of rows) {
+        if (!subjectMap[row.subject]) subjectMap[row.subject] = { subject: row.subject };
+        subjectMap[row.subject][row.grade] = parseInt(row.count);
+      }
+      const grades = [...new Set(rows.map(r => r.grade))].sort((a, b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
+      const resultRows = Object.values(subjectMap);
+      const columns = ['Subject', ...grades];
+      const keys = ['subject', ...grades];
+      const totals = { subject: 'TOTAL' };
+      for (const g of grades) totals[g] = resultRows.reduce((s, r) => s + (r[g] || 0), 0);
+      return res.json({ label: `Grade Distribution — ${class_name}`, columns, keys, rows: resultRows, totals });
+    }
+
+    if (type === 'class_performance') {
+      // Average exam score and pass rate per class for this year/semester
+      const { rows } = await pool.query(`
+        SELECT es.class_name,
+               ROUND(AVG(es.score / es.max_score * 100)::numeric, 1) AS avg_pct,
+               COUNT(*) AS total_students,
+               COUNT(*) FILTER (WHERE es.score / es.max_score * 100 >= 40) AS passing,
+               ROUND(COUNT(*) FILTER (WHERE es.score / es.max_score * 100 >= 40)::numeric / NULLIF(COUNT(*), 0) * 100, 1) AS pass_rate
+        FROM exam_scores es
+        JOIN students s ON s.id = es.student_id
+        WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3 ${sc}
+        GROUP BY es.class_name
+        ORDER BY avg_pct DESC NULLS LAST
+      `, [req.schoolId, academic_year_id, sem]);
+
+      const resultRows = rows.map(r => ({
+        group: r.class_name,
+        avg_pct: r.avg_pct ? parseFloat(r.avg_pct) + '%' : '—',
+        total_students: parseInt(r.total_students),
+        passing: parseInt(r.passing),
+        pass_rate: r.pass_rate ? parseFloat(r.pass_rate) + '%' : '—',
+      }));
+      const totals = {
+        group: 'TOTAL',
+        avg_pct: '—',
+        total_students: resultRows.reduce((s, r) => s + r.total_students, 0),
+        passing: resultRows.reduce((s, r) => s + r.passing, 0),
+        pass_rate: '—',
+      };
+      return res.json({
+        label: 'Class Performance Summary',
+        columns: ['Class', 'Avg Score', 'Students Scored', 'Passing', 'Pass Rate'],
+        keys: ['group', 'avg_pct', 'total_students', 'passing', 'pass_rate'],
+        rows: resultRows, totals,
+      });
+    }
+
+    if (type === 'subject_pass_rate') {
+      const { rows } = await pool.query(`
+        SELECT es.subject,
+               COUNT(DISTINCT es.student_id) AS total_students,
+               COUNT(DISTINCT es.student_id) FILTER (WHERE es.score / es.max_score * 100 >= 40) AS passing,
+               ROUND(AVG(es.score / es.max_score * 100)::numeric, 1) AS avg_pct,
+               ROUND(COUNT(DISTINCT es.student_id) FILTER (WHERE es.score / es.max_score * 100 >= 40)::numeric
+                 / NULLIF(COUNT(DISTINCT es.student_id), 0) * 100, 1) AS pass_rate
+        FROM exam_scores es
+        JOIN students s ON s.id = es.student_id
+        WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3 ${sc}
+        GROUP BY es.subject
+        ORDER BY pass_rate ASC NULLS LAST
+      `, [req.schoolId, academic_year_id, sem]);
+
+      const resultRows = rows.map(r => ({
+        group: r.subject,
+        avg_pct: r.avg_pct ? parseFloat(r.avg_pct) + '%' : '—',
+        total_students: parseInt(r.total_students),
+        passing: parseInt(r.passing),
+        pass_rate: r.pass_rate ? parseFloat(r.pass_rate) + '%' : '—',
+      }));
+      const totals = { group: 'TOTAL', avg_pct: '—', total_students: resultRows.reduce((s,r)=>s+r.total_students,0), passing: resultRows.reduce((s,r)=>s+r.passing,0), pass_rate: '—' };
+      return res.json({
+        label: 'Subject Pass Rate',
+        columns: ['Subject', 'Avg Score', 'Students Scored', 'Passing', 'Pass Rate'],
+        keys: ['group', 'avg_pct', 'total_students', 'passing', 'pass_rate'],
+        rows: resultRows, totals,
+      });
+    }
+
+    if (type === 'teacher_completion') {
+      // For each teacher: how many distinct subject/class combos they have exam scores for vs submissions
+      const { rows } = await pool.query(`
+        SELECT t.name AS teacher_name, t.department,
+               COUNT(DISTINCT es.subject || '||' || es.class_name) AS subjects_scored,
+               COUNT(DISTINCT rs.id) FILTER (WHERE rs.status IN ('submitted','hod_approved','final_approved','published')) AS subjects_submitted,
+               COUNT(DISTINCT rs.id) FILTER (WHERE rs.status = 'published') AS subjects_published
+        FROM teachers t
+        LEFT JOIN exam_scores es ON es.teacher_id = t.id AND es.academic_year_id=$2 AND es.semester=$3 AND es.school_id=$1
+        LEFT JOIN result_submissions rs ON rs.teacher_id = t.id AND rs.academic_year_id=$2 AND rs.semester=$3 AND rs.school_id=$1
+        WHERE t.school_id=$1 AND t.status='Active'
+        GROUP BY t.id, t.name, t.department
+        HAVING COUNT(DISTINCT es.subject || '||' || es.class_name) > 0
+           OR COUNT(DISTINCT rs.id) > 0
+        ORDER BY subjects_submitted ASC, teacher_name
+      `, [req.schoolId, academic_year_id, sem]);
+
+      const resultRows = rows.map(r => ({
+        group: r.teacher_name,
+        department: r.department || '—',
+        subjects_scored: parseInt(r.subjects_scored),
+        subjects_submitted: parseInt(r.subjects_submitted),
+        subjects_published: parseInt(r.subjects_published),
+      }));
+      const totals = {
+        group: 'TOTAL', department: '—',
+        subjects_scored: resultRows.reduce((s,r)=>s+r.subjects_scored,0),
+        subjects_submitted: resultRows.reduce((s,r)=>s+r.subjects_submitted,0),
+        subjects_published: resultRows.reduce((s,r)=>s+r.subjects_published,0),
+      };
+      return res.json({
+        label: 'Assessment Submission Tracker',
+        columns: ['Teacher', 'Department', 'Subjects Scored', 'Submitted', 'Published'],
+        keys: ['group', 'department', 'subjects_scored', 'subjects_submitted', 'subjects_published'],
+        rows: resultRows, totals,
+      });
+    }
+
+    if (type === 'at_risk_students') {
+      let classFilter = '';
+      const params = [req.schoolId, academic_year_id, sem];
+      if (class_name) { params.push(class_name); classFilter = `AND es.class_name = $${params.length}`; }
+
+      const { rows } = await pool.query(`
+        SELECT s.name, s.student_code, es.class_name,
+               ROUND(AVG(es.score / es.max_score * 100)::numeric, 1) AS avg_pct,
+               COUNT(DISTINCT es.subject) AS subjects_scored
+        FROM exam_scores es
+        JOIN students s ON s.id = es.student_id
+        WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3 ${classFilter}
+          AND s.status = 'Active'
+        GROUP BY s.id, s.name, s.student_code, es.class_name
+        HAVING ROUND(AVG(es.score / es.max_score * 100)::numeric, 1) < 40
+        ORDER BY avg_pct ASC
+      `, params);
+
+      const resultRows = rows.map(r => ({
+        group: r.name,
+        student_code: r.student_code,
+        class_name: r.class_name,
+        avg_pct: parseFloat(r.avg_pct) + '%',
+        subjects_scored: parseInt(r.subjects_scored),
+      }));
+      const totals = { group: `${resultRows.length} student(s) at risk`, student_code: '', class_name: '', avg_pct: '', subjects_scored: '' };
+      return res.json({
+        label: 'At-Risk Students (Average < 40%)',
+        columns: ['Student', 'Code', 'Class', 'Average', 'Subjects Scored'],
+        keys: ['group', 'student_code', 'class_name', 'avg_pct', 'subjects_scored'],
+        rows: resultRows, totals,
+      });
+    }
+
+    return res.status(400).json({ error: `Unknown report type: ${type}` });
+  } catch (err) { next(err); }
+});
+
+router.get('/academic/excel', async (req, res, next) => {
+  try {
+    const { type, academic_year_id, semester, class_name, status = 'active' } = req.query;
+    if (!type || !academic_year_id || !semester) {
+      return res.status(400).json({ error: 'type, academic_year_id, and semester are required' });
+    }
+
+    if (!ACADEMIC_REPORTS[type]) return res.status(400).json({ error: `Unknown report type: ${type}` });
+
+    const sc  = status === 'all' ? '' : `AND s.status = 'Active'`;
+    const sem = parseInt(semester);
+    let label, columns, keys, resultRows;
+
+    if (type === 'grade_distribution') {
+      if (!class_name) return res.status(400).json({ error: 'class_name is required for grade_distribution' });
+      const { rows } = await pool.query(`
+        SELECT es.subject,
+               COALESCE(gb.grade,
+                 CASE
+                   WHEN (es.score/es.max_score*100) >= 75 THEN 'A1'
+                   WHEN (es.score/es.max_score*100) >= 70 THEN 'B2'
+                   WHEN (es.score/es.max_score*100) >= 65 THEN 'B3'
+                   WHEN (es.score/es.max_score*100) >= 60 THEN 'C4'
+                   WHEN (es.score/es.max_score*100) >= 55 THEN 'C5'
+                   WHEN (es.score/es.max_score*100) >= 50 THEN 'C6'
+                   WHEN (es.score/es.max_score*100) >= 45 THEN 'D7'
+                   WHEN (es.score/es.max_score*100) >= 40 THEN 'E8'
+                   ELSE 'F9'
+                 END
+               ) AS grade,
+               COUNT(*) AS count
+        FROM exam_scores es
+        JOIN students st ON st.id = es.student_id
+        LEFT JOIN programs p ON p.id = st.program_id
+        LEFT JOIN grade_boundaries gb ON gb.school_id = es.school_id
+          AND gb.exam_body = COALESCE(p.exam_body, 'WAEC')
+          AND (es.score/es.max_score*100) BETWEEN gb.min_pct AND gb.max_pct
+        WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3 AND es.class_name=$4
+          ${status === 'all' ? '' : "AND st.status = 'Active'"}
+        GROUP BY es.subject, grade
+        ORDER BY es.subject, grade
+      `, [req.schoolId, academic_year_id, sem, class_name]);
+      const gradeOrder = ['A1','B2','B3','C4','C5','C6','D7','E8','F9','A','B+','B-','C+','C-','D','E','F'];
+      const subjectMap = {};
+      for (const row of rows) {
+        if (!subjectMap[row.subject]) subjectMap[row.subject] = { subject: row.subject };
+        subjectMap[row.subject][row.grade] = parseInt(row.count);
+      }
+      const grades = [...new Set(rows.map(r => r.grade))].sort((a, b) => gradeOrder.indexOf(a) - gradeOrder.indexOf(b));
+      resultRows = Object.values(subjectMap);
+      label   = `Grade Distribution — ${class_name}`;
+      columns = ['Subject', ...grades];
+      keys    = ['subject', ...grades];
+    } else if (type === 'class_performance') {
+      const { rows } = await pool.query(`
+        SELECT es.class_name,
+               ROUND(AVG(es.score / es.max_score * 100)::numeric, 1) AS avg_pct,
+               COUNT(*) AS total_students,
+               COUNT(*) FILTER (WHERE es.score / es.max_score * 100 >= 40) AS passing,
+               ROUND(COUNT(*) FILTER (WHERE es.score / es.max_score * 100 >= 40)::numeric / NULLIF(COUNT(*), 0) * 100, 1) AS pass_rate
+        FROM exam_scores es
+        JOIN students s ON s.id = es.student_id
+        WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3 ${sc}
+        GROUP BY es.class_name
+        ORDER BY avg_pct DESC NULLS LAST
+      `, [req.schoolId, academic_year_id, sem]);
+      resultRows = rows.map(r => ({
+        group: r.class_name,
+        avg_pct: r.avg_pct ? parseFloat(r.avg_pct) + '%' : '—',
+        total_students: parseInt(r.total_students),
+        passing: parseInt(r.passing),
+        pass_rate: r.pass_rate ? parseFloat(r.pass_rate) + '%' : '—',
+      }));
+      label   = 'Class Performance Summary';
+      columns = ['Class', 'Avg Score', 'Students Scored', 'Passing', 'Pass Rate'];
+      keys    = ['group', 'avg_pct', 'total_students', 'passing', 'pass_rate'];
+    } else if (type === 'subject_pass_rate') {
+      const { rows } = await pool.query(`
+        SELECT es.subject,
+               COUNT(DISTINCT es.student_id) AS total_students,
+               COUNT(DISTINCT es.student_id) FILTER (WHERE es.score / es.max_score * 100 >= 40) AS passing,
+               ROUND(AVG(es.score / es.max_score * 100)::numeric, 1) AS avg_pct,
+               ROUND(COUNT(DISTINCT es.student_id) FILTER (WHERE es.score / es.max_score * 100 >= 40)::numeric
+                 / NULLIF(COUNT(DISTINCT es.student_id), 0) * 100, 1) AS pass_rate
+        FROM exam_scores es
+        JOIN students s ON s.id = es.student_id
+        WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3 ${sc}
+        GROUP BY es.subject
+        ORDER BY pass_rate ASC NULLS LAST
+      `, [req.schoolId, academic_year_id, sem]);
+      resultRows = rows.map(r => ({
+        group: r.subject,
+        avg_pct: r.avg_pct ? parseFloat(r.avg_pct) + '%' : '—',
+        total_students: parseInt(r.total_students),
+        passing: parseInt(r.passing),
+        pass_rate: r.pass_rate ? parseFloat(r.pass_rate) + '%' : '—',
+      }));
+      label   = 'Subject Pass Rate';
+      columns = ['Subject', 'Avg Score', 'Students Scored', 'Passing', 'Pass Rate'];
+      keys    = ['group', 'avg_pct', 'total_students', 'passing', 'pass_rate'];
+    } else if (type === 'teacher_completion') {
+      const { rows } = await pool.query(`
+        SELECT t.name AS teacher_name, t.department,
+               COUNT(DISTINCT es.subject || '||' || es.class_name) AS subjects_scored,
+               COUNT(DISTINCT rs.id) FILTER (WHERE rs.status IN ('submitted','hod_approved','final_approved','published')) AS subjects_submitted,
+               COUNT(DISTINCT rs.id) FILTER (WHERE rs.status = 'published') AS subjects_published
+        FROM teachers t
+        LEFT JOIN exam_scores es ON es.teacher_id = t.id AND es.academic_year_id=$2 AND es.semester=$3 AND es.school_id=$1
+        LEFT JOIN result_submissions rs ON rs.teacher_id = t.id AND rs.academic_year_id=$2 AND rs.semester=$3 AND rs.school_id=$1
+        WHERE t.school_id=$1 AND t.status='Active'
+        GROUP BY t.id, t.name, t.department
+        HAVING COUNT(DISTINCT es.subject || '||' || es.class_name) > 0
+           OR COUNT(DISTINCT rs.id) > 0
+        ORDER BY subjects_submitted ASC, teacher_name
+      `, [req.schoolId, academic_year_id, sem]);
+      resultRows = rows.map(r => ({
+        group: r.teacher_name,
+        department: r.department || '—',
+        subjects_scored: parseInt(r.subjects_scored),
+        subjects_submitted: parseInt(r.subjects_submitted),
+        subjects_published: parseInt(r.subjects_published),
+      }));
+      label   = 'Assessment Submission Tracker';
+      columns = ['Teacher', 'Department', 'Subjects Scored', 'Submitted', 'Published'];
+      keys    = ['group', 'department', 'subjects_scored', 'subjects_submitted', 'subjects_published'];
+    } else if (type === 'at_risk_students') {
+      let classFilter = '';
+      const params = [req.schoolId, academic_year_id, sem];
+      if (class_name) { params.push(class_name); classFilter = `AND es.class_name = $${params.length}`; }
+      const { rows } = await pool.query(`
+        SELECT s.name, s.student_code, es.class_name,
+               ROUND(AVG(es.score / es.max_score * 100)::numeric, 1) AS avg_pct,
+               COUNT(DISTINCT es.subject) AS subjects_scored
+        FROM exam_scores es
+        JOIN students s ON s.id = es.student_id
+        WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3 ${classFilter}
+          AND s.status = 'Active'
+        GROUP BY s.id, s.name, s.student_code, es.class_name
+        HAVING ROUND(AVG(es.score / es.max_score * 100)::numeric, 1) < 40
+        ORDER BY avg_pct ASC
+      `, params);
+      resultRows = rows.map(r => ({
+        group: r.name,
+        student_code: r.student_code,
+        class_name: r.class_name,
+        avg_pct: parseFloat(r.avg_pct) + '%',
+        subjects_scored: parseInt(r.subjects_scored),
+      }));
+      label   = 'At-Risk Students (Average < 40%)';
+      columns = ['Student', 'Code', 'Class', 'Average', 'Subjects Scored'];
+      keys    = ['group', 'student_code', 'class_name', 'avg_pct', 'subjects_scored'];
+    } else {
+      return res.status(400).json({ error: `Unknown report type: ${type}` });
+    }
+
+    const report = { label, columns, keys };
+    const wb     = await buildExcel(report, resultRows);
+    const fname  = label.replace(/[^a-z0-9]/gi, '_') + '.xlsx';
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${fname}"`);
     await wb.xlsx.write(res);

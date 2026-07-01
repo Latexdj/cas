@@ -290,6 +290,53 @@ router.get('/results', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /api/student/results/class ───────────────────────────────────────────
+// Returns anonymised class averages (overall + per-subject) for the student's class.
+
+router.get('/results/class', async (req, res, next) => {
+  try {
+    const { academic_year_id, semester } = req.query;
+    if (!academic_year_id || !semester)
+      return res.status(400).json({ error: 'academic_year_id and semester are required' });
+
+    const student = await getStudentProfile(req.schoolId, req.user.id);
+    if (!student) return res.status(404).json({ error: 'Student not found' });
+
+    const semInt = parseInt(semester);
+    const className = student.class_name;
+
+    // Class average per subject from exam scores
+    const { rows: subjectAvgs } = await pool.query(
+      `SELECT es.subject,
+              ROUND(AVG(es.score / NULLIF(es.max_score, 0) * 100)::numeric, 1) AS class_avg,
+              COUNT(DISTINCT es.student_id) AS scored_count
+       FROM exam_scores es
+       JOIN students s ON s.id = es.student_id
+       WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3
+         AND LOWER(es.class_name)=LOWER($4) AND s.status='Active'
+       GROUP BY es.subject
+       ORDER BY es.subject`,
+      [req.schoolId, academic_year_id, semInt, className]
+    );
+
+    // Overall class average
+    const withAvg = subjectAvgs.filter(r => r.class_avg !== null);
+    const classAvg = withAvg.length
+      ? Math.round(withAvg.reduce((s, r) => s + parseFloat(r.class_avg), 0) / withAvg.length * 10) / 10
+      : null;
+
+    res.json({
+      class_name: className,
+      class_avg: classAvg,
+      subjects: subjectAvgs.map(r => ({
+        subject: r.subject,
+        class_avg: r.class_avg !== null ? parseFloat(r.class_avg) : null,
+        scored_count: parseInt(r.scored_count),
+      })),
+    });
+  } catch (err) { next(err); }
+});
+
 // ── GET /api/student/results/history ─────────────────────────────────────────
 // Returns per-semester summary for performance graph
 

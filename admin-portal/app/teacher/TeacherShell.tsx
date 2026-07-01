@@ -215,6 +215,8 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const [primary,          setPrimary]          = useState('#2ab289');
   const [logoUrl,          setLogoUrl]          = useState<string | null>(null);
   const [unreadCount,      setUnreadCount]      = useState(0);
+  const [showNotifs,       setShowNotifs]       = useState(false);
+  const [notifs,           setNotifs]           = useState<Array<{ id: string; message: string; link: string | null; is_read: boolean; created_at: string }>>([]);
   const [moreOpen,         setMoreOpen]         = useState(false);
   const [isFormTeacher,    setIsFormTeacher]    = useState(false);
   const [isClearanceStaff, setIsClearanceStaff] = useState(false);
@@ -248,10 +250,19 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
 
   const fetchUnread = useCallback(async () => {
     try {
-      const { data } = await teacherApi.get<{ count: number }>('/api/notifications/unread-count');
-      setUnreadCount(data.count ?? 0);
+      const { data } = await teacherApi.get<Array<{ id: string; message: string; link: string | null; is_read: boolean; created_at: string }>>('/api/result-submissions/notifications');
+      setNotifs(data);
+      setUnreadCount(data.filter(n => !n.is_read).length);
     } catch { /* ignore */ }
   }, []);
+
+  async function markAllRead() {
+    try {
+      await teacherApi.post('/api/result-submissions/notifications/mark-read', {});
+      setNotifs(n => n.map(x => ({ ...x, is_read: true })));
+      setUnreadCount(0);
+    } catch { /* non-fatal */ }
+  }
 
   useEffect(() => {
     if (NO_SHELL_PATHS.includes(pathname)) { setReady(true); return; }
@@ -329,7 +340,55 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
             <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-white text-sm font-bold"
               style={{ background: primary }}>T</div>
           )}
-          <span className="text-base font-bold leading-tight" style={{ color: primary }}>Teacher Portal</span>
+          <span className="flex-1 text-base font-bold leading-tight" style={{ color: primary }}>Teacher Portal</span>
+          {/* Notifications bell */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => {
+                setShowNotifs(v => !v);
+                if (!showNotifs && unreadCount > 0) markAllRead();
+              }}
+              style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              title="Notifications"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 18, height: 18, color: dk.navText }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              {unreadCount > 0 && (
+                <span style={{ position: 'absolute', top: 0, right: 0, background: '#DC2626', color: '#fff', fontSize: 9, fontWeight: 800, minWidth: 14, height: 14, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px' }}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {showNotifs && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowNotifs(false)} />
+                <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 300, background: isDark ? '#1E293B' : '#fff', border: `1px solid ${dk.border}`, borderRadius: 14, boxShadow: '0 10px 40px rgba(0,0,0,0.15)', zIndex: 50, maxHeight: 380, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ padding: '10px 14px', borderBottom: `1px solid ${dk.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: isDark ? '#F1F5F9' : '#0F172A' }}>Notifications</span>
+                    <button onClick={markAllRead} style={{ fontSize: 11, color: primary, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Mark all read</button>
+                  </div>
+                  <div style={{ overflowY: 'auto', flex: 1 }}>
+                    {notifs.length === 0 ? (
+                      <div style={{ padding: '20px 14px', textAlign: 'center', fontSize: 12, color: '#94A3B8' }}>No notifications</div>
+                    ) : notifs.map(n => (
+                      <div
+                        key={n.id}
+                        onClick={() => { if (n.link && typeof window !== 'undefined') window.location.href = n.link; setShowNotifs(false); }}
+                        style={{ padding: '9px 14px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : '#F8FAFC'}`, cursor: n.link ? 'pointer' : 'default', background: n.is_read ? 'transparent' : (isDark ? 'rgba(21,128,61,0.08)' : '#F0FDF4') }}
+                      >
+                        <p style={{ fontSize: 12, color: isDark ? '#E2E8F0' : '#0F172A', margin: 0, lineHeight: 1.4 }}>{n.message}</p>
+                        <p style={{ fontSize: 10, color: '#94A3B8', margin: '2px 0 0' }}>
+                          {new Date(n.created_at).toLocaleDateString()} {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
         <nav className="flex-1 py-4 space-y-1 px-3 overflow-y-auto no-scrollbar">
           {visibleNavItems.map((item) => {
