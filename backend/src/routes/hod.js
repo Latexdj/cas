@@ -11,11 +11,20 @@ router.use(authenticate, requireActiveSubscription);
 //   req.isSubjectHod — true when department is a subject (Maths, English…), not a programme
 //
 // Access is granted via EITHER:
-//   (a) a clearance office with office_type = 'hod'  (programme HODs who do clearance)
-//   (b) a responsibility assignment with module_key = 'hod'  (subject HODs — no clearance)
+//   (a) departments table — teacher is head_teacher_id of a department  [primary path]
+//   (b) clearance office with office_type = 'hod'  [fallback for legacy assignments]
 async function hodOnly(req, res, next) {
   try {
-    const [{ rows: officeRows }, { rows: respRows }] = await Promise.all([
+    const [{ rows: deptRows }, { rows: officeRows }] = await Promise.all([
+      // Primary: Departments page assignment
+      pool.query(
+        `SELECT d.name AS dept_name
+         FROM departments d
+         WHERE d.school_id = $1 AND d.head_teacher_id = $2
+         LIMIT 1`,
+        [req.schoolId, req.user.id]
+      ),
+      // Fallback: legacy clearance-office HOD assignment
       pool.query(
         `SELECT co.linked_programme_id, p.name AS programme_name
          FROM clearance_office_staff cos
@@ -26,28 +35,27 @@ async function hodOnly(req, res, next) {
          LIMIT 1`,
         [req.schoolId, req.user.id]
       ),
-      pool.query(
-        `SELECT 1 FROM teacher_responsibility_assignments tra
-         JOIN teacher_responsibilities tr ON tr.id = tra.responsibility_id
-         WHERE tra.teacher_id = $1 AND tr.school_id = $2 AND tr.module_key = 'hod'
-         LIMIT 1`,
-        [req.user.id, req.schoolId]
-      ),
     ]);
 
-    if (!officeRows.length && !respRows.length)
+    if (!deptRows.length && !officeRows.length)
       return res.status(403).json({ error: 'HOD access only' });
 
-    const { rows: tRows } = await pool.query(
-      `SELECT department FROM teachers WHERE id = $1 AND school_id = $2 LIMIT 1`,
-      [req.user.id, req.schoolId]
-    );
+    // Prefer the Departments path; fall back to clearance-office path
+    if (deptRows.length) {
+      req.hodDept      = deptRows[0].dept_name;
+      req.programmeId  = null;
+      req.programmeName = deptRows[0].dept_name;
+    } else {
+      const { rows: tRows } = await pool.query(
+        `SELECT department FROM teachers WHERE id = $1 AND school_id = $2 LIMIT 1`,
+        [req.user.id, req.schoolId]
+      );
+      req.hodDept      = tRows[0]?.department ?? null;
+      req.programmeId  = officeRows[0]?.linked_programme_id ?? null;
+      req.programmeName = officeRows[0]?.programme_name ?? req.hodDept;
+    }
 
-    req.hodDept      = tRows[0]?.department ?? null;
-    req.programmeId  = officeRows[0]?.linked_programme_id ?? null;
-    req.programmeName = officeRows[0]?.programme_name ?? req.hodDept;
-
-    // Try to match department name to a programme (programme HODs without explicit link)
+    // For either path, try to resolve a programme link by name
     if (!req.programmeId && req.hodDept) {
       const { rows: pRows } = await pool.query(
         `SELECT id, name FROM programs WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
@@ -59,7 +67,6 @@ async function hodOnly(req, res, next) {
       }
     }
 
-    // Subject HOD = no programme found — department IS the subject name
     req.isSubjectHod = !req.programmeId;
     next();
   } catch (err) { next(err); }

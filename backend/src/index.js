@@ -53,6 +53,7 @@ const admissionsRoutes        = require('./routes/admissions');
 const adminAdmissionsRoutes   = require('./routes/admin-admissions');
 const resultSubmissionsRoutes = require('./routes/result-submissions');
 const monitoringRoutes        = require('./routes/assessment-monitoring');
+const departmentRoutes        = require('./routes/departments');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -134,6 +135,7 @@ app.use('/api/admissions',            admissionsRoutes);
 app.use('/api/admin/admissions',      adminAdmissionsRoutes);
 app.use('/api/result-submissions',    resultSubmissionsRoutes);
 app.use('/api/assessment-monitoring', monitoringRoutes);
+app.use('/api/departments',           departmentRoutes);
 
 app.use(errorHandler);
 
@@ -1246,6 +1248,31 @@ async function runMigrations() {
         reason          TEXT
       )
     `);
+
+    // ── Departments ───────────────────────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS departments (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id         UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name              TEXT NOT NULL,
+        head_teacher_id   UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        clearance_enabled BOOLEAN NOT NULL DEFAULT false,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, name)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS department_teachers (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        department_id UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+        teacher_id    UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        school_id     UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (department_id, teacher_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_department_teachers_teacher ON department_teachers(teacher_id)`);
 
     // ── Timetable: academic year + semester columns ────────────────────────────
     await pool.query(`ALTER TABLE timetable ADD COLUMN IF NOT EXISTS academic_year_id UUID REFERENCES academic_years(id)`);
