@@ -882,4 +882,132 @@ router.post('/:id/certificate', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/** POST /api/teachers/bulk-update — update existing teachers by teacher_code; blank cells are skipped */
+router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const wb   = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const ws   = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', cellDates: true });
+    if (!rows.length) return res.status(400).json({ error: 'File is empty' });
+
+    let dataRows = rows.filter(row => !String(row[0] ?? '').trim().startsWith('#'));
+    if (dataRows.length > 0) {
+      const firstCell = String(dataRows[0][0] ?? '').trim().toLowerCase();
+      if (['teacher', 'id', 'name', 'code'].some(k => firstCell.includes(k))) {
+        dataRows = dataRows.slice(1);
+      }
+    }
+
+    function toISODate(val) {
+      if (val == null || val === '') return undefined;
+      if (val instanceof Date) return isNaN(val) ? undefined : val.toISOString().slice(0, 10);
+      const s = String(val).trim();
+      if (!s) return undefined;
+      let d = new Date(s);
+      if (!isNaN(d)) return d.toISOString().slice(0, 10);
+      const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+      if (dmy) {
+        d = new Date(`${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`);
+        if (!isNaN(d)) return d.toISOString().slice(0, 10);
+      }
+      return undefined;
+    }
+
+    const { rows: teacherRows } = await pool.query(
+      `SELECT id, UPPER(TRIM(teacher_code)) AS code FROM teachers WHERE school_id = $1`,
+      [req.schoolId]
+    );
+    const teacherByCode = new Map(teacherRows.map(t => [t.code, t.id]));
+
+    const errors   = [];
+    const notFound = [];
+    let updated    = 0;
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row    = dataRows[i];
+      const rowNum = i + 2;
+
+      const code = String(row[0] ?? '').trim().toUpperCase();
+      if (!code) { errors.push({ row: rowNum, message: 'Teacher ID is required for updates' }); continue; }
+
+      const teacherId = teacherByCode.get(code);
+      if (!teacherId) { notFound.push({ row: rowNum, code }); continue; }
+
+      const sets   = [];
+      const params = [];
+
+      function add(col, val) {
+        if (val === undefined || val === null || val === '') return;
+        params.push(val);
+        sets.push(`${col} = $${params.length}`);
+      }
+
+      // Column order matches the existing upload template exactly (col B onwards)
+      add('name',                       String(row[1]  ?? '').trim() || undefined);
+      add('email',                      String(row[2]  ?? '').trim() || undefined);
+      add('phone',                      String(row[3]  ?? '').trim() || undefined);
+      add('department',                 String(row[4]  ?? '').trim() || undefined);
+      add('rank',                       String(row[5]  ?? '').trim() || undefined);
+      add('gov_staff_id',               String(row[6]  ?? '').trim() || undefined);
+      const genderRaw = String(row[7] ?? '').trim();
+      if (genderRaw) {
+        const g = genderRaw.charAt(0).toUpperCase() + genderRaw.slice(1).toLowerCase();
+        if (['Male','Female'].includes(g)) add('gender', g);
+        else errors.push({ row: rowNum, message: `Invalid gender "${genderRaw}" — use Male or Female` });
+      }
+      add('date_of_birth',              toISODate(row[8]));
+      add('registered_number',          String(row[9]  ?? '').trim() || undefined);
+      add('ntc_number',                 String(row[10] ?? '').trim() || undefined);
+      add('ssf_number',                 String(row[11] ?? '').trim() || undefined);
+      add('academic_qualification',     String(row[12] ?? '').trim() || undefined);
+      add('professional_qualification', String(row[13] ?? '').trim() || undefined);
+      add('additional_responsibility',  String(row[14] ?? '').trim() || undefined);
+      add('bank',                       String(row[15] ?? '').trim() || undefined);
+      add('bank_branch',                String(row[16] ?? '').trim() || undefined);
+      add('account_number',             String(row[17] ?? '').trim() || undefined);
+      add('religion',                   String(row[18] ?? '').trim() || undefined);
+      add('religious_denomination',     String(row[19] ?? '').trim() || undefined);
+      add('hometown',                   String(row[20] ?? '').trim() || undefined);
+      add('residential_address',        String(row[21] ?? '').trim() || undefined);
+      add('association',                String(row[22] ?? '').trim() || undefined);
+      add('ghana_card_number',          String(row[23] ?? '').trim() || undefined);
+      add('emergency_contact_name',     String(row[24] ?? '').trim() || undefined);
+      add('emergency_contact_phone',    String(row[25] ?? '').trim() || undefined);
+      const isAdminRaw = String(row[26] ?? '').trim().toLowerCase();
+      if (isAdminRaw) add('is_admin', ['yes','true','1','y'].includes(isAdminRaw));
+      add('notes',                      String(row[27] ?? '').trim() || undefined);
+      const statusRaw = String(row[28] ?? '').trim();
+      if (statusRaw) {
+        const s = ['Active','Inactive'].find(v => v.toLowerCase() === statusRaw.toLowerCase());
+        if (s) add('status', s);
+        else errors.push({ row: rowNum, message: `Invalid status "${statusRaw}" — use Active or Inactive` });
+      }
+
+      // Validate phone/card/NTC/SSF if provided
+      const fieldValidationErrors = validateTeacherFields({
+        phone:                  sets.some(s => s.startsWith('phone'))                  ? params[sets.findIndex(s => s.startsWith('phone'))]                  : null,
+        emergency_contact_phone: sets.some(s => s.startsWith('emergency_contact_phone')) ? params[sets.findIndex(s => s.startsWith('emergency_contact_phone'))] : null,
+        ghana_card_number:      sets.some(s => s.startsWith('ghana_card_number'))      ? params[sets.findIndex(s => s.startsWith('ghana_card_number'))]      : null,
+        ntc_number:             sets.some(s => s.startsWith('ntc_number'))             ? params[sets.findIndex(s => s.startsWith('ntc_number'))]             : null,
+        ssf_number:             sets.some(s => s.startsWith('ssf_number'))             ? params[sets.findIndex(s => s.startsWith('ssf_number'))]             : null,
+      });
+      if (fieldValidationErrors.length) { errors.push({ row: rowNum, message: fieldValidationErrors.join('; ') }); continue; }
+
+      if (!sets.length) continue;
+
+      params.push(req.schoolId, teacherId);
+      await pool.query(
+        `UPDATE teachers SET ${sets.join(', ')}, updated_at = now()
+         WHERE school_id = $${params.length - 1} AND id = $${params.length}`,
+        params
+      );
+      updated++;
+    }
+
+    res.json({ updated, notFound, errors });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

@@ -15,6 +15,11 @@ interface UploadResult {
   errors: { row: number; message: string }[];
   coverage?: { unscheduled: number; unteachered: number; total: number } | null;
 }
+interface BulkUpdateResult {
+  updated: number;
+  notFound: { row: number; code: string }[];
+  errors: { row: number; message: string }[];
+}
 interface CoverageSummary { unscheduled: number; unteachered: number; total: number }
 interface CoverageRow {
   class_subject_id: string; class_name: string; subject: string;
@@ -137,7 +142,7 @@ export default function TimetablePage() {
   const [subjects,  setSubjects]  = useState<Subject[]>([]);
   const [classes,   setClasses]   = useState<ClassItem[]>([]);
   const [loading,   setLoading]   = useState(true);
-  const [modal,     setModal]     = useState<'create' | 'edit' | 'upload' | 'coverage' | null>(null);
+  const [modal,     setModal]     = useState<'create' | 'edit' | 'upload' | 'coverage' | 'bulkUpdate' | null>(null);
   const [coverage,  setCoverage]  = useState<CoverageSummary | null>(null);
   const [form,      setForm]      = useState(EMPTY_FORM);
   const [selCls,    setSelCls]    = useState<Set<string>>(new Set());
@@ -161,6 +166,12 @@ export default function TimetablePage() {
   const [uploading,   setUploading]   = useState(false);
   const [uploadErr,   setUploadErr]   = useState('');
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
+
+  // Bulk Update state
+  const updateFileRef                         = useRef<HTMLInputElement>(null);
+  const [updating,      setUpdating]          = useState(false);
+  const [updateErr,     setUpdateErr]         = useState('');
+  const [updateResult,  setUpdateResult]      = useState<BulkUpdateResult | null>(null);
 
   const load = useCallback(async (yearId = selYearId, sem = selSemester) => {
     try {
@@ -225,6 +236,34 @@ export default function TimetablePage() {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setUploadErr(msg ?? 'Upload failed.');
     } finally { setUploading(false); }
+  }
+
+  function openBulkUpdate() { setUpdateErr(''); setUpdateResult(null); setModal('bulkUpdate'); }
+
+  async function downloadUpdateTemplate() {
+    try {
+      const params = selYearId ? `?academic_year_id=${selYearId}&semester=${selSemester}` : '';
+      const { data } = await api.get(`/api/timetable/bulk-update/template${params}`, { responseType: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(data as Blob);
+      a.download = 'timetable_update_template.xlsx'; a.click();
+    } catch { alert('Could not download template.'); }
+  }
+
+  async function handleBulkUpdate() {
+    const file = updateFileRef.current?.files?.[0];
+    if (!file) { setUpdateErr('Please select a file.'); return; }
+    setUpdating(true); setUpdateErr(''); setUpdateResult(null);
+    try {
+      const fd = new FormData(); fd.append('file', file);
+      const { data } = await api.post<BulkUpdateResult>('/api/timetable/bulk-update', fd, { timeout: 120000 });
+      setUpdateResult(data);
+      await load(selYearId, selSemester);
+      if (updateFileRef.current) updateFileRef.current.value = '';
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setUpdateErr(msg ?? 'Update failed.');
+    } finally { setUpdating(false); }
   }
 
   function openCreate() {
@@ -371,6 +410,7 @@ export default function TimetablePage() {
         </select>
         <div className="ml-auto flex gap-2">
           <Button variant="secondary" onClick={openUpload}>↑ Upload Excel</Button>
+          <Button variant="secondary" onClick={openBulkUpdate}>✎ Update Records</Button>
           <Button onClick={openCreate}>+ Add Slot</Button>
         </div>
       </div>
@@ -572,6 +612,64 @@ export default function TimetablePage() {
 
       {/* Coverage report modal */}
       <CoverageModal open={modal === 'coverage'} onClose={() => setModal(null)} />
+
+      {/* ── Bulk Update modal ── */}
+      <Modal open={modal === 'bulkUpdate'} onClose={() => setModal(null)} title="Update Timetable Records" maxWidth="max-w-lg">
+        <div className="space-y-4">
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 space-y-1">
+            <p className="font-semibold">How it works:</p>
+            <ul className="text-xs space-y-0.5">
+              <li>• Download the template — it contains the current timetable with Entry IDs</li>
+              <li>• Column A (<strong>Entry ID</strong>) identifies which slot to update — do not edit it</li>
+              <li>• Leave any other cell <strong>blank</strong> to keep the existing value unchanged</li>
+              <li>• Column C (Teacher Name) is for reference only and is ignored on import</li>
+            </ul>
+          </div>
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-2 text-xs font-mono text-slate-500 overflow-x-auto whitespace-nowrap">
+            A: Entry ID* · B: Teacher Code · C: Teacher Name (ref) · D: Day · E: Start Time · F: End Time · G: Subject · H: Classes
+          </div>
+          <button onClick={downloadUpdateTemplate} className="text-sm font-semibold text-green-700 hover:underline">
+            ↓ Download update template (.xlsx) — pre-filled with {selYearName ? `${selYearName} Sem ${selSemester}` : 'current'} timetable
+          </button>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-2">Select file (.xlsx, .xls, .csv)</label>
+            <div
+              onClick={() => updateFileRef.current?.click()}
+              className="border-2 border-dashed border-slate-200 rounded-xl px-6 py-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50 transition-colors"
+            >
+              <p className="text-sm text-slate-500">
+                {updateFileRef.current?.files?.[0]?.name ?? 'Click to choose file or drag & drop'}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">.xlsx, .xls or .csv</p>
+            </div>
+            <input ref={updateFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={() => setUpdateErr('')} />
+          </div>
+          {updateErr && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{updateErr}</p>}
+          {updateResult && (
+            <div className="space-y-2">
+              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+                <span className="font-semibold">{updateResult.updated}</span> timetable slot{updateResult.updated !== 1 ? 's' : ''} updated successfully
+              </div>
+              {updateResult.notFound.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 space-y-1 max-h-36 overflow-y-auto">
+                  <p className="font-semibold">{updateResult.notFound.length} Entry ID{updateResult.notFound.length !== 1 ? 's' : ''} not found:</p>
+                  {updateResult.notFound.map((n, i) => <p key={i} className="text-xs">Row {n.row}: "{n.code}"</p>)}
+                </div>
+              )}
+              {updateResult.errors.length > 0 && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 space-y-1 max-h-36 overflow-y-auto">
+                  <p className="font-semibold">{updateResult.errors.length} row{updateResult.errors.length !== 1 ? 's' : ''} with errors:</p>
+                  {updateResult.errors.map((e, i) => <p key={i} className="text-xs">Row {e.row}: {e.message}</p>)}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" onClick={() => setModal(null)}>Close</Button>
+            <Button onClick={handleBulkUpdate} loading={updating}>Update Records</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

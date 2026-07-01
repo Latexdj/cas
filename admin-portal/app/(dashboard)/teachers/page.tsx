@@ -24,6 +24,7 @@ const EMPTY: TeacherForm = {
 
 interface UploadResult { inserted: number; errors: { row: number; message: string }[] }
 interface SendResult   { sent: number; failed: number; skipped: number; errors: { name: string; error: string }[] }
+interface UpdateResult { updated: number; notFound: { row: number; code: string }[]; errors: { row: number; message: string }[] }
 
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -32,7 +33,7 @@ export default function TeachersPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterDept,   setFilterDept]   = useState('');
   const [filterRole,   setFilterRole]   = useState('');
-  const [modal,       setModal]       = useState<'create' | 'edit' | 'upload' | null>(null);
+  const [modal,       setModal]       = useState<'create' | 'edit' | 'upload' | 'update' | null>(null);
   const [form,        setForm]        = useState<TeacherForm>(EMPTY);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving,      setSaving]      = useState(false);
@@ -44,6 +45,12 @@ export default function TeachersPage() {
   const [uploading,    setUploading]    = useState(false);
   const [uploadErr,    setUploadErr]    = useState('');
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
+
+  // Update Records state
+  const updateFileRef                       = useRef<HTMLInputElement>(null);
+  const [updating,      setUpdating]        = useState(false);
+  const [updateErr,     setUpdateErr]       = useState('');
+  const [updateResult,  setUpdateResult]    = useState<UpdateResult | null>(null);
 
   // Responsibilities
   const [availableResp,    setAvailableResp]    = useState<{ id: string; name: string; module_key: string | null }[]>([]);
@@ -116,6 +123,24 @@ export default function TeachersPage() {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setUploadErr(msg ?? 'Upload failed.');
     } finally { setUploading(false); }
+  }
+
+  function openUpdate() { setUpdateErr(''); setUpdateResult(null); setModal('update'); }
+
+  async function handleBulkUpdate() {
+    const file = updateFileRef.current?.files?.[0];
+    if (!file) { setUpdateErr('Please select a file.'); return; }
+    setUpdating(true); setUpdateErr(''); setUpdateResult(null);
+    try {
+      const fd = new FormData(); fd.append('file', file);
+      const { data } = await api.post<UpdateResult>('/api/teachers/bulk-update', fd, { timeout: 120000 });
+      setUpdateResult(data);
+      await load();
+      if (updateFileRef.current) updateFileRef.current.value = '';
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setUpdateErr(msg ?? 'Update failed.');
+    } finally { setUpdating(false); }
   }
 
   function openCreate() {
@@ -365,6 +390,7 @@ export default function TeachersPage() {
 
           <Button variant="secondary" onClick={printTeachers}>⎙ Print List</Button>
           <Button variant="secondary" onClick={openUpload}>↑ Upload Excel</Button>
+          <Button variant="secondary" onClick={openUpdate}>✎ Update Records</Button>
           <Button onClick={openCreate}>+ Add Teacher</Button>
         </div>
       </div>
@@ -506,6 +532,67 @@ export default function TeachersPage() {
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="secondary" onClick={() => setModal(null)}>Close</Button>
             <Button onClick={handleUpload} loading={uploading}>Import</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Update Records modal ── */}
+      <Modal open={modal === 'update'} onClose={() => setModal(null)} title="Update Teacher Records" maxWidth="max-w-lg">
+        <div className="space-y-4">
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 space-y-1">
+            <p className="font-semibold">How it works:</p>
+            <ul className="text-xs space-y-0.5">
+              <li>• Column A must be the <strong>Teacher ID</strong> (e.g. T001) — used to identify each record</li>
+              <li>• Leave any other cell <strong>blank</strong> to keep the existing value</li>
+              <li>• Only non-blank cells are updated — nothing is deleted or overwritten unintentionally</li>
+              <li>• <strong>Tip:</strong> Download a populated template first, edit what you need, then upload</li>
+            </ul>
+          </div>
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-2 text-xs font-mono text-slate-500 overflow-x-auto whitespace-nowrap">
+            A: Teacher ID* · B: Name · C: Email · D: Phone · E: Dept · F: Rank · G: Staff ID · H: Gender · I: DOB · J: Reg No · K: NTC · L: SSF · M: Qualification · N: Prof Qual · O: Addl Resp · P: Bank · Q: Branch · R: Account · S: Religion · T: Denomination · U: Hometown · V: Address · W: Association · X: Ghana Card · Y: Emg Name · Z: Emg Phone · AA: Is Admin · AB: Notes · AC: Status
+          </div>
+          <button
+            onClick={openTemplateModal}
+            className="text-sm font-semibold text-green-700 hover:underline"
+          >
+            ↓ Download populated template (.xlsx)
+          </button>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-2">Select file (.xlsx, .xls, .csv)</label>
+            <div
+              onClick={() => updateFileRef.current?.click()}
+              className="border-2 border-dashed border-slate-200 rounded-xl px-6 py-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50 transition-colors"
+            >
+              <p className="text-sm text-slate-500">
+                {updateFileRef.current?.files?.[0]?.name ?? 'Click to choose file or drag & drop'}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">.xlsx, .xls or .csv</p>
+            </div>
+            <input ref={updateFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={() => setUpdateErr('')} />
+          </div>
+          {updateErr && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{updateErr}</p>}
+          {updateResult && (
+            <div className="space-y-2">
+              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+                <span className="font-semibold">{updateResult.updated}</span> teacher record{updateResult.updated !== 1 ? 's' : ''} updated successfully
+              </div>
+              {updateResult.notFound.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 space-y-1 max-h-36 overflow-y-auto">
+                  <p className="font-semibold">{updateResult.notFound.length} Teacher ID{updateResult.notFound.length !== 1 ? 's' : ''} not found:</p>
+                  {updateResult.notFound.map((n, i) => <p key={i} className="text-xs">Row {n.row}: "{n.code}" — not in your school</p>)}
+                </div>
+              )}
+              {updateResult.errors.length > 0 && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 space-y-1 max-h-36 overflow-y-auto">
+                  <p className="font-semibold">{updateResult.errors.length} row{updateResult.errors.length !== 1 ? 's' : ''} with errors:</p>
+                  {updateResult.errors.map((e, i) => <p key={i} className="text-xs">Row {e.row}: {e.message}</p>)}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" onClick={() => setModal(null)}>Close</Button>
+            <Button onClick={handleBulkUpdate} loading={updating}>Update Records</Button>
           </div>
         </div>
       </Modal>

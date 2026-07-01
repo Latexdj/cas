@@ -673,4 +673,207 @@ router.delete('/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/** GET /api/timetable/bulk-update/template — download current timetable as Excel for bulk-update
+ *  ?academic_year_id=&semester=   (optional; defaults to current year/semester)
+ */
+router.get('/bulk-update/template', adminOnly, async (req, res, next) => {
+  try {
+    const ExcelJS = require('exceljs');
+    let { academic_year_id, semester } = req.query;
+
+    // Resolve defaults
+    if (!academic_year_id || !semester) {
+      const { rows: yr } = await pool.query(
+        `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+        [req.schoolId]
+      );
+      if (yr.length) { academic_year_id = academic_year_id || yr[0].id; semester = semester || yr[0].current_semester || 1; }
+    }
+
+    const whereYear = academic_year_id ? `AND tt.academic_year_id = $2 AND tt.semester = $3` : '';
+    const qParams   = academic_year_id ? [req.schoolId, academic_year_id, parseInt(semester)] : [req.schoolId];
+
+    const { rows } = await pool.query(`
+      SELECT tt.id, t.teacher_code, t.name AS teacher_name,
+             tt.day_of_week, tt.start_time, tt.end_time, tt.subject, tt.class_names
+      FROM timetable tt
+      JOIN teachers t ON t.id = tt.teacher_id
+      WHERE tt.school_id = $1 ${whereYear}
+      ORDER BY tt.day_of_week, tt.start_time, t.teacher_code
+    `, qParams);
+
+    const DAYS_REV = { 1:'Monday',2:'Tuesday',3:'Wednesday',4:'Thursday',5:'Friday',6:'Saturday',7:'Sunday' };
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'CAS – Classroom Attendance System';
+    const ws = wb.addWorksheet('Timetable Update', { views: [{ state: 'frozen', ySplit: 2 }] });
+
+    const GREEN_DARK = '0F4C35';
+    const cols = [
+      { header: 'Entry ID (do not edit)',   key: 'id',           width: 38 },
+      { header: 'Teacher Code',             key: 'teacher_code', width: 16 },
+      { header: 'Teacher Name (ref only)',  key: 'teacher_name', width: 28 },
+      { header: 'Day',                      key: 'day',          width: 14 },
+      { header: 'Start Time (HH:MM)',       key: 'start_time',   width: 18 },
+      { header: 'End Time (HH:MM)',         key: 'end_time',     width: 18 },
+      { header: 'Subject',                  key: 'subject',      width: 26 },
+      { header: 'Classes (comma-separated)',key: 'class_names',  width: 32 },
+    ];
+    ws.columns = cols.map(c => ({ key: c.key, width: c.width }));
+
+    // Instruction row
+    const noteRow = ws.getRow(1);
+    noteRow.getCell(1).value = '# Column A = Entry ID (required to identify the slot). Leave any other column blank to keep its current value. Do not edit column A.';
+    noteRow.getCell(1).font = { italic: true, color: { argb: '64748B' }, size: 9 };
+    ws.mergeCells('A1:H1');
+    noteRow.height = 18;
+
+    // Header row
+    const hdrRow = ws.getRow(2);
+    hdrRow.height = 22;
+    cols.forEach((col, idx) => {
+      const cell = hdrRow.getCell(idx + 1);
+      cell.value     = col.header;
+      cell.font      = { bold: true, color: { argb: 'FFFFFF' }, size: 10 };
+      cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
+      cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+    });
+
+    rows.forEach(entry => {
+      const r = ws.addRow({
+        id:           entry.id,
+        teacher_code: entry.teacher_code,
+        teacher_name: entry.teacher_name,
+        day:          DAYS_REV[entry.day_of_week] ?? entry.day_of_week,
+        start_time:   entry.start_time ? entry.start_time.slice(0, 5) : '',
+        end_time:     entry.end_time   ? entry.end_time.slice(0, 5)   : '',
+        subject:      entry.subject,
+        class_names:  entry.class_names,
+      });
+      r.height = 16;
+      r.eachCell(cell => {
+        cell.font      = { size: 10 };
+        cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+        cell.border    = { bottom: { style: 'hair', color: { argb: 'E2E8F0' } } };
+      });
+      // Lock ID cell visually
+      r.getCell(1).font = { size: 10, color: { argb: '94A3B8' } };
+      // Teacher Name is reference-only
+      r.getCell(3).font = { size: 10, color: { argb: '94A3B8' }, italic: true };
+    });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="timetable_update_template.xlsx"');
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) { next(err); }
+});
+
+/** POST /api/timetable/bulk-update — update existing timetable entries by ID
+ *  Column A = Entry ID (required); remaining columns update only if non-blank
+ */
+router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const wb   = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const ws   = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', cellDates: true });
+    if (!rows.length) return res.status(400).json({ error: 'File is empty' });
+
+    let dataRows = rows.filter(row => !String(row[0] ?? '').trim().startsWith('#'));
+    if (dataRows.length > 0) {
+      const firstCell = String(dataRows[0][0] ?? '').trim().toLowerCase();
+      if (['entry', 'id', 'teacher', 'day', 'subject'].some(k => firstCell.includes(k))) {
+        dataRows = dataRows.slice(1);
+      }
+    }
+
+    const { rows: teacherRows } = await pool.query(
+      `SELECT id, UPPER(TRIM(teacher_code)) AS code FROM teachers WHERE school_id = $1`,
+      [req.schoolId]
+    );
+    const teacherByCode = new Map(teacherRows.map(t => [t.code, t.id]));
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    const errors   = [];
+    const notFound = [];
+    let updated    = 0;
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row    = dataRows[i];
+      const rowNum = i + 2;
+
+      const entryId = String(row[0] ?? '').trim();
+      if (!entryId) { errors.push({ row: rowNum, message: 'Entry ID is required' }); continue; }
+      if (!UUID_RE.test(entryId)) { errors.push({ row: rowNum, message: `"${entryId}" is not a valid Entry ID — use the downloaded template` }); continue; }
+
+      // Verify ownership
+      const { rows: existing } = await pool.query(
+        `SELECT id FROM timetable WHERE id = $1 AND school_id = $2`,
+        [entryId, req.schoolId]
+      );
+      if (!existing.length) { notFound.push({ row: rowNum, code: entryId }); continue; }
+
+      const sets   = [];
+      const params = [];
+
+      function add(col, val) {
+        if (val === undefined || val === null || val === '') return;
+        params.push(val);
+        sets.push(`${col} = $${params.length}`);
+      }
+
+      // col B = Teacher Code (reassign)
+      const newTeacherCode = String(row[1] ?? '').trim().toUpperCase();
+      if (newTeacherCode) {
+        const tid = teacherByCode.get(newTeacherCode);
+        if (!tid) { errors.push({ row: rowNum, message: `Teacher "${newTeacherCode}" not found` }); continue; }
+        add('teacher_id', tid);
+      }
+      // col C = Teacher Name — reference only, skip
+      // col D = Day
+      const dayRaw = String(row[3] ?? '').trim();
+      if (dayRaw) {
+        const dayNum = DAY_MAP[dayRaw.toLowerCase()];
+        if (!dayNum) { errors.push({ row: rowNum, message: `Invalid day "${dayRaw}"` }); continue; }
+        add('day_of_week', dayNum);
+      }
+      // col E = Start Time
+      const startRaw = row[4];
+      const startVal = String(startRaw ?? '').trim();
+      if (startVal) {
+        const t = parseTime(startRaw);
+        if (!t) { errors.push({ row: rowNum, message: `Invalid start time "${startVal}"` }); continue; }
+        add('start_time', t);
+      }
+      // col F = End Time
+      const endRaw = row[5];
+      const endVal = String(endRaw ?? '').trim();
+      if (endVal) {
+        const t = parseTime(endRaw);
+        if (!t) { errors.push({ row: rowNum, message: `Invalid end time "${endVal}"` }); continue; }
+        add('end_time', t);
+      }
+      // col G = Subject
+      add('subject',     String(row[6] ?? '').trim() || undefined);
+      // col H = Classes
+      add('class_names', String(row[7] ?? '').trim() || undefined);
+
+      if (!sets.length) continue;
+
+      params.push(req.schoolId, entryId);
+      await pool.query(
+        `UPDATE timetable SET ${sets.join(', ')}, updated_at = now()
+         WHERE school_id = $${params.length - 1} AND id = $${params.length}`,
+        params
+      );
+      updated++;
+    }
+
+    res.json({ updated, notFound, errors });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
