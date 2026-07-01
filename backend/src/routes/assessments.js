@@ -1,6 +1,10 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const multer = require('multer');
+const ExcelJS = require('exceljs');
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -355,6 +359,192 @@ router.post('/:id/scores', async (req, res, next) => {
       client.release();
     }
     res.json({ message: 'Scores saved' });
+  } catch (err) { next(err); }
+});
+
+// GET /api/assessments/:id/score-template — download pre-filled Excel template
+router.get('/:id/score-template', async (req, res, next) => {
+  try {
+    const { rows: [assessment] } = await pool.query(
+      `SELECT a.*, am.name AS mode_name
+       FROM assessments a
+       LEFT JOIN assessment_modes am ON am.id = a.mode_id
+       WHERE a.id = $1 AND a.school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
+
+    const { rows: students } = await pool.query(
+      `SELECT s.id AS student_id, s.name,
+              sc.score, sc.absent
+       FROM students s
+       LEFT JOIN assessment_scores sc ON sc.assessment_id = $1 AND sc.student_id = s.id
+       WHERE s.school_id = $2 AND s.status = 'Active'
+         AND LOWER(s.class_name) = LOWER($3)
+       ORDER BY s.name`,
+      [req.params.id, req.schoolId, assessment.class_name]
+    );
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Scores');
+
+    ws.columns = [
+      { key: 'student_id', width: 38 },
+      { key: 'name',       width: 28 },
+      { key: 'score',      width: 14 },
+      { key: 'absent',     width: 14 },
+    ];
+
+    // Note row
+    const note = ws.addRow([
+      `Assessment: ${[assessment.mode_name, assessment.title].filter(Boolean).join(' – ')} | Class: ${assessment.class_name} | Max: ${assessment.max_score}`,
+      '', '', '',
+    ]);
+    ws.mergeCells(1, 1, 1, 4);
+    note.getCell(1).fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+    note.getCell(1).font  = { italic: true, color: { argb: 'FF856404' } };
+    note.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+    ws.getRow(1).height = 20;
+
+    // Header row
+    const hdr = ws.addRow(['Student ID (do not edit)', 'Name', `Score (0–${assessment.max_score})`, 'Absent (Yes/No)']);
+    hdr.eachCell(cell => {
+      cell.font      = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2C2218' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
+    ws.getRow(2).height = 20;
+
+    const greyFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E2DA' } };
+    for (let i = 0; i < students.length; i++) {
+      const s   = students[i];
+      const row = ws.addRow([
+        s.student_id,
+        s.name,
+        s.score != null ? s.score : '',
+        s.absent ? 'Yes' : '',
+      ]);
+      const rowNum = i + 3;
+      row.getCell(1).fill = greyFill;
+      row.getCell(1).font = { color: { argb: 'FF8C7E6E' }, size: 9 };
+      row.getCell(2).fill = greyFill;
+      row.getCell(2).font = { color: { argb: 'FF2C2218' } };
+
+      // Score validation
+      ws.getCell(rowNum, 3).dataValidation = {
+        type: 'decimal', operator: 'between',
+        formulae: [0, parseFloat(assessment.max_score)],
+        showErrorMessage: true,
+        errorTitle: 'Invalid Score',
+        error: `Must be 0 – ${assessment.max_score}`,
+      };
+      // Absent dropdown
+      ws.getCell(rowNum, 4).dataValidation = {
+        type: 'list', formulae: ['"Yes,No"'],
+        showErrorMessage: true, errorTitle: 'Invalid', error: 'Enter Yes or No',
+      };
+    }
+
+    const label = [assessment.mode_name, assessment.title, assessment.class_name]
+      .filter(Boolean).join('_').replace(/[^a-z0-9_]/gi, '_');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${label}_scores.xlsx"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) { next(err); }
+});
+
+// POST /api/assessments/:id/upload-scores — upload Excel with filled scores
+router.post('/:id/upload-scores', upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const { rows: [assessment] } = await pool.query(
+      `SELECT * FROM assessments WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
+
+    const subStatus = await getSubmissionStatus(req.schoolId, assessment.academic_year_id, assessment.semester, assessment.subject, assessment.class_name);
+    if (LOCKED_STATUSES.includes(subStatus)) {
+      return res.status(409).json({ error: `Scores are locked — submission status is "${subStatus}".` });
+    }
+
+    // Valid student IDs for this class
+    const { rows: students } = await pool.query(
+      `SELECT id FROM students WHERE school_id = $1 AND status = 'Active' AND LOWER(class_name) = LOWER($2)`,
+      [req.schoolId, assessment.class_name]
+    );
+    const validIds = new Set(students.map(s => s.id));
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(req.file.buffer);
+    const ws = wb.worksheets[0];
+    if (!ws) return res.status(400).json({ error: 'No worksheet found in the uploaded file' });
+
+    const results = { saved: 0, skipped: 0, errors: [] };
+    const toUpsert = [];
+
+    ws.eachRow((row, rowNum) => {
+      if (rowNum <= 2) return; // skip note + header rows
+
+      const studentId = (row.getCell(1).text ?? '').trim();
+      const scoreRaw  = row.getCell(3).value;
+      const absentRaw = (row.getCell(4).text ?? '').trim().toLowerCase();
+
+      if (!studentId) { results.skipped++; return; }
+      if (!validIds.has(studentId)) {
+        results.errors.push({ row: rowNum, message: `Student ID not found in class ${assessment.class_name}` });
+        return;
+      }
+
+      const absent = absentRaw === 'yes' || absentRaw === 'true';
+      let score = null;
+
+      if (!absent) {
+        if (scoreRaw === null || scoreRaw === undefined || scoreRaw === '') {
+          results.skipped++;
+          return;
+        }
+        const num = parseFloat(scoreRaw);
+        if (isNaN(num)) {
+          results.errors.push({ row: rowNum, message: `Invalid score "${scoreRaw}" — must be a number` });
+          return;
+        }
+        if (num < 0 || num > parseFloat(assessment.max_score)) {
+          results.errors.push({ row: rowNum, message: `Score ${num} out of range (0–${assessment.max_score})` });
+          return;
+        }
+        score = num;
+      }
+
+      toUpsert.push({ student_id: studentId, score, absent });
+    });
+
+    if (toUpsert.length === 0 && results.errors.length > 0) {
+      return res.status(422).json({ ...results, error: `All ${results.errors.length} row(s) had errors — check errors below` });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const { student_id, score, absent } of toUpsert) {
+        await client.query(
+          `INSERT INTO assessment_scores (assessment_id, student_id, score, absent)
+           VALUES ($1,$2,$3,$4)
+           ON CONFLICT (assessment_id, student_id)
+           DO UPDATE SET score = EXCLUDED.score, absent = EXCLUDED.absent`,
+          [req.params.id, student_id, score, absent]
+        );
+        results.saved++;
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally { client.release(); }
+
+    res.json(results);
   } catch (err) { next(err); }
 });
 
