@@ -173,7 +173,7 @@ export default function TimetablePage() {
   const [updateErr,     setUpdateErr]         = useState('');
   const [updateResult,  setUpdateResult]      = useState<BulkUpdateResult | null>(null);
 
-  const load = useCallback(async (yearId = selYearId, sem = selSemester) => {
+  const load = useCallback(async (yearId: string, sem: 1|2) => {
     try {
       const [e, t, s, c, cov] = await Promise.all([
         api.get<TimetableEntry[]>(`/api/timetable${yearId ? `?academic_year_id=${yearId}&semester=${sem}` : ''}`),
@@ -185,10 +185,10 @@ export default function TimetablePage() {
       setEntries(e.data); setTeachers(t.data); setSubjects(s.data); setClasses(c.data);
       if (cov) setCoverage(cov.data);
     } finally { setLoading(false); }
-  }, [selYearId, selSemester]);
+  }, []);
 
   useEffect(() => {
-    // Load years first, then load timetable for current year
+    // Run once on mount — fetch academic years then load timetable for current year/semester
     api.get<AcademicYear[]>('/api/academic-years').then(r => {
       setYears(r.data);
       const cur = r.data.find(y => y.is_current) ?? r.data[0];
@@ -199,10 +199,11 @@ export default function TimetablePage() {
         setSelSemester(sem);
         load(cur.id, sem);
       } else {
-        load();
+        load('', 1);
       }
-    }).catch(() => load());
-  }, [load]);
+    }).catch(() => load('', 1));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function toggleClass(name: string) {
     setSelCls(prev => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n; });
