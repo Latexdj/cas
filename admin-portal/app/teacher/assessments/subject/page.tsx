@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
@@ -70,6 +70,14 @@ function SubjectContent() {
   const [createErr, setCreateErr]  = useState('');
   const [deleting,  setDeleting]   = useState<string | null>(null);
 
+  // Bulk CA template
+  const bulkUploadRef = useRef<HTMLInputElement | null>(null);
+  const [bulkUploading,  setBulkUploading]  = useState(false);
+  const [bulkUploadResult, setBulkUploadResult] = useState<{
+    saved: number; skipped: number; errors: { row: number; message: string }[];
+  } | null>(null);
+  const [bulkUploadError, setBulkUploadError] = useState('');
+
   // Edit modal state
   const [editTarget,   setEditTarget]   = useState<Assessment | null>(null);
   const [editYears,    setEditYears]    = useState<AcademicYear[]>([]);
@@ -122,6 +130,58 @@ function SubjectContent() {
     setPrimary(colors.primary);
     load();
   }, [load]);
+
+  async function downloadClassTemplate() {
+    try {
+      const resp = await teacherApi.get('/api/assessments/class-template', {
+        params: { academic_year_id: year_id, semester, subject, class_name },
+        responseType: 'blob',
+        timeout: 30000,
+      });
+      const url = URL.createObjectURL(resp.data as Blob);
+      const a   = document.createElement('a');
+      a.href     = url;
+      a.download = `${subject}_${class_name}_sem${semester}_CAs.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setBulkUploadError(msg ?? 'Failed to download template.');
+    }
+  }
+
+  async function handleBulkUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setBulkUploading(true);
+    setBulkUploadError('');
+    setBulkUploadResult(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('academic_year_id', year_id);
+      form.append('semester', semester);
+      form.append('subject', subject);
+      form.append('class_name', class_name);
+      const { data } = await teacherApi.post<{
+        saved: number; skipped: number; errors: { row: number; message: string }[];
+      }>('/api/assessments/class-upload-scores', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000,
+      });
+      setBulkUploadResult(data);
+      load();
+    } catch (err: unknown) {
+      const body = (err as { response?: { data?: { error?: string; saved?: number; skipped?: number; errors?: { row: number; message: string }[] } } })?.response?.data;
+      setBulkUploadError(body?.error ?? 'Upload failed.');
+      if (body?.errors?.length) {
+        setBulkUploadResult({ saved: body.saved ?? 0, skipped: body.skipped ?? 0, errors: body.errors });
+      }
+    } finally {
+      setBulkUploading(false);
+    }
+  }
 
   async function submitForReview() {
     setSubmitting(true); setSubError('');
@@ -232,7 +292,31 @@ function SubjectContent() {
           <h1 className="text-lg font-bold text-[#2C2218] truncate">{subject}</h1>
           <p className="text-xs text-[#8C7E6E]">{class_name} · {year_name} · Semester {semester}</p>
         </div>
+
+        {/* Bulk CA offline buttons */}
+        <button
+          onClick={downloadClassTemplate}
+          title="Download bulk CA template"
+          className="w-8 h-8 rounded-xl flex items-center justify-center bg-white border border-[#E2D9CC] shrink-0 text-[#8C7E6E] text-sm font-bold"
+        >↓</button>
+        <button
+          onClick={() => bulkUploadRef.current?.click()}
+          disabled={!!isLocked || bulkUploading}
+          title="Upload bulk CA scores"
+          className="w-8 h-8 rounded-xl flex items-center justify-center bg-white border border-[#E2D9CC] shrink-0 text-[#8C7E6E] text-sm font-bold disabled:opacity-40"
+        >{bulkUploading ? '…' : '↑'}</button>
+        <input
+          ref={bulkUploadRef}
+          type="file"
+          accept=".xlsx"
+          className="hidden"
+          onChange={handleBulkUpload}
+        />
       </div>
+
+      {bulkUploadError && (
+        <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{bulkUploadError}</p>
+      )}
 
       {error && (
         <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{error}</p>
@@ -476,6 +560,47 @@ function SubjectContent() {
           </div>
         );
       })()}
+
+      {/* Bulk CA upload result modal */}
+      {bulkUploadResult && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 px-4 pb-6">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold text-[#2C2218]">Upload Results</h2>
+              <button
+                onClick={() => setBulkUploadResult(null)}
+                className="w-8 h-8 rounded-full bg-[#F4EFE6] flex items-center justify-center"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-[#8C7E6E]">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-2 mb-3">
+              <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                <span className="text-green-700 font-bold text-sm">{bulkUploadResult.saved} score{bulkUploadResult.saved !== 1 ? 's' : ''} saved</span>
+              </div>
+              {bulkUploadResult.skipped > 0 && (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                  <span className="text-gray-600 text-sm">{bulkUploadResult.skipped} row{bulkUploadResult.skipped !== 1 ? 's' : ''} skipped (empty)</span>
+                </div>
+              )}
+            </div>
+            {bulkUploadResult.errors.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-[#B83232] mb-1">{bulkUploadResult.errors.length} error{bulkUploadResult.errors.length !== 1 ? 's' : ''}:</p>
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {bulkUploadResult.errors.map((e, i) => (
+                    <div key={i} className="text-xs text-[#B83232] bg-red-50 border border-red-100 rounded-lg px-2 py-1">
+                      Row {e.row}: {e.message}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Create modal */}
       {showModal && (

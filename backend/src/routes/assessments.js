@@ -175,6 +175,256 @@ router.post('/subject-remarks', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/assessments/class-template — bulk CA template (all assessments for a subject/class)
+// IMPORTANT: must be declared before /:id routes
+router.get('/class-template', async (req, res, next) => {
+  try {
+    const { academic_year_id, semester, subject, class_name } = req.query;
+    if (!academic_year_id || !semester || !subject || !class_name) {
+      return res.status(400).json({ error: 'academic_year_id, semester, subject, class_name are required' });
+    }
+    const isAdmin = req.user.role === 'admin';
+    const asmtParams = [req.schoolId, academic_year_id, parseInt(semester), subject, class_name];
+    let teacherFilter = '';
+    if (!isAdmin) { asmtParams.push(req.user.id); teacherFilter = `AND a.teacher_id = $${asmtParams.length}`; }
+
+    const { rows: assessments } = await pool.query(
+      `SELECT a.id, a.max_score, m.name AS mode_name, a.title, a.date
+       FROM assessments a
+       JOIN assessment_modes m ON m.id = a.mode_id
+       WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.semester = $3
+         AND LOWER(a.subject) = LOWER($4) AND LOWER(a.class_name) = LOWER($5)
+         ${teacherFilter}
+       ORDER BY a.date NULLS LAST, m.name, a.title`,
+      asmtParams
+    );
+    if (!assessments.length) {
+      return res.status(404).json({ error: 'No assessments found for this subject/class/semester' });
+    }
+
+    const { rows: students } = await pool.query(
+      `SELECT s.id AS student_id, s.name FROM students s
+       WHERE s.school_id = $1 AND s.status = 'Active' AND LOWER(s.class_name) = LOWER($2)
+       ORDER BY s.name`,
+      [req.schoolId, class_name]
+    );
+
+    const asmtIds = assessments.map(a => a.id);
+    const { rows: allScores } = await pool.query(
+      `SELECT assessment_id, student_id, score, absent
+       FROM assessment_scores WHERE assessment_id = ANY($1::uuid[])`,
+      [asmtIds]
+    );
+    const scoreMap = {};
+    for (const sc of allScores) scoreMap[`${sc.assessment_id}|${sc.student_id}`] = sc;
+
+    // Fetch year name for label
+    const { rows: [yearRow] } = await pool.query(
+      `SELECT name FROM academic_years WHERE id = $1 AND school_id = $2`,
+      [academic_year_id, req.schoolId]
+    );
+
+    const wb  = new ExcelJS.Workbook();
+    const ws  = wb.addWorksheet('CA Scores');
+    const totalCols = 2 + assessments.length;
+
+    ws.columns = [
+      { key: 'student_id', width: 38 },
+      { key: 'name',       width: 28 },
+      ...assessments.map((_, i) => ({ key: `a${i}`, width: 16 })),
+    ];
+
+    // Row 1: Note
+    const noteRow = ws.addRow([
+      `CAs — ${subject} | Class: ${class_name} | ${yearRow?.name ?? ''} | Semester ${semester}`,
+      ...Array(totalCols - 1).fill(''),
+    ]);
+    ws.mergeCells(1, 1, 1, totalCols);
+    noteRow.getCell(1).fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+    noteRow.getCell(1).font      = { italic: true, color: { argb: 'FF856404' } };
+    noteRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
+    ws.getRow(1).height = 20;
+
+    // Row 2: Assessment IDs (machine-readable, tiny grey text)
+    const idRow = ws.addRow(['ASSESSMENT_IDS', '', ...assessments.map(a => a.id)]);
+    idRow.eachCell(cell => { cell.font = { size: 7, color: { argb: 'FFCCCCCC' } }; });
+    ws.getRow(2).height = 11;
+
+    // Row 3: Headers
+    const hdrRow = ws.addRow([
+      'Student ID (do not edit)', 'Name',
+      ...assessments.map(a => {
+        const lbl = [a.mode_name, a.title].filter(Boolean).join(' – ');
+        const d   = a.date ? new Date(a.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null;
+        return `${lbl}${d ? ` (${d})` : ''}\nMax: ${a.max_score}`;
+      }),
+    ]);
+    hdrRow.eachCell(cell => {
+      cell.font      = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2C2218' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    });
+    ws.getRow(3).height = 36;
+
+    const greyFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E2DA' } };
+
+    for (let i = 0; i < students.length; i++) {
+      const s      = students[i];
+      const rowNum = i + 4;
+      const scoreVals = assessments.map(a => {
+        const sc = scoreMap[`${a.id}|${s.student_id}`];
+        if (!sc)            return '';
+        if (sc.absent)      return 'Absent';
+        return sc.score != null ? sc.score : '';
+      });
+      const row = ws.addRow([s.student_id, s.name, ...scoreVals]);
+      row.getCell(1).fill = greyFill;
+      row.getCell(1).font = { color: { argb: 'FF8C7E6E' }, size: 9 };
+      row.getCell(2).fill = greyFill;
+      row.getCell(2).font = { color: { argb: 'FF2C2218' } };
+
+      for (let j = 0; j < assessments.length; j++) {
+        ws.getCell(rowNum, j + 3).dataValidation = {
+          type: 'decimal', operator: 'between',
+          formulae: [0, parseFloat(assessments[j].max_score)],
+          showErrorMessage: true, errorTitle: 'Invalid Score',
+          error: `Must be 0–${assessments[j].max_score} (or Absent)`,
+        };
+      }
+    }
+
+    const label = `${subject}_${class_name}_sem${semester}`.replace(/[^a-z0-9_]/gi, '_');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${label}_CAs.xlsx"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) { next(err); }
+});
+
+// POST /api/assessments/class-upload-scores — upload bulk CA Excel
+// IMPORTANT: must be declared before /:id routes
+router.post('/class-upload-scores', upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const { academic_year_id, semester, subject, class_name } = req.body;
+    if (!academic_year_id || !semester || !subject || !class_name) {
+      return res.status(400).json({ error: 'academic_year_id, semester, subject, class_name are required' });
+    }
+
+    const subStatus = await getSubmissionStatus(req.schoolId, academic_year_id, semester, subject, class_name);
+    if (LOCKED_STATUSES.includes(subStatus)) {
+      return res.status(409).json({ error: `Scores are locked — submission status is "${subStatus}".` });
+    }
+
+    const { rows: students } = await pool.query(
+      `SELECT id FROM students WHERE school_id = $1 AND status = 'Active' AND LOWER(class_name) = LOWER($2)`,
+      [req.schoolId, class_name]
+    );
+    const validIds = new Set(students.map(s => s.id));
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(req.file.buffer);
+    const ws = wb.worksheets[0];
+    if (!ws) return res.status(400).json({ error: 'No worksheet found in the uploaded file' });
+
+    // Read assessment IDs from row 2 (col C = index 3, onwards)
+    const idRow  = ws.getRow(2);
+    const asmtIds = [];
+    let colIdx = 3;
+    while (true) {
+      const val = (idRow.getCell(colIdx).text ?? '').trim();
+      if (!val || val.length < 30) break; // UUIDs are 36 chars
+      asmtIds.push(val);
+      colIdx++;
+    }
+    if (!asmtIds.length) {
+      return res.status(400).json({ error: 'Could not read assessment IDs from the template. Please use the downloaded template file.' });
+    }
+
+    // Validate assessment IDs
+    const { rows: validAsmts } = await pool.query(
+      `SELECT id, max_score FROM assessments WHERE id = ANY($1::uuid[]) AND school_id = $2`,
+      [asmtIds, req.schoolId]
+    );
+    const asmtMap = Object.fromEntries(validAsmts.map(a => [a.id, a]));
+    for (const id of asmtIds) {
+      if (!asmtMap[id]) {
+        return res.status(400).json({ error: `Assessment not found. Please use the downloaded template file.` });
+      }
+    }
+
+    function colLabel(n) {
+      let r = '';
+      while (n > 0) { n--; r = String.fromCharCode(65 + (n % 26)) + r; n = Math.floor(n / 26); }
+      return r;
+    }
+
+    const results  = { saved: 0, skipped: 0, errors: [] };
+    const toUpsert = [];
+
+    ws.eachRow((row, rowNum) => {
+      if (rowNum <= 3) return; // skip note + id + header rows
+
+      const studentId = (row.getCell(1).text ?? '').trim();
+      if (!studentId) { results.skipped++; return; }
+      if (!validIds.has(studentId)) {
+        results.errors.push({ row: rowNum, message: `Student ID not found in class ${class_name}` });
+        return;
+      }
+
+      for (let j = 0; j < asmtIds.length; j++) {
+        const raw     = row.getCell(j + 3).value;
+        const rawText = (row.getCell(j + 3).text ?? '').trim().toLowerCase();
+        if (raw === null || raw === undefined || raw === '') continue; // blank = skip this cell
+
+        const absent = rawText === 'absent' || rawText === 'yes' || rawText === 'true';
+        let score = null;
+
+        if (!absent) {
+          const num = parseFloat(raw);
+          if (isNaN(num)) {
+            results.errors.push({ row: rowNum, message: `Col ${colLabel(j + 3)}: invalid score "${raw}"` });
+            continue;
+          }
+          const maxScore = parseFloat(asmtMap[asmtIds[j]].max_score);
+          if (num < 0 || num > maxScore) {
+            results.errors.push({ row: rowNum, message: `Col ${colLabel(j + 3)}: score ${num} out of range (0–${maxScore})` });
+            continue;
+          }
+          score = num;
+        }
+
+        toUpsert.push({ assessment_id: asmtIds[j], student_id: studentId, score, absent });
+      }
+    });
+
+    if (toUpsert.length === 0 && results.errors.length > 0) {
+      return res.status(422).json({ ...results, error: `All rows had errors — check errors below` });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const { assessment_id, student_id, score, absent } of toUpsert) {
+        await client.query(
+          `INSERT INTO assessment_scores (assessment_id, student_id, score, absent)
+           VALUES ($1,$2,$3,$4)
+           ON CONFLICT (assessment_id, student_id)
+           DO UPDATE SET score = EXCLUDED.score, absent = EXCLUDED.absent`,
+          [assessment_id, student_id, score, absent]
+        );
+        results.saved++;
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally { client.release(); }
+
+    res.json(results);
+  } catch (err) { next(err); }
+});
+
 // PUT /api/assessments/:id
 router.put('/:id', async (req, res, next) => {
   try {

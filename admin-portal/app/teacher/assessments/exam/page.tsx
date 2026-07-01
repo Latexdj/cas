@@ -45,7 +45,13 @@ function ExamContent() {
   const [remarksSaving,  setRemarksSaving]  = useState(false);
   const [remarksExpanded, setRemarksExpanded] = useState(false);
 
-  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const inputRefs    = useRef<Record<string, HTMLInputElement | null>>({});
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [uploading, setUploading]       = useState(false);
+  const [uploadResult, setUploadResult] = useState<{
+    saved: number; skipped: number; errors: { row: number; message: string }[];
+  } | null>(null);
 
   const selectedYearName = years.find(y => y.id === selectedYearId)?.name ?? year_name;
 
@@ -102,6 +108,57 @@ function ExamContent() {
     load();
   }, [load]);
 
+  async function downloadExamTemplate() {
+    try {
+      const resp = await teacherApi.get('/api/exam-scores/template', {
+        params: { academic_year_id: selectedYearId, semester: selectedSem, subject, class_name },
+        responseType: 'blob',
+        timeout: 30000,
+      });
+      const url = URL.createObjectURL(resp.data as Blob);
+      const a   = document.createElement('a');
+      a.href     = url;
+      a.download = `${subject}_${class_name}_sem${selectedSem}_exam.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('Failed to download template.');
+    }
+  }
+
+  async function handleExamUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setUploading(true);
+    setError('');
+    setUploadResult(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('academic_year_id', selectedYearId);
+      form.append('semester', selectedSem);
+      form.append('subject', subject);
+      form.append('class_name', class_name);
+      const { data } = await teacherApi.post<{
+        saved: number; skipped: number; errors: { row: number; message: string }[];
+      }>('/api/exam-scores/upload-scores', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000,
+      });
+      setUploadResult(data);
+      await load();
+    } catch (err: unknown) {
+      const body = (err as { response?: { data?: { error?: string; saved?: number; skipped?: number; errors?: { row: number; message: string }[] } } })?.response?.data;
+      setError(body?.error ?? 'Upload failed.');
+      if (body?.errors?.length) {
+        setUploadResult({ saved: body.saved ?? 0, skipped: body.skipped ?? 0, errors: body.errors });
+      }
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function save() {
     setSaving(true); setError(''); setSaved(false);
     try {
@@ -157,6 +214,26 @@ function ExamContent() {
             <h1 className="text-base font-bold text-[#2C2218]">End-of-Semester Exam</h1>
             <p className="text-xs text-[#8C7E6E] truncate">{subject} · {class_name}</p>
           </div>
+
+          {/* Offline template buttons */}
+          <button
+            onClick={downloadExamTemplate}
+            title="Download exam score template"
+            className="w-8 h-8 rounded-xl flex items-center justify-center bg-white border border-[#E2D9CC] shrink-0 text-[#8C7E6E] text-sm font-bold"
+          >↓</button>
+          <button
+            onClick={() => uploadInputRef.current?.click()}
+            disabled={subLocked || uploading}
+            title="Upload filled exam scores"
+            className="w-8 h-8 rounded-xl flex items-center justify-center bg-white border border-[#E2D9CC] shrink-0 text-[#8C7E6E] text-sm font-bold disabled:opacity-40"
+          >{uploading ? '…' : '↑'}</button>
+          <input
+            ref={uploadInputRef}
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            onChange={handleExamUpload}
+          />
         </div>
 
         {/* Year + Semester selectors */}
@@ -276,6 +353,47 @@ function ExamContent() {
             {saving ? 'Saving…' : 'Save Exam Scores'}
           </button>
           <p className="text-xs text-[#8C7E6E]">{rows.length} student{rows.length !== 1 ? 's' : ''}</p>
+        </div>
+      )}
+
+      {/* Upload result modal */}
+      {uploadResult && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 px-4 pb-6">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold text-[#2C2218]">Upload Results</h2>
+              <button
+                onClick={() => setUploadResult(null)}
+                className="w-8 h-8 rounded-full bg-[#F4EFE6] flex items-center justify-center"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-[#8C7E6E]">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-2 mb-3">
+              <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                <span className="text-green-700 font-bold text-sm">{uploadResult.saved} score{uploadResult.saved !== 1 ? 's' : ''} saved</span>
+              </div>
+              {uploadResult.skipped > 0 && (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                  <span className="text-gray-600 text-sm">{uploadResult.skipped} row{uploadResult.skipped !== 1 ? 's' : ''} skipped (empty)</span>
+                </div>
+              )}
+            </div>
+            {uploadResult.errors.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-[#B83232] mb-1">{uploadResult.errors.length} error{uploadResult.errors.length !== 1 ? 's' : ''}:</p>
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {uploadResult.errors.map((e, i) => (
+                    <div key={i} className="text-xs text-[#B83232] bg-red-50 border border-red-100 rounded-lg px-2 py-1">
+                      Row {e.row}: {e.message}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
