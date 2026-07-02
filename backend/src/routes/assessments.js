@@ -428,6 +428,50 @@ router.post('/class-upload-scores', upload.single('file'), async (req, res, next
   } catch (err) { next(err); }
 });
 
+// GET /api/assessments/admin-list — admin: list all assessments with flexible filters
+// IMPORTANT: must be declared before /:id routes
+router.get('/admin-list', adminOnly, async (req, res, next) => {
+  try {
+    const { teacher_id, academic_year_id, semester, subject, class_name, search } = req.query;
+    const params = [req.schoolId];
+    const clauses = [];
+
+    if (teacher_id)       { params.push(teacher_id);              clauses.push(`a.teacher_id = $${params.length}`); }
+    if (academic_year_id) { params.push(academic_year_id);        clauses.push(`a.academic_year_id = $${params.length}`); }
+    if (semester)         { params.push(parseInt(semester));       clauses.push(`a.semester = $${params.length}`); }
+    if (subject)          { params.push(subject);                  clauses.push(`LOWER(a.subject) = LOWER($${params.length})`); }
+    if (class_name)       { params.push(class_name);               clauses.push(`LOWER(a.class_name) = LOWER($${params.length})`); }
+    if (search) {
+      params.push(`%${search}%`);
+      const p = params.length;
+      clauses.push(`(a.title ILIKE $${p} OR a.subject ILIKE $${p} OR t.name ILIKE $${p} OR a.class_name ILIKE $${p})`);
+    }
+
+    const where = clauses.length ? `AND ${clauses.join(' AND ')}` : '';
+
+    const { rows } = await pool.query(
+      `SELECT a.id, a.mode_id, m.name AS mode_name,
+              a.title, a.date, a.max_score,
+              a.subject, a.class_name,
+              a.academic_year_id, ay.name AS academic_year_name,
+              a.semester, a.created_at,
+              a.teacher_id, t.name AS teacher_name,
+              COUNT(sc.id)::int AS score_count
+       FROM assessments a
+       JOIN assessment_modes m ON m.id = a.mode_id
+       LEFT JOIN teachers t ON t.id = a.teacher_id
+       LEFT JOIN academic_years ay ON ay.id = a.academic_year_id
+       LEFT JOIN assessment_scores sc ON sc.assessment_id = a.id
+       WHERE a.school_id = $1 ${where}
+       GROUP BY a.id, m.name, t.name, ay.name
+       ORDER BY a.created_at DESC
+       LIMIT 500`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // PUT /api/assessments/:id
 router.put('/:id', async (req, res, next) => {
   try {
