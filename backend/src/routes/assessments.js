@@ -203,7 +203,7 @@ router.get('/class-template', async (req, res, next) => {
     }
 
     const { rows: students } = await pool.query(
-      `SELECT s.id AS student_id, s.name FROM students s
+      `SELECT s.id AS student_id, s.student_code, s.name FROM students s
        WHERE s.school_id = $1 AND s.status = 'Active' AND LOWER(s.class_name) = LOWER($2)
        ORDER BY s.name`,
       [req.schoolId, class_name]
@@ -226,11 +226,12 @@ router.get('/class-template', async (req, res, next) => {
 
     const wb  = new ExcelJS.Workbook();
     const ws  = wb.addWorksheet('CA Scores');
-    const totalCols = 2 + assessments.length;
+    const totalCols = 3 + assessments.length;
 
     ws.columns = [
-      { key: 'student_id', width: 38 },
-      { key: 'name',       width: 28 },
+      { key: 'student_id',   width: 38 },
+      { key: 'student_code', width: 14 },
+      { key: 'name',         width: 28 },
       ...assessments.map((_, i) => ({ key: `a${i}`, width: 16 })),
     ];
 
@@ -246,13 +247,13 @@ router.get('/class-template', async (req, res, next) => {
     ws.getRow(1).height = 20;
 
     // Row 2: Assessment IDs (machine-readable, tiny grey text)
-    const idRow = ws.addRow(['ASSESSMENT_IDS', '', ...assessments.map(a => a.id)]);
+    const idRow = ws.addRow(['ASSESSMENT_IDS', '', '', ...assessments.map(a => a.id)]);
     idRow.eachCell(cell => { cell.font = { size: 7, color: { argb: 'FFCCCCCC' } }; });
     ws.getRow(2).height = 11;
 
     // Row 3: Headers
     const hdrRow = ws.addRow([
-      'Student ID (do not edit)', 'Name',
+      'Student ID (do not edit)', 'Student No.', 'Name',
       ...assessments.map(a => {
         const lbl = [a.mode_name, a.title].filter(Boolean).join(' – ');
         const d   = a.date ? new Date(a.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : null;
@@ -277,14 +278,16 @@ router.get('/class-template', async (req, res, next) => {
         if (sc.absent)      return 'Absent';
         return sc.score != null ? sc.score : '';
       });
-      const row = ws.addRow([s.student_id, s.name, ...scoreVals]);
+      const row = ws.addRow([s.student_id, s.student_code, s.name, ...scoreVals]);
       row.getCell(1).fill = greyFill;
       row.getCell(1).font = { color: { argb: 'FF8C7E6E' }, size: 9 };
       row.getCell(2).fill = greyFill;
-      row.getCell(2).font = { color: { argb: 'FF2C2218' } };
+      row.getCell(2).font = { bold: true, color: { argb: 'FF2C2218' } };
+      row.getCell(3).fill = greyFill;
+      row.getCell(3).font = { color: { argb: 'FF2C2218' } };
 
       for (let j = 0; j < assessments.length; j++) {
-        ws.getCell(rowNum, j + 3).dataValidation = {
+        ws.getCell(rowNum, j + 4).dataValidation = {
           type: 'decimal', operator: 'between',
           formulae: [0, parseFloat(assessments[j].max_score)],
           showErrorMessage: true, errorTitle: 'Invalid Score',
@@ -330,7 +333,7 @@ router.post('/class-upload-scores', upload.single('file'), async (req, res, next
     // Read assessment IDs from row 2 (col C = index 3, onwards)
     const idRow  = ws.getRow(2);
     const asmtIds = [];
-    let colIdx = 3;
+    let colIdx = 4;
     while (true) {
       const val = (idRow.getCell(colIdx).text ?? '').trim();
       if (!val || val.length < 30) break; // UUIDs are 36 chars
@@ -373,8 +376,8 @@ router.post('/class-upload-scores', upload.single('file'), async (req, res, next
       }
 
       for (let j = 0; j < asmtIds.length; j++) {
-        const raw     = row.getCell(j + 3).value;
-        const rawText = (row.getCell(j + 3).text ?? '').trim().toLowerCase();
+        const raw     = row.getCell(j + 4).value;
+        const rawText = (row.getCell(j + 4).text ?? '').trim().toLowerCase();
         if (raw === null || raw === undefined || raw === '') continue; // blank = skip this cell
 
         const absent = rawText === 'absent' || rawText === 'yes' || rawText === 'true';
@@ -383,12 +386,12 @@ router.post('/class-upload-scores', upload.single('file'), async (req, res, next
         if (!absent) {
           const num = parseFloat(raw);
           if (isNaN(num)) {
-            results.errors.push({ row: rowNum, message: `Col ${colLabel(j + 3)}: invalid score "${raw}"` });
+            results.errors.push({ row: rowNum, message: `Col ${colLabel(j + 4)}: invalid score "${raw}"` });
             continue;
           }
           const maxScore = parseFloat(asmtMap[asmtIds[j]].max_score);
           if (num < 0 || num > maxScore) {
-            results.errors.push({ row: rowNum, message: `Col ${colLabel(j + 3)}: score ${num} out of range (0–${maxScore})` });
+            results.errors.push({ row: rowNum, message: `Col ${colLabel(j + 4)}: score ${num} out of range (0–${maxScore})` });
             continue;
           }
           score = num;
@@ -625,7 +628,7 @@ router.get('/:id/score-template', async (req, res, next) => {
     if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
 
     const { rows: students } = await pool.query(
-      `SELECT s.id AS student_id, s.name,
+      `SELECT s.id AS student_id, s.student_code, s.name,
               sc.score, sc.absent
        FROM students s
        LEFT JOIN assessment_scores sc ON sc.assessment_id = $1 AND sc.student_id = s.id
@@ -639,25 +642,26 @@ router.get('/:id/score-template', async (req, res, next) => {
     const ws = wb.addWorksheet('Scores');
 
     ws.columns = [
-      { key: 'student_id', width: 38 },
-      { key: 'name',       width: 28 },
-      { key: 'score',      width: 14 },
-      { key: 'absent',     width: 14 },
+      { key: 'student_id',   width: 38 },
+      { key: 'student_code', width: 14 },
+      { key: 'name',         width: 28 },
+      { key: 'score',        width: 14 },
+      { key: 'absent',       width: 14 },
     ];
 
     // Note row
     const note = ws.addRow([
       `Assessment: ${[assessment.mode_name, assessment.title].filter(Boolean).join(' – ')} | Class: ${assessment.class_name} | Max: ${assessment.max_score}`,
-      '', '', '',
+      '', '', '', '',
     ]);
-    ws.mergeCells(1, 1, 1, 4);
+    ws.mergeCells(1, 1, 1, 5);
     note.getCell(1).fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
     note.getCell(1).font  = { italic: true, color: { argb: 'FF856404' } };
     note.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
     ws.getRow(1).height = 20;
 
     // Header row
-    const hdr = ws.addRow(['Student ID (do not edit)', 'Name', `Score (0–${assessment.max_score})`, 'Absent (Yes/No)']);
+    const hdr = ws.addRow(['Student ID (do not edit)', 'Student No.', 'Name', `Score (0–${assessment.max_score})`, 'Absent (Yes/No)']);
     hdr.eachCell(cell => {
       cell.font      = { bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2C2218' } };
@@ -670,6 +674,7 @@ router.get('/:id/score-template', async (req, res, next) => {
       const s   = students[i];
       const row = ws.addRow([
         s.student_id,
+        s.student_code,
         s.name,
         s.score != null ? s.score : '',
         s.absent ? 'Yes' : '',
@@ -678,10 +683,12 @@ router.get('/:id/score-template', async (req, res, next) => {
       row.getCell(1).fill = greyFill;
       row.getCell(1).font = { color: { argb: 'FF8C7E6E' }, size: 9 };
       row.getCell(2).fill = greyFill;
-      row.getCell(2).font = { color: { argb: 'FF2C2218' } };
+      row.getCell(2).font = { bold: true, color: { argb: 'FF2C2218' } };
+      row.getCell(3).fill = greyFill;
+      row.getCell(3).font = { color: { argb: 'FF2C2218' } };
 
       // Score validation
-      ws.getCell(rowNum, 3).dataValidation = {
+      ws.getCell(rowNum, 4).dataValidation = {
         type: 'decimal', operator: 'between',
         formulae: [0, parseFloat(assessment.max_score)],
         showErrorMessage: true,
@@ -689,7 +696,7 @@ router.get('/:id/score-template', async (req, res, next) => {
         error: `Must be 0 – ${assessment.max_score}`,
       };
       // Absent dropdown
-      ws.getCell(rowNum, 4).dataValidation = {
+      ws.getCell(rowNum, 5).dataValidation = {
         type: 'list', formulae: ['"Yes,No"'],
         showErrorMessage: true, errorTitle: 'Invalid', error: 'Enter Yes or No',
       };
@@ -739,8 +746,8 @@ router.post('/:id/upload-scores', upload.single('file'), async (req, res, next) 
       if (rowNum <= 2) return; // skip note + header rows
 
       const studentId = (row.getCell(1).text ?? '').trim();
-      const scoreRaw  = row.getCell(3).value;
-      const absentRaw = (row.getCell(4).text ?? '').trim().toLowerCase();
+      const scoreRaw  = row.getCell(4).value;
+      const absentRaw = (row.getCell(5).text ?? '').trim().toLowerCase();
 
       if (!studentId) { results.skipped++; return; }
       if (!validIds.has(studentId)) {

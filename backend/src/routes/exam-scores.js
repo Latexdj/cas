@@ -35,7 +35,7 @@ router.get('/template', async (req, res, next) => {
     if (!isAdmin) { params.push(req.user.id); teacherFilter = `AND e.teacher_id = $${params.length}`; }
 
     const { rows: students } = await pool.query(
-      `SELECT s.id AS student_id, s.name, e.score, e.max_score
+      `SELECT s.id AS student_id, s.student_code, s.name, e.score, e.max_score
        FROM students s
        LEFT JOIN exam_scores e
          ON e.student_id = s.id AND e.school_id = $1
@@ -53,27 +53,28 @@ router.get('/template', async (req, res, next) => {
     const ws = wb.addWorksheet('Exam Scores');
 
     ws.columns = [
-      { key: 'student_id', width: 38 },
-      { key: 'name',       width: 28 },
-      { key: 'score',      width: 14 },
-      { key: '_max',       width: 8  },
+      { key: 'student_id',   width: 38 },
+      { key: 'student_code', width: 14 },
+      { key: 'name',         width: 28 },
+      { key: 'score',        width: 14 },
+      { key: '_max',         width: 8  },
     ];
 
-    // Row 1: Note (merged A-C); D1 = max_score for machine reading
+    // Row 1: Note (merged A-D); E1 = max_score for machine reading
     const noteRow = ws.addRow([
       `Exam Scores — ${subject} | Class: ${class_name} | Semester: ${semester} | Max: ${existingMax}`,
-      '', '', existingMax,
+      '', '', '', existingMax,
     ]);
-    ws.mergeCells(1, 1, 1, 3);
+    ws.mergeCells(1, 1, 1, 4);
     noteRow.getCell(1).fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
     noteRow.getCell(1).font      = { italic: true, color: { argb: 'FF856404' } };
     noteRow.getCell(1).alignment = { horizontal: 'left', vertical: 'middle' };
-    noteRow.getCell(4).font = { size: 7, color: { argb: 'FFCCCCCC' } };
+    noteRow.getCell(5).font = { size: 7, color: { argb: 'FFCCCCCC' } };
     ws.getRow(1).height = 20;
 
     // Row 2: Headers
-    const hdrRow = ws.addRow(['Student ID (do not edit)', 'Name', `Score (0–${existingMax})`, '']);
-    ['Student ID (do not edit)', 'Name', `Score (0–${existingMax})`].forEach((_, i) => {
+    const hdrRow = ws.addRow(['Student ID (do not edit)', 'Student No.', 'Name', `Score (0–${existingMax})`, '']);
+    ['Student ID (do not edit)', 'Student No.', 'Name', `Score (0–${existingMax})`].forEach((_, i) => {
       const cell = hdrRow.getCell(i + 1);
       cell.font      = { bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2C2218' } };
@@ -85,12 +86,14 @@ router.get('/template', async (req, res, next) => {
     for (let i = 0; i < students.length; i++) {
       const s      = students[i];
       const rowNum = i + 3;
-      const row    = ws.addRow([s.student_id, s.name, s.score != null ? s.score : '', '']);
+      const row    = ws.addRow([s.student_id, s.student_code, s.name, s.score != null ? s.score : '', '']);
       row.getCell(1).fill = greyFill;
       row.getCell(1).font = { color: { argb: 'FF8C7E6E' }, size: 9 };
       row.getCell(2).fill = greyFill;
-      row.getCell(2).font = { color: { argb: 'FF2C2218' } };
-      ws.getCell(rowNum, 3).dataValidation = {
+      row.getCell(2).font = { bold: true, color: { argb: 'FF2C2218' } };
+      row.getCell(3).fill = greyFill;
+      row.getCell(3).font = { color: { argb: 'FF2C2218' } };
+      ws.getCell(rowNum, 4).dataValidation = {
         type: 'decimal', operator: 'between',
         formulae: [0, parseFloat(existingMax)],
         showErrorMessage: true, errorTitle: 'Invalid Score',
@@ -131,8 +134,8 @@ router.post('/upload-scores', upload.single('file'), async (req, res, next) => {
     const ws = wb.worksheets[0];
     if (!ws) return res.status(400).json({ error: 'No worksheet found in the uploaded file' });
 
-    // Read max_score from D1
-    const maxScore = parseFloat(ws.getCell(1, 4).value) || 100;
+    // Read max_score from E1
+    const maxScore = parseFloat(ws.getCell(1, 5).value) || 100;
 
     const results  = { saved: 0, skipped: 0, errors: [] };
     const toUpsert = [];
@@ -141,7 +144,7 @@ router.post('/upload-scores', upload.single('file'), async (req, res, next) => {
       if (rowNum <= 2) return; // skip note + header
 
       const studentId = (row.getCell(1).text ?? '').trim();
-      const scoreRaw  = row.getCell(3).value;
+      const scoreRaw  = row.getCell(4).value;
 
       if (!studentId) { results.skipped++; return; }
       if (!validIds.has(studentId)) {
