@@ -72,7 +72,7 @@ export default function PrimaryStudentsPage() {
         father_alive: data.father_alive !== false,
         mother_alive: data.mother_alive !== false,
       });
-    } catch { setForm({ ...EMPTY_FORM, ...s }); }
+    } catch { setForm({ ...EMPTY_FORM, ...s, other_names: s.other_names ?? '', sex: s.sex ?? '', date_of_birth: s.date_of_birth?.slice(0,10) ?? '', father_phone: s.father_phone ?? '', mother_phone: s.mother_phone ?? '', guardian_phone: s.guardian_phone ?? '', nhis_number: s.nhis_number ?? '', blood_group: s.blood_group ?? '' }); }
     setShowForm(true);
   }
 
