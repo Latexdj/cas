@@ -220,13 +220,23 @@ function ExamContent() {
             onClick={downloadExamTemplate}
             title="Download exam score template"
             className="w-8 h-8 rounded-xl flex items-center justify-center bg-white border border-[#E2D9CC] shrink-0 text-[#8C7E6E] text-sm font-bold"
-          >↓</button>
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v13M7 11l5 5 5-5M5 20h14" />
+            </svg>
+          </button>
           <button
             onClick={() => uploadInputRef.current?.click()}
             disabled={subLocked || uploading}
             title="Upload filled exam scores"
-            className="w-8 h-8 rounded-xl flex items-center justify-center bg-white border border-[#E2D9CC] shrink-0 text-[#8C7E6E] text-sm font-bold disabled:opacity-40"
-          >{uploading ? '…' : '↑'}</button>
+            className="w-8 h-8 rounded-xl flex items-center justify-center bg-white border border-[#E2D9CC] shrink-0 text-[#8C7E6E] disabled:opacity-40"
+          >
+            {uploading ? <div className="w-3.5 h-3.5 rounded-full border-2 border-[#8C7E6E] border-t-transparent animate-spin" /> : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V3M7 8l5-5 5 5M5 20h14" />
+              </svg>
+            )}
+          </button>
           <input
             ref={uploadInputRef}
             type="file"
