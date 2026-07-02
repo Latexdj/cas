@@ -26,7 +26,12 @@ export default function LoginPage() {
         schoolCode: schoolCode.trim().toUpperCase(),
       });
       saveUser({ id: data.id, name: data.name, role: data.role, schoolId: data.schoolId, token: data.token });
-      router.replace('/dashboard');
+      if (data.school_level === 'primary') {
+        localStorage.setItem('cas_school_level', 'primary');
+        router.replace('/primary/admin/dashboard');
+      } else {
+        router.replace('/dashboard');
+      }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? 'Login failed. Check your Teacher ID, password and School Code.');

@@ -25,3 +25,23 @@ export function clearUser() {
   localStorage.removeItem('cas_token');
   localStorage.removeItem('cas_user');
 }
+
+export interface TeacherUser {
+  id: string;
+  name: string;
+  schoolId: string;
+  token: string;
+}
+
+export function getTeacherUser(): TeacherUser | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('cas_t_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+export function clearTeacherUser() {
+  localStorage.removeItem('cas_t_token');
+  localStorage.removeItem('cas_t_user');
+}

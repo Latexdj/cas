@@ -50,7 +50,12 @@ export default function TeacherLoginPage() {
         saveTeacherColors(data.primary_color, data.accent_color ?? '#1a8a6a', data.logo_url ?? null);
       }
 
-      window.location.href = '/teacher';
+      if (data.school_level === 'primary') {
+        localStorage.setItem('cas_school_level', 'primary');
+        window.location.href = '/primary/teacher';
+      } else {
+        window.location.href = '/teacher';
+      }
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.message ?? err.response?.data?.error ?? 'Invalid credentials. Please try again.');

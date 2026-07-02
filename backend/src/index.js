@@ -54,6 +54,7 @@ const adminAdmissionsRoutes   = require('./routes/admin-admissions');
 const resultSubmissionsRoutes = require('./routes/result-submissions');
 const monitoringRoutes        = require('./routes/assessment-monitoring');
 const departmentRoutes        = require('./routes/departments');
+const primaryRoutes           = require('./routes/primary');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -136,6 +137,7 @@ app.use('/api/admin/admissions',      adminAdmissionsRoutes);
 app.use('/api/result-submissions',    resultSubmissionsRoutes);
 app.use('/api/assessment-monitoring', monitoringRoutes);
 app.use('/api/departments',           departmentRoutes);
+app.use('/api/primary',               primaryRoutes);
 
 app.use(errorHandler);
 
@@ -1292,6 +1294,198 @@ async function runMigrations() {
           LIMIT 1
         )
       WHERE t.academic_year_id IS NULL
+    `);
+
+    // ── Primary / Basic school module ─────────────────────────────────────────
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS school_level TEXT DEFAULT 'secondary'`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_terms (
+        id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        academic_year_id UUID        NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        term_number      SMALLINT    NOT NULL CHECK (term_number IN (1, 2, 3)),
+        name             TEXT        NOT NULL,
+        start_date       DATE,
+        end_date         DATE,
+        is_current       BOOLEAN     NOT NULL DEFAULT false,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, academic_year_id, term_number)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_students (
+        id                              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id                       UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        admission_number                TEXT        NOT NULL,
+        surname                         TEXT        NOT NULL,
+        other_names                     TEXT,
+        preferred_name                  TEXT,
+        date_of_birth                   DATE,
+        sex                             TEXT        CHECK (sex IN ('Male','Female')),
+        nationality                     TEXT        NOT NULL DEFAULT 'Ghanaian',
+        religion                        TEXT,
+        hometown                        TEXT,
+        district_of_origin              TEXT,
+        region_of_origin                TEXT,
+        residential_address             TEXT,
+        photo_url                       TEXT,
+        birth_certificate_no            TEXT,
+        ghana_card_no                   TEXT,
+        nhis_number                     TEXT,
+        blood_group                     TEXT,
+        genotype                        TEXT,
+        known_conditions                TEXT,
+        immunization_bcg                BOOLEAN     DEFAULT false,
+        immunization_dpt                BOOLEAN     DEFAULT false,
+        immunization_polio              BOOLEAN     DEFAULT false,
+        immunization_measles            BOOLEAN     DEFAULT false,
+        class_name                      TEXT        NOT NULL,
+        date_of_admission               DATE,
+        previous_school                 TEXT,
+        previous_class                  TEXT,
+        status                          TEXT        NOT NULL DEFAULT 'Active'
+                                          CHECK (status IN ('Active','Withdrawn','Transferred','Graduated')),
+        father_name                     TEXT,
+        father_occupation               TEXT,
+        father_education                TEXT,
+        father_phone                    TEXT,
+        father_alive                    BOOLEAN     DEFAULT true,
+        mother_name                     TEXT,
+        mother_occupation               TEXT,
+        mother_education                TEXT,
+        mother_phone                    TEXT,
+        mother_alive                    BOOLEAN     DEFAULT true,
+        guardian_name                   TEXT,
+        guardian_relationship           TEXT,
+        guardian_occupation             TEXT,
+        guardian_phone                  TEXT,
+        guardian_address                TEXT,
+        emergency_contact_name          TEXT,
+        emergency_contact_phone         TEXT,
+        emergency_contact_relationship  TEXT,
+        created_at                      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at                      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, admission_number)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_students_school_class ON primary_students(school_id, class_name, status)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_class_teachers (
+        id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id       UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        class_name       TEXT        NOT NULL,
+        academic_year_id UUID        NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, class_name, academic_year_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_class_teachers_teacher ON primary_class_teachers(teacher_id)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_subjects (
+        id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id       UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        class_name      TEXT        NOT NULL,
+        subject_name    TEXT        NOT NULL,
+        max_class_score NUMERIC(5,2) NOT NULL DEFAULT 30,
+        max_exam_score  NUMERIC(5,2) NOT NULL DEFAULT 70,
+        sort_order      INTEGER     NOT NULL DEFAULT 0,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, class_name, subject_name)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_subjects_school_class ON primary_subjects(school_id, class_name)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_scores (
+        id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID         NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        student_id       UUID         NOT NULL REFERENCES primary_students(id) ON DELETE CASCADE,
+        subject_id       UUID         NOT NULL REFERENCES primary_subjects(id) ON DELETE CASCADE,
+        term_id          UUID         NOT NULL REFERENCES primary_terms(id) ON DELETE CASCADE,
+        academic_year_id UUID         NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        class_score      NUMERIC(5,2),
+        exam_score       NUMERIC(5,2),
+        total            NUMERIC(5,2),
+        grade            TEXT,
+        position         INTEGER,
+        teacher_id       UUID         REFERENCES teachers(id) ON DELETE SET NULL,
+        created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        UNIQUE (school_id, student_id, subject_id, term_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_scores_term ON primary_scores(school_id, term_id)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_daily_attendance (
+        id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        student_id  UUID        NOT NULL REFERENCES primary_students(id) ON DELETE CASCADE,
+        class_name  TEXT        NOT NULL,
+        date        DATE        NOT NULL,
+        status      TEXT        NOT NULL DEFAULT 'present'
+                      CHECK (status IN ('present','absent','late','excused')),
+        notes       TEXT,
+        marked_by   UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, student_id, date)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_attendance_class_date ON primary_daily_attendance(school_id, class_name, date)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_report_remarks (
+        id                          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id                   UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        student_id                  UUID        NOT NULL REFERENCES primary_students(id) ON DELETE CASCADE,
+        term_id                     UUID        NOT NULL REFERENCES primary_terms(id) ON DELETE CASCADE,
+        academic_year_id            UUID        NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        affective_ratings           JSONB,
+        class_teacher_remarks       TEXT,
+        class_teacher_id            UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        class_teacher_submitted_at  TIMESTAMPTZ,
+        headmaster_remarks          TEXT,
+        headmaster_id               UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        headmaster_approved_at      TIMESTAMPTZ,
+        status                      TEXT        NOT NULL DEFAULT 'draft'
+                                      CHECK (status IN ('draft','submitted','approved','rejected')),
+        rejection_reason            TEXT,
+        created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, student_id, term_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_remarks_term ON primary_report_remarks(school_id, term_id)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_grade_scale (
+        id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID         NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        grade       TEXT         NOT NULL,
+        min_score   NUMERIC(5,2) NOT NULL,
+        max_score   NUMERIC(5,2) NOT NULL,
+        description TEXT,
+        sort_order  INTEGER      NOT NULL DEFAULT 0,
+        UNIQUE (school_id, grade)
+      )
+    `);
+    // Seed default A1-F9 grade scale for any primary school that has none
+    await pool.query(`
+      INSERT INTO primary_grade_scale (school_id, grade, min_score, max_score, description, sort_order)
+      SELECT s.id, v.grade, v.min_score, v.max_score, v.description, v.sort_order
+      FROM schools s
+      CROSS JOIN (VALUES
+        ('A1', 80,  100, 'Excellent',  1),
+        ('B2', 70,   79, 'Very Good',  2),
+        ('B3', 60,   69, 'Good',       3),
+        ('C4', 55,   59, 'Credit',     4),
+        ('C5', 50,   54, 'Credit',     5),
+        ('C6', 45,   49, 'Credit',     6),
+        ('D7', 40,   44, 'Pass',       7),
+        ('E8', 35,   39, 'Pass',       8),
+        ('F9',  0,   34, 'Fail',       9)
+      ) AS v(grade, min_score, max_score, description, sort_order)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM primary_grade_scale pgs WHERE pgs.school_id = s.id
+      )
+      ON CONFLICT DO NOTHING
     `);
 
     console.log('Migrations OK');
