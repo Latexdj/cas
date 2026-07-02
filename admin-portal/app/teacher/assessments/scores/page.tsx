@@ -108,8 +108,15 @@ function ScoresContent() {
       a.download = `${assessment_label}_scores.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch {
-      setError('Failed to download template.');
+    } catch (err: unknown) {
+      let msg = 'Failed to download template.';
+      const d = (err as { response?: { data?: unknown } })?.response?.data;
+      if (d instanceof Blob) {
+        try { msg = JSON.parse(await d.text())?.error ?? msg; } catch { /* ignore */ }
+      } else if (d && typeof d === 'object' && 'error' in d) {
+        msg = (d as { error: string }).error ?? msg;
+      }
+      setError(msg);
     }
   }
 

@@ -145,8 +145,14 @@ function SubjectContent() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setBulkUploadError(msg ?? 'Failed to download template.');
+      let msg = 'Failed to download template.';
+      const d = (err as { response?: { data?: unknown } })?.response?.data;
+      if (d instanceof Blob) {
+        try { msg = JSON.parse(await d.text())?.error ?? msg; } catch { /* ignore */ }
+      } else if (d && typeof d === 'object' && 'error' in d) {
+        msg = (d as { error: string }).error ?? msg;
+      }
+      setBulkUploadError(msg);
     }
   }
 
