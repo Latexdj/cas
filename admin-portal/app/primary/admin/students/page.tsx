@@ -10,7 +10,7 @@ interface Student {
   nhis_number: string | null; blood_group: string | null;
 }
 
-const CLASSES = ['Nursery 1','Nursery 2','KG 1','KG 2','Basic 1','Basic 2','Basic 3','Basic 4','Basic 5','Basic 6','JHS 1','JHS 2','JHS 3'];
+interface ClassItem { id: string; class_name: string; }
 const REGIONS = ['Ahafo','Ashanti','Bono','Bono East','Central','Eastern','Greater Accra','North East','Northern','Oti','Savannah','Upper East','Upper West','Volta','Western','Western North'];
 const RELIGIONS = ['Christian','Muslim','Traditionalist','No Religion','Other'];
 const BLOOD_GROUPS = ['A+','A-','B+','B-','O+','O-','AB+','AB-'];
@@ -34,16 +34,17 @@ const EMPTY_FORM = {
 type FormState = typeof EMPTY_FORM;
 
 export default function PrimaryStudentsPage() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState('');
-  const [search,   setSearch]   = useState('');
+  const [students,    setStudents]    = useState<Student[]>([]);
+  const [classes,     setClasses]     = useState<ClassItem[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState('');
+  const [search,      setSearch]      = useState('');
   const [filterClass, setFilterClass] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [editing,  setEditing]  = useState<Student | null>(null);
-  const [form,     setForm]     = useState<FormState>(EMPTY_FORM);
-  const [saving,   setSaving]   = useState(false);
-  const [saveError, setSaveError] = useState('');
+  const [showForm,    setShowForm]    = useState(false);
+  const [editing,     setEditing]     = useState<Student | null>(null);
+  const [form,        setForm]        = useState<FormState>(EMPTY_FORM);
+  const [saving,      setSaving]      = useState(false);
+  const [saveError,   setSaveError]   = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,6 +59,10 @@ export default function PrimaryStudentsPage() {
   }, [filterClass, search]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    api.get<ClassItem[]>('/api/primary/classes').then(r => setClasses(r.data)).catch(() => {});
+  }, []);
 
   function openAdd() {
     setEditing(null); setForm(EMPTY_FORM); setSaveError(''); setShowForm(true);
@@ -147,7 +152,7 @@ export default function PrimaryStudentsPage() {
         <select value={filterClass} onChange={e => setFilterClass(e.target.value)}
           className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white">
           <option value="">All Classes</option>
-          {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+          {classes.map(c => <option key={c.id} value={c.class_name}>{c.class_name}</option>)}
         </select>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name / admission no…"
           onKeyDown={e => e.key === 'Enter' && load()}
@@ -250,7 +255,7 @@ export default function PrimaryStudentsPage() {
               </div>
 
               <SectionHead title="Admission" />
-              {F('Class *', 'class_name', 'text', CLASSES)}
+              {F('Class *', 'class_name', 'text', classes.map(c => c.class_name))}
               {F('Date of Admission', 'date_of_admission', 'date')}
               {F('Status', 'status', 'text', ['Active','Withdrawn','Transferred','Graduated'])}
               {F('Previous School', 'previous_school')}

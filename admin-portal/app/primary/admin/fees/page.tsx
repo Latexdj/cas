@@ -46,8 +46,6 @@ interface Expense {
   reference: string | null; recorded_by: string | null; notes: string | null;
 }
 
-const PRIMARY_CLASSES = ['Nursery 1','Nursery 2','KG 1','KG 2','Basic 1','Basic 2','Basic 3','Basic 4','Basic 5','Basic 6','JHS 1','JHS 2','JHS 3'];
-
 const EXPENSE_CATEGORIES = [
   'Salaries & Wages','Utilities','Stationery & Supplies',
   'Maintenance & Repairs','Transport & Fuel','Food & Catering',
@@ -897,7 +895,7 @@ export default function PrimaryFeesPage() {
   const [items, setItems] = useState<FeeItem[]>([]);
   const [schedules, setSchedules] = useState<FeeSchedule[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
-  const [classes, setClasses] = useState<string[]>(PRIMARY_CLASSES);
+  const [classes, setClasses] = useState<string[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loadingItems, setLoadingItems] = useState(true);
   const [loadingSchedules, setLoadingSchedules] = useState(true);
@@ -921,11 +919,9 @@ export default function PrimaryFeesPage() {
   useEffect(() => {
     loadItems(); loadSchedules(); loadStats();
     api.get('/api/academic-years').then(r => setYears(r.data)).catch(() => {});
-    // Merge API classes with defaults so primary schools always see their class list
-    api.get<string[]>('/api/fees/classes').then(r => {
-      const merged = Array.from(new Set([...PRIMARY_CLASSES, ...r.data]));
-      setClasses(merged);
-    }).catch(() => {});
+    api.get<{ id: string; class_name: string }[]>('/api/primary/classes')
+      .then(r => setClasses(r.data.map(c => c.class_name)))
+      .catch(() => {});
   }, [loadItems, loadSchedules, loadStats]);
 
   const TABS: { id: Tab; label: string }[] = [

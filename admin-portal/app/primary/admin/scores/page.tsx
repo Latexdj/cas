@@ -9,11 +9,11 @@ interface Student { id: string; surname: string; other_names: string | null; adm
 
 interface ScoreEntry { class_score: number | null; exam_score: number | null; total: number | null; grade: string | null; position: number | null; }
 interface ScoresData { subjects: Subject[]; students: Student[]; scoreMap: Record<string, Record<string, ScoreEntry>>; }
-
-const CLASSES = ['Nursery 1','Nursery 2','KG 1','KG 2','Basic 1','Basic 2','Basic 3','Basic 4','Basic 5','Basic 6','JHS 1','JHS 2','JHS 3'];
+interface ClassItem  { id: string; class_name: string; }
 
 export default function PrimaryScoresAdminPage() {
   const [terms,      setTerms]      = useState<Term[]>([]);
+  const [classes,    setClasses]    = useState<ClassItem[]>([]);
   const [termId,     setTermId]     = useState('');
   const [className,  setClassName]  = useState('');
   const [subjects,   setSubjects]   = useState<Subject[]>([]);
@@ -32,6 +32,7 @@ export default function PrimaryScoresAdminPage() {
       const cur = r.data.find(t => t.is_current);
       if (cur) setTermId(cur.id);
     }).catch(() => {});
+    api.get<ClassItem[]>('/api/primary/classes').then(r => setClasses(r.data)).catch(() => {});
   }, []);
 
   const load = useCallback(async () => {
@@ -104,7 +105,7 @@ export default function PrimaryScoresAdminPage() {
         <select value={className} onChange={e => setClassName(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-700">
           <option value="">Select class…</option>
-          {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+          {classes.map(c => <option key={c.id} value={c.class_name}>{c.class_name}</option>)}
         </select>
         {subjects.length > 0 && (
           <select value={selSubject} onChange={e => setSelSubject(e.target.value)}

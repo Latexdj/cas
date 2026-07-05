@@ -11,9 +11,9 @@ interface SummaryRow {
   student_id: string; surname: string; other_names: string | null; admission_number: string;
   present_days: number; absent_days: number; late_days: number; excused_days: number; total_marked: number;
 }
-interface Term { id: string; name: string; is_current: boolean; start_date: string | null; end_date: string | null; }
+interface Term      { id: string; name: string; is_current: boolean; start_date: string | null; end_date: string | null; }
+interface ClassItem { id: string; class_name: string; }
 
-const CLASSES = ['Nursery 1','Nursery 2','KG 1','KG 2','Basic 1','Basic 2','Basic 3','Basic 4','Basic 5','Basic 6','JHS 1','JHS 2','JHS 3'];
 const STATUSES = ['present','absent','late','excused'] as const;
 type Status = typeof STATUSES[number];
 
@@ -28,6 +28,7 @@ function today() { return new Date().toISOString().slice(0, 10); }
 
 export default function PrimaryStudentAttendancePage() {
   const [tab,       setTab]       = useState<'daily'|'summary'>('daily');
+  const [classes,   setClasses]   = useState<ClassItem[]>([]);
   const [className, setClassName] = useState('');
 
   // Daily
@@ -51,6 +52,7 @@ export default function PrimaryStudentAttendancePage() {
       const cur = r.data.find(t => t.is_current);
       if (cur) setTermId(cur.id);
     }).catch(() => {});
+    api.get<ClassItem[]>('/api/primary/classes').then(r => setClasses(r.data)).catch(() => {});
   }, []);
 
   const loadDaily = useCallback(async () => {
@@ -133,7 +135,7 @@ export default function PrimaryStudentAttendancePage() {
         <select value={className} onChange={e => setClassName(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-700">
           <option value="">Select class…</option>
-          {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+          {classes.map(c => <option key={c.id} value={c.class_name}>{c.class_name}</option>)}
         </select>
         {tab === 'daily' ? (
           <>
