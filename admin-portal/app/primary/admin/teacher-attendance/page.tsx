@@ -1,191 +1,214 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 
-interface TeacherAttRow {
-  teacher_id: string; teacher_name: string; teacher_code: string;
-  status: 'present' | 'absent' | 'late' | 'excused'; notes: string | null;
-  attendance_id: string | null;
+interface AttRecord {
+  id: string; teacher_id: string; teacher_name: string; teacher_code: string;
+  date: string; status: string; is_auto_generated: boolean;
+  clock_in_time: string | null; clock_in_gps: string | null; clock_in_location_verified: boolean;
+  clock_in_photo: string | null; photo_size_kb_in: number | null;
+  clock_out_time: string | null; clock_out_gps: string | null; clock_out_location_verified: boolean;
+  clock_out_photo: string | null; photo_size_kb_out: number | null;
+  manual_entry_by: string | null; manual_entry_by_name: string | null; manual_entry_note: string | null;
 }
-interface SummaryRow {
+
+interface Teacher { id: string; name: string; teacher_code: string; }
+interface ReportRow {
   teacher_id: string; teacher_name: string; teacher_code: string;
-  present_days: number; absent_days: number; late_days: number; excused_days: number; total_marked: number;
+  days_present: number; days_absent: number; days_excused: number;
+  days_incomplete: number; total_marked: number; attendance_pct: number | null;
 }
+interface Term { id: string; name: string; }
 
-const STATUSES = ['present','absent','late','excused'] as const;
-type Status = typeof STATUSES[number];
-
-const STATUS_STYLE: Record<Status, { active: string; bg: string }> = {
-  present: { active: 'bg-green-600 text-white border-transparent',  bg: 'bg-green-50 text-green-700' },
-  absent:  { active: 'bg-red-600 text-white border-transparent',    bg: 'bg-red-50 text-red-700' },
-  late:    { active: 'bg-amber-500 text-white border-transparent',  bg: 'bg-amber-50 text-amber-700' },
-  excused: { active: 'bg-blue-600 text-white border-transparent',   bg: 'bg-blue-50 text-blue-700' },
-};
-
-function today() { return new Date().toISOString().slice(0, 10); }
-function currentMonth() { return new Date().toISOString().slice(0, 7); }
+function fmt(ts: string | null) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+function statusChip(status: string, isAuto: boolean) {
+  const base = 'text-xs font-semibold px-2 py-0.5 rounded-full';
+  if (status === 'present')  return <span className={`${base} bg-green-100 text-green-700`}>Present</span>;
+  if (status === 'excused')  return <span className={`${base} bg-blue-100 text-blue-600`}>Excused</span>;
+  if (status === 'absent')   return <span className={`${base} ${isAuto ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>{isAuto ? 'Auto-Absent' : 'Absent'}</span>;
+  return <span className={`${base} bg-gray-100 text-gray-600`}>{status}</span>;
+}
 
 export default function PrimaryTeacherAttendancePage() {
-  const [tab, setTab] = useState<'daily'|'summary'>('daily');
+  const [tab, setTab] = useState<'log' | 'report'>('log');
 
-  // Daily tab
-  const [date,    setDate]    = useState(today());
-  const [rows,    setRows]    = useState<TeacherAttRow[]>([]);
-  const [draft,   setDraft]   = useState<Record<string, Status>>({});
-  const [loading, setLoading] = useState(false);
-  const [saving,  setSaving]  = useState(false);
-  const [saved,   setSaved]   = useState(false);
-  const [error,   setError]   = useState('');
+  // Log tab
+  const [date,      setDate]      = useState(new Date().toISOString().slice(0, 10));
+  const [records,   setRecords]   = useState<AttRecord[]>([]);
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState('');
 
-  // Summary tab
-  const [month,   setMonth]   = useState(currentMonth());
-  const [summary, setSummary] = useState<SummaryRow[]>([]);
-  const [sumLoad, setSumLoad] = useState(false);
+  // Photo modal
+  const [photoModal, setPhotoModal] = useState<{ src: string; label: string; gps: string | null; kb: number | null; time: string | null } | null>(null);
 
-  const loadDaily = useCallback(async () => {
-    setLoading(true); setError(''); setSaved(false);
+  // Manual entry modal
+  const [manualModal, setManualModal]   = useState(false);
+  const [teachers,    setTeachers]      = useState<Teacher[]>([]);
+  const [manTeacher,  setManTeacher]    = useState('');
+  const [manDate,     setManDate]       = useState(new Date().toISOString().slice(0, 10));
+  const [manNote,     setManNote]       = useState('');
+  const [manSaving,   setManSaving]     = useState(false);
+
+  // Report tab
+  const [terms,        setTerms]        = useState<Term[]>([]);
+  const [termId,       setTermId]       = useState('');
+  const [report,       setReport]       = useState<ReportRow[]>([]);
+  const [reportLoad,   setReportLoad]   = useState(false);
+
+  const loadLog = useCallback(async () => {
+    setLoading(true); setError('');
     try {
-      const { data } = await api.get<TeacherAttRow[]>(`/api/primary/teacher-attendance?date=${date}`);
-      setRows(data);
-      const d: Record<string, Status> = {};
-      data.forEach(r => { d[r.teacher_id] = r.status; });
-      setDraft(d);
-    } catch { setError('Failed to load attendance.'); }
+      const { data } = await api.get<AttRecord[]>(`/api/primary/admin/self-attendance?date=${date}`);
+      setRecords(data);
+    } catch { setError('Failed to load attendance records.'); }
     finally { setLoading(false); }
   }, [date]);
 
-  const loadSummary = useCallback(async () => {
-    setSumLoad(true);
+  const loadReport = useCallback(async () => {
+    setReportLoad(true);
     try {
-      const { data } = await api.get<SummaryRow[]>(`/api/primary/teacher-attendance/summary?month=${month}`);
-      setSummary(data);
-    } catch { setError('Failed to load summary.'); }
-    finally { setSumLoad(false); }
-  }, [month]);
+      const q = termId ? `?term_id=${termId}` : '';
+      const { data } = await api.get<ReportRow[]>(`/api/primary/admin/self-attendance/report${q}`);
+      setReport(data);
+    } catch { setError('Failed to load report.'); }
+    finally { setReportLoad(false); }
+  }, [termId]);
 
-  useEffect(() => { if (tab === 'daily') loadDaily(); }, [tab, loadDaily]);
-  useEffect(() => { if (tab === 'summary') loadSummary(); }, [tab, loadSummary]);
+  useEffect(() => { if (tab === 'log') loadLog(); }, [tab, loadLog]);
+  useEffect(() => { if (tab === 'report') loadReport(); }, [tab, loadReport]);
+  useEffect(() => {
+    api.get<Teacher[]>('/api/teachers').then(r => setTeachers(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+    api.get<Term[]>('/api/primary/terms').then(r => {
+      setTerms(r.data);
+      const cur = r.data.find((t: Term & { is_current?: boolean }) => (t as unknown as { is_current: boolean }).is_current);
+      if (cur) setTermId(cur.id);
+    }).catch(() => {});
+  }, []);
 
-  function markAll(s: Status) {
-    setDraft(d => { const n = { ...d }; rows.forEach(r => { n[r.teacher_id] = s; }); return n; });
-    setSaved(false);
-  }
-
-  async function save() {
-    setSaving(true); setError('');
+  async function submitManual() {
+    if (!manTeacher || !manDate) return;
+    setManSaving(true);
     try {
-      const records = rows.map(r => ({ teacher_id: r.teacher_id, status: draft[r.teacher_id] ?? 'present' }));
-      await api.post('/api/primary/teacher-attendance', { date, records });
-      setSaved(true);
+      await api.post('/api/primary/admin/self-attendance/manual', { teacher_id: manTeacher, date: manDate, note: manNote });
+      setManualModal(false); setManTeacher(''); setManNote('');
+      loadLog();
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg ?? 'Save failed.');
-    } finally { setSaving(false); }
+      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save');
+    } finally { setManSaving(false); }
   }
 
-  const counts = STATUSES.reduce<Record<string, number>>((acc, s) => {
-    acc[s] = rows.filter(r => draft[r.teacher_id] === s).length;
-    return acc;
-  }, {});
+  async function deleteRecord(id: string) {
+    if (!confirm('Delete this attendance record?')) return;
+    await api.delete(`/api/primary/admin/self-attendance/${id}`);
+    setRecords(r => r.filter(x => x.id !== id));
+  }
+
+  const attPctColor = (pct: number | null) => {
+    if (pct === null) return 'text-slate-400';
+    if (pct >= 90) return 'text-green-600';
+    if (pct >= 75) return 'text-amber-600';
+    return 'text-red-600';
+  };
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Teacher Attendance</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Daily register and monthly summary</p>
+          <p className="text-sm text-slate-500 mt-0.5">GPS-verified clock-in records</p>
         </div>
-        {tab === 'daily' && (
-          <button onClick={save} disabled={saving || loading}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 shadow-sm"
-            style={{ backgroundColor: '#15803D' }}>
-            {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Attendance'}
-          </button>
-        )}
+        <button onClick={() => setManualModal(true)}
+          className="px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm"
+          style={{ backgroundColor: '#15803D' }}>
+          + Manual Entry
+        </button>
       </div>
 
-      {/* Tab bar */}
+      {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
-        {(['daily', 'summary'] as const).map(t => (
+        {(['log', 'report'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-1.5 rounded-lg text-sm font-semibold capitalize transition-colors ${tab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-            {t === 'daily' ? 'Daily Register' : 'Monthly Summary'}
+            {t === 'log' ? 'Daily Log' : 'Term Report'}
           </button>
         ))}
       </div>
 
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>}
 
-      {/* DAILY TAB */}
-      {tab === 'daily' && (
+      {/* DAILY LOG */}
+      {tab === 'log' && (
         <>
-          {/* Controls */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex flex-wrap gap-3 items-center">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex gap-3 items-center">
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
-            <div className="flex items-center gap-2 ml-auto">
-              <span className="text-xs text-slate-500 font-medium">Mark all:</span>
-              {STATUSES.map(s => (
-                <button key={s} onClick={() => markAll(s)}
-                  className={`text-xs px-2.5 py-1 rounded-md font-semibold capitalize border ${STATUS_STYLE[s].active} opacity-80 hover:opacity-100`}>
-                  {s}
-                </button>
-              ))}
-            </div>
+            <button onClick={loadLog} className="text-xs font-semibold text-green-700 hover:text-green-800">Refresh</button>
           </div>
 
-          {/* Summary pills */}
-          <div className="grid grid-cols-4 gap-3">
-            {STATUSES.map(s => (
-              <div key={s} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
-                <p className="text-2xl font-black text-slate-900">{counts[s] ?? 0}</p>
-                <p className="text-xs text-slate-500 capitalize mt-0.5">{s}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Table */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-10">#</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Teacher</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                    {['Teacher', 'Status', 'Clock In', 'Clock Out', 'GPS In', 'Photos', 'Actions'].map(h => (
+                      <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {loading ? (
-                    <tr><td colSpan={3} className="text-center py-12">
+                    <tr><td colSpan={7} className="text-center py-12">
                       <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
                     </td></tr>
-                  ) : rows.map((r, i) => (
-                    <tr key={r.teacher_id} className={draft[r.teacher_id] === 'absent' ? 'bg-red-50/40' : 'hover:bg-gray-50'}>
-                      <td className="px-3 py-2 text-xs text-slate-400">{i + 1}</td>
-                      <td className="px-3 py-2">
+                  ) : records.length === 0 ? (
+                    <tr><td colSpan={7} className="text-center py-12 text-slate-400 text-sm">No records for this date.</td></tr>
+                  ) : records.map(r => (
+                    <tr key={r.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-2.5">
                         <p className="font-medium text-slate-900">{r.teacher_name}</p>
-                        <span className="font-mono text-xs px-1.5 py-0.5 rounded border" style={{ color: '#15803D', backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }}>{r.teacher_code}</span>
+                        <span className="font-mono text-xs text-slate-400">{r.teacher_code}</span>
                       </td>
-                      <td className="px-3 py-2">
-                        <div className="flex gap-1.5 flex-wrap">
-                          {STATUSES.map(s => (
-                            <button key={s} onClick={() => { setDraft(d => ({ ...d, [r.teacher_id]: s })); setSaved(false); }}
-                              className={`text-xs px-2.5 py-1 rounded-md font-semibold capitalize border transition-all ${
-                                draft[r.teacher_id] === s ? STATUS_STYLE[s].active : 'bg-white text-slate-500 border-gray-200 hover:border-gray-300'
-                              }`}>
-                              {s}
-                            </button>
-                          ))}
+                      <td className="px-3 py-2.5">
+                        {statusChip(r.status, r.is_auto_generated)}
+                        {r.manual_entry_by_name && (
+                          <p className="text-xs text-slate-400 mt-0.5">by {r.manual_entry_by_name}</p>
+                        )}
+                        {r.clock_in_time && !r.clock_out_time && !r.is_auto_generated && (
+                          <span className="text-xs text-amber-600 font-medium">No clock-out</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 font-mono text-xs text-slate-700">{fmt(r.clock_in_time)}</td>
+                      <td className="px-3 py-2.5 font-mono text-xs text-slate-700">{fmt(r.clock_out_time)}</td>
+                      <td className="px-3 py-2.5">
+                        {r.clock_in_gps ? (
+                          <a href={`https://www.google.com/maps?q=${r.clock_in_gps}`} target="_blank" rel="noreferrer"
+                            className={`text-xs font-semibold ${r.clock_in_location_verified ? 'text-green-600' : 'text-red-500'}`}>
+                            {r.clock_in_location_verified ? '✓ Verified' : '✗ Out of range'}
+                          </a>
+                        ) : <span className="text-xs text-slate-300">—</span>}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex gap-1.5">
+                          {r.clock_in_photo && (
+                            <button onClick={() => setPhotoModal({ src: r.clock_in_photo!, label: 'Clock In', gps: r.clock_in_gps, kb: r.photo_size_kb_in, time: r.clock_in_time })}
+                              className="text-xs font-semibold text-blue-600 hover:text-blue-700 border border-blue-200 rounded px-1.5 py-0.5">In</button>
+                          )}
+                          {r.clock_out_photo && (
+                            <button onClick={() => setPhotoModal({ src: r.clock_out_photo!, label: 'Clock Out', gps: r.clock_out_gps, kb: r.photo_size_kb_out, time: r.clock_out_time })}
+                              className="text-xs font-semibold text-purple-600 hover:text-purple-700 border border-purple-200 rounded px-1.5 py-0.5">Out</button>
+                          )}
+                          {!r.clock_in_photo && !r.clock_out_photo && <span className="text-xs text-slate-300">—</span>}
                         </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <button onClick={() => deleteRecord(r.id)} className="text-xs text-red-500 hover:text-red-700 font-semibold">Delete</button>
                       </td>
                     </tr>
                   ))}
-                  {!loading && rows.length === 0 && (
-                    <tr><td colSpan={3} className="text-center py-12 text-slate-400 text-sm">No active teachers found.</td></tr>
-                  )}
                 </tbody>
               </table>
             </div>
@@ -193,49 +216,125 @@ export default function PrimaryTeacherAttendancePage() {
         </>
       )}
 
-      {/* SUMMARY TAB */}
-      {tab === 'summary' && (
+      {/* TERM REPORT */}
+      {tab === 'report' && (
         <>
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex gap-3 items-center">
-            <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
+            <select value={termId} onChange={e => setTermId(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm">
+              <option value="">All terms</option>
+              {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
           </div>
+
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    {['Teacher','Code','Present','Absent','Late','Excused','Days Marked'].map(h => (
+                    {['Teacher', 'Present', 'Absent', 'Excused', 'Incomplete', 'Days Marked', 'Attendance %'].map(h => (
                       <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {sumLoad ? (
+                  {reportLoad ? (
                     <tr><td colSpan={7} className="text-center py-12">
                       <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
                     </td></tr>
-                  ) : summary.map(r => (
+                  ) : report.length === 0 ? (
+                    <tr><td colSpan={7} className="text-center py-12 text-slate-400 text-sm">No records.</td></tr>
+                  ) : report.map(r => (
                     <tr key={r.teacher_id} className="hover:bg-gray-50">
-                      <td className="px-3 py-2.5 font-medium text-slate-900">{r.teacher_name}</td>
                       <td className="px-3 py-2.5">
-                        <span className="font-mono text-xs px-1.5 py-0.5 rounded border" style={{ color: '#15803D', backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }}>{r.teacher_code}</span>
+                        <p className="font-medium text-slate-900">{r.teacher_name}</p>
+                        <span className="font-mono text-xs text-slate-400">{r.teacher_code}</span>
                       </td>
-                      <td className="px-3 py-2.5 font-semibold text-green-700">{r.present_days}</td>
-                      <td className="px-3 py-2.5 font-semibold text-red-600">{r.absent_days}</td>
-                      <td className="px-3 py-2.5 font-semibold text-amber-600">{r.late_days}</td>
-                      <td className="px-3 py-2.5 font-semibold text-blue-600">{r.excused_days}</td>
+                      <td className="px-3 py-2.5 font-semibold text-green-700">{r.days_present}</td>
+                      <td className="px-3 py-2.5 font-semibold text-red-600">{r.days_absent}</td>
+                      <td className="px-3 py-2.5 font-semibold text-blue-600">{r.days_excused}</td>
+                      <td className="px-3 py-2.5 font-semibold text-amber-600">{r.days_incomplete}</td>
                       <td className="px-3 py-2.5 text-slate-600">{r.total_marked}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-20 bg-gray-100 rounded-full h-2 overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${r.attendance_pct ?? 0}%`, backgroundColor: '#15803D' }} />
+                          </div>
+                          <span className={`text-xs font-bold tabular-nums ${attPctColor(r.attendance_pct)}`}>
+                            {r.attendance_pct !== null ? `${r.attendance_pct}%` : 'No data'}
+                          </span>
+                        </div>
+                      </td>
                     </tr>
                   ))}
-                  {!sumLoad && summary.length === 0 && (
-                    <tr><td colSpan={7} className="text-center py-12 text-slate-400 text-sm">No records for this month.</td></tr>
-                  )}
                 </tbody>
               </table>
             </div>
           </div>
         </>
+      )}
+
+      {/* Photo Modal */}
+      {photoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setPhotoModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+              <p className="font-bold text-slate-800">{photoModal.label} Photo</p>
+              <button onClick={() => setPhotoModal(null)} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
+            </div>
+            <img src={photoModal.src} alt="Attendance photo" className="w-full object-contain max-h-80" />
+            <div className="px-5 py-3 space-y-1 text-xs text-slate-500">
+              {photoModal.time && <p>Time: <span className="font-mono text-slate-700">{new Date(photoModal.time).toLocaleString('en-GB')}</span></p>}
+              {photoModal.kb && <p>Size: <span className="text-slate-700">{photoModal.kb} KB</span></p>}
+              {photoModal.gps && (
+                <p>GPS: <a href={`https://www.google.com/maps?q=${photoModal.gps}`} target="_blank" rel="noreferrer"
+                  className="text-blue-600 underline font-mono">{photoModal.gps}</a></p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Entry Modal */}
+      {manualModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-900">Manual Entry</h2>
+              <button onClick={() => setManualModal(false)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
+            </div>
+            <p className="text-xs text-slate-500">No GPS or photo required. Use this for teachers who had network/device issues.</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Teacher</label>
+                <select value={manTeacher} onChange={e => setManTeacher(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                  <option value="">Select teacher…</option>
+                  {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.teacher_code})</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Date</label>
+                <input type="date" value={manDate} onChange={e => setManDate(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Note (optional)</label>
+                <input value={manNote} onChange={e => setManNote(e.target.value)}
+                  placeholder="e.g. Phone was out of battery"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setManualModal(false)} className="flex-1 py-2 rounded-lg text-sm font-semibold border border-gray-200 text-slate-600">Cancel</button>
+              <button onClick={submitManual} disabled={manSaving || !manTeacher}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                style={{ backgroundColor: '#15803D' }}>
+                {manSaving ? 'Saving…' : 'Save Entry'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

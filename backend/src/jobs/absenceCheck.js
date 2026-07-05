@@ -417,6 +417,8 @@ function startAbsenceCheckJob() {
         catch (err) { console.error(`[PlcAbsenceCheck] Failed for school ${school.id}:`, err.message); }
         try { await runMeetingAbsenceCheck(school.id); }
         catch (err) { console.error(`[MeetingAbsenceCheck] Failed for school ${school.id}:`, err.message); }
+        try { await runPrimaryAbsenceCheck(school.id); }
+        catch (err) { console.error(`[PrimaryAbsenceCheck] Failed for school ${school.id}:`, err.message); }
       }
     } catch (err) { console.error('[AbsenceCheck] Fatal error:', err.message); }
   });
@@ -424,4 +426,59 @@ function startAbsenceCheckJob() {
   console.log('[AbsenceCheck] Jobs scheduled — per-lesson every 5 min + daily sweep at 16:00');
 }
 
-module.exports = { startAbsenceCheckJob, runAbsenceCheck, runPlcAbsenceCheck, runMeetingAbsenceCheck };
+// Primary school teacher self-attendance: mark absent any teacher with no clock-in by 4pm Mon-Fri
+async function runPrimaryAbsenceCheck(schoolId) {
+  const today = new Date().toISOString().slice(0, 10);
+  const dayOfWeek = new Date().getDay(); // 0=Sun, 6=Sat
+  if (dayOfWeek === 0 || dayOfWeek === 6) return { date: today, schoolId, newAbsences: 0, skipped: 'Weekend' };
+
+  // Check if school is a primary school
+  const { rows: [schoolRow] } = await pool.query(
+    `SELECT school_level FROM schools WHERE id=$1`, [schoolId]
+  );
+  if (!schoolRow || schoolRow.school_level !== 'primary') return { date: today, schoolId, newAbsences: 0, skipped: 'Not a primary school' };
+
+  // Skip if today is a school calendar holiday
+  const { rows: calRows } = await pool.query(
+    `SELECT name FROM school_calendar WHERE school_id=$1 AND date=$2 AND start_time IS NULL AND end_time IS NULL`,
+    [schoolId, today]
+  );
+  if (calRows.length) return { date: today, schoolId, newAbsences: 0, skipped: calRows[0].name };
+
+  // Check approved excuses
+  const { rows: excuseRows } = await pool.query(
+    `SELECT DISTINCT teacher_id FROM primary_teacher_excuses
+     WHERE school_id=$1 AND status='Approved' AND date_from<=$2 AND date_to>=$2`,
+    [schoolId, today]
+  );
+  const excusedIds = new Set(excuseRows.map(r => r.teacher_id));
+
+  // Get all active teachers for this school
+  const { rows: teachers } = await pool.query(
+    `SELECT id FROM teachers WHERE school_id=$1 AND status='Active'`, [schoolId]
+  );
+
+  let newAbsences = 0;
+  for (const t of teachers) {
+    if (excusedIds.has(t.id)) continue;
+    const { rows: [existing] } = await pool.query(
+      `SELECT id, clock_in_time FROM primary_teacher_self_attendance
+       WHERE school_id=$1 AND teacher_id=$2 AND date=$3`,
+      [schoolId, t.id, today]
+    );
+    if (!existing) {
+      await pool.query(
+        `INSERT INTO primary_teacher_self_attendance
+           (school_id, teacher_id, date, status, is_auto_generated)
+         VALUES ($1,$2,$3,'absent',true)
+         ON CONFLICT (school_id, teacher_id, date) DO NOTHING`,
+        [schoolId, t.id, today]
+      );
+      newAbsences++;
+    }
+  }
+  console.log(`[PrimaryAbsenceCheck] school=${schoolId} date=${today} newAbsences=${newAbsences}`);
+  return { date: today, schoolId, newAbsences };
+}
+
+module.exports = { startAbsenceCheckJob, runAbsenceCheck, runPlcAbsenceCheck, runMeetingAbsenceCheck, runPrimaryAbsenceCheck };

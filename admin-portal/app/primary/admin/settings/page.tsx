@@ -9,6 +9,7 @@ interface SchoolSettings {
   primary_color: string | null; accent_color: string | null; logo_url: string | null;
   motto: string | null; region: string | null; district: string | null;
   admission_prefix: string | null; admission_year: string | null;
+  school_latitude: string | null; school_longitude: string | null; school_gps_radius: number | null;
 }
 
 const GHANA_REGIONS = ['Ahafo','Ashanti','Bono','Bono East','Central','Eastern','Greater Accra','North East','Northern','Oti','Savannah','Upper East','Upper West','Volta','Western','Western North'];
@@ -34,17 +35,20 @@ export default function PrimarySettingsPage() {
     setSaving(true); setError(''); setSaved(false);
     try {
       await api.patch('/api/admin/settings/info', {
-        name:             form.name,
-        address:          form.address,
-        phone:            form.phone,
-        email:            form.email,
-        school_type:      form.school_type,
-        school_category:  form.school_category,
-        motto:            form.motto,
-        region:           form.region,
-        district:         form.district,
-        admission_prefix: form.admission_prefix,
-        admission_year:   form.admission_year,
+        name:               form.name,
+        address:            form.address,
+        phone:              form.phone,
+        email:              form.email,
+        school_type:        form.school_type,
+        school_category:    form.school_category,
+        motto:              form.motto,
+        region:             form.region,
+        district:           form.district,
+        admission_prefix:   form.admission_prefix,
+        admission_year:     form.admission_year,
+        school_latitude:    form.school_latitude,
+        school_longitude:   form.school_longitude,
+        school_gps_radius:  form.school_gps_radius,
       });
       setSaved(true);
     } catch (e: unknown) {
@@ -131,6 +135,59 @@ export default function PrimarySettingsPage() {
         {(form.admission_prefix || form.admission_year) && (
           <p className="text-xs text-slate-400">
             Example ID: <span className="font-mono font-semibold text-slate-600">{form.admission_prefix ?? ''}001{form.admission_year ?? ''}</span>
+          </p>
+        )}
+      </div>
+
+      {/* School GPS Location */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
+        <div className="border-b border-gray-100 pb-2">
+          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">School GPS Location</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Required for teacher clock-in/out verification. Teachers must be within the radius to clock in.</p>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Latitude</label>
+            <input type="number" step="any" value={form.school_latitude ?? ''}
+              onChange={e => setForm(f => ({ ...f, school_latitude: e.target.value || null }))}
+              placeholder="e.g. 5.614582"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Longitude</label>
+            <input type="number" step="any" value={form.school_longitude ?? ''}
+              onChange={e => setForm(f => ({ ...f, school_longitude: e.target.value || null }))}
+              placeholder="e.g. -0.205874"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Radius (metres)</label>
+            <input type="number" min={10} max={500} value={form.school_gps_radius ?? 100}
+              onChange={e => setForm(f => ({ ...f, school_gps_radius: parseInt(e.target.value) || 100 }))}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500" />
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (!navigator.geolocation) return alert('Geolocation not supported by your browser.');
+            navigator.geolocation.getCurrentPosition(
+              pos => setForm(f => ({ ...f, school_latitude: pos.coords.latitude.toFixed(7), school_longitude: pos.coords.longitude.toFixed(7) })),
+              () => alert('Could not get your location. Please enter coordinates manually.')
+            );
+          }}
+          className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 transition-colors">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" />
+            <line x1="12" y1="2" x2="12" y2="5" /><line x1="12" y1="19" x2="12" y2="22" />
+            <line x1="2" y1="12" x2="5" y2="12" /><line x1="19" y1="12" x2="22" y2="12" />
+          </svg>
+          Use My Current Location
+        </button>
+        {form.school_latitude && form.school_longitude && (
+          <p className="text-xs text-slate-400">
+            Location set: <span className="font-mono text-slate-600">{form.school_latitude}, {form.school_longitude}</span>
+            {' '}— teachers must be within <span className="font-semibold">{form.school_gps_radius ?? 100}m</span> to clock in.
           </p>
         )}
       </div>

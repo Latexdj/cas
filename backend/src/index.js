@@ -1552,6 +1552,88 @@ async function runMigrations() {
       WHERE ps.school_id = pc.school_id AND ps.subject_name = pc.subject_name AND ps.catalog_id IS NULL
     `);
 
+    // ── Primary school GPS & teacher self-attendance ──────────────────────────
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS school_latitude  NUMERIC(10,7)`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS school_longitude NUMERIC(10,7)`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS school_gps_radius INTEGER DEFAULT 100`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_teacher_self_attendance (
+        id                           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id                    UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id                   UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        date                         DATE        NOT NULL,
+        status                       TEXT        NOT NULL DEFAULT 'present'
+                                       CHECK (status IN ('present','absent','excused')),
+        is_auto_generated            BOOLEAN     NOT NULL DEFAULT false,
+        clock_in_time                TIMESTAMPTZ,
+        clock_in_photo               TEXT,
+        clock_in_gps                 TEXT,
+        clock_in_location_verified   BOOLEAN     NOT NULL DEFAULT false,
+        photo_size_kb_in             NUMERIC(6,2),
+        clock_out_time               TIMESTAMPTZ,
+        clock_out_photo              TEXT,
+        clock_out_gps                TEXT,
+        clock_out_location_verified  BOOLEAN     NOT NULL DEFAULT false,
+        photo_size_kb_out            NUMERIC(6,2),
+        manual_entry_by              UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        manual_entry_note            TEXT,
+        created_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, teacher_id, date)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_self_att_school_date ON primary_teacher_self_attendance(school_id, date DESC)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_self_att_teacher ON primary_teacher_self_attendance(teacher_id)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_teacher_excuses (
+        id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id      UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id     UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        date_from      DATE        NOT NULL,
+        date_to        DATE        NOT NULL,
+        excuse_type    TEXT        NOT NULL DEFAULT 'Sick Leave'
+                         CHECK (excuse_type IN ('Sick Leave','Annual Leave','Official Duty','Maternity Leave','Paternity Leave','Other')),
+        reason         TEXT,
+        status         TEXT        NOT NULL DEFAULT 'Pending'
+                         CHECK (status IN ('Pending','Approved','Rejected')),
+        reviewed_by    UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        reviewed_at    TIMESTAMPTZ,
+        rejection_reason TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_excuses_school ON primary_teacher_excuses(school_id, status)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_excuses_teacher ON primary_teacher_excuses(teacher_id)`);
+
+    // ── Primary assessments (formative/summative) ─────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_assessments (
+        id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id  UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        term_id     UUID        NOT NULL REFERENCES primary_terms(id) ON DELETE CASCADE,
+        subject_id  UUID        NOT NULL REFERENCES primary_subjects(id) ON DELETE CASCADE,
+        class_name  TEXT        NOT NULL,
+        title       TEXT        NOT NULL,
+        type        TEXT        NOT NULL DEFAULT 'formative'
+                      CHECK (type IN ('formative','summative')),
+        max_score   NUMERIC(6,2) NOT NULL DEFAULT 100,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_assessments_term ON primary_assessments(school_id, term_id)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_assessment_scores (
+        id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        assessment_id UUID        NOT NULL REFERENCES primary_assessments(id) ON DELETE CASCADE,
+        student_id    UUID        NOT NULL REFERENCES primary_students(id) ON DELETE CASCADE,
+        score         NUMERIC(6,2),
+        absent        BOOLEAN     NOT NULL DEFAULT false,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (assessment_id, student_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_assessment_scores_assessment ON primary_assessment_scores(assessment_id)`);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

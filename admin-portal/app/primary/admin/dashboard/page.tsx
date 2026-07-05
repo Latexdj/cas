@@ -10,6 +10,12 @@ interface Stats {
   attendance_today: number;
   classes: { class_name: string; student_count: number }[];
 }
+interface Term { id: string; name: string; is_current: boolean; }
+interface AttRow {
+  teacher_id: string; teacher_name: string; teacher_code: string;
+  days_present: number; days_absent: number; days_excused: number;
+  days_incomplete: number; total_marked: number; attendance_pct: number | null;
+}
 
 function StatCard({ label, value, sub, color, href }: { label: string; value: number; sub?: string; color: string; href?: string }) {
   const content = (
@@ -36,15 +42,33 @@ function QuickLink({ href, label, d }: { href: string; label: string; d: string 
 }
 
 export default function PrimaryAdminDashboard() {
-  const [stats,   setStats]   = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [stats,      setStats]      = useState<Stats | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [terms,      setTerms]      = useState<Term[]>([]);
+  const [termId,     setTermId]     = useState('');
+  const [attReport,  setAttReport]  = useState<AttRow[]>([]);
+  const [attLoading, setAttLoading] = useState(false);
 
   useEffect(() => {
     api.get<Stats>('/api/primary/dashboard-stats')
       .then(r => setStats(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
+    api.get<Term[]>('/api/primary/terms').then(r => {
+      setTerms(r.data);
+      const cur = r.data.find(t => t.is_current);
+      if (cur) setTermId(cur.id);
+    }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!termId) return;
+    setAttLoading(true);
+    api.get<AttRow[]>(`/api/primary/admin/self-attendance/report?term_id=${termId}`)
+      .then(r => setAttReport(r.data))
+      .catch(() => {})
+      .finally(() => setAttLoading(false));
+  }, [termId]);
 
   if (loading) return (
     <div className="flex justify-center py-20">
@@ -138,7 +162,7 @@ export default function PrimaryAdminDashboard() {
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Quick Actions</p>
           <QuickLink href="/primary/admin/student-attendance" label="Mark Student Attendance"
             d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-          <QuickLink href="/primary/admin/teacher-attendance" label="Mark Teacher Attendance"
+          <QuickLink href="/primary/admin/teacher-attendance" label="View Teacher Attendance"
             d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           <QuickLink href="/primary/admin/scores" label="Enter Scores"
             d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -148,6 +172,82 @@ export default function PrimaryAdminDashboard() {
             d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
           <QuickLink href="/primary/admin/teachers" label="Manage Teachers"
             d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+        </div>
+      </div>
+
+      {/* Teacher Attendance Term Summary */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+          <h2 className="text-sm font-bold text-slate-700">Teacher Attendance — Term Summary</h2>
+          <div className="flex items-center gap-3">
+            <select value={termId} onChange={e => setTermId(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm">
+              <option value="">Select term…</option>
+              {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <Link href="/primary/admin/teacher-attendance" className="text-xs font-semibold hover:underline" style={{ color: '#15803D' }}>Full report →</Link>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                {['Teacher', 'Present', 'Absent', 'Excused', 'Days Marked', 'Attendance %'].map(h => (
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {attLoading ? (
+                <tr><td colSpan={6} className="text-center py-10">
+                  <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                </td></tr>
+              ) : !termId ? (
+                <tr><td colSpan={6} className="text-center py-10 text-slate-400 text-sm">Select a term to view teacher attendance.</td></tr>
+              ) : attReport.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-10 text-slate-400 text-sm">No attendance records for this term.</td></tr>
+              ) : attReport.map(r => {
+                const pct = r.attendance_pct;
+                const pctColor = pct === null ? 'text-slate-400' : pct >= 90 ? 'text-green-600' : pct >= 75 ? 'text-amber-600' : 'text-red-600';
+                return (
+                  <tr key={r.teacher_id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2.5">
+                      <p className="font-medium text-slate-900">{r.teacher_name}</p>
+                      <span className="font-mono text-xs text-slate-400">{r.teacher_code}</span>
+                    </td>
+                    <td className="px-3 py-2.5 font-semibold text-green-700 tabular-nums">{r.days_present}</td>
+                    <td className="px-3 py-2.5 font-semibold tabular-nums" style={{ color: r.days_absent > 0 ? '#DC2626' : '#9CA3AF' }}>{r.days_absent}</td>
+                    <td className="px-3 py-2.5 font-semibold text-blue-600 tabular-nums">{r.days_excused}</td>
+                    <td className="px-3 py-2.5 text-slate-500 tabular-nums">{r.total_marked}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-gray-100 rounded-full h-2 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${pct ?? 0}%`, backgroundColor: '#15803D' }} />
+                        </div>
+                        <span className={`text-xs font-bold tabular-nums ${pctColor}`}>
+                          {pct !== null ? `${pct}%` : '—'}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {attReport.length > 0 && (
+                <tr className="bg-gray-50 border-t-2 border-gray-200 font-semibold">
+                  <td className="px-3 py-2.5 text-xs text-slate-500 uppercase tracking-wide">Total</td>
+                  <td className="px-3 py-2.5 text-green-700 tabular-nums">{attReport.reduce((s, r) => s + r.days_present, 0)}</td>
+                  <td className="px-3 py-2.5 text-red-600 tabular-nums">{attReport.reduce((s, r) => s + r.days_absent, 0)}</td>
+                  <td className="px-3 py-2.5 text-blue-600 tabular-nums">{attReport.reduce((s, r) => s + r.days_excused, 0)}</td>
+                  <td className="px-3 py-2.5 text-slate-500 tabular-nums">{attReport.reduce((s, r) => s + r.total_marked, 0)}</td>
+                  <td className="px-3 py-2.5 text-slate-500 text-xs">
+                    {attReport.filter(r => r.attendance_pct !== null).length > 0
+                      ? `Avg ${(attReport.filter(r => r.attendance_pct !== null).reduce((s, r) => s + (r.attendance_pct ?? 0), 0) / attReport.filter(r => r.attendance_pct !== null).length).toFixed(1)}%`
+                      : '—'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

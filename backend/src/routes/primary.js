@@ -2002,4 +2002,487 @@ router.get('/dashboard-stats', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── TEACHER SELF-ATTENDANCE (GPS + Photo clock-in/out) ───────────────────────
+
+const { calculateDistance } = require('../services/geo.service');
+
+function verifySchoolGps(school, userLat, userLng) {
+  if (!school.school_latitude || !school.school_longitude)
+    return { valid: false, verified: false, distance: 0, message: 'School GPS not configured. Contact your administrator.' };
+  const dist = Math.round(calculateDistance(userLat, userLng, parseFloat(school.school_latitude), parseFloat(school.school_longitude)));
+  const radius = school.school_gps_radius ?? 100;
+  return dist <= radius
+    ? { valid: true, verified: true, distance: dist, message: `Within school grounds (${dist}m from centre)` }
+    : { valid: false, verified: true, distance: dist, message: `You are ${dist}m from the school (max ${radius}m allowed)` };
+}
+
+// GET /api/primary/me/attendance/today
+router.get('/me/attendance/today', async (req, res, next) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const { rows } = await pool.query(
+      `SELECT * FROM primary_teacher_self_attendance WHERE school_id=$1 AND teacher_id=$2 AND date=$3`,
+      [req.schoolId, req.user.id, today]
+    );
+    res.json(rows[0] || null);
+  } catch (err) { next(err); }
+});
+
+// GET /api/primary/me/attendance?term_id=
+router.get('/me/attendance', async (req, res, next) => {
+  try {
+    const { term_id } = req.query;
+    let filter = ''; const params = [req.schoolId, req.user.id];
+    if (term_id) {
+      const { rows: tr } = await pool.query(
+        `SELECT start_date, end_date FROM primary_terms WHERE id=$1 AND school_id=$2`, [term_id, req.schoolId]
+      );
+      if (tr[0]?.start_date) { params.push(tr[0].start_date); filter += ` AND date >= $${params.length}`; }
+      if (tr[0]?.end_date)   { params.push(tr[0].end_date);   filter += ` AND date <= $${params.length}`; }
+    }
+    const { rows } = await pool.query(
+      `SELECT id, date, status, is_auto_generated, clock_in_time, clock_in_location_verified,
+              clock_out_time, clock_out_location_verified, manual_entry_by, manual_entry_note
+       FROM primary_teacher_self_attendance WHERE school_id=$1 AND teacher_id=$2 ${filter}
+       ORDER BY date DESC`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/me/attendance/clock-in
+router.post('/me/attendance/clock-in', async (req, res, next) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const { photo, gps } = req.body;
+    if (!photo || !gps) return res.status(400).json({ error: 'photo and gps are required' });
+
+    const [lat, lng] = gps.split(',').map(Number);
+    if (isNaN(lat) || isNaN(lng)) return res.status(400).json({ error: 'Invalid GPS format (lat,lng)' });
+
+    const { rows: [school] } = await pool.query(
+      `SELECT school_latitude, school_longitude, school_gps_radius FROM schools WHERE id=$1`, [req.schoolId]
+    );
+    const geo = verifySchoolGps(school, lat, lng);
+    if (!geo.valid) return res.status(400).json({ error: geo.message });
+
+    const photoSizeKb = parseFloat((Buffer.byteLength(photo, 'utf8') * 0.75 / 1024).toFixed(2));
+    if (photoSizeKb > 25) return res.status(400).json({ error: `Photo too large (${photoSizeKb.toFixed(1)}KB). Must be under 25KB.` });
+
+    const { rows } = await pool.query(
+      `INSERT INTO primary_teacher_self_attendance
+         (school_id, teacher_id, date, status, clock_in_time, clock_in_photo, clock_in_gps, clock_in_location_verified, photo_size_kb_in)
+       VALUES ($1,$2,$3,'present',NOW(),$4,$5,$6,$7)
+       ON CONFLICT (school_id, teacher_id, date) DO NOTHING
+       RETURNING *`,
+      [req.schoolId, req.user.id, today, photo, gps, geo.verified, photoSizeKb]
+    );
+    if (!rows.length) return res.status(409).json({ error: 'Already clocked in today' });
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/me/attendance/clock-out
+router.post('/me/attendance/clock-out', async (req, res, next) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const { photo, gps } = req.body;
+    if (!photo || !gps) return res.status(400).json({ error: 'photo and gps are required' });
+
+    const [lat, lng] = gps.split(',').map(Number);
+    if (isNaN(lat) || isNaN(lng)) return res.status(400).json({ error: 'Invalid GPS format (lat,lng)' });
+
+    const { rows: [school] } = await pool.query(
+      `SELECT school_latitude, school_longitude, school_gps_radius FROM schools WHERE id=$1`, [req.schoolId]
+    );
+    const geo = verifySchoolGps(school, lat, lng);
+    if (!geo.valid) return res.status(400).json({ error: geo.message });
+
+    const photoSizeKb = parseFloat((Buffer.byteLength(photo, 'utf8') * 0.75 / 1024).toFixed(2));
+    if (photoSizeKb > 25) return res.status(400).json({ error: `Photo too large (${photoSizeKb.toFixed(1)}KB). Must be under 25KB.` });
+
+    const { rows: [existing] } = await pool.query(
+      `SELECT id, clock_in_time FROM primary_teacher_self_attendance
+       WHERE school_id=$1 AND teacher_id=$2 AND date=$3`,
+      [req.schoolId, req.user.id, today]
+    );
+    if (!existing) return res.status(400).json({ error: 'You have not clocked in today' });
+    if (!existing.clock_in_time) return res.status(400).json({ error: 'Clock-in not completed' });
+
+    const { rows } = await pool.query(
+      `UPDATE primary_teacher_self_attendance
+       SET clock_out_time=NOW(), clock_out_photo=$4, clock_out_gps=$5,
+           clock_out_location_verified=$6, photo_size_kb_out=$7
+       WHERE id=$1 AND school_id=$2 AND teacher_id=$3
+       RETURNING *`,
+      [existing.id, req.schoolId, req.user.id, photo, gps, geo.verified, photoSizeKb]
+    );
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// ── ADMIN: teacher self-attendance management ──────────────────────────────────
+
+// GET /api/primary/admin/self-attendance?date=&teacher_id=&from=&to=
+router.get('/admin/self-attendance', adminOnly, async (req, res, next) => {
+  try {
+    const { date, teacher_id, from, to } = req.query;
+    const params = [req.schoolId]; const filters = [];
+    if (date)       { params.push(date);       filters.push(`a.date=$${params.length}`); }
+    if (teacher_id) { params.push(teacher_id); filters.push(`a.teacher_id=$${params.length}`); }
+    if (from)       { params.push(from);       filters.push(`a.date>=$${params.length}`); }
+    if (to)         { params.push(to);         filters.push(`a.date<=$${params.length}`); }
+    const where = filters.length ? 'AND ' + filters.join(' AND ') : '';
+    const { rows } = await pool.query(
+      `SELECT a.*, t.name AS teacher_name, t.teacher_code,
+              mb.name AS manual_entry_by_name
+       FROM primary_teacher_self_attendance a
+       JOIN teachers t ON t.id=a.teacher_id
+       LEFT JOIN teachers mb ON mb.id=a.manual_entry_by
+       WHERE a.school_id=$1 ${where}
+       ORDER BY a.date DESC, t.name`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// GET /api/primary/admin/self-attendance/report?term_id=
+router.get('/admin/self-attendance/report', adminOnly, async (req, res, next) => {
+  try {
+    const { term_id } = req.query;
+    let dateFilter = ''; const params = [req.schoolId];
+    if (term_id) {
+      const { rows: tr } = await pool.query(
+        `SELECT start_date, end_date FROM primary_terms WHERE id=$1 AND school_id=$2`, [term_id, req.schoolId]
+      );
+      if (tr[0]?.start_date) { params.push(tr[0].start_date); dateFilter += ` AND a.date>=$${params.length}`; }
+      if (tr[0]?.end_date)   { params.push(tr[0].end_date);   dateFilter += ` AND a.date<=$${params.length}`; }
+    }
+    const { rows } = await pool.query(
+      `SELECT t.id AS teacher_id, t.name AS teacher_name, t.teacher_code,
+              COUNT(CASE WHEN a.status='present' AND NOT a.is_auto_generated THEN 1 END)::int AS days_present,
+              COUNT(CASE WHEN a.status='absent'  AND a.is_auto_generated THEN 1 END)::int     AS days_absent,
+              COUNT(CASE WHEN a.status='excused' THEN 1 END)::int                             AS days_excused,
+              COUNT(CASE WHEN a.clock_in_time IS NOT NULL AND a.clock_out_time IS NULL AND NOT a.is_auto_generated THEN 1 END)::int AS days_incomplete,
+              COUNT(a.id)::int                                                                 AS total_marked,
+              CASE WHEN COUNT(a.id)=0 THEN NULL
+                   ELSE ROUND(100.0 * COUNT(CASE WHEN a.status='present' AND NOT a.is_auto_generated THEN 1 END) / COUNT(a.id), 1)
+              END AS attendance_pct
+       FROM teachers t
+       LEFT JOIN primary_teacher_self_attendance a ON a.teacher_id=t.id AND a.school_id=$1 ${dateFilter}
+       WHERE t.school_id=$1 AND t.status='Active'
+       GROUP BY t.id, t.name, t.teacher_code
+       ORDER BY attendance_pct ASC NULLS LAST, t.name`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/admin/self-attendance/manual — manual clock-in by admin
+router.post('/admin/self-attendance/manual', adminOnly, async (req, res, next) => {
+  try {
+    const { teacher_id, date, note } = req.body;
+    if (!teacher_id || !date) return res.status(400).json({ error: 'teacher_id and date are required' });
+    const { rows } = await pool.query(
+      `INSERT INTO primary_teacher_self_attendance
+         (school_id, teacher_id, date, status, manual_entry_by, manual_entry_note,
+          clock_in_time, clock_in_location_verified)
+       VALUES ($1,$2,$3,'present',$4,$5,NOW(),false)
+       ON CONFLICT (school_id, teacher_id, date)
+       DO UPDATE SET status='present', manual_entry_by=$4, manual_entry_note=$5,
+                     is_auto_generated=false
+       RETURNING *`,
+      [req.schoolId, teacher_id, date, req.user.id, note || null]
+    );
+    // Remove auto-generated absence if it existed
+    await pool.query(
+      `DELETE FROM primary_teacher_self_attendance
+       WHERE school_id=$1 AND teacher_id=$2 AND date=$3 AND is_auto_generated=true AND id<>$4`,
+      [req.schoolId, teacher_id, date, rows[0].id]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/primary/admin/self-attendance/:id
+router.delete('/admin/self-attendance/:id', adminOnly, async (req, res, next) => {
+  try {
+    await pool.query(
+      `DELETE FROM primary_teacher_self_attendance WHERE id=$1 AND school_id=$2`,
+      [req.params.id, req.schoolId]
+    );
+    res.json({ message: 'Deleted' });
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/admin/run-absence-check
+router.post('/admin/run-absence-check', adminOnly, async (req, res, next) => {
+  try {
+    const { runPrimaryAbsenceCheck } = require('../jobs/absenceCheck');
+    const result = await runPrimaryAbsenceCheck(req.schoolId);
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+// ── TEACHER EXCUSES ───────────────────────────────────────────────────────────
+
+// GET /api/primary/excuses — teacher sees own; admin sees all
+router.get('/excuses', async (req, res, next) => {
+  try {
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const params = [req.schoolId];
+    let filter = '';
+    if (!isAdmin) { params.push(req.user.id); filter = `AND e.teacher_id=$${params.length}`; }
+    const { rows } = await pool.query(
+      `SELECT e.*, t.name AS teacher_name, r.name AS reviewed_by_name
+       FROM primary_teacher_excuses e
+       JOIN teachers t ON t.id=e.teacher_id
+       LEFT JOIN teachers r ON r.id=e.reviewed_by
+       WHERE e.school_id=$1 ${filter}
+       ORDER BY e.created_at DESC`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/excuses — teacher submits leave request
+router.post('/excuses', async (req, res, next) => {
+  try {
+    const { date_from, date_to, excuse_type, reason } = req.body;
+    if (!date_from || !date_to || !excuse_type)
+      return res.status(400).json({ error: 'date_from, date_to, excuse_type are required' });
+    const { rows } = await pool.query(
+      `INSERT INTO primary_teacher_excuses (school_id, teacher_id, date_from, date_to, excuse_type, reason, status)
+       VALUES ($1,$2,$3,$4,$5,$6,'Pending') RETURNING *`,
+      [req.schoolId, req.user.id, date_from, date_to, excuse_type, reason || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/primary/excuses/:id/approve — admin approves
+router.patch('/excuses/:id/approve', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE primary_teacher_excuses SET status='Approved', reviewed_by=$1, reviewed_at=NOW()
+       WHERE id=$2 AND school_id=$3 RETURNING *`,
+      [req.user.id, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    // Retroactively update any auto-generated absences in this date range
+    await pool.query(
+      `UPDATE primary_teacher_self_attendance SET status='excused'
+       WHERE school_id=$1 AND teacher_id=$2 AND date BETWEEN $3 AND $4 AND is_auto_generated=true`,
+      [req.schoolId, rows[0].teacher_id, rows[0].date_from, rows[0].date_to]
+    );
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/primary/excuses/:id/reject — admin rejects
+router.patch('/excuses/:id/reject', adminOnly, async (req, res, next) => {
+  try {
+    const { rejection_reason } = req.body;
+    if (!rejection_reason) return res.status(400).json({ error: 'rejection_reason is required' });
+    const { rows } = await pool.query(
+      `UPDATE primary_teacher_excuses SET status='Rejected', reviewed_by=$1, reviewed_at=NOW(), rejection_reason=$2
+       WHERE id=$3 AND school_id=$4 RETURNING *`,
+      [req.user.id, rejection_reason, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/primary/excuses/:id
+router.delete('/excuses/:id', async (req, res, next) => {
+  try {
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    const filter = isAdmin ? 'AND school_id=$2' : 'AND teacher_id=$2 AND status=\'Pending\'';
+    const val    = isAdmin ? req.schoolId : req.user.id;
+    await pool.query(`DELETE FROM primary_teacher_excuses WHERE id=$1 ${filter}`, [req.params.id, val]);
+    res.json({ message: 'Deleted' });
+  } catch (err) { next(err); }
+});
+
+// ── PRIMARY ASSESSMENTS ───────────────────────────────────────────────────────
+
+// GET /api/primary/assessments?term_id=&class_name=&subject_id=
+router.get('/assessments', async (req, res, next) => {
+  try {
+    const { term_id, class_name, subject_id } = req.query;
+    const params = [req.schoolId]; const filters = [];
+    if (term_id)    { params.push(term_id);    filters.push(`a.term_id=$${params.length}`); }
+    if (class_name) { params.push(class_name); filters.push(`LOWER(a.class_name)=LOWER($${params.length})`); }
+    if (subject_id) { params.push(subject_id); filters.push(`a.subject_id=$${params.length}`); }
+    const where = filters.length ? 'AND ' + filters.join(' AND ') : '';
+    const { rows } = await pool.query(
+      `SELECT a.*, ps.subject_name,
+              (SELECT COUNT(*) FROM primary_assessment_scores s WHERE s.assessment_id=a.id)::int AS score_count
+       FROM primary_assessments a
+       JOIN primary_subjects ps ON ps.id=a.subject_id
+       WHERE a.school_id=$1 ${where}
+       ORDER BY a.created_at`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/assessments
+router.post('/assessments', async (req, res, next) => {
+  try {
+    const { term_id, subject_id, class_name, title, type, max_score } = req.body;
+    if (!term_id || !subject_id || !class_name || !title || !type || !max_score)
+      return res.status(400).json({ error: 'term_id, subject_id, class_name, title, type, max_score are required' });
+    if (type === 'summative') {
+      const { rows: existing } = await pool.query(
+        `SELECT id FROM primary_assessments WHERE school_id=$1 AND term_id=$2 AND subject_id=$3 AND type='summative'`,
+        [req.schoolId, term_id, subject_id]
+      );
+      if (existing.length) return res.status(409).json({ error: 'A summative assessment already exists for this subject and term' });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO primary_assessments (school_id, teacher_id, term_id, subject_id, class_name, title, type, max_score)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.schoolId, req.user.id, term_id, subject_id, class_name, title, type, parseFloat(max_score)]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// PUT /api/primary/assessments/:id
+router.put('/assessments/:id', async (req, res, next) => {
+  try {
+    const { title, max_score } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE primary_assessments SET title=COALESCE($1,title), max_score=COALESCE($2,max_score)
+       WHERE id=$3 AND school_id=$4 RETURNING *`,
+      [title || null, max_score ? parseFloat(max_score) : null, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/primary/assessments/:id
+router.delete('/assessments/:id', async (req, res, next) => {
+  try {
+    await pool.query(`DELETE FROM primary_assessments WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]);
+    res.json({ message: 'Deleted' });
+  } catch (err) { next(err); }
+});
+
+// GET /api/primary/assessments/:id/scores
+router.get('/assessments/:id/scores', async (req, res, next) => {
+  try {
+    const { rows: [assessment] } = await pool.query(
+      `SELECT a.*, ps.subject_name, ps.max_class_score, ps.max_exam_score
+       FROM primary_assessments a JOIN primary_subjects ps ON ps.id=a.subject_id
+       WHERE a.id=$1 AND a.school_id=$2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
+    const { rows: students } = await pool.query(
+      `SELECT s.id AS student_id, (s.surname||COALESCE(' '||s.other_names,'')) AS name,
+              s.admission_number, sc.score, sc.absent
+       FROM primary_students s
+       LEFT JOIN primary_assessment_scores sc ON sc.student_id=s.id AND sc.assessment_id=$1
+       WHERE s.school_id=$2 AND LOWER(s.class_name)=LOWER($3) AND s.status='Active'
+       ORDER BY s.surname, s.other_names`,
+      [req.params.id, req.schoolId, assessment.class_name]
+    );
+    res.json({ assessment, students });
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/assessments/:id/scores — save scores + recalculate primary_scores
+router.post('/assessments/:id/scores', async (req, res, next) => {
+  try {
+    const { scores } = req.body; // [{ student_id, score, absent }]
+    if (!Array.isArray(scores)) return res.status(400).json({ error: 'scores[] required' });
+
+    const { rows: [assessment] } = await pool.query(
+      `SELECT a.*, pt.academic_year_id, ps.max_class_score, ps.max_exam_score
+       FROM primary_assessments a
+       JOIN primary_subjects ps ON ps.id=a.subject_id
+       JOIN primary_terms pt ON pt.id=a.term_id
+       WHERE a.id=$1 AND a.school_id=$2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const s of scores) {
+        await client.query(
+          `INSERT INTO primary_assessment_scores (assessment_id, student_id, score, absent)
+           VALUES ($1,$2,$3,$4)
+           ON CONFLICT (assessment_id, student_id) DO UPDATE SET score=$3, absent=$4`,
+          [req.params.id, s.student_id, s.absent ? 0 : (s.score ?? null), !!s.absent]
+        );
+      }
+      // Recalculate primary_scores for each student in the class for this subject+term
+      const { rows: allAssessments } = await client.query(
+        `SELECT id, type, max_score FROM primary_assessments
+         WHERE school_id=$1 AND term_id=$2 AND subject_id=$3`,
+        [req.schoolId, assessment.term_id, assessment.subject_id]
+      );
+      const formativeIds  = allAssessments.filter(a => a.type === 'formative').map(a => a.id);
+      const summativeIds  = allAssessments.filter(a => a.type === 'summative').map(a => a.id);
+      const totalFormMax  = allAssessments.filter(a => a.type === 'formative').reduce((s, a) => s + parseFloat(a.max_score), 0);
+      const totalSummMax  = allAssessments.filter(a => a.type === 'summative').reduce((s, a) => s + parseFloat(a.max_score), 0);
+
+      const { rows: studentList } = await client.query(
+        `SELECT id FROM primary_students WHERE school_id=$1 AND LOWER(class_name)=LOWER($2) AND status='Active'`,
+        [req.schoolId, assessment.class_name]
+      );
+
+      for (const stu of studentList) {
+        let classScore = null, examScore = null;
+        if (formativeIds.length && totalFormMax > 0) {
+          const { rows: [fr] } = await client.query(
+            `SELECT COALESCE(SUM(score),0) AS total FROM primary_assessment_scores
+             WHERE assessment_id=ANY($1) AND student_id=$2`,
+            [formativeIds, stu.id]
+          );
+          classScore = parseFloat(((parseFloat(fr.total) / totalFormMax) * parseFloat(assessment.max_class_score)).toFixed(2));
+        }
+        if (summativeIds.length && totalSummMax > 0) {
+          const { rows: [sr] } = await client.query(
+            `SELECT COALESCE(SUM(score),0) AS total FROM primary_assessment_scores
+             WHERE assessment_id=ANY($1) AND student_id=$2`,
+            [summativeIds, stu.id]
+          );
+          examScore = parseFloat(((parseFloat(sr.total) / totalSummMax) * parseFloat(assessment.max_exam_score)).toFixed(2));
+        }
+        const total = (classScore ?? 0) + (examScore ?? 0);
+        const { rows: scaleRows } = await client.query(
+          `SELECT grade FROM primary_grade_scale WHERE school_id=$1 AND $2 BETWEEN min_score AND max_score ORDER BY sort_order LIMIT 1`,
+          [req.schoolId, total]
+        );
+        const grade = scaleRows[0]?.grade ?? 'F9';
+        await client.query(
+          `INSERT INTO primary_scores (school_id, student_id, subject_id, term_id, academic_year_id, class_score, exam_score, total, grade, teacher_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           ON CONFLICT (school_id, student_id, subject_id, term_id)
+           DO UPDATE SET class_score=$6, exam_score=$7, total=$8, grade=$9, teacher_id=$10, updated_at=NOW()`,
+          [req.schoolId, stu.id, assessment.subject_id, assessment.term_id, assessment.academic_year_id,
+           classScore, examScore, total, grade, req.user.id]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+
+    await recalcPositions(req.schoolId, assessment.term_id).catch(() => {});
+    res.json({ message: `Saved ${scores.length} scores and recalculated` });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
