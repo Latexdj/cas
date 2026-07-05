@@ -30,6 +30,7 @@ export default function LoginPage() {
         localStorage.setItem('cas_school_level', 'primary');
         router.replace('/primary/admin/dashboard');
       } else {
+        localStorage.removeItem('cas_school_level');
         router.replace('/dashboard');
       }
     } catch (err: unknown) {
