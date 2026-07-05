@@ -55,7 +55,7 @@ export default function PrimaryAcademicYearsPage() {
   }
 
   async function setCurrent(id: string) {
-    try { await api.put(`/api/academic-years/${id}/set-current`); load(); }
+    try { await api.put(`/api/academic-years/${id}`, { is_current: true }); load(); }
     catch { setError('Failed to set current year.'); }
   }
 
