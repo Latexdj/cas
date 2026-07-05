@@ -1516,6 +1516,37 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_classes_school ON primary_classes(school_id, sort_order)`);
 
+    // School-level subject catalog for primary schools
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_subject_catalog (
+        id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id    UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        subject_name TEXT        NOT NULL,
+        description  TEXT,
+        sort_order   INT         DEFAULT 0,
+        created_at   TIMESTAMPTZ DEFAULT now(),
+        UNIQUE(school_id, subject_name)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_catalog_school ON primary_subject_catalog(school_id, sort_order)`);
+    // Link existing primary_subjects rows to catalog (backfill)
+    await pool.query(`
+      INSERT INTO primary_subject_catalog (school_id, subject_name, sort_order)
+      SELECT DISTINCT school_id, subject_name, MIN(sort_order)
+      FROM primary_subjects
+      GROUP BY school_id, subject_name
+      ON CONFLICT (school_id, subject_name) DO NOTHING
+    `);
+    // Add catalog_id FK to primary_subjects if not present
+    await pool.query(`ALTER TABLE primary_subjects ADD COLUMN IF NOT EXISTS catalog_id UUID REFERENCES primary_subject_catalog(id) ON DELETE SET NULL`);
+    // Backfill catalog_id on existing rows
+    await pool.query(`
+      UPDATE primary_subjects ps
+      SET catalog_id = pc.id
+      FROM primary_subject_catalog pc
+      WHERE ps.school_id = pc.school_id AND ps.subject_name = pc.subject_name AND ps.catalog_id IS NULL
+    `);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

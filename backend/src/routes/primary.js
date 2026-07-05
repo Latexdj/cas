@@ -473,6 +473,150 @@ router.put('/students/:id/move-class', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── SUBJECT CATALOG ───────────────────────────────────────────────────────────
+
+// GET /api/primary/subject-catalog
+router.get('/subject-catalog', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT sc.*,
+         (SELECT COUNT(*) FROM primary_subjects ps
+          WHERE ps.catalog_id = sc.id)::int AS class_count
+       FROM primary_subject_catalog sc
+       WHERE sc.school_id = $1
+       ORDER BY sc.sort_order, sc.subject_name`,
+      [req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/subject-catalog
+router.post('/subject-catalog', adminOnly, async (req, res, next) => {
+  try {
+    const { subject_name, description, sort_order } = req.body;
+    if (!subject_name?.trim()) return res.status(400).json({ error: 'subject_name is required' });
+    const { rows } = await pool.query(
+      `INSERT INTO primary_subject_catalog (school_id, subject_name, description, sort_order)
+       VALUES ($1,$2,$3,$4) RETURNING *`,
+      [req.schoolId, subject_name.trim(), description || null, sort_order ?? 0]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A subject with this name already exists' });
+    next(err);
+  }
+});
+
+// PUT /api/primary/subject-catalog/:id
+router.put('/subject-catalog/:id', adminOnly, async (req, res, next) => {
+  try {
+    const { subject_name, description, sort_order } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE primary_subject_catalog
+       SET subject_name = COALESCE($1, subject_name),
+           description  = COALESCE($2, description),
+           sort_order   = COALESCE($3, sort_order)
+       WHERE id = $4 AND school_id = $5 RETURNING *`,
+      [subject_name?.trim() || null, description ?? null, sort_order ?? null, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Subject not found in catalog' });
+    res.json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A subject with this name already exists' });
+    next(err);
+  }
+});
+
+// DELETE /api/primary/subject-catalog/:id
+router.delete('/subject-catalog/:id', adminOnly, async (req, res, next) => {
+  try {
+    // Remove all class assignments first, then delete catalog entry
+    await pool.query(
+      `DELETE FROM primary_subjects WHERE catalog_id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    const { rowCount } = await pool.query(
+      `DELETE FROM primary_subject_catalog WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Subject not found in catalog' });
+    res.json({ message: 'Subject deleted from catalog and all class assignments removed' });
+  } catch (err) { next(err); }
+});
+
+// GET /api/primary/class-subjects?class_name= — subjects assigned to a class with catalog info
+router.get('/class-subjects', adminOnly, async (req, res, next) => {
+  try {
+    const { class_name } = req.query;
+    if (!class_name) return res.status(400).json({ error: 'class_name is required' });
+    // Return all catalog subjects with assigned=true/false for this class
+    const { rows } = await pool.query(
+      `SELECT
+         sc.id         AS catalog_id,
+         sc.subject_name,
+         sc.sort_order AS catalog_sort,
+         ps.id         AS subject_id,
+         ps.max_class_score,
+         ps.max_exam_score,
+         ps.sort_order,
+         (ps.id IS NOT NULL) AS assigned
+       FROM primary_subject_catalog sc
+       LEFT JOIN primary_subjects ps
+         ON ps.catalog_id = sc.id AND ps.school_id = sc.school_id
+            AND LOWER(ps.class_name) = LOWER($2)
+       WHERE sc.school_id = $1
+       ORDER BY sc.sort_order, sc.subject_name`,
+      [req.schoolId, class_name]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// PUT /api/primary/class-subjects — save all subject assignments for a class
+// Body: { class_name, assignments: [{ catalog_id, assigned, max_class_score, max_exam_score, sort_order }] }
+router.put('/class-subjects', adminOnly, async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { class_name, assignments } = req.body;
+    if (!class_name || !Array.isArray(assignments))
+      return res.status(400).json({ error: 'class_name and assignments[] are required' });
+
+    await client.query('BEGIN');
+
+    for (const a of assignments) {
+      if (a.assigned) {
+        // Get subject name from catalog
+        const { rows: cat } = await client.query(
+          `SELECT subject_name FROM primary_subject_catalog WHERE id=$1 AND school_id=$2`,
+          [a.catalog_id, req.schoolId]
+        );
+        if (!cat.length) continue;
+        await client.query(
+          `INSERT INTO primary_subjects (school_id, class_name, subject_name, catalog_id, max_class_score, max_exam_score, sort_order)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)
+           ON CONFLICT (school_id, class_name, subject_name)
+           DO UPDATE SET max_class_score=$5, max_exam_score=$6, sort_order=$7, catalog_id=$4`,
+          [req.schoolId, class_name, cat[0].subject_name, a.catalog_id,
+           parseFloat(a.max_class_score) || 30, parseFloat(a.max_exam_score) || 70, a.sort_order ?? 0]
+        );
+      } else {
+        // Remove assignment
+        await client.query(
+          `DELETE FROM primary_subjects WHERE catalog_id=$1 AND school_id=$2 AND LOWER(class_name)=LOWER($3)`,
+          [a.catalog_id, req.schoolId, class_name]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Class subjects updated' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally { client.release(); }
+});
+
 // ── SUBJECTS ──────────────────────────────────────────────────────────────────
 
 // GET /api/primary/subjects?class_name=
