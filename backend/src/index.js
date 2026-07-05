@@ -1634,6 +1634,24 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_assessment_scores_assessment ON primary_assessment_scores(assessment_id)`);
 
+    // ── Primary assessment modes ───────────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_assessment_modes (
+        id                 UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id          UUID         NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name               TEXT         NOT NULL,
+        ca_weight          NUMERIC(6,2) NOT NULL DEFAULT 10,
+        is_terminal_exam   BOOLEAN      NOT NULL DEFAULT false,
+        is_single_instance BOOLEAN      NOT NULL DEFAULT false,
+        sort_order         INTEGER      NOT NULL DEFAULT 0,
+        created_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),
+        UNIQUE (school_id, name)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_modes_school ON primary_assessment_modes(school_id, sort_order)`);
+    // Add mode_id to primary_assessments (nullable — old rows without a mode still work)
+    await pool.query(`ALTER TABLE primary_assessments ADD COLUMN IF NOT EXISTS mode_id UUID REFERENCES primary_assessment_modes(id) ON DELETE SET NULL`);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

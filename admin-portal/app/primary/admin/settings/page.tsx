@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 
+interface AssessmentMode {
+  id: string; name: string; ca_weight: number;
+  is_terminal_exam: boolean; is_single_instance: boolean; sort_order: number;
+}
+
 interface SchoolSettings {
   id: string; name: string; code: string; address: string | null; phone: string | null;
   email: string | null; school_type: string | null; school_category: string | null;
@@ -15,6 +20,8 @@ interface SchoolSettings {
 const GHANA_REGIONS = ['Ahafo','Ashanti','Bono','Bono East','Central','Eastern','Greater Accra','North East','Northern','Oti','Savannah','Upper East','Upper West','Volta','Western','Western North'];
 const SCHOOL_TYPES  = ['Nursery','KG','Primary','JHS'];
 
+const BLANK_MODE = { name: '', ca_weight: '', is_terminal_exam: false, is_single_instance: false, sort_order: 0 };
+
 export default function PrimarySettingsPage() {
   const [data,    setData]    = useState<SchoolSettings | null>(null);
   const [form,    setForm]    = useState<Partial<SchoolSettings>>({});
@@ -23,12 +30,53 @@ export default function PrimarySettingsPage() {
   const [saved,   setSaved]   = useState(false);
   const [error,   setError]   = useState('');
 
+  // Assessment modes
+  const [modes,     setModes]     = useState<AssessmentMode[]>([]);
+  const [modeForm,  setModeForm]  = useState<typeof BLANK_MODE>(BLANK_MODE);
+  const [editMode,  setEditMode]  = useState<AssessmentMode | null>(null);
+  const [modeModal, setModeModal] = useState(false);
+  const [modeSaving, setModeSaving] = useState(false);
+  const [modeError,  setModeError]  = useState('');
+
   useEffect(() => {
-    api.get<SchoolSettings>('/api/admin/settings')
-      .then(r => { setData(r.data); setForm(r.data); })
+    Promise.all([
+      api.get<SchoolSettings>('/api/admin/settings'),
+      api.get<AssessmentMode[]>('/api/primary/assessment-modes'),
+    ]).then(([s, m]) => { setData(s.data); setForm(s.data); setModes(m.data); })
       .catch(() => setError('Failed to load school settings.'))
       .finally(() => setLoading(false));
   }, []);
+
+  async function saveMode() {
+    setModeSaving(true); setModeError('');
+    try {
+      const body = {
+        name: modeForm.name.trim(),
+        ca_weight: parseFloat(String(modeForm.ca_weight)),
+        is_terminal_exam:   modeForm.is_terminal_exam,
+        is_single_instance: modeForm.is_single_instance,
+        sort_order: modeForm.sort_order,
+      };
+      if (!body.name || isNaN(body.ca_weight))
+        return setModeError('Name and weight are required.');
+      if (editMode) {
+        const { data } = await api.put<AssessmentMode>(`/api/primary/assessment-modes/${editMode.id}`, body);
+        setModes(prev => prev.map(m => m.id === editMode.id ? data : m));
+      } else {
+        const { data } = await api.post<AssessmentMode>('/api/primary/assessment-modes', body);
+        setModes(prev => [...prev, data]);
+      }
+      setModeModal(false); setModeForm(BLANK_MODE); setEditMode(null);
+    } catch (e: unknown) {
+      setModeError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Save failed');
+    } finally { setModeSaving(false); }
+  }
+
+  async function deleteMode(id: string, name: string) {
+    if (!confirm(`Delete mode "${name}"? Existing assessments linked to it will lose their mode assignment.`)) return;
+    await api.delete(`/api/primary/assessment-modes/${id}`);
+    setModes(prev => prev.filter(m => m.id !== id));
+  }
 
   async function save() {
     if (!data) return;
@@ -191,6 +239,130 @@ export default function PrimarySettingsPage() {
           </p>
         )}
       </div>
+
+      {/* Assessment Modes */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Assessment Modes</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Define how scores are weighted (e.g. Class Test 10%, End of Term Exam 70%)</p>
+          </div>
+          <button onClick={() => { setModeForm(BLANK_MODE); setEditMode(null); setModeError(''); setModeModal(true); }}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+            style={{ backgroundColor: '#15803D' }}>
+            + Add Mode
+          </button>
+        </div>
+
+        {modes.length === 0 ? (
+          <p className="px-5 py-8 text-sm text-center text-slate-400">No assessment modes configured yet.</p>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    {['Mode Name', 'Weight (%)', 'Terminal Exam', 'Single Instance', ''].map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {modes.map(m => (
+                    <tr key={m.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 font-medium text-slate-800">{m.name}</td>
+                      <td className="px-4 py-2.5 tabular-nums font-semibold text-slate-700">{m.ca_weight}%</td>
+                      <td className="px-4 py-2.5">
+                        {m.is_terminal_exam
+                          ? <span className="text-xs font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Yes — maps to exam score</span>
+                          : <span className="text-xs text-slate-400">No</span>}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {m.is_single_instance
+                          ? <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">1 per subject/term</span>
+                          : <span className="text-xs text-slate-400">Multiple allowed</span>}
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <button onClick={() => { setEditMode(m); setModeForm({ name: m.name, ca_weight: String(m.ca_weight), is_terminal_exam: m.is_terminal_exam, is_single_instance: m.is_single_instance, sort_order: m.sort_order }); setModeError(''); setModeModal(true); }}
+                          className="text-xs font-semibold text-slate-400 hover:text-slate-700 mr-3">Edit</button>
+                        <button onClick={() => deleteMode(m.id, m.name)}
+                          className="text-xs font-semibold text-red-400 hover:text-red-600">Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {(() => {
+              const total = modes.reduce((s, m) => s + m.ca_weight, 0);
+              return (
+                <div className={`px-5 py-2.5 border-t border-gray-100 flex items-center gap-2 text-xs ${Math.abs(total - 100) < 0.01 ? 'text-green-700' : 'text-amber-600'}`}>
+                  <span className="font-bold">Total weight: {total}%</span>
+                  {Math.abs(total - 100) > 0.01 && <span>— weights will be auto-rescaled to 100% during calculation</span>}
+                  {Math.abs(total - 100) < 0.01 && <span>✓ Perfect</span>}
+                </div>
+              );
+            })()}
+          </>
+        )}
+      </div>
+
+      {/* Mode modal */}
+      {modeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-900">{editMode ? 'Edit Mode' : 'New Assessment Mode'}</h2>
+              <button onClick={() => setModeModal(false)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Mode Name</label>
+                <input value={modeForm.name} onChange={e => setModeForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Class Test, End of Term Exam"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Weight (%)</label>
+                <input type="number" min={0} max={100} step={0.5}
+                  value={modeForm.ca_weight} onChange={e => setModeForm(f => ({ ...f, ca_weight: e.target.value }))}
+                  placeholder="e.g. 10"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <p className="text-xs text-slate-400 mt-1">Weights don&apos;t need to sum to 100 — rescaled automatically.</p>
+              </div>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input type="checkbox" checked={modeForm.is_terminal_exam}
+                    onChange={e => setModeForm(f => ({ ...f, is_terminal_exam: e.target.checked }))}
+                    className="w-4 h-4 rounded" />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">Terminal exam mode</p>
+                    <p className="text-xs text-slate-400">Score maps to <em>exam score</em> on report card instead of class score</p>
+                  </div>
+                </label>
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input type="checkbox" checked={modeForm.is_single_instance}
+                    onChange={e => setModeForm(f => ({ ...f, is_single_instance: e.target.checked }))}
+                    className="w-4 h-4 rounded" />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">Single instance per subject/term</p>
+                    <p className="text-xs text-slate-400">Prevents teachers creating duplicate assessments in this mode</p>
+                  </div>
+                </label>
+              </div>
+              {modeError && <p className="text-xs text-red-600">{modeError}</p>}
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setModeModal(false)} className="flex-1 py-2 rounded-lg text-sm font-semibold border border-gray-200 text-slate-600">Cancel</button>
+              <button onClick={saveMode} disabled={modeSaving}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+                style={{ backgroundColor: '#15803D' }}>
+                {modeSaving ? 'Saving…' : editMode ? 'Save Changes' : 'Add Mode'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Branding */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">

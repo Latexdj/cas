@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 
 interface Assessment {
-  id: string; title: string; type: string; max_score: number;
+  id: string; title: string; mode_name: string; ca_weight: number;
+  is_terminal_exam: boolean; max_score: number;
   subject_name: string; class_name: string; max_class_score: number; max_exam_score: number;
 }
 interface StudentRow {
@@ -42,15 +43,28 @@ export default function AssessmentScoresPage() {
     setRows(prev => prev.map(r => r.student_id === studentId
       ? { ...r, score: value === '' ? null : parseFloat(value), absent: false }
       : r));
+    setSaved(false);
   }
 
   function toggleAbsent(studentId: string) {
     setRows(prev => prev.map(r => r.student_id === studentId
       ? { ...r, absent: !r.absent, score: !r.absent ? 0 : r.score }
       : r));
+    setSaved(false);
   }
 
   async function save() {
+    if (!assessment) return;
+    const maxScore = assessment.max_score;
+
+    for (const r of rows) {
+      if (r.absent || r.score == null) continue;
+      if (r.score < 0 || r.score > maxScore) {
+        setError(`Score for ${r.name} is out of range (0 – ${maxScore}).`);
+        return;
+      }
+    }
+
     setSaving(true); setError(''); setSaved(false);
     try {
       await api.post(`/api/primary/assessments/${id}/scores`, {
@@ -73,8 +87,10 @@ export default function AssessmentScoresPage() {
     <div className="text-center py-20 text-slate-400">{error || 'Assessment not found.'}</div>
   );
 
-  const scaleTo = assessment.type === 'summative' ? assessment.max_exam_score : assessment.max_class_score;
+  const scaleTo = assessment.is_terminal_exam ? assessment.max_exam_score : assessment.max_class_score;
+  const scoreLabel = assessment.is_terminal_exam ? 'exam' : 'class';
   const filled  = rows.filter(r => r.absent || r.score !== null).length;
+  const hasRangeError = rows.some(r => !r.absent && r.score !== null && (r.score < 0 || r.score > assessment.max_score));
 
   return (
     <div className="space-y-5 max-w-2xl">
@@ -89,20 +105,21 @@ export default function AssessmentScoresPage() {
           <h1 className="text-xl font-bold text-slate-900">{assessment.title}</h1>
           <p className="text-sm text-slate-500 mt-0.5">
             {assessment.subject_name} · {assessment.class_name} ·{' '}
-            <span className={`font-semibold ${assessment.type === 'summative' ? 'text-purple-600' : 'text-blue-600'}`}>
-              {assessment.type}
+            <span className={`font-semibold ${assessment.is_terminal_exam ? 'text-purple-600' : 'text-blue-600'}`}>
+              {assessment.mode_name}
             </span>
+            {' '}· {assessment.ca_weight}% weight
           </p>
         </div>
         <div className="text-right">
           <p className="text-xs text-slate-400">Max score</p>
           <p className="text-xl font-black text-slate-800">{assessment.max_score}</p>
-          <p className="text-xs text-slate-400 mt-0.5">→ scaled to {scaleTo} marks</p>
+          <p className="text-xs text-slate-400 mt-0.5">→ scaled to {scaleTo} {scoreLabel} marks</p>
         </div>
       </div>
 
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>}
-      {saved  && <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">✓ Scores saved and primary scores recalculated.</p>}
+      {saved  && <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">✓ Scores saved and class scores recalculated.</p>}
 
       {/* Progress */}
       <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-3">
@@ -126,27 +143,40 @@ export default function AssessmentScoresPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {rows.map((r, i) => (
-                <tr key={r.student_id} className={r.absent ? 'bg-red-50' : 'hover:bg-gray-50'}>
-                  <td className="px-4 py-2.5 text-slate-400 text-xs tabular-nums">{i + 1}</td>
-                  <td className="px-4 py-2.5 font-medium text-slate-900">{r.name}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{r.admission_number}</td>
-                  <td className="px-4 py-2.5">
-                    <input
-                      type="number" min={0} max={assessment.max_score} step="0.5"
-                      value={r.absent ? '' : (r.score ?? '')}
-                      disabled={r.absent}
-                      onChange={e => setScore(r.student_id, e.target.value)}
-                      placeholder={r.absent ? 'Absent' : '–'}
-                      className="w-24 border border-gray-200 rounded-lg px-2 py-1 text-sm tabular-nums disabled:bg-gray-100 disabled:text-gray-400"
-                    />
-                  </td>
-                  <td className="px-4 py-2.5 text-center">
-                    <input type="checkbox" checked={r.absent} onChange={() => toggleAbsent(r.student_id)}
-                      className="w-4 h-4 rounded accent-red-500 cursor-pointer" />
-                  </td>
-                </tr>
-              ))}
+              {rows.map((r, i) => {
+                const outOfRange = !r.absent && r.score !== null && (r.score < 0 || r.score > assessment.max_score);
+                return (
+                  <tr key={r.student_id} className={r.absent ? 'bg-red-50' : outOfRange ? 'bg-amber-50' : 'hover:bg-gray-50'}>
+                    <td className="px-4 py-2.5 text-slate-400 text-xs tabular-nums">{i + 1}</td>
+                    <td className="px-4 py-2.5 font-medium text-slate-900">{r.name}</td>
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{r.admission_number}</td>
+                    <td className="px-4 py-2.5">
+                      <input
+                        type="number" min={0} max={assessment.max_score} step="0.5"
+                        value={r.absent ? '' : (r.score ?? '')}
+                        disabled={r.absent}
+                        onChange={e => setScore(r.student_id, e.target.value)}
+                        onBlur={e => {
+                          const v = parseFloat(e.target.value);
+                          if (!isNaN(v) && v > assessment.max_score) setScore(r.student_id, String(assessment.max_score));
+                          if (!isNaN(v) && v < 0) setScore(r.student_id, '0');
+                        }}
+                        placeholder={r.absent ? 'Absent' : '–'}
+                        className={`w-24 border rounded-lg px-2 py-1 text-sm tabular-nums disabled:bg-gray-100 disabled:text-gray-400 ${
+                          outOfRange ? 'border-red-400 bg-red-50' : 'border-gray-200'
+                        }`}
+                      />
+                      {outOfRange && (
+                        <p className="text-xs text-red-500 mt-0.5">0 – {assessment.max_score}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      <input type="checkbox" checked={r.absent} onChange={() => toggleAbsent(r.student_id)}
+                        className="w-4 h-4 rounded accent-red-500 cursor-pointer" />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -155,10 +185,10 @@ export default function AssessmentScoresPage() {
       {/* Save bar */}
       <div className="sticky bottom-0 bg-white border-t border-gray-200 -mx-5 px-5 py-3 lg:-mx-7 lg:px-7 flex items-center justify-between gap-4">
         <p className="text-xs text-slate-500">
-          Scores are proportionally scaled to the subject&apos;s{' '}
-          {assessment.type === 'summative' ? 'exam' : 'class'} mark of {scaleTo}.
+          Scores averaged within <strong>{assessment.mode_name}</strong> ({assessment.ca_weight}% weight) → scaled to{' '}
+          {scaleTo} {scoreLabel} marks.
         </p>
-        <button onClick={save} disabled={saving}
+        <button onClick={save} disabled={saving || hasRangeError}
           className="px-6 py-2.5 rounded-lg text-sm font-bold text-white shadow-sm disabled:opacity-50 flex-shrink-0"
           style={{ backgroundColor: '#15803D' }}>
           {saving ? 'Saving…' : 'Save Scores'}

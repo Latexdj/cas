@@ -2309,7 +2309,179 @@ router.delete('/excuses/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── ASSESSMENT MODES ──────────────────────────────────────────────────────────
+
+// GET /api/primary/assessment-modes
+router.get('/assessment-modes', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM primary_assessment_modes WHERE school_id=$1 ORDER BY sort_order, name`,
+      [req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/assessment-modes
+router.post('/assessment-modes', adminOnly, async (req, res, next) => {
+  try {
+    const { name, ca_weight, is_terminal_exam, is_single_instance, sort_order } = req.body;
+    if (!name || ca_weight == null)
+      return res.status(400).json({ error: 'name and ca_weight are required' });
+    const { rows } = await pool.query(
+      `INSERT INTO primary_assessment_modes (school_id, name, ca_weight, is_terminal_exam, is_single_instance, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.schoolId, name.trim(), parseFloat(ca_weight), !!is_terminal_exam, !!is_single_instance, sort_order ?? 0]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A mode with that name already exists' });
+    next(err);
+  }
+});
+
+// PUT /api/primary/assessment-modes/:id
+router.put('/assessment-modes/:id', adminOnly, async (req, res, next) => {
+  try {
+    const { name, ca_weight, is_terminal_exam, is_single_instance, sort_order } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE primary_assessment_modes
+       SET name=$1, ca_weight=$2, is_terminal_exam=$3, is_single_instance=$4, sort_order=$5
+       WHERE id=$6 AND school_id=$7 RETURNING *`,
+      [name.trim(), parseFloat(ca_weight), !!is_terminal_exam, !!is_single_instance,
+       sort_order ?? 0, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Mode not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A mode with that name already exists' });
+    next(err);
+  }
+});
+
+// DELETE /api/primary/assessment-modes/:id
+router.delete('/assessment-modes/:id', adminOnly, async (req, res, next) => {
+  try {
+    await pool.query(
+      `DELETE FROM primary_assessment_modes WHERE id=$1 AND school_id=$2`,
+      [req.params.id, req.schoolId]
+    );
+    res.json({ message: 'Deleted' });
+  } catch (err) { next(err); }
+});
+
 // ── PRIMARY ASSESSMENTS ───────────────────────────────────────────────────────
+
+// Recalculate class_score + exam_score for every active student in the class,
+// using mode-averaged percentage × ca_weight, then scaled to max_class/exam_score.
+async function recalcFromAssessments(schoolId, termId, subjectId, teacherId) {
+  const { rows: [subject] } = await pool.query(
+    `SELECT max_class_score, max_exam_score FROM primary_subjects WHERE id=$1 AND school_id=$2`,
+    [subjectId, schoolId]
+  );
+  if (!subject) return;
+
+  const { rows: [term] } = await pool.query(
+    `SELECT academic_year_id FROM primary_terms WHERE id=$1`, [termId]
+  );
+  if (!term) return;
+
+  // Only consider modes that have at least one assessment for this subject/term
+  const { rows: modes } = await pool.query(
+    `SELECT DISTINCT am.id, am.ca_weight, am.is_terminal_exam
+     FROM primary_assessment_modes am
+     JOIN primary_assessments a ON a.mode_id = am.id
+     WHERE a.school_id=$1 AND a.term_id=$2 AND a.subject_id=$3`,
+    [schoolId, termId, subjectId]
+  );
+  if (!modes.length) return;
+
+  const { rows: assessments } = await pool.query(
+    `SELECT id, mode_id, max_score, class_name FROM primary_assessments
+     WHERE school_id=$1 AND term_id=$2 AND subject_id=$3 AND mode_id IS NOT NULL`,
+    [schoolId, termId, subjectId]
+  );
+  const className = assessments[0]?.class_name;
+  if (!className) return;
+
+  // Group assessments by mode_id
+  const byMode = {};
+  for (const a of assessments) { (byMode[a.mode_id] ??= []).push(a); }
+
+  const { rows: students } = await pool.query(
+    `SELECT id FROM primary_students WHERE school_id=$1 AND LOWER(class_name)=LOWER($2) AND status='Active'`,
+    [schoolId, className]
+  );
+
+  const { rows: allScores } = await pool.query(
+    `SELECT sc.student_id, sc.assessment_id, sc.score, sc.absent
+     FROM primary_assessment_scores sc
+     JOIN primary_assessments a ON a.id = sc.assessment_id
+     WHERE a.school_id=$1 AND a.term_id=$2 AND a.subject_id=$3 AND a.mode_id IS NOT NULL`,
+    [schoolId, termId, subjectId]
+  );
+  const idx = {};
+  for (const s of allScores) { (idx[s.student_id] ??= {})[s.assessment_id] = s; }
+
+  const classModes = modes.filter(m => !m.is_terminal_exam);
+  const examModes  = modes.filter(m =>  m.is_terminal_exam);
+  const classTotalWeight = classModes.reduce((s, m) => s + parseFloat(m.ca_weight), 0);
+  const examTotalWeight  = examModes.reduce((s, m)  => s + parseFloat(m.ca_weight), 0);
+  const scale = await getGradeScale(schoolId);
+  const maxCs = parseFloat(subject.max_class_score);
+  const maxEs = parseFloat(subject.max_exam_score);
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const student of students) {
+      const sIdx = idx[student.id] ?? {};
+      let classRaw = 0, examRaw = 0;
+
+      for (const mode of classModes) {
+        const pcts = [];
+        for (const a of (byMode[mode.id] ?? [])) {
+          const sc = sIdx[a.id];
+          if (sc?.absent)                              pcts.push(0);
+          else if (sc && sc.score !== null)            pcts.push(parseFloat(sc.score) / parseFloat(a.max_score) * 100);
+          // no entry yet → skip (don't penalise un-entered scores)
+        }
+        if (pcts.length) classRaw += (pcts.reduce((a, b) => a + b, 0) / pcts.length) * parseFloat(mode.ca_weight);
+      }
+
+      for (const mode of examModes) {
+        const pcts = [];
+        for (const a of (byMode[mode.id] ?? [])) {
+          const sc = sIdx[a.id];
+          if (sc?.absent)                              pcts.push(0);
+          else if (sc && sc.score !== null)            pcts.push(parseFloat(sc.score) / parseFloat(a.max_score) * 100);
+        }
+        if (pcts.length) examRaw += (pcts.reduce((a, b) => a + b, 0) / pcts.length) * parseFloat(mode.ca_weight);
+      }
+
+      // Rescale: raw ÷ totalWeight ÷ 100 × subjectMax
+      const classScore = classTotalWeight > 0 ? parseFloat((classRaw / classTotalWeight / 100 * maxCs).toFixed(2)) : null;
+      const examScore  = examTotalWeight  > 0 ? parseFloat((examRaw  / examTotalWeight  / 100 * maxEs).toFixed(2)) : null;
+      const total      = (classScore !== null || examScore !== null)
+        ? parseFloat(((classScore ?? 0) + (examScore ?? 0)).toFixed(2)) : null;
+      const grade = total !== null ? assignGrade(total, scale) : null;
+
+      await client.query(
+        `INSERT INTO primary_scores
+           (school_id, student_id, subject_id, term_id, academic_year_id, class_score, exam_score, total, grade, teacher_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         ON CONFLICT (school_id, student_id, subject_id, term_id)
+         DO UPDATE SET class_score=$6, exam_score=$7, total=$8, grade=$9, teacher_id=$10, updated_at=NOW()`,
+        [schoolId, student.id, subjectId, termId, term.academic_year_id,
+         classScore, examScore, total, grade, teacherId ?? null]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (e) { await client.query('ROLLBACK'); throw e; }
+  finally { client.release(); }
+
+  await recalcPositions(schoolId, termId).catch(() => {});
+}
 
 // GET /api/primary/assessments?term_id=&class_name=&subject_id=
 router.get('/assessments', async (req, res, next) => {
@@ -2322,11 +2494,13 @@ router.get('/assessments', async (req, res, next) => {
     const where = filters.length ? 'AND ' + filters.join(' AND ') : '';
     const { rows } = await pool.query(
       `SELECT a.*, ps.subject_name,
+              am.name AS mode_name, am.ca_weight, am.is_terminal_exam, am.is_single_instance,
               (SELECT COUNT(*) FROM primary_assessment_scores s WHERE s.assessment_id=a.id)::int AS score_count
        FROM primary_assessments a
        JOIN primary_subjects ps ON ps.id=a.subject_id
+       LEFT JOIN primary_assessment_modes am ON am.id=a.mode_id
        WHERE a.school_id=$1 ${where}
-       ORDER BY a.created_at`,
+       ORDER BY am.sort_order NULLS LAST, a.created_at`,
       params
     );
     res.json(rows);
@@ -2336,22 +2510,40 @@ router.get('/assessments', async (req, res, next) => {
 // POST /api/primary/assessments
 router.post('/assessments', async (req, res, next) => {
   try {
-    const { term_id, subject_id, class_name, title, type, max_score } = req.body;
-    if (!term_id || !subject_id || !class_name || !title || !type || !max_score)
-      return res.status(400).json({ error: 'term_id, subject_id, class_name, title, type, max_score are required' });
-    if (type === 'summative') {
-      const { rows: existing } = await pool.query(
-        `SELECT id FROM primary_assessments WHERE school_id=$1 AND term_id=$2 AND subject_id=$3 AND type='summative'`,
-        [req.schoolId, term_id, subject_id]
-      );
-      if (existing.length) return res.status(409).json({ error: 'A summative assessment already exists for this subject and term' });
-    }
-    const { rows } = await pool.query(
-      `INSERT INTO primary_assessments (school_id, teacher_id, term_id, subject_id, class_name, title, type, max_score)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [req.schoolId, req.user.id, term_id, subject_id, class_name, title, type, parseFloat(max_score)]
+    const { term_id, subject_id, title, mode_id, max_score } = req.body;
+    if (!term_id || !subject_id || !title || !mode_id || !max_score)
+      return res.status(400).json({ error: 'term_id, subject_id, title, mode_id, max_score are required' });
+
+    // Validate mode belongs to this school
+    const { rows: [mode] } = await pool.query(
+      `SELECT * FROM primary_assessment_modes WHERE id=$1 AND school_id=$2`,
+      [mode_id, req.schoolId]
     );
-    res.status(201).json(rows[0]);
+    if (!mode) return res.status(404).json({ error: 'Assessment mode not found' });
+
+    // Enforce single-instance constraint
+    if (mode.is_single_instance) {
+      const { rows: existing } = await pool.query(
+        `SELECT id FROM primary_assessments WHERE school_id=$1 AND term_id=$2 AND subject_id=$3 AND mode_id=$4`,
+        [req.schoolId, term_id, subject_id, mode_id]
+      );
+      if (existing.length)
+        return res.status(409).json({ error: `Only one "${mode.name}" assessment is allowed per subject per term` });
+    }
+
+    // Derive class_name from the subject
+    const { rows: [sub] } = await pool.query(
+      `SELECT class_name FROM primary_subjects WHERE id=$1 AND school_id=$2`,
+      [subject_id, req.schoolId]
+    );
+    if (!sub) return res.status(404).json({ error: 'Subject not found' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO primary_assessments (school_id, teacher_id, term_id, subject_id, class_name, title, mode_id, max_score)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.schoolId, req.user.id, term_id, subject_id, sub.class_name, title, mode_id, parseFloat(max_score)]
+    );
+    res.status(201).json({ ...rows[0], mode_name: mode.name, is_terminal_exam: mode.is_terminal_exam, ca_weight: mode.ca_weight, score_count: 0 });
   } catch (err) { next(err); }
 });
 
@@ -2381,8 +2573,11 @@ router.delete('/assessments/:id', async (req, res, next) => {
 router.get('/assessments/:id/scores', async (req, res, next) => {
   try {
     const { rows: [assessment] } = await pool.query(
-      `SELECT a.*, ps.subject_name, ps.max_class_score, ps.max_exam_score
-       FROM primary_assessments a JOIN primary_subjects ps ON ps.id=a.subject_id
+      `SELECT a.*, ps.subject_name, ps.max_class_score, ps.max_exam_score,
+              am.name AS mode_name, am.ca_weight, am.is_terminal_exam
+       FROM primary_assessments a
+       JOIN primary_subjects ps ON ps.id=a.subject_id
+       LEFT JOIN primary_assessment_modes am ON am.id=a.mode_id
        WHERE a.id=$1 AND a.school_id=$2`,
       [req.params.id, req.schoolId]
     );
@@ -2400,22 +2595,31 @@ router.get('/assessments/:id/scores', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/primary/assessments/:id/scores — save scores + recalculate primary_scores
+// POST /api/primary/assessments/:id/scores
+// Validates bounds, upserts scores, then recalculates primary_scores via mode weights.
 router.post('/assessments/:id/scores', async (req, res, next) => {
   try {
-    const { scores } = req.body; // [{ student_id, score, absent }]
+    const { scores } = req.body;
     if (!Array.isArray(scores)) return res.status(400).json({ error: 'scores[] required' });
 
     const { rows: [assessment] } = await pool.query(
-      `SELECT a.*, pt.academic_year_id, ps.max_class_score, ps.max_exam_score
-       FROM primary_assessments a
-       JOIN primary_subjects ps ON ps.id=a.subject_id
-       JOIN primary_terms pt ON pt.id=a.term_id
-       WHERE a.id=$1 AND a.school_id=$2`,
+      `SELECT a.* FROM primary_assessments a WHERE a.id=$1 AND a.school_id=$2`,
       [req.params.id, req.schoolId]
     );
     if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
 
+    // Validate every score entry
+    const maxScore = parseFloat(assessment.max_score);
+    for (const s of scores) {
+      if (s.absent) continue;
+      if (s.score == null || s.score === '') continue;
+      const v = parseFloat(s.score);
+      if (isNaN(v))      return res.status(400).json({ error: `Invalid score value: ${s.score}` });
+      if (v < 0)         return res.status(400).json({ error: `Score cannot be negative (got ${v})` });
+      if (v > maxScore)  return res.status(400).json({ error: `Score ${v} exceeds max score of ${maxScore}` });
+    }
+
+    // Upsert scores
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -2427,61 +2631,16 @@ router.post('/assessments/:id/scores', async (req, res, next) => {
           [req.params.id, s.student_id, s.absent ? 0 : (s.score ?? null), !!s.absent]
         );
       }
-      // Recalculate primary_scores for each student in the class for this subject+term
-      const { rows: allAssessments } = await client.query(
-        `SELECT id, type, max_score FROM primary_assessments
-         WHERE school_id=$1 AND term_id=$2 AND subject_id=$3`,
-        [req.schoolId, assessment.term_id, assessment.subject_id]
-      );
-      const formativeIds  = allAssessments.filter(a => a.type === 'formative').map(a => a.id);
-      const summativeIds  = allAssessments.filter(a => a.type === 'summative').map(a => a.id);
-      const totalFormMax  = allAssessments.filter(a => a.type === 'formative').reduce((s, a) => s + parseFloat(a.max_score), 0);
-      const totalSummMax  = allAssessments.filter(a => a.type === 'summative').reduce((s, a) => s + parseFloat(a.max_score), 0);
-
-      const { rows: studentList } = await client.query(
-        `SELECT id FROM primary_students WHERE school_id=$1 AND LOWER(class_name)=LOWER($2) AND status='Active'`,
-        [req.schoolId, assessment.class_name]
-      );
-
-      for (const stu of studentList) {
-        let classScore = null, examScore = null;
-        if (formativeIds.length && totalFormMax > 0) {
-          const { rows: [fr] } = await client.query(
-            `SELECT COALESCE(SUM(score),0) AS total FROM primary_assessment_scores
-             WHERE assessment_id=ANY($1) AND student_id=$2`,
-            [formativeIds, stu.id]
-          );
-          classScore = parseFloat(((parseFloat(fr.total) / totalFormMax) * parseFloat(assessment.max_class_score)).toFixed(2));
-        }
-        if (summativeIds.length && totalSummMax > 0) {
-          const { rows: [sr] } = await client.query(
-            `SELECT COALESCE(SUM(score),0) AS total FROM primary_assessment_scores
-             WHERE assessment_id=ANY($1) AND student_id=$2`,
-            [summativeIds, stu.id]
-          );
-          examScore = parseFloat(((parseFloat(sr.total) / totalSummMax) * parseFloat(assessment.max_exam_score)).toFixed(2));
-        }
-        const total = (classScore ?? 0) + (examScore ?? 0);
-        const { rows: scaleRows } = await client.query(
-          `SELECT grade FROM primary_grade_scale WHERE school_id=$1 AND $2 BETWEEN min_score AND max_score ORDER BY sort_order LIMIT 1`,
-          [req.schoolId, total]
-        );
-        const grade = scaleRows[0]?.grade ?? 'F9';
-        await client.query(
-          `INSERT INTO primary_scores (school_id, student_id, subject_id, term_id, academic_year_id, class_score, exam_score, total, grade, teacher_id)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-           ON CONFLICT (school_id, student_id, subject_id, term_id)
-           DO UPDATE SET class_score=$6, exam_score=$7, total=$8, grade=$9, teacher_id=$10, updated_at=NOW()`,
-          [req.schoolId, stu.id, assessment.subject_id, assessment.term_id, assessment.academic_year_id,
-           classScore, examScore, total, grade, req.user.id]
-        );
-      }
       await client.query('COMMIT');
     } catch (e) { await client.query('ROLLBACK'); throw e; }
     finally { client.release(); }
 
-    await recalcPositions(req.schoolId, assessment.term_id).catch(() => {});
-    res.json({ message: `Saved ${scores.length} scores and recalculated` });
+    // Recalculate primary_scores using the mode-weighted average approach
+    if (assessment.mode_id) {
+      await recalcFromAssessments(req.schoolId, assessment.term_id, assessment.subject_id, req.user.id);
+    }
+
+    res.json({ message: `Saved ${scores.length} scores` });
   } catch (err) { next(err); }
 });
 
