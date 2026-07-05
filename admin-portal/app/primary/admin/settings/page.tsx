@@ -294,7 +294,7 @@ export default function PrimarySettingsPage() {
               </table>
             </div>
             {(() => {
-              const total = modes.reduce((s, m) => s + m.ca_weight, 0);
+              const total = modes.reduce((s, m) => s + parseFloat(String(m.ca_weight)), 0);
               return (
                 <div className={`px-5 py-2.5 border-t border-gray-100 flex items-center gap-2 text-xs ${Math.abs(total - 100) < 0.01 ? 'text-green-700' : 'text-amber-600'}`}>
                   <span className="font-bold">Total weight: {total}%</span>
