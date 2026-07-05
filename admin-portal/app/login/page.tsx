@@ -1,13 +1,11 @@
 'use client';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { saveUser } from '@/lib/auth';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [schoolCode, setSchoolCode] = useState('');
   const [teacherId,  setTeacherId]  = useState('');
   const [password,   setPassword]   = useState('');
@@ -26,12 +24,14 @@ export default function LoginPage() {
         schoolCode: schoolCode.trim().toUpperCase(),
       });
       saveUser({ id: data.id, name: data.name, role: data.role, schoolId: data.schoolId, token: data.token });
+      // Hard navigation — clears Next.js router cache and all component state,
+      // so the new school's data is always fetched fresh.
       if (data.school_level === 'primary') {
         localStorage.setItem('cas_school_level', 'primary');
-        router.replace('/primary/admin/dashboard');
+        window.location.href = '/primary/admin/dashboard';
       } else {
         localStorage.removeItem('cas_school_level');
-        router.replace('/dashboard');
+        window.location.href = '/dashboard';
       }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;

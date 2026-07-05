@@ -54,6 +54,7 @@ export default function TeacherLoginPage() {
         localStorage.setItem('cas_school_level', 'primary');
         window.location.href = '/primary/teacher';
       } else {
+        localStorage.removeItem('cas_school_level');
         window.location.href = '/teacher';
       }
     } catch (err: unknown) {
