@@ -104,10 +104,25 @@ router.post('/', async (req, res, next) => {
     }
     // Verify mode belongs to school
     const modeCheck = await pool.query(
-      `SELECT id FROM assessment_modes WHERE id = $1 AND school_id = $2`,
+      `SELECT id, name, max_instances FROM assessment_modes WHERE id = $1 AND school_id = $2`,
       [mode_id, req.schoolId]
     );
     if (!modeCheck.rows.length) return res.status(400).json({ error: 'Invalid assessment mode' });
+
+    // Enforce max_instances per subject/class/semester
+    const mode = modeCheck.rows[0];
+    if (mode.max_instances != null) {
+      const { rows: existing } = await pool.query(
+        `SELECT COUNT(*) FROM assessments
+         WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3
+           AND subject=$4 AND class_name=$5 AND mode_id=$6`,
+        [req.schoolId, academic_year_id, parseInt(semester), subject, class_name, mode_id]
+      );
+      if (parseInt(existing[0].count) >= mode.max_instances)
+        return res.status(409).json({
+          error: `Maximum ${mode.max_instances} "${mode.name}" assessment(s) allowed per subject per semester`,
+        });
+    }
 
     const { rows } = await pool.query(
       `INSERT INTO assessments

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
 
-interface AssessmentMode { id: string; name: string; ca_contribution: number }
+interface AssessmentMode { id: string; name: string; ca_contribution: number; max_instances: number | null; }
 interface AcademicYear  { id: string; name: string; is_current: boolean }
 interface Assessment {
   id: string;
@@ -632,20 +632,28 @@ function SubjectContent() {
 
             <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-2">Mode *</p>
             <div className="flex flex-wrap gap-2 mb-4">
-              {modes.map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => setModeId(m.id)}
-                  className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-                  style={
-                    modeId === m.id
-                      ? { background: primary, borderColor: primary, color: '#fff' }
-                      : { background: '#F4EFE6', borderColor: '#E2D9CC', color: '#5C4F42' }
-                  }
-                >
-                  {m.name}
-                </button>
-              ))}
+              {modes.map(m => {
+                const used = assessments.filter(a => a.mode_id === m.id).length;
+                const atLimit = m.max_instances != null && used >= m.max_instances;
+                const usageLabel = m.max_instances != null ? `${used}/${m.max_instances}` : `${used}`;
+                return (
+                  <button
+                    key={m.id}
+                    disabled={atLimit}
+                    onClick={() => { if (!atLimit) setModeId(m.id); }}
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={
+                      atLimit
+                        ? { background: '#F1F5F9', borderColor: '#CBD5E1', color: '#94A3B8' }
+                        : modeId === m.id
+                          ? { background: primary, borderColor: primary, color: '#fff' }
+                          : { background: '#F4EFE6', borderColor: '#E2D9CC', color: '#5C4F42' }
+                    }
+                  >
+                    {m.name} <span className="opacity-70">({usageLabel}{atLimit ? ' Full' : ''})</span>
+                  </button>
+                );
+              })}
             </div>
 
             <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Title (optional)</p>

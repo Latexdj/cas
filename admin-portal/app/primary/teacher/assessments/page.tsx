@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 
 interface Term    { id: string; name: string; is_current: boolean; }
 interface Subject { id: string; subject_name: string; class_name: string; max_class_score: number; max_exam_score: number; }
-interface Mode    { id: string; name: string; ca_weight: number; is_terminal_exam: boolean; is_single_instance: boolean; }
+interface Mode    { id: string; name: string; ca_weight: number; is_terminal_exam: boolean; max_instances: number | null; }
 interface Assessment {
   id: string; title: string; mode_id: string; mode_name: string; ca_weight: number;
   is_terminal_exam: boolean; max_score: number; score_count: number;
@@ -219,9 +219,16 @@ export default function TeacherAssessmentsPage() {
                   <select value={createForm.mode_id} onChange={e => setCreateForm(f => ({ ...f, mode_id: e.target.value }))}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
                     <option value="">Select mode…</option>
-                    {modes.map(m => (
-                      <option key={m.id} value={m.id}>{m.name} ({m.ca_weight}%){m.is_terminal_exam ? ' — Exam' : ''}</option>
-                    ))}
+                    {modes.map(m => {
+                      const used = assessments.filter(a => a.mode_id === m.id).length;
+                      const atLimit = m.max_instances != null && used >= m.max_instances;
+                      const limitLabel = m.max_instances != null ? ` [${used}/${m.max_instances}]` : ` [${used} used]`;
+                      return (
+                        <option key={m.id} value={m.id} disabled={atLimit}>
+                          {m.name} ({m.ca_weight}%){m.is_terminal_exam ? ' — Exam' : ''}{limitLabel}{atLimit ? ' — Full' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div>

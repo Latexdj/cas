@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 
 interface AssessmentMode {
   id: string; name: string; ca_weight: number;
-  is_terminal_exam: boolean; is_single_instance: boolean; sort_order: number;
+  is_terminal_exam: boolean; max_instances: number | null; sort_order: number;
 }
 
 interface SchoolSettings {
@@ -20,7 +20,7 @@ interface SchoolSettings {
 const GHANA_REGIONS = ['Ahafo','Ashanti','Bono','Bono East','Central','Eastern','Greater Accra','North East','Northern','Oti','Savannah','Upper East','Upper West','Volta','Western','Western North'];
 const SCHOOL_TYPES  = ['Nursery','KG','Primary','JHS'];
 
-const BLANK_MODE = { name: '', ca_weight: '', is_terminal_exam: false, is_single_instance: false, sort_order: 0 };
+const BLANK_MODE = { name: '', ca_weight: '', is_terminal_exam: false, max_instances: '', sort_order: 0 };
 
 export default function PrimarySettingsPage() {
   const [data,    setData]    = useState<SchoolSettings | null>(null);
@@ -53,8 +53,8 @@ export default function PrimarySettingsPage() {
       const body = {
         name: modeForm.name.trim(),
         ca_weight: parseFloat(String(modeForm.ca_weight)),
-        is_terminal_exam:   modeForm.is_terminal_exam,
-        is_single_instance: modeForm.is_single_instance,
+        is_terminal_exam: modeForm.is_terminal_exam,
+        max_instances: String(modeForm.max_instances).trim() !== '' ? parseInt(String(modeForm.max_instances)) : null,
         sort_order: modeForm.sort_order,
       };
       if (!body.name || isNaN(body.ca_weight))
@@ -262,7 +262,7 @@ export default function PrimarySettingsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    {['Mode Name', 'Weight (%)', 'Terminal Exam', 'Single Instance', ''].map(h => (
+                    {['Mode Name', 'Weight (%)', 'Terminal Exam', 'Max Instances', ''].map(h => (
                       <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -278,12 +278,12 @@ export default function PrimarySettingsPage() {
                           : <span className="text-xs text-slate-400">No</span>}
                       </td>
                       <td className="px-4 py-2.5">
-                        {m.is_single_instance
-                          ? <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">1 per subject/term</span>
-                          : <span className="text-xs text-slate-400">Multiple allowed</span>}
+                        {m.max_instances != null
+                          ? <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{m.max_instances} max</span>
+                          : <span className="text-xs text-slate-400">∞ Unlimited</span>}
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
-                        <button onClick={() => { setEditMode(m); setModeForm({ name: m.name, ca_weight: String(m.ca_weight), is_terminal_exam: m.is_terminal_exam, is_single_instance: m.is_single_instance, sort_order: m.sort_order }); setModeError(''); setModeModal(true); }}
+                        <button onClick={() => { setEditMode(m); setModeForm({ name: m.name, ca_weight: String(m.ca_weight), is_terminal_exam: m.is_terminal_exam, max_instances: m.max_instances != null ? String(m.max_instances) : '', sort_order: m.sort_order }); setModeError(''); setModeModal(true); }}
                           className="text-xs font-semibold text-slate-400 hover:text-slate-700 mr-3">Edit</button>
                         <button onClick={() => deleteMode(m.id, m.name)}
                           className="text-xs font-semibold text-red-400 hover:text-red-600">Delete</button>
@@ -330,7 +330,7 @@ export default function PrimarySettingsPage() {
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                 <p className="text-xs text-slate-400 mt-1">Weights don&apos;t need to sum to 100 — rescaled automatically.</p>
               </div>
-              <div className="space-y-2">
+              <div>
                 <label className="flex items-center gap-2.5 cursor-pointer">
                   <input type="checkbox" checked={modeForm.is_terminal_exam}
                     onChange={e => setModeForm(f => ({ ...f, is_terminal_exam: e.target.checked }))}
@@ -340,15 +340,17 @@ export default function PrimarySettingsPage() {
                     <p className="text-xs text-slate-400">Score maps to <em>exam score</em> on report card instead of class score</p>
                   </div>
                 </label>
-                <label className="flex items-center gap-2.5 cursor-pointer">
-                  <input type="checkbox" checked={modeForm.is_single_instance}
-                    onChange={e => setModeForm(f => ({ ...f, is_single_instance: e.target.checked }))}
-                    className="w-4 h-4 rounded" />
-                  <div>
-                    <p className="text-sm font-semibold text-slate-700">Single instance per subject/term</p>
-                    <p className="text-xs text-slate-400">Prevents teachers creating duplicate assessments in this mode</p>
-                  </div>
-                </label>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Max Instances per Subject/Term</label>
+                <input type="number" min={1} step={1}
+                  value={modeForm.max_instances}
+                  onChange={e => setModeForm(f => ({ ...f, max_instances: e.target.value }))}
+                  placeholder="Leave blank for unlimited"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                <p className="text-xs text-slate-400 mt-1">
+                  Leave blank for unlimited. Set <strong>1</strong> for a terminal exam; set <strong>5</strong> to cap at 5 per subject per term.
+                </p>
               </div>
               {modeError && <p className="text-xs text-red-600">{modeError}</p>}
             </div>

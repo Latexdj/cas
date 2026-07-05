@@ -2325,13 +2325,16 @@ router.get('/assessment-modes', async (req, res, next) => {
 // POST /api/primary/assessment-modes
 router.post('/assessment-modes', adminOnly, async (req, res, next) => {
   try {
-    const { name, ca_weight, is_terminal_exam, is_single_instance, sort_order } = req.body;
+    const { name, ca_weight, is_terminal_exam, max_instances, sort_order } = req.body;
     if (!name || ca_weight == null)
       return res.status(400).json({ error: 'name and ca_weight are required' });
+    const limit = (max_instances != null && max_instances !== '') ? parseInt(max_instances) : null;
+    if (limit != null && (isNaN(limit) || limit < 1))
+      return res.status(400).json({ error: 'max_instances must be a positive integer' });
     const { rows } = await pool.query(
-      `INSERT INTO primary_assessment_modes (school_id, name, ca_weight, is_terminal_exam, is_single_instance, sort_order)
+      `INSERT INTO primary_assessment_modes (school_id, name, ca_weight, is_terminal_exam, max_instances, sort_order)
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [req.schoolId, name.trim(), parseFloat(ca_weight), !!is_terminal_exam, !!is_single_instance, sort_order ?? 0]
+      [req.schoolId, name.trim(), parseFloat(ca_weight), !!is_terminal_exam, limit, sort_order ?? 0]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -2343,12 +2346,15 @@ router.post('/assessment-modes', adminOnly, async (req, res, next) => {
 // PUT /api/primary/assessment-modes/:id
 router.put('/assessment-modes/:id', adminOnly, async (req, res, next) => {
   try {
-    const { name, ca_weight, is_terminal_exam, is_single_instance, sort_order } = req.body;
+    const { name, ca_weight, is_terminal_exam, max_instances, sort_order } = req.body;
+    const limit = (max_instances != null && max_instances !== '') ? parseInt(max_instances) : null;
+    if (limit != null && (isNaN(limit) || limit < 1))
+      return res.status(400).json({ error: 'max_instances must be a positive integer' });
     const { rows } = await pool.query(
       `UPDATE primary_assessment_modes
-       SET name=$1, ca_weight=$2, is_terminal_exam=$3, is_single_instance=$4, sort_order=$5
+       SET name=$1, ca_weight=$2, is_terminal_exam=$3, max_instances=$4, sort_order=$5
        WHERE id=$6 AND school_id=$7 RETURNING *`,
-      [name.trim(), parseFloat(ca_weight), !!is_terminal_exam, !!is_single_instance,
+      [name.trim(), parseFloat(ca_weight), !!is_terminal_exam, limit,
        sort_order ?? 0, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Mode not found' });
@@ -2494,7 +2500,7 @@ router.get('/assessments', async (req, res, next) => {
     const where = filters.length ? 'AND ' + filters.join(' AND ') : '';
     const { rows } = await pool.query(
       `SELECT a.*, ps.subject_name,
-              am.name AS mode_name, am.ca_weight, am.is_terminal_exam, am.is_single_instance,
+              am.name AS mode_name, am.ca_weight, am.is_terminal_exam, am.max_instances,
               (SELECT COUNT(*) FROM primary_assessment_scores s WHERE s.assessment_id=a.id)::int AS score_count
        FROM primary_assessments a
        JOIN primary_subjects ps ON ps.id=a.subject_id
@@ -2521,14 +2527,16 @@ router.post('/assessments', async (req, res, next) => {
     );
     if (!mode) return res.status(404).json({ error: 'Assessment mode not found' });
 
-    // Enforce single-instance constraint
-    if (mode.is_single_instance) {
+    // Enforce max_instances constraint
+    if (mode.max_instances != null) {
       const { rows: existing } = await pool.query(
-        `SELECT id FROM primary_assessments WHERE school_id=$1 AND term_id=$2 AND subject_id=$3 AND mode_id=$4`,
+        `SELECT COUNT(*) FROM primary_assessments WHERE school_id=$1 AND term_id=$2 AND subject_id=$3 AND mode_id=$4`,
         [req.schoolId, term_id, subject_id, mode_id]
       );
-      if (existing.length)
-        return res.status(409).json({ error: `Only one "${mode.name}" assessment is allowed per subject per term` });
+      if (parseInt(existing[0].count) >= mode.max_instances)
+        return res.status(409).json({
+          error: `Maximum ${mode.max_instances} "${mode.name}" assessment(s) allowed per subject per term`,
+        });
     }
 
     // Derive class_name from the subject

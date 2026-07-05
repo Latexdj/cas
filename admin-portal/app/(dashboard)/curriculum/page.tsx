@@ -613,7 +613,7 @@ function AssessmentModesTab() {
   const [modes,   setModes]   = useState<AssessmentMode[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal,   setModal]   = useState<'create' | 'edit' | null>(null);
-  const [form,    setForm]    = useState({ name: '', ca_contribution: '', sort_order: '' });
+  const [form,    setForm]    = useState({ name: '', ca_contribution: '', sort_order: '', max_instances: '' });
   const [editId,  setEditId]  = useState<string | null>(null);
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState('');
@@ -626,9 +626,9 @@ function AssessmentModesTab() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  function openCreate() { setForm({ name: '', ca_contribution: '', sort_order: '' }); setError(''); setEditId(null); setModal('create'); }
+  function openCreate() { setForm({ name: '', ca_contribution: '', sort_order: '', max_instances: '' }); setError(''); setEditId(null); setModal('create'); }
   function openEdit(m: AssessmentMode) {
-    setForm({ name: m.name, ca_contribution: String(m.ca_contribution), sort_order: String(m.sort_order) });
+    setForm({ name: m.name, ca_contribution: String(m.ca_contribution), sort_order: String(m.sort_order), max_instances: m.max_instances != null ? String(m.max_instances) : '' });
     setEditId(m.id); setError(''); setModal('edit');
   }
 
@@ -636,7 +636,12 @@ function AssessmentModesTab() {
     if (!form.name.trim()) { setError('Name is required.'); return; }
     setSaving(true); setError('');
     try {
-      const body = { name: form.name.trim(), ca_contribution: parseFloat(form.ca_contribution) || 0, sort_order: parseInt(form.sort_order) || 0 };
+      const body = {
+        name: form.name.trim(),
+        ca_contribution: parseFloat(form.ca_contribution) || 0,
+        sort_order: parseInt(form.sort_order) || 0,
+        max_instances: form.max_instances.trim() !== '' ? parseInt(form.max_instances) : null,
+      };
       if (modal === 'create') await api.post('/api/assessment-modes', body);
       else                    await api.put(`/api/assessment-modes/${editId}`, body);
       setModal(null); await load();
@@ -687,7 +692,7 @@ function AssessmentModesTab() {
             <table className="min-w-[480px] w-full text-sm">
               <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
                 <tr>
-                  {['Mode Name', 'CA Contribution (marks)', 'Order', ''].map(h => (
+                  {['Mode Name', 'CA Contribution (marks)', 'Max Instances', 'Order', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
                   ))}
                 </tr>
@@ -702,6 +707,11 @@ function AssessmentModesTab() {
                         {m.ca_contribution}
                       </span>
                     </td>
+                    <td className="px-4 py-3">
+                      {m.max_instances != null
+                        ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>{m.max_instances}</span>
+                        : <span className="text-xs" style={{ color: '#94A3B8' }}>∞ Unlimited</span>}
+                    </td>
                     <td className="px-4 py-3 text-xs" style={{ color: '#64748B' }}>{m.sort_order}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
@@ -712,7 +722,7 @@ function AssessmentModesTab() {
                   </tr>
                 ))}
                 {modes.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: '#94A3B8' }}>No modes yet. Example: Class Test (20 marks), Assignment (10 marks).</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: '#94A3B8' }}>No modes yet. Example: Class Test (20 marks), Assignment (10 marks).</td></tr>
                 )}
               </tbody>
               {modes.length > 0 && (
@@ -724,7 +734,7 @@ function AssessmentModesTab() {
                         {totalContribution}
                       </span>
                     </td>
-                    <td colSpan={2} />
+                    <td colSpan={3} />
                   </tr>
                 </tfoot>
               )}
@@ -746,6 +756,15 @@ function AssessmentModesTab() {
               value={form.ca_contribution} onChange={e => setForm(f => ({ ...f, ca_contribution: e.target.value }))}
               placeholder="e.g. 20" />
             <p className="mt-1 text-xs text-slate-400">How many of the total CA marks this mode contributes.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Max Instances per Subject/Semester</label>
+            <input className={inputCls} type="number" min="1" step="1"
+              value={form.max_instances} onChange={e => setForm(f => ({ ...f, max_instances: e.target.value }))}
+              placeholder="Leave blank for unlimited" />
+            <p className="mt-1 text-xs text-slate-400">
+              Leave blank for unlimited. Set e.g. <strong>5</strong> to cap how many of this mode teachers can record per class per semester.
+            </p>
           </div>
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Display Order</label>

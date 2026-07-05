@@ -80,6 +80,7 @@ export interface AssessmentMode {
   name: string;
   ca_contribution: number;
   sort_order: number;
+  max_instances: number | null;
 }
 
 export interface Assessment {

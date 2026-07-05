@@ -1651,6 +1651,11 @@ async function runMigrations() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_modes_school ON primary_assessment_modes(school_id, sort_order)`);
     // Add mode_id to primary_assessments (nullable — old rows without a mode still work)
     await pool.query(`ALTER TABLE primary_assessments ADD COLUMN IF NOT EXISTS mode_id UUID REFERENCES primary_assessment_modes(id) ON DELETE SET NULL`);
+    // max_instances: NULL = unlimited; positive int = capped per subject/term
+    await pool.query(`ALTER TABLE primary_assessment_modes ADD COLUMN IF NOT EXISTS max_instances INTEGER`);
+    await pool.query(`ALTER TABLE assessment_modes ADD COLUMN IF NOT EXISTS max_instances INTEGER`);
+    // Migrate existing is_single_instance=true rows → max_instances=1
+    await pool.query(`UPDATE primary_assessment_modes SET max_instances=1 WHERE is_single_instance=true AND max_instances IS NULL`);
 
     console.log('Migrations OK');
   } catch (err) {
