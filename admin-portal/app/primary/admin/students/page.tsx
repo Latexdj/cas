@@ -49,8 +49,6 @@ export default function PrimaryStudentsPage() {
   // Import / Update modal state
   const [importModal,   setImportModal]   = useState(false);
   const [updateModal,   setUpdateModal]   = useState(false);
-  const [impPrefix,     setImpPrefix]     = useState('');
-  const [impYear,       setImpYear]       = useState('');
   const [impFile,       setImpFile]       = useState<File | null>(null);
   const [updFile,       setUpdFile]       = useState<File | null>(null);
   const [impLoading,    setImpLoading]    = useState(false);
@@ -135,8 +133,6 @@ export default function PrimaryStudentsPage() {
     try {
       const fd = new FormData();
       fd.append('file', impFile);
-      fd.append('prefix', impPrefix);
-      fd.append('year', impYear);
       const { data } = await api.post('/api/primary/students/upload', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -203,7 +199,7 @@ export default function PrimaryStudentsPage() {
           <p className="text-sm text-slate-500 mt-0.5">{students.length} student{students.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={() => { setImpResult(null); setImpFile(null); setImportModal(true); }}
+          <button onClick={() => { setImpResult(null); setImpFile(null); if (impFileRef.current) impFileRef.current.value = ''; setImportModal(true); }}
             className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50">
             Import Students
           </button>
@@ -388,22 +384,7 @@ export default function PrimaryStudentsPage() {
                 <button onClick={() => downloadTemplate('empty')} className="text-green-700 font-semibold hover:underline text-sm">
                   Download blank template (.xlsx)
                 </button>
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-slate-600 mb-2">Admission number auto-generation</p>
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="block text-xs text-slate-500 mb-1">Prefix (e.g. SASHTS)</label>
-                    <input value={impPrefix} onChange={e => setImpPrefix(e.target.value.toUpperCase())} placeholder="SASHTS"
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono" />
-                  </div>
-                  <div className="w-24">
-                    <label className="block text-xs text-slate-500 mb-1">Year (e.g. 26)</label>
-                    <input value={impYear} onChange={e => setImpYear(e.target.value)} placeholder="26"
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono" />
-                  </div>
-                </div>
-                <p className="text-xs text-slate-400 mt-1">Rows with a blank Admission No. column will get auto-generated IDs like <span className="font-mono">{impPrefix || 'SCHOOL'}001{impYear || 'YY'}</span></p>
+                <p className="text-xs text-slate-400">Rows with a blank Admission No. will be auto-numbered using the prefix and year set in <span className="font-semibold text-slate-500">School Settings → Student Admission Numbers</span>.</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Step 2 — Upload filled template</label>

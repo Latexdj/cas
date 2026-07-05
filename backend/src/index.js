@@ -1298,9 +1298,11 @@ async function runMigrations() {
 
     // ── Primary / Basic school module ─────────────────────────────────────────
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS school_level TEXT DEFAULT 'secondary'`);
-    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS motto    TEXT`);
-    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS region   TEXT`);
-    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS district TEXT`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS motto             TEXT`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS region            TEXT`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS district          TEXT`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS admission_prefix  TEXT`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS admission_year    VARCHAR(4)`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS primary_terms (
         id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -8,6 +8,7 @@ interface SchoolSettings {
   email: string | null; school_type: string | null; school_category: string | null;
   primary_color: string | null; accent_color: string | null; logo_url: string | null;
   motto: string | null; region: string | null; district: string | null;
+  admission_prefix: string | null; admission_year: string | null;
 }
 
 const GHANA_REGIONS = ['Ahafo','Ashanti','Bono','Bono East','Central','Eastern','Greater Accra','North East','Northern','Oti','Savannah','Upper East','Upper West','Volta','Western','Western North'];
@@ -33,15 +34,17 @@ export default function PrimarySettingsPage() {
     setSaving(true); setError(''); setSaved(false);
     try {
       await api.patch('/api/admin/settings/info', {
-        name:            form.name,
-        address:         form.address,
-        phone:           form.phone,
-        email:           form.email,
-        school_type:     form.school_type,
-        school_category: form.school_category,
-        motto:           form.motto,
-        region:          form.region,
-        district:        form.district,
+        name:             form.name,
+        address:          form.address,
+        phone:            form.phone,
+        email:            form.email,
+        school_type:      form.school_type,
+        school_category:  form.school_category,
+        motto:            form.motto,
+        region:           form.region,
+        district:         form.district,
+        admission_prefix: form.admission_prefix,
+        admission_year:   form.admission_year,
       });
       setSaved(true);
     } catch (e: unknown) {
@@ -103,6 +106,33 @@ export default function PrimarySettingsPage() {
           <div className="col-span-full">{F('Address', 'address')}</div>
           <div className="col-span-full">{F('School Motto', 'motto')}</div>
         </div>
+      </div>
+
+      {/* Student Admission Numbers */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
+        <div className="border-b border-gray-100 pb-2">
+          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Student Admission Numbers</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Used to auto-generate IDs when importing students via Excel</p>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Admission Prefix</label>
+            <input value={form.admission_prefix ?? ''} onChange={e => setForm(f => ({ ...f, admission_prefix: e.target.value.toUpperCase() }))}
+              placeholder="e.g. SASHTS"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-green-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1">Admission Year (2 digits)</label>
+            <input value={form.admission_year ?? ''} onChange={e => setForm(f => ({ ...f, admission_year: e.target.value }))}
+              placeholder={`e.g. ${String(new Date().getFullYear()).slice(2)}`} maxLength={4}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-green-500" />
+          </div>
+        </div>
+        {(form.admission_prefix || form.admission_year) && (
+          <p className="text-xs text-slate-400">
+            Example ID: <span className="font-mono font-semibold text-slate-600">{form.admission_prefix ?? ''}001{form.admission_year ?? ''}</span>
+          </p>
+        )}
       </div>
 
       {/* Branding */}

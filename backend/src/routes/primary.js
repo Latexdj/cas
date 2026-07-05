@@ -413,8 +413,13 @@ router.get('/students-template', adminOnly, async (req, res, next) => {
 router.post('/students/upload', adminOnly, upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const prefix = String(req.body.prefix ?? '').trim();
-    const year   = String(req.body.year   ?? '').trim();
+
+    // Read admission prefix/year from school settings
+    const { rows: [school] } = await pool.query(
+      `SELECT admission_prefix, admission_year FROM schools WHERE id=$1`, [req.schoolId]
+    );
+    const prefix = String(school?.admission_prefix ?? '').trim();
+    const year   = String(school?.admission_year   ?? '').trim();
 
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
     const sheet    = workbook.Sheets[workbook.SheetNames[0]];
@@ -453,7 +458,7 @@ router.post('/students/upload', adminOnly, upload.single('file'), async (req, re
         if (!class_name) { errors.push(`Row ${i + 2}: Class is required`);            continue; }
 
         if (!adm) {
-          if (!prefix || !year) { errors.push(`Row ${i + 2}: Admission No. blank but no prefix/year provided`); continue; }
+          if (!prefix || !year) { errors.push(`Row ${i + 2}: Admission No. blank — set Admission Prefix and Year in School Settings first`); continue; }
           adm = `${prefix}${String(nextSerial).padStart(3, '0')}${year}`;
           nextSerial++;
         }

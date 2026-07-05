@@ -395,7 +395,8 @@ router.get('/settings', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT id, name, code, email, phone, address, primary_color, accent_color, logo_url,
               period_duration_minutes, ca_percentage,
-              school_type, school_category, motto, region, district
+              school_type, school_category, motto, region, district,
+              admission_prefix, admission_year
        FROM schools WHERE id = $1`,
       [req.schoolId]
     );
@@ -407,19 +408,21 @@ router.get('/settings', async (req, res, next) => {
 // PATCH /api/admin/settings/info — update general school information
 router.patch('/settings/info', adminOnly, async (req, res, next) => {
   try {
-    const { name, address, phone, email, school_type, school_category, motto, region, district } = req.body;
+    const { name, address, phone, email, school_type, school_category, motto, region, district, admission_prefix, admission_year } = req.body;
     const fields = [];
     const vals   = [req.schoolId];
     const add    = (col, val) => { if (val !== undefined) { fields.push(`${col}=$${vals.length + 1}`); vals.push(val || null); } };
-    add('name',            name);
-    add('address',         address);
-    add('phone',           phone);
-    add('email',           email);
-    add('school_type',     school_type);
-    add('school_category', school_category);
-    add('motto',           motto);
-    add('region',          region);
-    add('district',        district);
+    add('name',             name);
+    add('address',          address);
+    add('phone',            phone);
+    add('email',            email);
+    add('school_type',      school_type);
+    add('school_category',  school_category);
+    add('motto',            motto);
+    add('region',           region);
+    add('district',         district);
+    add('admission_prefix', admission_prefix);
+    add('admission_year',   admission_year);
     if (!fields.length) return res.status(400).json({ error: 'No fields to update' });
     const { rows } = await pool.query(
       `UPDATE schools SET ${fields.join(', ')} WHERE id=$1
