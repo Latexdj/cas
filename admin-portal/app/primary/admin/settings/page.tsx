@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import { getUser } from '@/lib/auth';
 
 interface SchoolSettings {
   id: string; name: string; code: string; address: string | null; phone: string | null;
@@ -23,9 +22,7 @@ export default function PrimarySettingsPage() {
   const [error,   setError]   = useState('');
 
   useEffect(() => {
-    const user = getUser();
-    if (!user) return;
-    api.get<SchoolSettings>(`/api/schools/${user.schoolId}`)
+    api.get<SchoolSettings>('/api/admin/settings')
       .then(r => { setData(r.data); setForm(r.data); })
       .catch(() => setError('Failed to load school settings.'))
       .finally(() => setLoading(false));
@@ -35,15 +32,13 @@ export default function PrimarySettingsPage() {
     if (!data) return;
     setSaving(true); setError(''); setSaved(false);
     try {
-      await api.put(`/api/schools/${data.id}`, {
+      await api.patch('/api/admin/settings/info', {
         name:            form.name,
         address:         form.address,
         phone:           form.phone,
         email:           form.email,
         school_type:     form.school_type,
         school_category: form.school_category,
-        primary_color:   form.primary_color,
-        accent_color:    form.accent_color,
         motto:           form.motto,
         region:          form.region,
         district:        form.district,
