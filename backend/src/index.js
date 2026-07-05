@@ -1487,6 +1487,21 @@ async function runMigrations() {
       )
       ON CONFLICT DO NOTHING
     `);
+    // Teacher daily attendance for primary schools
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_teacher_attendance (
+        id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id  UUID         NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id UUID         NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        date       DATE         NOT NULL,
+        status     TEXT         NOT NULL DEFAULT 'present' CHECK (status IN ('present','absent','late','excused')),
+        notes      TEXT,
+        marked_by  UUID         REFERENCES teachers(id),
+        created_at TIMESTAMPTZ  DEFAULT now(),
+        UNIQUE (school_id, teacher_id, date)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_ta_date ON primary_teacher_attendance(school_id, date)`);
 
     console.log('Migrations OK');
   } catch (err) {

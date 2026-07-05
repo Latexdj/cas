@@ -116,16 +116,19 @@ router.post('/login', loginLimiter, (req, res, next) => {
       );
       // Include school colors + level so the app can update its theme and route to the right portal
       const { rows: colorRows } = await pool.query(
-        `SELECT primary_color, accent_color, logo_url, school_level FROM schools WHERE id = $1`, [schoolId]
+        `SELECT primary_color, accent_color, logo_url, school_level, school_type FROM schools WHERE id = $1`, [schoolId]
       );
       const schoolColors = colorRows[0] ?? {};
+      // Derive portal level from school_type first, then school_level column
+      const isPrimary = ['Nursery', 'KG', 'Primary'].includes(schoolColors.school_type)
+                     || schoolColors.school_level === 'primary';
       return res.json({
         token, role, id: teacher.id, name: teacher.name, schoolId,
         management_role: teacher.management_role ?? null,
         primary_color:   schoolColors.primary_color  ?? '#0B3D2E',
         accent_color:    schoolColors.accent_color   ?? '#C8973A',
         logo_url:        schoolColors.logo_url       ?? null,
-        school_level:    schoolColors.school_level   ?? 'secondary',
+        school_level:    isPrimary ? 'primary' : 'secondary',
       });
     }
 

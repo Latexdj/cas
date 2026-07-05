@@ -642,6 +642,77 @@ async function recalcPositions(schoolId, termId) {
   }
 }
 
+// ── TEACHER ATTENDANCE ────────────────────────────────────────────────────────
+
+// GET /api/primary/teacher-attendance?date=
+router.get('/teacher-attendance', async (req, res, next) => {
+  try {
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ error: 'date is required' });
+    const { rows } = await pool.query(
+      `SELECT t.id AS teacher_id, t.name AS teacher_name, t.teacher_code,
+              COALESCE(a.status, 'present') AS status, a.notes, a.id AS attendance_id
+       FROM teachers t
+       LEFT JOIN primary_teacher_attendance a ON a.teacher_id=t.id AND a.school_id=$1 AND a.date=$2
+       WHERE t.school_id=$1 AND t.status='Active'
+       ORDER BY t.name`,
+      [req.schoolId, date]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// GET /api/primary/teacher-attendance/summary?month=YYYY-MM
+router.get('/teacher-attendance/summary', adminOnly, async (req, res, next) => {
+  try {
+    const { month } = req.query; // e.g. '2025-01'
+    if (!month) return res.status(400).json({ error: 'month is required (YYYY-MM)' });
+    const start = `${month}-01`;
+    const end   = `${month}-31`;
+    const { rows } = await pool.query(
+      `SELECT t.id AS teacher_id, t.name AS teacher_name, t.teacher_code,
+              COUNT(CASE WHEN a.status='present' THEN 1 END)::int AS present_days,
+              COUNT(CASE WHEN a.status='absent'  THEN 1 END)::int AS absent_days,
+              COUNT(CASE WHEN a.status='late'    THEN 1 END)::int AS late_days,
+              COUNT(CASE WHEN a.status='excused' THEN 1 END)::int AS excused_days,
+              COUNT(a.id)::int AS total_marked
+       FROM teachers t
+       LEFT JOIN primary_teacher_attendance a
+         ON a.teacher_id=t.id AND a.school_id=$1 AND a.date BETWEEN $2::date AND $3::date
+       WHERE t.school_id=$1 AND t.status='Active'
+       GROUP BY t.id, t.name, t.teacher_code
+       ORDER BY t.name`,
+      [req.schoolId, start, end]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/teacher-attendance — bulk mark teacher attendance for a date
+router.post('/teacher-attendance', adminOnly, async (req, res, next) => {
+  try {
+    const { date, records } = req.body;
+    if (!date || !Array.isArray(records))
+      return res.status(400).json({ error: 'date and records[] are required' });
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const r of records) {
+        await client.query(
+          `INSERT INTO primary_teacher_attendance (school_id, teacher_id, date, status, notes, marked_by)
+           VALUES ($1,$2,$3,$4,$5,$6)
+           ON CONFLICT (school_id, teacher_id, date)
+           DO UPDATE SET status=$4, notes=$5, marked_by=$6`,
+          [req.schoolId, r.teacher_id, date, r.status || 'present', r.notes || null, req.user.id]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+    res.json({ message: `Saved for ${records.length} teachers` });
+  } catch (err) { next(err); }
+});
+
 // ── GRADE SCALE ───────────────────────────────────────────────────────────────
 
 // GET /api/primary/grade-scale

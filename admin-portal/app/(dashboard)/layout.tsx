@@ -42,6 +42,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const user = getUser();
     if (!user) {
       router.replace('/login');
+    } else if (typeof window !== 'undefined' && localStorage.getItem('cas_school_level') === 'primary') {
+      router.replace('/primary/admin/dashboard');
     } else {
       setReady(true);
     }

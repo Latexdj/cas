@@ -1,0 +1,271 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api } from '@/lib/api';
+
+interface Teacher {
+  id: string; name: string; teacher_code: string; email: string | null;
+  phone: string | null; gender: string | null; status: string;
+  is_admin: boolean; gov_staff_id: string | null; rank: string | null;
+  department: string | null; date_of_birth: string | null;
+}
+
+const EMPTY_FORM = {
+  teacher_code: '', name: '', email: '', phone: '', gender: '', status: 'Active',
+  is_admin: false, password: '', gov_staff_id: '', rank: '', department: '',
+  date_of_birth: '', ghana_card_number: '', residential_address: '',
+  emergency_contact_name: '', emergency_contact_phone: '',
+};
+type Form = typeof EMPTY_FORM;
+
+const GES_RANKS = ['Pupil Teacher','Teacher II','Teacher I','Senior Teacher II','Senior Teacher I','Assistant Superintendent II','Assistant Superintendent I','Superintendent','Senior Superintendent','Principal Superintendent','Assistant Director II','Assistant Director I','Deputy Director','Director'];
+
+const STATUS_COLORS: Record<string, string> = {
+  Active:  'text-green-700 bg-green-50 border-green-200',
+  Inactive:'text-slate-500 bg-slate-100 border-slate-200',
+};
+
+export default function PrimaryTeachersPage() {
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [search,   setSearch]   = useState('');
+  const [filter,   setFilter]   = useState('');
+  const [modal,    setModal]    = useState<'create'|'edit'|'pin'|null>(null);
+  const [form,     setForm]     = useState<Form>(EMPTY_FORM);
+  const [editId,   setEditId]   = useState('');
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState('');
+  const [pinTarget, setPinTarget] = useState<Teacher|null>(null);
+  const [pinInput,  setPinInput]  = useState('');
+  const [pinSaving, setPinSaving] = useState(false);
+  const [pinError,  setPinError]  = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string> = {};
+      if (search) params.search = search;
+      if (filter) params.status = filter;
+      const { data } = await api.get<Teacher[]>('/api/teachers', { params });
+      setTeachers(data);
+    } catch { setError('Failed to load teachers.'); }
+    finally { setLoading(false); }
+  }, [search, filter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function openCreate() {
+    setEditId(''); setForm(EMPTY_FORM); setError(''); setModal('create');
+  }
+  function openEdit(t: Teacher) {
+    setEditId(t.id);
+    setForm({ ...EMPTY_FORM, teacher_code: t.teacher_code, name: t.name, email: t.email ?? '', phone: t.phone ?? '', gender: t.gender ?? '', status: t.status, is_admin: t.is_admin, gov_staff_id: t.gov_staff_id ?? '', rank: t.rank ?? '', department: t.department ?? '', date_of_birth: t.date_of_birth?.slice(0,10) ?? '', ghana_card_number: '', residential_address: '', emergency_contact_name: '', emergency_contact_phone: '' });
+    setError(''); setModal('edit');
+  }
+  function openPin(t: Teacher) { setPinTarget(t); setPinInput(''); setPinError(''); setModal('pin'); }
+
+  async function save() {
+    if (!form.teacher_code.trim() || !form.name.trim())
+      return setError('Teacher ID and name are required.');
+    setSaving(true); setError('');
+    try {
+      if (editId) {
+        await api.put(`/api/teachers/${editId}`, form);
+      } else {
+        if (!form.password.trim()) return setError('Password is required for new teachers.');
+        await api.post('/api/teachers', form);
+      }
+      setModal(null); load();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Save failed.');
+    } finally { setSaving(false); }
+  }
+
+  async function savePin() {
+    if (!pinInput.trim() || pinInput.length < 4) return setPinError('PIN must be at least 4 characters.');
+    setPinSaving(true); setPinError('');
+    try {
+      await api.post(`/api/teachers/${pinTarget!.id}/reset-pin`, { new_pin: pinInput });
+      setModal(null);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setPinError(msg ?? 'Reset failed.');
+    } finally { setPinSaving(false); }
+  }
+
+  async function del(id: string) {
+    if (!confirm('Delete this teacher? This cannot be undone.')) return;
+    try { await api.delete(`/api/teachers/${id}`); load(); }
+    catch { setError('Delete failed.'); }
+  }
+
+  const F = (label: string, field: keyof Form, type = 'text', opts?: string[]) => (
+    <div>
+      <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
+      {opts ? (
+        <select value={String(form[field])} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2" style={{ '--tw-ring-color': '#15803D' } as React.CSSProperties}>
+          <option value="">Select…</option>
+          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      ) : (
+        <input type={type} value={String(form[field])} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2" style={{ '--tw-ring-color': '#15803D' } as React.CSSProperties} />
+      )}
+    </div>
+  );
+
+  const filtered = teachers.filter(t => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return t.name.toLowerCase().includes(q) || t.teacher_code.toLowerCase().includes(q) || (t.email ?? '').toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Teachers</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{teachers.length} staff member{teachers.length !== 1 ? 's' : ''}</p>
+        </div>
+        <button onClick={openCreate}
+          className="px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+          style={{ backgroundColor: '#15803D' }}>
+          + Add Teacher
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex flex-wrap gap-3 items-center">
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or ID…"
+          onKeyDown={e => e.key === 'Enter' && load()}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2" style={{ '--tw-ring-color': '#15803D' } as React.CSSProperties} />
+        <select value={filter} onChange={e => setFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-700">
+          <option value="">All Status</option>
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+        <button onClick={load} className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#15803D' }}>Search</button>
+      </div>
+
+      {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>}
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                {['Teacher ID','Name','Gender','Phone','Email','Role','Status','Actions'].map(h => (
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                <tr><td colSpan={8} className="text-center py-12">
+                  <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                </td></tr>
+              ) : filtered.map(t => (
+                <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-3 py-2.5">
+                    <span className="font-mono font-bold text-xs px-2 py-0.5 rounded border" style={{ color: '#15803D', backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }}>{t.teacher_code}</span>
+                  </td>
+                  <td className="px-3 py-2.5 font-medium text-slate-900">{t.name}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{t.gender ?? '—'}</td>
+                  <td className="px-3 py-2.5 text-slate-600">{t.phone ?? '—'}</td>
+                  <td className="px-3 py-2.5 text-slate-600 max-w-[160px] truncate">{t.email ?? '—'}</td>
+                  <td className="px-3 py-2.5">
+                    {t.is_admin ? (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full text-blue-700 bg-blue-50 border border-blue-200">Admin</span>
+                    ) : (
+                      <span className="text-xs text-slate-400">Teacher</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${STATUS_COLORS[t.status] ?? ''}`}>{t.status}</span>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex gap-2">
+                      <button onClick={() => openEdit(t)} className="text-xs px-2.5 py-1 rounded-md border border-gray-200 text-slate-700 hover:bg-gray-100">Edit</button>
+                      <button onClick={() => openPin(t)} className="text-xs px-2.5 py-1 rounded-md border border-amber-200 text-amber-700 hover:bg-amber-50">PIN</button>
+                      <button onClick={() => del(t.id)} className="text-xs px-2.5 py-1 rounded-md border border-red-200 text-red-600 hover:bg-red-50">Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!loading && filtered.length === 0 && (
+                <tr><td colSpan={8} className="text-center py-12 text-slate-400 text-sm">No teachers found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Create/Edit Modal */}
+      {(modal === 'create' || modal === 'edit') && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto py-6 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl my-auto">
+            <div className="sticky top-0 bg-white rounded-t-2xl px-6 py-4 border-b border-gray-100 flex items-center justify-between z-10">
+              <h2 className="font-bold text-slate-900">{editId ? 'Edit Teacher' : 'Add Teacher'}</h2>
+              <button onClick={() => setModal(null)} className="text-slate-400 hover:text-slate-600">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="px-6 py-5 grid grid-cols-2 gap-4">
+              {F('Teacher ID *', 'teacher_code')}
+              {F('Full Name *', 'name')}
+              {!editId && F('Password *', 'password', 'password')}
+              {F('Email', 'email', 'email')}
+              {F('Phone', 'phone', 'tel')}
+              {F('Gender', 'gender', 'text', ['Male','Female'])}
+              {F('GES Rank', 'rank', 'text', GES_RANKS)}
+              {F('Gov. Staff ID', 'gov_staff_id')}
+              {F('Date of Birth', 'date_of_birth', 'date')}
+              {F('Ghana Card No.', 'ghana_card_number')}
+              {F('Status', 'status', 'text', ['Active','Inactive'])}
+              <div className="col-span-full flex items-center gap-2">
+                <input type="checkbox" id="is_admin" checked={form.is_admin} onChange={e => setForm(f => ({ ...f, is_admin: e.target.checked }))} className="rounded border-gray-300" />
+                <label htmlFor="is_admin" className="text-sm text-slate-700 cursor-pointer">Grant admin portal access</label>
+              </div>
+              <div className="col-span-full">{F('Residential Address', 'residential_address')}</div>
+              {F('Emergency Contact Name', 'emergency_contact_name')}
+              {F('Emergency Contact Phone', 'emergency_contact_phone', 'tel')}
+            </div>
+            {error && <p className="mx-6 mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+            <div className="sticky bottom-0 bg-white rounded-b-2xl px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+              <button onClick={() => setModal(null)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-gray-200 hover:bg-gray-50">Cancel</button>
+              <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+                {saving ? 'Saving…' : 'Save Teacher'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PIN Reset Modal */}
+      {modal === 'pin' && pinTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="font-bold text-slate-900">Reset PIN — {pinTarget.name}</h2>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">New Password / PIN</label>
+              <input type="password" value={pinInput} onChange={e => setPinInput(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" placeholder="Min. 4 characters" />
+            </div>
+            {pinError && <p className="text-sm text-red-600">{pinError}</p>}
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setModal(null)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-gray-200 hover:bg-gray-50">Cancel</button>
+              <button onClick={savePin} disabled={pinSaving} className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+                {pinSaving ? 'Resetting…' : 'Reset PIN'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
