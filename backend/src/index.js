@@ -1503,6 +1503,19 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_ta_date ON primary_teacher_attendance(school_id, date)`);
 
+    // School-defined class list for primary schools
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_classes (
+        id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id  UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        class_name TEXT        NOT NULL,
+        sort_order INT         DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        UNIQUE(school_id, class_name)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_classes_school ON primary_classes(school_id, sort_order)`);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

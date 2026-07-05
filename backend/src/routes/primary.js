@@ -357,6 +357,122 @@ router.delete('/class-teachers/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── CLASSES (school-defined class list) ──────────────────────────────────────
+
+// GET /api/primary/classes?academic_year_id=
+router.get('/classes', adminOnly, async (req, res, next) => {
+  try {
+    let { academic_year_id } = req.query;
+    if (!academic_year_id) {
+      const { rows: ay } = await pool.query(
+        `SELECT id FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1`, [req.schoolId]
+      );
+      academic_year_id = ay[0]?.id ?? null;
+    }
+    const { rows } = await pool.query(
+      `SELECT
+         c.id, c.class_name, c.sort_order,
+         ct.id          AS assignment_id,
+         t.id           AS teacher_id,
+         t.name         AS teacher_name,
+         (SELECT COUNT(*) FROM primary_students s
+          WHERE s.school_id=c.school_id AND LOWER(s.class_name)=LOWER(c.class_name) AND s.status='Active')::int AS student_count
+       FROM primary_classes c
+       LEFT JOIN primary_class_teachers ct
+         ON ct.school_id=c.school_id AND LOWER(ct.class_name)=LOWER(c.class_name)
+            AND ct.academic_year_id=$2
+       LEFT JOIN teachers t ON t.id=ct.teacher_id
+       WHERE c.school_id=$1
+       ORDER BY c.sort_order, c.class_name`,
+      [req.schoolId, academic_year_id]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/classes
+router.post('/classes', adminOnly, async (req, res, next) => {
+  try {
+    const { class_name, sort_order } = req.body;
+    if (!class_name?.trim()) return res.status(400).json({ error: 'class_name is required' });
+    const { rows } = await pool.query(
+      `INSERT INTO primary_classes (school_id, class_name, sort_order)
+       VALUES ($1,$2,$3) RETURNING *`,
+      [req.schoolId, class_name.trim(), sort_order ?? 0]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A class with this name already exists' });
+    next(err);
+  }
+});
+
+// PUT /api/primary/classes/:id
+router.put('/classes/:id', adminOnly, async (req, res, next) => {
+  try {
+    const { class_name, sort_order } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE primary_classes SET class_name=COALESCE($1,class_name), sort_order=COALESCE($2,sort_order)
+       WHERE id=$3 AND school_id=$4 RETURNING *`,
+      [class_name?.trim() ?? null, sort_order ?? null, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Class not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A class with this name already exists' });
+    next(err);
+  }
+});
+
+// DELETE /api/primary/classes/:id
+router.delete('/classes/:id', adminOnly, async (req, res, next) => {
+  try {
+    const { rows: cls } = await pool.query(
+      `SELECT class_name FROM primary_classes WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]
+    );
+    if (!cls.length) return res.status(404).json({ error: 'Class not found' });
+    const { rows: studs } = await pool.query(
+      `SELECT COUNT(*) AS cnt FROM primary_students
+       WHERE school_id=$1 AND LOWER(class_name)=LOWER($2) AND status='Active'`,
+      [req.schoolId, cls[0].class_name]
+    );
+    if (parseInt(studs[0].cnt) > 0)
+      return res.status(400).json({ error: `Cannot delete: ${studs[0].cnt} active student(s) are in this class. Move them first.` });
+    await pool.query(`DELETE FROM primary_classes WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]);
+    res.json({ message: 'Class deleted' });
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/assign-students — bulk-assign students to a class
+router.post('/assign-students', adminOnly, async (req, res, next) => {
+  try {
+    const { student_ids, class_name } = req.body;
+    if (!class_name || !Array.isArray(student_ids) || !student_ids.length)
+      return res.status(400).json({ error: 'class_name and student_ids[] are required' });
+    const { rowCount } = await pool.query(
+      `UPDATE primary_students SET class_name=$1, updated_at=now()
+       WHERE id=ANY($2::uuid[]) AND school_id=$3`,
+      [class_name, student_ids, req.schoolId]
+    );
+    res.json({ message: `${rowCount} student(s) assigned to ${class_name}` });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/primary/students/:id/move-class — move a single student to a different class
+router.put('/students/:id/move-class', adminOnly, async (req, res, next) => {
+  try {
+    const { class_name } = req.body;
+    if (!class_name) return res.status(400).json({ error: 'class_name is required' });
+    const { rows } = await pool.query(
+      `UPDATE primary_students SET class_name=$1, updated_at=now()
+       WHERE id=$2 AND school_id=$3 RETURNING id, surname, other_names, class_name`,
+      [class_name, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Student not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
 // ── SUBJECTS ──────────────────────────────────────────────────────────────────
 
 // GET /api/primary/subjects?class_name=
