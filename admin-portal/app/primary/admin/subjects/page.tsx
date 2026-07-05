@@ -22,12 +22,12 @@ const GES_DEFAULTS: Record<string, string[]> = {
   'Nursery 2': ['Literacy','Numeracy','Creative Arts','Physical Development','Environmental Studies'],
   'KG 1':     ['Literacy','Numeracy','Environmental Studies','Creative Arts','RME','Physical Development'],
   'KG 2':     ['Literacy','Numeracy','Environmental Studies','Creative Arts','RME','Physical Development'],
-  'Basic 1':  ['English Language','Mathematics','Science','Social Studies','RME','Creative Arts','Ghanaian Language'],
-  'Basic 2':  ['English Language','Mathematics','Science','Social Studies','RME','Creative Arts','Ghanaian Language'],
-  'Basic 3':  ['English Language','Mathematics','Science','Social Studies','RME','Creative Arts','Ghanaian Language'],
-  'Basic 4':  ['English Language','Mathematics','Integrated Science','Social Studies','RME','Creative Arts','Ghanaian Language','French','Computing'],
-  'Basic 5':  ['English Language','Mathematics','Integrated Science','Social Studies','RME','Creative Arts','Ghanaian Language','French','Computing'],
-  'Basic 6':  ['English Language','Mathematics','Integrated Science','Social Studies','RME','Creative Arts','Ghanaian Language','French','Computing'],
+  'Basic 1':  ['Science','English Language','Mathematics','Creative Arts','Ghanaian Language','Our World Our People (OWAP)','History','Physical Education (PE)','Religious & Moral Education (RME)'],
+  'Basic 2':  ['Science','English Language','Mathematics','Creative Arts','Ghanaian Language','Our World Our People (OWAP)','History','Physical Education (PE)','Religious & Moral Education (RME)'],
+  'Basic 3':  ['Science','English Language','Mathematics','Creative Arts','Ghanaian Language','Our World Our People (OWAP)','History','Physical Education (PE)','Religious & Moral Education (RME)'],
+  'Basic 4':  ['Science','English Language','Mathematics','Creative Arts','Ghanaian Language','Our World Our People (OWAP)','History','Physical Education (PE)','Computing','Religious & Moral Education (RME)'],
+  'Basic 5':  ['Science','English Language','Mathematics','Creative Arts','Ghanaian Language','Our World Our People (OWAP)','History','Physical Education (PE)','Computing','Religious & Moral Education (RME)'],
+  'Basic 6':  ['Science','English Language','Mathematics','Creative Arts','Ghanaian Language','Our World Our People (OWAP)','History','Physical Education (PE)','Computing','Religious & Moral Education (RME)'],
   'JHS 1':   ['English Language','Mathematics','Integrated Science','Social Studies','RME','Creative Arts','Ghanaian Language','French','Computing','Career Technology'],
   'JHS 2':   ['English Language','Mathematics','Integrated Science','Social Studies','RME','Creative Arts','Ghanaian Language','French','Computing','Career Technology'],
   'JHS 3':   ['English Language','Mathematics','Integrated Science','Social Studies','RME','Creative Arts','Ghanaian Language','French','Computing','Career Technology'],
@@ -279,7 +279,8 @@ export default function PrimarySubjectsPage() {
                       {s.description ? ` · ${s.description}` : ''}
                     </p>
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  {/* Always visible on touch; hover-reveal on desktop */}
+                  <div className="flex gap-1 flex-shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button onClick={() => { setEditItem(s); setModal('edit'); }}
                       className="p-1.5 rounded-md hover:bg-gray-200 text-slate-400 hover:text-slate-700" title="Edit">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
@@ -368,44 +369,43 @@ export default function PrimarySubjectsPage() {
                   const d = drafts[s.catalog_id] ?? { assigned: false, cs: '30', ex: '70' };
                   return (
                     <div key={s.catalog_id}
-                      className={`flex items-center gap-3 px-4 py-3 transition-colors ${d.assigned ? 'bg-green-50/50' : 'hover:bg-gray-50'}`}>
-                      {/* Checkbox */}
-                      <input type="checkbox" checked={d.assigned}
-                        onChange={e => setDrafts(prev => ({
-                          ...prev,
-                          [s.catalog_id]: { ...prev[s.catalog_id], assigned: e.target.checked }
-                        }))}
-                        className="w-4 h-4 rounded accent-green-600 flex-shrink-0 cursor-pointer" />
-
-                      {/* Subject name */}
-                      <span className={`text-sm flex-1 ${d.assigned ? 'font-semibold text-slate-900' : 'text-slate-500'}`}>
-                        {s.subject_name}
-                      </span>
-
-                      {/* Score weights — only shown when assigned */}
+                      className={`px-4 py-3 transition-colors ${d.assigned ? 'bg-green-50/50' : 'hover:bg-gray-50'}`}>
+                      {/* Top row: checkbox + subject name */}
+                      <div className="flex items-center gap-3">
+                        <input type="checkbox" checked={d.assigned}
+                          onChange={e => setDrafts(prev => ({
+                            ...prev,
+                            [s.catalog_id]: { ...prev[s.catalog_id], assigned: e.target.checked }
+                          }))}
+                          className="w-4 h-4 rounded accent-green-600 flex-shrink-0 cursor-pointer" />
+                        <span className={`text-sm ${d.assigned ? 'font-semibold text-slate-900' : 'text-slate-500'}`}>
+                          {s.subject_name}
+                        </span>
+                      </div>
+                      {/* Score weights — shown below when assigned, indented to align with text */}
                       {d.assigned && (
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <div className="flex items-center gap-1">
-                            <label className="text-xs text-slate-400 whitespace-nowrap">Class /</label>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-2 ml-7">
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-xs text-slate-400 whitespace-nowrap">Class score /</label>
                             <input type="number" value={d.cs}
                               onChange={e => setDrafts(prev => ({
                                 ...prev,
                                 [s.catalog_id]: { ...prev[s.catalog_id], cs: e.target.value }
                               }))}
                               min={0} max={100} step={1}
-                              className="w-14 border border-gray-200 rounded-md px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-green-500" />
+                              className="w-16 border border-gray-200 rounded-md px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-green-500" />
                           </div>
-                          <div className="flex items-center gap-1">
-                            <label className="text-xs text-slate-400 whitespace-nowrap">Exam /</label>
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-xs text-slate-400 whitespace-nowrap">Exam score /</label>
                             <input type="number" value={d.ex}
                               onChange={e => setDrafts(prev => ({
                                 ...prev,
                                 [s.catalog_id]: { ...prev[s.catalog_id], ex: e.target.value }
                               }))}
                               min={0} max={100} step={1}
-                              className="w-14 border border-gray-200 rounded-md px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-green-500" />
+                              className="w-16 border border-gray-200 rounded-md px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-green-500" />
                           </div>
-                          <span className="text-xs text-slate-400 w-14 text-right">
+                          <span className="text-xs text-slate-400">
                             = {(parseFloat(d.cs) || 0) + (parseFloat(d.ex) || 0)}
                           </span>
                         </div>

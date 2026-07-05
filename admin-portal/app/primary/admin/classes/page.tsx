@@ -338,6 +338,7 @@ export default function PrimaryClassesPage() {
   const [roster,      setRoster]      = useState<Student[]>([]);
   const [rosterLoad,  setRosterLoad]  = useState(false);
   const [rosterSearch, setRosterSearch] = useState('');
+  const [mobileDetail, setMobileDetail] = useState(false);
 
   // Modals
   const [classModal,   setClassModal]   = useState<'create'|'edit'|null>(null);
@@ -395,6 +396,7 @@ export default function PrimaryClassesPage() {
   function selectClass(cls: ClassItem) {
     setSelected(cls);
     loadRoster(cls);
+    setMobileDetail(true);
   }
 
   async function deleteClass(cls: ClassItem) {
@@ -423,9 +425,9 @@ export default function PrimaryClassesPage() {
   });
 
   return (
-    <div className="-m-6 flex gap-0 overflow-hidden" style={{ minHeight: 'calc(100vh - 112px)' }}>
+    <div className="-m-6 flex flex-col md:flex-row gap-0 overflow-hidden" style={{ minHeight: 'calc(100vh - 112px)' }}>
       {/* ── Left: Class list ── */}
-      <aside className="w-64 flex-shrink-0 flex flex-col bg-white border-r border-gray-100 overflow-hidden">
+      <aside className={`${mobileDetail ? 'hidden' : 'flex'} md:flex flex-col flex-shrink-0 bg-white border-r border-gray-100 overflow-hidden w-full md:w-64`}>
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
           <div>
             <h1 className="text-sm font-bold text-slate-900">Classes</h1>
@@ -462,10 +464,11 @@ export default function PrimaryClassesPage() {
               const active = selected?.id === cls.id;
               return (
                 <div key={cls.id} onClick={() => selectClass(cls)}
-                  className={`px-3 py-2.5 cursor-pointer border-l-2 transition-all ${active ? 'border-green-500 bg-green-50' : 'border-transparent hover:bg-gray-50'}`}>
+                  className={`group px-3 py-2.5 cursor-pointer border-l-2 transition-all ${active ? 'border-green-500 bg-green-50' : 'border-transparent hover:bg-gray-50'}`}>
                   <div className="flex items-center justify-between gap-1">
                     <p className={`text-sm font-semibold truncate ${active ? 'text-green-700' : 'text-slate-800'}`}>{cls.class_name}</p>
-                    <div className="flex gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100">
+                    {/* Visible on mobile; hover-reveal on desktop */}
+                    <div className="flex gap-0.5 flex-shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button onClick={e => { e.stopPropagation(); setSelected(cls); setClassModal('edit'); }}
                         className="p-1 rounded hover:bg-gray-200 text-slate-400 hover:text-slate-600" title="Rename">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
@@ -494,7 +497,19 @@ export default function PrimaryClassesPage() {
       </aside>
 
       {/* ── Right: Class detail ── */}
-      <main className="flex-1 overflow-y-auto bg-gray-50/50 min-w-0">
+      <main className={`${mobileDetail ? 'flex' : 'hidden'} md:flex flex-col flex-1 overflow-y-auto bg-gray-50/50 min-w-0`}>
+        {/* Back button — mobile only */}
+        {mobileDetail && (
+          <div className="md:hidden px-4 py-2.5 border-b border-gray-100 bg-white flex-shrink-0">
+            <button onClick={() => { setMobileDetail(false); setSelected(null); }}
+              className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: '#15803D' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <path d="M15 19l-7-7 7-7" />
+              </svg>
+              All Classes
+            </button>
+          </div>
+        )}
         {!selected ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-6 py-20">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ backgroundColor: '#F0FDF4' }}>
@@ -513,14 +528,14 @@ export default function PrimaryClassesPage() {
             )}
           </div>
         ) : (
-          <div className="p-6 space-y-5 max-w-3xl">
+          <div className="p-4 sm:p-6 space-y-5 max-w-3xl">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-start gap-3 justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">{selected.class_name}</h2>
                 <p className="text-sm text-slate-500 mt-0.5">{selected.student_count} active student{selected.student_count !== 1 ? 's' : ''}</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-shrink-0">
                 <Btn variant="secondary" small onClick={() => setClassModal('edit')}>Rename</Btn>
                 <Btn variant="danger" small onClick={() => deleteClass(selected)}>Delete Class</Btn>
               </div>
@@ -553,13 +568,13 @@ export default function PrimaryClassesPage() {
 
             {/* Students */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-3">
-                <h3 className="text-sm font-bold text-slate-700 flex-1">
+              <div className="px-5 py-3.5 border-b border-gray-100 flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-700 flex-1 min-w-0">
                   Students <span className="text-slate-400 font-normal">({roster.length})</span>
                 </h3>
                 <input value={rosterSearch} onChange={e => setRosterSearch(e.target.value)}
                   placeholder="Search…"
-                  className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs w-36 focus:outline-none focus:ring-1 focus:ring-green-500" />
+                  className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs w-full sm:w-36 focus:outline-none focus:ring-1 focus:ring-green-500" />
                 <Btn small onClick={() => setAddStudModal(true)}>+ Add Students</Btn>
               </div>
 
