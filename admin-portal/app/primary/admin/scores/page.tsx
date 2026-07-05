@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { api } from '@/lib/api';
 
 interface Term    { id: string; name: string; is_current: boolean; }
@@ -25,6 +25,13 @@ export default function PrimaryScoresAdminPage() {
   const [saving,     setSaving]     = useState(false);
   const [saved,      setSaved]      = useState(false);
   const [error,      setError]      = useState('');
+
+  // Excel template / upload state
+  const [uploadModal,    setUploadModal]    = useState<'single'|'class'|null>(null);
+  const [uploadFile,     setUploadFile]     = useState<File | null>(null);
+  const [uploading,      setUploading]      = useState(false);
+  const [uploadResult,   setUploadResult]   = useState<{ count?: number; errors: string[] } | null>(null);
+  const uploadFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.get<Term[]>('/api/primary/terms').then(r => {
@@ -78,21 +85,76 @@ export default function PrimaryScoresAdminPage() {
     } finally { setSaving(false); }
   }
 
+  async function downloadScoreTemplate(type: 'single' | 'class') {
+    if (!termId || !className) return;
+    try {
+      let url: string;
+      let filename: string;
+      if (type === 'single') {
+        if (!selSubject) return;
+        url      = `/api/primary/scores/template?term_id=${termId}&class_name=${encodeURIComponent(className)}&subject_id=${selSubject}`;
+        filename = `scores_${className}_subject.xlsx`;
+      } else {
+        url      = `/api/primary/scores/class-template?term_id=${termId}&class_name=${encodeURIComponent(className)}`;
+        filename = `scores_${className}_all_subjects.xlsx`;
+      }
+      const res = await api.get(url, { responseType: 'blob' });
+      const blobUrl = URL.createObjectURL(new Blob([res.data]));
+      const a   = document.createElement('a');
+      a.href    = blobUrl;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+    } catch { setError('Failed to download template.'); }
+  }
+
+  async function submitScoreUpload() {
+    if (!uploadFile || !termId) return;
+    setUploading(true); setUploadResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', uploadFile);
+      fd.append('term_id', termId);
+      if (uploadModal === 'single') fd.append('subject_id', selSubject);
+      const endpoint = uploadModal === 'single' ? '/api/primary/scores/upload' : '/api/primary/scores/class-upload';
+      const { data } = await api.post(endpoint, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setUploadResult({ count: data.count, errors: data.errors ?? [] });
+      if (!data.errors?.length) load();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setUploadResult({ errors: [msg ?? 'Upload failed.'] });
+    } finally { setUploading(false); }
+  }
+
   const activeSubject = subjects.find(s => s.id === selSubject);
   const existing = scoreMap[selSubject] ?? {};
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Score Entry</h1>
           <p className="text-sm text-slate-500 mt-0.5">Enter class and exam scores per subject and term</p>
         </div>
-        <button onClick={save} disabled={saving || loading || !selSubject}
-          className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 shadow-sm"
-          style={{ backgroundColor: '#15803D' }}>
-          {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Scores'}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {termId && className && selSubject && (
+            <button onClick={() => { setUploadResult(null); setUploadFile(null); setUploadModal('single'); }}
+              className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50">
+              Upload Scores
+            </button>
+          )}
+          {termId && className && (
+            <button onClick={() => { setUploadResult(null); setUploadFile(null); setUploadModal('class'); }}
+              className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50">
+              All-Subjects Upload
+            </button>
+          )}
+          <button onClick={save} disabled={saving || loading || !selSubject}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 shadow-sm"
+            style={{ backgroundColor: '#15803D' }}>
+            {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Scores'}
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -181,6 +243,57 @@ export default function PrimaryScoresAdminPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Score Upload Modal (single subject or all subjects) */}
+      {uploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="font-bold text-slate-900">
+                {uploadModal === 'single' ? 'Upload Scores — ' + (activeSubject?.subject_name ?? '') : 'Upload All-Subjects Scores'}
+              </h2>
+              <button onClick={() => setUploadModal(null)} className="text-slate-400 hover:text-slate-600">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-slate-50 rounded-lg px-4 py-3 text-sm text-slate-600 space-y-1">
+                <p className="font-semibold text-slate-700">Step 1 — Download the template</p>
+                <button onClick={() => downloadScoreTemplate(uploadModal)} className="text-green-700 font-semibold hover:underline text-sm">
+                  {uploadModal === 'single' ? 'Download subject score template (.xlsx)' : 'Download all-subjects template (.xlsx)'}
+                </button>
+                <p className="text-xs text-slate-400">
+                  {uploadModal === 'single'
+                    ? 'Fill in Class Score and Exam Score columns. Do not edit the Student ID column.'
+                    : 'Fill in scores for each subject column pair. Do not edit Student ID, Adm. No., or Name.'}
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Step 2 — Upload filled template</label>
+                <input ref={uploadFileRef} type="file" accept=".xlsx,.xls" className="hidden"
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setUploadFile(e.target.files?.[0] ?? null)} />
+                <button onClick={() => uploadFileRef.current?.click()}
+                  className="w-full border-2 border-dashed border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-500 hover:border-green-400 hover:text-green-700 text-center transition-colors">
+                  {uploadFile ? uploadFile.name : 'Click to choose Excel file…'}
+                </button>
+              </div>
+              {uploadResult && (
+                <div className={`rounded-lg px-4 py-3 text-sm ${uploadResult.errors.length && !uploadResult.count ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}`}>
+                  {uploadResult.count != null && <p className="font-semibold">{uploadResult.count} score(s) uploaded.</p>}
+                  {uploadResult.errors.map((e, i) => <p key={i} className="text-xs mt-0.5">{e}</p>)}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+              <button onClick={() => setUploadModal(null)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50">Close</button>
+              <button onClick={submitScoreUpload} disabled={!uploadFile || uploading}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+                {uploading ? 'Uploading…' : 'Upload'}
+              </button>
+            </div>
           </div>
         </div>
       )}

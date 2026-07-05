@@ -63,6 +63,15 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
     const TEXT_DARK   = '0F172A';
     const TEXT_MUTED  = '64748B';
 
+    const isPrimary = req.query.school_level === 'primary';
+
+    // Convert 1-based column number to Excel letter (A, B, ..., Z, AA, AB, ...)
+    const numToExcelCol = (n) => {
+      let s = '';
+      while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+      return s;
+    };
+
     const cols = [
       { key: 'teacher_code',              header: 'Teacher ID',                    width: 16 },
       { key: 'name',                      header: 'Full Name',                     width: 28 },
@@ -94,18 +103,27 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
       { key: 'notes',                     header: 'Notes',                         width: 30 },
     ];
 
+    // For primary schools, remove the Department column
+    const activeCols = isPrimary ? cols.filter(c => c.key !== 'department') : cols;
+
+    // Helper: get Excel column letter for a given key in activeCols
+    const colOf = (key) => {
+      const idx = activeCols.findIndex(c => c.key === key);
+      return idx >= 0 ? numToExcelCol(idx + 1) : null;
+    };
+
     // ── Sheet 1: Teachers ─────────────────────────────────────────
     const ws = wb.addWorksheet('Teachers', {
       pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1 },
       views: [{ state: 'frozen', ySplit: 1 }],
     });
 
-    ws.columns = cols.map(c => ({ key: c.key, width: c.width }));
+    ws.columns = activeCols.map(c => ({ key: c.key, width: c.width }));
 
     // Row 1 — column headers
     const hdrRow = ws.getRow(1);
     hdrRow.height = 26;
-    cols.forEach((col, idx) => {
+    activeCols.forEach((col, idx) => {
       const cell      = hdrRow.getCell(idx + 1);
       cell.value      = col.header;
       cell.font       = { bold: true, color: { argb: WHITE }, size: 11, name: 'Calibri' };
@@ -159,25 +177,25 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
         });
         r.height = 18;
         const rowNum = r.number;
-        cols.forEach((_, idx) => {
+        activeCols.forEach((_, idx) => {
           const cell     = r.getCell(idx + 1);
           cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F0FDF4' } };
           cell.font      = { color: { argb: TEXT_DARK }, size: 10, name: 'Calibri' };
           cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
           cell.border    = { bottom: { style: 'hair', color: { argb: 'E2E8F0' } } };
         });
-        ws.getCell(`H${rowNum}`).dataValidation = {
+        ws.getCell(`${colOf('gender')}${rowNum}`).dataValidation = {
           type: 'list', allowBlank: true, formulae: ['"Male,Female"'],
           showErrorMessage: true, errorStyle: 'stop',
           errorTitle: 'Invalid value', error: 'Please enter Male or Female',
         };
-        ws.getCell(`F${rowNum}`).dataValidation = {
+        ws.getCell(`${colOf('rank')}${rowNum}`).dataValidation = {
           type: 'list', allowBlank: true,
           formulae: ['"Pupil Teacher,Teacher II,Teacher I,Senior Teacher II,Senior Teacher I,Assistant Superintendent II,Assistant Superintendent I,Superintendent,Senior Superintendent,Principal Superintendent,Assistant Director II,Assistant Director I,Deputy Director,Director"'],
           showErrorMessage: true, errorStyle: 'stop',
           errorTitle: 'Invalid value', error: 'Select a rank from the list',
         };
-        ws.getCell(`AB${rowNum}`).dataValidation = {
+        ws.getCell(`${colOf('is_admin')}${rowNum}`).dataValidation = {
           type: 'list', allowBlank: true, formulae: ['"Yes,No"'],
           showErrorMessage: true, errorStyle: 'stop',
           errorTitle: 'Invalid value', error: 'Please enter Yes or No',
@@ -189,25 +207,25 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
         const r  = ws.getRow(row);
         r.height = 18;
         const bg = row % 2 === 0 ? GREY_ALT : WHITE;
-        cols.forEach((_, idx) => {
+        activeCols.forEach((_, idx) => {
           const cell     = r.getCell(idx + 1);
           cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
           cell.font      = { color: { argb: TEXT_DARK }, size: 10, name: 'Calibri' };
           cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
           cell.border    = { bottom: { style: 'hair', color: { argb: 'E2E8F0' } } };
         });
-        ws.getCell(`H${row}`).dataValidation = {
+        ws.getCell(`${colOf('gender')}${row}`).dataValidation = {
           type: 'list', allowBlank: true, formulae: ['"Male,Female"'],
           showErrorMessage: true, errorStyle: 'stop',
           errorTitle: 'Invalid value', error: 'Please enter Male or Female',
         };
-        ws.getCell(`F${row}`).dataValidation = {
+        ws.getCell(`${colOf('rank')}${row}`).dataValidation = {
           type: 'list', allowBlank: true,
           formulae: ['"Pupil Teacher,Teacher II,Teacher I,Senior Teacher II,Senior Teacher I,Assistant Superintendent II,Assistant Superintendent I,Superintendent,Senior Superintendent,Principal Superintendent,Assistant Director II,Assistant Director I,Deputy Director,Director"'],
           showErrorMessage: true, errorStyle: 'stop',
           errorTitle: 'Invalid value', error: 'Select a rank from the list',
         };
-        ws.getCell(`AB${row}`).dataValidation = {
+        ws.getCell(`${colOf('is_admin')}${row}`).dataValidation = {
           type: 'list', allowBlank: true, formulae: ['"Yes,No"'],
           showErrorMessage: true, errorStyle: 'stop',
           errorTitle: 'Invalid value', error: 'Please enter Yes or No',
@@ -271,7 +289,7 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
       ['Full Name',                     'Required',  'Teacher\'s full name as it should appear in reports.'],
       ['Email Address',                 'Optional',  'Must be unique if provided. Used for login.'],
       ['Phone Number',                  'Optional',  'Contact number. Any format accepted.'],
-      ['Department / Subject',          'Optional',  'e.g. Mathematics, English Language, Science.'],
+      ...(!isPrimary ? [['Department / Subject', 'Optional', 'e.g. Mathematics, English Language, Science.']] : []),
       ['GES Rank',                      'Optional',  'Select from dropdown: Pupil Teacher → Director.'],
       ['Gov Staff ID',                  'Optional',  'Government-issued staff identification number.'],
       ['Gender',                        'Optional',  'Male or Female (use dropdown).'],
@@ -316,22 +334,24 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
     gap();
 
     // Example header
-    const exHdrRow = ws2.addRow(cols.map(c => c.header));
+    const exHdrRow = ws2.addRow(activeCols.map(c => c.header));
     exHdrRow.height = 22;
-    cols.forEach((_, i) => {
+    activeCols.forEach((_, i) => {
       const cell = exHdrRow.getCell(i + 1);
       cell.font       = { bold: true, size: 10, name: 'Calibri', color: { argb: WHITE } };
       cell.fill       = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1A7A50' } };
       cell.alignment  = { vertical: 'middle', indent: 1 };
     });
     // Adjust columns for example table
-    ws2.columns = cols.map(c => ({ width: c.width }));
+    ws2.columns = activeCols.map(c => ({ width: c.width }));
 
-    const examples = [
-      ['', 'Jane Doe',     'jane.doe@school.edu',  '024-000-0001', 'Mathematics', 'Senior Teacher I',       'GHA-0001', 'Female', '1985-03-12', 'REG001', 'NTC001', 'SSF001', 'BA',    'B.Ed', 'HOD',         'GCB Bank',  'Accra Central', '1234567890', 'Christianity', 'Methodist',  'Accra',  '12 Main St', 'GNAT',    'GHA-001234', 'Kofi Doe',  '024-111-0001', 'No',  'Head of dept'],
-      ['', 'Kwame Asante', 'kwame.a@school.edu',   '024-000-0002', 'English',     'Teacher I',              'GHA-0002', 'Male',   '1990-07-20', '',       '',       '',       'BSc',   'PGDE', '',            'Absa',      'Kumasi',        '0987654321', 'Islam',        'Sunni',      'Kumasi', '5 Ring Rd',  'NAGRAT',  '',            'Ama Asante','024-222-0002', 'No',  ''],
-      ['T050', 'Ama Boateng', 'ama.b@school.edu', '024-000-0003', 'Science',     'Assistant Superintendent I','GHA-0003','Female','1978-11-05','REG003', 'NTC003', 'SSF003', 'MA',    'B.Ed', 'Vice Principal','Ecobank',   'Takoradi',      '1122334455', 'Christianity', 'Catholic',   'Takoradi','3 Beach Rd', 'CCT',     'GHA-003456', 'Kojo Boateng','024-333-0003','Yes','Vice principal'],
+    // Each example row: 28 values matching full cols array; for primary, filter out index 4 (department)
+    const examplesRaw = [
+      ['', 'Jane Doe',     'jane.doe@school.edu',  '024-000-0001', 'Mathematics', 'Senior Teacher I',          'GHA-0001', 'Female', '1985-03-12', 'REG001', 'NTC001', 'SSF001', 'BA',  'B.Ed', 'HOD',          'GCB Bank', 'Accra Central', '1234567890', 'Christianity', 'Methodist', 'Accra',    '12 Main St', 'GNAT',   'GHA-001234',  'Kofi Doe',    '024-111-0001', 'No',  'Head of dept'],
+      ['', 'Kwame Asante', 'kwame.a@school.edu',   '024-000-0002', 'English',     'Teacher I',                 'GHA-0002', 'Male',   '1990-07-20', '',       '',       '',       'BSc', 'PGDE', '',             'Absa',     'Kumasi',        '0987654321', 'Islam',        'Sunni',     'Kumasi',   '5 Ring Rd',  'NAGRAT', '',            'Ama Asante',  '024-222-0002', 'No',  ''],
+      ['T050', 'Ama Boateng', 'ama.b@school.edu', '024-000-0003', 'Science',     'Assistant Superintendent I', 'GHA-0003', 'Female', '1978-11-05', 'REG003', 'NTC003', 'SSF003', 'MA',  'B.Ed', 'Vice Principal','Ecobank',  'Takoradi',      '1122334455', 'Christianity', 'Catholic',  'Takoradi', '3 Beach Rd', 'CCT',    'GHA-003456',  'Kojo Boateng','024-333-0003', 'Yes', 'Vice principal'],
     ];
+    const examples = isPrimary ? examplesRaw.map(ex => ex.filter((_, i) => i !== 4)) : examplesRaw;
     examples.forEach((ex, i) => {
       const r  = ws2.addRow(ex);
       r.height = 18;
@@ -436,8 +456,12 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     const errors = [];
 
     for (let i = 0; i < dataRows.length; i++) {
-      const row    = dataRows[i];
+      let row      = dataRows[i];
       const rowNum = i + 2;
+
+      // For primary school templates, there is no Department column (col index 4 was removed).
+      // Insert a blank at index 4 so all subsequent indices match the standard mapping.
+      if (req.query.school_level === 'primary') row = [...row.slice(0, 4), '', ...row.slice(4)];
 
       const teacherCode              = String(row[0]  ?? '').trim().toUpperCase() || null;
       const name                     = String(row[1]  ?? '').trim();

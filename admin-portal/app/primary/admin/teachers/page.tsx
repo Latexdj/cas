@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { api } from '@/lib/api';
 
 interface Teacher {
@@ -39,6 +39,13 @@ export default function PrimaryTeachersPage() {
   const [pinInput,  setPinInput]  = useState('');
   const [pinSaving, setPinSaving] = useState(false);
   const [pinError,  setPinError]  = useState('');
+
+  // Import / Update modal state
+  const [impModal,   setImpModal]   = useState<'import'|'update'|null>(null);
+  const [impFile,    setImpFile]    = useState<File | null>(null);
+  const [impLoading, setImpLoading] = useState(false);
+  const [impResult,  setImpResult]  = useState<{ inserted?: number; errors: Array<{ row: number; message: string }> } | null>(null);
+  const impFileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -100,6 +107,35 @@ export default function PrimaryTeachersPage() {
     catch { setError('Delete failed.'); }
   }
 
+  async function downloadTeacherTemplate(mode: 'empty' | 'populated') {
+    try {
+      const res = await api.get(`/api/teachers/upload/template?mode=${mode}&school_level=primary`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const a   = document.createElement('a');
+      a.href    = url;
+      a.download = `teachers_${mode}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { setError('Failed to download template.'); }
+  }
+
+  async function submitTeacherUpload() {
+    if (!impFile) return;
+    setImpLoading(true); setImpResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', impFile);
+      const { data } = await api.post('/api/teachers/upload?school_level=primary', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setImpResult({ inserted: data.inserted, errors: data.errors ?? [] });
+      if (!data.errors?.length) load();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setImpResult({ errors: [{ row: 0, message: msg ?? 'Upload failed.' }] });
+    } finally { setImpLoading(false); }
+  }
+
   const F = (label: string, field: keyof Form, type = 'text', opts?: string[]) => (
     <div>
       <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
@@ -130,11 +166,17 @@ export default function PrimaryTeachersPage() {
           <h1 className="text-xl font-bold text-slate-900">Teachers</h1>
           <p className="text-sm text-slate-500 mt-0.5">{teachers.length} staff member{teachers.length !== 1 ? 's' : ''}</p>
         </div>
-        <button onClick={openCreate}
-          className="px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
-          style={{ backgroundColor: '#15803D' }}>
-          + Add Teacher
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => { setImpResult(null); setImpFile(null); setImpModal('import'); }}
+            className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50">
+            Import Teachers
+          </button>
+          <button onClick={openCreate}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+            style={{ backgroundColor: '#15803D' }}>
+            + Add Teacher
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -261,6 +303,54 @@ export default function PrimaryTeachersPage() {
               <button onClick={() => setModal(null)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-gray-200 hover:bg-gray-50">Cancel</button>
               <button onClick={savePin} disabled={pinSaving} className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
                 {pinSaving ? 'Resetting…' : 'Reset PIN'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Teachers Modal */}
+      {impModal === 'import' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="font-bold text-slate-900">Import Teachers</h2>
+              <button onClick={() => setImpModal(null)} className="text-slate-400 hover:text-slate-600">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-slate-50 rounded-lg px-4 py-3 text-sm text-slate-600 space-y-2">
+                <p className="font-semibold text-slate-700">Step 1 — Download the template</p>
+                <button onClick={() => downloadTeacherTemplate('empty')} className="text-green-700 font-semibold hover:underline text-sm block">
+                  Download blank template (.xlsx)
+                </button>
+                <button onClick={() => downloadTeacherTemplate('populated')} className="text-green-700 font-semibold hover:underline text-sm block">
+                  Download populated template (existing teachers)
+                </button>
+                <p className="text-xs text-slate-400">Fill in one teacher per row. Rows with a blank Teacher ID will be auto-assigned. Duplicate names/emails will be skipped.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Step 2 — Upload filled template</label>
+                <input ref={impFileRef} type="file" accept=".xlsx,.xls" className="hidden"
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setImpFile(e.target.files?.[0] ?? null)} />
+                <button onClick={() => impFileRef.current?.click()}
+                  className="w-full border-2 border-dashed border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-500 hover:border-green-400 hover:text-green-700 text-center transition-colors">
+                  {impFile ? impFile.name : 'Click to choose Excel file…'}
+                </button>
+              </div>
+              {impResult && (
+                <div className={`rounded-lg px-4 py-3 text-sm ${impResult.errors.length && !impResult.inserted ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}`}>
+                  {impResult.inserted != null && <p className="font-semibold">{impResult.inserted} teacher(s) imported.</p>}
+                  {impResult.errors.map((e, i) => <p key={i} className="text-xs mt-0.5">Row {e.row}: {e.message}</p>)}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+              <button onClick={() => setImpModal(null)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50">Close</button>
+              <button onClick={submitTeacherUpload} disabled={!impFile || impLoading}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+                {impLoading ? 'Importing…' : 'Import'}
               </button>
             </div>
           </div>

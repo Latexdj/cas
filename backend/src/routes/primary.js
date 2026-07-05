@@ -1,6 +1,10 @@
-const router = require('express').Router();
-const pool   = require('../config/db');
+const router  = require('express').Router();
+const pool    = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const multer  = require('multer');
+const XLSX    = require('xlsx');
+const ExcelJS = require('exceljs');
+const upload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -282,6 +286,263 @@ router.delete('/students/:id', adminOnly, async (req, res, next) => {
     );
     if (!rowCount) return res.status(404).json({ error: 'Student not found' });
     res.json({ message: 'Student deleted' });
+  } catch (err) { next(err); }
+});
+
+// GET /api/primary/students-template?mode=empty|populated
+router.get('/students-template', adminOnly, async (req, res, next) => {
+  try {
+    const mode = req.query.mode === 'populated' ? 'populated' : 'empty';
+    const { rows: classRows } = await pool.query(
+      `SELECT class_name FROM primary_classes WHERE school_id=$1 ORDER BY sort_order, class_name`,
+      [req.schoolId]
+    );
+    const classNames   = classRows.map(c => c.class_name);
+    const classDropdown = classNames.length ? `"${classNames.join(',')}"` : '"Basic 1,Basic 2,Basic 3"';
+
+    const wb         = new ExcelJS.Workbook();
+    wb.creator       = 'CAS – Classroom Attendance System';
+    wb.created       = new Date();
+    const GREEN_DARK = '166534';
+    const WHITE      = 'FFFFFF';
+    const TEXT_DARK  = '0F172A';
+
+    const cols = [
+      { key: 'admission_number', header: 'Admission No. (leave blank to auto-generate)', width: 36 },
+      { key: 'surname',          header: 'Surname *',                                    width: 20 },
+      { key: 'other_names',      header: 'Other Names',                                  width: 22 },
+      { key: 'sex',              header: 'Sex (Male/Female) *',                          width: 20 },
+      { key: 'date_of_birth',    header: 'Date of Birth (YYYY-MM-DD)',                  width: 24 },
+      { key: 'class_name',       header: 'Class *',                                      width: 18 },
+      { key: 'status',           header: 'Status (Active/Withdrawn)',                    width: 22 },
+      { key: 'father_name',      header: "Father's Name",                               width: 22 },
+      { key: 'father_phone',     header: "Father's Phone",                               width: 18 },
+      { key: 'mother_name',      header: "Mother's Name",                               width: 22 },
+      { key: 'mother_phone',     header: "Mother's Phone",                               width: 18 },
+      { key: 'guardian_name',    header: "Guardian's Name",                             width: 22 },
+      { key: 'guardian_phone',   header: "Guardian's Phone",                             width: 18 },
+    ];
+
+    const ws = wb.addWorksheet('Students', {
+      pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1 },
+      views: [{ state: 'frozen', ySplit: 1 }],
+    });
+    ws.columns = cols.map(c => ({ key: c.key, width: c.width }));
+
+    const hdrRow = ws.getRow(1);
+    hdrRow.height = 26;
+    cols.forEach((col, idx) => {
+      const cell = hdrRow.getCell(idx + 1);
+      cell.value     = col.header;
+      cell.font      = { bold: true, color: { argb: WHITE }, size: 11, name: 'Calibri' };
+      cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
+      cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+      cell.border    = { right: { style: 'thin', color: { argb: '1A7A50' } } };
+    });
+
+    const applyRowDropdowns = (rowNum) => {
+      ws.getCell(`D${rowNum}`).dataValidation = {
+        type: 'list', allowBlank: true, formulae: ['"Male,Female"'],
+        showErrorMessage: true, errorStyle: 'stop', errorTitle: 'Invalid', error: 'Please enter Male or Female',
+      };
+      ws.getCell(`F${rowNum}`).dataValidation = {
+        type: 'list', allowBlank: false, formulae: [classDropdown], showErrorMessage: false,
+      };
+      ws.getCell(`G${rowNum}`).dataValidation = {
+        type: 'list', allowBlank: true, formulae: ['"Active,Withdrawn,Graduated"'],
+        showErrorMessage: true, errorStyle: 'stop', errorTitle: 'Invalid', error: 'Please enter Active, Withdrawn, or Graduated',
+      };
+    };
+
+    if (mode === 'populated') {
+      const { rows: students } = await pool.query(
+        `SELECT * FROM primary_students WHERE school_id=$1 ORDER BY class_name, surname`,
+        [req.schoolId]
+      );
+      students.forEach(s => {
+        const r = ws.addRow({
+          admission_number: s.admission_number ?? '',
+          surname:          s.surname          ?? '',
+          other_names:      s.other_names      ?? '',
+          sex:              s.sex              ?? '',
+          date_of_birth:    s.date_of_birth ? String(s.date_of_birth).slice(0, 10) : '',
+          class_name:       s.class_name       ?? '',
+          status:           s.status           ?? 'Active',
+          father_name:      s.father_name      ?? '',
+          father_phone:     s.father_phone     ?? '',
+          mother_name:      s.mother_name      ?? '',
+          mother_phone:     s.mother_phone     ?? '',
+          guardian_name:    s.guardian_name    ?? '',
+          guardian_phone:   s.guardian_phone   ?? '',
+        });
+        r.height = 18;
+        const rowNum = r.number;
+        cols.forEach((_, idx) => {
+          const cell = r.getCell(idx + 1);
+          cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F0FDF4' } };
+          cell.font      = { color: { argb: TEXT_DARK }, size: 10, name: 'Calibri' };
+          cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+          cell.border    = { bottom: { style: 'hair', color: { argb: 'E2E8F0' } } };
+        });
+        applyRowDropdowns(rowNum);
+      });
+    } else {
+      for (let row = 2; row <= 200; row++) {
+        const r  = ws.getRow(row);
+        r.height = 18;
+        const bg = row % 2 === 0 ? 'F8FAFC' : WHITE;
+        cols.forEach((_, idx) => {
+          const cell = r.getCell(idx + 1);
+          cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+          cell.font      = { color: { argb: TEXT_DARK }, size: 10, name: 'Calibri' };
+          cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+          cell.border    = { bottom: { style: 'hair', color: { argb: 'E2E8F0' } } };
+        });
+        applyRowDropdowns(row);
+      }
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="primary_students_${mode}.xlsx"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/students/upload — bulk-insert students from Excel
+router.post('/students/upload', adminOnly, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const prefix = String(req.body.prefix ?? '').trim();
+    const year   = String(req.body.year   ?? '').trim();
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const sheet    = workbook.Sheets[workbook.SheetNames[0]];
+    const rows     = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    const dataRows = rows.slice(1).filter(r => r.some(v => v !== ''));
+
+    let nextSerial = 1;
+    if (prefix && year) {
+      const pattern = `^${prefix}[0-9]+${year}$`;
+      const { rows: existing } = await pool.query(
+        `SELECT admission_number FROM primary_students WHERE school_id=$1 AND admission_number ~ $2`,
+        [req.schoolId, pattern]
+      );
+      if (existing.length) {
+        const serials = existing.map(r => {
+          const stripped = r.admission_number.slice(prefix.length, r.admission_number.length - year.length);
+          return parseInt(stripped, 10) || 0;
+        });
+        nextSerial = Math.max(...serials) + 1;
+      }
+    }
+
+    const inserted = [];
+    const errors   = [];
+    const client   = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        let [adm, surname, other_names, sex, dob, class_name, status,
+             father_name, father_phone, mother_name, mother_phone, guardian_name, guardian_phone] = row;
+        adm     = String(adm     ?? '').trim();
+        surname = String(surname ?? '').trim();
+        class_name = String(class_name ?? '').trim();
+        if (!surname)    { errors.push(`Row ${i + 2}: Surname is required`);          continue; }
+        if (!class_name) { errors.push(`Row ${i + 2}: Class is required`);            continue; }
+
+        if (!adm) {
+          if (!prefix || !year) { errors.push(`Row ${i + 2}: Admission No. blank but no prefix/year provided`); continue; }
+          adm = `${prefix}${String(nextSerial).padStart(3, '0')}${year}`;
+          nextSerial++;
+        }
+
+        let dobStr = null;
+        if (dob instanceof Date) dobStr = dob.toISOString().slice(0, 10);
+        else if (dob && String(dob).trim()) dobStr = String(dob).trim().slice(0, 10);
+
+        const { rows: r } = await client.query(
+          `INSERT INTO primary_students
+             (school_id, admission_number, surname, other_names, sex, date_of_birth, class_name, status,
+              father_name, father_phone, mother_name, mother_phone, guardian_name, guardian_phone)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+           ON CONFLICT (school_id, admission_number) DO NOTHING
+           RETURNING id`,
+          [req.schoolId, adm, surname, other_names || null, sex || null, dobStr,
+           class_name, status || 'Active', father_name || null, father_phone || null,
+           mother_name || null, mother_phone || null, guardian_name || null, guardian_phone || null]
+        );
+        if (r.length) inserted.push(adm);
+        else errors.push(`Row ${i + 2}: Admission No. ${adm} already exists — skipped`);
+      }
+      await client.query('COMMIT');
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+
+    res.json({ message: `Inserted ${inserted.length} student(s)`, inserted: inserted.length, errors });
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/students/bulk-update — update students matched by admission_number
+router.post('/students/bulk-update', adminOnly, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
+    const sheet    = workbook.Sheets[workbook.SheetNames[0]];
+    const rows     = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    const dataRows = rows.slice(1).filter(r => r.some(v => v !== ''));
+
+    let updated = 0;
+    const errors = [];
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        let [adm, surname, other_names, sex, dob, class_name, status,
+             father_name, father_phone, mother_name, mother_phone, guardian_name, guardian_phone] = row;
+        adm = String(adm ?? '').trim();
+        if (!adm) { errors.push(`Row ${i + 2}: Admission No. required for update`); continue; }
+
+        const fields = [];
+        const vals   = [req.schoolId, adm];
+        const addF   = (col, val) => {
+          const v = String(val ?? '').trim();
+          if (v) { fields.push(`${col}=$${vals.length + 1}`); vals.push(v); }
+        };
+        addF('surname',       surname);
+        addF('other_names',   other_names);
+        addF('sex',           sex);
+        addF('class_name',    class_name);
+        addF('status',        status);
+        addF('father_name',   father_name);
+        addF('father_phone',  father_phone);
+        addF('mother_name',   mother_name);
+        addF('mother_phone',  mother_phone);
+        addF('guardian_name', guardian_name);
+        addF('guardian_phone',guardian_phone);
+        if (dob) {
+          let dobStr = null;
+          if (dob instanceof Date) dobStr = dob.toISOString().slice(0, 10);
+          else if (String(dob).trim()) dobStr = String(dob).trim().slice(0, 10);
+          if (dobStr) { fields.push(`date_of_birth=$${vals.length + 1}`); vals.push(dobStr); }
+        }
+        if (!fields.length) continue;
+        fields.push('updated_at=now()');
+
+        const { rowCount } = await client.query(
+          `UPDATE primary_students SET ${fields.join(',')} WHERE school_id=$1 AND admission_number=$2`,
+          vals
+        );
+        if (rowCount) updated++;
+        else errors.push(`Row ${i + 2}: No student found with Adm. No. ${adm}`);
+      }
+      await client.query('COMMIT');
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+
+    res.json({ message: `Updated ${updated} student(s)`, updated, errors });
   } catch (err) { next(err); }
 });
 
@@ -901,6 +1162,379 @@ async function recalcPositions(schoolId, termId) {
     );
   }
 }
+
+// ── SCORE EXCEL TEMPLATES & UPLOADS ──────────────────────────────────────────
+
+function numToCol(n) {
+  let s = '';
+  while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
+// GET /api/primary/scores/template?term_id=&class_name=&subject_id=
+// Downloads a per-subject score entry template pre-filled with students
+router.get('/scores/template', adminOnly, async (req, res, next) => {
+  try {
+    const { term_id, class_name, subject_id } = req.query;
+    if (!term_id || !class_name || !subject_id)
+      return res.status(400).json({ error: 'term_id, class_name, and subject_id are required' });
+
+    const [{ rows: [term] }, { rows: [subject] }, { rows: students }] = await Promise.all([
+      pool.query(`SELECT name FROM primary_terms WHERE id=$1 AND school_id=$2`, [term_id, req.schoolId]),
+      pool.query(`SELECT subject_name, max_class_score, max_exam_score FROM primary_subjects WHERE id=$1 AND school_id=$2`, [subject_id, req.schoolId]),
+      pool.query(
+        `SELECT id, admission_number, surname, other_names
+         FROM primary_students WHERE school_id=$1 AND LOWER(class_name)=LOWER($2) AND status='Active'
+         ORDER BY surname, other_names`,
+        [req.schoolId, class_name]
+      ),
+    ]);
+    if (!term)    return res.status(404).json({ error: 'Term not found' });
+    if (!subject) return res.status(404).json({ error: 'Subject not found' });
+
+    const { rows: existing } = await pool.query(
+      `SELECT student_id, class_score, exam_score FROM primary_scores
+       WHERE school_id=$1 AND term_id=$2 AND subject_id=$3`,
+      [req.schoolId, term_id, subject_id]
+    );
+    const scoreMap = {};
+    existing.forEach(s => { scoreMap[s.student_id] = s; });
+
+    const wb         = new ExcelJS.Workbook();
+    wb.creator       = 'CAS – Classroom Attendance System';
+    const GREEN_DARK = '166534';
+    const WHITE      = 'FFFFFF';
+
+    const ws = wb.addWorksheet('Scores');
+    ws.columns = [
+      { key: 'student_id',  width: 36 },
+      { key: 'adm_no',      width: 18 },
+      { key: 'name',        width: 28 },
+      { key: 'class_score', width: 18 },
+      { key: 'exam_score',  width: 18 },
+    ];
+
+    // Row 1: Banner
+    const b1 = ws.getRow(1);
+    b1.height = 28;
+    b1.getCell(1).value = `Primary Scores — ${subject.subject_name} | ${term.name} | ${class_name}`;
+    b1.getCell(1).font  = { bold: true, size: 12, name: 'Calibri', color: { argb: WHITE } };
+    for (let ci = 1; ci <= 5; ci++) b1.getCell(ci).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
+    b1.getCell(1).alignment = { vertical: 'middle', indent: 1 };
+    ws.mergeCells('A1:E1');
+
+    // Row 2: Hidden metadata (term_id, subject_id)
+    const meta = ws.getRow(2);
+    meta.getCell(1).value = 'META';
+    meta.getCell(2).value = term_id;
+    meta.getCell(3).value = subject_id;
+    meta.height = 6;
+    meta.hidden = true;
+
+    // Row 3: Column headers
+    const hdr = ws.getRow(3);
+    hdr.height = 22;
+    ['Student ID (do not edit)', 'Adm. No.', 'Student Name',
+     `Class Score /${subject.max_class_score}`, `Exam Score /${subject.max_exam_score}`].forEach((h, i) => {
+      const cell = hdr.getCell(i + 1);
+      cell.value     = h;
+      cell.font      = { bold: true, size: 10, name: 'Calibri', color: { argb: WHITE } };
+      cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1A7A50' } };
+      cell.alignment = { vertical: 'middle', indent: 1 };
+    });
+
+    // Data rows (from row 4)
+    students.forEach((s, i) => {
+      const sc  = scoreMap[s.id];
+      const r   = ws.addRow({
+        student_id:  s.id,
+        adm_no:      s.admission_number,
+        name:        `${s.surname}${s.other_names ? ' ' + s.other_names : ''}`,
+        class_score: sc?.class_score ?? '',
+        exam_score:  sc?.exam_score  ?? '',
+      });
+      r.height = 18;
+      const rowNum = r.number;
+      const bg = i % 2 === 0 ? 'F0FDF4' : WHITE;
+      for (let ci = 1; ci <= 5; ci++) {
+        const cell = r.getCell(ci);
+        cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+        cell.font      = { size: 10, name: 'Calibri', color: { argb: '0F172A' } };
+        cell.alignment = { vertical: 'middle', indent: 1 };
+        cell.border    = { bottom: { style: 'hair', color: { argb: 'E2E8F0' } } };
+      }
+      ws.getCell(`D${rowNum}`).dataValidation = {
+        type: 'decimal', operator: 'between', allowBlank: true, formulae: [0, subject.max_class_score],
+      };
+      ws.getCell(`E${rowNum}`).dataValidation = {
+        type: 'decimal', operator: 'between', allowBlank: true, formulae: [0, subject.max_exam_score],
+      };
+    });
+
+    const safe = (s) => s.replace(/[^A-Za-z0-9_-]/g, '_');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="scores_${safe(class_name)}_${safe(subject.subject_name)}.xlsx"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/scores/upload — per-subject score upload
+router.post('/scores/upload', adminOnly, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const { term_id, subject_id } = req.body;
+    if (!term_id || !subject_id) return res.status(400).json({ error: 'term_id and subject_id are required' });
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet    = workbook.Sheets[workbook.SheetNames[0]];
+    const rows     = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    // Data starts at row 4 (index 3): banner(0), meta(1), header(2)
+    const dataRows = rows.slice(3).filter(r => String(r[0] ?? '').trim());
+
+    const [{ rows: [termRow] }, { rows: [subject] }] = await Promise.all([
+      pool.query(`SELECT academic_year_id FROM primary_terms WHERE id=$1 AND school_id=$2`, [term_id, req.schoolId]),
+      pool.query(`SELECT max_class_score, max_exam_score FROM primary_subjects WHERE id=$1 AND school_id=$2`, [subject_id, req.schoolId]),
+    ]);
+    if (!termRow) return res.status(404).json({ error: 'Term not found' });
+    if (!subject) return res.status(404).json({ error: 'Subject not found' });
+    const academic_year_id = termRow.academic_year_id;
+
+    const scale  = await getGradeScale(req.schoolId);
+    const errors = [];
+    let count    = 0;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (let i = 0; i < dataRows.length; i++) {
+        const row        = dataRows[i];
+        const student_id = String(row[0] ?? '').trim();
+        if (!student_id) continue;
+        const cs  = row[3] !== '' && row[3] != null ? parseFloat(row[3]) : null;
+        const es  = row[4] !== '' && row[4] != null ? parseFloat(row[4]) : null;
+        if (cs != null && cs > subject.max_class_score) { errors.push(`Row ${i + 4}: Class score ${cs} exceeds max ${subject.max_class_score}`); continue; }
+        if (es != null && es > subject.max_exam_score)  { errors.push(`Row ${i + 4}: Exam score ${es} exceeds max ${subject.max_exam_score}`); continue; }
+        const total = cs != null && es != null ? cs + es : (cs ?? es);
+        const grade = total != null ? assignGrade(total, scale) : null;
+        await client.query(
+          `INSERT INTO primary_scores
+             (school_id, student_id, subject_id, term_id, academic_year_id, class_score, exam_score, total, grade, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
+           ON CONFLICT (school_id, student_id, subject_id, term_id)
+           DO UPDATE SET class_score=$6, exam_score=$7, total=$8, grade=$9, updated_at=now()`,
+          [req.schoolId, student_id, subject_id, term_id, academic_year_id, cs, es, total, grade]
+        );
+        count++;
+      }
+      await client.query('COMMIT');
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+
+    await recalcPositions(req.schoolId, term_id);
+    res.json({ message: `Uploaded ${count} score(s)`, count, errors });
+  } catch (err) { next(err); }
+});
+
+// GET /api/primary/scores/class-template?term_id=&class_name=
+// Downloads a multi-subject template with all subjects as paired columns
+router.get('/scores/class-template', adminOnly, async (req, res, next) => {
+  try {
+    const { term_id, class_name } = req.query;
+    if (!term_id || !class_name) return res.status(400).json({ error: 'term_id and class_name are required' });
+
+    const [{ rows: [term] }, { rows: subjects }, { rows: students }] = await Promise.all([
+      pool.query(`SELECT name FROM primary_terms WHERE id=$1 AND school_id=$2`, [term_id, req.schoolId]),
+      pool.query(
+        `SELECT id, subject_name, max_class_score, max_exam_score
+         FROM primary_subjects WHERE school_id=$1 AND LOWER(class_name)=LOWER($2)
+         ORDER BY sort_order, subject_name`,
+        [req.schoolId, class_name]
+      ),
+      pool.query(
+        `SELECT id, admission_number, surname, other_names
+         FROM primary_students WHERE school_id=$1 AND LOWER(class_name)=LOWER($2) AND status='Active'
+         ORDER BY surname, other_names`,
+        [req.schoolId, class_name]
+      ),
+    ]);
+    if (!term) return res.status(404).json({ error: 'Term not found' });
+    if (!subjects.length) return res.status(400).json({ error: 'No subjects configured for this class' });
+
+    const { rows: allScores } = await pool.query(
+      `SELECT sc.student_id, sc.subject_id, sc.class_score, sc.exam_score
+       FROM primary_scores sc
+       JOIN primary_subjects sub ON sub.id=sc.subject_id
+       WHERE sc.school_id=$1 AND sc.term_id=$2 AND LOWER(sub.class_name)=LOWER($3)`,
+      [req.schoolId, term_id, class_name]
+    );
+    const scoreMap = {};
+    allScores.forEach(s => {
+      if (!scoreMap[s.student_id]) scoreMap[s.student_id] = {};
+      scoreMap[s.student_id][s.subject_id] = s;
+    });
+
+    const wb         = new ExcelJS.Workbook();
+    wb.creator       = 'CAS – Classroom Attendance System';
+    const GREEN_DARK = '166534';
+    const WHITE      = 'FFFFFF';
+    const totalCols  = 3 + subjects.length * 2;
+
+    const ws = wb.addWorksheet('Scores');
+    const colDefs = [{ width: 36 }, { width: 18 }, { width: 28 }];
+    subjects.forEach(() => { colDefs.push({ width: 18 }); colDefs.push({ width: 16 }); });
+    ws.columns = colDefs;
+
+    // Row 1: Banner
+    const b1 = ws.getRow(1);
+    b1.height = 28;
+    for (let ci = 1; ci <= totalCols; ci++)
+      b1.getCell(ci).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
+    b1.getCell(1).value     = `Primary Scores — All Subjects | ${term.name} | ${class_name}`;
+    b1.getCell(1).font      = { bold: true, size: 12, name: 'Calibri', color: { argb: WHITE } };
+    b1.getCell(1).alignment = { vertical: 'middle', indent: 1 };
+    ws.mergeCells(`A1:${numToCol(totalCols)}1`);
+
+    // Row 2: Hidden metadata — subject IDs at paired column positions
+    const meta = ws.getRow(2);
+    meta.height = 6;
+    meta.hidden = true;
+    meta.getCell(1).value = 'SUBJECT_IDS';
+    subjects.forEach((sub, i) => {
+      meta.getCell(4 + i * 2).value = sub.id;
+      meta.getCell(5 + i * 2).value = sub.id;
+    });
+
+    // Row 3: Column headers
+    const hdr = ws.getRow(3);
+    hdr.height = 30;
+    ['Student ID (do not edit)', 'Adm. No.', 'Student Name'].forEach((h, i) => {
+      const cell = hdr.getCell(i + 1);
+      cell.value     = h;
+      cell.font      = { bold: true, size: 10, name: 'Calibri', color: { argb: WHITE } };
+      cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1A7A50' } };
+      cell.alignment = { vertical: 'middle', indent: 1 };
+    });
+    subjects.forEach((sub, i) => {
+      [
+        { col: 4 + i * 2, label: `${sub.subject_name}\nClass /${sub.max_class_score}` },
+        { col: 5 + i * 2, label: `${sub.subject_name}\nExam /${sub.max_exam_score}` },
+      ].forEach(({ col, label }) => {
+        const cell = hdr.getCell(col);
+        cell.value     = label;
+        cell.font      = { bold: true, size: 9, name: 'Calibri', color: { argb: WHITE } };
+        cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1A7A50' } };
+        cell.alignment = { vertical: 'middle', indent: 1, wrapText: true };
+      });
+    });
+
+    // Data rows (row 4+)
+    students.forEach((s, i) => {
+      const r = ws.addRow([]);
+      r.getCell(1).value = s.id;
+      r.getCell(2).value = s.admission_number;
+      r.getCell(3).value = `${s.surname}${s.other_names ? ' ' + s.other_names : ''}`;
+      subjects.forEach((sub, j) => {
+        const sc = (scoreMap[s.id] ?? {})[sub.id];
+        r.getCell(4 + j * 2).value = sc?.class_score ?? '';
+        r.getCell(5 + j * 2).value = sc?.exam_score  ?? '';
+      });
+      r.height = 18;
+      const bg = i % 2 === 0 ? 'F0FDF4' : WHITE;
+      for (let ci = 1; ci <= totalCols; ci++) {
+        const cell = r.getCell(ci);
+        cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+        cell.font      = { size: 10, name: 'Calibri', color: { argb: '0F172A' } };
+        cell.alignment = { vertical: 'middle', indent: 1 };
+        cell.border    = { bottom: { style: 'hair', color: { argb: 'E2E8F0' } } };
+      }
+    });
+
+    const safe = (s) => s.replace(/[^A-Za-z0-9_-]/g, '_');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="scores_class_${safe(class_name)}_all.xlsx"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/scores/class-upload — multi-subject score upload
+router.post('/scores/class-upload', adminOnly, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const { term_id } = req.body;
+    if (!term_id) return res.status(400).json({ error: 'term_id is required' });
+
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet    = workbook.Sheets[workbook.SheetNames[0]];
+    const rows     = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+    // Row 2 (index 1): subject IDs at cols 4,5 / 6,7 / 8,9 … (1-indexed → array index 3,4/5,6/…)
+    const metaRow = rows[1] ?? [];
+    const subjectCols = [];
+    for (let ci = 3; ci < metaRow.length; ci += 2) {
+      const sid = String(metaRow[ci] ?? '').trim();
+      if (sid && sid !== 'SUBJECT_IDS') subjectCols.push({ subjectId: sid, classIdx: ci, examIdx: ci + 1 });
+    }
+    if (!subjectCols.length)
+      return res.status(400).json({ error: 'No subject columns found. Use the downloaded class template.' });
+
+    const { rows: [termRow] } = await pool.query(
+      `SELECT academic_year_id FROM primary_terms WHERE id=$1 AND school_id=$2`,
+      [term_id, req.schoolId]
+    );
+    if (!termRow) return res.status(404).json({ error: 'Term not found' });
+    const academic_year_id = termRow.academic_year_id;
+
+    const subjectIds = subjectCols.map(s => s.subjectId);
+    const { rows: validSubs } = await pool.query(
+      `SELECT id, max_class_score, max_exam_score FROM primary_subjects WHERE school_id=$1 AND id = ANY($2::uuid[])`,
+      [req.schoolId, subjectIds]
+    );
+    const subMeta = {};
+    validSubs.forEach(s => { subMeta[s.id] = s; });
+
+    const scale  = await getGradeScale(req.schoolId);
+    const errors = [];
+    let count    = 0;
+
+    const dataRows = rows.slice(3).filter(r => String(r[0] ?? '').trim());
+    const client   = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (let i = 0; i < dataRows.length; i++) {
+        const row        = dataRows[i];
+        const student_id = String(row[0] ?? '').trim();
+        if (!student_id) continue;
+        for (const { subjectId, classIdx, examIdx } of subjectCols) {
+          const sub    = subMeta[subjectId];
+          if (!sub) continue;
+          const csRaw = row[classIdx];
+          const esRaw = row[examIdx];
+          if ((csRaw === '' || csRaw == null) && (esRaw === '' || esRaw == null)) continue;
+          const cs    = csRaw !== '' && csRaw != null ? parseFloat(csRaw) : null;
+          const es    = esRaw !== '' && esRaw != null ? parseFloat(esRaw) : null;
+          const total = cs != null && es != null ? cs + es : (cs ?? es);
+          const grade = total != null ? assignGrade(total, scale) : null;
+          await client.query(
+            `INSERT INTO primary_scores
+               (school_id, student_id, subject_id, term_id, academic_year_id, class_score, exam_score, total, grade, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
+             ON CONFLICT (school_id, student_id, subject_id, term_id)
+             DO UPDATE SET class_score=$6, exam_score=$7, total=$8, grade=$9, updated_at=now()`,
+            [req.schoolId, student_id, subjectId, term_id, academic_year_id, cs, es, total, grade]
+          );
+          count++;
+        }
+      }
+      await client.query('COMMIT');
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+
+    await recalcPositions(req.schoolId, term_id);
+    res.json({ message: `Uploaded ${count} score entries`, count, errors });
+  } catch (err) { next(err); }
+});
 
 // ── TEACHER ATTENDANCE ────────────────────────────────────────────────────────
 

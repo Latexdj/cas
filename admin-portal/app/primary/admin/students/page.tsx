@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 
 interface Student {
@@ -45,6 +45,18 @@ export default function PrimaryStudentsPage() {
   const [form,        setForm]        = useState<FormState>(EMPTY_FORM);
   const [saving,      setSaving]      = useState(false);
   const [saveError,   setSaveError]   = useState('');
+
+  // Import / Update modal state
+  const [importModal,   setImportModal]   = useState(false);
+  const [updateModal,   setUpdateModal]   = useState(false);
+  const [impPrefix,     setImpPrefix]     = useState('');
+  const [impYear,       setImpYear]       = useState('');
+  const [impFile,       setImpFile]       = useState<File | null>(null);
+  const [updFile,       setUpdFile]       = useState<File | null>(null);
+  const [impLoading,    setImpLoading]    = useState(false);
+  const [impResult,     setImpResult]     = useState<{ inserted?: number; updated?: number; errors: string[] } | null>(null);
+  const impFileRef = useRef<HTMLInputElement>(null);
+  const updFileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -105,6 +117,54 @@ export default function PrimaryStudentsPage() {
     catch { setError('Delete failed.'); }
   }
 
+  async function downloadTemplate(mode: 'empty' | 'populated') {
+    try {
+      const res = await api.get(`/api/primary/students-template?mode=${mode}`, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const a   = document.createElement('a');
+      a.href    = url;
+      a.download = `primary_students_${mode}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { setError('Failed to download template.'); }
+  }
+
+  async function submitImport() {
+    if (!impFile) return;
+    setImpLoading(true); setImpResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', impFile);
+      fd.append('prefix', impPrefix);
+      fd.append('year', impYear);
+      const { data } = await api.post('/api/primary/students/upload', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setImpResult({ inserted: data.inserted, errors: data.errors ?? [] });
+      if (!data.errors?.length) { load(); }
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setImpResult({ errors: [msg ?? 'Upload failed.'] });
+    } finally { setImpLoading(false); }
+  }
+
+  async function submitUpdate() {
+    if (!updFile) return;
+    setImpLoading(true); setImpResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', updFile);
+      const { data } = await api.post('/api/primary/students/bulk-update', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setImpResult({ updated: data.updated, errors: data.errors ?? [] });
+      if (!data.errors?.length) { load(); }
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setImpResult({ errors: [msg ?? 'Update failed.'] });
+    } finally { setImpLoading(false); }
+  }
+
   const F = (label: string, field: keyof FormState, type = 'text', opts?: string[]) => (
     <div>
       <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
@@ -142,9 +202,19 @@ export default function PrimaryStudentsPage() {
           <h1 className="text-xl font-bold text-slate-900">Students</h1>
           <p className="text-sm text-slate-500 mt-0.5">{students.length} student{students.length !== 1 ? 's' : ''}</p>
         </div>
-        <button onClick={openAdd} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#15803D' }}>
-          + Add Student
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => { setImpResult(null); setImpFile(null); setImportModal(true); }}
+            className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50">
+            Import Students
+          </button>
+          <button onClick={() => { setImpResult(null); setUpdFile(null); setUpdateModal(true); }}
+            className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50">
+            Bulk Update
+          </button>
+          <button onClick={openAdd} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#15803D' }}>
+            + Add Student
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -296,6 +366,111 @@ export default function PrimaryStudentsPage() {
               <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50">Cancel</button>
               <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
                 {saving ? 'Saving…' : 'Save Student'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Students Modal */}
+      {importModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="font-bold text-slate-900">Import Students</h2>
+              <button onClick={() => setImportModal(false)} className="text-slate-400 hover:text-slate-600">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-slate-50 rounded-lg px-4 py-3 text-sm text-slate-600 space-y-1">
+                <p className="font-semibold text-slate-700">Step 1 — Download the template</p>
+                <button onClick={() => downloadTemplate('empty')} className="text-green-700 font-semibold hover:underline text-sm">
+                  Download blank template (.xlsx)
+                </button>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-600 mb-2">Admission number auto-generation</p>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="block text-xs text-slate-500 mb-1">Prefix (e.g. SASHTS)</label>
+                    <input value={impPrefix} onChange={e => setImpPrefix(e.target.value.toUpperCase())} placeholder="SASHTS"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono" />
+                  </div>
+                  <div className="w-24">
+                    <label className="block text-xs text-slate-500 mb-1">Year (e.g. 26)</label>
+                    <input value={impYear} onChange={e => setImpYear(e.target.value)} placeholder="26"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono" />
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">Rows with a blank Admission No. column will get auto-generated IDs like <span className="font-mono">{impPrefix || 'SCHOOL'}001{impYear || 'YY'}</span></p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Step 2 — Upload filled template</label>
+                <input ref={impFileRef} type="file" accept=".xlsx,.xls" className="hidden"
+                  onChange={e => setImpFile(e.target.files?.[0] ?? null)} />
+                <button onClick={() => impFileRef.current?.click()}
+                  className="w-full border-2 border-dashed border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-500 hover:border-green-400 hover:text-green-700 text-center transition-colors">
+                  {impFile ? impFile.name : 'Click to choose Excel file…'}
+                </button>
+              </div>
+              {impResult && (
+                <div className={`rounded-lg px-4 py-3 text-sm ${impResult.errors.length && !impResult.inserted ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}`}>
+                  {impResult.inserted != null && <p className="font-semibold">{impResult.inserted} student(s) imported.</p>}
+                  {impResult.errors.map((e, i) => <p key={i} className="text-xs mt-0.5">{e}</p>)}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+              <button onClick={() => setImportModal(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50">Close</button>
+              <button onClick={submitImport} disabled={!impFile || impLoading}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+                {impLoading ? 'Importing…' : 'Import'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Update Modal */}
+      {updateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="font-bold text-slate-900">Bulk Update Students</h2>
+              <button onClick={() => setUpdateModal(false)} className="text-slate-400 hover:text-slate-600">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-slate-50 rounded-lg px-4 py-3 text-sm text-slate-600 space-y-1">
+                <p className="font-semibold text-slate-700">Step 1 — Download the current data</p>
+                <button onClick={() => downloadTemplate('populated')} className="text-green-700 font-semibold hover:underline text-sm">
+                  Download populated template (.xlsx)
+                </button>
+                <p className="text-xs text-slate-400">Edit values in Excel (Admission No. is the key — do not change it). Leave cells blank to skip updating them.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Step 2 — Upload edited file</label>
+                <input ref={updFileRef} type="file" accept=".xlsx,.xls" className="hidden"
+                  onChange={e => setUpdFile(e.target.files?.[0] ?? null)} />
+                <button onClick={() => updFileRef.current?.click()}
+                  className="w-full border-2 border-dashed border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-500 hover:border-green-400 hover:text-green-700 text-center transition-colors">
+                  {updFile ? updFile.name : 'Click to choose Excel file…'}
+                </button>
+              </div>
+              {impResult && (
+                <div className={`rounded-lg px-4 py-3 text-sm ${impResult.errors.length && !impResult.updated ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}`}>
+                  {impResult.updated != null && <p className="font-semibold">{impResult.updated} student(s) updated.</p>}
+                  {impResult.errors.map((e, i) => <p key={i} className="text-xs mt-0.5">{e}</p>)}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+              <button onClick={() => setUpdateModal(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50">Close</button>
+              <button onClick={submitUpdate} disabled={!updFile || impLoading}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+                {impLoading ? 'Updating…' : 'Update'}
               </button>
             </div>
           </div>
