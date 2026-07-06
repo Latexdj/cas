@@ -28,6 +28,12 @@ interface Lesson {
   sort_order: number;
 }
 
+interface AssessmentMode {
+  id: string;
+  name: string;
+  ca_contribution: number;
+}
+
 interface Assignment {
   id: string;
   title: string;
@@ -38,6 +44,9 @@ interface Assignment {
   is_published: boolean;
   submission_count?: number;
   graded_count?: number;
+  assessment_mode_id?: string | null;
+  assessment_mode_name?: string | null;
+  ca_synced_at?: string | null;
 }
 
 interface QuizQuestion {
@@ -63,6 +72,9 @@ interface Quiz {
   is_published: boolean;
   question_count?: number;
   total_marks?: number;
+  assessment_mode_id?: string | null;
+  assessment_mode_name?: string | null;
+  ca_synced_at?: string | null;
 }
 
 interface Submission {
@@ -369,6 +381,18 @@ function AssignmentsTab({ courseId, primary }: { courseId: string; primary: stri
     } catch { alert('Failed to delete.'); }
   }
 
+  async function syncToCA(a: Assignment) {
+    if (!confirm(`Sync "${a.title}" scores to CA? This will create or update a CA assessment record.`)) return;
+    try {
+      const { data } = await teacherApi.post<{ message: string; student_count: number }>(`/api/lms/assignments/${a.id}/sync-to-ca`, {});
+      alert(`${data.message}. ${data.student_count} student score(s) recorded.`);
+      load();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(msg ?? 'Sync failed.');
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -396,11 +420,18 @@ function AssignmentsTab({ courseId, primary }: { courseId: string; primary: stri
                   Max: {a.max_score} pts
                   {a.due_date ? ` · Due ${new Date(a.due_date).toLocaleDateString()}` : ''}
                   {a.submission_count !== undefined ? ` · ${a.submission_count} submitted / ${a.graded_count ?? 0} graded` : ''}
+                  {a.assessment_mode_name ? ` · CA: ${a.assessment_mode_name}` : ''}
                 </p>
+                {a.ca_synced_at && (
+                  <p className="text-[10px] text-emerald-600 mt-0.5">Synced {new Date(a.ca_synced_at).toLocaleString()}</p>
+                )}
               </div>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${a.is_published ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
                 {a.is_published ? 'Published' : 'Draft'}
               </span>
+              {a.assessment_mode_id && (
+                <button onClick={() => syncToCA(a)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 whitespace-nowrap">Sync CA</button>
+              )}
               <button onClick={() => { setEditing(a); setShowModal(true); }} className="text-xs text-slate-400 hover:text-slate-700 px-1.5">Edit</button>
               <button onClick={() => deleteAssignment(a.id)} className="text-xs text-red-400 hover:text-red-600 px-1.5">Del</button>
             </div>
@@ -439,8 +470,16 @@ function AssignmentModal({
   const [dueDate, setDueDate] = useState(assignment?.due_date ? assignment.due_date.slice(0, 16) : '');
   const [allowLate, setAllowLate] = useState(assignment?.allow_late ?? false);
   const [isPublished, setIsPublished] = useState(assignment?.is_published ?? true);
+  const [assessmentModeId, setAssessmentModeId] = useState(assignment?.assessment_mode_id ?? '');
+  const [assessmentModes, setAssessmentModes] = useState<AssessmentMode[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    teacherApi.get<AssessmentMode[]>('/api/assessment-modes')
+      .then(r => setAssessmentModes(r.data ?? []))
+      .catch(() => {});
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -453,6 +492,7 @@ function AssignmentModal({
       due_date: dueDate || null,
       allow_late: allowLate,
       is_published: isPublished,
+      assessment_mode_id: assessmentModeId || null,
     };
     try {
       if (assignment) {
@@ -491,6 +531,16 @@ function AssignmentModal({
               <label className="block text-xs font-semibold text-slate-500 mb-1">Due Date (optional)</label>
               <input type="datetime-local" className={INPUT} value={dueDate} onChange={e => setDueDate(e.target.value)} />
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Count for CA (optional)</label>
+            <select className={INPUT} value={assessmentModeId} onChange={e => setAssessmentModeId(e.target.value)}>
+              <option value="">— Not a CA assessment —</option>
+              {assessmentModes.map(m => (
+                <option key={m.id} value={m.id}>{m.name} ({m.ca_contribution}%)</option>
+              ))}
+            </select>
+            {assessmentModeId && <p className="text-xs text-slate-400 mt-1">After grading, use "Sync CA" to push scores to the CA register.</p>}
           </div>
           <div className="flex gap-5">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -550,6 +600,18 @@ function QuizzesTab({ courseId, primary }: { courseId: string; primary: string }
     } catch { alert('Failed to update.'); }
   }
 
+  async function syncToCA(quiz: Quiz) {
+    if (!confirm(`Sync "${quiz.title}" scores to CA? This will create or update a CA assessment record.`)) return;
+    try {
+      const { data } = await teacherApi.post<{ message: string; student_count: number }>(`/api/lms/quizzes/${quiz.id}/sync-to-ca`, {});
+      alert(`${data.message}. ${data.student_count} student score(s) recorded.`);
+      load();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(msg ?? 'Sync failed.');
+    }
+  }
+
   if (builderQuizId) {
     return (
       <QuizBuilder
@@ -586,7 +648,11 @@ function QuizzesTab({ courseId, primary }: { courseId: string; primary: string }
                 <p className="text-xs text-slate-400 mt-0.5">
                   {q.question_count ?? 0} questions · {q.total_marks ?? 0} marks
                   {q.time_limit_mins ? ` · ${q.time_limit_mins} min` : ''}
+                  {q.assessment_mode_name ? ` · CA: ${q.assessment_mode_name}` : ''}
                 </p>
+                {q.ca_synced_at && (
+                  <p className="text-[10px] text-emerald-600 mt-0.5">Synced {new Date(q.ca_synced_at).toLocaleString()}</p>
+                )}
               </div>
               <button
                 onClick={() => togglePublish(q)}
@@ -594,6 +660,9 @@ function QuizzesTab({ courseId, primary }: { courseId: string; primary: string }
               >
                 {q.is_published ? 'Published' : 'Draft'}
               </button>
+              {q.assessment_mode_id && (
+                <button onClick={() => syncToCA(q)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 whitespace-nowrap">Sync CA</button>
+              )}
               <button onClick={() => { setEditingMeta(q); setShowMetaModal(true); }} className="text-xs text-slate-400 hover:text-slate-700 px-1.5">Edit</button>
               <button onClick={() => setBuilderQuizId(q.id)} className="text-xs text-blue-500 hover:text-blue-700 px-1.5">Questions</button>
               <button onClick={() => deleteQuiz(q.id)} className="text-xs text-red-400 hover:text-red-600 px-1.5">Del</button>
@@ -633,8 +702,16 @@ function QuizMetaModal({
   const [maxAttempts, setMaxAttempts] = useState(quiz?.max_attempts ?? 1);
   const [showAnswers, setShowAnswers] = useState(quiz?.show_answers_after ?? false);
   const [isPublished, setIsPublished] = useState(quiz?.is_published ?? false);
+  const [assessmentModeId, setAssessmentModeId] = useState(quiz?.assessment_mode_id ?? '');
+  const [assessmentModes, setAssessmentModes] = useState<AssessmentMode[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    teacherApi.get<AssessmentMode[]>('/api/assessment-modes')
+      .then(r => setAssessmentModes(r.data ?? []))
+      .catch(() => {});
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -647,6 +724,7 @@ function QuizMetaModal({
       max_attempts: maxAttempts,
       show_answers_after: showAnswers,
       is_published: isPublished,
+      assessment_mode_id: assessmentModeId || null,
     };
     try {
       if (quiz) {
@@ -686,6 +764,16 @@ function QuizMetaModal({
               <label className="block text-xs font-semibold text-slate-500 mb-1">Max Attempts</label>
               <input type="number" className={INPUT} value={maxAttempts} onChange={e => setMaxAttempts(parseInt(e.target.value) || 1)} min={1} />
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Count for CA (optional)</label>
+            <select className={INPUT} value={assessmentModeId} onChange={e => setAssessmentModeId(e.target.value)}>
+              <option value="">— Not a CA assessment —</option>
+              {assessmentModes.map(m => (
+                <option key={m.id} value={m.id}>{m.name} ({m.ca_contribution}%)</option>
+              ))}
+            </select>
+            {assessmentModeId && <p className="text-xs text-slate-400 mt-1">After students complete the quiz, use "Sync CA" to push scores to the CA register.</p>}
           </div>
           <div className="flex gap-5">
             <label className="flex items-center gap-2 cursor-pointer">

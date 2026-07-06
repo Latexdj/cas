@@ -1834,6 +1834,14 @@ async function runMigrations() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_courses_school ON lms_courses(school_id, academic_year_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_courses_class  ON lms_courses(school_id, class_name)`);
     await pool.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='lms_courses' AND column_name='term') THEN ALTER TABLE lms_courses RENAME COLUMN term TO semester; END IF; END $$`);
+    await pool.query(`ALTER TABLE lms_quizzes      ADD COLUMN IF NOT EXISTS assessment_mode_id UUID REFERENCES assessment_modes(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE lms_quizzes      ADD COLUMN IF NOT EXISTS ca_synced_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE lms_assignments  ADD COLUMN IF NOT EXISTS assessment_mode_id UUID REFERENCES assessment_modes(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE lms_assignments  ADD COLUMN IF NOT EXISTS ca_synced_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS lms_quiz_id UUID`);
+    await pool.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS lms_assignment_id UUID`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_assessments_lms_quiz ON assessments(lms_quiz_id) WHERE lms_quiz_id IS NOT NULL`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_assessments_lms_asgn ON assessments(lms_assignment_id) WHERE lms_assignment_id IS NOT NULL`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_submissions_assignment ON lms_submissions(assignment_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_submissions_student   ON lms_submissions(student_id, school_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_quiz_attempts_student ON lms_quiz_attempts(student_id, quiz_id)`);

@@ -307,8 +307,10 @@ router.get('/courses/:courseId/assignments', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT a.*,
          (SELECT COUNT(*)::int FROM lms_submissions WHERE assignment_id=a.id) AS submission_count,
-         (SELECT COUNT(*)::int FROM lms_submissions WHERE assignment_id=a.id AND score IS NOT NULL) AS graded_count
+         (SELECT COUNT(*)::int FROM lms_submissions WHERE assignment_id=a.id AND score IS NOT NULL) AS graded_count,
+         am.name AS assessment_mode_name
        FROM lms_assignments a
+       LEFT JOIN assessment_modes am ON am.id=a.assessment_mode_id
        WHERE a.course_id=$1 AND a.school_id=$2
        ORDER BY a.due_date NULLS LAST, a.created_at`,
       [req.params.courseId, req.schoolId]);
@@ -320,13 +322,14 @@ router.post('/courses/:courseId/assignments', teacherOrAdmin, async (req, res, n
   try {
     const err = await assertCourseOwner(req, req.params.courseId);
     if (err) return res.status(err.status).json({ error: err.error });
-    const { title, instructions, max_score, due_date, allow_late, is_published } = req.body;
+    const { title, instructions, max_score, due_date, allow_late, is_published, assessment_mode_id } = req.body;
     if (!title) return res.status(400).json({ error: 'title is required' });
     const { rows } = await pool.query(
-      `INSERT INTO lms_assignments (course_id, school_id, title, instructions, max_score, due_date, allow_late, is_published)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      `INSERT INTO lms_assignments (course_id, school_id, title, instructions, max_score, due_date, allow_late, is_published, assessment_mode_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [req.params.courseId, req.schoolId, title, instructions || null,
-       parseFloat(max_score) || 100, due_date || null, allow_late ?? true, is_published ?? true]);
+       parseFloat(max_score) || 100, due_date || null, allow_late ?? true, is_published ?? true,
+       assessment_mode_id || null]);
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -339,15 +342,17 @@ router.put('/assignments/:id', teacherOrAdmin, async (req, res, next) => {
     if (!ex.length) return res.status(404).json({ error: 'Assignment not found' });
     const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
     if (!isAdmin && ex[0].teacher_id !== req.user.id) return res.status(403).json({ error: 'Not your course' });
-    const { title, instructions, max_score, due_date, allow_late, is_published } = req.body;
+    const { title, instructions, max_score, due_date, allow_late, is_published, assessment_mode_id } = req.body;
     const { rows } = await pool.query(
       `UPDATE lms_assignments SET
          title=COALESCE($1,title), instructions=$2,
          max_score=COALESCE($3,max_score), due_date=$4,
-         allow_late=COALESCE($5,allow_late), is_published=COALESCE($6,is_published)
+         allow_late=COALESCE($5,allow_late), is_published=COALESCE($6,is_published),
+         assessment_mode_id=COALESCE($9,assessment_mode_id)
        WHERE id=$7 AND school_id=$8 RETURNING *`,
       [title, instructions ?? null, max_score ? parseFloat(max_score) : null,
-       due_date ?? null, allow_late, is_published, req.params.id, req.schoolId]);
+       due_date ?? null, allow_late, is_published, req.params.id, req.schoolId,
+       assessment_mode_id ?? null]);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -436,8 +441,11 @@ router.get('/courses/:courseId/quizzes', async (req, res, next) => {
 
     let q = `SELECT q.*,
       (SELECT COUNT(*)::int FROM lms_quiz_questions WHERE quiz_id=q.id) AS question_count,
-      (SELECT COALESCE(SUM(marks),0) FROM lms_quiz_questions WHERE quiz_id=q.id) AS total_marks
-      FROM lms_quizzes q WHERE q.course_id=$1 AND q.school_id=$2`;
+      (SELECT COALESCE(SUM(marks),0) FROM lms_quiz_questions WHERE quiz_id=q.id) AS total_marks,
+      am.name AS assessment_mode_name
+      FROM lms_quizzes q
+      LEFT JOIN assessment_modes am ON am.id=q.assessment_mode_id
+      WHERE q.course_id=$1 AND q.school_id=$2`;
     if (req.user.role === 'student') q += ' AND q.is_published=true';
     q += ' ORDER BY q.created_at';
 
@@ -460,15 +468,16 @@ router.post('/courses/:courseId/quizzes', teacherOrAdmin, async (req, res, next)
   try {
     const err = await assertCourseOwner(req, req.params.courseId);
     if (err) return res.status(err.status).json({ error: err.error });
-    const { title, instructions, time_limit_mins, max_attempts, is_published, randomise_questions, show_answers_after } = req.body;
+    const { title, instructions, time_limit_mins, max_attempts, is_published, randomise_questions, show_answers_after, assessment_mode_id } = req.body;
     if (!title) return res.status(400).json({ error: 'title is required' });
     const { rows } = await pool.query(
-      `INSERT INTO lms_quizzes (course_id, school_id, title, instructions, time_limit_mins, max_attempts, is_published, randomise_questions, show_answers_after)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      `INSERT INTO lms_quizzes (course_id, school_id, title, instructions, time_limit_mins, max_attempts, is_published, randomise_questions, show_answers_after, assessment_mode_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
       [req.params.courseId, req.schoolId, title, instructions || null,
        time_limit_mins ? parseInt(time_limit_mins) : null,
        parseInt(max_attempts) || 1, is_published ?? false,
-       randomise_questions ?? false, show_answers_after ?? true]);
+       randomise_questions ?? false, show_answers_after ?? true,
+       assessment_mode_id || null]);
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -483,29 +492,39 @@ router.put('/quizzes/:id', teacherOrAdmin, async (req, res, next) => {
     const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
     if (!isAdmin && ex[0].teacher_id !== req.user.id) return res.status(403).json({ error: 'Not your course' });
 
-    const { title, instructions, time_limit_mins, max_attempts, is_published, randomise_questions, show_answers_after, questions } = req.body;
+    const { title, instructions, time_limit_mins, max_attempts, is_published, randomise_questions, show_answers_after, assessment_mode_id, questions } = req.body;
     const { rows } = await pool.query(
       `UPDATE lms_quizzes SET
          title=COALESCE($1,title), instructions=$2,
          time_limit_mins=$3, max_attempts=COALESCE($4,max_attempts),
          is_published=COALESCE($5,is_published),
          randomise_questions=COALESCE($6,randomise_questions),
-         show_answers_after=COALESCE($7,show_answers_after)
+         show_answers_after=COALESCE($7,show_answers_after),
+         assessment_mode_id=COALESCE($10,assessment_mode_id)
        WHERE id=$8 AND school_id=$9 RETURNING *`,
       [title, instructions ?? null, time_limit_mins ? parseInt(time_limit_mins) : null,
        max_attempts ? parseInt(max_attempts) : null, is_published,
-       randomise_questions, show_answers_after, req.params.id, req.schoolId]);
+       randomise_questions, show_answers_after, req.params.id, req.schoolId,
+       assessment_mode_id ?? null]);
 
     if (Array.isArray(questions)) {
       await pool.query('DELETE FROM lms_quiz_questions WHERE quiz_id=$1', [req.params.id]);
       for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
+        // Support both JSONB options array and flat option_a/b/c/d + correct_option fields
+        let optionsJson = null;
+        if (Array.isArray(q.options)) {
+          optionsJson = JSON.stringify(q.options);
+        } else if (q.option_a !== undefined) {
+          const letters = ['a', 'b', 'c', 'd'];
+          const opts = letters.map(l => ({ text: q[`option_${l}`] || '', is_correct: q.correct_option === l }));
+          optionsJson = JSON.stringify(opts);
+        }
         await pool.query(
           `INSERT INTO lms_quiz_questions (quiz_id, school_id, question_text, question_type, options, explanation, marks, sort_order)
            VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8)`,
           [req.params.id, req.schoolId, q.question_text, q.question_type || 'mcq',
-           q.options ? JSON.stringify(q.options) : null,
-           q.explanation || null, parseFloat(q.marks) || 1, i]);
+           optionsJson, q.explanation || null, parseFloat(q.marks) || 1, i]);
       }
     }
 
@@ -534,7 +553,22 @@ router.get('/quizzes/:id/questions', async (req, res, next) => {
         options: Array.isArray(q.options) ? q.options.map((o) => ({ text: o.text })) : q.options,
       })));
     }
-    res.json(rows);
+    // Teachers: convert JSONB options to flat option_a/b/c/d + correct_option for QuizBuilder
+    res.json(rows.map(q => {
+      if (!Array.isArray(q.options)) return q;
+      const [a, b, c, d] = q.options;
+      const correctIdx = q.options.findIndex(o => o.is_correct === true);
+      const letters = ['a', 'b', 'c', 'd'];
+      return {
+        ...q,
+        option_a: a?.text ?? '',
+        option_b: b?.text ?? '',
+        option_c: c?.text ?? '',
+        option_d: d?.text ?? '',
+        correct_option: correctIdx >= 0 ? letters[correctIdx] : null,
+        options: undefined,
+      };
+    }));
   } catch (err) { next(err); }
 });
 
@@ -681,6 +715,100 @@ router.get('/quizzes/:id/results', teacherOrAdmin, async (req, res, next) => {
        ORDER BY a.score DESC NULLS LAST`,
       [req.params.id, req.schoolId]);
     res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// Sync quiz scores to CA assessment
+router.post('/quizzes/:id/sync-to-ca', teacherOrAdmin, async (req, res, next) => {
+  try {
+    const { rows: qRows } = await pool.query(
+      `SELECT q.*, c.subject_name, c.class_name, c.academic_year_id, c.semester, c.teacher_id
+       FROM lms_quizzes q JOIN lms_courses c ON c.id=q.course_id
+       WHERE q.id=$1 AND q.school_id=$2`,
+      [req.params.id, req.schoolId]);
+    if (!qRows.length) return res.status(404).json({ error: 'Quiz not found' });
+    const quiz = qRows[0];
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
+    if (!isAdmin && quiz.teacher_id !== req.user.id) return res.status(403).json({ error: 'Not your course' });
+    if (!quiz.assessment_mode_id) return res.status(400).json({ error: 'No assessment mode set for this quiz. Edit the quiz and select a CA mode first.' });
+
+    const { rows: totalRows } = await pool.query(
+      'SELECT COALESCE(SUM(marks),0) AS total FROM lms_quiz_questions WHERE quiz_id=$1',
+      [req.params.id]);
+    const quizMaxScore = parseFloat(totalRows[0].total) || 100;
+
+    const { rows: assRows } = await pool.query(
+      `INSERT INTO assessments (school_id, academic_year_id, semester, subject, class_name, teacher_id, mode_id, title, date, max_score, lms_quiz_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CURRENT_DATE,$9,$10)
+       ON CONFLICT (lms_quiz_id) WHERE lms_quiz_id IS NOT NULL
+         DO UPDATE SET title=EXCLUDED.title, max_score=EXCLUDED.max_score, teacher_id=EXCLUDED.teacher_id
+       RETURNING id`,
+      [req.schoolId, quiz.academic_year_id, quiz.semester, quiz.subject_name, quiz.class_name,
+       quiz.teacher_id, quiz.assessment_mode_id, quiz.title, quizMaxScore, req.params.id]);
+    const assessmentId = assRows[0].id;
+
+    const { rows: attempts } = await pool.query(
+      `SELECT student_id, score, max_score FROM lms_quiz_attempts
+       WHERE quiz_id=$1 AND is_complete=true AND school_id=$2`,
+      [req.params.id, req.schoolId]);
+
+    for (const att of attempts) {
+      const score = parseFloat(att.score) || 0;
+      const max = parseFloat(att.max_score) || quizMaxScore;
+      const scaled = max > 0 ? Math.round((score / max) * quizMaxScore * 100) / 100 : 0;
+      await pool.query(
+        `INSERT INTO assessment_scores (assessment_id, student_id, score)
+         VALUES ($1,$2,$3)
+         ON CONFLICT (assessment_id, student_id) DO UPDATE SET score=EXCLUDED.score`,
+        [assessmentId, att.student_id, scaled]);
+    }
+
+    await pool.query('UPDATE lms_quizzes SET ca_synced_at=now() WHERE id=$1', [req.params.id]);
+    res.json({ message: 'Synced successfully', assessment_id: assessmentId, student_count: attempts.length });
+  } catch (err) { next(err); }
+});
+
+// Sync assignment scores to CA assessment
+router.post('/assignments/:id/sync-to-ca', teacherOrAdmin, async (req, res, next) => {
+  try {
+    const { rows: aRows } = await pool.query(
+      `SELECT a.*, c.subject_name, c.class_name, c.academic_year_id, c.semester, c.teacher_id
+       FROM lms_assignments a JOIN lms_courses c ON c.id=a.course_id
+       WHERE a.id=$1 AND a.school_id=$2`,
+      [req.params.id, req.schoolId]);
+    if (!aRows.length) return res.status(404).json({ error: 'Assignment not found' });
+    const asgn = aRows[0];
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
+    if (!isAdmin && asgn.teacher_id !== req.user.id) return res.status(403).json({ error: 'Not your course' });
+    if (!asgn.assessment_mode_id) return res.status(400).json({ error: 'No assessment mode set for this assignment. Edit the assignment and select a CA mode first.' });
+
+    const maxScore = parseFloat(asgn.max_score) || 100;
+
+    const { rows: assRows } = await pool.query(
+      `INSERT INTO assessments (school_id, academic_year_id, semester, subject, class_name, teacher_id, mode_id, title, date, max_score, lms_assignment_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,COALESCE($9,CURRENT_DATE),$10,$11)
+       ON CONFLICT (lms_assignment_id) WHERE lms_assignment_id IS NOT NULL
+         DO UPDATE SET title=EXCLUDED.title, max_score=EXCLUDED.max_score, teacher_id=EXCLUDED.teacher_id
+       RETURNING id`,
+      [req.schoolId, asgn.academic_year_id, asgn.semester, asgn.subject_name, asgn.class_name,
+       asgn.teacher_id, asgn.assessment_mode_id, asgn.title, asgn.due_date, maxScore, req.params.id]);
+    const assessmentId = assRows[0].id;
+
+    const { rows: subs } = await pool.query(
+      `SELECT student_id, score FROM lms_submissions
+       WHERE assignment_id=$1 AND school_id=$2 AND score IS NOT NULL`,
+      [req.params.id, req.schoolId]);
+
+    for (const sub of subs) {
+      await pool.query(
+        `INSERT INTO assessment_scores (assessment_id, student_id, score)
+         VALUES ($1,$2,$3)
+         ON CONFLICT (assessment_id, student_id) DO UPDATE SET score=EXCLUDED.score`,
+        [assessmentId, sub.student_id, parseFloat(sub.score)]);
+    }
+
+    await pool.query('UPDATE lms_assignments SET ca_synced_at=now() WHERE id=$1', [req.params.id]);
+    res.json({ message: 'Synced successfully', assessment_id: assessmentId, student_count: subs.length });
   } catch (err) { next(err); }
 });
 
