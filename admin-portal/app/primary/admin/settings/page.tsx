@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 
 interface AssessmentMode {
@@ -15,6 +15,7 @@ interface SchoolSettings {
   motto: string | null; region: string | null; district: string | null;
   admission_prefix: string | null; admission_year: string | null;
   school_latitude: string | null; school_longitude: string | null; school_gps_radius: number | null;
+  vision: string | null; mission: string | null; core_values: string | null;
 }
 
 const GHANA_REGIONS = ['Ahafo','Ashanti','Bono','Bono East','Central','Eastern','Greater Accra','North East','Northern','Oti','Savannah','Upper East','Upper West','Volta','Western','Western North'];
@@ -22,7 +23,27 @@ const SCHOOL_TYPES  = ['Nursery','KG','Primary','JHS'];
 
 const BLANK_MODE = { name: '', ca_weight: '', is_terminal_exam: false, max_instances: '', sort_order: 0 };
 
+function compressToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      const scale = Math.min(1, 400 / Math.max(img.width, img.height));
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/png', 0.9));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
 export default function PrimarySettingsPage() {
+  const logoFileRef = useRef<HTMLInputElement>(null);
+
   const [data,    setData]    = useState<SchoolSettings | null>(null);
   const [form,    setForm]    = useState<Partial<SchoolSettings>>({});
   const [loading, setLoading] = useState(true);
@@ -30,11 +51,22 @@ export default function PrimarySettingsPage() {
   const [saved,   setSaved]   = useState(false);
   const [error,   setError]   = useState('');
 
+  // Logo
+  const [logoUrl,    setLogoUrl]    = useState<string | null>(null);
+  const [logoSaving, setLogoSaving] = useState(false);
+  const [logoSaved,  setLogoSaved]  = useState(false);
+  const [logoError,  setLogoError]  = useState('');
+
+  // Branding colors (saved separately)
+  const [brandSaving, setBrandSaving] = useState(false);
+  const [brandSaved,  setBrandSaved]  = useState(false);
+  const [brandError,  setBrandError]  = useState('');
+
   // Assessment modes
-  const [modes,     setModes]     = useState<AssessmentMode[]>([]);
-  const [modeForm,  setModeForm]  = useState<typeof BLANK_MODE>(BLANK_MODE);
-  const [editMode,  setEditMode]  = useState<AssessmentMode | null>(null);
-  const [modeModal, setModeModal] = useState(false);
+  const [modes,      setModes]      = useState<AssessmentMode[]>([]);
+  const [modeForm,   setModeForm]   = useState<typeof BLANK_MODE>(BLANK_MODE);
+  const [editMode,   setEditMode]   = useState<AssessmentMode | null>(null);
+  const [modeModal,  setModeModal]  = useState(false);
   const [modeSaving, setModeSaving] = useState(false);
   const [modeError,  setModeError]  = useState('');
 
@@ -42,7 +74,11 @@ export default function PrimarySettingsPage() {
     Promise.all([
       api.get<SchoolSettings>('/api/admin/settings'),
       api.get<AssessmentMode[]>('/api/primary/assessment-modes'),
-    ]).then(([s, m]) => { setData(s.data); setForm(s.data); setModes(m.data); })
+    ]).then(([s, m]) => {
+      setData(s.data); setForm(s.data);
+      setLogoUrl(s.data.logo_url ?? null);
+      setModes(m.data);
+    })
       .catch(() => setError('Failed to load school settings.'))
       .finally(() => setLoading(false));
   }, []);
@@ -83,26 +119,66 @@ export default function PrimarySettingsPage() {
     setSaving(true); setError(''); setSaved(false);
     try {
       await api.patch('/api/admin/settings/info', {
-        name:               form.name,
-        address:            form.address,
-        phone:              form.phone,
-        email:              form.email,
-        school_type:        form.school_type,
-        school_category:    form.school_category,
-        motto:              form.motto,
-        region:             form.region,
-        district:           form.district,
-        admission_prefix:   form.admission_prefix,
-        admission_year:     form.admission_year,
-        school_latitude:    form.school_latitude,
-        school_longitude:   form.school_longitude,
-        school_gps_radius:  form.school_gps_radius,
+        name:              form.name,
+        address:           form.address,
+        phone:             form.phone,
+        email:             form.email,
+        school_type:       form.school_type,
+        school_category:   form.school_category,
+        motto:             form.motto,
+        region:            form.region,
+        district:          form.district,
+        admission_prefix:  form.admission_prefix,
+        admission_year:    form.admission_year,
+        school_latitude:   form.school_latitude,
+        school_longitude:  form.school_longitude,
+        school_gps_radius: form.school_gps_radius,
+        vision:            form.vision,
+        mission:           form.mission,
+        core_values:       form.core_values,
       });
       setSaved(true);
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? 'Save failed.');
     } finally { setSaving(false); }
+  }
+
+  async function saveBranding() {
+    const hexRe = /^#[0-9A-Fa-f]{6}$/;
+    const pc = form.primary_color ?? '';
+    const ac = form.accent_color ?? '';
+    if (!hexRe.test(pc) || !hexRe.test(ac)) {
+      setBrandError('Colors must be valid hex codes (e.g. #15803D).');
+      return;
+    }
+    setBrandSaving(true); setBrandError(''); setBrandSaved(false);
+    try {
+      await api.patch('/api/admin/settings', { primary_color: pc, accent_color: ac });
+      setBrandSaved(true);
+      setTimeout(() => setBrandSaved(false), 3000);
+    } catch (e: unknown) {
+      setBrandError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Save failed.');
+    } finally { setBrandSaving(false); }
+  }
+
+  async function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoSaving(true); setLogoError(''); setLogoSaved(false);
+    try {
+      const dataUrl = await compressToBase64(file);
+      const res = await api.patch<{ logo_url: string }>('/api/admin/settings/logo', { imageBase64: dataUrl });
+      setLogoUrl(res.data.logo_url);
+      setForm(f => ({ ...f, logo_url: res.data.logo_url }));
+      setLogoSaved(true);
+      setTimeout(() => setLogoSaved(false), 3000);
+    } catch {
+      setLogoError('Failed to upload logo. Please try again.');
+    } finally {
+      setLogoSaving(false);
+      if (logoFileRef.current) logoFileRef.current.value = '';
+    }
   }
 
   const F = (label: string, key: keyof SchoolSettings, type = 'text', opts?: string[]) => (
@@ -121,6 +197,16 @@ export default function PrimarySettingsPage() {
     </div>
   );
 
+  const TA = (label: string, key: keyof SchoolSettings, placeholder: string) => (
+    <div>
+      <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
+      <textarea rows={3} value={String(form[key] ?? '')}
+        onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+        placeholder={placeholder}
+        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 resize-y focus:outline-none focus:ring-2 focus:ring-green-500" />
+    </div>
+  );
+
   if (loading) return (
     <div className="flex justify-center py-20">
       <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
@@ -132,7 +218,7 @@ export default function PrimarySettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-slate-900">School Settings</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Update your school's information and preferences</p>
+          <p className="text-sm text-slate-500 mt-0.5">Update your school&apos;s information and preferences</p>
         </div>
         <button onClick={save} disabled={saving}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 shadow-sm"
@@ -157,6 +243,19 @@ export default function PrimarySettingsPage() {
           {F('District', 'district')}
           <div className="col-span-full">{F('Address', 'address')}</div>
           <div className="col-span-full">{F('School Motto', 'motto')}</div>
+        </div>
+      </div>
+
+      {/* School Identity */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
+        <div className="border-b border-gray-100 pb-2">
+          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">School Identity</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Used in report cards, certificates, the admission portal, and other official documents.</p>
+        </div>
+        <div className="space-y-4">
+          {TA('Vision Statement', 'vision', 'e.g. To be a centre of excellence in holistic child education…')}
+          {TA('Mission Statement', 'mission', 'e.g. To nurture confident, creative and responsible learners…')}
+          {TA('Core Values', 'core_values', 'e.g. Integrity, Excellence, Discipline, Respect, Innovation')}
         </div>
       </div>
 
@@ -215,8 +314,7 @@ export default function PrimarySettingsPage() {
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500" />
           </div>
         </div>
-        <button
-          type="button"
+        <button type="button"
           onClick={() => {
             if (!navigator.geolocation) return alert('Geolocation not supported by your browser.');
             navigator.geolocation.getCurrentPosition(
@@ -366,9 +464,48 @@ export default function PrimarySettingsPage() {
         </div>
       )}
 
-      {/* Branding */}
+      {/* School Logo */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
-        <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide border-b border-gray-100 pb-2">Branding</h2>
+        <div className="border-b border-gray-100 pb-2">
+          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">School Logo</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Displayed in reports, certificates, and the portal. Recommended: square image, at least 200×200 px.</p>
+        </div>
+        <input ref={logoFileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+        <div className="flex items-center gap-5">
+          <div className="w-20 h-20 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden border-2 border-dashed border-gray-200 bg-gray-50">
+            {logoUrl ? (
+              <img src={logoUrl} alt="School logo" className="w-full h-full object-cover" />
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-8 h-8 text-gray-300">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <circle cx="8.5" cy="8.5" r="1.5" />
+                <polyline points="21 15 16 10 5 21" />
+              </svg>
+            )}
+          </div>
+          <div>
+            <button onClick={() => logoFileRef.current?.click()} disabled={logoSaving}
+              className="px-4 py-2 rounded-lg text-sm font-semibold border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 transition-colors disabled:opacity-40">
+              {logoSaving ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 rounded-full border-2 border-green-700 border-t-transparent animate-spin" />
+                  Uploading…
+                </span>
+              ) : logoUrl ? 'Replace Logo' : 'Upload Logo'}
+            </button>
+            {logoSaved  && <p className="text-xs mt-2 text-green-700">✓ Logo updated successfully.</p>}
+            {logoError  && <p className="text-xs mt-2 text-red-600">{logoError}</p>}
+            {!logoUrl && !logoSaved && <p className="text-xs mt-2 text-slate-400">No logo uploaded yet.</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Branding Colors */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
+        <div className="border-b border-gray-100 pb-2">
+          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Branding Colors</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Teachers will see the updated theme on their next login.</p>
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Primary Color</label>
@@ -391,12 +528,13 @@ export default function PrimarySettingsPage() {
             </div>
           </div>
         </div>
-        {form.logo_url && (
-          <div>
-            <p className="text-xs font-semibold text-slate-600 mb-2">Current Logo</p>
-            <img src={form.logo_url} alt="School logo" className="h-16 w-16 rounded-xl object-cover border border-gray-200" />
-          </div>
-        )}
+        {brandError && <p className="text-xs text-red-600">{brandError}</p>}
+        {brandSaved && <p className="text-xs text-green-700">✓ Colors saved.</p>}
+        <button onClick={saveBranding} disabled={brandSaving}
+          className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+          style={{ backgroundColor: '#15803D' }}>
+          {brandSaving ? 'Saving…' : 'Save Colors'}
+        </button>
       </div>
 
       {/* Read-only info */}

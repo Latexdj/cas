@@ -23,6 +23,8 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+interface SchoolIdentity { vision?: string | null; mission?: string | null; core_values?: string | null; }
+
 export default function AdmissionSettingsPage() {
   const [settings, setSettings]   = useState<Settings>({});
   const [saving,   setSaving]     = useState(false);
@@ -33,14 +35,41 @@ export default function AdmissionSettingsPage() {
   const bannerRef = useRef<HTMLInputElement>(null);
   const logoRef   = useRef<HTMLInputElement>(null);
 
+  // School identity (stored in schools table, saved separately)
+  const [vision,         setVision]         = useState('');
+  const [mission,        setMission]        = useState('');
+  const [coreValues,     setCoreValues]     = useState('');
+  const [identitySaving, setIdentitySaving] = useState(false);
+  const [identitySaved,  setIdentitySaved]  = useState(false);
+  const [identityError,  setIdentityError]  = useState('');
+
   const load = useCallback(async () => {
-    try { const { data } = await api.get('/api/admin/admissions/settings'); setSettings(data); }
-    catch {}
+    try {
+      const [admRes, schoolRes] = await Promise.all([
+        api.get('/api/admin/admissions/settings'),
+        api.get<SchoolIdentity>('/api/admin/settings'),
+      ]);
+      setSettings(admRes.data);
+      setVision(schoolRes.data.vision ?? '');
+      setMission(schoolRes.data.mission ?? '');
+      setCoreValues(schoolRes.data.core_values ?? '');
+    } catch {}
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const set = (k: keyof Settings) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setSettings(s => ({ ...s, [k]: e.target.value }));
+
+  async function saveIdentity() {
+    setIdentitySaving(true); setIdentityError(''); setIdentitySaved(false);
+    try {
+      await api.patch('/api/admin/settings/info', { vision, mission, core_values: coreValues });
+      setIdentitySaved(true);
+      setTimeout(() => setIdentitySaved(false), 3000);
+    } catch (e: unknown) {
+      setIdentityError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save.');
+    } finally { setIdentitySaving(false); }
+  }
 
   async function save() {
     setSaving(true); setError(''); setSaved(false);
@@ -156,6 +185,37 @@ export default function AdmissionSettingsPage() {
                 value={settings.portal_accent_color ?? ''} onChange={set('portal_accent_color')} placeholder="#15803D" />
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* School Identity */}
+      <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">School Identity</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Displayed on your school&apos;s admission website. Also appears in report cards and certificates.</p>
+        </div>
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Vision Statement</label>
+          <textarea rows={3} className={`${inputCls} resize-y`}
+            placeholder="e.g. To be a centre of excellence in holistic education…"
+            value={vision} onChange={e => setVision(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Mission Statement</label>
+          <textarea rows={3} className={`${inputCls} resize-y`}
+            placeholder="e.g. To nurture confident, creative and responsible learners…"
+            value={mission} onChange={e => setMission(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Core Values</label>
+          <textarea rows={2} className={`${inputCls} resize-y`}
+            placeholder="e.g. Integrity, Excellence, Discipline, Respect, Innovation"
+            value={coreValues} onChange={e => setCoreValues(e.target.value)} />
+        </div>
+        {identityError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{identityError}</p>}
+        {identitySaved && <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">✓ School identity saved.</p>}
+        <div className="flex justify-end">
+          <Button onClick={saveIdentity} loading={identitySaving}>Save Identity</Button>
         </div>
       </section>
 

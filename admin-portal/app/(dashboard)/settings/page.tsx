@@ -13,6 +13,9 @@ interface SchoolSettings {
   logo_url?: string | null;
   period_duration_minutes: number;
   ca_percentage: number;
+  vision?: string | null;
+  mission?: string | null;
+  core_values?: string | null;
 }
 
 function compressToBase64(file: File): Promise<string> {
@@ -286,6 +289,14 @@ export default function SettingsPage() {
   const [caSaved,   setCaSaved]   = useState(false);
   const [caError,   setCaError]   = useState('');
 
+  // School identity state
+  const [vision,         setVision]         = useState('');
+  const [mission,        setMission]        = useState('');
+  const [coreValues,     setCoreValues]     = useState('');
+  const [identitySaving, setIdentitySaving] = useState(false);
+  const [identitySaved,  setIdentitySaved]  = useState(false);
+  const [identityError,  setIdentityError]  = useState('');
+
   useEffect(() => {
     api.get<SchoolSettings>('/api/admin/settings').then(r => {
       setSettings(r.data);
@@ -294,6 +305,9 @@ export default function SettingsPage() {
       setLogoUrl(r.data.logo_url ?? null);
       setPeriodMins(r.data.period_duration_minutes ?? 60);
       setCaPct(r.data.ca_percentage ?? 30);
+      setVision(r.data.vision ?? '');
+      setMission(r.data.mission ?? '');
+      setCoreValues(r.data.core_values ?? '');
     }).finally(() => setLoading(false));
   }, []);
 
@@ -342,6 +356,18 @@ export default function SettingsPage() {
       setLogoSaving(false);
       if (logoFileRef.current) logoFileRef.current.value = '';
     }
+  }
+
+  async function saveIdentity() {
+    setIdentitySaving(true); setIdentityError(''); setIdentitySaved(false);
+    try {
+      await api.patch('/api/admin/settings/info', { vision, mission, core_values: coreValues });
+      setIdentitySaved(true);
+      setTimeout(() => setIdentitySaved(false), 3000);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setIdentityError(msg ?? 'Failed to save.');
+    } finally { setIdentitySaving(false); }
   }
 
   async function save() {
@@ -426,6 +452,37 @@ export default function SettingsPage() {
             {logoError  && <p className="text-xs mt-2" style={{ color: '#DC2626' }}>{logoError}</p>}
             {!logoUrl   && !logoSaved && <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>No logo uploaded yet.</p>}
           </div>
+        </div>
+      </div>
+
+      {/* School Identity */}
+      <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>School Identity</h2>
+        <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
+          Used in report cards, certificates, and the admission portal. Provide your school&apos;s vision, mission, and core values.
+        </p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#475569' }}>Vision Statement</label>
+            <textarea rows={3} value={vision} onChange={e => setVision(e.target.value)}
+              placeholder="e.g. To be a centre of excellence in holistic education…"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 resize-y focus:outline-none focus:ring-2 focus:ring-green-600" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#475569' }}>Mission Statement</label>
+            <textarea rows={3} value={mission} onChange={e => setMission(e.target.value)}
+              placeholder="e.g. To nurture confident, creative and responsible learners…"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 resize-y focus:outline-none focus:ring-2 focus:ring-green-600" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#475569' }}>Core Values</label>
+            <textarea rows={2} value={coreValues} onChange={e => setCoreValues(e.target.value)}
+              placeholder="e.g. Integrity, Excellence, Discipline, Respect, Innovation"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 resize-y focus:outline-none focus:ring-2 focus:ring-green-600" />
+          </div>
+          {identityError && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>{identityError}</p>}
+          {identitySaved && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#F0FDF4', color: '#15803D' }}>✓ School identity saved.</p>}
+          <Button onClick={saveIdentity} loading={identitySaving}>Save Identity</Button>
         </div>
       </div>
 

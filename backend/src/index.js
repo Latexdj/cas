@@ -1654,6 +1654,10 @@ async function runMigrations() {
     // max_instances: NULL = unlimited; positive int = capped per subject/term
     await pool.query(`ALTER TABLE primary_assessment_modes ADD COLUMN IF NOT EXISTS max_instances INTEGER`);
     await pool.query(`ALTER TABLE assessment_modes ADD COLUMN IF NOT EXISTS max_instances INTEGER`);
+    // School identity fields
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS vision TEXT`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS mission TEXT`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS core_values TEXT`);
     // Migrate existing is_single_instance=true rows → max_instances=1
     await pool.query(`UPDATE primary_assessment_modes SET max_instances=1 WHERE is_single_instance=true AND max_instances IS NULL`);
 
