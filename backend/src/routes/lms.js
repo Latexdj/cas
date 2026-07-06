@@ -37,6 +37,29 @@ async function assertCourseOwner(req, courseId) {
 
 // ── COURSES ───────────────────────────────────────────────────────────────────
 
+// Teacher: subjects and classes assigned via timetable
+router.get('/my-timetable-assignments', teacherOrAdmin, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT subject, class_names FROM timetable
+       WHERE school_id=$1 AND teacher_id=$2 AND subject IS NOT NULL AND subject <> ''`,
+      [req.schoolId, req.user.id]
+    );
+    const subjectSet = new Set();
+    const classSet   = new Set();
+    for (const row of rows) {
+      if (row.subject) subjectSet.add(row.subject.trim());
+      if (row.class_names) {
+        row.class_names.split(',').forEach(c => { const t = c.trim(); if (t) classSet.add(t); });
+      }
+    }
+    res.json({
+      subjects: Array.from(subjectSet).sort(),
+      classes:  Array.from(classSet).sort(),
+    });
+  } catch (err) { next(err); }
+});
+
 // Teacher: list own courses
 router.get('/my-courses', teacherOrAdmin, async (req, res, next) => {
   try {

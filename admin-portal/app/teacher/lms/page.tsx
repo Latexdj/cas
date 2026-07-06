@@ -12,15 +12,9 @@ interface AcademicYear {
   current_semester?: number;
 }
 
-interface Subject {
-  id: string;
-  name: string;
-  code: string;
-}
-
-interface Class {
-  id: string;
-  name: string;
+interface TimetableAssignments {
+  subjects: string[];
+  classes: string[];
 }
 
 interface Course {
@@ -64,8 +58,9 @@ function NewCourseModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [classes, setClasses] = useState<Class[]>([]);
+  const [subjects, setSubjects] = useState<string[]>([]);
+  const [classes, setClasses] = useState<string[]>([]);
+  const [loadingAssignments, setLoadingAssignments] = useState(true);
   const [subjectName, setSubjectName] = useState('');
   const [className, setClassName] = useState('');
   const [yearId, setYearId] = useState(years.find(y => y.is_current)?.id ?? years[0]?.id ?? '');
@@ -75,13 +70,13 @@ function NewCourseModal({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([
-      teacherApi.get<Subject[]>('/api/subjects'),
-      teacherApi.get<Class[]>('/api/classes'),
-    ]).then(([s, cl]) => {
-      setSubjects(s.data ?? []);
-      setClasses(cl.data ?? []);
-    }).catch(() => {});
+    teacherApi.get<TimetableAssignments>('/api/lms/my-timetable-assignments')
+      .then(r => {
+        setSubjects(r.data?.subjects ?? []);
+        setClasses(r.data?.classes ?? []);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingAssignments(false));
   }, []);
 
   async function submit(e: React.FormEvent) {
@@ -120,18 +115,23 @@ function NewCourseModal({
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
           {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+          {!loadingAssignments && subjects.length === 0 && (
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              You have no timetable assignments yet. Ask your admin to assign you subjects and classes in the timetable before creating a course.
+            </p>
+          )}
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Subject</label>
-            <select className={INPUT} required value={subjectName} onChange={e => setSubjectName(e.target.value)}>
-              <option value="">Select subject…</option>
-              {subjects.map(s => <option key={s.id} value={s.name}>{s.name}{s.code ? ` (${s.code})` : ''}</option>)}
+            <select className={INPUT} required value={subjectName} onChange={e => setSubjectName(e.target.value)} disabled={loadingAssignments}>
+              <option value="">{loadingAssignments ? 'Loading…' : 'Select subject…'}</option>
+              {subjects.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Class</label>
-            <select className={INPUT} required value={className} onChange={e => setClassName(e.target.value)}>
-              <option value="">Select class…</option>
-              {classes.map(cl => <option key={cl.id} value={cl.name}>{cl.name}</option>)}
+            <select className={INPUT} required value={className} onChange={e => setClassName(e.target.value)} disabled={loadingAssignments}>
+              <option value="">{loadingAssignments ? 'Loading…' : 'Select class…'}</option>
+              {classes.map(cl => <option key={cl} value={cl}>{cl}</option>)}
             </select>
           </div>
           <div>
@@ -156,7 +156,7 @@ function NewCourseModal({
             <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || loadingAssignments || subjects.length === 0}
               className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50"
               style={{ background: primary }}
             >
