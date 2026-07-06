@@ -579,10 +579,20 @@ router.post('/quizzes/:quizId/attempt', studentOnly, async (req, res, next) => {
        FROM lms_quiz_questions WHERE quiz_id=$1 ORDER BY sort_order`,
       [req.params.quizId]);
 
-    const safeQ = questions.map(q => ({
-      ...q,
-      options: Array.isArray(q.options) ? q.options.map((o) => ({ text: o.text })) : q.options,
-    }));
+    const safeQ = questions.map(q => {
+      const base = {
+        id: q.id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        marks: q.marks,
+        sort_order: q.sort_order,
+      };
+      if (q.question_type === 'mcq' && Array.isArray(q.options)) {
+        const [a, b, c, d] = q.options;
+        return { ...base, option_a: a?.text ?? null, option_b: b?.text ?? null, option_c: c?.text ?? null, option_d: d?.text ?? null };
+      }
+      return base;
+    });
 
     res.status(201).json({ attempt: attempt[0], questions: safeQ, quiz: quiz[0] });
   } catch (err) { next(err); }
@@ -605,8 +615,11 @@ router.post('/attempts/:id/submit', studentOnly, async (req, res, next) => {
       'SELECT * FROM lms_quiz_questions WHERE quiz_id=$1', [attempt[0].quiz_id]);
     const qMap = Object.fromEntries(questions.map(q => [q.id, q]));
 
+    const LETTER_TO_IDX = { a: 0, b: 1, c: 2, d: 3 };
+    const IDX_TO_LETTER = ['a', 'b', 'c', 'd'];
+
     let totalScore = 0;
-    const results = [];
+    const resultQuestions = [];
 
     for (const ans of answers) {
       const question = qMap[ans.question_id];
@@ -614,11 +627,13 @@ router.post('/attempts/:id/submit', studentOnly, async (req, res, next) => {
 
       let is_correct = null;
       let marks_awarded = 0;
-      let correct_index = null;
+      let correct_letter = null;
 
       if (question.question_type === 'mcq' && Array.isArray(question.options)) {
-        correct_index = question.options.findIndex((o) => o.is_correct === true);
-        const selected = question.options[ans.selected_option];
+        const correctIdx = question.options.findIndex((o) => o.is_correct === true);
+        correct_letter = correctIdx >= 0 ? IDX_TO_LETTER[correctIdx] : null;
+        const selectedIdx = LETTER_TO_IDX[ans.selected_option];
+        const selected = question.options[selectedIdx];
         is_correct = selected?.is_correct === true;
         marks_awarded = is_correct ? parseFloat(question.marks) : 0;
         totalScore += marks_awarded;
@@ -630,12 +645,14 @@ router.post('/attempts/:id/submit', studentOnly, async (req, res, next) => {
         [req.params.id, ans.question_id, ans.selected_option ?? null,
          ans.answer_text || null, is_correct, marks_awarded]);
 
-      results.push({
-        question_id:   ans.question_id,
-        is_correct,
+      resultQuestions.push({
+        id:            question.id,
+        question_text: question.question_text,
+        your_answer:   ans.selected_option ?? null,
+        correct_answer: attempt[0].show_answers_after ? correct_letter : null,
+        explanation:   attempt[0].show_answers_after ? question.explanation : null,
         marks_awarded,
-        correct_index,
-        explanation: attempt[0].show_answers_after ? question.explanation : null,
+        marks:         parseFloat(question.marks),
       });
     }
 
@@ -643,7 +660,14 @@ router.post('/attempts/:id/submit', studentOnly, async (req, res, next) => {
       'UPDATE lms_quiz_attempts SET score=$1, is_complete=true, submitted_at=now() WHERE id=$2 RETURNING *',
       [totalScore, req.params.id]);
 
-    res.json({ attempt: updated[0], results });
+    const maxScore = parseFloat(updated[0].max_score) || 1;
+    res.json({
+      score:             totalScore,
+      total_marks:       parseFloat(updated[0].max_score),
+      percentage:        Math.round((totalScore / maxScore) * 100),
+      show_answers_after: attempt[0].show_answers_after,
+      questions:         resultQuestions,
+    });
   } catch (err) { next(err); }
 });
 
