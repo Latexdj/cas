@@ -1659,6 +1659,36 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS mission TEXT`);
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS core_values TEXT`);
     await pool.query(`ALTER TABLE primary_students ADD COLUMN IF NOT EXISTS picture_url TEXT`);
+    // Cash book tables
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_cashbooks (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        academic_year_id UUID REFERENCES academic_years(id) ON DELETE SET NULL,
+        fund_source      TEXT NOT NULL DEFAULT 'Capitation Grant',
+        opening_balance  NUMERIC(12,2) NOT NULL DEFAULT 0,
+        notes            TEXT,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, academic_year_id, fund_source)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS primary_cashbook_entries (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        cashbook_id      UUID NOT NULL REFERENCES primary_cashbooks(id) ON DELETE CASCADE,
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        entry_date       DATE NOT NULL,
+        entry_type       TEXT NOT NULL CHECK (entry_type IN ('receipt','payment')),
+        particulars      TEXT NOT NULL,
+        expenditure_head TEXT,
+        voucher_ref      TEXT,
+        amount           NUMERIC(12,2) NOT NULL,
+        receipt_url      TEXT,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at       TIMESTAMPTZ
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_cashbook_entries_cashbook ON primary_cashbook_entries(cashbook_id, entry_date)`);
     // Migrate existing is_single_instance=true rows → max_instances=1
     await pool.query(`UPDATE primary_assessment_modes SET max_instances=1 WHERE is_single_instance=true AND max_instances IS NULL`);
 

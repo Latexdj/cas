@@ -2752,4 +2752,166 @@ router.post('/assessments/:id/scores', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Cash Book ──────────────────────────────────────────────────────────────
+
+// GET /cashbook — list cashbooks for this school
+router.get('/cashbook', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT cb.*, ay.name AS academic_year_name
+       FROM primary_cashbooks cb
+       LEFT JOIN academic_years ay ON ay.id = cb.academic_year_id
+       WHERE cb.school_id = $1
+       ORDER BY ay.name DESC NULLS LAST, cb.fund_source`,
+      [req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /cashbook — create cashbook
+router.post('/cashbook', adminOnly, async (req, res, next) => {
+  try {
+    const { academic_year_id, fund_source, opening_balance, notes } = req.body;
+    if (!fund_source) return res.status(400).json({ error: 'fund_source is required' });
+    const { rows } = await pool.query(
+      `INSERT INTO primary_cashbooks (school_id, academic_year_id, fund_source, opening_balance, notes)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [req.schoolId, academic_year_id || null, fund_source, parseFloat(opening_balance) || 0, notes || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A cashbook for this year and fund source already exists' });
+    next(err);
+  }
+});
+
+// GET /cashbook/:id/entries — list entries with optional ?month=YYYY-MM filter
+router.get('/cashbook/:id/entries', adminOnly, async (req, res, next) => {
+  try {
+    const { month } = req.query;
+    const params = [req.params.id, req.schoolId];
+    let filter = '';
+    if (month) {
+      params.push(month);
+      filter = `AND TO_CHAR(e.entry_date, 'YYYY-MM') = $${params.length}`;
+    }
+    const { rows } = await pool.query(
+      `SELECT * FROM primary_cashbook_entries e
+       WHERE e.cashbook_id = $1 AND e.school_id = $2 ${filter}
+       ORDER BY e.entry_date, e.created_at`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /cashbook/:id/entries — add entry
+router.post('/cashbook/:id/entries', adminOnly, async (req, res, next) => {
+  try {
+    const { rows: cb } = await pool.query(
+      `SELECT id FROM primary_cashbooks WHERE id=$1 AND school_id=$2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!cb.length) return res.status(404).json({ error: 'Cashbook not found' });
+
+    const { entry_date, entry_type, particulars, expenditure_head, voucher_ref, amount, receipt_data } = req.body;
+    if (!entry_date || !entry_type || !particulars || !amount)
+      return res.status(400).json({ error: 'entry_date, entry_type, particulars and amount are required' });
+    if (!['receipt', 'payment'].includes(entry_type))
+      return res.status(400).json({ error: 'entry_type must be receipt or payment' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO primary_cashbook_entries
+         (cashbook_id, school_id, entry_date, entry_type, particulars, expenditure_head, voucher_ref, amount)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.params.id, req.schoolId, entry_date, entry_type, particulars,
+       expenditure_head || null, voucher_ref || null, parseFloat(amount)]
+    );
+    let entry = rows[0];
+
+    if (receipt_data) {
+      try {
+        const receiptUrl = await uploadFile(receipt_data, `primary-cashbook-receipts/${req.schoolId}/${entry.id}`, { upsert: true });
+        const { rows: updated } = await pool.query(
+          `UPDATE primary_cashbook_entries SET receipt_url=$1 WHERE id=$2 RETURNING *`,
+          [receiptUrl, entry.id]
+        );
+        entry = updated[0];
+      } catch (e) { console.error('Receipt upload failed:', e.message); }
+    }
+
+    res.status(201).json(entry);
+  } catch (err) { next(err); }
+});
+
+// PUT /cashbook/:id/entries/:entryId — edit entry
+router.put('/cashbook/:id/entries/:entryId', adminOnly, async (req, res, next) => {
+  try {
+    const { entry_date, entry_type, particulars, expenditure_head, voucher_ref, amount, receipt_data } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE primary_cashbook_entries
+         SET entry_date=$1, entry_type=$2, particulars=$3, expenditure_head=$4,
+             voucher_ref=$5, amount=$6, updated_at=now()
+       WHERE id=$7 AND cashbook_id=$8 AND school_id=$9 RETURNING *`,
+      [entry_date, entry_type, particulars, expenditure_head || null,
+       voucher_ref || null, parseFloat(amount),
+       req.params.entryId, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Entry not found' });
+    let entry = rows[0];
+
+    if (receipt_data) {
+      try {
+        const receiptUrl = await uploadFile(receipt_data, `primary-cashbook-receipts/${req.schoolId}/${entry.id}`, { upsert: true });
+        const { rows: updated } = await pool.query(
+          `UPDATE primary_cashbook_entries SET receipt_url=$1 WHERE id=$2 RETURNING *`,
+          [receiptUrl, entry.id]
+        );
+        entry = updated[0];
+      } catch (e) { console.error('Receipt upload failed:', e.message); }
+    }
+
+    res.json(entry);
+  } catch (err) { next(err); }
+});
+
+// DELETE /cashbook/:id/entries/:entryId — remove entry
+router.delete('/cashbook/:id/entries/:entryId', adminOnly, async (req, res, next) => {
+  try {
+    const { rowCount } = await pool.query(
+      `DELETE FROM primary_cashbook_entries WHERE id=$1 AND cashbook_id=$2 AND school_id=$3`,
+      [req.params.entryId, req.params.id, req.schoolId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Entry not found' });
+    res.json({ message: 'Entry deleted' });
+  } catch (err) { next(err); }
+});
+
+// GET /cashbook/:id/summary — totals by expenditure head (for accountability return)
+router.get('/cashbook/:id/summary', adminOnly, async (req, res, next) => {
+  try {
+    const { rows: cb } = await pool.query(
+      `SELECT cb.*, ay.name AS academic_year_name
+       FROM primary_cashbooks cb
+       LEFT JOIN academic_years ay ON ay.id = cb.academic_year_id
+       WHERE cb.id=$1 AND cb.school_id=$2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!cb.length) return res.status(404).json({ error: 'Cashbook not found' });
+
+    const { rows: breakdown } = await pool.query(
+      `SELECT entry_type, expenditure_head,
+              SUM(amount)::NUMERIC(12,2) AS total, COUNT(*)::int AS count
+       FROM primary_cashbook_entries
+       WHERE cashbook_id=$1 AND school_id=$2
+       GROUP BY entry_type, expenditure_head
+       ORDER BY entry_type, expenditure_head`,
+      [req.params.id, req.schoolId]
+    );
+
+    res.json({ cashbook: cb[0], breakdown });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
