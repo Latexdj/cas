@@ -20,26 +20,6 @@ interface PascoQuestion {
 
 type Phase = 'setup' | 'practice' | 'done';
 
-const GHANA_SUBJECTS = [
-  'English Language',
-  'Core Mathematics',
-  'Integrated Science',
-  'Social Studies',
-  'Physics',
-  'Chemistry',
-  'Biology',
-  'Elective Mathematics',
-  'Economics',
-  'Geography',
-  'Government',
-  'Literature-in-English',
-  'Financial Accounting',
-  'Business Management',
-  'History',
-  'Christian Religious Studies',
-  'French',
-];
-
 const DIFFICULTIES = ['All', 'Easy', 'Medium', 'Hard'];
 
 const OPTIONS = ['a', 'b', 'c', 'd'] as const;
@@ -49,7 +29,9 @@ export default function PascoPage() {
   const [primary, setPrimary] = useState('#3B82F6');
   const [phase, setPhase] = useState<Phase>('setup');
 
-  const [subject, setSubject] = useState(GHANA_SUBJECTS[0]);
+  const [subjects, setSubjects] = useState<string[]>([]);
+  const [subjectsLoading, setSubjectsLoading] = useState(true);
+  const [subject, setSubject] = useState('');
   const [difficulty, setDifficulty] = useState('All');
   const [year, setYear] = useState('');
 
@@ -65,6 +47,14 @@ export default function PascoPage() {
   useEffect(() => {
     const colors = getStudentColors();
     setPrimary(colors.primary);
+    studentApi.get<{ id: string; name: string }[]>('/api/subjects')
+      .then(r => {
+        const names = (r.data ?? []).map(s => s.name);
+        setSubjects(names);
+        if (names.length > 0) setSubject(names[0]);
+      })
+      .catch(() => {})
+      .finally(() => setSubjectsLoading(false));
   }, []);
 
   async function handleStart() {
@@ -128,6 +118,14 @@ export default function PascoPage() {
   const pct = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
 
   if (phase === 'setup') {
+    if (subjectsLoading) {
+      return (
+        <div className="p-4 md:p-6 max-w-xl mx-auto flex justify-center pt-20">
+          <div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+        </div>
+      );
+    }
+
     return (
       <div className="p-4 md:p-6 max-w-xl mx-auto">
         <div className="mb-6">
@@ -138,15 +136,19 @@ export default function PascoPage() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">Subject</label>
-            <select
-              value={subject}
-              onChange={e => setSubject(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none"
-            >
-              {GHANA_SUBJECTS.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+            {subjects.length === 0 ? (
+              <p className="text-sm text-slate-400">No subjects configured. Ask your admin to add subjects.</p>
+            ) : (
+              <select
+                value={subject}
+                onChange={e => setSubject(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none"
+              >
+                {subjects.map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
@@ -184,7 +186,7 @@ export default function PascoPage() {
 
           <button
             onClick={handleStart}
-            disabled={loading}
+            disabled={loading || subjects.length === 0}
             className="w-full py-3 rounded-xl font-bold text-white disabled:opacity-50 transition-opacity hover:opacity-90"
             style={{ background: primary }}
           >

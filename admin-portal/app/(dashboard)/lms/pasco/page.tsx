@@ -2,13 +2,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 
-const GHANA_SHS_SUBJECTS = [
-  'English Language', 'Core Mathematics', 'Integrated Science', 'Social Studies',
-  'Physics', 'Chemistry', 'Biology', 'Elective Mathematics', 'Economics',
-  'Geography', 'Government', 'Literature-in-English', 'Financial Accounting',
-  'Business Management', 'History', 'Christian Religious Studies', 'French',
-];
-
 const DIFFICULTY_COLORS: Record<string, string> = {
   Easy:   'bg-green-100 text-green-700',
   Medium: 'bg-yellow-100 text-yellow-700',
@@ -81,6 +74,7 @@ function formFromQuestion(q: PascoQuestion): FormState {
 export default function PascoPage() {
   const [questions, setQuestions] = useState<PascoQuestion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [adminSubjects, setAdminSubjects] = useState<string[]>([]);
 
   const [filterSubject, setFilterSubject] = useState('');
   const [filterDifficulty, setFilterDifficulty] = useState('');
@@ -101,10 +95,15 @@ export default function PascoPage() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.get<{ id: string; name: string }[]>('/api/subjects')
+      .then(r => setAdminSubjects((r.data ?? []).map(s => s.name)))
+      .catch(() => {});
+  }, []);
 
   const allSubjects = Array.from(new Set([
-    ...GHANA_SHS_SUBJECTS,
+    ...adminSubjects,
     ...questions.map(q => q.subject).filter(Boolean),
   ])).sort();
 
