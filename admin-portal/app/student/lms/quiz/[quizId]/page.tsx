@@ -152,7 +152,7 @@ export default function QuizRoomPage() {
   function setAnswer(questionId: string, patch: Partial<Answer>) {
     setAnswers(prev => ({
       ...prev,
-      [questionId]: { question_id: questionId, ...prev[questionId], ...patch },
+      [questionId]: { ...prev[questionId], question_id: questionId, ...patch },
     }));
   }
 
