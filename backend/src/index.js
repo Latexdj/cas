@@ -1842,6 +1842,16 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS lms_assignment_id UUID`);
     await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_assessments_lms_quiz ON assessments(lms_quiz_id) WHERE lms_quiz_id IS NOT NULL`);
     await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_assessments_lms_asgn ON assessments(lms_assignment_id) WHERE lms_assignment_id IS NOT NULL`);
+    // Migrate selected_option from INTEGER to TEXT (was declared INTEGER but stores letter strings a/b/c/d)
+    await pool.query(`ALTER TABLE lms_quiz_answers ALTER COLUMN selected_option TYPE TEXT USING selected_option::text`);
+    // Add unique constraint on quiz answers so ON CONFLICT DO NOTHING is meaningful
+    await pool.query(`ALTER TABLE lms_quiz_answers ADD CONSTRAINT IF NOT EXISTS uq_lms_quiz_answers_attempt_question UNIQUE (attempt_id, question_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_lessons_course        ON lms_lessons(course_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_assignments_course    ON lms_assignments(course_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_quiz_questions_quiz   ON lms_quiz_questions(quiz_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_quiz_answers_attempt  ON lms_quiz_answers(attempt_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_announcements_course  ON lms_announcements(course_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_quiz_attempts_quiz    ON lms_quiz_attempts(quiz_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_submissions_assignment ON lms_submissions(assignment_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_submissions_student   ON lms_submissions(student_id, school_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_quiz_attempts_student ON lms_quiz_attempts(student_id, quiz_id)`);

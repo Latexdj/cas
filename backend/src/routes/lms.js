@@ -277,7 +277,7 @@ router.delete('/lessons/:id', teacherOrAdmin, async (req, res, next) => {
     if (!existing.length) return res.status(404).json({ error: 'Lesson not found' });
     const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
     if (!isAdmin && existing[0].teacher_id !== req.user.id) return res.status(403).json({ error: 'Not your course' });
-    await pool.query('DELETE FROM lms_lessons WHERE id=$1', [req.params.id]);
+    await pool.query('DELETE FROM lms_lessons WHERE id=$1 AND school_id=$2', [req.params.id, req.schoolId]);
     res.json({ message: 'Lesson deleted' });
   } catch (err) { next(err); }
 });
@@ -359,6 +359,12 @@ router.put('/assignments/:id', teacherOrAdmin, async (req, res, next) => {
 
 router.delete('/assignments/:id', teacherOrAdmin, async (req, res, next) => {
   try {
+    const { rows: ex } = await pool.query(
+      `SELECT c.teacher_id FROM lms_assignments a JOIN lms_courses c ON c.id=a.course_id
+       WHERE a.id=$1 AND a.school_id=$2`, [req.params.id, req.schoolId]);
+    if (!ex.length) return res.status(404).json({ error: 'Assignment not found' });
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
+    if (!isAdmin && ex[0].teacher_id !== req.user.id) return res.status(403).json({ error: 'Not your course' });
     await pool.query('DELETE FROM lms_assignments WHERE id=$1 AND school_id=$2', [req.params.id, req.schoolId]);
     res.json({ message: 'Assignment deleted' });
   } catch (err) { next(err); }
@@ -401,7 +407,8 @@ router.post('/assignments/:id/submit', studentOnly, async (req, res, next) => {
       `INSERT INTO lms_submissions (assignment_id, student_id, school_id, body_text, is_late)
        VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (assignment_id, student_id)
-         DO UPDATE SET body_text=EXCLUDED.body_text, is_late=EXCLUDED.is_late, submitted_at=now()
+         DO UPDATE SET body_text=EXCLUDED.body_text, is_late=EXCLUDED.is_late, submitted_at=now(),
+                       score=NULL, feedback=NULL, graded_at=NULL
        RETURNING *`,
       [req.params.id, req.user.id, req.schoolId, body_text || null, isLate]);
     let submission = rows[0];
@@ -420,12 +427,23 @@ router.post('/assignments/:id/submit', studentOnly, async (req, res, next) => {
 // Teacher: grade a submission
 router.patch('/submissions/:id/grade', teacherOrAdmin, async (req, res, next) => {
   try {
+    const { rows: ex } = await pool.query(
+      `SELECT c.teacher_id FROM lms_submissions s
+       JOIN lms_assignments a ON a.id=s.assignment_id
+       JOIN lms_courses c ON c.id=a.course_id
+       WHERE s.id=$1 AND s.school_id=$2`, [req.params.id, req.schoolId]);
+    if (!ex.length) return res.status(404).json({ error: 'Submission not found' });
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
+    if (!isAdmin && ex[0].teacher_id !== req.user.id) return res.status(403).json({ error: 'Not your course' });
+
     const { score, feedback } = req.body;
+    if (score === undefined || score === null || isNaN(parseFloat(score))) {
+      return res.status(400).json({ error: 'score is required and must be a number' });
+    }
     const { rows } = await pool.query(
       `UPDATE lms_submissions SET score=$1, feedback=$2, graded_at=now()
        WHERE id=$3 AND school_id=$4 RETURNING *`,
       [parseFloat(score), feedback || null, req.params.id, req.schoolId]);
-    if (!rows.length) return res.status(404).json({ error: 'Submission not found' });
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -536,6 +554,12 @@ router.put('/quizzes/:id', teacherOrAdmin, async (req, res, next) => {
 
 router.delete('/quizzes/:id', teacherOrAdmin, async (req, res, next) => {
   try {
+    const { rows: ex } = await pool.query(
+      `SELECT c.teacher_id FROM lms_quizzes q JOIN lms_courses c ON c.id=q.course_id
+       WHERE q.id=$1 AND q.school_id=$2`, [req.params.id, req.schoolId]);
+    if (!ex.length) return res.status(404).json({ error: 'Quiz not found' });
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
+    if (!isAdmin && ex[0].teacher_id !== req.user.id) return res.status(403).json({ error: 'Not your course' });
     await pool.query('DELETE FROM lms_quizzes WHERE id=$1 AND school_id=$2', [req.params.id, req.schoolId]);
     res.json({ message: 'Quiz deleted' });
   } catch (err) { next(err); }
@@ -586,27 +610,43 @@ router.post('/quizzes/:quizId/attempt', studentOnly, async (req, res, next) => {
       return res.status(403).json({ error: 'Not enrolled in this course' });
     }
 
-    const { rows: prev } = await pool.query(
-      `SELECT COUNT(*)::int AS cnt FROM lms_quiz_attempts
-       WHERE quiz_id=$1 AND student_id=$2 AND is_complete=true`,
-      [req.params.quizId, req.user.id]);
-    if (prev[0].cnt >= quiz[0].max_attempts) {
-      return res.status(400).json({ error: `Maximum ${quiz[0].max_attempts} attempt(s) reached` });
+    // Atomic check-and-create: use a transaction + advisory lock keyed on (quiz_id, student_id)
+    // to prevent two simultaneous requests from both passing the max_attempts check.
+    const client = await pool.connect();
+    let attempt;
+    try {
+      await client.query('BEGIN');
+      const { rows: prev } = await client.query(
+        `SELECT COUNT(*)::int AS cnt FROM lms_quiz_attempts
+         WHERE quiz_id=$1 AND student_id=$2 AND is_complete=true FOR UPDATE`,
+        [req.params.quizId, req.user.id]);
+      if (prev[0].cnt >= quiz[0].max_attempts) {
+        await client.query('ROLLBACK');
+        client.release();
+        return res.status(400).json({ error: `Maximum ${quiz[0].max_attempts} attempt(s) reached` });
+      }
+
+      // Clean up any abandoned attempt
+      await client.query(
+        'DELETE FROM lms_quiz_attempts WHERE quiz_id=$1 AND student_id=$2 AND is_complete=false',
+        [req.params.quizId, req.user.id]);
+
+      const { rows: totals } = await client.query(
+        'SELECT COALESCE(SUM(marks),0) AS max_score FROM lms_quiz_questions WHERE quiz_id=$1',
+        [req.params.quizId]);
+
+      const { rows: attemptRows } = await client.query(
+        `INSERT INTO lms_quiz_attempts (quiz_id, student_id, school_id, max_score)
+         VALUES ($1,$2,$3,$4) RETURNING *`,
+        [req.params.quizId, req.user.id, req.schoolId, totals[0].max_score]);
+      attempt = attemptRows;
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      client.release();
+      return next(txErr);
     }
-
-    // Clean up any abandoned attempt
-    await pool.query(
-      'DELETE FROM lms_quiz_attempts WHERE quiz_id=$1 AND student_id=$2 AND is_complete=false',
-      [req.params.quizId, req.user.id]);
-
-    const { rows: totals } = await pool.query(
-      'SELECT COALESCE(SUM(marks),0) AS max_score FROM lms_quiz_questions WHERE quiz_id=$1',
-      [req.params.quizId]);
-
-    const { rows: attempt } = await pool.query(
-      `INSERT INTO lms_quiz_attempts (quiz_id, student_id, school_id, max_score)
-       VALUES ($1,$2,$3,$4) RETURNING *`,
-      [req.params.quizId, req.user.id, req.schoolId, totals[0].max_score]);
+    client.release();
 
     const { rows: questions } = await pool.query(
       `SELECT id, question_text, question_type, options, marks, sort_order
@@ -752,18 +792,27 @@ router.post('/quizzes/:id/sync-to-ca', teacherOrAdmin, async (req, res, next) =>
        WHERE quiz_id=$1 AND is_complete=true AND school_id=$2`,
       [req.params.id, req.schoolId]);
 
-    for (const att of attempts) {
-      const score = parseFloat(att.score) || 0;
-      const max = parseFloat(att.max_score) || quizMaxScore;
-      const scaled = max > 0 ? Math.round((score / max) * quizMaxScore * 100) / 100 : 0;
-      await pool.query(
-        `INSERT INTO assessment_scores (assessment_id, student_id, score)
-         VALUES ($1,$2,$3)
-         ON CONFLICT (assessment_id, student_id) DO UPDATE SET score=EXCLUDED.score`,
-        [assessmentId, att.student_id, scaled]);
+    const caClient = await pool.connect();
+    try {
+      await caClient.query('BEGIN');
+      for (const att of attempts) {
+        const score = parseFloat(att.score) || 0;
+        const max = parseFloat(att.max_score) || quizMaxScore;
+        const scaled = max > 0 ? Math.round((score / max) * quizMaxScore * 100) / 100 : 0;
+        await caClient.query(
+          `INSERT INTO assessment_scores (assessment_id, student_id, score)
+           VALUES ($1,$2,$3)
+           ON CONFLICT (assessment_id, student_id) DO UPDATE SET score=EXCLUDED.score`,
+          [assessmentId, att.student_id, scaled]);
+      }
+      await caClient.query('UPDATE lms_quizzes SET ca_synced_at=now() WHERE id=$1', [req.params.id]);
+      await caClient.query('COMMIT');
+    } catch (txErr) {
+      await caClient.query('ROLLBACK');
+      caClient.release();
+      return next(txErr);
     }
-
-    await pool.query('UPDATE lms_quizzes SET ca_synced_at=now() WHERE id=$1', [req.params.id]);
+    caClient.release();
     res.json({ message: 'Synced successfully', assessment_id: assessmentId, student_count: attempts.length });
   } catch (err) { next(err); }
 });
@@ -799,15 +848,24 @@ router.post('/assignments/:id/sync-to-ca', teacherOrAdmin, async (req, res, next
        WHERE assignment_id=$1 AND school_id=$2 AND score IS NOT NULL`,
       [req.params.id, req.schoolId]);
 
-    for (const sub of subs) {
-      await pool.query(
-        `INSERT INTO assessment_scores (assessment_id, student_id, score)
-         VALUES ($1,$2,$3)
-         ON CONFLICT (assessment_id, student_id) DO UPDATE SET score=EXCLUDED.score`,
-        [assessmentId, sub.student_id, parseFloat(sub.score)]);
+    const caClient = await pool.connect();
+    try {
+      await caClient.query('BEGIN');
+      for (const sub of subs) {
+        await caClient.query(
+          `INSERT INTO assessment_scores (assessment_id, student_id, score)
+           VALUES ($1,$2,$3)
+           ON CONFLICT (assessment_id, student_id) DO UPDATE SET score=EXCLUDED.score`,
+          [assessmentId, sub.student_id, parseFloat(sub.score)]);
+      }
+      await caClient.query('UPDATE lms_assignments SET ca_synced_at=now() WHERE id=$1', [req.params.id]);
+      await caClient.query('COMMIT');
+    } catch (txErr) {
+      await caClient.query('ROLLBACK');
+      caClient.release();
+      return next(txErr);
     }
-
-    await pool.query('UPDATE lms_assignments SET ca_synced_at=now() WHERE id=$1', [req.params.id]);
+    caClient.release();
     res.json({ message: 'Synced successfully', assessment_id: assessmentId, student_count: subs.length });
   } catch (err) { next(err); }
 });
@@ -860,6 +918,12 @@ router.post('/courses/:courseId/announcements', teacherOrAdmin, async (req, res,
 
 router.delete('/announcements/:id', teacherOrAdmin, async (req, res, next) => {
   try {
+    const { rows: ex } = await pool.query(
+      `SELECT c.teacher_id FROM lms_announcements an JOIN lms_courses c ON c.id=an.course_id
+       WHERE an.id=$1 AND an.school_id=$2`, [req.params.id, req.schoolId]);
+    if (!ex.length) return res.status(404).json({ error: 'Announcement not found' });
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
+    if (!isAdmin && ex[0].teacher_id !== req.user.id) return res.status(403).json({ error: 'Not your course' });
     await pool.query('DELETE FROM lms_announcements WHERE id=$1 AND school_id=$2', [req.params.id, req.schoolId]);
     res.json({ message: 'Announcement deleted' });
   } catch (err) { next(err); }
