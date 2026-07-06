@@ -30,6 +30,8 @@ const pageTitles: Record<string, string> = {
   '/clearance/offices':  'Clearance Offices & Staff',
   '/houses':             'Houses',
   '/exeat':              'Exeat Records',
+  '/lms':               'LMS Overview',
+  '/lms/pasco':         'Pasco Bank',
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

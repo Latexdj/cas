@@ -55,6 +55,7 @@ const resultSubmissionsRoutes = require('./routes/result-submissions');
 const monitoringRoutes        = require('./routes/assessment-monitoring');
 const departmentRoutes        = require('./routes/departments');
 const primaryRoutes           = require('./routes/primary');
+const lmsRoutes               = require('./routes/lms');
 const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
 
@@ -138,6 +139,7 @@ app.use('/api/result-submissions',    resultSubmissionsRoutes);
 app.use('/api/assessment-monitoring', monitoringRoutes);
 app.use('/api/departments',           departmentRoutes);
 app.use('/api/primary',               primaryRoutes);
+app.use('/api/lms',                   lmsRoutes);
 
 app.use(errorHandler);
 
@@ -1689,6 +1691,152 @@ async function runMigrations() {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_primary_cashbook_entries_cashbook ON primary_cashbook_entries(cashbook_id, entry_date)`);
+    // LMS tables
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lms_courses (
+        id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id       UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        subject_name     TEXT NOT NULL,
+        class_name       TEXT NOT NULL,
+        academic_year_id UUID REFERENCES academic_years(id) ON DELETE SET NULL,
+        term             INTEGER,
+        description      TEXT,
+        status           TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','archived')),
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, teacher_id, subject_name, class_name, academic_year_id, term)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lms_lessons (
+        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        course_id    UUID NOT NULL REFERENCES lms_courses(id) ON DELETE CASCADE,
+        school_id    UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        title        TEXT NOT NULL,
+        content_type TEXT NOT NULL DEFAULT 'text' CHECK (content_type IN ('text','file','youtube','link')),
+        body         TEXT,
+        file_url     TEXT,
+        external_url TEXT,
+        sort_order   INTEGER NOT NULL DEFAULT 0,
+        is_published BOOLEAN NOT NULL DEFAULT false,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at   TIMESTAMPTZ
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lms_assignments (
+        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        course_id    UUID NOT NULL REFERENCES lms_courses(id) ON DELETE CASCADE,
+        school_id    UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        title        TEXT NOT NULL,
+        instructions TEXT,
+        max_score    NUMERIC(6,2) NOT NULL DEFAULT 100,
+        due_date     TIMESTAMPTZ,
+        allow_late   BOOLEAN NOT NULL DEFAULT true,
+        is_published BOOLEAN NOT NULL DEFAULT true,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lms_submissions (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        assignment_id UUID NOT NULL REFERENCES lms_assignments(id) ON DELETE CASCADE,
+        student_id    UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        school_id     UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        body_text     TEXT,
+        file_url      TEXT,
+        score         NUMERIC(6,2),
+        feedback      TEXT,
+        is_late       BOOLEAN NOT NULL DEFAULT false,
+        submitted_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        graded_at     TIMESTAMPTZ,
+        UNIQUE (assignment_id, student_id)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lms_quizzes (
+        id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        course_id           UUID NOT NULL REFERENCES lms_courses(id) ON DELETE CASCADE,
+        school_id           UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        title               TEXT NOT NULL,
+        instructions        TEXT,
+        time_limit_mins     INTEGER,
+        max_attempts        INTEGER NOT NULL DEFAULT 1,
+        is_published        BOOLEAN NOT NULL DEFAULT false,
+        randomise_questions BOOLEAN NOT NULL DEFAULT false,
+        show_answers_after  BOOLEAN NOT NULL DEFAULT true,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lms_quiz_questions (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        quiz_id       UUID NOT NULL REFERENCES lms_quizzes(id) ON DELETE CASCADE,
+        school_id     UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        question_text TEXT NOT NULL,
+        question_type TEXT NOT NULL DEFAULT 'mcq' CHECK (question_type IN ('mcq','short')),
+        options       JSONB,
+        explanation   TEXT,
+        marks         NUMERIC(5,2) NOT NULL DEFAULT 1,
+        sort_order    INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lms_quiz_attempts (
+        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        quiz_id      UUID NOT NULL REFERENCES lms_quizzes(id) ON DELETE CASCADE,
+        student_id   UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        school_id    UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        started_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        submitted_at TIMESTAMPTZ,
+        score        NUMERIC(6,2),
+        max_score    NUMERIC(6,2),
+        is_complete  BOOLEAN NOT NULL DEFAULT false
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lms_quiz_answers (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        attempt_id      UUID NOT NULL REFERENCES lms_quiz_attempts(id) ON DELETE CASCADE,
+        question_id     UUID NOT NULL REFERENCES lms_quiz_questions(id) ON DELETE CASCADE,
+        selected_option INTEGER,
+        answer_text     TEXT,
+        is_correct      BOOLEAN,
+        marks_awarded   NUMERIC(5,2) NOT NULL DEFAULT 0
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lms_pasco_questions (
+        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id     UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        subject_name  TEXT NOT NULL,
+        year          INTEGER,
+        source        TEXT,
+        question_text TEXT NOT NULL,
+        options       JSONB NOT NULL,
+        explanation   TEXT,
+        topic         TEXT,
+        difficulty    TEXT NOT NULL DEFAULT 'medium' CHECK (difficulty IN ('easy','medium','hard')),
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lms_announcements (
+        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        course_id  UUID NOT NULL REFERENCES lms_courses(id) ON DELETE CASCADE,
+        school_id  UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        title      TEXT NOT NULL,
+        body       TEXT,
+        is_pinned  BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_courses_school ON lms_courses(school_id, academic_year_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_courses_class  ON lms_courses(school_id, class_name)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_submissions_assignment ON lms_submissions(assignment_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_submissions_student   ON lms_submissions(student_id, school_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_quiz_attempts_student ON lms_quiz_attempts(student_id, quiz_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_pasco_subject         ON lms_pasco_questions(school_id, subject_name)`);
     // Migrate existing is_single_instance=true rows → max_instances=1
     await pool.query(`UPDATE primary_assessment_modes SET max_instances=1 WHERE is_single_instance=true AND max_instances IS NULL`);
 
