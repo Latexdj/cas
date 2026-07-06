@@ -7,7 +7,7 @@ async function auditLog(action, entityType, entityId, entityName, details) {
        VALUES ($1,$2,$3,$4,$5)`,
       [action, entityType, entityId || null, entityName || null, details ? JSON.stringify(details) : null]
     );
-  } catch { /* non-blocking — never fails the caller */ }
+  } catch (err) { console.error('[audit] Failed to write audit log:', action, err.message); }
 }
 
 module.exports = { auditLog };

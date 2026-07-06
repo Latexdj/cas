@@ -76,8 +76,12 @@ router.post('/', async (req, res, next) => {
       await client.query('BEGIN');
 
       // Generate next school code: CAS001, CAS002, …
-      const { rows: countRows } = await client.query(`SELECT COUNT(*) FROM schools`);
-      const nextNum    = parseInt(countRows[0].count) + 1;
+      // MAX of existing numeric suffixes handles deleted schools correctly.
+      // FOR UPDATE serializes concurrent creates within this transaction.
+      const { rows: codeRows } = await client.query(
+        `SELECT COALESCE(MAX(CAST(SUBSTRING(code, 4) AS INTEGER)), 0) + 1 AS next_num FROM schools FOR UPDATE`
+      );
+      const nextNum    = codeRows[0].next_num;
       const schoolCode = 'CAS' + String(nextNum).padStart(3, '0');
 
       const resolvedType     = schoolType     || 'SHS';
@@ -453,6 +457,9 @@ router.put('/:id/modules', async (req, res, next) => {
     if (!modules || typeof modules !== 'object') {
       return res.status(400).json({ error: 'modules object required' });
     }
+    const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.params.id]);
+    if (!schoolRows.length) return res.status(404).json({ error: 'School not found' });
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -466,15 +473,26 @@ router.put('/:id/modules', async (req, res, next) => {
         }
       }
       await client.query('COMMIT');
-      res.json({ message: 'Modules updated' });
     } catch (e) { await client.query('ROLLBACK'); throw e; }
     finally { client.release(); }
+
+    await auditLog('modules_updated', 'school', req.params.id, schoolRows[0].name, {
+      modules: Object.fromEntries(
+        Object.entries(modules).filter(([k]) => ALL_MODULE_KEYS.includes(k))
+      ),
+    });
+    res.json({ message: 'Modules updated' });
   } catch (err) { next(err); }
 });
 
 // ── DELETE /api/schools/:id ──
 router.delete('/:id', async (req, res, next) => {
   try {
+    if (req.body.confirm !== true) {
+      return res.status(400).json({
+        error: 'Permanent deletion requires { "confirm": true } in the request body.',
+      });
+    }
     const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.params.id]);
     if (!schoolRows.length) return res.status(404).json({ error: 'School not found' });
     const schoolName = schoolRows[0].name;

@@ -12,7 +12,7 @@ const { getEnabledModules } = require('../services/modules.service');
 router.get('/version', (_req, res) => res.json({ version: '2', has_settings: true }));
 
 // GET /api/admin/test-email — sends a test email to ADMIN_EMAIL to verify SMTP works
-router.get('/test-email', async (_req, res) => {
+router.get('/test-email', authenticate, adminOnly, async (_req, res) => {
   const { sendTestEmail } = require('../services/email.service');
   try {
     const result = await sendTestEmail();

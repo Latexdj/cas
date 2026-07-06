@@ -23,6 +23,17 @@ async function authenticate(req, res, next) {
     req.user     = jwt.verify(header.slice(7), process.env.JWT_SECRET);
     req.schoolId = req.user.schoolId || null;
 
+    // Invalidate super_admin sessions issued before the last password change.
+    // updated_at in super_admin_credentials is set on every change-password call.
+    if (req.user.role === 'super_admin') {
+      const { rows: credRows } = await pool.query(
+        `SELECT EXTRACT(EPOCH FROM updated_at)::bigint AS changed_at FROM super_admin_credentials WHERE id = 1`
+      );
+      if (credRows.length && credRows[0].changed_at > req.user.iat) {
+        return res.status(401).json({ error: 'Session expired. Please log in again.' });
+      }
+    }
+
     // Re-validate teacher/admin/student accounts on every request so that
     // deactivating a user takes effect immediately, not after token expiry.
     if (req.user.role === 'teacher' || req.user.role === 'admin') {
