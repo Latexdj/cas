@@ -77,9 +77,12 @@ export default function StudentsPage() {
   }
 
   // Promote / Graduate state
-  const [fromClass,  setFromClass]  = useState('');
-  const [toClass,    setToClass]    = useState('');
-  const [actionResult, setActionResult] = useState('');
+  const [fromClass,      setFromClass]      = useState('');
+  const [toClass,        setToClass]        = useState('');
+  const [actionResult,   setActionResult]   = useState('');
+  const [rosterStudents, setRosterStudents] = useState<Student[]>([]);
+  const [rosterSelected, setRosterSelected] = useState<Set<string>>(new Set());
+  const [loadingRoster,  setLoadingRoster]  = useState(false);
 
   async function load() {
     setLoading(true);
@@ -248,12 +251,31 @@ export default function StudentsPage() {
     } finally { setUpdating(false); if (updateFileRef.current) updateFileRef.current.value = ''; }
   }
 
+  // Load student roster when fromClass changes in promote/graduate modal
+  useEffect(() => {
+    if (!fromClass || (modal !== 'promote' && modal !== 'graduate')) {
+      setRosterStudents([]); setRosterSelected(new Set()); return;
+    }
+    setLoadingRoster(true);
+    api.get<Student[]>(`/api/students?class_name=${encodeURIComponent(fromClass)}&status=Active`)
+      .then(r => {
+        setRosterStudents(r.data);
+        setRosterSelected(new Set(r.data.map(s => s.id)));
+      })
+      .catch(() => setRosterStudents([]))
+      .finally(() => setLoadingRoster(false));
+  }, [fromClass, modal]);
+
   async function handlePromote() {
     if (!fromClass || !toClass) { setActionResult('Please select both classes'); return; }
     if (fromClass === toClass)  { setActionResult('Source and destination cannot be the same'); return; }
+    if (rosterSelected.size === 0) { setActionResult('No students selected'); return; }
     setSaving(true); setActionResult('');
     try {
-      const res = await api.post<{ promoted: number }>('/api/students/promote', { from_class: fromClass, to_class: toClass });
+      const ids = [...rosterSelected];
+      const body: Record<string, unknown> = { from_class: fromClass, to_class: toClass };
+      if (ids.length < rosterStudents.length) body.student_ids = ids;
+      const res = await api.post<{ promoted: number }>('/api/students/promote', body);
       setActionResult(`✓ ${res.data.promoted} student(s) moved from ${fromClass} to ${toClass}`);
       await load();
     } catch (e: any) {
@@ -263,10 +285,14 @@ export default function StudentsPage() {
 
   async function handleGraduate() {
     if (!fromClass) { setActionResult('Please select a class'); return; }
-    if (!confirm(`Graduate all active students in ${fromClass}? They will be marked as Graduated.`)) return;
+    if (rosterSelected.size === 0) { setActionResult('No students selected'); return; }
+    if (!confirm(`Graduate ${rosterSelected.size} student(s) in ${fromClass}? They will be marked as Graduated.`)) return;
     setSaving(true); setActionResult('');
     try {
-      const res = await api.post<{ graduated: number }>('/api/students/graduate', { class_name: fromClass });
+      const ids = [...rosterSelected];
+      const body: Record<string, unknown> = { class_name: fromClass };
+      if (ids.length < rosterStudents.length) body.student_ids = ids;
+      const res = await api.post<{ graduated: number }>('/api/students/graduate', body);
       setActionResult(`✓ ${res.data.graduated} student(s) in ${fromClass} marked as Graduated`);
       await load();
     } catch (e: any) {
@@ -739,27 +765,64 @@ export default function StudentsPage() {
       {/* Promote modal */}
       {modal === 'promote' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
             <h2 className="text-lg font-bold mb-1" style={{ color: '#0F172A' }}>Promote Class</h2>
-            <p className="text-sm mb-5" style={{ color: '#64748B' }}>Move all active students from one class to another.</p>
+            <p className="text-sm mb-4" style={{ color: '#64748B' }}>Uncheck students who should repeat the year — only checked students will be moved.</p>
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>From Class</label>
-                <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={fromClass} onChange={e => setFromClass(e.target.value)}>
+                <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}
+                  value={fromClass} onChange={e => { setFromClass(e.target.value); setActionResult(''); }}>
                   <option value="">Select class…</option>
                   {classes.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
+              {fromClass && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold" style={{ color: '#64748B' }}>
+                      Students ({rosterSelected.size} of {rosterStudents.length} selected)
+                    </label>
+                    <div className="flex gap-3 text-xs">
+                      <button onClick={() => setRosterSelected(new Set(rosterStudents.map(s => s.id)))} style={{ color: '#15803D' }} className="font-semibold hover:underline">All</button>
+                      <button onClick={() => setRosterSelected(new Set())} style={{ color: '#64748B' }} className="font-semibold hover:underline">None</button>
+                    </div>
+                  </div>
+                  {loadingRoster ? (
+                    <div className="text-center py-3 text-sm" style={{ color: '#94A3B8' }}>Loading…</div>
+                  ) : (
+                    <div className="max-h-44 overflow-y-auto rounded-lg divide-y" style={{ border: '1px solid #E2D9CC' }}>
+                      {rosterStudents.length === 0
+                        ? <div className="text-center py-3 text-sm" style={{ color: '#94A3B8' }}>No active students</div>
+                        : rosterStudents.map(s => (
+                          <label key={s.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none hover:bg-slate-50">
+                            <input type="checkbox" checked={rosterSelected.has(s.id)} className="rounded border-slate-300"
+                              onChange={e => {
+                                const next = new Set(rosterSelected);
+                                e.target.checked ? next.add(s.id) : next.delete(s.id);
+                                setRosterSelected(next);
+                              }} />
+                            <span className="text-sm flex-1" style={{ color: '#0F172A' }}>{s.name}</span>
+                            <span className="text-xs font-mono" style={{ color: '#94A3B8' }}>{s.student_code}</span>
+                          </label>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>To Class</label>
-                <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={toClass} onChange={e => setToClass(e.target.value)} placeholder="e.g. Form 2A" list="class-list-to" />
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}
+                  value={toClass} onChange={e => setToClass(e.target.value)} placeholder="e.g. Form 2A" list="class-list-to" />
                 <datalist id="class-list-to">{classes.map(c => <option key={c} value={c} />)}</datalist>
               </div>
             </div>
             {actionResult && <p className="text-sm mt-3 font-medium" style={{ color: actionResult.startsWith('✓') ? '#15803D' : '#DC2626' }}>{actionResult}</p>}
             <div className="flex gap-3 mt-6">
               <Button variant="secondary" className="flex-1" onClick={() => setModal(null)}>Close</Button>
-              <Button className="flex-1" loading={saving} onClick={handlePromote}>Promote</Button>
+              <Button className="flex-1" loading={saving} onClick={handlePromote} disabled={rosterSelected.size === 0}>
+                Promote{rosterSelected.size > 0 ? ` (${rosterSelected.size})` : ''}
+              </Button>
             </div>
           </div>
         </div>
@@ -768,20 +831,59 @@ export default function StudentsPage() {
       {/* Graduate modal */}
       {modal === 'graduate' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
             <h2 className="text-lg font-bold mb-1" style={{ color: '#0F172A' }}>Graduate Class</h2>
-            <p className="text-sm mb-5" style={{ color: '#64748B' }}>Mark all active students in a class as Graduated. Historical attendance is preserved.</p>
-            <div>
-              <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Class to Graduate</label>
-              <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={fromClass} onChange={e => setFromClass(e.target.value)}>
-                <option value="">Select class…</option>
-                {classes.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+            <p className="text-sm mb-4" style={{ color: '#64748B' }}>Uncheck students who should not graduate yet. Historical attendance is preserved.</p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Class to Graduate</label>
+                <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}
+                  value={fromClass} onChange={e => { setFromClass(e.target.value); setActionResult(''); }}>
+                  <option value="">Select class…</option>
+                  {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              {fromClass && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold" style={{ color: '#64748B' }}>
+                      Students ({rosterSelected.size} of {rosterStudents.length} selected)
+                    </label>
+                    <div className="flex gap-3 text-xs">
+                      <button onClick={() => setRosterSelected(new Set(rosterStudents.map(s => s.id)))} style={{ color: '#15803D' }} className="font-semibold hover:underline">All</button>
+                      <button onClick={() => setRosterSelected(new Set())} style={{ color: '#64748B' }} className="font-semibold hover:underline">None</button>
+                    </div>
+                  </div>
+                  {loadingRoster ? (
+                    <div className="text-center py-3 text-sm" style={{ color: '#94A3B8' }}>Loading…</div>
+                  ) : (
+                    <div className="max-h-44 overflow-y-auto rounded-lg divide-y" style={{ border: '1px solid #E2D9CC' }}>
+                      {rosterStudents.length === 0
+                        ? <div className="text-center py-3 text-sm" style={{ color: '#94A3B8' }}>No active students</div>
+                        : rosterStudents.map(s => (
+                          <label key={s.id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer select-none hover:bg-slate-50">
+                            <input type="checkbox" checked={rosterSelected.has(s.id)} className="rounded border-slate-300"
+                              onChange={e => {
+                                const next = new Set(rosterSelected);
+                                e.target.checked ? next.add(s.id) : next.delete(s.id);
+                                setRosterSelected(next);
+                              }} />
+                            <span className="text-sm flex-1" style={{ color: '#0F172A' }}>{s.name}</span>
+                            <span className="text-xs font-mono" style={{ color: '#94A3B8' }}>{s.student_code}</span>
+                          </label>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             {actionResult && <p className="text-sm mt-3 font-medium" style={{ color: actionResult.startsWith('✓') ? '#15803D' : '#DC2626' }}>{actionResult}</p>}
             <div className="flex gap-3 mt-6">
               <Button variant="secondary" className="flex-1" onClick={() => setModal(null)}>Close</Button>
-              <Button className="flex-1" loading={saving} onClick={handleGraduate} style={{ backgroundColor: '#0369A1' }}>Graduate</Button>
+              <Button className="flex-1" loading={saving} onClick={handleGraduate}
+                disabled={rosterSelected.size === 0} style={{ backgroundColor: '#0369A1' }}>
+                Graduate{rosterSelected.size > 0 ? ` (${rosterSelected.size})` : ''}
+              </Button>
             </div>
           </div>
         </div>

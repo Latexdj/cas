@@ -466,33 +466,55 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
   } catch (err) { next(err); }
 });
 
-/** POST /api/students/promote — bulk promote a class */
+/** POST /api/students/promote — bulk or selective class promotion */
 router.post('/promote', adminOnly, async (req, res, next) => {
   try {
-    const { from_class, to_class } = req.body;
+    const { from_class, to_class, student_ids } = req.body;
     if (!from_class || !to_class)
       return res.status(400).json({ error: 'from_class and to_class are required' });
 
-    const { rowCount } = await pool.query(
-      `UPDATE students SET class_name = $1, updated_at = now()
-       WHERE school_id = $2 AND class_name = $3 AND status = 'Active'`,
-      [to_class, req.schoolId, from_class]
-    );
+    let rowCount;
+    if (Array.isArray(student_ids) && student_ids.length > 0) {
+      const { rowCount: rc } = await pool.query(
+        `UPDATE students SET class_name=$1, updated_at=now()
+         WHERE id=ANY($2::uuid[]) AND school_id=$3 AND status='Active'`,
+        [to_class, student_ids, req.schoolId]
+      );
+      rowCount = rc;
+    } else {
+      const { rowCount: rc } = await pool.query(
+        `UPDATE students SET class_name=$1, updated_at=now()
+         WHERE school_id=$2 AND class_name=$3 AND status='Active'`,
+        [to_class, req.schoolId, from_class]
+      );
+      rowCount = rc;
+    }
     res.json({ promoted: rowCount, from_class, to_class });
   } catch (err) { next(err); }
 });
 
-/** POST /api/students/graduate — mark an entire class as graduated */
+/** POST /api/students/graduate — bulk or selective graduation */
 router.post('/graduate', adminOnly, async (req, res, next) => {
   try {
-    const { class_name } = req.body;
+    const { class_name, student_ids } = req.body;
     if (!class_name) return res.status(400).json({ error: 'class_name is required' });
 
-    const { rowCount } = await pool.query(
-      `UPDATE students SET status = 'Graduated', updated_at = now()
-       WHERE school_id = $1 AND class_name = $2 AND status = 'Active'`,
-      [req.schoolId, class_name]
-    );
+    let rowCount;
+    if (Array.isArray(student_ids) && student_ids.length > 0) {
+      const { rowCount: rc } = await pool.query(
+        `UPDATE students SET status='Graduated', updated_at=now()
+         WHERE id=ANY($2::uuid[]) AND school_id=$1 AND status='Active'`,
+        [req.schoolId, student_ids]
+      );
+      rowCount = rc;
+    } else {
+      const { rowCount: rc } = await pool.query(
+        `UPDATE students SET status='Graduated', updated_at=now()
+         WHERE school_id=$1 AND class_name=$2 AND status='Active'`,
+        [req.schoolId, class_name]
+      );
+      rowCount = rc;
+    }
     res.json({ graduated: rowCount, class_name });
   } catch (err) { next(err); }
 });

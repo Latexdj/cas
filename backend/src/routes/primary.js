@@ -151,6 +151,81 @@ router.get('/students', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/primary/students/classes — ordered classes with active student counts
+router.get('/students/classes', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT pc.class_name, pc.sort_order,
+              COUNT(s.id)::int AS student_count
+       FROM primary_classes pc
+       LEFT JOIN primary_students s
+         ON LOWER(s.class_name) = LOWER(pc.class_name)
+            AND s.school_id = pc.school_id
+            AND s.status = 'Active'
+       WHERE pc.school_id = $1
+       GROUP BY pc.class_name, pc.sort_order
+       ORDER BY pc.sort_order, pc.class_name`,
+      [req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/students/promote — bulk or selective class promotion
+router.post('/students/promote', adminOnly, async (req, res, next) => {
+  try {
+    const { from_class, to_class, student_ids } = req.body;
+    if (!from_class || !to_class)
+      return res.status(400).json({ error: 'from_class and to_class are required' });
+    if (from_class === to_class)
+      return res.status(400).json({ error: 'from_class and to_class must differ' });
+
+    let rowCount;
+    if (Array.isArray(student_ids) && student_ids.length > 0) {
+      const { rowCount: rc } = await pool.query(
+        `UPDATE primary_students SET class_name=$1, updated_at=now()
+         WHERE id=ANY($2::uuid[]) AND school_id=$3 AND status='Active'`,
+        [to_class, student_ids, req.schoolId]
+      );
+      rowCount = rc;
+    } else {
+      const { rowCount: rc } = await pool.query(
+        `UPDATE primary_students SET class_name=$1, updated_at=now()
+         WHERE school_id=$2 AND class_name=$3 AND status='Active'`,
+        [to_class, req.schoolId, from_class]
+      );
+      rowCount = rc;
+    }
+    res.json({ promoted: rowCount, from_class, to_class });
+  } catch (err) { next(err); }
+});
+
+// POST /api/primary/students/graduate — bulk or selective graduation
+router.post('/students/graduate', adminOnly, async (req, res, next) => {
+  try {
+    const { class_name, student_ids } = req.body;
+    if (!class_name) return res.status(400).json({ error: 'class_name is required' });
+
+    let rowCount;
+    if (Array.isArray(student_ids) && student_ids.length > 0) {
+      const { rowCount: rc } = await pool.query(
+        `UPDATE primary_students SET status='Graduated', updated_at=now()
+         WHERE id=ANY($2::uuid[]) AND school_id=$1 AND status='Active'`,
+        [req.schoolId, student_ids]
+      );
+      rowCount = rc;
+    } else {
+      const { rowCount: rc } = await pool.query(
+        `UPDATE primary_students SET status='Graduated', updated_at=now()
+         WHERE school_id=$1 AND class_name=$2 AND status='Active'`,
+        [req.schoolId, class_name]
+      );
+      rowCount = rc;
+    }
+    res.json({ graduated: rowCount, class_name });
+  } catch (err) { next(err); }
+});
+
 // GET /api/primary/students/:id
 router.get('/students/:id', async (req, res, next) => {
   try {
