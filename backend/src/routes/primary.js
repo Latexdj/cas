@@ -4,6 +4,7 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 const multer  = require('multer');
 const XLSX    = require('xlsx');
 const ExcelJS = require('exceljs');
+const { uploadFile } = require('../services/storage.service');
 const upload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.use(authenticate, requireActiveSubscription);
@@ -252,6 +253,7 @@ router.post('/students', adminOnly, async (req, res, next) => {
       mother_name, mother_occupation, mother_education, mother_phone, mother_alive,
       guardian_name, guardian_relationship, guardian_occupation, guardian_phone, guardian_address,
       emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
+      picture_data,
     } = req.body;
 
     if (!admission_number || !surname || !class_name)
@@ -292,7 +294,18 @@ router.post('/students', adminOnly, async (req, res, next) => {
         emergency_contact_relationship || null,
       ]
     );
-    res.status(201).json(rows[0]);
+    let studentRow = rows[0];
+    if (picture_data) {
+      try {
+        const photoUrl = await uploadFile(picture_data, `primary-student-photos/${req.schoolId}/${studentRow.id}`, { upsert: true });
+        const { rows: updated } = await pool.query(
+          `UPDATE primary_students SET picture_url=$1 WHERE id=$2 RETURNING *`,
+          [photoUrl, studentRow.id]
+        );
+        studentRow = updated[0];
+      } catch (photoErr) { console.error('Photo upload failed:', photoErr.message); }
+    }
+    res.status(201).json(studentRow);
   } catch (err) { next(err); }
 });
 
@@ -310,6 +323,7 @@ router.put('/students/:id', adminOnly, async (req, res, next) => {
       mother_name, mother_occupation, mother_education, mother_phone, mother_alive,
       guardian_name, guardian_relationship, guardian_occupation, guardian_phone, guardian_address,
       emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
+      picture_data,
     } = req.body;
 
     const { rows } = await pool.query(
@@ -349,7 +363,18 @@ router.put('/students/:id', adminOnly, async (req, res, next) => {
       ]
     );
     if (!rows.length) return res.status(404).json({ error: 'Student not found' });
-    res.json(rows[0]);
+    let studentRow = rows[0];
+    if (picture_data) {
+      try {
+        const photoUrl = await uploadFile(picture_data, `primary-student-photos/${req.schoolId}/${req.params.id}`, { upsert: true });
+        const { rows: updated } = await pool.query(
+          `UPDATE primary_students SET picture_url=$1 WHERE id=$2 RETURNING *`,
+          [photoUrl, req.params.id]
+        );
+        studentRow = updated[0];
+      } catch (photoErr) { console.error('Photo upload failed:', photoErr.message); }
+    }
+    res.json(studentRow);
   } catch (err) { next(err); }
 });
 
