@@ -65,7 +65,7 @@ router.get('/', async (req, res, next) => {
     if (!academic_year_id || !semester || !subject || !class_name) {
       return res.status(400).json({ error: 'academic_year_id, semester, subject, class_name are required' });
     }
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
     const params = [req.schoolId, academic_year_id, parseInt(semester), subject, class_name];
     let teacherFilter = '';
     if (!isAdmin) { params.push(req.user.id); teacherFilter = `AND a.teacher_id = $${params.length}`; }
@@ -111,28 +111,43 @@ router.post('/', async (req, res, next) => {
 
     // Enforce max_instances per subject/class/semester
     const mode = modeCheck.rows[0];
-    if (mode.max_instances != null) {
-      const { rows: existing } = await pool.query(
-        `SELECT COUNT(*) FROM assessments
-         WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3
-           AND subject=$4 AND class_name=$5 AND mode_id=$6`,
-        [req.schoolId, academic_year_id, parseInt(semester), subject, class_name, mode_id]
+    const client = await pool.connect();
+    let newAssessment;
+    try {
+      await client.query('BEGIN');
+      if (mode.max_instances != null) {
+        const { rows: existing } = await client.query(
+          `SELECT COUNT(*) FROM assessments
+           WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3
+             AND subject=$4 AND class_name=$5 AND mode_id=$6
+           FOR UPDATE`,
+          [req.schoolId, academic_year_id, parseInt(semester), subject, class_name, mode_id]
+        );
+        if (parseInt(existing[0].count) >= mode.max_instances) {
+          await client.query('ROLLBACK');
+          client.release();
+          return res.status(409).json({
+            error: `Maximum ${mode.max_instances} "${mode.name}" assessment(s) allowed per subject per semester`,
+          });
+        }
+      }
+      const { rows } = await client.query(
+        `INSERT INTO assessments
+           (school_id, academic_year_id, semester, subject, class_name, teacher_id, mode_id, title, date, max_score)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         RETURNING id, mode_id, title, date, max_score, subject, class_name`,
+        [req.schoolId, academic_year_id, parseInt(semester), subject, class_name,
+         req.user.id, mode_id, title||null, date||null, parseFloat(max_score)||100]
       );
-      if (parseInt(existing[0].count) >= mode.max_instances)
-        return res.status(409).json({
-          error: `Maximum ${mode.max_instances} "${mode.name}" assessment(s) allowed per subject per semester`,
-        });
+      await client.query('COMMIT');
+      newAssessment = rows[0];
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
     }
-
-    const { rows } = await pool.query(
-      `INSERT INTO assessments
-         (school_id, academic_year_id, semester, subject, class_name, teacher_id, mode_id, title, date, max_score)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-       RETURNING id, mode_id, title, date, max_score, subject, class_name`,
-      [req.schoolId, academic_year_id, parseInt(semester), subject, class_name,
-       req.user.id, mode_id, title||null, date||null, parseFloat(max_score)||100]
-    );
-    res.status(201).json(rows[0]);
+    res.status(201).json(newAssessment);
   } catch (err) { next(err); }
 });
 
@@ -143,6 +158,18 @@ router.get('/subject-remarks', async (req, res, next) => {
     const { academic_year_id, semester, subject, class_name } = req.query;
     if (!academic_year_id || !semester || !subject || !class_name) {
       return res.status(400).json({ error: 'academic_year_id, semester, subject, class_name are required' });
+    }
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    if (!isAdmin) {
+      const { rows: assigned } = await pool.query(
+        `SELECT 1 FROM timetable
+         WHERE school_id=$1 AND teacher_id=$2 AND academic_year_id=$3 AND semester=$4
+           AND LOWER(subject)=LOWER($5)
+           AND LOWER($6) = ANY(SELECT LOWER(TRIM(cls)) FROM unnest(string_to_array(class_names, ',')) AS cls)
+         LIMIT 1`,
+        [req.schoolId, req.user.id, academic_year_id, parseInt(semester), subject, class_name]
+      );
+      if (!assigned.length) return res.status(403).json({ error: 'You are not assigned to teach this subject to this class' });
     }
     // Get all active students in class with their remarks (NULL if none yet)
     const { rows } = await pool.query(
@@ -170,10 +197,31 @@ router.post('/subject-remarks', async (req, res, next) => {
     }
     if (!remarks.length) return res.json({ message: 'No remarks to save.' });
 
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    if (!isAdmin) {
+      const { rows: assigned } = await pool.query(
+        `SELECT 1 FROM timetable
+         WHERE school_id=$1 AND teacher_id=$2 AND academic_year_id=$3 AND semester=$4
+           AND LOWER(subject)=LOWER($5)
+           AND LOWER($6) = ANY(SELECT LOWER(TRIM(cls)) FROM unnest(string_to_array(class_names, ',')) AS cls)
+         LIMIT 1`,
+        [req.schoolId, req.user.id, academic_year_id, parseInt(semester), subject, class_name]
+      );
+      if (!assigned.length) return res.status(403).json({ error: 'You are not assigned to teach this subject to this class' });
+    }
+
+    const { rows: classStudents } = await pool.query(
+      `SELECT id FROM students WHERE school_id=$1 AND LOWER(class_name)=LOWER($2) AND status='Active'`,
+      [req.schoolId, class_name]
+    );
+    const validStudentIds = new Set(classStudents.map(s => s.id));
+    const safeRemarks = remarks.filter(r => r.student_id && validStudentIds.has(r.student_id));
+    if (!safeRemarks.length) return res.json({ message: 'No remarks to save.' });
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      for (const r of remarks) {
+      for (const r of safeRemarks) {
         await client.query(
           `INSERT INTO subject_remarks (school_id, academic_year_id, semester, subject, class_name, student_id, teacher_id, remarks, updated_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
@@ -198,7 +246,7 @@ router.get('/class-template', async (req, res, next) => {
     if (!academic_year_id || !semester || !subject || !class_name) {
       return res.status(400).json({ error: 'academic_year_id, semester, subject, class_name are required' });
     }
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
     const asmtParams = [req.schoolId, academic_year_id, parseInt(semester), subject, class_name];
     let teacherFilter = '';
     if (!isAdmin) { asmtParams.push(req.user.id); teacherFilter = `AND a.teacher_id = $${asmtParams.length}`; }
@@ -361,13 +409,17 @@ router.post('/class-upload-scores', upload.single('file'), async (req, res, next
 
     // Validate assessment IDs
     const { rows: validAsmts } = await pool.query(
-      `SELECT id, max_score FROM assessments WHERE id = ANY($1::uuid[]) AND school_id = $2`,
+      `SELECT id, max_score, teacher_id FROM assessments WHERE id = ANY($1::uuid[]) AND school_id = $2`,
       [asmtIds, req.schoolId]
     );
     const asmtMap = Object.fromEntries(validAsmts.map(a => [a.id, a]));
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
     for (const id of asmtIds) {
       if (!asmtMap[id]) {
         return res.status(400).json({ error: `Assessment not found. Please use the downloaded template file.` });
+      }
+      if (!isAdmin && asmtMap[id].teacher_id !== req.user.id) {
+        return res.status(403).json({ error: 'You are not the owner of one or more assessments in this template.' });
       }
     }
 
@@ -491,7 +543,7 @@ router.get('/admin-list', adminOnly, async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const { title, date, max_score, mode_id, semester, academic_year_id } = req.body;
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
 
     // Check if results are locked before applying any other guards
     const { rows: asmtRows } = await pool.query(
@@ -572,7 +624,7 @@ router.put('/:id', async (req, res, next) => {
 // DELETE /api/assessments/:id
 router.delete('/:id', async (req, res, next) => {
   try {
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
 
     // Check if results are locked
     const { rows: asmtRows } = await pool.query(
@@ -608,6 +660,11 @@ router.get('/:id/scores', async (req, res, next) => {
     );
     if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
 
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    if (!isAdmin && assessment.teacher_id !== req.user.id) {
+      return res.status(403).json({ error: 'You are not the owner of this assessment' });
+    }
+
     // Get all active students in this class
     const { rows } = await pool.query(
       `SELECT s.id AS student_id, s.student_code, s.name,
@@ -639,6 +696,11 @@ router.post('/:id/scores', async (req, res, next) => {
     const subStatus = await getSubmissionStatus(req.schoolId, assessment.academic_year_id, assessment.semester, assessment.subject, assessment.class_name);
     if (LOCKED_STATUSES.includes(subStatus)) {
       return res.status(409).json({ error: `Scores are locked — submission status is "${subStatus}". Contact your HOD or admin to unlock.` });
+    }
+
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    if (!isAdmin && assessment.teacher_id !== req.user.id) {
+      return res.status(403).json({ error: 'You are not the owner of this assessment' });
     }
 
     // Validate scores against max_score
@@ -685,6 +747,11 @@ router.get('/:id/score-template', async (req, res, next) => {
       [req.params.id, req.schoolId]
     );
     if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
+
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    if (!isAdmin && assessment.teacher_id !== req.user.id) {
+      return res.status(403).json({ error: 'You are not the owner of this assessment' });
+    }
 
     const { rows: students } = await pool.query(
       `SELECT s.id AS student_id, s.student_code, s.name,
@@ -780,6 +847,11 @@ router.post('/:id/upload-scores', upload.single('file'), async (req, res, next) 
       [req.params.id, req.schoolId]
     );
     if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
+
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    if (!isAdmin && assessment.teacher_id !== req.user.id) {
+      return res.status(403).json({ error: 'You are not the owner of this assessment' });
+    }
 
     const subStatus = await getSubmissionStatus(req.schoolId, assessment.academic_year_id, assessment.semester, assessment.subject, assessment.class_name);
     if (LOCKED_STATUSES.includes(subStatus)) {
