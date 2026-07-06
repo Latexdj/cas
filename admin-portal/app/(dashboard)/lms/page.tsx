@@ -22,6 +22,17 @@ interface Teacher {
   name: string;
 }
 
+interface Subject {
+  id: string;
+  name: string;
+  code: string;
+}
+
+interface Class {
+  id: string;
+  name: string;
+}
+
 interface Course {
   id: string;
   teacher_id: string;
@@ -29,7 +40,7 @@ interface Course {
   subject_name: string;
   class_name: string;
   academic_year_name: string;
-  term: number | null;
+  semester: number | null;
   lesson_count: number;
   assignment_count: number;
   quiz_count: number;
@@ -47,7 +58,7 @@ const emptyForm = {
   subject_name: '',
   class_name: '',
   academic_year_id: '',
-  term: '' as '' | '1' | '2' | '3',
+  semester: '' as '' | '1' | '2',
   description: '',
 };
 
@@ -56,11 +67,13 @@ export default function LMSOverviewPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [filterYear, setFilterYear] = useState('');
   const [filterClass, setFilterClass] = useState('');
-  const [filterTerm, setFilterTerm] = useState('');
+  const [filterSemester, setFilterSemester] = useState('');
 
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -80,7 +93,15 @@ export default function LMSOverviewPage() {
   }, []);
 
   function openModal() {
-    api.get<Teacher[]>('/api/teachers').then(r => setTeachers(r.data)).catch(() => {});
+    Promise.all([
+      api.get<Teacher[]>('/api/teachers'),
+      api.get<Subject[]>('/api/subjects'),
+      api.get<Class[]>('/api/classes'),
+    ]).then(([t, s, cl]) => {
+      setTeachers(t.data);
+      setSubjects(s.data);
+      setClasses(cl.data);
+    }).catch(() => {});
     setForm(emptyForm);
     setShowModal(true);
   }
@@ -94,7 +115,7 @@ export default function LMSOverviewPage() {
         subject_name: form.subject_name,
         class_name: form.class_name,
         academic_year_id: form.academic_year_id,
-        term: form.term ? Number(form.term) : null,
+        semester: form.semester ? Number(form.semester) : null,
         description: form.description,
       });
       const res = await api.get<Course[]>('/api/lms/admin/courses');
@@ -135,7 +156,7 @@ export default function LMSOverviewPage() {
   const filtered = courses.filter(c => {
     if (filterYear && c.academic_year_name !== filterYear) return false;
     if (filterClass && !c.class_name.toLowerCase().includes(filterClass.toLowerCase())) return false;
-    if (filterTerm && filterTerm !== 'All' && c.term !== Number(filterTerm)) return false;
+    if (filterSemester && c.semester !== Number(filterSemester)) return false;
     return true;
   });
 
@@ -201,14 +222,13 @@ export default function LMSOverviewPage() {
             className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
           />
           <select
-            value={filterTerm}
-            onChange={e => setFilterTerm(e.target.value)}
+            value={filterSemester}
+            onChange={e => setFilterSemester(e.target.value)}
             className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
           >
-            <option value="">All Terms</option>
-            <option value="1">Term 1</option>
-            <option value="2">Term 2</option>
-            <option value="3">Term 3</option>
+            <option value="">All Semesters</option>
+            <option value="1">Semester 1</option>
+            <option value="2">Semester 2</option>
           </select>
           <button
             onClick={openModal}
@@ -223,7 +243,7 @@ export default function LMSOverviewPage() {
           <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {['Teacher', 'Subject', 'Class', 'Term', 'Lessons', 'Assignments', 'Quizzes', 'Status', 'Actions'].map(h => (
+                {['Teacher', 'Subject', 'Class', 'Semester', 'Lessons', 'Assignments', 'Quizzes', 'Status', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -238,7 +258,7 @@ export default function LMSOverviewPage() {
                   <td className="px-4 py-3 text-sm text-slate-700">{c.teacher_name}</td>
                   <td className="px-4 py-3 text-sm font-medium text-slate-900">{c.subject_name}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">{c.class_name}</td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{c.term ?? '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{c.semester ? `Sem ${c.semester}` : '—'}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">{c.lesson_count}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">{c.assignment_count}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">{c.quiz_count}</td>
@@ -307,25 +327,27 @@ export default function LMSOverviewPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Subject</label>
-                <input
+                <select
                   required
-                  type="text"
                   value={form.subject_name}
                   onChange={e => setForm(f => ({ ...f, subject_name: e.target.value }))}
-                  placeholder="e.g. Core Mathematics"
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
-                />
+                >
+                  <option value="">Select subject…</option>
+                  {subjects.map(s => <option key={s.id} value={s.name}>{s.name}{s.code ? ` (${s.code})` : ''}</option>)}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Class</label>
-                <input
+                <select
                   required
-                  type="text"
                   value={form.class_name}
                   onChange={e => setForm(f => ({ ...f, class_name: e.target.value }))}
-                  placeholder="e.g. SHS 2A"
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
-                />
+                >
+                  <option value="">Select class…</option>
+                  {classes.map(cl => <option key={cl.id} value={cl.name}>{cl.name}</option>)}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -343,16 +365,15 @@ export default function LMSOverviewPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Term</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Semester</label>
                   <select
-                    value={form.term}
-                    onChange={e => setForm(f => ({ ...f, term: e.target.value as typeof form.term }))}
+                    value={form.semester}
+                    onChange={e => setForm(f => ({ ...f, semester: e.target.value as typeof form.semester }))}
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
                   >
                     <option value="">Any</option>
-                    <option value="1">Term 1</option>
-                    <option value="2">Term 2</option>
-                    <option value="3">Term 3</option>
+                    <option value="1">Semester 1</option>
+                    <option value="2">Semester 2</option>
                   </select>
                 </div>
               </div>

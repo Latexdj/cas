@@ -12,6 +12,17 @@ interface AcademicYear {
   current_semester?: number;
 }
 
+interface Subject {
+  id: string;
+  name: string;
+  code: string;
+}
+
+interface Class {
+  id: string;
+  name: string;
+}
+
 interface Course {
   id: string;
   subject_name: string;
@@ -23,7 +34,7 @@ interface Course {
   quiz_count: number;
   pending_submissions: number;
   academic_year_id: string;
-  term?: number | null;
+  semester?: number | null;
   description?: string;
 }
 
@@ -53,17 +64,29 @@ function NewCourseModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
   const [subjectName, setSubjectName] = useState('');
   const [className, setClassName] = useState('');
   const [yearId, setYearId] = useState(years.find(y => y.is_current)?.id ?? years[0]?.id ?? '');
-  const [term, setTerm] = useState('');
+  const [semester, setSemester] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    Promise.all([
+      teacherApi.get<Subject[]>('/api/subjects'),
+      teacherApi.get<Class[]>('/api/classes'),
+    ]).then(([s, cl]) => {
+      setSubjects(s.data ?? []);
+      setClasses(cl.data ?? []);
+    }).catch(() => {});
+  }, []);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!subjectName.trim() || !className.trim() || !yearId) {
+    if (!subjectName || !className || !yearId) {
       setError('Subject, class, and academic year are required.');
       return;
     }
@@ -71,10 +94,10 @@ function NewCourseModal({
     setError('');
     try {
       await teacherApi.post('/api/lms/courses', {
-        subject_name: subjectName.trim(),
-        class_name: className.trim(),
+        subject_name: subjectName,
+        class_name: className,
         academic_year_id: yearId,
-        term: term ? parseInt(term) : null,
+        semester: semester ? parseInt(semester) : null,
         description: description.trim() || null,
       });
       onCreated();
@@ -98,12 +121,18 @@ function NewCourseModal({
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
           {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Subject Name</label>
-            <input className={INPUT} value={subjectName} onChange={e => setSubjectName(e.target.value)} placeholder="e.g. Core Mathematics" />
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Subject</label>
+            <select className={INPUT} required value={subjectName} onChange={e => setSubjectName(e.target.value)}>
+              <option value="">Select subject…</option>
+              {subjects.map(s => <option key={s.id} value={s.name}>{s.name}{s.code ? ` (${s.code})` : ''}</option>)}
+            </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Class Name</label>
-            <input className={INPUT} value={className} onChange={e => setClassName(e.target.value)} placeholder="e.g. SHS 2A" />
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Class</label>
+            <select className={INPUT} required value={className} onChange={e => setClassName(e.target.value)}>
+              <option value="">Select class…</option>
+              {classes.map(cl => <option key={cl.id} value={cl.name}>{cl.name}</option>)}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Academic Year</label>
@@ -112,12 +141,11 @@ function NewCourseModal({
             </select>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Term (optional)</label>
-            <select className={INPUT} value={term} onChange={e => setTerm(e.target.value)}>
-              <option value="">— Any Term —</option>
-              <option value="1">Term 1</option>
-              <option value="2">Term 2</option>
-              <option value="3">Term 3</option>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Semester (optional)</label>
+            <select className={INPUT} value={semester} onChange={e => setSemester(e.target.value)}>
+              <option value="">— Any Semester —</option>
+              <option value="1">Semester 1</option>
+              <option value="2">Semester 2</option>
             </select>
           </div>
           <div>
@@ -145,20 +173,20 @@ function CoursesContent() {
   const [primary, setPrimary] = useState('#2ab289');
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [yearId, setYearId] = useState('');
-  const [term, setTerm] = useState('');
+  const [semester, setSemester] = useState('');
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const loadCourses = useCallback(async (yId: string, t: string) => {
+  const loadCourses = useCallback(async (yId: string, sem: string) => {
     if (!yId) return;
     setLoading(true);
     setError('');
     try {
       const params: Record<string, string> = { academic_year_id: yId };
-      if (t) params.term = t;
+      if (sem) params.semester = sem;
       const { data } = await teacherApi.get<Course[]>('/api/lms/my-courses', { params });
       setCourses(data ?? []);
     } catch {
@@ -195,12 +223,12 @@ function CoursesContent() {
 
   function handleYearChange(id: string) {
     setYearId(id);
-    loadCourses(id, term);
+    loadCourses(id, semester);
   }
 
-  function handleTermChange(t: string) {
-    setTerm(t);
-    loadCourses(yearId, t);
+  function handleSemesterChange(sem: string) {
+    setSemester(sem);
+    loadCourses(yearId, sem);
   }
 
   return (
@@ -241,18 +269,17 @@ function CoursesContent() {
             </svg>
           </div>
         </div>
-        <div className="w-36 shrink-0">
-          <p className="text-[10px] font-semibold text-[#8C7E6E] mb-1.5 uppercase tracking-wide">Term</p>
+        <div className="w-40 shrink-0">
+          <p className="text-[10px] font-semibold text-[#8C7E6E] mb-1.5 uppercase tracking-wide">Semester</p>
           <div className="relative">
             <select
-              value={term}
-              onChange={e => handleTermChange(e.target.value)}
+              value={semester}
+              onChange={e => handleSemesterChange(e.target.value)}
               className="w-full appearance-none border border-[#E2D9CC] rounded-xl px-3 py-2 pr-8 text-sm font-semibold text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]"
             >
-              <option value="">All Terms</option>
-              <option value="1">Term 1</option>
-              <option value="2">Term 2</option>
-              <option value="3">Term 3</option>
+              <option value="">All Semesters</option>
+              <option value="1">Semester 1</option>
+              <option value="2">Semester 2</option>
             </select>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 text-[#8C7E6E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
               <polyline points="6 9 12 15 18 9" />
@@ -299,8 +326,8 @@ function CoursesContent() {
                   {course.teacher_name && (
                     <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: primary }}>{course.teacher_name}</span>
                   )}
-                  {course.term && (
-                    <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Term {course.term}</span>
+                  {course.semester && (
+                    <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Sem {course.semester}</span>
                   )}
                 </div>
                 <p className="text-xs text-[#8C7E6E]">
@@ -342,7 +369,7 @@ function CoursesContent() {
           years={years}
           primary={primary}
           onClose={() => setShowModal(false)}
-          onCreated={() => { setShowModal(false); loadCourses(yearId, term); }}
+          onCreated={() => { setShowModal(false); loadCourses(yearId, semester); }}
         />
       )}
     </div>

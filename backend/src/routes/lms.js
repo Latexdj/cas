@@ -40,11 +40,11 @@ async function assertCourseOwner(req, courseId) {
 // Teacher: list own courses
 router.get('/my-courses', teacherOrAdmin, async (req, res, next) => {
   try {
-    const { academic_year_id, term } = req.query;
+    const { academic_year_id, semester } = req.query;
     const params = [req.schoolId, req.user.id];
     const conds  = ['c.school_id=$1', 'c.teacher_id=$2'];
     if (academic_year_id) { params.push(academic_year_id); conds.push(`c.academic_year_id=$${params.length}`); }
-    if (term)             { params.push(parseInt(term));   conds.push(`c.term=$${params.length}`); }
+    if (semester)         { params.push(parseInt(semester)); conds.push(`c.semester=$${params.length}`); }
 
     const { rows } = await pool.query(`
       SELECT c.*, ay.name AS academic_year_name, t.name AS teacher_name,
@@ -66,12 +66,12 @@ router.get('/my-courses', teacherOrAdmin, async (req, res, next) => {
 // Admin: list all courses
 router.get('/admin/courses', adminOnly, async (req, res, next) => {
   try {
-    const { academic_year_id, term, class_name } = req.query;
+    const { academic_year_id, semester, class_name } = req.query;
     const params = [req.schoolId];
     const conds  = ['c.school_id=$1'];
     if (academic_year_id) { params.push(academic_year_id); conds.push(`c.academic_year_id=$${params.length}`); }
-    if (term)             { params.push(parseInt(term));   conds.push(`c.term=$${params.length}`); }
-    if (class_name)       { params.push(class_name);       conds.push(`c.class_name=$${params.length}`); }
+    if (semester)         { params.push(parseInt(semester)); conds.push(`c.semester=$${params.length}`); }
+    if (class_name)       { params.push(class_name);         conds.push(`c.class_name=$${params.length}`); }
 
     const { rows } = await pool.query(`
       SELECT c.*, ay.name AS academic_year_name, t.name AS teacher_name,
@@ -104,7 +104,7 @@ router.get('/admin/stats', adminOnly, async (req, res, next) => {
 // Create course
 router.post('/courses', teacherOrAdmin, async (req, res, next) => {
   try {
-    const { subject_name, class_name, academic_year_id, term, description } = req.body;
+    const { subject_name, class_name, academic_year_id, semester, description } = req.body;
     if (!subject_name || !class_name) {
       return res.status(400).json({ error: 'subject_name and class_name are required' });
     }
@@ -112,13 +112,13 @@ router.post('/courses', teacherOrAdmin, async (req, res, next) => {
     const teacher_id = (isAdmin && req.body.teacher_id) ? req.body.teacher_id : req.user.id;
 
     const { rows } = await pool.query(
-      `INSERT INTO lms_courses (school_id, teacher_id, subject_name, class_name, academic_year_id, term, description)
+      `INSERT INTO lms_courses (school_id, teacher_id, subject_name, class_name, academic_year_id, semester, description)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [req.schoolId, teacher_id, subject_name, class_name,
-       academic_year_id || null, term ? parseInt(term) : null, description || null]);
+       academic_year_id || null, semester ? parseInt(semester) : null, description || null]);
     res.status(201).json(rows[0]);
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'A course for this subject/class/term already exists' });
+    if (err.code === '23505') return res.status(409).json({ error: 'A course for this subject/class/semester already exists' });
     next(err);
   }
 });
@@ -761,11 +761,11 @@ router.get('/student/courses', studentOnly, async (req, res, next) => {
     const { rows: st } = await pool.query('SELECT class_name FROM students WHERE id=$1', [req.user.id]);
     if (!st.length) return res.status(404).json({ error: 'Student not found' });
 
-    const { academic_year_id, term } = req.query;
+    const { academic_year_id, semester } = req.query;
     const params = [req.schoolId, st[0].class_name, req.user.id];
     const conds  = [`c.school_id=$1`, `c.class_name=$2`, `c.status='published'`];
     if (academic_year_id) { params.push(academic_year_id); conds.push(`c.academic_year_id=$${params.length}`); }
-    if (term)             { params.push(parseInt(term));   conds.push(`c.term=$${params.length}`); }
+    if (semester)         { params.push(parseInt(semester)); conds.push(`c.semester=$${params.length}`); }
 
     const { rows } = await pool.query(`
       SELECT c.*, ay.name AS academic_year_name, t.name AS teacher_name,

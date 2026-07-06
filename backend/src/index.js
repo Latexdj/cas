@@ -1700,11 +1700,11 @@ async function runMigrations() {
         subject_name     TEXT NOT NULL,
         class_name       TEXT NOT NULL,
         academic_year_id UUID REFERENCES academic_years(id) ON DELETE SET NULL,
-        term             INTEGER,
+        semester         INTEGER,
         description      TEXT,
         status           TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','archived')),
         created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-        UNIQUE (school_id, teacher_id, subject_name, class_name, academic_year_id, term)
+        UNIQUE (school_id, teacher_id, subject_name, class_name, academic_year_id, semester)
       )
     `);
     await pool.query(`
@@ -1833,6 +1833,7 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_courses_school ON lms_courses(school_id, academic_year_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_courses_class  ON lms_courses(school_id, class_name)`);
+    await pool.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='lms_courses' AND column_name='term') THEN ALTER TABLE lms_courses RENAME COLUMN term TO semester; END IF; END $$`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_submissions_assignment ON lms_submissions(assignment_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_submissions_student   ON lms_submissions(student_id, school_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_quiz_attempts_student ON lms_quiz_attempts(student_id, quiz_id)`);

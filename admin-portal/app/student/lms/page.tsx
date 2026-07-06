@@ -21,7 +21,7 @@ export default function LMSCoursesPage() {
   const [primary, setPrimary] = useState('#3B82F6');
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [yearId, setYearId] = useState('');
-  const [term, setTerm] = useState('1');
+  const [semester, setSemester] = useState('1');
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(false);
   const [yearsLoaded, setYearsLoaded] = useState(false);
@@ -37,7 +37,7 @@ export default function LMSCoursesPage() {
       const cur = r.data.find(y => y.is_current) ?? r.data[0];
       if (cur) {
         setYearId(cur.id);
-        setTerm(String(cur.current_term ?? cur.current_semester ?? 1));
+        setSemester(String(cur.current_semester ?? 1));
       }
     }).catch(() => {}).finally(() => setYearsLoaded(true));
   }, []);
@@ -45,11 +45,11 @@ export default function LMSCoursesPage() {
   useEffect(() => {
     if (!yearId) return;
     setLoading(true);
-    studentApi.get<Course[]>(`/api/lms/student/courses?academic_year_id=${yearId}&term=${term}`)
+    studentApi.get<Course[]>(`/api/lms/student/courses?academic_year_id=${yearId}&semester=${semester}`)
       .then(r => setCourses(r.data))
       .catch(() => setCourses([]))
       .finally(() => setLoading(false));
-  }, [yearId, term]);
+  }, [yearId, semester]);
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-4xl mx-auto">
@@ -67,13 +67,12 @@ export default function LMSCoursesPage() {
             ))}
           </select>
           <select
-            value={term}
-            onChange={e => setTerm(e.target.value)}
+            value={semester}
+            onChange={e => setSemester(e.target.value)}
             className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none"
           >
-            <option value="1">Term 1</option>
-            <option value="2">Term 2</option>
-            <option value="3">Term 3</option>
+            <option value="1">Semester 1</option>
+            <option value="2">Semester 2</option>
           </select>
         </div>
       </div>
