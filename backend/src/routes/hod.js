@@ -414,7 +414,7 @@ router.get('/results', hodOnly, async (req, res, next) => {
               if (!sc||sc.absent||sc.score===null) return null;
               return (parseFloat(sc.score)/parseFloat(a.max_score))*100;
             }).filter(s=>s!==null);
-            if (scores.length) { hasCA=true; wSum += (scores.reduce((a,b)=>a+b,0)/scores.length)*parseFloat(mode.ca_contribution||0); }
+            if (scores.length) { hasCA=true; wSum += (scores.reduce((a,b)=>a+b,0)/scores.length)*parseFloat(mode.ca_contribution||0)/100; }
           }
           if (hasCA) caScore = totalConfiguredCA>0 ? (wSum/totalConfiguredCA)*caPercentage : wSum;
         }
@@ -423,9 +423,11 @@ router.get('/results', hodOnly, async (req, res, next) => {
         if (examEntry?.score != null) examScore = (parseFloat(examEntry.score)/parseFloat(examEntry.max_score||100))*examPercentage;
 
         if (caScore === null && examScore === null) continue;
+        const roundedCA   = caScore   !== null ? Math.round(caScore   * 10) / 10 : null;
+        const roundedExam = examScore !== null ? Math.round(examScore * 10) / 10 : null;
         const total = Math.round(((caScore??0)+(examScore??0))*10)/10;
         const { grade, remark } = getGrade(total, examBody);
-        subjectResults.push({ subject, ca_score: caScore, exam_score: examScore, total, grade, remark });
+        subjectResults.push({ subject, ca_score: roundedCA, exam_score: roundedExam, total, grade, remark });
       }
 
       const withTotals = subjectResults.filter(s=>s.total!==null);
