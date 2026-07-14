@@ -40,34 +40,35 @@ async function hodOnly(req, res, next) {
     if (!deptRows.length && !officeRows.length)
       return res.status(403).json({ error: 'HOD access only' });
 
-    // Prefer the Departments path; fall back to clearance-office path
     if (deptRows.length) {
-      req.hodDept      = deptRows[0].dept_name;
-      req.programmeId  = null;
+      // Departments page HOD — always a subject HOD; no programme name lookup
+      req.hodDept       = deptRows[0].dept_name;
+      req.programmeId   = null;
       req.programmeName = deptRows[0].dept_name;
+      req.isSubjectHod  = true;
     } else {
+      // clearance-office path
       const { rows: tRows } = await pool.query(
         `SELECT department FROM teachers WHERE id = $1 AND school_id = $2 LIMIT 1`,
         [req.user.id, req.schoolId]
       );
-      req.hodDept      = tRows[0]?.department ?? null;
-      req.programmeId  = officeRows[0]?.linked_programme_id ?? null;
+      req.hodDept       = tRows[0]?.department ?? null;
+      req.programmeId   = officeRows[0]?.linked_programme_id ?? null;
       req.programmeName = officeRows[0]?.programme_name ?? req.hodDept;
-    }
 
-    // For either path, try to resolve a programme link by name
-    if (!req.programmeId && req.hodDept) {
-      const { rows: pRows } = await pool.query(
-        `SELECT id, name FROM programs WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
-        [req.schoolId, req.hodDept]
-      );
-      if (pRows.length) {
-        req.programmeId   = pRows[0].id;
-        req.programmeName = pRows[0].name;
+      // Only on clearance-office path: fallback to matching dept name against programme names
+      if (!req.programmeId && req.hodDept) {
+        const { rows: pRows } = await pool.query(
+          `SELECT id, name FROM programs WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
+          [req.schoolId, req.hodDept]
+        );
+        if (pRows.length) {
+          req.programmeId   = pRows[0].id;
+          req.programmeName = pRows[0].name;
+        }
       }
+      req.isSubjectHod = !req.programmeId;
     }
-
-    req.isSubjectHod = !req.programmeId;
     next();
   } catch (err) { next(err); }
 }

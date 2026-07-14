@@ -15,6 +15,13 @@ interface Department {
   head_photo: string | null;
   clearance_enabled: boolean;
   staff_count: number;
+  subject_count: number;
+}
+
+interface TimetableSubject {
+  subject: string;
+  department_id: string | null;
+  department_name: string | null;
 }
 
 interface Teacher {
@@ -32,6 +39,7 @@ type Modal =
   | { type: 'rename'; dept: Department }
   | { type: 'assign-head'; dept: Department }
   | { type: 'staff'; dept: Department }
+  | { type: 'subjects'; dept: Department }
   | { type: 'delete'; dept: Department }
   | null;
 
@@ -55,6 +63,11 @@ export default function DepartmentsPage() {
   const [staffLoading,setStaffLoading]  = useState(false);
   const [addTeacher,  setAddTeacher]    = useState('');
   const [staffSearch, setStaffSearch]   = useState('');
+
+  // Subject management
+  const [timetableSubjects, setTimetableSubjects] = useState<TimetableSubject[]>([]);
+  const [subjectsLoading,   setSubjectsLoading]   = useState(false);
+  const [seedingSubjects,   setSeedingSubjects]   = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -91,7 +104,49 @@ export default function DepartmentsPage() {
     loadStaff(dept.id);
   }
   function openDelete(dept: Department) { setModal({ type: 'delete', dept }); }
+  function openSubjects(dept: Department) {
+    setError('');
+    setModal({ type: 'subjects', dept });
+    loadTimetableSubjects();
+  }
   function closeModal() { setModal(null); setError(''); }
+
+  async function loadTimetableSubjects() {
+    setSubjectsLoading(true);
+    try {
+      const { data } = await api.get<TimetableSubject[]>('/api/departments/subjects/timetable');
+      setTimetableSubjects(data);
+    } finally { setSubjectsLoading(false); }
+  }
+
+  async function handleAssignSubject(subject: string, deptId: string) {
+    setError('');
+    try {
+      await api.post(`/api/departments/${deptId}/subjects`, { subject });
+      await loadTimetableSubjects();
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to assign subject');
+    }
+  }
+
+  async function handleRemoveSubject(subject: string, deptId: string) {
+    setError('');
+    try {
+      await api.delete(`/api/departments/${deptId}/subjects/${encodeURIComponent(subject)}`);
+      await loadTimetableSubjects();
+    } catch { /* ignore */ }
+  }
+
+  async function handleSeedSubjects() {
+    setSeedingSubjects(true); setError('');
+    try {
+      const { data } = await api.post<{ message: string; seeded: number }>('/api/departments/subjects/seed', {});
+      await loadTimetableSubjects();
+      if (data.seeded === 0) setError('No new subjects seeded. All timetable subjects may already be assigned, or teachers have no department set.');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to seed subjects');
+    } finally { setSeedingSubjects(false); }
+  }
 
   async function handleCreate() {
     if (!deptName.trim()) { setError('Name is required'); return; }
@@ -217,7 +272,9 @@ export default function DepartmentsPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="font-bold text-slate-900 truncate">{dept.name}</p>
-                    <p className="text-xs text-slate-400">{dept.staff_count} staff member{dept.staff_count !== 1 ? 's' : ''}</p>
+                    <p className="text-xs text-slate-400">
+                      {dept.staff_count} staff · {dept.subject_count} subject{dept.subject_count !== 1 ? 's' : ''}
+                    </p>
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -269,6 +326,17 @@ export default function DepartmentsPage() {
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 font-medium hover:bg-slate-50 transition-colors text-left flex items-center justify-between"
               >
                 <span>Manage Staff</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-slate-400">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+              </button>
+
+              {/* Subjects button */}
+              <button
+                onClick={() => openSubjects(dept)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 font-medium hover:bg-slate-50 transition-colors text-left flex items-center justify-between"
+              >
+                <span>Manage Subjects</span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-slate-400">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                 </svg>
@@ -441,6 +509,99 @@ export default function DepartmentsPage() {
             <Button variant="secondary" onClick={closeModal}>Done</Button>
           </div>
         </div>
+      </Modal>
+
+      {/* ── Manage Subjects ── */}
+      <Modal open={modal?.type === 'subjects'} onClose={closeModal}
+        title={modal?.type === 'subjects' ? `Subjects — ${modal.dept.name}` : 'Subjects'} maxWidth="max-w-lg">
+        {modal?.type === 'subjects' && (() => {
+          const mySubjects    = timetableSubjects.filter(s => s.department_id === modal.dept.id);
+          const otherSubjects = timetableSubjects.filter(s => s.department_id !== modal.dept.id);
+          return (
+            <div className="space-y-4">
+              {/* Seed button */}
+              <div className="flex items-center justify-between rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 gap-3">
+                <p className="text-xs text-amber-800">
+                  <strong>Auto-assign</strong> subjects from timetable based on the most common teacher department per subject.
+                  Only unassigned subjects are updated.
+                </p>
+                <button
+                  onClick={handleSeedSubjects}
+                  disabled={seedingSubjects}
+                  className="text-xs font-semibold text-amber-900 bg-amber-100 hover:bg-amber-200 rounded px-3 py-1.5 shrink-0 disabled:opacity-50 transition-colors"
+                >
+                  {seedingSubjects ? 'Seeding…' : 'Seed from Timetable'}
+                </button>
+              </div>
+
+              {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+
+              {subjectsLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-5 h-5 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-80 overflow-y-auto">
+                  {/* Subjects in this department */}
+                  {mySubjects.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Assigned to {modal.dept.name}</p>
+                      <div className="rounded-xl border border-green-200 divide-y divide-green-50 overflow-hidden">
+                        {mySubjects.map(s => (
+                          <div key={s.subject} className="flex items-center justify-between px-3 py-2 bg-green-50">
+                            <span className="text-sm font-medium text-slate-800">{s.subject}</span>
+                            <button
+                              onClick={() => handleRemoveSubject(s.subject, modal.dept.id)}
+                              className="text-xs text-red-500 hover:text-red-700 font-semibold"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Other timetable subjects */}
+                  {otherSubjects.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Other Timetable Subjects</p>
+                      <div className="rounded-xl border border-slate-200 divide-y divide-slate-50 overflow-hidden">
+                        {otherSubjects.map(s => (
+                          <div key={s.subject} className="flex items-center justify-between px-3 py-2 hover:bg-slate-50">
+                            <div>
+                              <span className="text-sm font-medium text-slate-800">{s.subject}</span>
+                              {s.department_name && (
+                                <span className="ml-2 text-xs text-slate-400">({s.department_name})</span>
+                              )}
+                            </div>
+                            <button
+                              onClick={async () => {
+                                if (s.department_name && !confirm(`Move "${s.subject}" from ${s.department_name} to ${modal.dept.name}?`)) return;
+                                await handleAssignSubject(s.subject, modal.dept.id);
+                              }}
+                              className="text-xs text-green-700 hover:text-green-900 font-semibold shrink-0 ml-2"
+                            >
+                              {s.department_name ? 'Move here' : 'Assign here'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {timetableSubjects.length === 0 && (
+                    <p className="text-sm text-slate-400 text-center py-6">No timetable subjects found. Create a timetable first.</p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end pt-1">
+                <Button variant="secondary" onClick={closeModal}>Done</Button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
 
       {/* ── Delete confirmation ── */}

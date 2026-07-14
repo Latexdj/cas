@@ -14,7 +14,8 @@ router.get('/', adminOnly, async (req, res, next) => {
         t.name  AS head_name,
         t.teacher_code AS head_code,
         t.photo_url AS head_photo,
-        COUNT(dt.teacher_id)::int AS staff_count
+        COUNT(DISTINCT dt.teacher_id)::int AS staff_count,
+        (SELECT COUNT(*)::int FROM department_subjects ds WHERE ds.department_id = d.id AND ds.school_id = d.school_id) AS subject_count
       FROM departments d
       LEFT JOIN teachers t  ON t.id = d.head_teacher_id
       LEFT JOIN department_teachers dt ON dt.department_id = d.id
@@ -42,6 +43,79 @@ router.post('/', adminOnly, async (req, res, next) => {
     if (err.code === '23505') return res.status(409).json({ error: 'A department with that name already exists' });
     next(err);
   }
+});
+
+// ── GET /api/departments/subjects ────────────────────────────────────────────
+router.get('/subjects', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT ds.id, ds.subject, ds.department_id, d.name AS department_name
+      FROM department_subjects ds
+      JOIN departments d ON d.id = ds.department_id
+      WHERE ds.school_id = $1
+      ORDER BY ds.subject
+    `, [req.schoolId]);
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/departments/subjects/timetable ───────────────────────────────────
+// All distinct timetable subjects with their current department assignment
+router.get('/subjects/timetable', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        tt.subject,
+        ds.department_id,
+        d.name AS department_name
+      FROM (
+        SELECT DISTINCT LOWER(subject) AS subject_key, MIN(subject) AS subject
+        FROM timetable WHERE school_id = $1
+        GROUP BY LOWER(subject)
+      ) tt
+      LEFT JOIN department_subjects ds
+        ON ds.school_id = $1 AND LOWER(ds.subject) = tt.subject_key
+      LEFT JOIN departments d ON d.id = ds.department_id
+      ORDER BY tt.subject
+    `, [req.schoolId]);
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/departments/subjects/seed ──────────────────────────────────────
+// Auto-assign each timetable subject to the department its most common teacher belongs to
+router.post('/subjects/seed', adminOnly, async (req, res, next) => {
+  try {
+    const { rows: suggestions } = await pool.query(`
+      SELECT
+        MIN(tt.subject) AS subject,
+        MODE() WITHIN GROUP (ORDER BY te.department) AS dept_name
+      FROM (
+        SELECT DISTINCT LOWER(subject) AS subject_key, subject, teacher_id
+        FROM timetable WHERE school_id = $1
+      ) tt
+      JOIN teachers te ON te.id = tt.teacher_id AND te.school_id = $1
+      WHERE te.department IS NOT NULL
+      GROUP BY tt.subject_key
+    `, [req.schoolId]);
+
+    let seeded = 0;
+    for (const row of suggestions) {
+      const { rows: dRows } = await pool.query(
+        `SELECT id FROM departments WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
+        [req.schoolId, row.dept_name]
+      );
+      if (!dRows.length) continue;
+      await pool.query(
+        `INSERT INTO department_subjects (school_id, department_id, subject)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (school_id, subject) DO NOTHING`,
+        [req.schoolId, dRows[0].id, row.subject]
+      );
+      seeded++;
+    }
+    res.json({ message: `Seeded ${seeded} subject(s).`, seeded });
+  } catch (err) { next(err); }
 });
 
 // ── PUT /api/departments/:id ─────────────────────────────────────────────────
@@ -265,6 +339,41 @@ router.put('/:id/head', adminOnly, async (req, res, next) => {
     await client.query('ROLLBACK');
     next(err);
   } finally { client.release(); }
+});
+
+// ── POST /api/departments/:id/subjects ───────────────────────────────────────
+// Assign (or reassign) a subject to this department. UPSERT: moves subject if in another dept.
+router.post('/:id/subjects', adminOnly, async (req, res, next) => {
+  try {
+    const { subject } = req.body;
+    if (!subject?.trim()) return res.status(400).json({ error: 'subject is required' });
+
+    const { rows: dRows } = await pool.query(
+      `SELECT id FROM departments WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!dRows.length) return res.status(404).json({ error: 'Department not found' });
+
+    await pool.query(
+      `INSERT INTO department_subjects (school_id, department_id, subject)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (school_id, subject) DO UPDATE SET department_id = EXCLUDED.department_id`,
+      [req.schoolId, req.params.id, subject.trim()]
+    );
+    res.status(201).json({ message: 'Subject assigned to department.' });
+  } catch (err) { next(err); }
+});
+
+// ── DELETE /api/departments/:id/subjects/:subject ────────────────────────────
+router.delete('/:id/subjects/:subject', adminOnly, async (req, res, next) => {
+  try {
+    await pool.query(
+      `DELETE FROM department_subjects
+       WHERE school_id = $1 AND department_id = $2 AND LOWER(subject) = LOWER($3)`,
+      [req.schoolId, req.params.id, decodeURIComponent(req.params.subject)]
+    );
+    res.json({ message: 'Subject removed.' });
+  } catch (err) { next(err); }
 });
 
 // ── DELETE /api/departments/:id/head ─────────────────────────────────────────

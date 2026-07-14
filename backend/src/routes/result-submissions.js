@@ -36,10 +36,21 @@ async function notify(schoolId, userId, userType, message, link = null) {
 // Returns null if not a HOD (and not admin).
 async function resolveHodContext(req) {
   if (req.user.role === 'admin') {
-    return { isHod: true, hodDept: null, programmeId: null };
+    return { isHod: true, hodDept: null, programmeId: null, isSubjectHod: false };
   }
 
-  const [{ rows: officeRows }, { rows: respRows }] = await Promise.all([
+  const [
+    { rows: deptRows },
+    { rows: officeRows },
+    { rows: respRows },
+  ] = await Promise.all([
+    // Path 1: departments.head_teacher_id (set via Departments admin page)
+    pool.query(
+      `SELECT d.name AS dept_name FROM departments d
+       WHERE d.school_id = $1 AND d.head_teacher_id = $2 LIMIT 1`,
+      [req.schoolId, req.user.id]
+    ),
+    // Path 2: clearance_office_staff (supports programme HODs with linked_programme_id)
     pool.query(
       `SELECT co.linked_programme_id, p.name AS programme_name
        FROM clearance_office_staff cos
@@ -50,6 +61,7 @@ async function resolveHodContext(req) {
        LIMIT 1`,
       [req.schoolId, req.user.id]
     ),
+    // Path 3: teacher_responsibility_assignments (subject HOD via responsibilities module)
     pool.query(
       `SELECT 1 FROM teacher_responsibility_assignments tra
        JOIN teacher_responsibilities tr ON tr.id = tra.responsibility_id
@@ -59,25 +71,36 @@ async function resolveHodContext(req) {
     ),
   ]);
 
-  if (!officeRows.length && !respRows.length) return null;
+  if (!deptRows.length && !officeRows.length && !respRows.length) return null;
 
+  // Path 1: Departments page HOD — always a subject HOD; never look up programme by name
+  if (deptRows.length) {
+    return { isHod: true, hodDept: deptRows[0].dept_name, programmeId: null, isSubjectHod: true };
+  }
+
+  // Paths 2 & 3 need the teacher's department field
   const { rows: tRows } = await pool.query(
     `SELECT department FROM teachers WHERE id = $1 AND school_id = $2 LIMIT 1`,
     [req.user.id, req.schoolId]
   );
+  const hodDept = tRows[0]?.department ?? null;
 
-  const hodDept     = tRows[0]?.department ?? null;
-  let programmeId   = officeRows[0]?.linked_programme_id ?? null;
-
-  if (!programmeId && hodDept) {
-    const { rows: pRows } = await pool.query(
-      `SELECT id FROM programs WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
-      [req.schoolId, hodDept]
-    );
-    if (pRows.length) programmeId = pRows[0].id;
+  // Path 2: clearance-office — may be a programme HOD
+  if (officeRows.length) {
+    let programmeId = officeRows[0].linked_programme_id ?? null;
+    // Only on this path: fallback to matching dept name against programme names
+    if (!programmeId && hodDept) {
+      const { rows: pRows } = await pool.query(
+        `SELECT id FROM programs WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
+        [req.schoolId, hodDept]
+      );
+      if (pRows.length) programmeId = pRows[0].id;
+    }
+    return { isHod: true, hodDept, programmeId, isSubjectHod: !programmeId };
   }
 
-  return { isHod: true, hodDept, programmeId };
+  // Path 3: responsibility assignment — always a subject HOD
+  return { isHod: true, hodDept, programmeId: null, isSubjectHod: true };
 }
 
 // ── GET /my-status — teacher sees submission status for all their subjects this semester ─────
@@ -141,14 +164,35 @@ router.get('/hod-queue', async (req, res, next) => {
     let deptFilter = '';
     const params = [req.schoolId];
 
-    if (hod.hodDept && !hod.programmeId && req.user.role !== 'admin') {
-      // subject HOD — filter by department teachers
-      params.push(hod.hodDept);
-      deptFilter = `AND t.department = $${params.length}`;
-    } else if (hod.programmeId && req.user.role !== 'admin') {
-      // programme HOD — filter by programme classes
-      params.push(hod.programmeId);
-      deptFilter = `AND s.program_id = $${params.length}`;
+    if (req.user.role !== 'admin') {
+      if (hod.programmeId) {
+        // Programme HOD: filter by students' program_id
+        params.push(hod.programmeId);
+        deptFilter = `AND s.program_id = $${params.length}`;
+      } else if (hod.hodDept) {
+        // Subject HOD: route via department_subjects (subject→dept→HOD), fallback to teacher dept
+        params.push(req.user.id);
+        const pHodUser = params.length;
+        params.push(hod.hodDept);
+        const pHodDept = params.length;
+        deptFilter = `
+          AND (
+            EXISTS (
+              SELECT 1 FROM department_subjects ds
+              JOIN departments d ON d.id = ds.department_id
+              WHERE ds.school_id = $1
+                AND d.head_teacher_id = $${pHodUser}
+                AND LOWER(ds.subject) = LOWER(rs.subject)
+            )
+            OR (
+              NOT EXISTS (
+                SELECT 1 FROM department_subjects ds2
+                WHERE ds2.school_id = $1 AND LOWER(ds2.subject) = LOWER(rs.subject)
+              )
+              AND t.department = $${pHodDept}
+            )
+          )`;
+      }
     }
 
     if (academic_year_id) { params.push(academic_year_id); deptFilter += ` AND rs.academic_year_id = $${params.length}`; }
