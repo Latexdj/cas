@@ -247,11 +247,9 @@ router.get('/teachers', hodOnly, async (req, res, next) => {
          t.id, t.name, t.email, t.phone, t.teacher_code,
          COUNT(DISTINCT ab.id) FILTER (
            WHERE ab.status NOT IN ('Made Up','Cleared','Verified','Excused')
-             ${req.isSubjectHod ? `AND LOWER(ab.subject) = LOWER($2)` : ''}
          )::int AS outstanding_absences,
          COUNT(DISTINCT rl.id) FILTER (
            WHERE rl.status IN ('Scheduled','Completed')
-             ${req.isSubjectHod ? `AND LOWER(rl.subject) = LOWER($2)` : ''}
          )::int AS pending_remedials,
          MAX(a.date)::text AS last_attendance_date,
          COUNT(DISTINCT ass.id)::int AS assessments_total,
@@ -266,11 +264,9 @@ router.get('/teachers', hodOnly, async (req, res, next) => {
          ON rl.teacher_id = t.id AND rl.school_id = t.school_id
        LEFT JOIN attendance a
          ON a.teacher_id = t.id AND a.school_id = t.school_id
-         ${req.isSubjectHod ? `AND LOWER(a.subject) = LOWER($2)` : ''}
        LEFT JOIN assessments ass
          ON ass.teacher_id = t.id AND ass.school_id = t.school_id
          AND ass.academic_year_id = $3 AND ass.semester = $4
-         ${req.isSubjectHod ? `AND LOWER(ass.subject) = LOWER($2)` : ''}
        LEFT JOIN form_teacher_assignments fta
          ON fta.teacher_id = t.id AND fta.school_id = t.school_id
          AND fta.academic_year_id = $3
