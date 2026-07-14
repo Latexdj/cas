@@ -45,13 +45,14 @@ router.get('/', async (req, res, next) => {
            AND a.academic_year_id=$2 AND a.semester=$3
            AND LOWER(a.subject)=e.subject_key AND LOWER(a.class_name)=LOWER(e.class_name)
         ) AS assessments_created,
-        -- Names of each assessment created
+        -- Distinct assessment mode names entered for this teacher/subject/class
         ARRAY(
-          SELECT a.name FROM assessments a
+          SELECT DISTINCT m.name FROM assessments a
+          JOIN assessment_modes m ON m.id = a.mode_id
           WHERE a.school_id=$1 AND a.teacher_id=e.teacher_id
             AND a.academic_year_id=$2 AND a.semester=$3
             AND LOWER(a.subject)=e.subject_key AND LOWER(a.class_name)=LOWER(e.class_name)
-          ORDER BY a.name
+          ORDER BY m.name
         ) AS assessment_names,
         -- Distinct students with at least one CA score
         (SELECT COUNT(DISTINCT asc2.student_id)
