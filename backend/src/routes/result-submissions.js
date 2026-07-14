@@ -171,28 +171,9 @@ router.get('/hod-queue', async (req, res, next) => {
         params.push(hod.programmeId);
         deptFilter = `AND s.program_id = $${params.length}`;
       } else if (hod.hodDept) {
-        // Subject HOD: route via department_subjects (subject→dept→HOD), fallback to teacher dept
-        params.push(req.user.id);
-        const pHodUser = params.length;
+        // Subject HOD: show submissions from teachers in the same department
         params.push(hod.hodDept);
-        const pHodDept = params.length;
-        deptFilter = `
-          AND (
-            EXISTS (
-              SELECT 1 FROM department_subjects ds
-              JOIN departments d ON d.id = ds.department_id
-              WHERE ds.school_id = $1
-                AND d.head_teacher_id = $${pHodUser}
-                AND LOWER(ds.subject) = LOWER(rs.subject)
-            )
-            OR (
-              NOT EXISTS (
-                SELECT 1 FROM department_subjects ds2
-                WHERE ds2.school_id = $1 AND LOWER(ds2.subject) = LOWER(rs.subject)
-              )
-              AND t.department = $${pHodDept}
-            )
-          )`;
+        deptFilter = `AND LOWER(t.department) = LOWER($${params.length})`;
       }
     }
 
@@ -206,7 +187,17 @@ router.get('/hod-queue', async (req, res, next) => {
               t.name AS teacher_name, t.id AS teacher_id,
               ay.name AS academic_year, rs.semester,
               (SELECT COUNT(*) FROM students st WHERE st.class_name = rs.class_name AND st.school_id = rs.school_id AND st.status = 'Active') AS student_count,
-              (SELECT COUNT(*) FROM exam_scores es WHERE es.academic_year_id = rs.academic_year_id AND es.semester = rs.semester AND es.subject = rs.subject AND es.class_name = rs.class_name AND es.school_id = rs.school_id) AS scored_count
+              (SELECT COUNT(DISTINCT student_id) FROM (
+                SELECT es.student_id FROM exam_scores es
+                WHERE es.academic_year_id = rs.academic_year_id AND es.semester = rs.semester
+                  AND es.subject = rs.subject AND es.class_name = rs.class_name AND es.school_id = rs.school_id
+                UNION
+                SELECT asc2.student_id FROM assessment_scores asc2
+                JOIN assessments a ON a.id = asc2.assessment_id
+                WHERE a.academic_year_id = rs.academic_year_id AND a.semester = rs.semester
+                  AND a.subject = rs.subject AND a.class_name = rs.class_name AND a.school_id = rs.school_id
+                  AND asc2.score IS NOT NULL
+              ) _scored) AS scored_count
        FROM result_submissions rs
        LEFT JOIN teachers t ON t.id = rs.teacher_id
        LEFT JOIN academic_years ay ON ay.id = rs.academic_year_id

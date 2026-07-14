@@ -113,13 +113,11 @@ router.get('/overview', hodOnly, async (req, res, next) => {
           [req.schoolId, req.programmeId]
         );
 
-    // For subject HODs, filter absences and assessments by subject too
     const absenceQuery = pool.query(
       `SELECT COUNT(*)::int AS count FROM absences ab
        JOIN teachers t ON t.id = ab.teacher_id
        WHERE ab.school_id = $1
          AND LOWER(t.department) = LOWER($2)
-         ${req.isSubjectHod ? `AND LOWER(ab.subject) = LOWER($2)` : ''}
          AND ab.status NOT IN ('Made Up','Cleared','Verified','Excused')`,
       [req.schoolId, dept]
     );
@@ -129,7 +127,6 @@ router.get('/overview', hodOnly, async (req, res, next) => {
        JOIN teachers t ON t.id = rl.teacher_id
        WHERE rl.school_id = $1
          AND LOWER(t.department) = LOWER($2)
-         ${req.isSubjectHod ? `AND LOWER(rl.subject) = LOWER($2)` : ''}
          AND rl.status IN ('Scheduled','Completed')`,
       [req.schoolId, dept]
     );
@@ -144,7 +141,6 @@ router.get('/overview', hodOnly, async (req, res, next) => {
            JOIN teachers t ON t.id = a.teacher_id
            WHERE a.school_id = $1
              AND LOWER(t.department) = LOWER($2)
-             ${req.isSubjectHod ? `AND LOWER(a.subject) = LOWER($2)` : ''}
              AND a.academic_year_id = $3
              AND a.semester = $4`,
           [req.schoolId, dept, ay.id, ay.current_semester]
@@ -239,9 +235,6 @@ router.get('/teachers', hodOnly, async (req, res, next) => {
     const ay   = await getCurrentYear(req.schoolId);
     const dept = req.hodDept;
 
-    // For subject HODs, scope absences, remedials, attendance, and assessments to their subject
-    const subjectFilter = req.isSubjectHod ? `AND LOWER($5) = LOWER($5)` : ''; // placeholder — handled inline below
-
     const { rows } = await pool.query(
       `SELECT
          t.id, t.name, t.email, t.phone, t.teacher_code,
@@ -287,8 +280,7 @@ router.get('/absences', hodOnly, async (req, res, next) => {
     const params  = [req.schoolId, req.hodDept];
     const filters = [];
 
-    // Subject HODs only see absences for their subject
-    if (req.isSubjectHod) filters.push(`LOWER(ab.subject) = LOWER($2)`);
+    // Absences are scoped to the department via the teachers JOIN below
     if (teacherId) { params.push(teacherId); filters.push(`ab.teacher_id = $${params.length}`); }
     if (status)    { params.push(status);    filters.push(`ab.status = $${params.length}`); }
 
