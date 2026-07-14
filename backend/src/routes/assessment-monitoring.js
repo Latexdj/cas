@@ -45,6 +45,14 @@ router.get('/', async (req, res, next) => {
            AND a.academic_year_id=$2 AND a.semester=$3
            AND LOWER(a.subject)=e.subject_key AND LOWER(a.class_name)=LOWER(e.class_name)
         ) AS assessments_created,
+        -- Names of each assessment created
+        ARRAY(
+          SELECT a.name FROM assessments a
+          WHERE a.school_id=$1 AND a.teacher_id=e.teacher_id
+            AND a.academic_year_id=$2 AND a.semester=$3
+            AND LOWER(a.subject)=e.subject_key AND LOWER(a.class_name)=LOWER(e.class_name)
+          ORDER BY a.name
+        ) AS assessment_names,
         -- Distinct students with at least one CA score
         (SELECT COUNT(DISTINCT asc2.student_id)
          FROM assessment_scores asc2
@@ -99,6 +107,7 @@ router.get('/', async (req, res, next) => {
         class_name:           r.class_name,
         total_students:       total,
         assessments_created:  created,
+        assessment_names:     r.assessment_names ?? [],
         students_ca_scored:   caScore,
         students_exam_scored: exScore,
         submission_status:    sub ?? null,

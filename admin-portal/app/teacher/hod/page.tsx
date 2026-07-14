@@ -73,6 +73,7 @@ interface HodQueueItem {
   teacher_name: string;
   teacher_id: string;
   academic_year: string;
+  academic_year_id: string;
   semester: number;
   student_count: number;
   scored_count: number;
@@ -160,13 +161,16 @@ export default function HodPage() {
   const [error, setError] = useState('');
 
   // ── Approvals state ──
-  const [queue,         setQueue]         = useState<HodQueueItem[]>([]);
-  const [queueLoading,  setQueueLoading]  = useState(false);
-  const [reviewTarget,  setReviewTarget]  = useState<HodQueueItem | null>(null);
-  const [reviewAction,  setReviewAction]  = useState<'approve' | 'reject'>('approve');
-  const [reviewComment, setReviewComment] = useState('');
-  const [reviewing,     setReviewing]     = useState(false);
-  const [reviewError,   setReviewError]   = useState('');
+  const [queue,          setQueue]          = useState<HodQueueItem[]>([]);
+  const [queueLoading,   setQueueLoading]   = useState(false);
+  const [reviewTarget,   setReviewTarget]   = useState<HodQueueItem | null>(null);
+  const [reviewAction,   setReviewAction]   = useState<'approve' | 'reject'>('approve');
+  const [reviewComment,  setReviewComment]  = useState('');
+  const [reviewing,      setReviewing]      = useState(false);
+  const [reviewError,    setReviewError]    = useState('');
+  const [previewResults, setPreviewResults] = useState<HodStudentResult[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError,   setPreviewError]   = useState('');
 
   // ── Results state ──
   const [academicYears,   setAcademicYears]   = useState<Array<{id:string; name:string; is_current:boolean; current_semester:number}>>([]);
@@ -229,6 +233,26 @@ export default function HodPage() {
       setQueue(data);
     } catch { /* ignore */ }
     finally { setQueueLoading(false); }
+  }
+
+  async function openReview(item: HodQueueItem) {
+    setReviewTarget(item);
+    setReviewAction('approve');
+    setReviewComment('');
+    setReviewError('');
+    setPreviewResults([]);
+    setPreviewError('');
+    setPreviewLoading(true);
+    try {
+      const { data } = await teacherApi.get<HodStudentResult[]>(
+        `/api/hod/results?academic_year_id=${item.academic_year_id}&semester=${item.semester}&class_name=${encodeURIComponent(item.class_name)}`
+      );
+      setPreviewResults(data);
+    } catch {
+      setPreviewError('Could not load results preview.');
+    } finally {
+      setPreviewLoading(false);
+    }
   }
 
   async function submitReview() {
@@ -426,7 +450,7 @@ export default function HodPage() {
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                         <button
-                          onClick={() => { setReviewTarget(item); setReviewAction('approve'); setReviewComment(''); setReviewError(''); }}
+                          onClick={() => openReview(item)}
                           style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                         >
                           Review
@@ -446,6 +470,48 @@ export default function HodPage() {
                   onClick={e => e.stopPropagation()}>
                   <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>Review Submission</h3>
                   <p style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>{reviewTarget.subject} · {reviewTarget.class_name} · {reviewTarget.teacher_name}</p>
+
+                  {/* Results preview */}
+                  <div style={{ marginBottom: 16 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Submitted Results</p>
+                    {previewLoading ? (
+                      <div style={{ textAlign: 'center', padding: '14px 0', color: '#94A3B8', fontSize: 12 }}>Loading results…</div>
+                    ) : previewError ? (
+                      <p style={{ fontSize: 12, color: '#DC2626' }}>{previewError}</p>
+                    ) : previewResults.length === 0 ? (
+                      <p style={{ fontSize: 12, color: '#94A3B8', fontStyle: 'italic' }}>No result data found for this class.</p>
+                    ) : (() => {
+                      const subject = reviewTarget.subject;
+                      const sorted  = [...previewResults].sort((a, b) => (a.class_position ?? 999) - (b.class_position ?? 999));
+                      return (
+                        <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 8 }}>
+                          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                            <thead style={{ position: 'sticky', top: 0, background: '#F8FAFC' }}>
+                              <tr style={{ borderBottom: '1px solid #E2E8F0' }}>
+                                {['Student', 'CA', 'Exam', 'Total', 'Grade'].map(h => (
+                                  <th key={h} style={{ padding: '6px 10px', textAlign: h === 'Student' ? 'left' : 'center', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sorted.map((student, idx) => {
+                                const sub = student.subjects.find(s => s.subject.toLowerCase() === subject.toLowerCase());
+                                return (
+                                  <tr key={student.student_id} style={{ borderTop: '1px solid #F1F5F9', background: idx % 2 === 0 ? '#fff' : '#FAFAFA' }}>
+                                    <td style={{ padding: '6px 10px', fontWeight: 500, color: '#0F172A' }}>{student.name}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', color: '#374151' }}>{sub?.ca_score != null ? sub.ca_score.toFixed(1) : '—'}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', color: '#374151' }}>{sub?.exam_score != null ? sub.exam_score.toFixed(1) : '—'}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#0F172A' }}>{sub?.total != null ? sub.total : '—'}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700, color: sub?.grade?.startsWith('F') || sub?.grade === 'E8' ? '#DC2626' : '#15803D' }}>{sub?.grade ?? '—'}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+                  </div>
 
                   {/* Toggle approve/reject */}
                   <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>

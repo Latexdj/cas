@@ -26,6 +26,7 @@ function ResultsContent() {
   const [loadingMeta, setLoadingMeta] = useState(true);
   const [error,     setError]     = useState('');
   const [selected,  setSelected]  = useState<StudentResult | null>(null);
+  const [rejections, setRejections] = useState<Array<{ subject: string; class_name: string; rejected_reason: string | null; hod_comment: string | null }>>([]);
 
   useEffect(() => {
     const colors = getTeacherColors();
@@ -37,9 +38,17 @@ function ResultsContent() {
     ]).then(([yRes, cRes]) => {
       setYears(yRes.data ?? []);
       const current = (yRes.data ?? []).find((y: AcademicYear) => y.is_current);
-      if (current) { setYearId(current.id); setSemester(String(current.current_semester ?? 1)); }
-      else if (yRes.data?.[0]) setYearId(yRes.data[0].id);
+      const activeYear  = current ?? yRes.data?.[0];
+      const activeSem   = String(current?.current_semester ?? 1);
+      if (activeYear) { setYearId(activeYear.id); setSemester(activeSem); }
       setClasses(cRes.data ?? []);
+      if (activeYear) {
+        teacherApi.get<Array<{ subject: string; class_name: string; status: string; rejected_reason: string | null; hod_comment: string | null }>>(
+          `/api/result-submissions/my-status?academic_year_id=${activeYear.id}&semester=${activeSem}`
+        ).then(sRes => {
+          setRejections((sRes.data ?? []).filter(s => s.status === 'rejected'));
+        }).catch(() => {});
+      }
     }).catch(() => setError('Failed to load filters.')).finally(() => setLoadingMeta(false));
   }, []);
 
@@ -98,6 +107,23 @@ function ResultsContent() {
       </div>
 
       {error && <p className="mx-4 text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{error}</p>}
+
+      {rejections.length > 0 && (
+        <div className="mx-4 mb-4 bg-red-50 border border-red-200 rounded-2xl p-4">
+          <p className="text-sm font-bold text-red-700 mb-2">Results Returned for Editing</p>
+          <div className="space-y-2">
+            {rejections.map(r => (
+              <div key={`${r.subject}||${r.class_name}`} className="bg-white rounded-xl border border-red-100 px-3 py-2.5">
+                <p className="text-sm font-semibold text-[#2C2218]">{r.subject} — {r.class_name}</p>
+                {(r.rejected_reason || r.hod_comment) && (
+                  <p className="text-xs text-red-600 mt-0.5 italic">"{r.rejected_reason || r.hod_comment}"</p>
+                )}
+                <p className="text-xs text-[#8C7E6E] mt-1">Edit your scores and resubmit from the Assessments page.</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!className ? (
         <div className="mx-4 bg-white rounded-2xl border border-[#E2D9CC] p-12 text-center">

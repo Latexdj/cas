@@ -14,6 +14,7 @@ interface MonitorRow {
   class_name: string;
   total_students: number;
   assessments_created: number;
+  assessment_names: string[];
   students_ca_scored: number;
   students_exam_scored: number;
   submission_status: string | null;
@@ -231,7 +232,7 @@ export default function AssessmentTrackerPage() {
                     <table className="w-full text-xs">
                       <thead className="bg-slate-50">
                         <tr>
-                          {['Subject', 'Class', 'Students', 'CA Scored', 'Exam Scored', 'Status'].map(h => (
+                          {['Subject', 'Class', 'Students', 'CA Scored', 'Exam Scored', 'Assessment Modes', 'Status'].map(h => (
                             <th key={h} className="px-4 py-2 text-left font-semibold text-slate-400 uppercase tracking-wide">{h}</th>
                           ))}
                         </tr>
@@ -255,6 +256,19 @@ export default function AssessmentTrackerPage() {
                                   {r.students_exam_scored}
                                 </span>
                                 <span className="text-slate-300">/{r.total_students}</span>
+                              </td>
+                              <td className="px-4 py-2.5">
+                                {r.assessment_names.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {r.assessment_names.map(name => (
+                                      <span key={name} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 whitespace-nowrap">
+                                        {name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-300 text-[11px]">None</span>
+                                )}
                               </td>
                               <td className="px-4 py-2.5">
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold"

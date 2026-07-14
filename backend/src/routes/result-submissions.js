@@ -157,6 +157,7 @@ router.get('/hod-queue', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT rs.id, rs.subject, rs.class_name, rs.status, rs.submitted_at,
               rs.hod_comment, rs.rejected_reason,
+              rs.academic_year_id,
               t.name AS teacher_name, t.id AS teacher_id,
               ay.name AS academic_year, rs.semester,
               (SELECT COUNT(*) FROM students st WHERE st.class_name = rs.class_name AND st.school_id = rs.school_id AND st.status = 'Active') AS student_count,

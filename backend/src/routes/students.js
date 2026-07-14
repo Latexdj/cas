@@ -519,15 +519,25 @@ router.post('/graduate', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/** GET /api/students/classes — distinct active class names */
+/** GET /api/students/classes — distinct active class names (teachers see only their timetable classes) */
 router.get('/classes', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT DISTINCT class_name FROM students
-       WHERE school_id = $1 AND status = 'Active'
-       ORDER BY class_name`,
-      [req.schoolId]
-    );
+    let rows;
+    if (req.user.role === 'teacher') {
+      ({ rows } = await pool.query(
+        `SELECT DISTINCT class_name FROM timetable
+         WHERE school_id = $1 AND teacher_id = $2
+         ORDER BY class_name`,
+        [req.schoolId, req.user.id]
+      ));
+    } else {
+      ({ rows } = await pool.query(
+        `SELECT DISTINCT class_name FROM students
+         WHERE school_id = $1 AND status = 'Active'
+         ORDER BY class_name`,
+        [req.schoolId]
+      ));
+    }
     res.json(rows.map(r => r.class_name));
   } catch (err) { next(err); }
 });
