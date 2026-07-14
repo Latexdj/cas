@@ -525,7 +525,9 @@ router.get('/classes', async (req, res, next) => {
     let rows;
     if (req.user.role === 'teacher') {
       ({ rows } = await pool.query(
-        `SELECT DISTINCT class_name FROM timetable
+        `SELECT DISTINCT TRIM(cls) AS class_name
+         FROM timetable,
+              LATERAL unnest(string_to_array(class_names, ',')) AS cls
          WHERE school_id = $1 AND teacher_id = $2
          ORDER BY class_name`,
         [req.schoolId, req.user.id]
