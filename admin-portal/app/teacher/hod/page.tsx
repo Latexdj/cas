@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
@@ -155,6 +155,10 @@ export default function HodPage() {
   const [loadingTe,  setLoadingTe]  = useState(false);
   const [loadingAb,  setLoadingAb]  = useState(false);
 
+  // Refs to prevent useCallback deps from triggering infinite reload loops
+  const clTriggered = useRef(false);
+  const teTriggered = useRef(false);
+
   const [abTeacher, setAbTeacher] = useState('');
   const [abStatus,  setAbStatus]  = useState('');
 
@@ -275,24 +279,26 @@ export default function HodPage() {
     } finally { setReviewing(false); }
   }
 
-  // Lazy-load tabs
+  // Lazy-load tabs — use refs to guard against infinite re-trigger when loading state changes
   const loadClasses = useCallback(() => {
-    if (loadingCl || classes.length) return;
+    if (clTriggered.current) return;
+    clTriggered.current = true;
     setLoadingCl(true);
     teacherApi.get<ClassRow[]>('/api/hod/classes')
       .then(r => setClasses(r.data))
       .catch(() => {})
       .finally(() => setLoadingCl(false));
-  }, [loadingCl, classes.length]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadTeachers = useCallback(() => {
-    if (loadingTe || teachers.length) return;
+    if (teTriggered.current) return;
+    teTriggered.current = true;
     setLoadingTe(true);
     teacherApi.get<TeacherRow[]>('/api/hod/teachers')
       .then(r => setTeachers(r.data))
       .catch(() => {})
       .finally(() => setLoadingTe(false));
-  }, [loadingTe, teachers.length]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadAbsences = useCallback(() => {
     setLoadingAb(true);

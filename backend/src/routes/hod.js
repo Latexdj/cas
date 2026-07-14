@@ -89,7 +89,7 @@ router.get('/overview', hodOnly, async (req, res, next) => {
 
     // Class + student count differs by HOD type
     const classStudentQuery = req.isSubjectHod
-      // Subject HOD: classes that dept teachers teach this subject on the timetable
+      // Subject HOD: classes that any teacher in this department teaches
       ? pool.query(
           `SELECT
              COUNT(DISTINCT LOWER(TRIM(cls)))::int AS class_count,
@@ -102,8 +102,7 @@ router.get('/overview', hodOnly, async (req, res, next) => {
              AND LOWER(s.class_name) = LOWER(TRIM(cls))
              AND s.status = 'Active'
            WHERE tt.school_id = $1
-             AND LOWER(te.department) = LOWER($2)
-             AND LOWER(tt.subject)    = LOWER($2)`,
+             AND LOWER(te.department) = LOWER($2)`,
           [req.schoolId, dept]
         )
       // Programme HOD: students with matching program_id
@@ -202,7 +201,6 @@ router.get('/classes', hodOnly, async (req, res, next) => {
            AND s.status = 'Active'
          WHERE tt.school_id = $1
            AND LOWER(te.department) = LOWER($2)
-           AND LOWER(tt.subject)    = LOWER($2)
          GROUP BY TRIM(cls), te.id, te.name, te.phone, te.email
          ORDER BY TRIM(cls)`,
         [req.schoolId, dept]
