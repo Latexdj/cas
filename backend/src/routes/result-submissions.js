@@ -112,8 +112,9 @@ router.get('/my-status', async (req, res, next) => {
     }
     // Find subjects this teacher teaches (from timetable)
     const { rows: subjects } = await pool.query(
-      `SELECT DISTINCT tt.subject, tt.class_name
-       FROM timetable tt
+      `SELECT DISTINCT tt.subject, TRIM(cls) AS class_name
+       FROM timetable tt,
+            LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
        WHERE tt.school_id = $1 AND tt.academic_year_id = $2 AND tt.teacher_id = $3`,
       [req.schoolId, academic_year_id, req.user.id]
     );

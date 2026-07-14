@@ -187,8 +187,15 @@ export default function AssessmentTrackerPage() {
             const cfg = STATUS_CFG[teacher.worstStatus] ?? STATUS_CFG.not_started;
             const isExpanded = expanded === teacher.teacher_id;
             const notStarted = teacher.rows.filter(r => r.status === 'not_started').length;
-            const done       = teacher.rows.filter(r => ['scores_complete','submitted','hod_approved','final_approved','published'].includes(r.status)).length;
-            const pct        = teacher.rows.length > 0 ? Math.round(done / teacher.rows.length * 100) : 0;
+            const pct = teacher.rows.length === 0 ? 0 : Math.round(
+              teacher.rows.reduce((sum, r) => {
+                if (['scores_complete','submitted','hod_approved','final_approved','published'].includes(r.status)) return sum + 1;
+                if (r.total_students === 0) return sum;
+                const caRatio = Math.min(r.students_ca_scored / r.total_students, 1);
+                const exRatio = Math.min(r.students_exam_scored / r.total_students, 1);
+                return sum + (caRatio + exRatio) / 2;
+              }, 0) / teacher.rows.length * 100
+            );
 
             return (
               <div key={teacher.teacher_id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
