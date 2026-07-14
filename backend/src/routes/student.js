@@ -156,7 +156,7 @@ router.get('/results', async (req, res, next) => {
 
     // Imported fallback
     for (const row of imported) {
-      if (!subjectMap[row.subject] || (subjectMap[row.subject].caRaw === 0 && subjectMap[row.subject].exam === null)) {
+      if (!subjectMap[row.subject] || (subjectMap[row.subject].caMaxRaw === 0 && subjectMap[row.subject].exam === null)) {
         subjectMap[row.subject] = {
           caRaw: row.ca_score ?? null,
           caMaxRaw: null,

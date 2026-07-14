@@ -413,7 +413,7 @@ router.get('/results', hodOnly, async (req, res, next) => {
             const mode = modeMap.get(modeId); if (!mode) continue;
             const scores = mas.map(a => {
               const sc = (caByStudent[student.id]??{})[a.id];
-              if (!sc||sc.absent) return null;
+              if (!sc||sc.absent||sc.score===null) return null;
               return (parseFloat(sc.score)/parseFloat(a.max_score))*100;
             }).filter(s=>s!==null);
             if (scores.length) { hasCA=true; wSum += (scores.reduce((a,b)=>a+b,0)/scores.length)*parseFloat(mode.ca_contribution||0); }
