@@ -200,19 +200,23 @@ export default function HodPage() {
 
   // ── Results functions ──
   async function loadResultsTab() {
-    try {
-      const [classesRes, yearsRes] = await Promise.all([
-        teacherApi.get<HodClass[]>('/api/hod/classes'),
-        teacherApi.get<Array<{id:string;name:string;is_current:boolean;current_semester:number}>>('/api/academic-years'),
-      ]);
-      setHodClasses(classesRes.data);
-      if (!academicYears.length) setAcademicYears(yearsRes.data);
-      const current = yearsRes.data.find(y => y.is_current);
-      if (current && !resultsYear) {
-        setResultsYear(current.id);
-        setResultsSem(current.current_semester as 1|2);
-      }
-    } catch { /* ignore */ }
+    // Fetch independently so a failure in one doesn't blank out the other
+    teacherApi.get<HodClass[]>('/api/hod/classes')
+      .then(r => setHodClasses(r.data))
+      .catch(() => {});
+
+    if (!academicYears.length) {
+      teacherApi.get<Array<{id:string;name:string;is_current:boolean;current_semester:number}>>('/api/academic-years')
+        .then(r => {
+          setAcademicYears(r.data);
+          const current = r.data.find(y => y.is_current);
+          if (current && !resultsYear) {
+            setResultsYear(current.id);
+            setResultsSem(current.current_semester as 1|2);
+          }
+        })
+        .catch(() => {});
+    }
   }
 
   async function loadHodResults() {
