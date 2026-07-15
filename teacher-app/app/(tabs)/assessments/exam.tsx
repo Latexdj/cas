@@ -10,6 +10,7 @@ interface ExamRow {
   name: string;
   exam_id: string | null;
   score: number | null;
+  max_score: number | null;
 }
 
 export default function ExamScoresScreen() {
@@ -20,7 +21,7 @@ export default function ExamScoresScreen() {
 
   const [rows,     setRows]     = useState<ExamRow[]>([]);
   const [scores,   setScores]   = useState<Record<string, string>>({});
-  const [maxScore, setMaxScore] = useState('100');
+  const [maxScore, setMaxScore] = useState('');
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
   const [saved,    setSaved]    = useState(false);
@@ -39,6 +40,9 @@ export default function ExamScoresScreen() {
         s[r.student_id] = r.score != null ? String(r.score) : '';
       }
       setScores(s);
+      // Pre-populate max score from existing saved value
+      const existingMax = data.find((r: ExamRow) => r.max_score != null)?.max_score;
+      if (existingMax != null) setMaxScore(String(existingMax));
     } catch {
       setError('Failed to load exam scores.');
     } finally { setLoading(false); }
@@ -47,6 +51,7 @@ export default function ExamScoresScreen() {
   useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
 
   async function save() {
+    if (!maxScore || parseFloat(maxScore) <= 0) { setError('Max score is required before saving.'); return; }
     setSaving(true); setError(''); setSaved(false);
     try {
       const payload = rows.map(r => ({
@@ -58,7 +63,7 @@ export default function ExamScoresScreen() {
         semester:         parseInt(semester),
         subject,
         class_name,
-        max_score:        parseFloat(maxScore) || 100,
+        max_score:        parseFloat(maxScore),
         scores:           payload,
       });
       setSaved(true);
@@ -87,7 +92,7 @@ export default function ExamScoresScreen() {
             value={maxScore}
             onChangeText={setMaxScore}
             keyboardType="numeric"
-            placeholder="100"
+            placeholder="e.g. 100"
             placeholderTextColor={Colors.muted}
           />
         </View>

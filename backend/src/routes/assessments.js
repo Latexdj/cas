@@ -102,6 +102,9 @@ router.post('/', async (req, res, next) => {
     if (!academic_year_id || !semester || !subject || !class_name || !mode_id) {
       return res.status(400).json({ error: 'academic_year_id, semester, subject, class_name, mode_id are required' });
     }
+    if (!max_score || parseFloat(max_score) <= 0) {
+      return res.status(400).json({ error: 'max_score is required and must be greater than 0' });
+    }
     // Verify mode belongs to school
     const modeCheck = await pool.query(
       `SELECT id, name, max_instances FROM assessment_modes WHERE id = $1 AND school_id = $2`,
@@ -137,7 +140,7 @@ router.post('/', async (req, res, next) => {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          RETURNING id, mode_id, title, date, max_score, subject, class_name`,
         [req.schoolId, academic_year_id, parseInt(semester), subject, class_name,
-         req.user.id, mode_id, title||null, date||null, parseFloat(max_score)||100]
+         req.user.id, mode_id, title||null, date||null, parseFloat(max_score)]
       );
       await client.query('COMMIT');
       newAssessment = rows[0];
@@ -606,7 +609,10 @@ router.put('/:id', async (req, res, next) => {
     const finalModeId   = mode_id          || assessment.mode_id;
     const finalTitle    = title     !== undefined ? (title?.trim()       || null) : assessment.title;
     const finalDate     = date      !== undefined ? (date                || null) : assessment.date;
-    const finalMaxScore = max_score !== undefined ? (parseFloat(max_score) || 100) : assessment.max_score;
+    if (max_score !== undefined && (!max_score || parseFloat(max_score) <= 0)) {
+      return res.status(400).json({ error: 'max_score must be greater than 0' });
+    }
+    const finalMaxScore = max_score !== undefined ? parseFloat(max_score) : assessment.max_score;
 
     const { rows } = await pool.query(
       `UPDATE assessments

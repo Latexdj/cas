@@ -65,7 +65,7 @@ function SubjectContent() {
   const [modeId,    setModeId]     = useState('');
   const [title,     setTitle]      = useState('');
   const [date,      setDate]       = useState('');
-  const [maxScore,  setMaxScore]   = useState('100');
+  const [maxScore,  setMaxScore]   = useState('');
   const [creating,  setCreating]   = useState(false);
   const [createErr, setCreateErr]  = useState('');
   const [deleting,  setDeleting]   = useState<string | null>(null);
@@ -212,6 +212,7 @@ function SubjectContent() {
 
   async function create() {
     if (!modeId) { setCreateErr('Please select a mode.'); return; }
+    if (!maxScore || parseFloat(maxScore) <= 0) { setCreateErr('Max score is required.'); return; }
     setCreating(true); setCreateErr('');
     try {
       await teacherApi.post('/api/assessments', {
@@ -222,10 +223,10 @@ function SubjectContent() {
         mode_id:   modeId,
         title:     title.trim() || null,
         date:      date || null,
-        max_score: parseFloat(maxScore) || 100,
+        max_score: parseFloat(maxScore),
       });
       setShowModal(false);
-      setTitle(''); setDate(''); setMaxScore('100'); setCreateErr('');
+      setTitle(''); setDate(''); setMaxScore(''); setCreateErr('');
       load();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -262,6 +263,7 @@ function SubjectContent() {
 
   async function saveEdit() {
     if (!editTarget || !editModeId) { setEditErr('Please select a mode.'); return; }
+    if (!editMaxScore || parseFloat(editMaxScore) <= 0) { setEditErr('Max score is required.'); return; }
     setEditSaving(true); setEditErr('');
     try {
       await teacherApi.put(`/api/assessments/${editTarget.id}`, {
@@ -270,7 +272,7 @@ function SubjectContent() {
         mode_id:          editModeId,
         title:            editTitle.trim() || null,
         date:             editDate || null,
-        max_score:        parseFloat(editMaxScore) || 100,
+        max_score:        parseFloat(editMaxScore),
       });
       setEditTarget(null);
       load();
@@ -663,7 +665,7 @@ function SubjectContent() {
             <input type="date" className={`${inputCls} mb-3`} value={date} onChange={e => setDate(e.target.value)} />
 
             <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Max Score</p>
-            <input className={`${inputCls} mb-4`} value={maxScore} onChange={e => setMaxScore(e.target.value)} placeholder="100" type="number" />
+            <input className={`${inputCls} mb-4`} value={maxScore} onChange={e => setMaxScore(e.target.value)} placeholder="e.g. 50" type="number" min={1} required />
 
             {createErr && <p className="text-xs text-[#B83232] mb-3">{createErr}</p>}
 

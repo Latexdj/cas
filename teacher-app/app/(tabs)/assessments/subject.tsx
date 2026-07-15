@@ -27,7 +27,7 @@ export default function SubjectAssessmentsScreen() {
   const [modeId,    setModeId]      = useState('');
   const [title,     setTitle]       = useState('');
   const [date,      setDate]        = useState('');
-  const [maxScore,  setMaxScore]    = useState('100');
+  const [maxScore,  setMaxScore]    = useState('');
   const [creating,  setCreating]    = useState(false);
   const [createErr, setCreateErr]   = useState('');
 
@@ -55,6 +55,7 @@ export default function SubjectAssessmentsScreen() {
 
   async function createAssessment() {
     if (!modeId) { setCreateErr('Please select a mode.'); return; }
+    if (!maxScore || parseFloat(maxScore) <= 0) { setCreateErr('Max score is required.'); return; }
     setCreating(true); setCreateErr('');
     try {
       await api.post('/api/assessments', {
@@ -65,10 +66,10 @@ export default function SubjectAssessmentsScreen() {
         mode_id:   modeId,
         title:     title.trim() || null,
         date:      date || null,
-        max_score: parseFloat(maxScore) || 100,
+        max_score: parseFloat(maxScore),
       });
       setShowModal(false);
-      setTitle(''); setDate(''); setMaxScore('100'); setCreateErr('');
+      setTitle(''); setDate(''); setMaxScore(''); setCreateErr('');
       await load();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -180,7 +181,7 @@ export default function SubjectAssessmentsScreen() {
             <TextInput style={inputStyle} value={date} onChangeText={setDate} placeholder="e.g. 2025-03-14" placeholderTextColor={Colors.muted} keyboardType="numeric" />
 
             <Text style={[styles.label, { color: Colors.muted }]}>Max Score</Text>
-            <TextInput style={inputStyle} value={maxScore} onChangeText={setMaxScore} keyboardType="numeric" placeholder="100" placeholderTextColor={Colors.muted} />
+            <TextInput style={inputStyle} value={maxScore} onChangeText={setMaxScore} keyboardType="numeric" placeholder="e.g. 50" placeholderTextColor={Colors.muted} />
 
             {createErr ? <Text style={[styles.errText, { color: Colors.danger }]}>{createErr}</Text> : null}
 

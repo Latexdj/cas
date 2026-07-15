@@ -107,6 +107,10 @@ export default function AdminAssessmentsPage() {
 
   async function saveEdit() {
     if (!editing) return;
+    if (!editForm.max_score || parseFloat(editForm.max_score) <= 0) {
+      setSaveError('Max score is required.');
+      return;
+    }
     setSaving(true); setSaveError('');
     try {
       const body: Record<string, unknown> = {
@@ -115,7 +119,7 @@ export default function AdminAssessmentsPage() {
         mode_id:          editForm.mode_id,
         title:            editForm.title.trim() || null,
         date:             editForm.date || null,
-        max_score:        parseFloat(editForm.max_score) || 100,
+        max_score:        parseFloat(editForm.max_score),
       };
       await api.put(`/api/assessments/${editing.id}`, body);
       setEditing(null);

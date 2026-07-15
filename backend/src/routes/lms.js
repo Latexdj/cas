@@ -324,11 +324,12 @@ router.post('/courses/:courseId/assignments', teacherOrAdmin, async (req, res, n
     if (err) return res.status(err.status).json({ error: err.error });
     const { title, instructions, max_score, due_date, allow_late, is_published, assessment_mode_id } = req.body;
     if (!title) return res.status(400).json({ error: 'title is required' });
+    if (!max_score || parseFloat(max_score) <= 0) return res.status(400).json({ error: 'max_score is required and must be greater than 0' });
     const { rows } = await pool.query(
       `INSERT INTO lms_assignments (course_id, school_id, title, instructions, max_score, due_date, allow_late, is_published, assessment_mode_id)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [req.params.courseId, req.schoolId, title, instructions || null,
-       parseFloat(max_score) || 100, due_date || null, allow_late ?? true, is_published ?? true,
+       parseFloat(max_score), due_date || null, allow_late ?? true, is_published ?? true,
        assessment_mode_id || null]);
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }

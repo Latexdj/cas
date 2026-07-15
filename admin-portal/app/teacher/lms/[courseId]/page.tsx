@@ -466,7 +466,7 @@ function AssignmentModal({
 }) {
   const [title, setTitle] = useState(assignment?.title ?? '');
   const [instructions, setInstructions] = useState(assignment?.instructions ?? '');
-  const [maxScore, setMaxScore] = useState(assignment?.max_score ?? 100);
+  const [maxScore, setMaxScore] = useState<number | ''>(assignment?.max_score ?? '');
   const [dueDate, setDueDate] = useState(assignment?.due_date ? assignment.due_date.slice(0, 16) : '');
   const [allowLate, setAllowLate] = useState(assignment?.allow_late ?? false);
   const [isPublished, setIsPublished] = useState(assignment?.is_published ?? true);
@@ -484,6 +484,7 @@ function AssignmentModal({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) { setError('Title is required.'); return; }
+    if (!maxScore || maxScore <= 0) { setError('Max score is required.'); return; }
     setSaving(true); setError('');
     const payload = {
       title: title.trim(),
@@ -525,7 +526,7 @@ function AssignmentModal({
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="block text-xs font-semibold text-slate-500 mb-1">Max Score</label>
-              <input type="number" className={INPUT} value={maxScore} onChange={e => setMaxScore(parseInt(e.target.value) || 100)} min={1} />
+              <input type="number" className={INPUT} value={maxScore} onChange={e => setMaxScore(parseInt(e.target.value) || '')} min={1} placeholder="e.g. 100" required />
             </div>
             <div className="flex-1">
               <label className="block text-xs font-semibold text-slate-500 mb-1">Due Date (optional)</label>

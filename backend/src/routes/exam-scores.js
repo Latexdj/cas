@@ -47,7 +47,7 @@ router.get('/template', async (req, res, next) => {
       params
     );
 
-    const existingMax = students.find(s => s.max_score != null)?.max_score ?? 100;
+    const existingMax = students.find(s => s.max_score != null)?.max_score ?? null;
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Exam Scores');
@@ -60,9 +60,10 @@ router.get('/template', async (req, res, next) => {
       { key: '_max',         width: 8  },
     ];
 
-    // Row 1: Note (merged A-D); E1 = max_score for machine reading
+    // Row 1: Note (merged A-D); E1 = max_score for machine reading (blank if not yet set)
+    const maxLabel = existingMax != null ? `Max: ${existingMax}` : 'Max: (enter in column E row 1 before uploading)';
     const noteRow = ws.addRow([
-      `Exam Scores — ${subject} | Class: ${class_name} | Semester: ${semester} | Max: ${existingMax}`,
+      `Exam Scores — ${subject} | Class: ${class_name} | Semester: ${semester} | ${maxLabel}`,
       '', '', '', existingMax,
     ]);
     ws.mergeCells(1, 1, 1, 4);
@@ -134,8 +135,11 @@ router.post('/upload-scores', upload.single('file'), async (req, res, next) => {
     const ws = wb.worksheets[0];
     if (!ws) return res.status(400).json({ error: 'No worksheet found in the uploaded file' });
 
-    // Read max_score from E1
-    const maxScore = parseFloat(ws.getCell(1, 5).value) || 100;
+    // Read max_score from E1 — required
+    const maxScore = parseFloat(ws.getCell(1, 5).value);
+    if (!maxScore || maxScore <= 0) {
+      return res.status(400).json({ error: 'Max score (cell E1) is missing or invalid. Re-download the template and enter the correct max score in cell E1 before uploading.' });
+    }
 
     const results  = { saved: 0, skipped: 0, errors: [] };
     const toUpsert = [];
@@ -236,6 +240,9 @@ router.post('/', async (req, res, next) => {
     if (!academic_year_id || !semester || !subject || !class_name || !Array.isArray(scores)) {
       return res.status(400).json({ error: 'academic_year_id, semester, subject, class_name, scores[] required' });
     }
+    if (!max_score || parseFloat(max_score) <= 0) {
+      return res.status(400).json({ error: 'max_score is required and must be greater than 0' });
+    }
 
     // Check if results are locked
     const subStatus = await getSubmissionStatus(req.schoolId, academic_year_id, semester, subject, class_name);
@@ -243,14 +250,14 @@ router.post('/', async (req, res, next) => {
       return res.status(409).json({ error: `Scores are locked — submission status is “${subStatus}”. Contact your HOD or admin to unlock.` });
     }
 
-    const examMax = parseFloat(max_score) || 100;
+    const examMax = parseFloat(max_score);
 
     // Validate scores against max_score
     for (const s of scores) {
       if (s.score != null) {
         const numScore = parseFloat(s.score);
-        if (isNaN(numScore) || numScore < 0 || numScore > parseFloat(max_score || 100)) {
-          return res.status(400).json({ error: `Score ${s.score} exceeds max score of ${max_score || 100}` });
+        if (isNaN(numScore) || numScore < 0 || numScore > examMax) {
+          return res.status(400).json({ error: `Score ${s.score} exceeds max score of ${examMax}` });
         }
       }
     }

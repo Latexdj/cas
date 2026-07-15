@@ -12,6 +12,7 @@ interface ExamRow {
   name: string;
   exam_id: string | null;
   score: number | null;
+  max_score: number | null;
 }
 interface SubjectRemark { student_id: string; student_code: string; name: string; remarks: string; }
 
@@ -33,7 +34,7 @@ function ExamContent() {
 
   const [rows,     setRows]    = useState<ExamRow[]>([]);
   const [scores,   setScores]  = useState<Record<string, string>>({});
-  const [maxScore, setMaxScore] = useState('100');
+  const [maxScore, setMaxScore] = useState('');
   const [loading,  setLoading] = useState(true);
   const [saving,   setSaving]  = useState(false);
   const [saved,    setSaved]   = useState(false);
@@ -70,6 +71,9 @@ function ExamContent() {
         s[r.student_id] = r.score != null ? String(r.score) : '';
       }
       setScores(s);
+      // Pre-populate max score from existing saved value
+      const existingMax = (data ?? []).find(r => r.max_score != null)?.max_score;
+      if (existingMax != null) setMaxScore(String(existingMax));
 
       // Fetch submission lock status
       try {
@@ -167,6 +171,7 @@ function ExamContent() {
   }
 
   async function save() {
+    if (!maxScore || parseFloat(maxScore) <= 0) { setError('Max score is required before saving.'); return; }
     setSaving(true); setError(''); setSaved(false);
     try {
       const payload = rows.map(r => ({
@@ -178,7 +183,7 @@ function ExamContent() {
         semester:         parseInt(selectedSem),
         subject,
         class_name,
-        max_score:        parseFloat(maxScore) || 100,
+        max_score:        parseFloat(maxScore),
         scores:           payload,
       });
       setSaved(true);
@@ -299,7 +304,9 @@ function ExamContent() {
             className="w-20 border border-[#E2D9CC] rounded-xl px-3 py-1.5 text-sm font-bold text-center text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]"
             value={maxScore}
             onChange={e => setMaxScore(e.target.value)}
-            placeholder="100"
+            placeholder="e.g. 100"
+            min={1}
+            required
           />
         </div>
 
