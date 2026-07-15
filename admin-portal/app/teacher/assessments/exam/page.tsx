@@ -374,7 +374,7 @@ function ExamContent() {
             className="w-full max-w-sm px-6 py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-60 transition-opacity shadow-sm"
             style={{ background: primary }}
           >
-            {saving ? 'Saving…' : 'Save Exam Scores'}
+            {saving ? 'Saving…' : rows.some(r => r.score !== null) ? 'Save Changes' : 'Save Scores'}
           </button>
           <p className="text-xs text-[#8C7E6E]">{rows.length} student{rows.length !== 1 ? 's' : ''}</p>
         </div>

@@ -150,7 +150,7 @@ export default function ScoresScreen() {
           onPress={save}
           disabled={saving}
         >
-          {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveBtnText}>Save All Scores</Text>}
+          {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveBtnText}>{rows.some(r => r.score_id !== null) ? 'Save Changes' : 'Save Scores'}</Text>}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

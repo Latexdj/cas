@@ -191,7 +191,7 @@ export default function AssessmentScoresPage() {
         <button onClick={save} disabled={saving || hasRangeError}
           className="px-6 py-2.5 rounded-lg text-sm font-bold text-white shadow-sm disabled:opacity-50 flex-shrink-0"
           style={{ backgroundColor: '#15803D' }}>
-          {saving ? 'Saving…' : 'Save Scores'}
+          {saving ? 'Saving…' : rows.some(r => r.score !== null) ? 'Save Changes' : 'Save Scores'}
         </button>
       </div>
     </div>

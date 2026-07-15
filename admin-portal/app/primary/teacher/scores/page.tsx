@@ -101,7 +101,7 @@ export default function PrimaryScoresPage() {
         </div>
         <button onClick={save} disabled={saving || loading || !selSubject}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
-          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Scores'}
+          {saving ? 'Saving…' : saved ? 'Saved ✓' : students.some(s => scoreMap[selSubject]?.[s.id]?.class_score != null || scoreMap[selSubject]?.[s.id]?.exam_score != null) ? 'Save Changes' : 'Save Scores'}
         </button>
       </div>
 

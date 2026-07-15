@@ -132,7 +132,7 @@ export default function ExamScoresScreen() {
       <View style={[styles.footer, { backgroundColor: Colors.surface, borderTopColor: Colors.border }]}>
         <Text style={[styles.footerMeta, { color: Colors.muted }]}>{rows.length} student{rows.length !== 1 ? 's' : ''}</Text>
         <TouchableOpacity style={[styles.saveBtn, { backgroundColor: Colors.primary }]} onPress={save} disabled={saving}>
-          {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveBtnText}>Save Exam Scores</Text>}
+          {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveBtnText}>{rows.some(r => r.score !== null) ? 'Save Changes' : 'Save Scores'}</Text>}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
