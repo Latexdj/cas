@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { uploadDocument } = require('../services/storage.service');
+const { createNotification, sendTeacherEmail } = require('../services/notification.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -170,6 +171,17 @@ router.patch('/:id/approve', adminOnly, async (req, res, next) => {
       console.log(`[Excuses] Retroactively excused ${updated} absence record(s) on approval`);
     }
 
+    // Notify teacher
+    try {
+      const { rows: tr } = await pool.query(`SELECT name, email FROM teachers WHERE id=$1`, [teacher_id]);
+      const t = tr[0];
+      const dateRange = date_from === date_to ? date_from : `${date_from} to ${date_to}`;
+      const title = 'Leave Request Approved';
+      const msg = `Your leave request for ${dateRange} has been approved.`;
+      await createNotification(req.schoolId, teacher_id, title, msg);
+      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\n— CAS`);
+    } catch (e) { /* non-fatal */ }
+
     res.json({ id: rows[0].id, status: rows[0].status, absences_excused: updated });
   } catch (err) { next(err); }
 });
@@ -186,11 +198,24 @@ router.patch('/:id/reject', adminOnly, async (req, res, next) => {
        SET status = 'Rejected', approved_by = $1, approved_at = now(), updated_at = now(),
            rejection_reason = $2
        WHERE id = $3 AND school_id = $4
-       RETURNING id, status, rejection_reason`,
+       RETURNING id, status, rejection_reason, teacher_id, date_from, date_to`,
       [approver, reason, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Excuse not found' });
-    res.json(rows[0]);
+
+    // Notify teacher
+    try {
+      const { teacher_id, date_from, date_to } = rows[0];
+      const { rows: tr } = await pool.query(`SELECT name, email FROM teachers WHERE id=$1`, [teacher_id]);
+      const t = tr[0];
+      const dateRange = date_from === date_to ? date_from : `${date_from} to ${date_to}`;
+      const title = 'Leave Request Rejected';
+      const msg = `Your leave request for ${dateRange} has been rejected. Reason: ${reason}`;
+      await createNotification(req.schoolId, teacher_id, title, msg);
+      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\nIf you have questions, please contact your administrator.\n\n— CAS`);
+    } catch (e) { /* non-fatal */ }
+
+    res.json({ id: rows[0].id, status: rows[0].status, rejection_reason: rows[0].rejection_reason });
   } catch (err) { next(err); }
 });
 

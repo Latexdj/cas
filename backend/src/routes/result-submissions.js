@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { logAudit } = require('../services/audit.service');
+const { createNotification, sendTeacherEmail } = require('../services/notification.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -23,12 +24,13 @@ async function getOrCreateSubmission(schoolId, yearId, semester, subject, classN
   return existing[0];
 }
 
-async function notify(schoolId, userId, userType, message, link = null) {
+async function notifyTeacher(schoolId, teacherId, title, message, emailBody = null) {
   try {
-    await pool.query(
-      `INSERT INTO notifications (school_id, user_id, user_type, message, link) VALUES ($1,$2,$3,$4,$5)`,
-      [schoolId, userId, userType, message, link]
-    );
+    await createNotification(schoolId, teacherId, title, message);
+    if (emailBody) {
+      const { rows } = await pool.query(`SELECT email FROM teachers WHERE id=$1`, [teacherId]);
+      if (rows[0]?.email) await sendTeacherEmail(rows[0].email, title, emailBody);
+    }
   } catch (e) { /* non-fatal */ }
 }
 
@@ -293,9 +295,9 @@ router.post('/submit', async (req, res, next) => {
       [req.schoolId]
     );
     for (const hod of hods) {
-      await notify(req.schoolId, hod.id, 'teacher',
-        `${subject} (${class_name}) results submitted and awaiting your review.`,
-        '/teacher/hod');
+      await notifyTeacher(req.schoolId, hod.id,
+        'New Result Submission',
+        `${subject} (${class_name}) results submitted and awaiting your review.`);
     }
 
     res.json({ message: 'Submitted for HOD review.', submission_id: sub.id });
@@ -336,9 +338,11 @@ router.post('/hod-review', async (req, res, next) => {
       await logAudit(req.schoolId, 'RESULT_HOD_APPROVED', req.user.id, req.user.name,
         'result_submissions', submission_id, { subject: sub.subject, class_name: sub.class_name });
       if (sub.teacher_id) {
-        await notify(req.schoolId, sub.teacher_id, 'teacher',
-          `Your ${sub.subject} (${sub.class_name}) results have been approved by HOD.`,
-          '/teacher/assessments');
+        const { rows: tr } = await pool.query(`SELECT name FROM teachers WHERE id=$1`, [sub.teacher_id]);
+        const tName = tr[0]?.name || 'Teacher';
+        const msg = `Your ${sub.subject} (${sub.class_name}) results have been approved by HOD and forwarded for final review.`;
+        await notifyTeacher(req.schoolId, sub.teacher_id, 'Results Approved by HOD', msg,
+          `Dear ${tName},\n\n${msg}\n\n— CAS`);
       }
     } else {
       await pool.query(
@@ -348,9 +352,11 @@ router.post('/hod-review', async (req, res, next) => {
       await logAudit(req.schoolId, 'RESULT_HOD_REJECTED', req.user.id, req.user.name,
         'result_submissions', submission_id, { subject: sub.subject, class_name: sub.class_name, reason: comment.trim() });
       if (sub.teacher_id) {
-        await notify(req.schoolId, sub.teacher_id, 'teacher',
-          `Your ${sub.subject} (${sub.class_name}) results were returned: ${comment.trim()}`,
-          '/teacher/assessments');
+        const { rows: tr } = await pool.query(`SELECT name FROM teachers WHERE id=$1`, [sub.teacher_id]);
+        const tName = tr[0]?.name || 'Teacher';
+        const msg = `Your ${sub.subject} (${sub.class_name}) results were returned by HOD. Reason: ${comment.trim()}`;
+        await notifyTeacher(req.schoolId, sub.teacher_id, 'Results Returned by HOD', msg,
+          `Dear ${tName},\n\n${msg}\n\nPlease revise and resubmit.\n\n— CAS`);
       }
     }
 
@@ -386,6 +392,13 @@ router.post('/final-review', adminOnly, async (req, res, next) => {
       );
       await logAudit(req.schoolId, 'RESULT_FINAL_APPROVED', req.user.id, req.user.name,
         'result_submissions', submission_id, { subject: sub.subject, class_name: sub.class_name });
+      if (sub.teacher_id) {
+        const { rows: tr } = await pool.query(`SELECT name FROM teachers WHERE id=$1`, [sub.teacher_id]);
+        const tName = tr[0]?.name || 'Teacher';
+        const msg = `Your ${sub.subject} (${sub.class_name}) results have been finally approved and are ready for publication.`;
+        await notifyTeacher(req.schoolId, sub.teacher_id, 'Results Finally Approved', msg,
+          `Dear ${tName},\n\n${msg}\n\n— CAS`);
+      }
     } else {
       await pool.query(
         `UPDATE result_submissions SET status='rejected', rejected_by=$1, rejected_at=now(), rejected_reason=$2, final_comment=$2 WHERE id=$3`,
@@ -394,9 +407,11 @@ router.post('/final-review', adminOnly, async (req, res, next) => {
       await logAudit(req.schoolId, 'RESULT_FINAL_REJECTED', req.user.id, req.user.name,
         'result_submissions', submission_id, { subject: sub.subject, class_name: sub.class_name, reason: comment.trim() });
       if (sub.teacher_id) {
-        await notify(req.schoolId, sub.teacher_id, 'teacher',
-          `Your ${sub.subject} (${sub.class_name}) results were returned by management: ${comment.trim()}`,
-          '/teacher/assessments');
+        const { rows: tr } = await pool.query(`SELECT name FROM teachers WHERE id=$1`, [sub.teacher_id]);
+        const tName = tr[0]?.name || 'Teacher';
+        const msg = `Your ${sub.subject} (${sub.class_name}) results were returned by management. Reason: ${comment.trim()}`;
+        await notifyTeacher(req.schoolId, sub.teacher_id, 'Results Returned by Management', msg,
+          `Dear ${tName},\n\n${msg}\n\nPlease revise and resubmit.\n\n— CAS`);
       }
     }
 

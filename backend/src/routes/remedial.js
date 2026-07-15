@@ -4,6 +4,7 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 const { verifyLocation } = require('../services/geo.service');
 const { uploadPhoto } = require('../services/storage.service');
 const { sendRemedialScheduledNotification } = require('../services/email.service');
+const { createNotification, sendTeacherEmail } = require('../services/notification.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -424,6 +425,18 @@ router.patch('/:id/verify', adminOnly, async (req, res, next) => {
       }
     }
 
+    // Notify teacher
+    try {
+      const rl = rows[0];
+      const { rows: tr } = await pool.query(`SELECT name, email FROM teachers WHERE id=$1`, [rl.teacher_id]);
+      const t = tr[0];
+      const date = rl.remedial_date?.slice?.(0, 10) ?? rl.remedial_date;
+      const title = 'Remedial Lesson Verified';
+      const msg = `Your remedial lesson for ${rl.subject} — ${rl.class_name} on ${date} has been verified and accepted.`;
+      await createNotification(req.schoolId, rl.teacher_id, title, msg);
+      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\n— CAS`);
+    } catch (e) { /* non-fatal */ }
+
     res.json(rows[0]);
   } catch (err) {
     next(err);
@@ -476,6 +489,24 @@ router.patch('/:id/reject', adminOnly, async (req, res, next) => {
       }
 
       await client.query('COMMIT');
+
+      // Notify teacher (after commit, non-fatal)
+      try {
+        const { rows: rlInfo } = await pool.query(
+          `SELECT teacher_id, subject, class_name, remedial_date::text AS remedial_date FROM remedial_lessons WHERE id=$1`,
+          [req.params.id]
+        );
+        const rlRow = rlInfo[0];
+        if (rlRow) {
+          const { rows: tr } = await pool.query(`SELECT name, email FROM teachers WHERE id=$1`, [rlRow.teacher_id]);
+          const t = tr[0];
+          const title = 'Remedial Lesson Rejected';
+          const msg = `Your remedial lesson for ${rlRow.subject} — ${rlRow.class_name} on ${rlRow.remedial_date} was rejected. Reason: ${reason.trim()}`;
+          await createNotification(req.schoolId, rlRow.teacher_id, title, msg);
+          if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\nYou still need to complete a remedial lesson for this absence.\n\n— CAS`);
+        }
+      } catch (e) { /* non-fatal */ }
+
       res.json({ message: 'Remedial lesson rejected. Absence reverted to outstanding.' });
     } catch (e) { await client.query('ROLLBACK'); throw e; }
     finally { client.release(); }

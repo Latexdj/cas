@@ -16,6 +16,7 @@ interface RemedialLesson {
   topic: string | null;
   location_name: string | null;
   status: string;
+  notes: string | null;
   photo_url?: string | null;
   has_register: boolean;
 }
@@ -88,6 +89,7 @@ function RemedialCountdown({ target, onExpired }: { target: Date; onExpired: () 
 function statusColor(status: string, primary: string): { bg: string; color: string } {
   if (status === 'Completed')  return { bg: '#DCFCE7', color: '#15803D' };
   if (status === 'Verified')   return { bg: '#DBEAFE', color: '#1D4ED8' };
+  if (status === 'Rejected')   return { bg: '#FEE2E2', color: '#DC2626' };
   if (status === 'Cancelled')  return { bg: '#F1F5F9', color: '#64748B' };
   return { bg: `${primary}18`, color: primary };
 }
@@ -571,7 +573,13 @@ export default function RemedialsPage() {
                   />
                 )}
 
-                {rem.status !== 'Cancelled' && (
+                {rem.status === 'Rejected' && (
+                  <p className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                    Rejected: {rem.notes || 'No reason provided'}. You need to reschedule a remedial for this absence.
+                  </p>
+                )}
+
+                {rem.status !== 'Cancelled' && rem.status !== 'Rejected' && (
                   <div className={`flex gap-2 mt-2 ${!started ? 'opacity-40 pointer-events-none' : ''}`}>
                     {rem.status === 'Scheduled' && (
                       <button
