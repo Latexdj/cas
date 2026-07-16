@@ -608,14 +608,22 @@ router.get('/library/books', async (req, res, next) => {
     const params = [req.schoolId];
     let p = 2;
     if (search) {
-      conditions.push(`(LOWER(title) LIKE $${p} OR LOWER(author) LIKE $${p})`);
+      conditions.push(
+        `(LOWER(title) LIKE $${p} OR LOWER(author) LIKE $${p} OR LOWER(isbn) LIKE $${p} OR LOWER(subject) LIKE $${p})`
+      );
       params.push(`%${search.toLowerCase()}%`);
       p++;
     }
     if (subject)  { conditions.push(`LOWER(subject) = LOWER($${p})`); params.push(subject); p++; }
     if (category) { conditions.push(`category = $${p}`); params.push(category); p++; }
     const { rows } = await pool.query(
-      `SELECT id, title, author, isbn, subject, category, level, cover_url, total_copies, available_copies
+      `SELECT id, title, author, isbn, subject, category, level, cover_url,
+              publisher, year_published, edition, language,
+              total_copies, available_copies,
+              CASE WHEN available_copies = 0 THEN (
+                SELECT MIN(due_date)::text FROM library_loans
+                WHERE book_id = library_books.id AND status = 'active'
+              ) ELSE NULL END AS earliest_return_date
        FROM library_books WHERE ${conditions.join(' AND ')} ORDER BY title`,
       params
     );
@@ -627,7 +635,8 @@ router.get('/library/my-loans', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT ll.id, ll.status, ll.issued_at, ll.due_date, ll.returned_at,
-              ll.fine_amount, ll.fine_paid,
+              ll.fine_amount, ll.fine_paid, ll.fine_waived,
+              ll.renewed_count,
               lb.title AS book_title, lb.author, lb.cover_url,
               lc.copy_number,
               (ll.due_date < CURRENT_DATE AND ll.status = 'active')::boolean AS is_overdue
@@ -639,6 +648,31 @@ router.get('/library/my-loans', async (req, res, next) => {
       [req.user.id, req.schoolId]
     );
     res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.post('/library/loans/:id/renew', async (req, res, next) => {
+  try {
+    const { rows: loanRows } = await pool.query(
+      `SELECT * FROM library_loans WHERE id=$1 AND school_id=$2 AND student_id=$3 AND status='active'`,
+      [req.params.id, req.schoolId, req.user.id]
+    );
+    if (!loanRows.length) return res.status(404).json({ error: 'Active loan not found' });
+    const loan = loanRows[0];
+    const { rows: settings } = await pool.query(
+      `SELECT loan_period_days FROM library_settings WHERE school_id=$1`,
+      [req.schoolId]
+    );
+    const periodDays = settings[0]?.loan_period_days ?? 14;
+    const newDue = new Date(loan.due_date);
+    newDue.setDate(newDue.getDate() + periodDays);
+    const newDueStr = newDue.toISOString().slice(0, 10);
+    const { rows } = await pool.query(
+      `UPDATE library_loans SET due_date=$1, renewed_count=renewed_count+1, last_renewed_at=NOW()
+       WHERE id=$2 RETURNING due_date, renewed_count`,
+      [newDueStr, loan.id]
+    );
+    res.json({ ok: true, new_due_date: rows[0].due_date, renewed_count: rows[0].renewed_count });
   } catch (err) { next(err); }
 });
 

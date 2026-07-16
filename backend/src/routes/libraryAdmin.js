@@ -55,7 +55,7 @@ router.get('/books', async (req, res, next) => {
     const params = [req.schoolId];
     let p = 2;
     if (search) {
-      conditions.push(`(LOWER(title) LIKE $${p} OR LOWER(author) LIKE $${p})`);
+      conditions.push(`(LOWER(title) LIKE $${p} OR LOWER(author) LIKE $${p} OR LOWER(isbn) LIKE $${p})`);
       params.push(`%${search.toLowerCase()}%`);
       p++;
     }
@@ -71,13 +71,19 @@ router.get('/books', async (req, res, next) => {
 
 router.post('/books', async (req, res, next) => {
   try {
-    const { title, author, isbn, subject, category = 'general', level, cover_url } = req.body;
+    const { title, author, isbn, subject, category = 'general', level, cover_url,
+            publisher, year_published, edition, language = 'English' } = req.body;
     if (!title?.trim()) return res.status(400).json({ error: 'title is required' });
     const { rows } = await pool.query(
-      `INSERT INTO library_books (school_id, title, author, isbn, subject, category, level, cover_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      `INSERT INTO library_books
+         (school_id, title, author, isbn, subject, category, level, cover_url,
+          publisher, year_published, edition, language)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [req.schoolId, title.trim(), author?.trim() || null, isbn?.trim() || null,
-       subject?.trim() || null, category, level?.trim() || null, cover_url || null]
+       subject?.trim() || null, category, level?.trim() || null, cover_url || null,
+       publisher?.trim() || null,
+       year_published ? parseInt(year_published) : null,
+       edition?.trim() || null, language || 'English']
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
@@ -85,20 +91,28 @@ router.post('/books', async (req, res, next) => {
 
 router.put('/books/:id', async (req, res, next) => {
   try {
-    const { title, author, isbn, subject, category, level, cover_url } = req.body;
+    const { title, author, isbn, subject, category, level, cover_url,
+            publisher, year_published, edition, language } = req.body;
     const { rows } = await pool.query(
       `UPDATE library_books
-       SET title     = COALESCE($1, title),
-           author    = COALESCE($2, author),
-           isbn      = COALESCE($3, isbn),
-           subject   = COALESCE($4, subject),
-           category  = COALESCE($5, category),
-           level     = COALESCE($6, level),
-           cover_url = COALESCE($7, cover_url)
-       WHERE id = $8 AND school_id = $9
+       SET title          = COALESCE($1, title),
+           author         = COALESCE($2, author),
+           isbn           = COALESCE($3, isbn),
+           subject        = COALESCE($4, subject),
+           category       = COALESCE($5, category),
+           level          = COALESCE($6, level),
+           cover_url      = COALESCE($7, cover_url),
+           publisher      = COALESCE($8, publisher),
+           year_published = COALESCE($9, year_published),
+           edition        = COALESCE($10, edition),
+           language       = COALESCE($11, language)
+       WHERE id = $12 AND school_id = $13
        RETURNING *`,
       [title?.trim() || null, author?.trim() || null, isbn?.trim() || null,
        subject?.trim() || null, category || null, level?.trim() || null, cover_url || null,
+       publisher?.trim() || null,
+       year_published ? parseInt(year_published) : null,
+       edition?.trim() || null, language || null,
        req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Book not found' });
@@ -143,7 +157,7 @@ router.get('/books/:id/copies', async (req, res, next) => {
 
 router.post('/books/:id/copies', async (req, res, next) => {
   try {
-    const { copy_number, condition = 'Good' } = req.body;
+    const { copy_number, condition = 'Good', shelf_location } = req.body;
     if (!copy_number?.trim()) return res.status(400).json({ error: 'copy_number is required' });
     const { rows: bookRows } = await pool.query(
       `SELECT id FROM library_books WHERE id = $1 AND school_id = $2`,
@@ -151,9 +165,9 @@ router.post('/books/:id/copies', async (req, res, next) => {
     );
     if (!bookRows.length) return res.status(404).json({ error: 'Book not found' });
     const { rows } = await pool.query(
-      `INSERT INTO library_copies (school_id, book_id, copy_number, condition)
-       VALUES ($1,$2,$3,$4) RETURNING *`,
-      [req.schoolId, req.params.id, copy_number.trim(), condition]
+      `INSERT INTO library_copies (school_id, book_id, copy_number, condition, shelf_location)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [req.schoolId, req.params.id, copy_number.trim(), condition, shelf_location?.trim() || null]
     );
     await syncBookCounts(req.params.id);
     res.status(201).json(rows[0]);
@@ -165,11 +179,14 @@ router.post('/books/:id/copies', async (req, res, next) => {
 
 router.put('/books/:id/copies/:copyId', async (req, res, next) => {
   try {
-    const { condition } = req.body;
+    const { condition, shelf_location } = req.body;
     const { rows } = await pool.query(
-      `UPDATE library_copies SET condition = COALESCE($1, condition)
-       WHERE id = $2 AND book_id = $3 AND school_id = $4 RETURNING *`,
-      [condition || null, req.params.copyId, req.params.id, req.schoolId]
+      `UPDATE library_copies
+       SET condition      = COALESCE($1, condition),
+           shelf_location = COALESCE($2, shelf_location)
+       WHERE id = $3 AND book_id = $4 AND school_id = $5 RETURNING *`,
+      [condition || null, shelf_location !== undefined ? (shelf_location?.trim() || null) : null,
+       req.params.copyId, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Copy not found' });
     res.json(rows[0]);
@@ -286,7 +303,8 @@ router.get('/loans', async (req, res, next) => {
     }
     const { rows } = await pool.query(
       `SELECT ll.id, ll.status, ll.issued_at, ll.due_date, ll.returned_at,
-              ll.fine_amount, ll.fine_paid, ll.notes,
+              ll.fine_amount, ll.fine_paid, ll.fine_waived, ll.fine_waive_reason,
+              ll.renewed_count, ll.notes,
               lb.title AS book_title, lb.author,
               lc.copy_number,
               s.name AS student_name, s.student_code, s.class_name,

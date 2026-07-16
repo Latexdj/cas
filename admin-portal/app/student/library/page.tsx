@@ -8,10 +8,12 @@ interface Book {
   id: string; title: string; author: string | null; subject: string | null;
   category: string; level: string | null; cover_url: string | null;
   total_copies: number; available_copies: number;
+  isbn: string | null; publisher: string | null; year_published: number | null;
+  language: string | null; earliest_return_date: string | null;
 }
 interface MyLoan {
   id: string; status: string; issued_at: string; due_date: string; returned_at: string | null;
-  fine_amount: number; fine_paid: boolean;
+  fine_amount: number; fine_paid: boolean; fine_waived: boolean; renewed_count: number;
   book_title: string; author: string | null; cover_url: string | null; copy_number: string;
   is_overdue: boolean;
 }
@@ -50,6 +52,10 @@ export default function StudentLibraryPage() {
   const [resType,          setResType]          = useState('');
   const [downloading,      setDownloading]      = useState<string | null>(null);
 
+  // Loan renewal
+  const [renewing, setRenewing] = useState<string | null>(null);
+  const [renewMsg, setRenewMsg] = useState('');
+
   useEffect(() => {
     const c = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
     setPrimary(c.primary);
@@ -72,6 +78,16 @@ export default function StudentLibraryPage() {
         .then(r => setResources(r.data)).catch(() => {}).finally(() => setResourcesLoading(false));
     }
   }, [tab, resType]);
+
+  async function renewLoan(id: string) {
+    setRenewing(id); setRenewMsg('');
+    try {
+      const { data } = await studentApi.post<{ new_due_date: string; renewed_count: number }>(`/api/student/library/loans/${id}/renew`, {});
+      setLoans(prev => prev.map(l => l.id === id ? { ...l, due_date: data.new_due_date, renewed_count: data.renewed_count } : l));
+      setRenewMsg(`Loan renewed! New due date: ${new Date(data.new_due_date).toLocaleDateString('en-GB')}`);
+    } catch (err: any) { setRenewMsg(err.response?.data?.error ?? 'Could not renew. Please visit the library.'); }
+    finally { setRenewing(null); }
+  }
 
   async function handleDownload(resource: Resource) {
     setDownloading(resource.id);
@@ -152,6 +168,9 @@ export default function StudentLibraryPage() {
                       {b.available_copies > 0 ? `${b.available_copies} available` : 'All out'}
                     </span>
                     <p className="text-xs text-slate-400 mt-1">{b.total_copies} total</p>
+                    {b.available_copies === 0 && b.earliest_return_date && (
+                      <p className="text-xs text-slate-400 mt-1">Back ~{new Date(b.earliest_return_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -163,6 +182,12 @@ export default function StudentLibraryPage() {
       {/* My Loans */}
       {tab === 'my-loans' && (
         <div className="space-y-4">
+          {renewMsg && (
+            <div className={`rounded-xl border px-4 py-3 text-sm font-semibold flex justify-between ${renewMsg.startsWith('Loan renewed') ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
+              {renewMsg}
+              <button onClick={() => setRenewMsg('')} className="opacity-50 hover:opacity-100">×</button>
+            </div>
+          )}
           {loansLoading ? <p className="text-sm text-slate-500">Loading…</p> : loans.length === 0 ? (
             <p className="text-sm text-slate-500 text-center py-10">You have no loan history.</p>
           ) : (
@@ -177,7 +202,10 @@ export default function StudentLibraryPage() {
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-slate-900 dark:text-white text-sm">{l.book_title}</p>
                             {l.author && <p className="text-xs text-slate-500 dark:text-slate-400">{l.author}</p>}
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Copy #{l.copy_number} · Issued: {new Date(l.issued_at).toLocaleDateString()}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                              Copy #{l.copy_number} · Issued: {new Date(l.issued_at).toLocaleDateString('en-GB')}
+                              {l.renewed_count > 0 && <span className="ml-2 text-blue-500">· Renewed ×{l.renewed_count}</span>}
+                            </p>
                           </div>
                           <div className="text-right shrink-0">
                             {l.is_overdue ? (
@@ -186,13 +214,20 @@ export default function StudentLibraryPage() {
                               <span className="inline-block px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-xs font-semibold">Active</span>
                             )}
                             <p className={`text-xs mt-1 font-semibold ${l.is_overdue ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}`}>
-                              Due: {l.due_date}
+                              Due: {new Date(l.due_date).toLocaleDateString('en-GB')}
                             </p>
+                            {!l.is_overdue && (
+                              <button onClick={() => renewLoan(l.id)} disabled={renewing === l.id}
+                                className="mt-2 text-xs font-semibold px-3 py-1 rounded-lg border disabled:opacity-50"
+                                style={{ borderColor: primary, color: primary }}>
+                                {renewing === l.id ? '…' : 'Renew'}
+                              </button>
+                            )}
                           </div>
                         </div>
                         {l.fine_amount > 0 && (
-                          <p className="text-xs text-red-600 dark:text-red-400 font-semibold mt-2">
-                            Fine: GHS {l.fine_amount.toFixed(2)}{l.fine_paid ? ' (paid)' : ' (unpaid)'}
+                          <p className={`text-xs font-semibold mt-2 ${l.fine_waived ? 'text-green-600 dark:text-green-400' : l.fine_paid ? 'text-slate-500 dark:text-slate-400' : 'text-red-600 dark:text-red-400'}`}>
+                            Fine: GH₵ {l.fine_amount.toFixed(2)} {l.fine_waived ? '(waived)' : l.fine_paid ? '(paid)' : '(unpaid — please visit the library)'}
                           </p>
                         )}
                       </div>

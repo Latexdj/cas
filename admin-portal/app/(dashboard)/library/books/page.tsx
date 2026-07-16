@@ -8,16 +8,23 @@ import { Modal } from '@/components/ui/Modal';
 interface Book {
   id: string; title: string; author: string | null; isbn: string | null;
   subject: string | null; category: string; level: string | null;
+  publisher: string | null; year_published: number | null; edition: string | null; language: string | null;
   total_copies: number; available_copies: number; cover_url: string | null;
 }
 interface Copy {
-  id: string; copy_number: string; condition: string; is_available: boolean;
+  id: string; copy_number: string; condition: string; status: string; shelf_location: string | null;
+  is_available: boolean;
   loan_id: string | null; borrower_name: string | null; borrower_code: string | null; due_date: string | null;
 }
 
-const CATEGORIES = ['general', 'textbook', 'reference', 'fiction', 'non-fiction', 'past_question'];
+const CATEGORIES = ['general', 'textbook', 'reference', 'fiction', 'non-fiction', 'past_question', 'local_author'];
+const CONDITIONS  = ['Good', 'Fair', 'Poor'];
+const COPY_STATUSES = ['available', 'lost', 'damaged', 'withdrawn'] as const;
 
-const emptyBook = { title: '', author: '', isbn: '', subject: '', category: 'general', level: '', cover_url: '' };
+const emptyBook = {
+  title: '', author: '', isbn: '', subject: '', category: 'general', level: '', cover_url: '',
+  publisher: '', year_published: '', edition: '', language: 'English',
+};
 
 export default function BookCatalogPage() {
   const [books,   setBooks]   = useState<Book[]>([]);
@@ -34,7 +41,7 @@ export default function BookCatalogPage() {
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [copies,       setCopies]       = useState<Copy[]>([]);
   const [copiesLoading, setCopiesLoading] = useState(false);
-  const [newCopy, setNewCopy] = useState({ copy_number: '', condition: 'Good' });
+  const [newCopy, setNewCopy] = useState({ copy_number: '', condition: 'Good', shelf_location: '' });
   const [copySaving, setCopySaving] = useState(false);
 
   function load() {
@@ -55,7 +62,12 @@ export default function BookCatalogPage() {
 
   function openAdd() { setForm(emptyBook); setEditId(''); setError(''); setModal('add'); }
   function openEdit(b: Book) {
-    setForm({ title: b.title, author: b.author ?? '', isbn: b.isbn ?? '', subject: b.subject ?? '', category: b.category, level: b.level ?? '', cover_url: b.cover_url ?? '' });
+    setForm({
+      title: b.title, author: b.author ?? '', isbn: b.isbn ?? '', subject: b.subject ?? '',
+      category: b.category, level: b.level ?? '', cover_url: b.cover_url ?? '',
+      publisher: b.publisher ?? '', year_published: b.year_published ? String(b.year_published) : '',
+      edition: b.edition ?? '', language: b.language ?? 'English',
+    });
     setEditId(b.id); setError(''); setModal('edit');
   }
 
@@ -67,6 +79,10 @@ export default function BookCatalogPage() {
         title: form.title, author: form.author || null, isbn: form.isbn || null,
         subject: form.subject || null, category: form.category, level: form.level || null,
         cover_url: form.cover_url || null,
+        publisher: form.publisher || null,
+        year_published: form.year_published ? parseInt(form.year_published as string) : null,
+        edition: form.edition || null,
+        language: form.language || 'English',
       };
       if (modal === 'add') {
         const r = await api.post<Book>('/api/library-admin/books', payload);
@@ -95,9 +111,10 @@ export default function BookCatalogPage() {
     if (!newCopy.copy_number.trim() || !selectedBook) return;
     setCopySaving(true);
     try {
-      const r = await api.post<Copy>(`/api/library-admin/books/${selectedBook.id}/copies`, newCopy);
+      const payload = { ...newCopy, shelf_location: newCopy.shelf_location || null };
+      const r = await api.post<Copy>(`/api/library-admin/books/${selectedBook.id}/copies`, payload);
       setCopies(prev => [...prev, r.data]);
-      setNewCopy({ copy_number: '', condition: 'Good' });
+      setNewCopy({ copy_number: '', condition: 'Good', shelf_location: '' });
       setBooks(prev => prev.map(b => b.id === selectedBook.id ? { ...b, total_copies: b.total_copies + 1, available_copies: b.available_copies + 1 } : b));
     } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to add copy'); }
     finally { setCopySaving(false); }
@@ -198,25 +215,33 @@ export default function BookCatalogPage() {
             {copiesLoading ? <p className="text-sm text-slate-500">Loading…</p> : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {copies.length === 0 && <p className="text-xs text-slate-500">No copies yet.</p>}
-                {copies.map(c => (
-                  <div key={c.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-700 rounded-lg px-3 py-2">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-900 dark:text-white">#{c.copy_number}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{c.condition}</p>
-                      {!c.is_available && c.borrower_name && (
-                        <p className="text-xs text-amber-600 dark:text-amber-400">Out: {c.borrower_name}</p>
-                      )}
+                {copies.map(c => {
+                  const statusColor =
+                    c.status === 'lost'      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                    c.status === 'damaged'   ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                    c.status === 'withdrawn' ? 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400' :
+                    c.status === 'on_loan'   ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                              'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+                  return (
+                    <div key={c.id} className="flex items-start justify-between bg-slate-50 dark:bg-slate-700 rounded-lg px-3 py-2">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-900 dark:text-white">#{c.copy_number}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{c.condition}{c.shelf_location ? ` · ${c.shelf_location}` : ''}</p>
+                        {c.borrower_name && c.status === 'on_loan' && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400">Out: {c.borrower_name}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${statusColor}`}>
+                          {c.status === 'available' ? 'In' : c.status === 'on_loan' ? 'Out' : c.status.charAt(0).toUpperCase() + c.status.slice(1)}
+                        </span>
+                        {(c.status === 'available' || c.status === 'lost' || c.status === 'damaged' || c.status === 'withdrawn') && (
+                          <button onClick={() => deleteCopy(c.id)} className="text-xs text-red-500 hover:text-red-700">&times;</button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs px-1.5 py-0.5 rounded ${c.is_available ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'}`}>
-                        {c.is_available ? 'In' : 'Out'}
-                      </span>
-                      {c.is_available && (
-                        <button onClick={() => deleteCopy(c.id)} className="text-xs text-red-500 hover:text-red-700">&times;</button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -230,13 +255,19 @@ export default function BookCatalogPage() {
                   onChange={e => setNewCopy(p => ({ ...p, copy_number: e.target.value }))}
                 />
                 <select
-                  className="rounded-lg px-2 py-1.5 text-xs border border-slate-200 dark:border-slate-600"
+                  className="rounded-lg px-2 py-1.5 text-xs border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                   value={newCopy.condition}
                   onChange={e => setNewCopy(p => ({ ...p, condition: e.target.value }))}
                 >
-                  {['Good','Fair','Poor'].map(c => <option key={c}>{c}</option>)}
+                  {CONDITIONS.map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
+              <input
+                className="w-full rounded-lg px-2 py-1.5 text-xs border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                placeholder="Shelf location (e.g. A-3, Row 2)"
+                value={newCopy.shelf_location}
+                onChange={e => setNewCopy(p => ({ ...p, shelf_location: e.target.value }))}
+              />
               <Button size="sm" loading={copySaving} onClick={addCopy} className="w-full">Add Copy</Button>
             </div>
           </div>
@@ -244,13 +275,21 @@ export default function BookCatalogPage() {
       </div>
 
       {/* Add/Edit Modal */}
-      <Modal open={modal !== 'none'} onClose={() => setModal('none')} title={modal === 'add' ? 'Add Book' : 'Edit Book'} maxWidth="max-w-lg">
+      <Modal open={modal !== 'none'} onClose={() => setModal('none')} title={modal === 'add' ? 'Add Book' : 'Edit Book'} maxWidth="max-w-2xl">
         <div className="space-y-4">
           <Input label="Title *" value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} />
-          <Input label="Author" value={form.author} onChange={e => setForm(p => ({ ...p, author: e.target.value }))} />
           <div className="grid grid-cols-2 gap-4">
-            <Input label="ISBN" value={form.isbn} onChange={e => setForm(p => ({ ...p, isbn: e.target.value }))} />
+            <Input label="Author" value={form.author} onChange={e => setForm(p => ({ ...p, author: e.target.value }))} />
+            <Input label="Publisher" value={form.publisher as string} onChange={e => setForm(p => ({ ...p, publisher: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <Input label="ISBN (optional)" value={form.isbn} onChange={e => setForm(p => ({ ...p, isbn: e.target.value }))} />
+            <Input label="Edition" value={form.edition as string} onChange={e => setForm(p => ({ ...p, edition: e.target.value }))} placeholder="e.g. 3rd" />
+            <Input label="Year Published" value={form.year_published as string} onChange={e => setForm(p => ({ ...p, year_published: e.target.value }))} placeholder="e.g. 2019" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <Input label="Subject" value={form.subject} onChange={e => setForm(p => ({ ...p, subject: e.target.value }))} />
+            <Input label="Level / Class" value={form.level} onChange={e => setForm(p => ({ ...p, level: e.target.value }))} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
@@ -260,10 +299,19 @@ export default function BookCatalogPage() {
                 value={form.category}
                 onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
               >
-                {CATEGORIES.map(c => <option key={c} value={c}>{c.replace('_', ' ')}</option>)}
+                {CATEGORIES.map(c => <option key={c} value={c}>{c.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>)}
               </select>
             </div>
-            <Input label="Level / Class" value={form.level} onChange={e => setForm(p => ({ ...p, level: e.target.value }))} />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Language</label>
+              <select
+                className="w-full rounded-lg px-3 py-2.5 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                value={form.language as string}
+                onChange={e => setForm(p => ({ ...p, language: e.target.value }))}
+              >
+                {['English', 'Twi', 'Ga', 'Ewe', 'Dagbani', 'Hausa', 'French', 'Other'].map(l => <option key={l}>{l}</option>)}
+              </select>
+            </div>
           </div>
           <Input label="Cover URL (optional)" value={form.cover_url} onChange={e => setForm(p => ({ ...p, cover_url: e.target.value }))} />
           {error && <p className="text-xs text-red-500">{error}</p>}

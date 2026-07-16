@@ -161,15 +161,28 @@ router.delete('/:id', async (req, res, next) => {
 
 // ── Library Teacher Assignments ────────────────────────────────────────────────
 
+// Ensure a teacher_responsibilities row exists for the library module in this school
+async function ensureLibraryResponsibility(schoolId) {
+  const { rows } = await pool.query(
+    `INSERT INTO teacher_responsibilities (school_id, name, module_key, sort_order)
+     VALUES ($1, 'Library', 'library', 0)
+     ON CONFLICT (school_id, name) DO UPDATE SET module_key = 'library'
+     RETURNING id`,
+    [schoolId]
+  );
+  return rows[0].id;
+}
+
 // GET /api/school-staff/library-teachers
 router.get('/library-teachers', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT lts.id, lts.teacher_id, lts.is_active, lts.created_at,
+      `SELECT tra.id, tra.teacher_id, tra.created_at,
               t.name AS teacher_name, t.teacher_code
-       FROM library_teacher_staff lts
-       JOIN teachers t ON t.id = lts.teacher_id
-       WHERE lts.school_id = $1
+       FROM teacher_responsibility_assignments tra
+       JOIN teacher_responsibilities tr ON tr.id = tra.responsibility_id
+       JOIN teachers t ON t.id = tra.teacher_id
+       WHERE tr.school_id = $1 AND tr.module_key = 'library'
        ORDER BY t.name`,
       [req.schoolId]
     );
@@ -182,14 +195,33 @@ router.post('/library-teachers', async (req, res, next) => {
   try {
     const { teacher_id } = req.body;
     if (!teacher_id) return res.status(400).json({ error: 'teacher_id is required' });
+    const responsibilityId = await ensureLibraryResponsibility(req.schoolId);
     const { rows } = await pool.query(
-      `INSERT INTO library_teacher_staff (school_id, teacher_id)
-       VALUES ($1, $2)
-       ON CONFLICT (school_id, teacher_id) DO UPDATE SET is_active = true
-       RETURNING *`,
-      [req.schoolId, teacher_id]
+      `INSERT INTO teacher_responsibility_assignments (school_id, teacher_id, responsibility_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (teacher_id, responsibility_id) DO NOTHING
+       RETURNING id, teacher_id, created_at`,
+      [req.schoolId, teacher_id, responsibilityId]
     );
-    res.status(201).json(rows[0]);
+    if (!rows.length) {
+      // Already assigned — return the existing row
+      const { rows: existing } = await pool.query(
+        `SELECT tra.id, tra.teacher_id, tra.created_at, t.name AS teacher_name, t.teacher_code
+         FROM teacher_responsibility_assignments tra
+         JOIN teachers t ON t.id = tra.teacher_id
+         WHERE tra.teacher_id = $1 AND tra.responsibility_id = $2`,
+        [teacher_id, responsibilityId]
+      );
+      return res.status(201).json(existing[0]);
+    }
+    const { rows: full } = await pool.query(
+      `SELECT tra.id, tra.teacher_id, tra.created_at, t.name AS teacher_name, t.teacher_code
+       FROM teacher_responsibility_assignments tra
+       JOIN teachers t ON t.id = tra.teacher_id
+       WHERE tra.id = $1`,
+      [rows[0].id]
+    );
+    res.status(201).json(full[0]);
   } catch (err) {
     if (err.code === '23503') return res.status(404).json({ error: 'Teacher not found' });
     next(err);
@@ -200,7 +232,8 @@ router.post('/library-teachers', async (req, res, next) => {
 router.delete('/library-teachers/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `DELETE FROM library_teacher_staff WHERE id = $1 AND school_id = $2 RETURNING id`,
+      `DELETE FROM teacher_responsibility_assignments
+       WHERE id = $1 AND school_id = $2 RETURNING id`,
       [req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Assignment not found' });

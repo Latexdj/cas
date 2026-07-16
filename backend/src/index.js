@@ -56,8 +56,9 @@ const monitoringRoutes        = require('./routes/assessment-monitoring');
 const departmentRoutes        = require('./routes/departments');
 const primaryRoutes           = require('./routes/primary');
 const lmsRoutes               = require('./routes/lms');
-const { startAbsenceCheckJob }      = require('./jobs/absenceCheck');
-const { startSubscriptionExpiryJob } = require('./jobs/subscriptionExpiry');
+const { startAbsenceCheckJob }          = require('./jobs/absenceCheck');
+const { startSubscriptionExpiryJob }    = require('./jobs/subscriptionExpiry');
+const { startLibraryNotificationJob }   = require('./jobs/libraryNotifications');
 
 const app = express();
 
@@ -844,6 +845,17 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS issued_by_school_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
     await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS issued_by_teacher_id UUID REFERENCES teachers(id) ON DELETE SET NULL`);
     await pool.query(`ALTER TABLE library_resources ADD COLUMN IF NOT EXISTS uploaded_by_school_staff_id UUID REFERENCES school_staff(id) ON DELETE SET NULL`);
+    // Library catalogue enhancements
+    await pool.query(`ALTER TABLE library_books ADD COLUMN IF NOT EXISTS publisher TEXT`);
+    await pool.query(`ALTER TABLE library_books ADD COLUMN IF NOT EXISTS year_published INTEGER`);
+    await pool.query(`ALTER TABLE library_books ADD COLUMN IF NOT EXISTS edition TEXT`);
+    await pool.query(`ALTER TABLE library_books ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'English'`);
+    await pool.query(`ALTER TABLE library_copies ADD COLUMN IF NOT EXISTS shelf_location TEXT`);
+    await pool.query(`ALTER TABLE library_copies ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'available'`);
+    await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS fine_waived BOOLEAN NOT NULL DEFAULT false`);
+    await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS fine_waive_reason TEXT`);
+    await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS renewed_count INTEGER NOT NULL DEFAULT 0`);
+    await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS last_renewed_at TIMESTAMPTZ`);
 
     // Exeat module
     await pool.query(`
@@ -1871,4 +1883,5 @@ app.listen(PORT, async () => {
   await runMigrations();
   startAbsenceCheckJob();
   startSubscriptionExpiryJob();
+  startLibraryNotificationJob();
 });
