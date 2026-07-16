@@ -1202,9 +1202,10 @@ router.get('/results', async (req, res, next) => {
     }
 
     function getGrade(pct, examBody) {
-      const bounds = boundaryMap.get(examBody) || boundaryMap.get('WAEC') || [];
+      const bounds = [...(boundaryMap.get(examBody) || boundaryMap.get('WAEC') || [])]
+        .sort((a, b) => parseFloat(b.min_pct) - parseFloat(a.min_pct));
       for (const b of bounds) {
-        if (pct >= parseFloat(b.min_pct) && pct <= parseFloat(b.max_pct)) {
+        if (pct >= parseFloat(b.min_pct)) {
           return { grade: b.grade, remark: b.remark };
         }
       }

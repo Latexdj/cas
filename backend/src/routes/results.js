@@ -127,15 +127,17 @@ router.get('/', async (req, res, next) => {
     // Grade lookup — uses DB boundaries if configured, falls back to built-in defaults
     function getGrade(total, examBody) {
       const body = examBody || 'WAEC';
-      const bodyBounds = boundaries.filter(b => b.exam_body === body);
+      const bodyBounds = boundaries
+        .filter(b => b.exam_body === body)
+        .sort((a, b) => parseFloat(b.min_pct) - parseFloat(a.min_pct));
 
       if (bodyBounds.length > 0) {
         for (const b of bodyBounds) {
-          if (total >= parseFloat(b.min_pct) && total <= parseFloat(b.max_pct)) {
+          if (total >= parseFloat(b.min_pct)) {
             return { grade: b.grade, remark: b.remark };
           }
         }
-        return { grade: '-', remark: '-' };
+        // Score is below the lowest configured boundary — fall through to defaults
       }
 
       // Built-in defaults when no boundaries have been configured
@@ -506,13 +508,15 @@ router.get('/transcript/:student_id', async (req, res, next) => {
 
     function getGradeT(total, examBody) {
       const body = examBody || 'WAEC';
-      const bodyBounds = boundaries.filter(b => b.exam_body === body);
+      const bodyBounds = boundaries
+        .filter(b => b.exam_body === body)
+        .sort((a, b) => parseFloat(b.min_pct) - parseFloat(a.min_pct));
       if (bodyBounds.length > 0) {
         for (const b of bodyBounds) {
-          if (total >= parseFloat(b.min_pct) && total <= parseFloat(b.max_pct))
+          if (total >= parseFloat(b.min_pct))
             return { grade: b.grade, remark: b.remark };
         }
-        return { grade: '-', remark: '-' };
+        // Score below lowest configured boundary — fall through to defaults
       }
       if (body === 'CTVET') {
         const grade  = total >= 75 ? 'A' : total >= 70 ? 'B+' : total >= 65 ? 'B-' : total >= 55 ? 'C+' : total >= 50 ? 'C-' : total >= 45 ? 'D' : total >= 40 ? 'E' : 'F';

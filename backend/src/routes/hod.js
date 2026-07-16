@@ -359,9 +359,11 @@ router.get('/results', hodOnly, async (req, res, next) => {
     const boundaryList = boundaries;
 
     function getGrade(pct, examBody) {
-      const bounds = boundaryList.filter(b => b.exam_body === (examBody || 'WAEC'));
+      const bounds = boundaryList
+        .filter(b => b.exam_body === (examBody || 'WAEC'))
+        .sort((a, b) => parseFloat(b.min_pct) - parseFloat(a.min_pct));
       for (const b of bounds) {
-        if (pct >= parseFloat(b.min_pct) && pct <= parseFloat(b.max_pct)) return { grade: b.grade, remark: b.remark };
+        if (pct >= parseFloat(b.min_pct)) return { grade: b.grade, remark: b.remark };
       }
       if (pct >= 75) return { grade: 'A1', remark: 'Excellent' };
       if (pct >= 70) return { grade: 'B2', remark: 'Very Good' };
