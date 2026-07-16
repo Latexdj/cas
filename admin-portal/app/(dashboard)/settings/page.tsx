@@ -11,6 +11,7 @@ interface SchoolSettings {
   primary_color: string;
   accent_color: string;
   logo_url?: string | null;
+  headmaster_signature_url?: string | null;
   period_duration_minutes: number;
   ca_percentage: number;
   vision?: string | null;
@@ -265,6 +266,7 @@ function GradeBoundariesCard() {
 
 export default function SettingsPage() {
   const logoFileRef = useRef<HTMLInputElement>(null);
+  const sigFileRef  = useRef<HTMLInputElement>(null);
   const [settings,     setSettings]     = useState<SchoolSettings | null>(null);
   const [primary,      setPrimary]      = useState('#0B3D2E');
   const [accent,       setAccent]       = useState('#C8973A');
@@ -276,6 +278,10 @@ export default function SettingsPage() {
   const [logoSaving,   setLogoSaving]   = useState(false);
   const [logoSaved,    setLogoSaved]    = useState(false);
   const [logoError,    setLogoError]    = useState('');
+  const [sigUrl,       setSigUrl]       = useState<string | null>(null);
+  const [sigSaving,    setSigSaving]    = useState(false);
+  const [sigSaved,     setSigSaved]     = useState(false);
+  const [sigError,     setSigError]     = useState('');
 
   // Period duration state
   const [periodMins,      setPeriodMins]      = useState(60);
@@ -303,6 +309,7 @@ export default function SettingsPage() {
       setPrimary(r.data.primary_color);
       setAccent(r.data.accent_color);
       setLogoUrl(r.data.logo_url ?? null);
+      setSigUrl(r.data.headmaster_signature_url ?? null);
       setPeriodMins(r.data.period_duration_minutes ?? 60);
       setCaPct(r.data.ca_percentage ?? 30);
       setVision(r.data.vision ?? '');
@@ -355,6 +362,24 @@ export default function SettingsPage() {
     } finally {
       setLogoSaving(false);
       if (logoFileRef.current) logoFileRef.current.value = '';
+    }
+  }
+
+  async function handleSignatureChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSigSaving(true); setSigError(''); setSigSaved(false);
+    try {
+      const dataUrl = await compressToBase64(file);
+      const res = await api.patch('/api/admin/settings/signature', { imageBase64: dataUrl });
+      setSigUrl(res.data.headmaster_signature_url);
+      setSigSaved(true);
+      setTimeout(() => setSigSaved(false), 3000);
+    } catch {
+      setSigError('Failed to upload signature. Please try again.');
+    } finally {
+      setSigSaving(false);
+      if (sigFileRef.current) sigFileRef.current.value = '';
     }
   }
 
@@ -451,6 +476,47 @@ export default function SettingsPage() {
             {logoSaved  && <p className="text-xs mt-2" style={{ color: '#15803D' }}>✓ Logo updated successfully.</p>}
             {logoError  && <p className="text-xs mt-2" style={{ color: '#DC2626' }}>{logoError}</p>}
             {!logoUrl   && !logoSaved && <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>No logo uploaded yet.</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Headmaster / Principal Signature */}
+      <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>Headmaster / Principal Signature</h2>
+        <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
+          Uploaded signature will be printed automatically on student report cards. Use a clear image on a white or transparent background.
+        </p>
+        <input ref={sigFileRef} type="file" accept="image/*" className="hidden" onChange={handleSignatureChange} />
+        <div className="flex items-center gap-5">
+          {/* Signature preview */}
+          <div className="rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
+            style={{ width: '160px', height: '64px', border: '2px dashed #E2E8F0', background: '#F8FAFC' }}>
+            {sigUrl ? (
+              <img src={sigUrl} alt="Headmaster signature" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-7 h-7" style={{ color: '#CBD5E1' }}>
+                <path d="M3 17c2-2 4-4 6-4s3 2 5 2 4-2 7-5" strokeLinecap="round" />
+                <path d="M3 20h18" strokeLinecap="round" />
+              </svg>
+            )}
+          </div>
+          <div className="flex-1">
+            <button
+              onClick={() => sigFileRef.current?.click()}
+              disabled={sigSaving}
+              className="px-4 py-2 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-40"
+              style={{ borderColor: '#15803D', color: '#15803D', background: '#F0FDF4' }}
+            >
+              {sigSaving ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 rounded-full border-2 border-green-700 border-t-transparent animate-spin" />
+                  Uploading...
+                </span>
+              ) : sigUrl ? 'Replace Signature' : 'Upload Signature'}
+            </button>
+            {sigSaved && <p className="text-xs mt-2" style={{ color: '#15803D' }}>✓ Signature updated successfully.</p>}
+            {sigError && <p className="text-xs mt-2" style={{ color: '#DC2626' }}>{sigError}</p>}
+            {!sigUrl  && !sigSaved && <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>No signature uploaded yet.</p>}
           </div>
         </div>
       </div>

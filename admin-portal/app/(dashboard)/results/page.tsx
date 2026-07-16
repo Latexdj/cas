@@ -33,20 +33,21 @@ function FemaleAvatar() {
 
 // ── A4 Report Card ────────────────────────────────────────────────────────────
 interface ReportCardProps {
-  result:        StudentResult;
-  className:     string;
-  yearName:      string;
-  semester:      string;
-  caLabel:       string;
-  exLabel:       string;
-  schoolName:    string;
-  schoolAddress: string;
-  schoolLogo:    string | null;
-  remark:        ReportRemark | null;
-  isLast:        boolean;
+  result:             StudentResult;
+  className:          string;
+  yearName:           string;
+  semester:           string;
+  caLabel:            string;
+  exLabel:            string;
+  schoolName:         string;
+  schoolAddress:      string;
+  schoolLogo:         string | null;
+  schoolSignature:    string | null;
+  remark:             ReportRemark | null;
+  isLast:             boolean;
 }
 
-function ReportCard({ result, className, yearName, semester, caLabel, exLabel, schoolName, schoolAddress, schoolLogo, remark, isLast }: ReportCardProps) {
+function ReportCard({ result, className, yearName, semester, caLabel, exLabel, schoolName, schoolAddress, schoolLogo, schoolSignature, remark, isLast }: ReportCardProps) {
   const subjects = result.subjects.filter(s => s.total != null);
   const maxScore = 100;
 
@@ -268,7 +269,12 @@ function ReportCard({ result, className, yearName, semester, caLabel, exLabel, s
               <td style={{ width: '34%', paddingTop: '22px', textAlign: 'center' }}>
                 <div style={{ borderTop: `1.5px solid #888`, paddingTop: '4px', color: '#555' }}>Next Term Begins</div>
               </td>
-              <td style={{ width: '33%', paddingTop: '22px', paddingLeft: '20px', textAlign: 'right' }}>
+              <td style={{ width: '33%', paddingLeft: '20px', textAlign: 'right' }}>
+                {schoolSignature && (
+                  <img src={schoolSignature} alt="Headmaster signature"
+                    style={{ height: '36px', maxWidth: '120px', objectFit: 'contain', display: 'inline-block', marginBottom: '2px' }} />
+                )}
+                {!schoolSignature && <div style={{ paddingTop: '22px' }} />}
                 <div style={{ borderTop: `1.5px solid #888`, paddingTop: '4px', color: '#555' }}>Headmaster&apos;s Signature &amp; Date</div>
               </td>
             </tr>
@@ -566,7 +572,7 @@ const SUB_STATUS: Record<string, { label: string; color: string; bg: string }> =
 };
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
-interface SchoolProfile { name: string; address: string | null; logo_url: string | null; }
+interface SchoolProfile { name: string; address: string | null; logo_url: string | null; headmaster_signature_url: string | null; }
 
 export default function ResultsPage() {
   const [years,         setYears]         = useState<AcademicYear[]>([]);
@@ -581,7 +587,7 @@ export default function ResultsPage() {
   const [selected,      setSelected]      = useState<StudentResult | null>(null);
   const [showImport,    setShowImport]    = useState(false);
   const [showRemarks,   setShowRemarks]   = useState(false);
-  const [school,        setSchool]        = useState<SchoolProfile>({ name: '', address: null, logo_url: null });
+  const [school,        setSchool]        = useState<SchoolProfile>({ name: '', address: null, logo_url: null, headmaster_signature_url: null });
   const [remarksMap,    setRemarksMap]    = useState<Record<string, ReportRemark>>({});
   const [printTarget,   setPrintTarget]   = useState<'all' | StudentResult | null>(null);
 
@@ -726,6 +732,7 @@ export default function ResultsPage() {
             schoolName={school.name}
             schoolAddress={school.address ?? ''}
             schoolLogo={school.logo_url}
+            schoolSignature={school.headmaster_signature_url ?? null}
             remark={remarksMap[r.student_id] ?? null}
             isLast={i === printStudents.length - 1}
           />

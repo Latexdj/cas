@@ -24,7 +24,7 @@ interface SemesterResult {
   attendance: { present: number; late: number; absent: number; total: number } | null;
 }
 interface HistoryPoint { label: string; academic_year: string; semester: number; average: number; grade: string; subject_count: number; }
-interface SchoolProfile { name: string; address: string | null; logo_url: string | null; }
+interface SchoolProfile { name: string; address: string | null; logo_url: string | null; headmaster_signature_url: string | null; }
 
 interface ClassStats {
   class_name: string;
@@ -49,13 +49,14 @@ function ordinal(n: number): string {
 
 // ── A4 Report Card ────────────────────────────────────────────────────────────
 
-function ReportCard({ result, yearName, semester, schoolName, schoolAddress, schoolLogo }: {
+function ReportCard({ result, yearName, semester, schoolName, schoolAddress, schoolLogo, schoolSignature }: {
   result: SemesterResult;
   yearName: string;
   semester: string;
   schoolName: string;
   schoolAddress: string;
   schoolLogo: string | null;
+  schoolSignature: string | null;
 }) {
   const subjects = result.subjects.filter(s => s.total != null);
   const GREEN  = '#1a5c38';
@@ -270,7 +271,12 @@ function ReportCard({ result, yearName, semester, schoolName, schoolAddress, sch
               <td style={{ width: '34%', paddingTop: '22px', textAlign: 'center' }}>
                 <div style={{ borderTop: `1.5px solid #888`, paddingTop: '4px', color: '#555' }}>Next Term Begins</div>
               </td>
-              <td style={{ width: '33%', paddingTop: '22px', paddingLeft: '20px', textAlign: 'right' }}>
+              <td style={{ width: '33%', paddingLeft: '20px', textAlign: 'right' }}>
+                {schoolSignature && (
+                  <img src={schoolSignature} alt="Headmaster signature"
+                    style={{ height: '36px', maxWidth: '120px', objectFit: 'contain', display: 'inline-block', marginBottom: '2px' }} />
+                )}
+                {!schoolSignature && <div style={{ paddingTop: '22px' }} />}
                 <div style={{ borderTop: `1.5px solid #888`, paddingTop: '4px', color: '#555' }}>Headmaster&apos;s Signature &amp; Date</div>
               </td>
             </tr>
@@ -364,6 +370,7 @@ export default function StudentResultsPage() {
             schoolName={school.name}
             schoolAddress={school.address ?? ''}
             schoolLogo={school.logo_url}
+            schoolSignature={school.headmaster_signature_url ?? null}
           />
         )}
       </div>

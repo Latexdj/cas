@@ -70,7 +70,7 @@ router.get('/profile', async (req, res, next) => {
 router.get('/school-profile', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT name, address, logo_url FROM schools WHERE id = $1`,
+      `SELECT name, address, logo_url, headmaster_signature_url FROM schools WHERE id = $1`,
       [req.schoolId]
     );
     res.json(rows[0] ?? {});

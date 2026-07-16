@@ -36,7 +36,7 @@ router.get('/modules', async (req, res, next) => {
 router.get('/school-profile', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT name, address, logo_url FROM schools WHERE id = $1`,
+      `SELECT name, address, logo_url, headmaster_signature_url FROM schools WHERE id = $1`,
       [req.schoolId]
     );
     res.json(rows[0] ?? {});
@@ -394,6 +394,7 @@ router.get('/settings', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, code, email, phone, address, primary_color, accent_color, logo_url,
+              headmaster_signature_url,
               period_duration_minutes, ca_percentage,
               school_type, school_category, motto, region, district,
               admission_prefix, admission_year,
@@ -506,6 +507,21 @@ router.patch('/settings/logo', async (req, res, next) => {
       [logoUrl, req.schoolId]
     );
     res.json({ logo_url: logoUrl });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/admin/settings/signature — upload / replace headmaster signature
+router.patch('/settings/signature', adminOnly, async (req, res, next) => {
+  try {
+    const { imageBase64 } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 is required' });
+    const filePath = `headmaster-signatures/${req.schoolId}`;
+    const sigUrl   = await uploadFile(imageBase64, filePath, { upsert: true });
+    await pool.query(
+      `UPDATE schools SET headmaster_signature_url = $1, updated_at = now() WHERE id = $2`,
+      [sigUrl, req.schoolId]
+    );
+    res.json({ headmaster_signature_url: sigUrl });
   } catch (err) { next(err); }
 });
 

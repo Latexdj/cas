@@ -857,6 +857,9 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS renewed_count INTEGER NOT NULL DEFAULT 0`);
     await pool.query(`ALTER TABLE library_loans ADD COLUMN IF NOT EXISTS last_renewed_at TIMESTAMPTZ`);
 
+    // Headmaster/Principal signature
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS headmaster_signature_url TEXT`);
+
     // Exeat module
     await pool.query(`
       CREATE TABLE IF NOT EXISTS exeats (
