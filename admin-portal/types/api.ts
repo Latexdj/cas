@@ -143,6 +143,7 @@ export interface StudentResult {
   class_total?: number;
   ca_percentage: number;
   exam_percentage: number;
+  attendance: { present: number; late: number; absent: number; total: number } | null;
 }
 
 export interface ReportRemark {

@@ -299,6 +299,26 @@ router.get('/', async (req, res, next) => {
       rankedStudents[i].class_total = rankedStudents.length;
     }
 
+    // Attendance per student for this class / year / semester
+    const { rows: attRows } = await pool.query(
+      `SELECT sar.student_id,
+              COUNT(*)::int                                          AS total,
+              COUNT(*) FILTER (WHERE sar.status = 'Present')::int   AS present,
+              COUNT(*) FILTER (WHERE sar.status = 'Late')::int      AS late,
+              COUNT(*) FILTER (WHERE sar.status = 'Absent')::int    AS absent
+       FROM student_attendance_records sar
+       JOIN student_attendance_sessions sas ON sas.id = sar.session_id
+       WHERE sas.school_id = $1
+         AND sas.academic_year_id = $2
+         AND sas.semester = $3
+         AND LOWER(sas.class_name) = LOWER($4)
+       GROUP BY sar.student_id`,
+      [req.schoolId, academic_year_id, parseInt(semester), class_name]
+    );
+    const attMap = {};
+    for (const r of attRows) attMap[r.student_id] = { present: r.present, late: r.late, absent: r.absent, total: r.total };
+    for (const r of results) r.attendance = attMap[r.student_id] ?? null;
+
     res.json(results);
   } catch (err) { next(err); }
 });

@@ -275,6 +275,22 @@ router.get('/results', async (req, res, next) => {
       [req.schoolId, student.id, academic_year_id, semInt]
     );
 
+    // Attendance for this student / year / semester
+    const { rows: attRows } = await pool.query(
+      `SELECT COUNT(*)::int                                          AS total,
+              COUNT(*) FILTER (WHERE sar.status = 'Present')::int   AS present,
+              COUNT(*) FILTER (WHERE sar.status = 'Late')::int      AS late,
+              COUNT(*) FILTER (WHERE sar.status = 'Absent')::int    AS absent
+       FROM student_attendance_records sar
+       JOIN student_attendance_sessions sas ON sas.id = sar.session_id
+       WHERE sas.school_id = $1
+         AND sas.academic_year_id = $2
+         AND sas.semester = $3
+         AND sar.student_id = $4`,
+      [req.schoolId, academic_year_id, semInt, student.id]
+    );
+    const attendance = attRows[0]?.total > 0 ? attRows[0] : null;
+
     res.json({
       student: {
         id: student.id, name: student.name, student_code: student.student_code,
@@ -286,6 +302,7 @@ router.get('/results', async (req, res, next) => {
       class_position,
       class_total,
       remarks: remarkRows[0] ?? null,
+      attendance,
     });
   } catch (err) { next(err); }
 });

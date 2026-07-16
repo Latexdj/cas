@@ -21,6 +21,7 @@ interface SemesterResult {
   class_total: number | null;
   remarks: { attitude: string | null; conduct: string | null; general_remarks: string | null; interest: string | null } | null;
   form_teacher_remarks?: FormTeacherRemarks | null;
+  attendance: { present: number; late: number; absent: number; total: number } | null;
 }
 interface HistoryPoint { label: string; academic_year: string; semester: number; average: number; grade: string; subject_count: number; }
 interface SchoolProfile { name: string; address: string | null; logo_url: string | null; }
@@ -152,6 +153,27 @@ function ReportCard({ result, yearName, semester, schoolName, schoolAddress, sch
           </div>
         ))}
       </div>
+
+      {/* Attendance */}
+      {result.attendance && (
+        <div style={{ background: LGREEN, border: `1px solid #c6e8d8`, borderRadius: '5px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '7.5pt', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: GREEN, marginRight: '4px' }}>Attendance</span>
+          {[
+            { label: 'Periods Present', value: result.attendance.present, color: '#15803D' },
+            { label: 'Late',            value: result.attendance.late,    color: '#D97706' },
+            { label: 'Absent',          value: result.attendance.absent,  color: '#DC2626' },
+            { label: 'Total Periods',   value: result.attendance.total,   color: '#333'    },
+          ].map(({ label, value, color }) => (
+            <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: `1px solid #c6e8d8`, borderRadius: '4px', padding: '3px 8px', background: '#fff', minWidth: '60px' }}>
+              <span style={{ fontSize: '11pt', fontWeight: 900, color, lineHeight: 1.1 }}>{value}</span>
+              <span style={{ fontSize: '6.5pt', color: '#666', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px', marginTop: '1px' }}>{label}</span>
+            </div>
+          ))}
+          <div style={{ marginLeft: 'auto', fontSize: '8.5pt', fontWeight: 700, color: GREEN }}>
+            {result.attendance.present} / {result.attendance.total} periods
+          </div>
+        </div>
+      )}
 
       {/* Subject Table */}
       <div>

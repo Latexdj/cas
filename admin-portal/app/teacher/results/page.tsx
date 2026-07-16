@@ -203,6 +203,26 @@ function ResultsContent() {
               </div>
             </div>
 
+            {/* Attendance */}
+            {selected.attendance && (
+              <div className="px-5 pt-4 pb-0">
+                <p className="text-xs font-semibold text-[#8C7E6E] uppercase tracking-wide mb-2">Attendance</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: 'Present',       value: selected.attendance.present, color: '#15803D' },
+                    { label: 'Late',          value: selected.attendance.late,    color: '#D97706' },
+                    { label: 'Absent',        value: selected.attendance.absent,  color: '#DC2626' },
+                    { label: 'Total Periods', value: selected.attendance.total,   color: '#2C2218' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="bg-[#F4EFE6] rounded-xl p-2.5 text-center">
+                      <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide">{label}</p>
+                      <p className="text-lg font-bold mt-0.5" style={{ color }}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Subject table */}
             <div className="px-5 py-4">
               <p className="text-xs font-semibold text-[#8C7E6E] uppercase tracking-wide mb-3">Subject Breakdown</p>
