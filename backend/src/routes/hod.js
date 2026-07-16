@@ -415,7 +415,7 @@ router.get('/results', hodOnly, async (req, res, next) => {
         if (caScore === null && examScore === null) continue;
         const roundedCA   = caScore   !== null ? Math.round(caScore   * 10) / 10 : null;
         const roundedExam = examScore !== null ? Math.round(examScore * 10) / 10 : null;
-        const total = Math.round(((caScore??0)+(examScore??0))*10)/10;
+        const total = Math.round((caScore??0)+(examScore??0));
         const { grade, remark } = getGrade(total, examBody);
         subjectResults.push({ subject, ca_score: roundedCA, exam_score: roundedExam, total, grade, remark });
       }

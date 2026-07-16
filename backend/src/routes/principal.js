@@ -1294,7 +1294,7 @@ router.get('/results', async (req, res, next) => {
         let total = null, grade = null, remark = null, isImported = false;
 
         if (caScore !== null || examScore !== null) {
-          total = Math.round(((caScore ?? 0) + (examScore ?? 0)) * 10) / 10;
+          total = Math.round((caScore ?? 0) + (examScore ?? 0));
           const g = getGrade(total, examBody);
           grade = g.grade; remark = g.remark;
         } else if (importEntry) {

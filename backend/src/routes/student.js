@@ -189,7 +189,7 @@ router.get('/results', async (req, res, next) => {
         subject,
         ca_score:    caScore   !== null ? Math.round(caScore   * 10) / 10 : null,
         exam_score:  examScore !== null ? Math.round(examScore * 10) / 10 : null,
-        total:       total     !== null ? Math.round(total     * 10) / 10 : null,
+        total:       total     !== null ? Math.round(total)             : null,
         grade,
         remark,
         is_imported: d.imported,

@@ -213,7 +213,7 @@ router.get('/', async (req, res, next) => {
 
           const examEntry = examData[st.id]?.[subject];
           const examScore = examEntry ? (examEntry.score / examEntry.max_score) * examPercentage : null;
-          const total = (examScore != null) ? Math.round((scaledCA + examScore) * 10) / 10 : null;
+          const total = (examScore != null) ? Math.round(scaledCA + examScore) : null;
 
           subjectResults[subject].push({
             student_id:  st.id,
@@ -628,7 +628,7 @@ router.get('/transcript/:student_id', async (req, res, next) => {
           const scaledCA = totalConfiguredCA > 0 ? (caScore / totalConfiguredCA) * caPercentage : caScore;
           const ee = myExam[subject];
           const ev = ee ? (ee.score / ee.max_score) * examPercentage : null;
-          total     = ev != null ? Math.round((scaledCA + ev) * 10) / 10 : null;
+          total     = ev != null ? Math.round(scaledCA + ev) : null;
           ca_score  = Math.round(scaledCA * 10) / 10;
           exam_score = ev != null ? Math.round(ev * 10) / 10 : null;
           const g = total != null ? getGradeT(total, student.exam_body) : { grade: '-', remark: '-' };
