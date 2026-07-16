@@ -300,7 +300,7 @@ export default function StudentResultsPage() {
   const [history,      setHistory]      = useState<HistoryPoint[]>([]);
   const [loading,      setLoading]      = useState(false);
   const [printing,     setPrinting]     = useState(false);
-  const [school,       setSchool]       = useState<SchoolProfile>({ name: '', address: null, logo_url: null });
+  const [school,       setSchool]       = useState<SchoolProfile>({ name: '', address: null, logo_url: null, headmaster_signature_url: null });
   const colors = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
   const primary = colors.primary;
 
