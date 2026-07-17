@@ -304,6 +304,13 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
         if (keys.includes('hod')) setIsHod(true);
       })
       .catch(() => {});
+    // Check departments.head_teacher_id path — not covered by the two calls above.
+    // HODs assigned via the Departments admin page (without clearance enabled) are
+    // only visible through this endpoint, which uses the same hodOnly middleware
+    // as all /api/hod/* routes.
+    teacherApi.get('/api/hod/check')
+      .then(() => setIsHod(true))
+      .catch(() => {});
     const interval = setInterval(fetchUnread, 60_000);
     return () => clearInterval(interval);
   }, [pathname, router, fetchUnread]);

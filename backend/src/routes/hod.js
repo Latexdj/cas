@@ -81,6 +81,13 @@ async function getCurrentYear(schoolId) {
   return rows[0] ?? null;
 }
 
+// ── GET /api/hod/check — lightweight probe used by the frontend shell ────────
+// Returns 200 + dept info if the teacher is an HOD via any assignment path,
+// 403 otherwise. The frontend calls this to show/hide the "My Dept" nav link.
+router.get('/check', hodOnly, (req, res) => {
+  res.json({ is_hod: true, dept: req.hodDept, is_subject_hod: req.isSubjectHod });
+});
+
 // ── GET /api/hod/overview ────────────────────────────────────────────────────
 router.get('/overview', hodOnly, async (req, res, next) => {
   try {
