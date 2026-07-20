@@ -362,6 +362,120 @@ async function buildExcel(report, rows) {
   return wb;
 }
 
+// ── Assessment completion helper ───────────────────────────────────────────────
+// Returns a flat array of rows used by both the JSON and Excel endpoints.
+// Each row: { teacher_name, department, subject, class_name, total_students,
+//             outstanding_modes, exam_status, completion_pct, _pct (raw number) }
+async function buildTeacherCompletionRows(schoolId, academicYearId, semester) {
+  const sem = parseInt(semester);
+
+  // CA modes for this school
+  const { rows: modes } = await pool.query(
+    `SELECT id, name FROM assessment_modes WHERE school_id = $1 ORDER BY sort_order, name`,
+    [schoolId]
+  );
+
+  // Timetable matrix
+  const { rows: timetable } = await pool.query(`
+    WITH expanded AS (
+      SELECT DISTINCT t.teacher_id, LOWER(t.subject) AS subject_key, t.subject,
+                      TRIM(cls) AS class_name
+      FROM timetable t,
+           LATERAL unnest(string_to_array(t.class_names, ',')) AS cls
+      WHERE t.school_id=$1 AND t.academic_year_id=$2 AND t.semester=$3
+    )
+    SELECT e.teacher_id, te.name AS teacher_name, te.department,
+           e.subject, e.class_name,
+           (SELECT COUNT(*)::int FROM students s
+            WHERE s.school_id=$1 AND LOWER(s.class_name)=LOWER(e.class_name)
+              AND s.status='Active') AS total_students
+    FROM expanded e
+    JOIN teachers te ON te.id=e.teacher_id AND te.school_id=$1
+    ORDER BY te.name, e.subject, e.class_name
+  `, [schoolId, academicYearId, sem]);
+
+  if (timetable.length === 0) return [];
+
+  // Per-(teacher, subject, class, mode) assessment + score counts
+  const { rows: modeCounts } = await pool.query(
+    `SELECT a.teacher_id, LOWER(a.subject) AS subject_key, LOWER(a.class_name) AS class_key,
+            a.mode_id,
+            COUNT(DISTINCT a.id)::int AS assessments_created,
+            COUNT(DISTINCT CASE WHEN asc2.score IS NOT NULL OR asc2.absent = true THEN asc2.student_id END)::int AS students_scored
+     FROM assessments a
+     LEFT JOIN assessment_scores asc2 ON asc2.assessment_id = a.id
+     WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
+     GROUP BY a.teacher_id, LOWER(a.subject), LOWER(a.class_name), a.mode_id`,
+    [schoolId, academicYearId, sem]
+  );
+  const modeMap = {};
+  for (const mc of modeCounts) {
+    modeMap[`${mc.teacher_id}|${mc.subject_key}|${mc.class_key}|${mc.mode_id}`] = mc;
+  }
+
+  // Per-(teacher, subject, class) exam score counts
+  const { rows: examCounts } = await pool.query(
+    `SELECT teacher_id, LOWER(subject) AS subject_key, LOWER(class_name) AS class_key,
+            COUNT(DISTINCT student_id)::int AS students_scored
+     FROM exam_scores
+     WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3
+     GROUP BY teacher_id, LOWER(subject), LOWER(class_name)`,
+    [schoolId, academicYearId, sem]
+  );
+  const examMap = {};
+  for (const ec of examCounts) examMap[`${ec.teacher_id}|${ec.subject_key}|${ec.class_key}`] = ec.students_scored;
+
+  return timetable.map(r => {
+    const total    = r.total_students || 0;
+    const subjKey  = r.subject.toLowerCase();
+    const clsKey   = r.class_name.toLowerCase();
+    const baseKey  = `${r.teacher_id}|${subjKey}|${clsKey}`;
+
+    // Outstanding CA modes
+    const incompleteNames = modes
+      .filter(m => {
+        const mc = modeMap[`${baseKey}|${m.id}`];
+        const created = mc?.assessments_created ?? 0;
+        const scored  = mc?.students_scored ?? 0;
+        return !(created >= 1 && total > 0 && scored >= total);
+      })
+      .map(m => {
+        const mc      = modeMap[`${baseKey}|${m.id}`];
+        const created = mc?.assessments_created ?? 0;
+        const scored  = mc?.students_scored ?? 0;
+        if (created === 0) return `${m.name} (not started)`;
+        return `${m.name} (${scored}/${total} students)`;
+      });
+
+    const outstandingModes = incompleteNames.length === 0 ? 'All CA modes complete' : incompleteNames.join(', ');
+    const completeModes    = modes.length - incompleteNames.length;
+
+    const examScored   = examMap[baseKey] ?? 0;
+    const examComplete = total > 0 && examScored >= total;
+    const examStatus   = examComplete
+      ? 'Complete'
+      : examScored > 0
+        ? `${examScored} / ${total} entered`
+        : 'Not started';
+
+    const denom  = modes.length + 1;
+    const numer  = completeModes + (examComplete ? 1 : 0);
+    const pct    = denom === 0 ? 0 : Math.round((numer / denom) * 100);
+
+    return {
+      teacher_name:      r.teacher_name,
+      department:        r.department ?? '—',
+      subject:           r.subject,
+      class_name:        r.class_name,
+      total_students:    total,
+      outstanding_modes: outstandingModes,
+      exam_status:       examStatus,
+      completion_pct:    pct + '%',
+      _pct:              pct,
+    };
+  }).sort((a, b) => a._pct - b._pct || a.teacher_name.localeCompare(b.teacher_name));
+}
+
 // ── Routes ─────────────────────────────────────────────────────────────────────
 
 router.get('/students', async (req, res, next) => {
@@ -542,40 +656,20 @@ router.get('/academic', async (req, res, next) => {
     }
 
     if (type === 'teacher_completion') {
-      // For each teacher: how many distinct subject/class combos they have exam scores for vs submissions
-      const { rows } = await pool.query(`
-        SELECT t.name AS teacher_name, t.department,
-               COUNT(DISTINCT es.subject || '||' || es.class_name) AS subjects_scored,
-               COUNT(DISTINCT rs.id) FILTER (WHERE rs.status IN ('submitted','hod_approved','final_approved','published')) AS subjects_submitted,
-               COUNT(DISTINCT rs.id) FILTER (WHERE rs.status = 'published') AS subjects_published
-        FROM teachers t
-        LEFT JOIN exam_scores es ON es.teacher_id = t.id AND es.academic_year_id=$2 AND es.semester=$3 AND es.school_id=$1
-        LEFT JOIN result_submissions rs ON rs.teacher_id = t.id AND rs.academic_year_id=$2 AND rs.semester=$3 AND rs.school_id=$1
-        WHERE t.school_id=$1 AND t.status='Active'
-        GROUP BY t.id, t.name, t.department
-        HAVING COUNT(DISTINCT es.subject || '||' || es.class_name) > 0
-           OR COUNT(DISTINCT rs.id) > 0
-        ORDER BY subjects_submitted ASC, teacher_name
-      `, [req.schoolId, academic_year_id, sem]);
-
-      const resultRows = rows.map(r => ({
-        group: r.teacher_name,
-        department: r.department || '—',
-        subjects_scored: parseInt(r.subjects_scored),
-        subjects_submitted: parseInt(r.subjects_submitted),
-        subjects_published: parseInt(r.subjects_published),
-      }));
+      const tcRows = await buildTeacherCompletionRows(req.schoolId, academic_year_id, sem);
       const totals = {
-        group: 'TOTAL', department: '—',
-        subjects_scored: resultRows.reduce((s,r)=>s+r.subjects_scored,0),
-        subjects_submitted: resultRows.reduce((s,r)=>s+r.subjects_submitted,0),
-        subjects_published: resultRows.reduce((s,r)=>s+r.subjects_published,0),
+        teacher_name: `${tcRows.length} assignment${tcRows.length !== 1 ? 's' : ''}`,
+        department: '', subject: '', class_name: '', total_students: '',
+        outstanding_modes: '', exam_status: '',
+        completion_pct: tcRows.length
+          ? Math.round(tcRows.reduce((s, r) => s + r._pct, 0) / tcRows.length) + '%'
+          : '—',
       };
       return res.json({
-        label: 'Assessment Submission Tracker',
-        columns: ['Teacher', 'Department', 'Subjects Scored', 'Submitted', 'Published'],
-        keys: ['group', 'department', 'subjects_scored', 'subjects_submitted', 'subjects_published'],
-        rows: resultRows, totals,
+        label: 'Assessment Score Entry Report',
+        columns: ['Teacher', 'Department', 'Subject', 'Class', 'Students', 'Outstanding CA Modes', 'Exam Status', 'Completion'],
+        keys: ['teacher_name', 'department', 'subject', 'class_name', 'total_students', 'outstanding_modes', 'exam_status', 'completion_pct'],
+        rows: tcRows, totals,
       });
     }
 
@@ -718,30 +812,10 @@ router.get('/academic/excel', async (req, res, next) => {
       columns = ['Subject', 'Avg Score', 'Students Scored', 'Passing', 'Pass Rate'];
       keys    = ['group', 'avg_pct', 'total_students', 'passing', 'pass_rate'];
     } else if (type === 'teacher_completion') {
-      const { rows } = await pool.query(`
-        SELECT t.name AS teacher_name, t.department,
-               COUNT(DISTINCT es.subject || '||' || es.class_name) AS subjects_scored,
-               COUNT(DISTINCT rs.id) FILTER (WHERE rs.status IN ('submitted','hod_approved','final_approved','published')) AS subjects_submitted,
-               COUNT(DISTINCT rs.id) FILTER (WHERE rs.status = 'published') AS subjects_published
-        FROM teachers t
-        LEFT JOIN exam_scores es ON es.teacher_id = t.id AND es.academic_year_id=$2 AND es.semester=$3 AND es.school_id=$1
-        LEFT JOIN result_submissions rs ON rs.teacher_id = t.id AND rs.academic_year_id=$2 AND rs.semester=$3 AND rs.school_id=$1
-        WHERE t.school_id=$1 AND t.status='Active'
-        GROUP BY t.id, t.name, t.department
-        HAVING COUNT(DISTINCT es.subject || '||' || es.class_name) > 0
-           OR COUNT(DISTINCT rs.id) > 0
-        ORDER BY subjects_submitted ASC, teacher_name
-      `, [req.schoolId, academic_year_id, sem]);
-      resultRows = rows.map(r => ({
-        group: r.teacher_name,
-        department: r.department || '—',
-        subjects_scored: parseInt(r.subjects_scored),
-        subjects_submitted: parseInt(r.subjects_submitted),
-        subjects_published: parseInt(r.subjects_published),
-      }));
-      label   = 'Assessment Submission Tracker';
-      columns = ['Teacher', 'Department', 'Subjects Scored', 'Submitted', 'Published'];
-      keys    = ['group', 'department', 'subjects_scored', 'subjects_submitted', 'subjects_published'];
+      resultRows = await buildTeacherCompletionRows(req.schoolId, academic_year_id, sem);
+      label   = 'Assessment Score Entry Report';
+      columns = ['Teacher', 'Department', 'Subject', 'Class', 'Students', 'Outstanding CA Modes', 'Exam Status', 'Completion'];
+      keys    = ['teacher_name', 'department', 'subject', 'class_name', 'total_students', 'outstanding_modes', 'exam_status', 'completion_pct'];
     } else if (type === 'at_risk_students') {
       let classFilter = '';
       const params = [req.schoolId, academic_year_id, sem];
