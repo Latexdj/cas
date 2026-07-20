@@ -41,7 +41,6 @@ const TEACHER_REPORTS: ReportDef[] = [
 const ACADEMIC_REPORTS: AcademicReportDef[] = [
   { key: 'class_performance',  label: 'Class Performance Summary',     needsClass: false },
   { key: 'subject_pass_rate',  label: 'Subject Pass Rate',             needsClass: false },
-  { key: 'teacher_completion', label: 'Assessment Submission Tracker', needsClass: false },
   { key: 'at_risk_students',   label: 'At-Risk Students',              needsClass: false },
   { key: 'grade_distribution', label: 'Grade Distribution',            needsClass: true  },
 ];

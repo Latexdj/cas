@@ -238,13 +238,33 @@ export default function AssessmentTrackerPage() {
 
   return (
     <div className="space-y-5">
-      {/* Print styles injected via a style tag */}
       <style>{`
         @media print {
           body * { visibility: hidden !important; }
-          #print-report { display: block !important; visibility: visible !important; position: fixed; top: 0; left: 0; width: 100%; padding: 20px; background: white; }
+          #print-report {
+            display: block !important;
+            visibility: visible !important;
+            position: absolute !important;
+            top: 0 !important; left: 0 !important;
+            width: 100% !important;
+            background: white !important;
+            padding: 0 !important;
+          }
           #print-report * { visibility: visible !important; }
-          @page { margin: 15mm; size: A4 landscape; }
+          .pr-teacher-block { page-break-inside: avoid; break-inside: avoid; }
+          .pr-page-break    { page-break-before: always; break-before: page; }
+          @page {
+            size: A4 landscape;
+            margin: 12mm 14mm;
+            @bottom-center {
+              content: "Assessment Score Entry Report — " attr(data-year);
+              font-size: 7pt; color: #999;
+            }
+            @bottom-right {
+              content: "Page " counter(page) " of " counter(pages);
+              font-size: 7pt; color: #999;
+            }
+          }
         }
       `}</style>
 
@@ -439,13 +459,13 @@ export default function AssessmentTrackerPage() {
         </div>
       )}
 
-      {/* Print Report button */}
+      {/* Print / PDF button */}
       {data && filtered.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-slate-800">Completion Report</p>
+            <p className="text-sm font-semibold text-slate-800">Assessment Score Entry Report</p>
             <p className="text-xs text-slate-500 mt-0.5">
-              Print a full report showing outstanding scores per teacher for {yearLabel} · Semester {semester}.
+              Print or save as PDF — landscape A4, all pages captured. Shows outstanding entries by mode name.
             </p>
           </div>
           <button onClick={handlePrint}
@@ -456,137 +476,169 @@ export default function AssessmentTrackerPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
               <rect x="6" y="14" width="12" height="8" />
             </svg>
-            Print Report
+            Print / PDF
           </button>
         </div>
       )}
 
-      {/* ── Hidden print-only report ──────────────────────────────────────────── */}
+      {/* ── Print-only report (hidden on screen, visible when printing) ─────── */}
       {data && (() => {
         const incomplete = filtered.filter(t => t.rows.some(r => r.completion_pct < 100));
         const allDone    = filtered.filter(t => t.rows.every(r => r.completion_pct === 100));
+        const printDate  = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        const printTime  = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+        const thStyle: React.CSSProperties = {
+          padding: '6px 10px', textAlign: 'left', fontSize: '7pt',
+          fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px',
+          color: '#fff', background: '#1a5c38', whiteSpace: 'nowrap',
+          borderRight: '1px solid #2d7a50',
+        };
+        const tdBase: React.CSSProperties = {
+          padding: '5px 10px', fontSize: '8.5pt', borderBottom: '1px solid #e8f0ec',
+          verticalAlign: 'top',
+        };
+
         return (
           <div id="print-report" ref={printRef} style={{ display: 'none' }}>
-            <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#1a1a1a' }}>
+            <div style={{ fontFamily: "'Arial', 'Helvetica', sans-serif", color: '#111', background: '#fff' }}>
 
-              {/* Report header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2.5px solid #1a5c38', paddingBottom: '8px', marginBottom: '14px' }}>
+              {/* ── Page header ── */}
+              <div style={{ background: '#1a5c38', color: '#fff', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0' }}>
                 <div>
-                  <div style={{ fontSize: '15pt', fontWeight: 900, color: '#1a5c38', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <div style={{ fontSize: '14pt', fontWeight: 900, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
                     Assessment Score Entry Report
                   </div>
-                  <div style={{ fontSize: '9pt', color: '#555', marginTop: '3px' }}>
-                    {yearLabel} &nbsp;·&nbsp; Semester {semester} &nbsp;·&nbsp; Outstanding entries as at {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  <div style={{ fontSize: '8.5pt', marginTop: '3px', opacity: 0.85 }}>
+                    {yearLabel} &nbsp;·&nbsp; Semester {semester} &nbsp;·&nbsp; Printed {printDate} at {printTime}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right', fontSize: '8pt', color: '#888' }}>
-                  {incomplete.length} teacher{incomplete.length !== 1 ? 's' : ''} with outstanding entries
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '10pt', fontWeight: 700 }}>
+                    {incomplete.length} teacher{incomplete.length !== 1 ? 's' : ''} with outstanding entries
+                  </div>
+                  <div style={{ fontSize: '7.5pt', opacity: 0.75, marginTop: '2px' }}>
+                    {allDone.length} teacher{allDone.length !== 1 ? 's' : ''} fully complete
+                  </div>
                 </div>
               </div>
 
-              {/* Summary strip */}
-              <div style={{ display: 'flex', gap: '0', marginBottom: '18px', border: '1px solid #e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
+              {/* ── Summary strip ── */}
+              <div style={{ display: 'flex', background: '#f0f7f3', borderBottom: '2px solid #1a5c38', marginBottom: '16px' }}>
                 {[
-                  { label: 'Total Assignments', value: s?.total ?? 0,           bg: '#f8fafc', color: '#475569' },
-                  { label: 'Not Started',        value: s?.not_started ?? 0,    bg: '#fef2f2', color: '#DC2626' },
-                  { label: 'In Progress',        value: s?.in_progress ?? 0,    bg: '#fffbeb', color: '#D97706' },
-                  { label: 'Scores Complete',    value: s?.scores_complete ?? 0,bg: '#eff6ff', color: '#0369A1' },
-                  { label: 'Submitted',          value: s?.submitted ?? 0,      bg: '#dbeafe', color: '#1D4ED8' },
+                  { label: 'Total Assignments', value: s?.total          ?? 0, color: '#1a5c38' },
+                  { label: 'Not Started',        value: s?.not_started   ?? 0, color: '#DC2626' },
+                  { label: 'In Progress',        value: s?.in_progress   ?? 0, color: '#B45309' },
+                  { label: 'Scores Complete',    value: s?.scores_complete?? 0, color: '#0369A1' },
+                  { label: 'Submitted',          value: s?.submitted     ?? 0, color: '#1D4ED8' },
+                  { label: 'Published',          value: s?.published     ?? 0, color: '#14532D' },
                 ].map((k, idx, arr) => (
-                  <div key={k.label} style={{ flex: 1, textAlign: 'center', padding: '8px 4px', background: k.bg, borderRight: idx < arr.length - 1 ? '1px solid #e2e8f0' : 'none' }}>
-                    <div style={{ fontSize: '14pt', fontWeight: 900, color: k.color }}>{k.value}</div>
-                    <div style={{ fontSize: '6.5pt', color: '#666', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: '2px' }}>{k.label}</div>
+                  <div key={k.label} style={{
+                    flex: 1, textAlign: 'center', padding: '9px 6px',
+                    borderRight: idx < arr.length - 1 ? '1px solid #c9e0d4' : 'none',
+                  }}>
+                    <div style={{ fontSize: '15pt', fontWeight: 900, color: k.color, lineHeight: 1 }}>{k.value}</div>
+                    <div style={{ fontSize: '6.5pt', color: '#555', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: '3px' }}>{k.label}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Outstanding teachers — main body */}
+              {/* ── Outstanding teachers ── */}
               {incomplete.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '20px', color: '#15803D', fontWeight: 700, fontSize: '11pt', border: '2px solid #15803D', borderRadius: '8px' }}>
-                  All teachers have completed their score entries.
+                <div style={{ textAlign: 'center', padding: '24px', border: '2px solid #15803D', borderRadius: '6px', color: '#15803D', fontWeight: 700, fontSize: '11pt' }}>
+                  ✓ All teachers have completed their score entries for this semester.
                 </div>
               ) : (
-                <>
-                  <div style={{ fontSize: '9pt', fontWeight: 700, color: '#1a5c38', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '10px' }}>
-                    Teachers with Outstanding Entries
-                  </div>
+                incomplete.map((teacher, ti) => {
+                  const incRows = teacher.rows.filter(r => r.completion_pct < 100);
+                  const pctColor = teacher.pct >= 80 ? '#15803D' : teacher.pct >= 50 ? '#B45309' : '#DC2626';
+                  return (
+                    <div key={teacher.teacher_id} className="pr-teacher-block"
+                      style={{ marginBottom: '18px', border: '1px solid #c9e0d4', borderRadius: '4px', overflow: 'hidden' }}>
 
-                  {incomplete.map((teacher, ti) => {
-                    const incompleteRows = teacher.rows.filter(r => r.completion_pct < 100);
-                    return (
-                      <div key={teacher.teacher_id} style={{ marginBottom: '14px', breakInside: 'avoid' }}>
-                        {/* Teacher header */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f1f5f9', padding: '6px 10px', borderLeft: '4px solid #DC2626', marginBottom: '4px' }}>
-                          <div>
-                            <span style={{ fontWeight: 800, fontSize: '10pt' }}>{teacher.teacher_name}</span>
-                            {teacher.department && (
-                              <span style={{ fontSize: '8.5pt', color: '#555', marginLeft: '8px' }}>{teacher.department}</span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: '8.5pt', fontWeight: 700, color: teacher.pct > 50 ? '#D97706' : '#DC2626' }}>
-                            Overall: {teacher.pct}% complete
-                          </div>
+                      {/* Teacher header row */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f0f7f3', padding: '7px 12px', borderBottom: '1px solid #c9e0d4' }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+                          <span style={{ fontWeight: 800, fontSize: '10pt', color: '#0f2d1c' }}>{teacher.teacher_name}</span>
+                          {teacher.department && (
+                            <span style={{ fontSize: '8pt', color: '#555', fontStyle: 'italic' }}>{teacher.department}</span>
+                          )}
+                          <span style={{ fontSize: '8pt', color: '#666' }}>
+                            · {incRows.length} of {teacher.rows.length} subject{teacher.rows.length !== 1 ? 's' : ''} incomplete
+                          </span>
                         </div>
-
-                        {/* Incomplete subject rows */}
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt', marginBottom: '2px' }}>
-                          <thead>
-                            <tr style={{ background: '#f8fafc' }}>
-                              {['Subject', 'Class', 'Students', 'Outstanding CA Modes', 'Exam Scores', 'Completion'].map(h => (
-                                <th key={h} style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600, color: '#64748b', fontSize: '7.5pt', textTransform: 'uppercase', letterSpacing: '0.3px', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {incompleteRows.map((r, ri) => {
-                              const outstanding = outstandingModes(r);
-                              const examLabel = r.exam_complete
-                                ? 'Complete'
-                                : r.exam_students_scored > 0
-                                  ? `${r.exam_students_scored} / ${r.total_students} entered`
-                                  : 'Not started';
-                              const examColor = r.exam_complete ? '#15803D' : r.exam_students_scored > 0 ? '#B45309' : '#DC2626';
-                              return (
-                                <tr key={ri} style={{ background: ri % 2 === 0 ? '#fff' : '#fafafa' }}>
-                                  <td style={{ padding: '5px 8px', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{r.subject}</td>
-                                  <td style={{ padding: '5px 8px', borderBottom: '1px solid #f1f5f9' }}>{r.class_name}</td>
-                                  <td style={{ padding: '5px 8px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>{r.total_students}</td>
-                                  <td style={{ padding: '5px 8px', borderBottom: '1px solid #f1f5f9', color: outstanding === 'All CA modes complete' ? '#15803D' : '#B45309' }}>
-                                    {outstanding}
-                                  </td>
-                                  <td style={{ padding: '5px 8px', borderBottom: '1px solid #f1f5f9', color: examColor }}>
-                                    {examLabel}
-                                  </td>
-                                  <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 700, borderBottom: '1px solid #f1f5f9',
-                                    color: r.completion_pct > 50 ? '#D97706' : '#DC2626' }}>
-                                    {r.completion_pct}%
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {/* Mini progress bar */}
+                          <div style={{ width: '80px', height: '6px', background: '#dde8e3', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${teacher.pct}%`, height: '6px', background: pctColor, borderRadius: '3px' }} />
+                          </div>
+                          <span style={{ fontSize: '9pt', fontWeight: 800, color: pctColor, minWidth: '36px', textAlign: 'right' }}>
+                            {teacher.pct}%
+                          </span>
+                        </div>
                       </div>
-                    );
-                  })}
-                </>
+
+                      {/* Subject/class breakdown table */}
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ ...thStyle, width: '16%' }}>Subject</th>
+                            <th style={{ ...thStyle, width: '8%', textAlign: 'center' }}>Class</th>
+                            <th style={{ ...thStyle, width: '7%', textAlign: 'center' }}>Students</th>
+                            <th style={{ ...thStyle, width: '40%' }}>Outstanding CA Modes</th>
+                            <th style={{ ...thStyle, width: '16%' }}>Exam Scores</th>
+                            <th style={{ ...thStyle, width: '10%', textAlign: 'center', borderRight: 'none' }}>Completion</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {incRows.map((r, ri) => {
+                            const outstanding = outstandingModes(r);
+                            const caComplete  = outstanding === 'All CA modes complete';
+                            const examLabel   = r.exam_complete
+                              ? 'Complete'
+                              : r.exam_students_scored > 0
+                                ? `${r.exam_students_scored} / ${r.total_students} students entered`
+                                : 'Not started';
+                            const examColor   = r.exam_complete ? '#15803D' : r.exam_students_scored > 0 ? '#B45309' : '#DC2626';
+                            const rowBg       = ri % 2 === 0 ? '#fff' : '#f7fbf8';
+                            const pct         = r.completion_pct;
+                            const cellPctColor = pct >= 80 ? '#15803D' : pct >= 50 ? '#B45309' : '#DC2626';
+                            return (
+                              <tr key={ri} style={{ background: rowBg }}>
+                                <td style={{ ...tdBase, fontWeight: 600, color: '#0f2d1c' }}>{r.subject}</td>
+                                <td style={{ ...tdBase, textAlign: 'center', color: '#334' }}>{r.class_name}</td>
+                                <td style={{ ...tdBase, textAlign: 'center', color: '#556' }}>{r.total_students}</td>
+                                <td style={{ ...tdBase, color: caComplete ? '#15803D' : '#92400E' }}>{outstanding}</td>
+                                <td style={{ ...tdBase, color: examColor }}>{examLabel}</td>
+                                <td style={{ ...tdBase, textAlign: 'center', fontWeight: 800, fontSize: '9pt', color: cellPctColor }}>{pct}%</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })
               )}
 
-              {/* All-done teachers — brief list at bottom */}
+              {/* ── All-complete teachers ── */}
               {allDone.length > 0 && (
-                <div style={{ marginTop: '18px', padding: '8px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px' }}>
-                  <span style={{ fontWeight: 700, fontSize: '8.5pt', color: '#15803D' }}>
-                    All entries complete ({allDone.length} teacher{allDone.length !== 1 ? 's' : ''}):&nbsp;
-                  </span>
-                  <span style={{ fontSize: '8.5pt', color: '#166534' }}>
-                    {allDone.map(t => t.teacher_name).join(' · ')}
-                  </span>
+                <div style={{ marginTop: '20px', padding: '10px 14px', background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: '4px' }}>
+                  <div style={{ fontSize: '7.5pt', fontWeight: 700, color: '#14532D', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>
+                    ✓ All entries complete — {allDone.length} teacher{allDone.length !== 1 ? 's' : ''}
+                  </div>
+                  <div style={{ fontSize: '8.5pt', color: '#166534', lineHeight: 1.6 }}>
+                    {allDone.map(t => t.teacher_name).join('  ·  ')}
+                  </div>
                 </div>
               )}
 
-              <div style={{ marginTop: '16px', fontSize: '7.5pt', color: '#aaa', borderTop: '1px solid #e2e8f0', paddingTop: '5px' }}>
-                Generated by CAS &nbsp;·&nbsp; {new Date().toLocaleString('en-GB')}
+              {/* ── Footer ── */}
+              <div style={{ marginTop: '18px', paddingTop: '6px', borderTop: '1px solid #dde8e3', display: 'flex', justifyContent: 'space-between', fontSize: '7pt', color: '#aaa' }}>
+                <span>Generated by CAS School Management System</span>
+                <span>{printDate} · {printTime}</span>
               </div>
+
             </div>
           </div>
         );
