@@ -1,6 +1,6 @@
 ﻿const router = require('express').Router();
 const pool   = require('../config/db');
-const { authenticate, requireActiveSubscription } = require('../middleware/auth');
+const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const multer = require('multer');
 const ExcelJS = require('exceljs');
 
@@ -181,10 +181,11 @@ router.post('/upload-scores', upload.single('file'), async (req, res, next) => {
       for (const { student_id, score } of toUpsert) {
         await client.query(
           `INSERT INTO exam_scores
-             (school_id, academic_year_id, semester, subject, class_name, student_id, teacher_id, score, max_score)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+             (school_id, academic_year_id, semester, subject, class_name, student_id, teacher_id, score, max_score, submitted_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
            ON CONFLICT (academic_year_id, semester, subject, class_name, student_id)
-           DO UPDATE SET score = EXCLUDED.score, max_score = EXCLUDED.max_score, teacher_id = EXCLUDED.teacher_id`,
+           DO UPDATE SET score = EXCLUDED.score, max_score = EXCLUDED.max_score,
+                         teacher_id = EXCLUDED.teacher_id, submitted_at = now()`,
           [req.schoolId, academic_year_id, parseInt(semester), subject, class_name,
            student_id, req.user.id, score, maxScore]
         );
@@ -268,10 +269,11 @@ router.post('/', async (req, res, next) => {
       for (const { student_id, score } of scores) {
         await client.query(
           `INSERT INTO exam_scores
-             (school_id, academic_year_id, semester, subject, class_name, student_id, teacher_id, score, max_score)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+             (school_id, academic_year_id, semester, subject, class_name, student_id, teacher_id, score, max_score, submitted_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
            ON CONFLICT (academic_year_id, semester, subject, class_name, student_id)
-           DO UPDATE SET score = EXCLUDED.score, max_score = EXCLUDED.max_score, teacher_id = EXCLUDED.teacher_id`,
+           DO UPDATE SET score = EXCLUDED.score, max_score = EXCLUDED.max_score,
+                         teacher_id = EXCLUDED.teacher_id, submitted_at = now()`,
           [req.schoolId, academic_year_id, parseInt(semester), subject, class_name,
            student_id, req.user.id, score != null ? parseFloat(score) : null, examMax]
         );
@@ -284,6 +286,208 @@ router.post('/', async (req, res, next) => {
       client.release();
     }
     res.json({ message: 'Exam scores saved' });
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/exam-scores/admin-list ─────────────────────────────────────────
+// Admin view: one row per (teacher, subject, class, year, semester) batch.
+router.get('/admin-list', adminOnly, async (req, res, next) => {
+  try {
+    const { teacher_id, academic_year_id, semester, subject, class_name } = req.query;
+    const params = [req.schoolId];
+    const filters = [];
+    if (teacher_id)       { params.push(teacher_id);              filters.push(`e.teacher_id = $${params.length}`); }
+    if (academic_year_id) { params.push(academic_year_id);        filters.push(`e.academic_year_id = $${params.length}`); }
+    if (semester)         { params.push(parseInt(semester));      filters.push(`e.semester = $${params.length}`); }
+    if (subject)          { params.push(subject);                 filters.push(`LOWER(e.subject) LIKE LOWER($${params.length})`); }
+    if (class_name)       { params.push(class_name);              filters.push(`LOWER(e.class_name) LIKE LOWER($${params.length})`); }
+    const where = filters.length ? ' AND ' + filters.join(' AND ') : '';
+
+    const { rows } = await pool.query(
+      `SELECT
+         e.teacher_id,
+         t.name                          AS teacher_name,
+         e.subject,
+         e.class_name,
+         e.academic_year_id,
+         ay.name                         AS academic_year_name,
+         e.semester,
+         MAX(e.max_score)                AS max_score,
+         COUNT(e.score)::int             AS score_count,
+         COUNT(*)::int                   AS row_count,
+         MAX(e.submitted_at)             AS submitted_at,
+         (SELECT COUNT(*)::int FROM students s
+          WHERE s.school_id = $1 AND LOWER(s.class_name) = LOWER(e.class_name)
+            AND s.status = 'Active')     AS class_size
+       FROM exam_scores e
+       JOIN academic_years ay ON ay.id = e.academic_year_id AND ay.school_id = $1
+       LEFT JOIN teachers t  ON t.id  = e.teacher_id AND t.school_id = $1
+       WHERE e.school_id = $1 ${where}
+       GROUP BY e.teacher_id, t.name, e.subject, e.class_name,
+                e.academic_year_id, ay.name, e.semester
+       ORDER BY MAX(e.submitted_at) DESC NULLS LAST, e.class_name, e.subject`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── PATCH /api/exam-scores/admin-edit ────────────────────────────────────────
+// Bulk-update all scores in a batch. Body: { current: {...}, update: {...} }
+router.patch('/admin-edit', adminOnly, async (req, res, next) => {
+  try {
+    const { current, update } = req.body;
+    if (!current?.academic_year_id || !current?.semester || !current?.subject ||
+        !current?.class_name || !current?.teacher_id) {
+      return res.status(400).json({ error: 'current filter (academic_year_id, semester, subject, class_name, teacher_id) is required' });
+    }
+    if (!update || !Object.keys(update).length) {
+      return res.status(400).json({ error: 'update fields required' });
+    }
+
+    const keyFields = ['academic_year_id', 'semester', 'subject', 'class_name'];
+    const changingKey = keyFields.some(f => update[f] !== undefined && update[f] !== current[f]);
+
+    // Check UNIQUE constraint before updating key fields
+    if (changingKey) {
+      const newYear  = update.academic_year_id ?? current.academic_year_id;
+      const newSem   = update.semester         ?? current.semester;
+      const newSubj  = update.subject          ?? current.subject;
+      const newClass = update.class_name       ?? current.class_name;
+      const { rows: conflict } = await pool.query(
+        `SELECT 1 FROM exam_scores
+         WHERE school_id = $1
+           AND academic_year_id = $2 AND semester = $3
+           AND LOWER(subject) = LOWER($4) AND LOWER(class_name) = LOWER($5)
+           AND student_id IN (
+             SELECT student_id FROM exam_scores
+             WHERE school_id = $1 AND academic_year_id = $6 AND semester = $7
+               AND LOWER(subject) = LOWER($8) AND LOWER(class_name) = LOWER($9)
+               AND teacher_id = $10
+           )
+         LIMIT 1`,
+        [req.schoolId, newYear, parseInt(newSem), newSubj, newClass,
+         current.academic_year_id, parseInt(current.semester), current.subject,
+         current.class_name, current.teacher_id]
+      );
+      if (conflict.length) {
+        return res.status(409).json({ error: 'Scores already exist at the destination period/subject/class. Delete them first or choose a different target.' });
+      }
+    }
+
+    // Build SET clause
+    const setClauses = [];
+    const vals       = [req.schoolId, current.academic_year_id, parseInt(current.semester),
+                        current.subject, current.class_name, current.teacher_id];
+    const addSet = (col, val) => {
+      vals.push(val);
+      setClauses.push(`${col} = $${vals.length}`);
+    };
+    if (update.academic_year_id !== undefined) addSet('academic_year_id', update.academic_year_id);
+    if (update.semester         !== undefined) addSet('semester',         parseInt(update.semester));
+    if (update.subject          !== undefined) addSet('subject',          update.subject);
+    if (update.class_name       !== undefined) addSet('class_name',       update.class_name);
+    if (update.teacher_id       !== undefined) addSet('teacher_id',       update.teacher_id);
+    if (update.max_score        !== undefined) addSet('max_score',        parseFloat(update.max_score));
+
+    const { rowCount } = await pool.query(
+      `UPDATE exam_scores SET ${setClauses.join(', ')}
+       WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
+         AND LOWER(subject) = LOWER($4) AND LOWER(class_name) = LOWER($5)
+         AND teacher_id = $6`,
+      vals
+    );
+
+    // Audit log
+    const adminName = req.user.name ?? req.user.email ?? req.user.id;
+    await pool.query(
+      `INSERT INTO school_audit_logs (school_id, action, actor_id, actor_name, target_type, details)
+       VALUES ($1, 'exam_scores_edited', $2, $3, 'exam_scores', $4)`,
+      [req.schoolId, req.user.id, adminName,
+       JSON.stringify({ current, update, rows_affected: rowCount })]
+    );
+
+    res.json({ rows_affected: rowCount });
+  } catch (err) { next(err); }
+});
+
+// ── DELETE /api/exam-scores/admin-delete ─────────────────────────────────────
+// Delete an entire batch with reason. Notifies the teacher and writes audit log.
+router.delete('/admin-delete', adminOnly, async (req, res, next) => {
+  try {
+    const { academic_year_id, semester, subject, class_name, teacher_id, reason } = req.body;
+    if (!academic_year_id || !semester || !subject || !class_name || !teacher_id) {
+      return res.status(400).json({ error: 'academic_year_id, semester, subject, class_name, teacher_id are required' });
+    }
+    if (!reason?.trim()) {
+      return res.status(400).json({ error: 'A reason for deletion is required' });
+    }
+
+    // Fetch rows before deletion for audit trail
+    const { rows: toDelete } = await pool.query(
+      `SELECT e.id, e.student_id, e.score, t.name AS teacher_name, t.email AS teacher_email
+       FROM exam_scores e
+       LEFT JOIN teachers t ON t.id = e.teacher_id AND t.school_id = $1
+       WHERE e.school_id = $1 AND e.academic_year_id = $2 AND e.semester = $3
+         AND LOWER(e.subject) = LOWER($4) AND LOWER(e.class_name) = LOWER($5)
+         AND e.teacher_id = $6`,
+      [req.schoolId, academic_year_id, parseInt(semester), subject, class_name, teacher_id]
+    );
+    if (!toDelete.length) return res.status(404).json({ error: 'No scores found for the given filter' });
+
+    const adminName    = req.user.name ?? req.user.email ?? req.user.id;
+    const teacherName  = toDelete[0].teacher_name ?? 'Unknown';
+    const teacherEmail = toDelete[0].teacher_email;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Delete scores
+      await client.query(
+        `DELETE FROM exam_scores
+         WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
+           AND LOWER(subject) = LOWER($4) AND LOWER(class_name) = LOWER($5)
+           AND teacher_id = $6`,
+        [req.schoolId, academic_year_id, parseInt(semester), subject, class_name, teacher_id]
+      );
+
+      // Per-score audit entries
+      for (const row of toDelete) {
+        await client.query(
+          `INSERT INTO score_audit_log
+             (school_id, score_type, score_id, student_id, old_score, changed_by_id, changed_by_name, reason)
+           VALUES ($1, 'exam', $2, $3, $4, $5, $6, $7)`,
+          [req.schoolId, row.id, row.student_id, row.score, req.user.id, adminName,
+           `DELETED — ${reason.trim()}`]
+        );
+      }
+
+      // Batch audit entry
+      await client.query(
+        `INSERT INTO school_audit_logs (school_id, action, actor_id, actor_name, target_type, details)
+         VALUES ($1, 'exam_scores_deleted', $2, $3, 'exam_scores', $4)`,
+        [req.schoolId, req.user.id, adminName,
+         JSON.stringify({ academic_year_id, semester, subject, class_name, teacher_id,
+                          teacher_name: teacherName, rows_deleted: toDelete.length, reason: reason.trim() })]
+      );
+
+      // Notify the teacher
+      await client.query(
+        `INSERT INTO teacher_notifications (school_id, teacher_id, title, message)
+         VALUES ($1, $2, $3, $4)`,
+        [req.schoolId, teacher_id,
+         `Exam scores deleted — ${subject} (${class_name}, Sem ${semester})`,
+         `Your exam scores for ${subject} / ${class_name} (Semester ${semester}) have been deleted by the admin.\n\nReason: ${reason.trim()}\n\nPlease re-enter the scores or contact the admin if this was a mistake.`]
+      );
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally { client.release(); }
+
+    res.json({ rows_deleted: toDelete.length });
   } catch (err) { next(err); }
 });
 

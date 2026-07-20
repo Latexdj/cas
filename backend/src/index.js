@@ -860,6 +860,9 @@ async function runMigrations() {
     // Headmaster/Principal signature
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS headmaster_signature_url TEXT`);
 
+    // Exam score submission tracking
+    await pool.query(`ALTER TABLE exam_scores ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ`);
+
     // Exeat module
     await pool.query(`
       CREATE TABLE IF NOT EXISTS exeats (
