@@ -462,135 +462,135 @@ export default function AssessmentTrackerPage() {
       )}
 
       {/* ── Hidden print-only report ──────────────────────────────────────────── */}
-      {data && (
-        <div id="print-report" ref={printRef} style={{ display: 'none' }}>
-          <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#1a1a1a' }}>
-            {/* Report header */}
-            <div style={{ borderBottom: '2px solid #1a5c38', paddingBottom: '8px', marginBottom: '12px' }}>
-              <div style={{ fontSize: '14pt', fontWeight: 900, color: '#1a5c38', textTransform: 'uppercase' }}>
-                Assessment Completion Report
-              </div>
-              <div style={{ fontSize: '9pt', color: '#555', marginTop: '2px' }}>
-                {yearLabel} · Semester {semester} &nbsp;·&nbsp; Printed: {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </div>
-            </div>
+      {data && (() => {
+        const incomplete = filtered.filter(t => t.rows.some(r => r.completion_pct < 100));
+        const allDone    = filtered.filter(t => t.rows.every(r => r.completion_pct === 100));
+        return (
+          <div id="print-report" ref={printRef} style={{ display: 'none' }}>
+            <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#1a1a1a' }}>
 
-            {/* Summary row */}
-            <div style={{ display: 'flex', gap: '24px', marginBottom: '14px', flexWrap: 'wrap' }}>
-              {[
-                { label: 'Total Assignments', value: s?.total ?? 0 },
-                { label: 'Not Started',       value: s?.not_started ?? 0 },
-                { label: 'In Progress',       value: s?.in_progress ?? 0 },
-                { label: 'Scores Complete',   value: s?.scores_complete ?? 0 },
-                { label: 'Submitted',         value: s?.submitted ?? 0 },
-              ].map(k => (
-                <div key={k.label} style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '16pt', fontWeight: 900 }}>{k.value}</div>
-                  <div style={{ fontSize: '7pt', color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{k.label}</div>
+              {/* Report header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2.5px solid #1a5c38', paddingBottom: '8px', marginBottom: '14px' }}>
+                <div>
+                  <div style={{ fontSize: '15pt', fontWeight: 900, color: '#1a5c38', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Assessment Score Entry Report
+                  </div>
+                  <div style={{ fontSize: '9pt', color: '#555', marginTop: '3px' }}>
+                    {yearLabel} &nbsp;·&nbsp; Semester {semester} &nbsp;·&nbsp; Outstanding entries as at {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
                 </div>
-              ))}
-            </div>
+                <div style={{ textAlign: 'right', fontSize: '8pt', color: '#888' }}>
+                  {incomplete.length} teacher{incomplete.length !== 1 ? 's' : ''} with outstanding entries
+                </div>
+              </div>
 
-            {/* Main table */}
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
-              <thead>
-                <tr style={{ background: '#1a5c38', color: '#fff' }}>
-                  {['Teacher', 'Dept', 'Subject', 'Class', 'Students', 'CA Outstanding Modes', 'Exam Scores', 'Completion', 'Status'].map(h => (
-                    <th key={h} style={{ padding: '5px 8px', textAlign: 'left', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.flatMap(teacher =>
-                  teacher.rows.map((r, i) => {
-                    const outstanding = outstandingModes(r);
-                    const examLabel   = r.exam_complete
-                      ? 'Complete'
-                      : r.exam_students_scored > 0
-                        ? `${r.exam_students_scored} / ${r.total_students} entered`
-                        : 'Not started';
-                    const isOdd = (filtered.indexOf(teacher) + i) % 2 === 0;
-                    const rowBg = r.completion_pct === 100 ? '#f0fdf4'
-                                : r.completion_pct === 0   ? '#fef2f2'
-                                : isOdd ? '#fff' : '#f8fafc';
+              {/* Summary strip */}
+              <div style={{ display: 'flex', gap: '0', marginBottom: '18px', border: '1px solid #e2e8f0', borderRadius: '6px', overflow: 'hidden' }}>
+                {[
+                  { label: 'Total Assignments', value: s?.total ?? 0,           bg: '#f8fafc', color: '#475569' },
+                  { label: 'Not Started',        value: s?.not_started ?? 0,    bg: '#fef2f2', color: '#DC2626' },
+                  { label: 'In Progress',        value: s?.in_progress ?? 0,    bg: '#fffbeb', color: '#D97706' },
+                  { label: 'Scores Complete',    value: s?.scores_complete ?? 0,bg: '#eff6ff', color: '#0369A1' },
+                  { label: 'Submitted',          value: s?.submitted ?? 0,      bg: '#dbeafe', color: '#1D4ED8' },
+                ].map((k, idx, arr) => (
+                  <div key={k.label} style={{ flex: 1, textAlign: 'center', padding: '8px 4px', background: k.bg, borderRight: idx < arr.length - 1 ? '1px solid #e2e8f0' : 'none' }}>
+                    <div style={{ fontSize: '14pt', fontWeight: 900, color: k.color }}>{k.value}</div>
+                    <div style={{ fontSize: '6.5pt', color: '#666', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: '2px' }}>{k.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Outstanding teachers — main body */}
+              {incomplete.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '20px', color: '#15803D', fontWeight: 700, fontSize: '11pt', border: '2px solid #15803D', borderRadius: '8px' }}>
+                  All teachers have completed their score entries.
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: '9pt', fontWeight: 700, color: '#1a5c38', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '10px' }}>
+                    Teachers with Outstanding Entries
+                  </div>
+
+                  {incomplete.map((teacher, ti) => {
+                    const incompleteRows = teacher.rows.filter(r => r.completion_pct < 100);
                     return (
-                      <tr key={`${teacher.teacher_id}-${i}`} style={{ background: rowBg }}>
-                        <td style={{ padding: '5px 8px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>
-                          {i === 0 ? r.teacher_name : ''}
-                        </td>
-                        <td style={{ padding: '5px 8px', color: '#555', borderBottom: '1px solid #e2e8f0' }}>
-                          {i === 0 ? (r.department ?? '—') : ''}
-                        </td>
-                        <td style={{ padding: '5px 8px', borderBottom: '1px solid #e2e8f0' }}>{r.subject}</td>
-                        <td style={{ padding: '5px 8px', borderBottom: '1px solid #e2e8f0' }}>{r.class_name}</td>
-                        <td style={{ padding: '5px 8px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>{r.total_students}</td>
-                        <td style={{ padding: '5px 8px', borderBottom: '1px solid #e2e8f0', color: outstanding === 'All CA modes complete' ? '#15803D' : '#B45309' }}>
-                          {outstanding}
-                        </td>
-                        <td style={{ padding: '5px 8px', borderBottom: '1px solid #e2e8f0', color: r.exam_complete ? '#15803D' : '#B45309' }}>
-                          {examLabel}
-                        </td>
-                        <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 700, borderBottom: '1px solid #e2e8f0',
-                          color: r.completion_pct === 100 ? '#15803D' : r.completion_pct > 50 ? '#D97706' : '#DC2626' }}>
-                          {r.completion_pct}%
-                        </td>
-                        <td style={{ padding: '5px 8px', borderBottom: '1px solid #e2e8f0' }}>
-                          {STATUS_CFG[r.status]?.label ?? r.status}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-
-            {/* Outstanding section */}
-            {filtered.some(t => t.rows.some(r => r.completion_pct < 100)) && (
-              <div style={{ marginTop: '20px' }}>
-                <div style={{ fontSize: '10pt', fontWeight: 700, color: '#1a5c38', borderBottom: '1.5px solid #1a5c38', paddingBottom: '4px', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Outstanding Entries
-                </div>
-                {filtered.flatMap(teacher =>
-                  teacher.rows
-                    .filter(r => r.completion_pct < 100)
-                    .map((r, i) => {
-                      const outstanding = outstandingModes(r);
-                      const examLabel   = r.exam_complete ? null
-                        : r.exam_students_scored > 0
-                          ? `Exam scores: ${r.exam_students_scored}/${r.total_students} students entered`
-                          : 'Exam scores: not started';
-                      return (
-                        <div key={`out-${teacher.teacher_id}-${i}`}
-                          style={{ marginBottom: '8px', paddingLeft: '12px', borderLeft: '3px solid #DC2626' }}>
-                          <div style={{ fontWeight: 700, fontSize: '9pt' }}>
-                            {r.teacher_name} — {r.subject} / {r.class_name}
-                            <span style={{ fontWeight: 400, color: '#666', marginLeft: '6px' }}>
-                              ({r.total_students} students · {r.completion_pct}% complete)
-                            </span>
+                      <div key={teacher.teacher_id} style={{ marginBottom: '14px', breakInside: 'avoid' }}>
+                        {/* Teacher header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f1f5f9', padding: '6px 10px', borderLeft: '4px solid #DC2626', marginBottom: '4px' }}>
+                          <div>
+                            <span style={{ fontWeight: 800, fontSize: '10pt' }}>{teacher.teacher_name}</span>
+                            {teacher.department && (
+                              <span style={{ fontSize: '8.5pt', color: '#555', marginLeft: '8px' }}>{teacher.department}</span>
+                            )}
                           </div>
-                          {outstanding !== 'All CA modes complete' && (
-                            <div style={{ fontSize: '8.5pt', color: '#B45309', marginTop: '2px' }}>
-                              CA modes: {outstanding}
-                            </div>
-                          )}
-                          {examLabel && (
-                            <div style={{ fontSize: '8.5pt', color: '#B45309', marginTop: '2px' }}>
-                              {examLabel}
-                            </div>
-                          )}
+                          <div style={{ fontSize: '8.5pt', fontWeight: 700, color: teacher.pct > 50 ? '#D97706' : '#DC2626' }}>
+                            Overall: {teacher.pct}% complete
+                          </div>
                         </div>
-                      );
-                    })
-                )}
-              </div>
-            )}
 
-            <div style={{ marginTop: '20px', fontSize: '7.5pt', color: '#999', borderTop: '1px solid #e2e8f0', paddingTop: '6px' }}>
-              Generated by CAS · {new Date().toLocaleString('en-GB')}
+                        {/* Incomplete subject rows */}
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt', marginBottom: '2px' }}>
+                          <thead>
+                            <tr style={{ background: '#f8fafc' }}>
+                              {['Subject', 'Class', 'Students', 'Outstanding CA Modes', 'Exam Scores', 'Completion'].map(h => (
+                                <th key={h} style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600, color: '#64748b', fontSize: '7.5pt', textTransform: 'uppercase', letterSpacing: '0.3px', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {incompleteRows.map((r, ri) => {
+                              const outstanding = outstandingModes(r);
+                              const examLabel = r.exam_complete
+                                ? 'Complete'
+                                : r.exam_students_scored > 0
+                                  ? `${r.exam_students_scored} / ${r.total_students} entered`
+                                  : 'Not started';
+                              const examColor = r.exam_complete ? '#15803D' : r.exam_students_scored > 0 ? '#B45309' : '#DC2626';
+                              return (
+                                <tr key={ri} style={{ background: ri % 2 === 0 ? '#fff' : '#fafafa' }}>
+                                  <td style={{ padding: '5px 8px', fontWeight: 600, borderBottom: '1px solid #f1f5f9' }}>{r.subject}</td>
+                                  <td style={{ padding: '5px 8px', borderBottom: '1px solid #f1f5f9' }}>{r.class_name}</td>
+                                  <td style={{ padding: '5px 8px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>{r.total_students}</td>
+                                  <td style={{ padding: '5px 8px', borderBottom: '1px solid #f1f5f9', color: outstanding === 'All CA modes complete' ? '#15803D' : '#B45309' }}>
+                                    {outstanding}
+                                  </td>
+                                  <td style={{ padding: '5px 8px', borderBottom: '1px solid #f1f5f9', color: examColor }}>
+                                    {examLabel}
+                                  </td>
+                                  <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 700, borderBottom: '1px solid #f1f5f9',
+                                    color: r.completion_pct > 50 ? '#D97706' : '#DC2626' }}>
+                                    {r.completion_pct}%
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+
+              {/* All-done teachers — brief list at bottom */}
+              {allDone.length > 0 && (
+                <div style={{ marginTop: '18px', padding: '8px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px' }}>
+                  <span style={{ fontWeight: 700, fontSize: '8.5pt', color: '#15803D' }}>
+                    All entries complete ({allDone.length} teacher{allDone.length !== 1 ? 's' : ''}):&nbsp;
+                  </span>
+                  <span style={{ fontSize: '8.5pt', color: '#166534' }}>
+                    {allDone.map(t => t.teacher_name).join(' · ')}
+                  </span>
+                </div>
+              )}
+
+              <div style={{ marginTop: '16px', fontSize: '7.5pt', color: '#aaa', borderTop: '1px solid #e2e8f0', paddingTop: '5px' }}>
+                Generated by CAS &nbsp;·&nbsp; {new Date().toLocaleString('en-GB')}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Details modal */}
       {detailRow && <DetailsModal row={detailRow} onClose={() => setDetailRow(null)} />}
