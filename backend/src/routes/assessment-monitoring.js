@@ -70,8 +70,8 @@ router.get('/', async (req, res, next) => {
          LOWER(a.subject)     AS subject_key,
          LOWER(a.class_name)  AS class_key,
          a.mode_id,
-         COUNT(DISTINCT a.id)::int                                                       AS assessments_created,
-         COUNT(DISTINCT CASE WHEN asc2.score IS NOT NULL THEN asc2.student_id END)::int  AS students_scored
+         COUNT(DISTINCT a.id)::int                                                                              AS assessments_created,
+         COUNT(DISTINCT CASE WHEN asc2.score IS NOT NULL OR asc2.absent = true THEN asc2.student_id END)::int  AS students_scored
        FROM assessments a
        LEFT JOIN assessment_scores asc2 ON asc2.assessment_id = a.id
        WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.semester = $3
