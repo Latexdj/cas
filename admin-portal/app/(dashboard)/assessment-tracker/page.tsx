@@ -306,6 +306,16 @@ export default function AssessmentTrackerPage() {
           style={{ backgroundColor: '#15803D' }}>
           {loading ? 'Loading…' : 'Refresh'}
         </button>
+        <button onClick={handlePrint} disabled={!data}
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 bg-white disabled:opacity-40 transition-colors hover:bg-slate-50"
+          title="Print or save as PDF — landscape A4, all pages captured">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 flex-shrink-0">
+            <polyline points="6 9 6 2 18 2 18 9" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
+            <rect x="6" y="14" width="12" height="8" />
+          </svg>
+          Print / PDF
+        </button>
       </div>
 
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{error}</p>}
@@ -459,27 +469,6 @@ export default function AssessmentTrackerPage() {
         </div>
       )}
 
-      {/* Print / PDF button */}
-      {data && filtered.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-slate-800">Assessment Score Entry Report</p>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Print or save as PDF — landscape A4, all pages captured. Shows outstanding entries by mode name.
-            </p>
-          </div>
-          <button onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
-            style={{ backgroundColor: '#15803D' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-              <polyline points="6 9 6 2 18 2 18 9" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
-              <rect x="6" y="14" width="12" height="8" />
-            </svg>
-            Print / PDF
-          </button>
-        </div>
-      )}
 
       {/* ── Print-only report (hidden on screen, visible when printing) ─────── */}
       {data && (() => {
