@@ -13,13 +13,22 @@ router.get('/', async (req, res, next) => {
     }
     const semInt = parseInt(semester);
 
-    // Build optional teacher/department filters
+    // ── 1. All CA modes for this school ────────────────────────────────────────
+    const { rows: modes } = await pool.query(
+      `SELECT id, name, ca_contribution, max_instances, sort_order
+       FROM assessment_modes WHERE school_id = $1
+       ORDER BY sort_order, name`,
+      [req.schoolId]
+    );
+
+    // ── 2. Build optional teacher/department filters ───────────────────────────
     const extraConds = [];
     const params = [req.schoolId, academic_year_id, semInt];
     if (department) { params.push(department); extraConds.push(`te.department = $${params.length}`); }
     if (teacher_id) { params.push(teacher_id); extraConds.push(`te.id = $${params.length}`); }
     const extraWhere = extraConds.length ? 'AND ' + extraConds.join(' AND ') : '';
 
+    // ── 3. Timetable matrix (teacher × subject × class) ───────────────────────
     const { rows } = await pool.query(`
       WITH expanded AS (
         SELECT DISTINCT
@@ -37,44 +46,15 @@ router.get('/', async (req, res, next) => {
         te.department,
         e.subject,
         e.class_name,
-        -- Total active students in this class
-        (SELECT COUNT(*) FROM students s WHERE s.school_id=$1 AND LOWER(s.class_name)=LOWER(e.class_name) AND s.status='Active') AS total_students,
-        -- CA assessments created for this teacher/subject/class
-        (SELECT COUNT(*) FROM assessments a
-         WHERE a.school_id=$1 AND a.teacher_id=e.teacher_id
-           AND a.academic_year_id=$2 AND a.semester=$3
-           AND LOWER(a.subject)=e.subject_key AND LOWER(a.class_name)=LOWER(e.class_name)
-        ) AS assessments_created,
-        -- Distinct assessment mode names entered for this teacher/subject/class
-        ARRAY(
-          SELECT DISTINCT m.name FROM assessments a
-          JOIN assessment_modes m ON m.id = a.mode_id
-          WHERE a.school_id=$1 AND a.teacher_id=e.teacher_id
-            AND a.academic_year_id=$2 AND a.semester=$3
-            AND LOWER(a.subject)=e.subject_key AND LOWER(a.class_name)=LOWER(e.class_name)
-          ORDER BY m.name
-        ) AS assessment_names,
-        -- Distinct students with at least one CA score
-        (SELECT COUNT(DISTINCT asc2.student_id)
-         FROM assessment_scores asc2
-         JOIN assessments a ON a.id=asc2.assessment_id
-         WHERE a.school_id=$1 AND a.teacher_id=e.teacher_id
-           AND a.academic_year_id=$2 AND a.semester=$3
-           AND LOWER(a.subject)=e.subject_key AND LOWER(a.class_name)=LOWER(e.class_name)
-           AND asc2.score IS NOT NULL
-        ) AS students_ca_scored,
-        -- Students with exam scores entered
-        (SELECT COUNT(DISTINCT es.student_id)
-         FROM exam_scores es
-         WHERE es.school_id=$1 AND es.teacher_id=e.teacher_id
-           AND es.academic_year_id=$2 AND es.semester=$3
-           AND LOWER(es.subject)=e.subject_key AND LOWER(es.class_name)=LOWER(e.class_name)
-        ) AS students_exam_scored,
-        -- Submission status
+        (SELECT COUNT(*)::int FROM students s
+         WHERE s.school_id=$1 AND LOWER(s.class_name)=LOWER(e.class_name)
+           AND s.status='Active'
+        ) AS total_students,
         (SELECT rs.status FROM result_submissions rs
          WHERE rs.school_id=$1 AND rs.teacher_id=e.teacher_id
            AND rs.academic_year_id=$2 AND rs.semester=$3
-           AND LOWER(rs.subject)=e.subject_key AND LOWER(rs.class_name)=LOWER(e.class_name)
+           AND LOWER(rs.subject)=e.subject_key
+           AND LOWER(rs.class_name)=LOWER(e.class_name)
          LIMIT 1
         ) AS submission_status
       FROM expanded e
@@ -83,40 +63,108 @@ router.get('/', async (req, res, next) => {
       ORDER BY te.name, e.subject, e.class_name
     `, params);
 
-    // Compute a per-row completion status
+    // ── 4. Per-(teacher, subject, class, mode) assessment + score counts ───────
+    const { rows: modeCounts } = await pool.query(
+      `SELECT
+         a.teacher_id,
+         LOWER(a.subject)     AS subject_key,
+         LOWER(a.class_name)  AS class_key,
+         a.mode_id,
+         COUNT(DISTINCT a.id)::int                                                       AS assessments_created,
+         COUNT(DISTINCT CASE WHEN asc2.score IS NOT NULL THEN asc2.student_id END)::int  AS students_scored
+       FROM assessments a
+       LEFT JOIN assessment_scores asc2 ON asc2.assessment_id = a.id
+       WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.semester = $3
+       GROUP BY a.teacher_id, LOWER(a.subject), LOWER(a.class_name), a.mode_id`,
+      [req.schoolId, academic_year_id, semInt]
+    );
+
+    // Index modeCounts by "teacherId|subjectKey|classKey|modeId"
+    const modeCountMap = {};
+    for (const mc of modeCounts) {
+      const k = `${mc.teacher_id}|${mc.subject_key}|${mc.class_key}|${mc.mode_id}`;
+      modeCountMap[k] = mc;
+    }
+
+    // ── 5. Per-(teacher, subject, class) exam score counts ────────────────────
+    const { rows: examCounts } = await pool.query(
+      `SELECT
+         teacher_id,
+         LOWER(subject)     AS subject_key,
+         LOWER(class_name)  AS class_key,
+         COUNT(DISTINCT student_id)::int AS students_scored
+       FROM exam_scores
+       WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
+       GROUP BY teacher_id, LOWER(subject), LOWER(class_name)`,
+      [req.schoolId, academic_year_id, semInt]
+    );
+
+    const examMap = {};
+    for (const ec of examCounts) {
+      examMap[`${ec.teacher_id}|${ec.subject_key}|${ec.class_key}`] = ec.students_scored;
+    }
+
+    // ── 6. Assemble final rows ─────────────────────────────────────────────────
     const withStatus = rows.map(r => {
-      const total   = parseInt(r.total_students)    || 0;
-      const caScore = parseInt(r.students_ca_scored) || 0;
-      const exScore = parseInt(r.students_exam_scored) || 0;
-      const created = parseInt(r.assessments_created) || 0;
-      const sub     = r.submission_status;
+      const total    = r.total_students || 0;
+      const sub      = r.submission_status ?? null;
+      const subjKey  = r.subject.toLowerCase();
+      const classKey = r.class_name.toLowerCase();
+      const baseKey  = `${r.teacher_id}|${subjKey}|${classKey}`;
+
+      // Build mode_breakdown for every CA mode
+      const mode_breakdown = modes.map(m => {
+        const mc = modeCountMap[`${baseKey}|${m.id}`];
+        return {
+          mode_id:             m.id,
+          mode_name:           m.name,
+          max_instances:       m.max_instances ?? null,
+          assessments_created: mc?.assessments_created ?? 0,
+          students_scored:     mc?.students_scored     ?? 0,
+        };
+      });
+
+      const complete_modes = mode_breakdown.filter(
+        m => m.assessments_created >= 1 && total > 0 && m.students_scored >= total
+      ).length;
+      const total_modes         = modes.length;
+      const exam_students_scored = examMap[baseKey] ?? 0;
+      const exam_complete        = total > 0 && exam_students_scored >= total;
+
+      // overall completion % = (complete CA modes + exam slot) / (total modes + 1)
+      const denominator   = total_modes + 1;
+      const numerator     = complete_modes + (exam_complete ? 1 : 0);
+      const completion_pct = denominator === 0 ? 0 : Math.round((numerator / denominator) * 100);
+
+      const anyStarted = mode_breakdown.some(m => m.assessments_created > 0) || exam_students_scored > 0;
 
       let status;
-      if (sub === 'published')           status = 'published';
-      else if (sub === 'final_approved') status = 'final_approved';
-      else if (sub === 'hod_approved')   status = 'hod_approved';
-      else if (sub === 'submitted')      status = 'submitted';
-      else if (created === 0 && exScore === 0) status = 'not_started';
-      else if (total > 0 && caScore >= total && exScore >= total) status = 'scores_complete';
-      else status = 'in_progress';
+      if      (sub === 'published')           status = 'published';
+      else if (sub === 'final_approved')      status = 'final_approved';
+      else if (sub === 'hod_approved')        status = 'hod_approved';
+      else if (sub === 'submitted')           status = 'submitted';
+      else if (!anyStarted)                   status = 'not_started';
+      else if (complete_modes === total_modes && exam_complete) status = 'scores_complete';
+      else                                    status = 'in_progress';
 
       return {
-        teacher_id:           r.teacher_id,
-        teacher_name:         r.teacher_name,
-        department:           r.department,
-        subject:              r.subject,
-        class_name:           r.class_name,
-        total_students:       total,
-        assessments_created:  created,
-        assessment_names:     r.assessment_names ?? [],
-        students_ca_scored:   caScore,
-        students_exam_scored: exScore,
-        submission_status:    sub ?? null,
+        teacher_id:            r.teacher_id,
+        teacher_name:          r.teacher_name,
+        department:            r.department,
+        subject:               r.subject,
+        class_name:            r.class_name,
+        total_students:        total,
+        mode_breakdown,
+        total_modes,
+        complete_modes,
+        exam_students_scored,
+        exam_complete,
+        completion_pct,
+        submission_status:     sub,
         status,
       };
     });
 
-    // Summary counts
     const summary = {
       total:           withStatus.length,
       not_started:     withStatus.filter(r => r.status === 'not_started').length,
@@ -126,7 +174,7 @@ router.get('/', async (req, res, next) => {
       published:       withStatus.filter(r => r.status === 'published').length,
     };
 
-    res.json({ summary, rows: withStatus });
+    res.json({ summary, rows: withStatus, modes });
   } catch (err) { next(err); }
 });
 

@@ -1,41 +1,162 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; current_semester: number; }
 interface Teacher      { id: string; name: string; department: string | null; }
 
-interface MonitorRow {
-  teacher_id: string;
-  teacher_name: string;
-  department: string | null;
-  subject: string;
-  class_name: string;
-  total_students: number;
+interface ModeBreakdown {
+  mode_id:             string;
+  mode_name:           string;
+  max_instances:       number | null;
   assessments_created: number;
-  assessment_names: string[];
-  students_ca_scored: number;
-  students_exam_scored: number;
-  submission_status: string | null;
+  students_scored:     number;
+}
+
+interface MonitorRow {
+  teacher_id:            string;
+  teacher_name:          string;
+  department:            string | null;
+  subject:               string;
+  class_name:            string;
+  total_students:        number;
+  mode_breakdown:        ModeBreakdown[];
+  total_modes:           number;
+  complete_modes:        number;
+  exam_students_scored:  number;
+  exam_complete:         boolean;
+  completion_pct:        number;
+  submission_status:     string | null;
   status: 'not_started' | 'in_progress' | 'scores_complete' | 'submitted' | 'hod_approved' | 'final_approved' | 'published';
 }
 
+interface CaMode { id: string; name: string; }
+
 interface MonitorData {
   summary: { total: number; not_started: number; in_progress: number; scores_complete: number; submitted: number; published: number; };
-  rows: MonitorRow[];
+  rows:    MonitorRow[];
+  modes:   CaMode[];
 }
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  not_started:     { label: 'Not Started',      color: '#DC2626', bg: '#FEF2F2' },
-  in_progress:     { label: 'In Progress',       color: '#D97706', bg: '#FFFBEB' },
-  scores_complete: { label: 'Scores Complete',   color: '#0369A1', bg: '#EFF6FF' },
-  submitted:       { label: 'Submitted',         color: '#1D4ED8', bg: '#DBEAFE' },
-  hod_approved:    { label: 'HOD Approved',      color: '#065F46', bg: '#D1FAE5' },
-  final_approved:  { label: 'Final Approved',    color: '#3730A3', bg: '#EDE9FE' },
-  published:       { label: 'Published',         color: '#14532D', bg: '#F0FDF4' },
+  not_started:     { label: 'Not Started',    color: '#DC2626', bg: '#FEF2F2' },
+  in_progress:     { label: 'In Progress',    color: '#D97706', bg: '#FFFBEB' },
+  scores_complete: { label: 'Scores Complete',color: '#0369A1', bg: '#EFF6FF' },
+  submitted:       { label: 'Submitted',      color: '#1D4ED8', bg: '#DBEAFE' },
+  hod_approved:    { label: 'HOD Approved',   color: '#065F46', bg: '#D1FAE5' },
+  final_approved:  { label: 'Final Approved', color: '#3730A3', bg: '#EDE9FE' },
+  published:       { label: 'Published',      color: '#14532D', bg: '#F0FDF4' },
 };
 
+// ── Details modal ─────────────────────────────────────────────────────────────
+function DetailsModal({ row, onClose }: { row: MonitorRow; onClose: () => void }) {
+  const total = row.total_students;
+  const denom = row.total_modes + 1;
+  const numer = row.complete_modes + (row.exam_complete ? 1 : 0);
+  const pct   = denom === 0 ? 0 : Math.round((numer / denom) * 100);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between">
+          <div>
+            <h2 className="font-bold text-slate-900">{row.subject} · {row.class_name}</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{row.teacher_name} · {total} student{total !== 1 ? 's' : ''}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors mt-0.5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Summary bar */}
+        <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-4">
+          <div className="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden">
+            <div className="h-2 rounded-full transition-all"
+              style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#15803D' : pct > 50 ? '#D97706' : '#DC2626' }} />
+          </div>
+          <span className="text-sm font-bold text-slate-700 whitespace-nowrap">{numer} / {denom} complete · {pct}%</span>
+        </div>
+
+        {/* Mode table */}
+        <div className="overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 sticky top-0">
+              <tr>
+                {['Mode', 'Created', 'Scored', 'Status'].map(h => (
+                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {row.mode_breakdown.map(m => {
+                const done    = m.assessments_created >= 1 && total > 0 && m.students_scored >= total;
+                const started = m.assessments_created >= 1 || m.students_scored > 0;
+                const statusLabel = done ? '✓ Done' : started ? '⚠ Incomplete' : '✗ Not Started';
+                const statusColor = done ? '#15803D' : started ? '#D97706' : '#DC2626';
+                return (
+                  <tr key={m.mode_id} className="hover:bg-slate-50">
+                    <td className="px-4 py-2.5 font-medium text-slate-800">{m.mode_name}</td>
+                    <td className="px-4 py-2.5 text-center text-slate-600 tabular-nums">{m.assessments_created}</td>
+                    <td className="px-4 py-2.5 text-center tabular-nums">
+                      <span className={m.students_scored > 0 ? 'font-semibold text-slate-800' : 'text-slate-300'}>
+                        {m.students_scored}
+                      </span>
+                      <span className="text-slate-400"> / {total}</span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className="text-xs font-semibold" style={{ color: statusColor }}>{statusLabel}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+              {/* Exam row */}
+              <tr className="bg-slate-50/60 hover:bg-slate-50">
+                <td className="px-4 py-2.5 font-medium text-slate-700 italic">Exam Scores</td>
+                <td className="px-4 py-2.5 text-center text-slate-400">—</td>
+                <td className="px-4 py-2.5 text-center tabular-nums">
+                  <span className={row.exam_students_scored > 0 ? 'font-semibold text-slate-800' : 'text-slate-300'}>
+                    {row.exam_students_scored}
+                  </span>
+                  <span className="text-slate-400"> / {total}</span>
+                </td>
+                <td className="px-4 py-2.5">
+                  <span className="text-xs font-semibold" style={{ color: row.exam_complete ? '#15803D' : row.exam_students_scored > 0 ? '#D97706' : '#DC2626' }}>
+                    {row.exam_complete ? '✓ Done' : row.exam_students_scored > 0 ? '⚠ Incomplete' : '✗ Not Started'}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="px-6 py-4 border-t border-slate-100 flex justify-end">
+          <button onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50 transition-colors">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Outstanding mode description ───────────────────────────────────────────────
+function outstandingModes(row: MonitorRow): string {
+  const total = row.total_students;
+  const incomplete = row.mode_breakdown.filter(
+    m => !(m.assessments_created >= 1 && total > 0 && m.students_scored >= total)
+  );
+  if (incomplete.length === 0) return 'All CA modes complete';
+  return incomplete.map(m => {
+    if (m.assessments_created === 0) return `${m.mode_name} (not started)`;
+    return `${m.mode_name} (${m.students_scored}/${total} students)`;
+  }).join(', ');
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function AssessmentTrackerPage() {
   const [years,      setYears]      = useState<AcademicYear[]>([]);
   const [teachers,   setTeachers]   = useState<Teacher[]>([]);
@@ -47,7 +168,9 @@ export default function AssessmentTrackerPage() {
   const [data,       setData]       = useState<MonitorData | null>(null);
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState('');
-  const [expanded,   setExpanded]   = useState<string | null>(null); // expanded teacher_id
+  const [expanded,   setExpanded]   = useState<string | null>(null);
+  const [detailRow,  setDetailRow]  = useState<MonitorRow | null>(null);
+  const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     Promise.all([
@@ -77,42 +200,58 @@ export default function AssessmentTrackerPage() {
 
   useEffect(() => { if (yearId) load(); }, [yearId, semester, load]);
 
-  // Group rows by teacher for the expanded view
+  // Group rows by teacher
   const byTeacher = (data?.rows ?? []).reduce<Record<string, MonitorRow[]>>((acc, r) => {
     (acc[r.teacher_id] ??= []).push(r);
     return acc;
   }, {});
 
-  // Get unique teachers in display order
-  const teacherList = Object.entries(byTeacher).map(([tid, rows]) => ({
-    teacher_id:   tid,
-    teacher_name: rows[0].teacher_name,
-    department:   rows[0].department,
-    rows,
-    // Worst status for the teacher (for sorting/highlighting)
-    worstStatus: rows.some(r => r.status === 'not_started') ? 'not_started'
-                : rows.some(r => r.status === 'in_progress') ? 'in_progress'
-                : rows.some(r => r.status === 'scores_complete') ? 'scores_complete'
-                : rows[0].status,
-  }));
-
-  // Apply status filter
-  const filtered = teacherList.filter(t => {
-    if (filterStat && !t.rows.some(r => r.status === filterStat)) return false;
-    return true;
+  const teacherList = Object.entries(byTeacher).map(([tid, rows]) => {
+    const pct = rows.length === 0 ? 0
+      : Math.round(rows.reduce((s, r) => s + r.completion_pct, 0) / rows.length);
+    return {
+      teacher_id:   tid,
+      teacher_name: rows[0].teacher_name,
+      department:   rows[0].department,
+      rows,
+      pct,
+      worstStatus: rows.some(r => r.status === 'not_started')    ? 'not_started'
+                 : rows.some(r => r.status === 'in_progress')     ? 'in_progress'
+                 : rows.some(r => r.status === 'scores_complete') ? 'scores_complete'
+                 : rows[0].status,
+    };
   });
 
-  // Unique departments for filter
-  const depts = [...new Set(teachers.map(t => t.department).filter(Boolean))].sort() as string[];
+  const filtered = teacherList.filter(t =>
+    !filterStat || t.rows.some(r => r.status === filterStat)
+  );
 
+  const depts = [...new Set(teachers.map(t => t.department).filter(Boolean))].sort() as string[];
   const s = data?.summary;
+
+  // Printable year/semester label
+  const yearLabel = years.find(y => y.id === yearId)?.name ?? '';
+
+  function handlePrint() {
+    window.print();
+  }
 
   return (
     <div className="space-y-5">
+      {/* Print styles injected via a style tag */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          #print-report { display: block !important; visibility: visible !important; position: fixed; top: 0; left: 0; width: 100%; padding: 20px; background: white; }
+          #print-report * { visibility: visible !important; }
+          @page { margin: 15mm; size: A4 landscape; }
+        }
+      `}</style>
+
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-slate-900">Assessment Tracker</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Monitor which teachers have entered assessments based on their timetable assignments.</p>
+        <p className="text-sm text-slate-500 mt-0.5">Monitor score entry completion across all teachers, subjects, and assessment modes.</p>
       </div>
 
       {/* Filters */}
@@ -142,8 +281,7 @@ export default function AssessmentTrackerPage() {
           <option value="">All Statuses</option>
           {Object.entries(STATUS_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <button onClick={() => load()}
-          disabled={!yearId || loading}
+        <button onClick={() => load()} disabled={!yearId || loading}
           className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-colors"
           style={{ backgroundColor: '#15803D' }}>
           {loading ? 'Loading…' : 'Refresh'}
@@ -156,9 +294,9 @@ export default function AssessmentTrackerPage() {
       {s && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { label: 'Total Assignments', value: s.total,           color: '#475569', bg: '#F8FAFC' },
-            { label: 'Not Started',       value: s.not_started,     color: '#DC2626', bg: '#FEF2F2' },
-            { label: 'In Progress',       value: s.in_progress,     color: '#D97706', bg: '#FFFBEB' },
+            { label: 'Total Assignments', value: s.total,            color: '#475569', bg: '#F8FAFC' },
+            { label: 'Not Started',       value: s.not_started,      color: '#DC2626', bg: '#FEF2F2' },
+            { label: 'In Progress',       value: s.in_progress,      color: '#D97706', bg: '#FFFBEB' },
             { label: 'Scores Complete',   value: s.scores_complete,  color: '#0369A1', bg: '#EFF6FF' },
             { label: 'Submitted',         value: s.submitted,        color: '#1D4ED8', bg: '#DBEAFE' },
             { label: 'Published',         value: s.published,        color: '#14532D', bg: '#F0FDF4' },
@@ -175,7 +313,8 @@ export default function AssessmentTrackerPage() {
       {/* Teacher list */}
       {loading ? (
         <div className="flex justify-center py-16">
-          <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin"
+            style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
         </div>
       ) : !data ? (
         <div className="text-center py-16 text-slate-400 text-sm">Select a year and semester above to load data.</div>
@@ -184,46 +323,43 @@ export default function AssessmentTrackerPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map(teacher => {
-            const cfg = STATUS_CFG[teacher.worstStatus] ?? STATUS_CFG.not_started;
+            const cfg        = STATUS_CFG[teacher.worstStatus] ?? STATUS_CFG.not_started;
             const isExpanded = expanded === teacher.teacher_id;
             const notStarted = teacher.rows.filter(r => r.status === 'not_started').length;
-            const pct = teacher.rows.length === 0 ? 0 : Math.round(
-              teacher.rows.reduce((sum, r) => {
-                if (['scores_complete','submitted','hod_approved','final_approved','published'].includes(r.status)) return sum + 1;
-                if (r.total_students === 0) return sum;
-                const caRatio = Math.min(r.students_ca_scored / r.total_students, 1);
-                const exRatio = Math.min(r.students_exam_scored / r.total_students, 1);
-                return sum + (caRatio + exRatio) / 2;
-              }, 0) / teacher.rows.length * 100
-            );
+            const { pct }    = teacher;
 
             return (
               <div key={teacher.teacher_id} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                {/* Teacher row */}
+                {/* Teacher header row */}
                 <button
                   onClick={() => setExpanded(isExpanded ? null : teacher.teacher_id)}
                   className="w-full flex items-center gap-4 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-slate-900 text-sm">{teacher.teacher_name}</p>
-                    <p className="text-xs text-slate-400">{teacher.department ?? 'No Department'} · {teacher.rows.length} subject{teacher.rows.length !== 1 ? 's' : ''}</p>
+                    <p className="text-xs text-slate-400">
+                      {teacher.department ?? 'No Department'} · {teacher.rows.length} subject{teacher.rows.length !== 1 ? 's' : ''}
+                    </p>
                   </div>
 
                   {/* Progress bar */}
                   <div className="hidden sm:flex items-center gap-2 w-40">
                     <div className="flex-1 h-1.5 rounded-full bg-slate-100">
-                      <div className="h-1.5 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#15803D' : pct > 50 ? '#D97706' : '#DC2626' }} />
+                      <div className="h-1.5 rounded-full transition-all"
+                        style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#15803D' : pct > 50 ? '#D97706' : '#DC2626' }} />
                     </div>
                     <span className="text-xs text-slate-500 w-8 text-right">{pct}%</span>
                   </div>
 
                   {notStarted > 0 && (
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ color: '#DC2626', background: '#FEF2F2' }}>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                      style={{ color: '#DC2626', background: '#FEF2F2' }}>
                       {notStarted} not started
                     </span>
                   )}
 
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ color: cfg.color, background: cfg.bg }}>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{ color: cfg.color, background: cfg.bg }}>
                     {cfg.label}
                   </span>
 
@@ -233,55 +369,62 @@ export default function AssessmentTrackerPage() {
                   </svg>
                 </button>
 
-                {/* Expanded detail */}
+                {/* Expanded subject rows */}
                 {isExpanded && (
                   <div className="border-t border-slate-100">
                     <table className="w-full text-xs">
                       <thead className="bg-slate-50">
                         <tr>
-                          {['Subject', 'Class', 'Students', 'CA Scored', 'Exam Scored', 'Assessment Modes', 'Status'].map(h => (
-                            <th key={h} className="px-4 py-2 text-left font-semibold text-slate-400 uppercase tracking-wide">{h}</th>
+                          {['Subject', 'Class', 'Students', 'CA Modes', 'Exam Scores', 'Completion', 'Status', ''].map(h => (
+                            <th key={h} className="px-4 py-2 text-left font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
                         {teacher.rows.map((r, i) => {
                           const rcfg = STATUS_CFG[r.status] ?? STATUS_CFG.not_started;
+                          const rowPctColor = r.completion_pct === 100 ? '#15803D'
+                            : r.completion_pct > 50 ? '#D97706' : '#DC2626';
                           return (
                             <tr key={i} className="hover:bg-slate-50">
                               <td className="px-4 py-2.5 font-medium text-slate-800">{r.subject}</td>
                               <td className="px-4 py-2.5 text-slate-600">{r.class_name}</td>
                               <td className="px-4 py-2.5 text-center text-slate-500">{r.total_students}</td>
+                              {/* CA Modes */}
                               <td className="px-4 py-2.5 text-center">
-                                <span className={r.students_ca_scored > 0 ? 'text-green-700 font-semibold' : 'text-slate-300'}>
-                                  {r.students_ca_scored}
+                                <span className="font-semibold tabular-nums"
+                                  style={{ color: r.complete_modes === r.total_modes ? '#15803D' : r.complete_modes > 0 ? '#D97706' : '#DC2626' }}>
+                                  {r.complete_modes}
                                 </span>
-                                <span className="text-slate-300">/{r.total_students}</span>
+                                <span className="text-slate-300"> / {r.total_modes}</span>
                               </td>
+                              {/* Exam */}
                               <td className="px-4 py-2.5 text-center">
-                                <span className={r.students_exam_scored > 0 ? 'text-green-700 font-semibold' : 'text-slate-300'}>
-                                  {r.students_exam_scored}
+                                <span className="font-semibold tabular-nums"
+                                  style={{ color: r.exam_complete ? '#15803D' : r.exam_students_scored > 0 ? '#D97706' : '#DC2626' }}>
+                                  {r.exam_students_scored}
                                 </span>
-                                <span className="text-slate-300">/{r.total_students}</span>
+                                <span className="text-slate-300"> / {r.total_students}</span>
                               </td>
-                              <td className="px-4 py-2.5">
-                                {r.assessment_names.length > 0 ? (
-                                  <div className="flex flex-wrap gap-1">
-                                    {r.assessment_names.map(name => (
-                                      <span key={name} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 whitespace-nowrap">
-                                        {name}
-                                      </span>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <span className="text-slate-300 text-[11px]">None</span>
-                                )}
+                              {/* Completion % */}
+                              <td className="px-4 py-2.5 text-center">
+                                <span className="font-bold tabular-nums" style={{ color: rowPctColor }}>
+                                  {r.completion_pct}%
+                                </span>
                               </td>
                               <td className="px-4 py-2.5">
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold"
                                   style={{ color: rcfg.color, background: rcfg.bg }}>
                                   {rcfg.label}
                                 </span>
+                              </td>
+                              {/* Details button */}
+                              <td className="px-4 py-2.5">
+                                <button
+                                  onClick={e => { e.stopPropagation(); setDetailRow(r); }}
+                                  className="text-[11px] px-2.5 py-1 rounded-md font-semibold border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors whitespace-nowrap">
+                                  Details
+                                </button>
                               </td>
                             </tr>
                           );
@@ -295,6 +438,162 @@ export default function AssessmentTrackerPage() {
           })}
         </div>
       )}
+
+      {/* Print Report button */}
+      {data && filtered.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 px-5 py-4 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Completion Report</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Print a full report showing outstanding scores per teacher for {yearLabel} · Semester {semester}.
+            </p>
+          </div>
+          <button onClick={handlePrint}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
+            style={{ backgroundColor: '#15803D' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            Print Report
+          </button>
+        </div>
+      )}
+
+      {/* ── Hidden print-only report ──────────────────────────────────────────── */}
+      {data && (
+        <div id="print-report" ref={printRef} style={{ display: 'none' }}>
+          <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', color: '#1a1a1a' }}>
+            {/* Report header */}
+            <div style={{ borderBottom: '2px solid #1a5c38', paddingBottom: '8px', marginBottom: '12px' }}>
+              <div style={{ fontSize: '14pt', fontWeight: 900, color: '#1a5c38', textTransform: 'uppercase' }}>
+                Assessment Completion Report
+              </div>
+              <div style={{ fontSize: '9pt', color: '#555', marginTop: '2px' }}>
+                {yearLabel} · Semester {semester} &nbsp;·&nbsp; Printed: {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
+            </div>
+
+            {/* Summary row */}
+            <div style={{ display: 'flex', gap: '24px', marginBottom: '14px', flexWrap: 'wrap' }}>
+              {[
+                { label: 'Total Assignments', value: s?.total ?? 0 },
+                { label: 'Not Started',       value: s?.not_started ?? 0 },
+                { label: 'In Progress',       value: s?.in_progress ?? 0 },
+                { label: 'Scores Complete',   value: s?.scores_complete ?? 0 },
+                { label: 'Submitted',         value: s?.submitted ?? 0 },
+              ].map(k => (
+                <div key={k.label} style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '16pt', fontWeight: 900 }}>{k.value}</div>
+                  <div style={{ fontSize: '7pt', color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{k.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Main table */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
+              <thead>
+                <tr style={{ background: '#1a5c38', color: '#fff' }}>
+                  {['Teacher', 'Dept', 'Subject', 'Class', 'Students', 'CA Outstanding Modes', 'Exam Scores', 'Completion', 'Status'].map(h => (
+                    <th key={h} style={{ padding: '5px 8px', textAlign: 'left', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.flatMap(teacher =>
+                  teacher.rows.map((r, i) => {
+                    const outstanding = outstandingModes(r);
+                    const examLabel   = r.exam_complete
+                      ? 'Complete'
+                      : r.exam_students_scored > 0
+                        ? `${r.exam_students_scored} / ${r.total_students} entered`
+                        : 'Not started';
+                    const isOdd = (filtered.indexOf(teacher) + i) % 2 === 0;
+                    const rowBg = r.completion_pct === 100 ? '#f0fdf4'
+                                : r.completion_pct === 0   ? '#fef2f2'
+                                : isOdd ? '#fff' : '#f8fafc';
+                    return (
+                      <tr key={`${teacher.teacher_id}-${i}`} style={{ background: rowBg }}>
+                        <td style={{ padding: '5px 8px', fontWeight: 600, borderBottom: '1px solid #e2e8f0' }}>
+                          {i === 0 ? r.teacher_name : ''}
+                        </td>
+                        <td style={{ padding: '5px 8px', color: '#555', borderBottom: '1px solid #e2e8f0' }}>
+                          {i === 0 ? (r.department ?? '—') : ''}
+                        </td>
+                        <td style={{ padding: '5px 8px', borderBottom: '1px solid #e2e8f0' }}>{r.subject}</td>
+                        <td style={{ padding: '5px 8px', borderBottom: '1px solid #e2e8f0' }}>{r.class_name}</td>
+                        <td style={{ padding: '5px 8px', textAlign: 'center', borderBottom: '1px solid #e2e8f0' }}>{r.total_students}</td>
+                        <td style={{ padding: '5px 8px', borderBottom: '1px solid #e2e8f0', color: outstanding === 'All CA modes complete' ? '#15803D' : '#B45309' }}>
+                          {outstanding}
+                        </td>
+                        <td style={{ padding: '5px 8px', borderBottom: '1px solid #e2e8f0', color: r.exam_complete ? '#15803D' : '#B45309' }}>
+                          {examLabel}
+                        </td>
+                        <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 700, borderBottom: '1px solid #e2e8f0',
+                          color: r.completion_pct === 100 ? '#15803D' : r.completion_pct > 50 ? '#D97706' : '#DC2626' }}>
+                          {r.completion_pct}%
+                        </td>
+                        <td style={{ padding: '5px 8px', borderBottom: '1px solid #e2e8f0' }}>
+                          {STATUS_CFG[r.status]?.label ?? r.status}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+
+            {/* Outstanding section */}
+            {filtered.some(t => t.rows.some(r => r.completion_pct < 100)) && (
+              <div style={{ marginTop: '20px' }}>
+                <div style={{ fontSize: '10pt', fontWeight: 700, color: '#1a5c38', borderBottom: '1.5px solid #1a5c38', paddingBottom: '4px', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Outstanding Entries
+                </div>
+                {filtered.flatMap(teacher =>
+                  teacher.rows
+                    .filter(r => r.completion_pct < 100)
+                    .map((r, i) => {
+                      const outstanding = outstandingModes(r);
+                      const examLabel   = r.exam_complete ? null
+                        : r.exam_students_scored > 0
+                          ? `Exam scores: ${r.exam_students_scored}/${r.total_students} students entered`
+                          : 'Exam scores: not started';
+                      return (
+                        <div key={`out-${teacher.teacher_id}-${i}`}
+                          style={{ marginBottom: '8px', paddingLeft: '12px', borderLeft: '3px solid #DC2626' }}>
+                          <div style={{ fontWeight: 700, fontSize: '9pt' }}>
+                            {r.teacher_name} — {r.subject} / {r.class_name}
+                            <span style={{ fontWeight: 400, color: '#666', marginLeft: '6px' }}>
+                              ({r.total_students} students · {r.completion_pct}% complete)
+                            </span>
+                          </div>
+                          {outstanding !== 'All CA modes complete' && (
+                            <div style={{ fontSize: '8.5pt', color: '#B45309', marginTop: '2px' }}>
+                              CA modes: {outstanding}
+                            </div>
+                          )}
+                          {examLabel && (
+                            <div style={{ fontSize: '8.5pt', color: '#B45309', marginTop: '2px' }}>
+                              {examLabel}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+            )}
+
+            <div style={{ marginTop: '20px', fontSize: '7.5pt', color: '#999', borderTop: '1px solid #e2e8f0', paddingTop: '6px' }}>
+              Generated by CAS · {new Date().toLocaleString('en-GB')}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Details modal */}
+      {detailRow && <DetailsModal row={detailRow} onClose={() => setDetailRow(null)} />}
     </div>
   );
 }
