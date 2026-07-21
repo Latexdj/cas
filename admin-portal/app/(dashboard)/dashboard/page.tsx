@@ -267,6 +267,8 @@ function attendanceStatus(pct: number | null): { label: string; color: string; b
 function cardCfg(row: ClassroomStatus) {
   if (row.status === 'occupied')
     return { bg: '#F0FDF4', border: '#16A34A', dot: '#16A34A', label: 'OCCUPIED' };
+  if (row.in_current_period && row.leave_type)
+    return { bg: '#FAF5FF', border: '#9333EA', dot: '#9333EA', label: 'ON LEAVE' };
   if (row.in_current_period)
     return { bg: '#FFFBEB', border: '#F59E0B', dot: '#D97706', label: 'SCHEDULED' };
   return   { bg: '#F8FAFC', border: '#E2E8F0', dot: '#CBD5E1', label: 'FREE' };
@@ -297,6 +299,12 @@ function ClassroomCard({ row }: { row: ClassroomStatus }) {
       <p className="text-base font-bold mb-1 leading-tight" style={{ color: '#0F172A' }}>{row.class_name}</p>
       <p className="text-sm" style={{ color: '#475569' }}>{row.subject ?? '—'}</p>
       <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>{row.teacher_name ?? '—'}</p>
+      {row.leave_type && !row.submitted_at && (
+        <span className="inline-block text-xs font-semibold mt-1 px-2 py-0.5 rounded-full"
+          style={{ background: '#EDE9FE', color: '#7C3AED' }}>
+          {row.leave_type}
+        </span>
+      )}
       {row.teacher_phone && (
         <div className="flex items-center gap-1.5 mt-0.5">
           <span className="text-xs" style={{ color: '#94A3B8' }}>{row.teacher_phone}</span>

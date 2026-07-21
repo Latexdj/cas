@@ -86,6 +86,14 @@ router.get('/classroom-status', async (req, res, next) => {
 
     const { rows } = await pool.query(`
       WITH
+      excused_today AS (
+        SELECT teacher_id, type AS leave_type
+        FROM teacher_excuses
+        WHERE school_id = $1
+          AND status = 'Approved'
+          AND date_from <= CURRENT_DATE
+          AND date_to   >= CURRENT_DATE
+      ),
       all_classrooms AS (
         -- Split every timetable entry's class_names to get unique individual classrooms
         SELECT DISTINCT TRIM(cls) AS class_name
@@ -100,10 +108,11 @@ router.get('/classroom-status', async (req, res, next) => {
           tt.subject,
           tt.start_time::text,
           tt.end_time::text,
-          te.name  AS teacher_name,
-          te.phone AS teacher_phone,
-          a.id     AS attendance_id,
-          a.submitted_at
+          te.name      AS teacher_name,
+          te.phone     AS teacher_phone,
+          a.id         AS attendance_id,
+          a.submitted_at,
+          et.leave_type
         FROM timetable tt
         JOIN teachers te ON te.id = tt.teacher_id AND te.status = 'Active'
         LEFT JOIN attendance a
@@ -112,6 +121,7 @@ router.get('/classroom-status', async (req, res, next) => {
           AND a.date       = CURRENT_DATE
           AND LOWER(a.subject) = LOWER(tt.subject)
           AND LOWER(REPLACE(a.class_names, ' ', '')) = LOWER(REPLACE(tt.class_names, ' ', ''))
+        LEFT JOIN excused_today et ON et.teacher_id = tt.teacher_id
         WHERE tt.school_id  = $1
           AND tt.day_of_week = $2
           AND $3::time BETWEEN tt.start_time AND tt.end_time
@@ -126,7 +136,8 @@ router.get('/classroom-status', async (req, res, next) => {
           ane.teacher_name,
           ane.teacher_phone,
           ane.attendance_id,
-          ane.submitted_at
+          ane.submitted_at,
+          ane.leave_type
         FROM active_now_entries ane,
              LATERAL unnest(string_to_array(ane.class_names, ',')) AS cls
         ORDER BY TRIM(cls), ane.start_time
@@ -143,7 +154,8 @@ router.get('/classroom-status', async (req, res, next) => {
         an.end_time,
         an.teacher_name,
         an.teacher_phone,
-        an.submitted_at
+        an.submitted_at,
+        an.leave_type
       FROM all_classrooms ac
       LEFT JOIN active_now an ON an.class_name = ac.class_name
       ORDER BY

@@ -112,6 +112,7 @@ export default function SubmitPage() {
   const [attendanceId,  setAttendanceId]  = useState('');
   const [students,      setStudents]      = useState<Student[]>([]);
   const [absentIds,     setAbsentIds]     = useState<Set<string>>(new Set());
+  const [exeatIds,      setExeatIds]      = useState<Set<string>>(new Set());
   const [studLoading,   setStudLoading]   = useState(false);
   const [step2Loading,  setStep2Loading]  = useState(false);
   const [step2Error,    setStep2Error]    = useState('');
@@ -365,8 +366,12 @@ export default function SubmitPage() {
     setStudLoading(true);
     try {
       const className = queue[index];
-      const sr = await teacherApi.get<Student[]>(`/api/students?class_name=${encodeURIComponent(className)}&status=Active`);
-      setStudents(sr.data ?? []);
+      const [sr, er] = await Promise.allSettled([
+        teacherApi.get<Student[]>(`/api/students?class_name=${encodeURIComponent(className)}&status=Active`),
+        teacherApi.get<string[]>('/api/exeat/on-exeat-ids'),
+      ]);
+      setStudents(sr.status === 'fulfilled' ? sr.value.data ?? [] : []);
+      setExeatIds(new Set(er.status === 'fulfilled' ? er.value.data : []));
       setAbsentIds(new Set());
     } finally {
       setStudLoading(false);
@@ -385,7 +390,9 @@ export default function SubmitPage() {
         subject:        slot.subject,
         className:      currentClass,
         lessonEndTime:  slot.end_time,
-        records: students.map(s => ({ studentId: s.id, status: absentIds.has(s.id) ? 'Absent' : 'Present' })),
+        records: students
+          .filter(s => !exeatIds.has(s.id))
+          .map(s => ({ studentId: s.id, status: absentIds.has(s.id) ? 'Absent' : 'Present' })),
       });
 
       const nextIdx = classQueueIdx + 1;
@@ -403,7 +410,8 @@ export default function SubmitPage() {
   }
 
   const selectedSlot = slots.find(s => s.id === selectedId);
-  const presentCount = students.length - absentIds.size;
+  const exeatCount   = students.filter(s => exeatIds.has(s.id)).length;
+  const presentCount = students.length - absentIds.size - exeatCount;
 
   return (
     <div className="min-h-screen px-4 pt-6 pb-24" style={{ background: dk.pageBg }}>
@@ -649,11 +657,12 @@ export default function SubmitPage() {
           )}
 
           {/* Counts */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className={`grid gap-3 ${exeatCount > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
             {[
-              { label: 'Present', count: presentCount,    color: dk.presentCountText, bg: dk.presentCountBg },
-              { label: 'Absent',  count: absentIds.size,  color: dk.absentCountText,  bg: dk.absentCountBg  },
-              { label: 'Total',   count: students.length, color: dk.totalCountText,   bg: dk.totalCountBg   },
+              { label: 'Present',  count: presentCount,    color: dk.presentCountText, bg: dk.presentCountBg },
+              { label: 'Absent',   count: absentIds.size,  color: dk.absentCountText,  bg: dk.absentCountBg  },
+              ...(exeatCount > 0 ? [{ label: 'On Exeat', count: exeatCount, color: isDark ? '#FCD34D' : '#92400E', bg: isDark ? '#44403C' : '#FEF3C7' }] : []),
+              { label: 'Total',    count: students.length, color: dk.totalCountText,   bg: dk.totalCountBg   },
             ].map(({ label, count, color, bg }) => (
               <div key={label} className="rounded-2xl p-3 text-center" style={{ background: bg }}>
                 <p className="text-2xl font-bold" style={{ color }}>{count}</p>
@@ -679,7 +688,27 @@ export default function SubmitPage() {
           ) : (
             <div className="space-y-2">
               {students.map(s => {
-                const absent = absentIds.has(s.id);
+                const onExeat = exeatIds.has(s.id);
+                const absent  = !onExeat && absentIds.has(s.id);
+                if (onExeat) {
+                  return (
+                    <div key={s.id} className="w-full flex items-center justify-between p-3.5 rounded-xl"
+                      style={{
+                        background: isDark ? '#1C1917' : '#FFFBEB',
+                        border:     `1px solid ${isDark ? '#44403C' : '#FDE68A'}`,
+                        opacity: 0.85,
+                      }}>
+                      <div>
+                        <p className="text-xs font-bold" style={{ color: dk.muted }}>{s.student_code}</p>
+                        <p className="text-sm font-semibold" style={{ color: isDark ? '#D6D3D1' : '#78350F' }}>{s.name}</p>
+                      </div>
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+                        style={{ background: isDark ? '#44403C' : '#FEF3C7', color: isDark ? '#FCD34D' : '#92400E' }}>
+                        On Exeat
+                      </span>
+                    </div>
+                  );
+                }
                 return (
                   <button key={s.id} type="button" onClick={() => setAbsentIds(prev => {
                     const n = new Set(prev); absent ? n.delete(s.id) : n.add(s.id); return n;
@@ -695,7 +724,7 @@ export default function SubmitPage() {
                     <span className="text-xs font-bold px-2.5 py-1 rounded-full"
                       style={{
                         background: absent ? (isDark ? '#7F1D1D' : '#FEE2E2') : (isDark ? '#14532D' : '#DCFCE7'),
-                        color:      absent ? (isDark ? '#FCA5A5' : '#DC2626') : (isDark ? '#86EFAC' : '#166534'),
+                        color:      absent ? (isDark ? '#FCA5A5' : '#DC2626') : (isDark ? '#86EFAC' : '#166634'),
                       }}>
                       {absent ? 'Absent' : 'Present'}
                     </span>

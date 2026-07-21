@@ -53,6 +53,7 @@ export default function SubmitScreen() {
   const [attendanceId,    setAttendanceId]    = useState<string | null>(null);
   const [students,        setStudents]        = useState<Student[]>([]);
   const [statuses,        setStatuses]        = useState<Record<string, StudentStatus>>({});
+  const [exeatStudentIds, setExeatStudentIds] = useState<Set<string>>(new Set());
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [submittingStud,  setSubmittingStud]  = useState(false);
   const [classQueue,      setClassQueue]      = useState<string[]>([]);
@@ -341,8 +342,13 @@ export default function SubmitScreen() {
     setLoadingStudents(true);
     try {
       const className = queue[index];
-      const res = await api.get<Student[]>(`/api/students?class_name=${encodeURIComponent(className)}&status=Active`);
-      const list = res.data;
+      const [studRes, exeatRes] = await Promise.allSettled([
+        api.get<Student[]>(`/api/students?class_name=${encodeURIComponent(className)}&status=Active`),
+        api.get<string[]>('/api/exeat/on-exeat-ids'),
+      ]);
+      const exeatSet = new Set<string>(exeatRes.status === 'fulfilled' ? exeatRes.value.data : []);
+      setExeatStudentIds(exeatSet);
+      const list = studRes.status === 'fulfilled' ? studRes.value.data : [];
       if (!list.length) {
         const nextIndex = index + 1;
         if (nextIndex < queue.length) {
@@ -362,7 +368,7 @@ export default function SubmitScreen() {
         return;
       }
       const initialStatuses: Record<string, StudentStatus> = {};
-      list.forEach(s => { initialStatuses[s.id] = 'Present'; });
+      list.forEach(s => { if (!exeatSet.has(s.id)) initialStatuses[s.id] = 'Present'; });
       setStudents(list);
       setStatuses(initialStatuses);
       setStep('students');
@@ -377,6 +383,7 @@ export default function SubmitScreen() {
   }
 
   function toggleStatus(studentId: string) {
+    if (exeatStudentIds.has(studentId)) return;
     setStatuses(prev => ({
       ...prev,
       [studentId]: prev[studentId] === 'Present' ? 'Absent' : 'Present',
@@ -389,7 +396,9 @@ export default function SubmitScreen() {
     setSubmittingStud(true);
     const currentClass = classQueue[classQueueIndex];
     try {
-      const records = students.map(s => ({ studentId: s.id, status: statuses[s.id] || 'Present' }));
+      const records = students
+        .filter(s => !exeatStudentIds.has(s.id))
+        .map(s => ({ studentId: s.id, status: statuses[s.id] || 'Present' }));
       await api.post('/api/student-attendance/submit', {
         attendanceId,
         teacherId:      user!.id,
@@ -516,6 +525,7 @@ export default function SubmitScreen() {
     );
   }
 
+  const exeatCount   = students.filter(s => exeatStudentIds.has(s.id)).length;
   const presentCount = Object.values(statuses).filter(s => s === 'Present').length;
   const absentCount  = Object.values(statuses).filter(s => s === 'Absent').length;
   const allDone = slots.length > 0 && slots.every(s => isSlotSubmitted(s));
@@ -584,6 +594,12 @@ export default function SubmitScreen() {
             <Text style={[styles.countNum, { color: '#DC2626' }]}>{absentCount}</Text>
             <Text style={[styles.countLabel, { color: '#DC2626' }]}>Absent</Text>
           </View>
+          {exeatCount > 0 && (
+            <View style={[styles.countBadge, { backgroundColor: '#FEF3C7' }]}>
+              <Text style={[styles.countNum, { color: '#92400E' }]}>{exeatCount}</Text>
+              <Text style={[styles.countLabel, { color: '#92400E' }]}>On Exeat</Text>
+            </View>
+          )}
           <View style={[styles.countBadge, { backgroundColor: '#F8FAFC' }]}>
             <Text style={[styles.countNum, { color: '#64748B' }]}>{students.length}</Text>
             <Text style={[styles.countLabel, { color: '#64748B' }]}>Total</Text>
@@ -598,7 +614,24 @@ export default function SubmitScreen() {
           </View>
         ) : (
           students.map(student => {
-            const isPresent = (statuses[student.id] || 'Present') === 'Present';
+            const onExeat   = exeatStudentIds.has(student.id);
+            const isPresent = !onExeat && (statuses[student.id] || 'Present') === 'Present';
+            if (onExeat) {
+              return (
+                <View
+                  key={student.id}
+                  style={[styles.studentRow, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A', opacity: 0.85 }]}
+                >
+                  <View style={styles.studentLeft}>
+                    <Text style={styles.studentCode}>{student.student_code}</Text>
+                    <Text style={[styles.studentName, { color: '#78350F' }]}>{student.name}</Text>
+                  </View>
+                  <View style={[styles.statusPill, { backgroundColor: '#FEF3C7' }]}>
+                    <Text style={[styles.statusPillText, { color: '#92400E' }]}>On Exeat</Text>
+                  </View>
+                </View>
+              );
+            }
             return (
               <TouchableOpacity
                 key={student.id}

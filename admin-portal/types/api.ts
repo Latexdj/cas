@@ -415,4 +415,5 @@ export interface ClassroomStatus {
   teacher_name: string | null;
   teacher_phone: string | null;
   submitted_at: string | null;
+  leave_type: string | null;
 }

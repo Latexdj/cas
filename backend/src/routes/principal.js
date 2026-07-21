@@ -93,7 +93,7 @@ router.get('/occupancy', async (req, res, next) => {
     const date = req.query.date || today();
     const dow  = new Date(date + 'T12:00:00').getDay();
 
-    const [slotRes, attRes, absRes] = await Promise.all([
+    const [slotRes, attRes, absRes, excRes] = await Promise.all([
       pool.query(`
         SELECT tt.id, tt.start_time, tt.end_time, tt.subject, tt.class_names,
                t.id AS teacher_id, t.name AS teacher_name, t.teacher_code, t.phone AS teacher_phone
@@ -114,7 +114,16 @@ router.get('/occupancy', async (req, res, next) => {
           AND is_auto_generated = true
           AND status NOT IN ('Excused','Made Up','Verified')
       `, [sid, date]),
+
+      pool.query(`
+        SELECT teacher_id, type AS leave_type
+        FROM teacher_excuses
+        WHERE school_id = $1 AND status = 'Approved'
+          AND date_from::date <= $2 AND date_to::date >= $2
+      `, [sid, date]),
     ]);
+
+    const excuseMap = new Map(excRes.rows.map(r => [r.teacher_id, r.leave_type]));
 
     const now = new Date();
     const slots = slotRes.rows.map(slot => {
@@ -132,10 +141,12 @@ router.get('/occupancy', async (req, res, next) => {
         a.teacher_id === slot.teacher_id &&
         a.subject.toLowerCase() === slot.subject.toLowerCase()
       );
+      const leaveType = excuseMap.get(slot.teacher_id) ?? null;
 
       let status;
       if (submitted)              status = 'confirmed';
       else if (absent)            status = 'absent';
+      else if (leaveType)         status = 'on_leave';
       else if (now < startDt)     status = 'upcoming';
       else if (now <= endDt)      status = 'ongoing';
       else                        status = 'not_submitted';
@@ -150,6 +161,7 @@ router.get('/occupancy', async (req, res, next) => {
         teacherName:  slot.teacher_name,
         teacherCode:  slot.teacher_code,
         teacherPhone: slot.teacher_phone ?? null,
+        leaveType,
         status,
       };
     });

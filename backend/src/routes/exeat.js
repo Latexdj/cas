@@ -254,7 +254,7 @@ router.get('/on-exeat-ids', async (req, res, next) => {
     await autoMarkOverdue(req.schoolId);
     const { rows } = await pool.query(
       `SELECT DISTINCT student_id FROM exeats
-       WHERE school_id = $1 AND status IN ('active','overdue')`,
+       WHERE school_id = $1 AND status = 'active'`,
       [req.schoolId]
     );
     res.json(rows.map(r => r.student_id));

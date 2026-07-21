@@ -8,7 +8,8 @@ interface Slot {
   startTime: string; endTime: string;
   subject: string; classNames: string;
   teacherName: string; teacherCode: string; teacherPhone: string | null;
-  status: 'confirmed' | 'absent' | 'upcoming' | 'ongoing' | 'not_submitted';
+  leaveType: string | null;
+  status: 'confirmed' | 'absent' | 'upcoming' | 'ongoing' | 'not_submitted' | 'on_leave';
 }
 
 function CallBtn({ phone, color }: { phone: string | null; color: string }) {
@@ -36,6 +37,7 @@ function CallBtn({ phone, color }: { phone: string | null; color: string }) {
 const STATUS_META: Record<Slot['status'], { label: string; bg: string; bgDark: string; text: string }> = {
   confirmed:     { label: 'Confirmed',      bg: '#DCFCE7', bgDark: '#14532D44', text: '#15803D' },
   absent:        { label: 'Absent',         bg: '#FEE2E2', bgDark: '#7F1D1D44', text: '#DC2626' },
+  on_leave:      { label: 'On Leave',       bg: '#FAF5FF', bgDark: '#3B0764AA', text: '#9333EA' },
   ongoing:       { label: 'Ongoing',        bg: '#DBEAFE', bgDark: '#1E3A5F44', text: '#1D4ED8' },
   upcoming:      { label: 'Upcoming',       bg: '#F3F4F6', bgDark: '#1E293B88', text: '#6B7280' },
   not_submitted: { label: 'Not Submitted',  bg: '#FEF3C7', bgDark: '#78350F44', text: '#D97706' },
@@ -174,6 +176,16 @@ export default function OccupancyPage() {
                             ({slot.teacherCode})
                           </span>
                         </span>
+                        {slot.leaveType && (
+                          <span style={{
+                            display: 'inline-block', marginLeft: 6,
+                            fontSize: 10, fontWeight: 700,
+                            background: dark ? '#3B076488' : '#EDE9FE',
+                            color: '#9333EA', borderRadius: 20, padding: '1px 7px',
+                          }}>
+                            {slot.leaveType}
+                          </span>
+                        )}
                         {slot.teacherPhone && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
                             <span style={{ fontSize: 11 }}>{slot.teacherPhone}</span>
