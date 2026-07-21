@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1315,6 +1317,26 @@ export default function MeetingsPage() {
     } catch { alert('Failed to delete attendance record.'); }
   }
 
+  // ── Table controls ─────────────────────────────────────────────
+
+  const {
+    displayRows: meetingRows, total: meetingTotal, page: meetingPage, setPage: setMeetingPage,
+    pageSize: meetingPageSize, setPageSize: setMeetingPageSize,
+    sortKey: mSortKey, sortDir: mSortDir, handleSort: mHandleSort,
+  } = useTableControls(meetings as unknown as Record<string, unknown>[]);
+
+  const {
+    displayRows: attendanceRows, total: attendanceTotal, page: attendancePage, setPage: setAttendancePage,
+    pageSize: attendancePageSize, setPageSize: setAttendancePageSize,
+    sortKey: attSortKey, sortDir: attSortDir, handleSort: attHandleSort,
+  } = useTableControls(attendance as unknown as Record<string, unknown>[]);
+
+  const {
+    displayRows: absenceRows, total: absenceTotal, page: absencePage, setPage: setAbsencePage,
+    pageSize: absencePageSize, setPageSize: setAbsencePageSize,
+    sortKey: absSortKey, sortDir: absSortDir, handleSort: absHandleSort,
+  } = useTableControls(absences as unknown as Record<string, unknown>[]);
+
   // ── Tab bar ────────────────────────────────────────────────────
 
   const tabClass = (t: Tab) =>
@@ -1451,13 +1473,18 @@ export default function MeetingsPage() {
                   <table className="min-w-[850px] w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50">
-                        {['Date', 'Day', 'Type', 'Title', 'Time', 'Venue', 'Minutes', 'Actions'].map(h => (
-                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
-                        ))}
+                        <Th label="Date" sortKey="date" currentKey={mSortKey} currentDir={mSortDir} onSort={mHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Day</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Type</th>
+                        <Th label="Title" sortKey="title" currentKey={mSortKey} currentDir={mSortDir} onSort={mHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Time</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Venue</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Minutes</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {meetings.map(m => (
+                      {(meetingRows as unknown as Meeting[]).map(m => (
                         <tr key={m.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors last:border-0">
                           <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{fmtDate(m.date)}</td>
                           <td className="px-4 py-3 text-slate-500">{dayName(m.date)}</td>
@@ -1524,6 +1551,10 @@ export default function MeetingsPage() {
             </div>
           )}
 
+          {tab === 'meetings' && (
+            <Pagination page={meetingPage} pageSize={meetingPageSize} total={meetingTotal} onPage={setMeetingPage} onPageSize={(p) => { setMeetingPageSize(p); setMeetingPage(1); }} />
+          )}
+
           {/* ════ Attendance tab ════ */}
           {tab === 'attendance' && (
             <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
@@ -1560,13 +1591,18 @@ export default function MeetingsPage() {
                   <table className="min-w-[950px] w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50">
-                        {['Date', 'Teacher', 'Meeting', 'Type', 'Location', 'GPS', 'Photo', ''].map(h => (
-                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
-                        ))}
+                        <Th label="Date" sortKey="date" currentKey={attSortKey} currentDir={attSortDir} onSort={attHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+                        <Th label="Teacher" sortKey="teacher_name" currentKey={attSortKey} currentDir={attSortDir} onSort={attHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Meeting</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Type</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Location</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">GPS</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Photo</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400"></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {attendance.map(r => (
+                      {(attendanceRows as unknown as AttendanceRecord[]).map(r => (
                         <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors last:border-0">
                           <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{fmtDate(r.date)}</td>
                           <td className="px-4 py-3 text-slate-700 font-medium">{r.teacher_name}</td>
@@ -1597,6 +1633,10 @@ export default function MeetingsPage() {
             </div>
           )}
 
+          {tab === 'attendance' && (
+            <Pagination page={attendancePage} pageSize={attendancePageSize} total={attendanceTotal} onPage={setAttendancePage} onPageSize={(p) => { setAttendancePageSize(p); setAttendancePage(1); }} />
+          )}
+
           {/* ════ Absences tab ════ */}
           {tab === 'absences' && (
             <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
@@ -1612,13 +1652,15 @@ export default function MeetingsPage() {
                   <table className="min-w-[700px] w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50">
-                        {['Date', 'Teacher', 'Meeting', 'Type', 'Status'].map(h => (
-                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
-                        ))}
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Date</th>
+                        <Th label="Teacher" sortKey="teacher_name" currentKey={absSortKey} currentDir={absSortDir} onSort={absHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Meeting</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Type</th>
+                        <Th label="Status" sortKey="status" currentKey={absSortKey} currentDir={absSortDir} onSort={absHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
                       </tr>
                     </thead>
                     <tbody>
-                      {absences.map(a => (
+                      {(absenceRows as unknown as AbsenceRecord[]).map(a => (
                         <tr key={a.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors last:border-0">
                           <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{fmtDate(a.date)}</td>
                           <td className="px-4 py-3 text-slate-700 font-medium">{a.teacher_name}</td>
@@ -1636,6 +1678,9 @@ export default function MeetingsPage() {
                 </div>
               )}
             </div>
+          )}
+          {tab === 'absences' && (
+            <Pagination page={absencePage} pageSize={absencePageSize} total={absenceTotal} onPage={setAbsencePage} onPageSize={(p) => { setAbsencePageSize(p); setAbsencePage(1); }} />
           )}
         </>
       )}

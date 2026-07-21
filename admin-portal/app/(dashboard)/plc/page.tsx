@@ -2,6 +2,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import type { Location, Teacher } from '@/types/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 const DAYS = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -311,6 +313,24 @@ export default function PlcPage() {
     }
   }
 
+  const {
+    displayRows: sessionRows, total: sessionTotal, page: sessionPage, setPage: setSessionPage,
+    pageSize: sessionPageSize, setPageSize: setSessionPageSize,
+    sortKey: seSortKey, sortDir: seSortDir, handleSort: seHandleSort,
+  } = useTableControls(sessions as unknown as Record<string, unknown>[]);
+
+  const {
+    displayRows: plcAttRows, total: plcAttTotal, page: plcAttPage, setPage: setPlcAttPage,
+    pageSize: plcAttPageSize, setPageSize: setPlcAttPageSize,
+    sortKey: plcAttSortKey, sortDir: plcAttSortDir, handleSort: plcAttHandleSort,
+  } = useTableControls(attendance as unknown as Record<string, unknown>[]);
+
+  const {
+    displayRows: plcAbsRows, total: plcAbsTotal, page: plcAbsPage, setPage: setPlcAbsPage,
+    pageSize: plcAbsPageSize, setPageSize: setPlcAbsPageSize,
+    sortKey: plcAbsSortKey, sortDir: plcAbsSortDir, handleSort: plcAbsHandleSort,
+  } = useTableControls(absences as unknown as Record<string, unknown>[]);
+
   const tabClass = (t: Tab) =>
     `px-5 py-2.5 text-sm font-semibold rounded-xl transition-all ${tab === t ? 'text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`;
   const tabStyle = (t: Tab) => tab === t ? { backgroundColor: '#15803D' } : {};
@@ -383,13 +403,17 @@ export default function PlcPage() {
                 <table className="min-w-[750px] w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100">
-                      {['Title', 'Day', 'Time', 'Venue', 'Status', 'QR', ''].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
-                      ))}
+                      <Th label="Title" sortKey="title" currentKey={seSortKey} currentDir={seSortDir} onSort={seHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Day</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Time</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Venue</th>
+                      <Th label="Status" sortKey="is_active" currentKey={seSortKey} currentDir={seSortDir} onSort={seHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">QR</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sessions.map(s => (
+                    {(sessionRows as unknown as PlcSession[]).map(s => (
                       <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3 font-semibold text-slate-800">{s.title}</td>
                         <td className="px-4 py-3 text-slate-600">{DAYS[s.day_of_week]}</td>
@@ -424,11 +448,15 @@ export default function PlcPage() {
             </div>
           )}
 
+          {tab === 'sessions' && (
+            <Pagination page={sessionPage} pageSize={sessionPageSize} total={sessionTotal} onPage={setSessionPage} onPageSize={(p) => { setSessionPageSize(p); setSessionPage(1); }} />
+          )}
+
           {/* ── Attendance ── */}
           {tab === 'attendance' && (
             <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
               <div className="px-5 py-3 border-b border-slate-50 flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-600">{attendance.length} record{attendance.length !== 1 ? 's' : ''}</p>
+                <p className="text-sm font-semibold text-slate-600">{plcAttTotal} record{plcAttTotal !== 1 ? 's' : ''}</p>
               </div>
               {attendance.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 text-sm">No PLC attendance records found.</div>
@@ -437,13 +465,18 @@ export default function PlcPage() {
                 <table className="min-w-[900px] w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100">
-                      {['Date', 'Teacher', 'Session', 'Venue', 'GPS', 'Agenda', 'Photo', ''].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
-                      ))}
+                      <Th label="Date" sortKey="date" currentKey={plcAttSortKey} currentDir={plcAttSortDir} onSort={plcAttHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+                      <Th label="Teacher" sortKey="teacher_name" currentKey={plcAttSortKey} currentDir={plcAttSortDir} onSort={plcAttHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Session</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Venue</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">GPS</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Agenda</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Photo</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {attendance.map(r => (
+                    {(plcAttRows as unknown as PlcAttendanceRecord[]).map(r => (
                       <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3 font-semibold text-slate-800">{fmtDate(r.date)}</td>
                         <td className="px-4 py-3 text-slate-700">{r.teacher_name}</td>
@@ -475,11 +508,15 @@ export default function PlcPage() {
             </div>
           )}
 
+          {tab === 'attendance' && (
+            <Pagination page={plcAttPage} pageSize={plcAttPageSize} total={plcAttTotal} onPage={setPlcAttPage} onPageSize={(p) => { setPlcAttPageSize(p); setPlcAttPage(1); }} />
+          )}
+
           {/* ── Absences ── */}
           {tab === 'absences' && (
             <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
               <div className="px-5 py-3 border-b border-slate-50">
-                <p className="text-sm font-semibold text-slate-600">{absences.length} absence{absences.length !== 1 ? 's' : ''}</p>
+                <p className="text-sm font-semibold text-slate-600">{plcAbsTotal} absence{plcAbsTotal !== 1 ? 's' : ''}</p>
               </div>
               {absences.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 text-sm">No PLC absences found.</div>
@@ -488,13 +525,16 @@ export default function PlcPage() {
                 <table className="min-w-[700px] w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100">
-                      {['Date', 'Teacher', 'Session', 'Time', 'Status', ''].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
-                      ))}
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Date</th>
+                      <Th label="Teacher" sortKey="teacher_name" currentKey={plcAbsSortKey} currentDir={plcAbsSortDir} onSort={plcAbsHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Session</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Time</th>
+                      <Th label="Status" sortKey="status" currentKey={plcAbsSortKey} currentDir={plcAbsSortDir} onSort={plcAbsHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {absences.map(a => (
+                    {(plcAbsRows as unknown as PlcAbsence[]).map(a => (
                       <tr key={a.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3 font-semibold text-slate-800">{fmtDate(a.date)}</td>
                         <td className="px-4 py-3 text-slate-700">{a.teacher_name}</td>
@@ -513,6 +553,9 @@ export default function PlcPage() {
                 </div>
               )}
             </div>
+          )}
+          {tab === 'absences' && (
+            <Pagination page={plcAbsPage} pageSize={plcAbsPageSize} total={plcAbsTotal} onPage={setPlcAbsPage} onPageSize={(p) => { setPlcAbsPageSize(p); setPlcAbsPage(1); }} />
           )}
         </>
       )}

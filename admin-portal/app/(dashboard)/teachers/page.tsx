@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 import Link from 'next/link';
 import Image from 'next/image';
 import { api } from '@/lib/api';
@@ -283,6 +285,9 @@ export default function TeachersPage() {
     return true;
   });
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(filtered as Record<string, unknown>[]);
+
   function printTeachers() {
     const activeFilters: string[] = [];
     if (filterStatus) activeFilters.push(`Status: ${filterStatus}`);
@@ -425,18 +430,22 @@ export default function TeachersPage() {
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-10"></th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">ID</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
+                <Th label="ID" sortKey="teacher_code" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
+                    className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
+                    className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Dept</th>
+                <Th label="Dept" sortKey="department" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
+                    className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Periods</th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Role</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
+                    className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map(t => (
+              {(displayRows as Teacher[]).map(t => (
                 <tr key={t.id} className="hover:bg-gray-50">
                   <td className="px-3 py-2">
                     <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 border border-gray-200 shrink-0">
@@ -484,6 +493,8 @@ export default function TeachersPage() {
               )}
             </tbody>
           </table>
+          <Pagination page={page} pageSize={pageSize} total={total}
+            onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
         </div>
       )}
 

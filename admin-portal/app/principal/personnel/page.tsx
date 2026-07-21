@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 type Scope = 'students' | 'teachers';
 
@@ -80,6 +82,19 @@ export default function PersonnelPage() {
     r.name.toLowerCase().includes(search.toLowerCase()) ||
     ((r as Student).student_code || (r as Teacher).teacher_code || '').toLowerCase().includes(search.toLowerCase())
   );
+
+  const stFiltered = scope === 'students' ? (filtered as Record<string, unknown>[]) : [];
+  const tcFiltered = scope === 'teachers' ? (filtered as Record<string, unknown>[]) : [];
+
+  const {
+    displayRows: stDisplayRows, total: stTotal, page: stPage, setPage: stSetPage,
+    pageSize: stPageSize, setPageSize: stSetPageSize, sortKey: stSortKey, sortDir: stSortDir, handleSort: stHandleSort,
+  } = useTableControls(stFiltered);
+
+  const {
+    displayRows: tcDisplayRows, total: tcTotal, page: tcPage, setPage: tcSetPage,
+    pageSize: tcPageSize, setPageSize: tcSetPageSize, sortKey: tcSortKey, sortDir: tcSortDir, handleSort: tcHandleSort,
+  } = useTableControls(tcFiltered);
 
   const labelSt = (st: string) => {
     if (st === 'Active')    return { bg: '#DCFCE7', bgD: '#14532D33', text: '#15803D' };
@@ -206,18 +221,23 @@ export default function PersonnelPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: dark ? '#0F172A' : '#F8FAFC', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
-                    {['ID', 'Name', 'Class', 'Program', 'Gender', 'Residential', 'Guardian', 'Status'].map(h => (
-                      <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
-                    ))}
+                    <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ID</th>
+                    <Th label="Name" sortKey="name" currentKey={stSortKey} currentDir={stSortDir} onSort={stHandleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
+                    <Th label="Class" sortKey="class_name" currentKey={stSortKey} currentDir={stSortDir} onSort={stHandleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
+                    <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Program</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Gender</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Residential</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Guardian</th>
+                    <Th label="Status" sortKey="status" currentKey={stSortKey} currentDir={stSortDir} onSort={stHandleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
                   </tr>
                 </thead>
                 <tbody>
-                  {(filtered as Student[]).length === 0 ? (
+                  {(stDisplayRows as Student[]).length === 0 ? (
                     <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: dark ? '#475569' : '#94A3B8' }}>No students found</td></tr>
-                  ) : (filtered as Student[]).map((s, i) => {
+                  ) : (stDisplayRows as Student[]).map((s, i) => {
                     const st = labelSt(s.status);
                     return (
-                      <tr key={s.student_code} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F1F5F9'}` : 'none' }}>
+                      <tr key={s.student_code} style={{ borderBottom: i < stDisplayRows.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F1F5F9'}` : 'none' }}>
                         <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: 12, color: dark ? '#64748B' : '#94A3B8', whiteSpace: 'nowrap' }}>{s.student_code}</td>
                         <td style={{ padding: '10px 14px', fontWeight: 600, color: dark ? '#F1F5F9' : '#0F172A', whiteSpace: 'nowrap' }}>{s.name}</td>
                         <td style={{ padding: '10px 14px', color: dark ? '#CBD5E1' : '#374151' }}>{s.class_name}</td>
@@ -242,18 +262,23 @@ export default function PersonnelPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: dark ? '#0F172A' : '#F8FAFC', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
-                    {['ID', 'Name', 'Department', 'Rank', 'Gender', 'Phone', 'Email', 'Status'].map(h => (
-                      <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
-                    ))}
+                    <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ID</th>
+                    <Th label="Name" sortKey="name" currentKey={tcSortKey} currentDir={tcSortDir} onSort={tcHandleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
+                    <Th label="Department" sortKey="department" currentKey={tcSortKey} currentDir={tcSortDir} onSort={tcHandleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
+                    <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Rank</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Gender</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Phone</th>
+                    <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Email</th>
+                    <Th label="Status" sortKey="status" currentKey={tcSortKey} currentDir={tcSortDir} onSort={tcHandleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
                   </tr>
                 </thead>
                 <tbody>
-                  {(filtered as Teacher[]).length === 0 ? (
+                  {(tcDisplayRows as Teacher[]).length === 0 ? (
                     <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: dark ? '#475569' : '#94A3B8' }}>No teachers found</td></tr>
-                  ) : (filtered as Teacher[]).map((t, i) => {
+                  ) : (tcDisplayRows as Teacher[]).map((t, i) => {
                     const st = labelSt(t.status);
                     return (
-                      <tr key={t.teacher_code} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F1F5F9'}` : 'none' }}>
+                      <tr key={t.teacher_code} style={{ borderBottom: i < tcDisplayRows.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F1F5F9'}` : 'none' }}>
                         <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: 12, color: dark ? '#64748B' : '#94A3B8', whiteSpace: 'nowrap' }}>{t.teacher_code}</td>
                         <td style={{ padding: '10px 14px', fontWeight: 600, color: dark ? '#F1F5F9' : '#0F172A', whiteSpace: 'nowrap' }}>{t.name}</td>
                         <td style={{ padding: '10px 14px', color: dark ? '#CBD5E1' : '#374151' }}>{t.department || '—'}</td>
@@ -295,6 +320,11 @@ export default function PersonnelPage() {
             )}
           </div>
         </div>
+        {scope === 'students' ? (
+          <Pagination page={stPage} pageSize={stPageSize} total={stTotal} onPage={stSetPage} onPageSize={p => { stSetPageSize(p); stSetPage(1); }} />
+        ) : (
+          <Pagination page={tcPage} pageSize={tcPageSize} total={tcTotal} onPage={tcSetPage} onPageSize={p => { tcSetPageSize(p); tcSetPage(1); }} />
+        )}
       )}
     </div>
   );

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface AttRecord {
   id: string; teacher_id: string; teacher_name: string; teacher_code: string;
@@ -114,6 +116,16 @@ export default function PrimaryTeacherAttendancePage() {
     return 'text-red-600';
   };
 
+  const {
+    displayRows: logDisplayRows, total: logTotal, page: logPage, setPage: setLogPage,
+    pageSize: logPageSize, setPageSize: setLogPageSize, sortKey: logSortKey, sortDir: logSortDir, handleSort: handleLogSort,
+  } = useTableControls(records as Record<string, unknown>[]);
+
+  const {
+    displayRows: repDisplayRows, total: repTotal, page: repPage, setPage: setRepPage,
+    pageSize: repPageSize, setPageSize: setRepPageSize, sortKey: repSortKey, sortDir: repSortDir, handleSort: handleRepSort,
+  } = useTableControls(report as Record<string, unknown>[]);
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -154,9 +166,13 @@ export default function PrimaryTeacherAttendancePage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    {['Teacher', 'Status', 'Clock In', 'Clock Out', 'GPS In', 'Photos', 'Actions'].map(h => (
-                      <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                    ))}
+                    <Th label="Teacher" sortKey="teacher_name" currentKey={logSortKey} currentDir={logSortDir} onSort={handleLogSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                    <Th label="Status" sortKey="status" currentKey={logSortKey} currentDir={logSortDir} onSort={handleLogSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Clock In</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Clock Out</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">GPS In</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Photos</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -166,7 +182,7 @@ export default function PrimaryTeacherAttendancePage() {
                     </td></tr>
                   ) : records.length === 0 ? (
                     <tr><td colSpan={7} className="text-center py-12 text-slate-400 text-sm">No records for this date.</td></tr>
-                  ) : records.map(r => (
+                  ) : (logDisplayRows as AttRecord[]).map(r => (
                     <tr key={r.id} className="hover:bg-gray-50">
                       <td className="px-3 py-2.5">
                         <p className="font-medium text-slate-900">{r.teacher_name}</p>
@@ -212,6 +228,7 @@ export default function PrimaryTeacherAttendancePage() {
                 </tbody>
               </table>
             </div>
+            <Pagination page={logPage} pageSize={logPageSize} total={logTotal} onPage={setLogPage} onPageSize={p => { setLogPageSize(p); setLogPage(1); }} className="px-4" />
           </div>
         </>
       )}
@@ -232,9 +249,13 @@ export default function PrimaryTeacherAttendancePage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    {['Teacher', 'Present', 'Absent', 'Excused', 'Incomplete', 'Days Marked', 'Attendance %'].map(h => (
-                      <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                    ))}
+                    <Th label="Teacher" sortKey="teacher_name" currentKey={repSortKey} currentDir={repSortDir} onSort={handleRepSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Present</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Absent</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Excused</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Incomplete</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Days Marked</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Attendance %</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -244,7 +265,7 @@ export default function PrimaryTeacherAttendancePage() {
                     </td></tr>
                   ) : report.length === 0 ? (
                     <tr><td colSpan={7} className="text-center py-12 text-slate-400 text-sm">No records.</td></tr>
-                  ) : report.map(r => (
+                  ) : (repDisplayRows as ReportRow[]).map(r => (
                     <tr key={r.teacher_id} className="hover:bg-gray-50">
                       <td className="px-3 py-2.5">
                         <p className="font-medium text-slate-900">{r.teacher_name}</p>
@@ -270,6 +291,7 @@ export default function PrimaryTeacherAttendancePage() {
                 </tbody>
               </table>
             </div>
+            <Pagination page={repPage} pageSize={repPageSize} total={repTotal} onPage={setRepPage} onPageSize={p => { setRepPageSize(p); setRepPage(1); }} className="px-4" />
           </div>
         </>
       )}

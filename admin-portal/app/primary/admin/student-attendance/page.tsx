@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface AttRow {
   student_id: string; surname: string; other_names: string | null;
@@ -104,6 +106,16 @@ export default function PrimaryStudentAttendancePage() {
     return acc;
   }, {});
 
+  const {
+    displayRows: dailyDisplayRows, total: dailyTotal, page: dailyPage, setPage: setDailyPage,
+    pageSize: dailyPageSize, setPageSize: setDailyPageSize, sortKey: dailySortKey, sortDir: dailySortDir, handleSort: handleDailySort,
+  } = useTableControls(rows as Record<string, unknown>[]);
+
+  const {
+    displayRows: sumDisplayRows, total: sumTotal, page: sumPage, setPage: setSumPage,
+    pageSize: sumPageSize, setPageSize: setSumPageSize, sortKey: sumSortKey, sortDir: sumSortDir, handleSort: handleSumSort,
+  } = useTableControls(summary as Record<string, unknown>[]);
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -188,8 +200,8 @@ export default function PrimaryStudentAttendancePage() {
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
                     <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-10">#</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Student</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                    <Th label="Student" sortKey="surname" currentKey={dailySortKey} currentDir={dailySortDir} onSort={handleDailySort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                    <Th label="Status" sortKey="status" currentKey={dailySortKey} currentDir={dailySortDir} onSort={handleDailySort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -197,7 +209,7 @@ export default function PrimaryStudentAttendancePage() {
                     <tr><td colSpan={3} className="text-center py-12">
                       <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
                     </td></tr>
-                  ) : rows.map((r, i) => (
+                  ) : (dailyDisplayRows as AttRow[]).map((r, i) => (
                     <tr key={r.student_id} className={draft[r.student_id] === 'absent' ? 'bg-red-50/40' : 'hover:bg-gray-50'}>
                       <td className="px-3 py-2 text-xs text-slate-400">{i + 1}</td>
                       <td className="px-3 py-2">
@@ -222,6 +234,7 @@ export default function PrimaryStudentAttendancePage() {
                 </tbody>
               </table>
             </div>
+            <Pagination page={dailyPage} pageSize={dailyPageSize} total={dailyTotal} onPage={setDailyPage} onPageSize={p => { setDailyPageSize(p); setDailyPage(1); }} className="px-4" />
           </div>
         </>
       )}
@@ -233,9 +246,14 @@ export default function PrimaryStudentAttendancePage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  {['#','Student','Adm. No.','Present','Absent','Late','Excused','Total Days'].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                  ))}
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">#</th>
+                  <Th label="Student" sortKey="surname" currentKey={sumSortKey} currentDir={sumSortDir} onSort={handleSumSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                  <Th label="Adm. No." sortKey="admission_number" currentKey={sumSortKey} currentDir={sumSortDir} onSort={handleSumSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Present</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Absent</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Late</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Excused</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Total Days</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -243,7 +261,7 @@ export default function PrimaryStudentAttendancePage() {
                   <tr><td colSpan={8} className="text-center py-12">
                     <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
                   </td></tr>
-                ) : summary.map((r, i) => (
+                ) : (sumDisplayRows as SummaryRow[]).map((r, i) => (
                   <tr key={r.student_id} className="hover:bg-gray-50">
                     <td className="px-3 py-2.5 text-xs text-slate-400">{i + 1}</td>
                     <td className="px-3 py-2.5 font-medium text-slate-900">{r.surname}{r.other_names ? ` ${r.other_names}` : ''}</td>
@@ -259,6 +277,7 @@ export default function PrimaryStudentAttendancePage() {
               </tbody>
             </table>
           </div>
+          <Pagination page={sumPage} pageSize={sumPageSize} total={sumTotal} onPage={setSumPage} onPageSize={p => { setSumPageSize(p); setSumPage(1); }} className="px-4" />
         </div>
       )}
     </div>

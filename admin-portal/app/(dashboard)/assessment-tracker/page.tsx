@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; current_semester: number; }
 interface Teacher      { id: string; name: string; department: string | null; }
@@ -226,6 +228,9 @@ export default function AssessmentTrackerPage() {
     !filterStat || t.rows.some(r => r.status === filterStat)
   );
 
+  const { displayRows: pagedTeachers, total: totalTeachers, page, setPage, pageSize, setPageSize } =
+    useTableControls(filtered as Record<string, unknown>[], 20);
+
   const depts = [...new Set(teachers.map(t => t.department).filter(Boolean))].sort() as string[];
   const s = data?.summary;
 
@@ -352,7 +357,7 @@ export default function AssessmentTrackerPage() {
         <div className="text-center py-16 text-slate-400 text-sm">No timetable assignments found for the selected filters.</div>
       ) : (
         <div className="space-y-2">
-          {filtered.map(teacher => {
+          {pagedTeachers.map(teacher => {
             const cfg        = STATUS_CFG[teacher.worstStatus] ?? STATUS_CFG.not_started;
             const isExpanded = expanded === teacher.teacher_id;
             const notStarted = teacher.rows.filter(r => r.status === 'not_started').length;
@@ -469,6 +474,13 @@ export default function AssessmentTrackerPage() {
         </div>
       )}
 
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={totalTeachers}
+        onPage={setPage}
+        onPageSize={p => { setPageSize(p); setPage(1); }}
+      />
 
       {/* ── Print-only report (hidden on screen, visible when printing) ─────── */}
       {data && (() => {

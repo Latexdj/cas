@@ -2,6 +2,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -110,6 +112,9 @@ function ClassTable({ rows, dark, search }: { rows: ClassRow[]; dark: boolean; s
   );
   const schoolPct = totals.s > 0 ? Math.round(100 * totals.p / totals.s) : null;
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(filtered as Record<string, unknown>[]);
+
   const hStyle: React.CSSProperties = {
     padding: '10px 14px', textAlign: 'left', fontWeight: 600,
     color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em',
@@ -121,19 +126,25 @@ function ClassTable({ rows, dark, search }: { rows: ClassRow[]; dark: boolean; s
   if (filtered.length === 0) return <EmptyState text="No data for the selected period." dark={dark} />;
 
   return (
+    <>
     <TableWrap dark={dark}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 820 }}>
         <thead>
           <tr>
-            {['Teacher', 'Department', 'Scheduled', 'Present', 'Absent', 'Excused', 'Attendance %', 'Status'].map(h => (
-              <th key={h} style={hStyle}>{h}</th>
-            ))}
+            <Th label="Teacher" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={hStyle} />
+            <Th label="Department" sortKey="department" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={hStyle} />
+            <th style={hStyle}>Scheduled</th>
+            <th style={hStyle}>Present</th>
+            <th style={hStyle}>Absent</th>
+            <th style={hStyle}>Excused</th>
+            <Th label="Attendance %" sortKey="attendance_pct" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={hStyle} />
+            <th style={hStyle}>Status</th>
           </tr>
         </thead>
         <tbody>
-          {filtered.map((r, i) => (
+          {(displayRows as ClassRow[]).map((r, i) => (
             <tr key={r.id} style={{
-              borderBottom: i < filtered.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F8FAFC'}` : 'none',
+              borderBottom: i < displayRows.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F8FAFC'}` : 'none',
               background: i % 2 === 0 ? 'transparent' : (dark ? 'rgba(15,23,42,0.3)' : 'rgba(248,250,252,0.6)'),
             }}>
               <td style={{ padding: '11px 14px', fontWeight: 600, color: dark ? '#F1F5F9' : '#0F172A' }}>{r.name}</td>
@@ -161,6 +172,8 @@ function ClassTable({ rows, dark, search }: { rows: ClassRow[]; dark: boolean; s
         </tfoot>
       </table>
     </TableWrap>
+    <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
+    </>
   );
 }
 
@@ -178,6 +191,9 @@ function MeetingTable({ rows, dark, search }: { rows: MeetingRow[]; dark: boolea
   );
   const schoolPct = totals.s > 0 ? Math.round(100 * totals.p / totals.s) : null;
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(filtered as Record<string, unknown>[]);
+
   const hStyle: React.CSSProperties = {
     padding: '10px 14px', textAlign: 'left', fontWeight: 600,
     color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em',
@@ -189,19 +205,24 @@ function MeetingTable({ rows, dark, search }: { rows: MeetingRow[]; dark: boolea
   if (filtered.length === 0) return <EmptyState text="No data for the selected period." dark={dark} />;
 
   return (
+    <>
     <TableWrap dark={dark}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 700 }}>
         <thead>
           <tr>
-            {['Teacher', 'Department', 'Sessions', 'Present', 'Absent', 'Attendance %', 'Status'].map(h => (
-              <th key={h} style={hStyle}>{h}</th>
-            ))}
+            <Th label="Teacher" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={hStyle} />
+            <Th label="Department" sortKey="department" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={hStyle} />
+            <th style={hStyle}>Sessions</th>
+            <th style={hStyle}>Present</th>
+            <th style={hStyle}>Absent</th>
+            <Th label="Attendance %" sortKey="attendance_pct" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={hStyle} />
+            <th style={hStyle}>Status</th>
           </tr>
         </thead>
         <tbody>
-          {filtered.map((r, i) => (
+          {(displayRows as MeetingRow[]).map((r, i) => (
             <tr key={r.id} style={{
-              borderBottom: i < filtered.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F8FAFC'}` : 'none',
+              borderBottom: i < displayRows.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F8FAFC'}` : 'none',
               background: i % 2 === 0 ? 'transparent' : (dark ? 'rgba(15,23,42,0.3)' : 'rgba(248,250,252,0.6)'),
             }}>
               <td style={{ padding: '11px 14px', fontWeight: 600, color: dark ? '#F1F5F9' : '#0F172A' }}>{r.name}</td>
@@ -227,6 +248,8 @@ function MeetingTable({ rows, dark, search }: { rows: MeetingRow[]; dark: boolea
         </tfoot>
       </table>
     </TableWrap>
+    <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
+    </>
   );
 }
 

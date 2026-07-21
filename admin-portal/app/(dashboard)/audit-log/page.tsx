@@ -1,8 +1,9 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface AuditLog {
   id: string;
@@ -68,14 +69,16 @@ export default function AuditLogPage() {
   const [from,    setFrom]    = useState('');
   const [to,      setTo]      = useState('');
   const [offset,  setOffset]  = useState(0);
-  const LIMIT = 50;
+  const [limit,   setLimit]   = useState<number | 'all'>(50);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc' | null>(null);
 
   const ALL_ACTIONS = Object.keys(ACTION_META);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params: Record<string, string> = { limit: String(LIMIT), offset: String(offset) };
+      const params: Record<string, string> = { limit: limit === 'all' ? '999999' : String(limit), offset: String(offset) };
       if (action) params.action = action;
       if (from)   params.from   = from;
       if (to)     params.to     = to;
@@ -83,9 +86,29 @@ export default function AuditLogPage() {
       setLogs(data.logs);
       setTotal(data.total);
     } finally { setLoading(false); }
-  }, [action, from, to, offset]);
+  }, [action, from, to, offset, limit]);
 
   useEffect(() => { load(); }, [load]);
+
+  function handleSort(key: string) {
+    if (sortKey === key) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else { setSortKey(null); setSortDir(null); }
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
+  const sortedLogs = useMemo(() => {
+    if (!sortKey || !sortDir) return logs;
+    return [...logs].sort((a, b) => {
+      const av = String((a as Record<string, unknown>)[sortKey] ?? '').toLowerCase();
+      const bv = String((b as Record<string, unknown>)[sortKey] ?? '').toLowerCase();
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [logs, sortKey, sortDir]);
 
   function formatTime(iso: string) {
     return new Date(iso).toLocaleString('en-GB', {
@@ -94,8 +117,8 @@ export default function AuditLogPage() {
     });
   }
 
-  const totalPages = Math.ceil(total / LIMIT);
-  const currentPage = Math.floor(offset / LIMIT) + 1;
+  const totalPages = limit === 'all' ? 1 : Math.ceil(total / (limit as number));
+  const currentPage = limit === 'all' ? 1 : Math.floor(offset / (limit as number)) + 1;
 
   return (
     <div className="space-y-5">
@@ -134,13 +157,14 @@ export default function AuditLogPage() {
             <table className="min-w-[650px] w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
-                  {['Timestamp', 'Action', 'Performed By', 'Details'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
-                  ))}
+                  <Th label="Timestamp" sortKey="created_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <Th label="Action" sortKey="action" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Performed By</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Details</th>
                 </tr>
               </thead>
               <tbody>
-                {logs.map((log, i) => (
+                {sortedLogs.map((log, i) => (
                   <tr key={log.id} className="hover:bg-slate-50 transition-colors"
                     style={{ borderBottom: i < logs.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
                     <td className="px-4 py-3 text-xs font-mono whitespace-nowrap" style={{ color: '#475569' }}>
@@ -166,20 +190,13 @@ export default function AuditLogPage() {
         </div>
       )}
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm" style={{ color: '#64748B' }}>Page {currentPage} of {totalPages}</p>
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setOffset(o => Math.max(0, o - LIMIT))} disabled={offset === 0}>
-              Previous
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setOffset(o => o + LIMIT)} disabled={offset + LIMIT >= total}>
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={currentPage}
+        pageSize={limit}
+        total={total}
+        onPage={(p) => setOffset(limit === 'all' ? 0 : (p - 1) * (limit as number))}
+        onPageSize={(s) => { setLimit(s); setOffset(0); }}
+      />
     </div>
   );
 }

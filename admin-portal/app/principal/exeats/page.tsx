@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface Student {
   id: string; student_code: string; name: string; class_name: string; house?: string;
@@ -60,6 +62,9 @@ export default function ExeatsPage() {
   const filtered = students.filter(s =>
     !search || s.name.toLowerCase().includes(search.toLowerCase()) || s.student_code.toLowerCase().includes(search.toLowerCase())
   );
+
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(filtered as Record<string, unknown>[]);
 
   const overLimit = students.filter(s =>
     s.internal_used >= (data?.internal_quota ?? 5) || s.external_used >= (data?.external_quota ?? 2)
@@ -148,19 +153,17 @@ export default function ExeatsPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: dark ? '#0F172A' : '#F8FAFC', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
-                  {['Student', 'Class', 'Internal Exeats', 'External Exeats'].map(h => (
-                    <th key={h} style={{
-                      padding: '10px 14px', textAlign: 'left', fontWeight: 600,
-                      color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase',
-                    }}>{h}</th>
-                  ))}
+                  <Th label="Student" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
+                  <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
+                  <Th label="Internal Exeats" sortKey="internal_used" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
+                  <Th label="External Exeats" sortKey="external_used" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {displayRows.length === 0 ? (
                   <tr><td colSpan={4} style={{ textAlign: 'center', padding: 40, color: dark ? '#475569' : '#94A3B8' }}>No students found</td></tr>
-                ) : filtered.map((s, i) => (
-                  <tr key={s.id} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F1F5F9'}` : 'none' }}>
+                ) : (displayRows as Student[]).map((s, i) => (
+                  <tr key={s.id} style={{ borderBottom: i < displayRows.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F1F5F9'}` : 'none' }}>
                     <td style={{ padding: '10px 14px' }}>
                       <div style={{ fontWeight: 600, color: dark ? '#F1F5F9' : '#0F172A' }}>{s.name}</div>
                       <div style={{ fontSize: 11, fontFamily: 'monospace', color: dark ? '#64748B' : '#94A3B8' }}>{s.student_code}</div>
@@ -178,6 +181,7 @@ export default function ExeatsPage() {
             </table>
           </div>
         </div>
+        <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
       )}
 
       {/* Quota override modal */}

@@ -1,5 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -64,6 +66,9 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
   const [reasonModal, setReasonModal] = useState<AbsenceRecord | null>(null);
   const [reason,      setReason]      = useState('');
   const [saving,      setSaving]      = useState(false);
+
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(records as Record<string, unknown>[]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -135,15 +140,20 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
             <table className="min-w-[900px] w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
-                  {['Date','Teacher','Subject','Class','Status','Reason','Source',''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
-                  ))}
+                  <Th label="Date" sortKey="date" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <Th label="Teacher" sortKey="teacher_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Subject</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Class</th>
+                  <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Reason</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Source</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}></th>
                 </tr>
               </thead>
               <tbody>
-                {records.map((r, i) => (
+                {(displayRows as typeof records).map((r, i) => (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors"
-                    style={{ borderBottom: i < records.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                    style={{ borderBottom: i < displayRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
                     <td className="px-4 py-3 text-xs" style={{ color: '#475569' }}>{fmtDate(r.date)}</td>
                     <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{r.teacher_name}</td>
                     <td className="px-4 py-3" style={{ color: '#475569' }}>{r.subject}</td>
@@ -164,6 +174,8 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
                 )}
               </tbody>
             </table>
+            <Pagination page={page} pageSize={pageSize} total={total}
+              onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
           </div>
         </div>
       )}
@@ -348,6 +360,11 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
     ? items.filter(r => !r.has_register && r.status !== 'Cancelled')
     : items;
 
+  const { displayRows: remRows, total: remTotal, page: remPage, setPage: setRemPage,
+          pageSize: remPageSize, setPageSize: setRemPageSize,
+          sortKey: remSortKey, sortDir: remSortDir, handleSort: handleRemSort } =
+    useTableControls(displayed as Record<string, unknown>[]);
+
   async function cancel(id: string) {
     if (!confirm('Cancel this remedial lesson?')) return;
     await api.patch(`/api/remedial/${id}/cancel`);
@@ -424,15 +441,22 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
             <table className="min-w-[1100px] w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
-                  {['Absence Date','Remedial Date','Teacher','Subject','Class','Location','Duration','Status','Register',''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
-                  ))}
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Absence Date</th>
+                  <Th label="Remedial Date" sortKey="remedial_date" currentKey={remSortKey} currentDir={remSortDir} onSort={handleRemSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <Th label="Teacher" sortKey="teacher_name" currentKey={remSortKey} currentDir={remSortDir} onSort={handleRemSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Subject</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Class</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Location</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Duration</th>
+                  <Th label="Status" sortKey="status" currentKey={remSortKey} currentDir={remSortDir} onSort={handleRemSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Register</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}></th>
                 </tr>
               </thead>
               <tbody>
-                {displayed.map((r, i) => (
+                {(remRows as typeof displayed).map((r, i) => (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors"
-                    style={{ borderBottom: i < displayed.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                    style={{ borderBottom: i < remRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
                     <td className="px-4 py-3 text-xs" style={{ color: '#64748B' }}>{fmtDate(r.original_absence_date)}</td>
                     <td className="px-4 py-3 text-xs" style={{ color: '#0F172A' }}>
                       {fmtDate(r.remedial_date)} <span style={{ color: '#94A3B8' }}>{r.remedial_time}</span>
@@ -479,6 +503,8 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
                 )}
               </tbody>
             </table>
+            <Pagination page={remPage} pageSize={remPageSize} total={remTotal}
+              onPage={setRemPage} onPageSize={p => { setRemPageSize(p); setRemPage(1); }} />
           </div>
         </div>
       )}
@@ -633,6 +659,11 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError,  setRejectError]  = useState('');
 
+  const { displayRows: excRows, total: excTotal, page: excPage, setPage: setExcPage,
+          pageSize: excPageSize, setPageSize: setExcPageSize,
+          sortKey: excSortKey, sortDir: excSortDir, handleSort: handleExcSort } =
+    useTableControls(excuses as Record<string, unknown>[]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -785,18 +816,23 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
             <table className="min-w-[800px] w-full text-sm">
               <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
                 <tr>
-                  {['Teacher', 'Type', 'Period', 'Reason', 'Document', 'Status', 'Approved By', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
-                  ))}
+                  <Th label="Teacher" sortKey="teacher_name" currentKey={excSortKey} currentDir={excSortDir} onSort={handleExcSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <Th label="Type" sortKey="type" currentKey={excSortKey} currentDir={excSortDir} onSort={handleExcSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Period</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Reason</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Document</th>
+                  <Th label="Status" sortKey="status" currentKey={excSortKey} currentDir={excSortDir} onSort={handleExcSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Approved By</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}></th>
                 </tr>
               </thead>
               <tbody>
-                {excuses.map((ex, i) => {
+                {(excRows as typeof excuses).map((ex, i) => {
                   const ss = EXCUSE_STATUS_STYLE[ex.status] ?? { bg: '#F1F5F9', color: '#64748B' };
                   const period = ex.date_from === ex.date_to ? fmtDate(ex.date_from) : `${fmtDate(ex.date_from)} – ${fmtDate(ex.date_to)}`;
                   return (
                     <tr key={ex.id} className="hover:bg-slate-50 transition-colors"
-                      style={{ borderBottom: i < excuses.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                      style={{ borderBottom: i < excRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
                       <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{ex.teacher_name}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: '#475569' }}>{ex.type}</td>
                       <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{period}</td>
@@ -861,6 +897,8 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
                 })}
               </tbody>
             </table>
+            <Pagination page={excPage} pageSize={excPageSize} total={excTotal}
+              onPage={setExcPage} onPageSize={p => { setExcPageSize(p); setExcPage(1); }} />
           </div>
         )}
       </div>

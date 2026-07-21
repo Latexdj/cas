@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import type { AttendanceRecord, Teacher } from '@/types/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -102,6 +104,9 @@ export default function AttendancePage() {
   const [revoking,     setRevoking]     = useState(false);
   const [revokeError,  setRevokeError]  = useState('');
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(records as Record<string, unknown>[]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -169,18 +174,25 @@ export default function AttendancePage() {
             <div className="w-6 h-6 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="min-w-[1100px] w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  {['Date','Teacher','Subject','Class','Periods','Topic','Location','Photo','Week'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                  ))}
+                  <Th label="Date" sortKey="date" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                  <Th label="Teacher" sortKey="teacher_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                  <Th label="Subject" sortKey="subject" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                  <Th label="Class" sortKey="class_names" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Periods</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Topic</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Location</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Photo</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Week</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide sticky right-0 bg-gray-50">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {records.map(r => (
+                {(displayRows as typeof records).map(r => (
                   <tr key={r.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 whitespace-nowrap text-gray-700">{fmtDate(r.date)}</td>
                     <td className="px-4 py-3 font-medium text-gray-900">{r.teacher_name}</td>
@@ -226,6 +238,11 @@ export default function AttendancePage() {
                 )}
               </tbody>
             </table>
+            </div>
+            {records.length > 0 && (
+              <Pagination page={page} pageSize={pageSize} total={total}
+                onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} className="px-4" />
+            )}
           </div>
         )}
       </div>

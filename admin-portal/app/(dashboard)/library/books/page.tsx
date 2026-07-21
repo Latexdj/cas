@@ -4,6 +4,8 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface Book {
   id: string; title: string; author: string | null; isbn: string | null;
@@ -137,6 +139,8 @@ export default function BookCatalogPage() {
   const filtered = books.filter(b =>
     !search || b.title.toLowerCase().includes(search.toLowerCase()) || (b.author ?? '').toLowerCase().includes(search.toLowerCase())
   );
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(filtered as Record<string, unknown>[]);
 
   return (
     <div className="p-6 space-y-5">
@@ -163,15 +167,15 @@ export default function BookCatalogPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                  <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">Title</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide hidden md:table-cell">Subject</th>
-                  <th className="px-4 py-3 text-center font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">Copies</th>
-                  <th className="px-4 py-3 text-center font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">Avail.</th>
+                  <Th label="Title" sortKey="title" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide" />
+                  <Th label="Subject" sortKey="subject" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide hidden md:table-cell" />
+                  <Th label="Copies" sortKey="total_copies" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-center font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide" />
+                  <Th label="Avail." sortKey="available_copies" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-center font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide" />
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                {filtered.map(b => (
+                {(displayRows as Book[]).map(b => (
                   <tr
                     key={b.id}
                     onClick={() => loadCopies(b)}
@@ -198,6 +202,10 @@ export default function BookCatalogPage() {
                 ))}
               </tbody>
             </table>
+          )}
+          {!loading && filtered.length > 0 && (
+            <Pagination page={page} pageSize={pageSize} total={total}
+              onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
           )}
         </div>
 

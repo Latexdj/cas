@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 import { api } from '@/lib/api';
 
 interface ClearanceStudent {
@@ -46,6 +48,9 @@ export default function ClearancePage() {
   const [ovStatus,    setOvStatus]    = useState<'pending' | 'cleared' | 'not_cleared'>('pending');
   const [ovNotes,     setOvNotes]     = useState('');
   const [ovSaving,    setOvSaving]    = useState(false);
+
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(students as Record<string, unknown>[]);
 
   useEffect(() => {
     api.get<string[]>('/api/clearance-admin/classes').then(r => setClasses(r.data)).catch(() => {});
@@ -160,19 +165,20 @@ export default function ClearancePage() {
         ) : students.length === 0 ? (
           <div className="text-center py-16 text-slate-400 text-sm">No students found.</div>
         ) : (
+          <>
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide border-b border-slate-100">
-                <th className="px-4 py-3 text-left">Student</th>
-                <th className="px-4 py-3 text-left">Class</th>
-                <th className="px-4 py-3 text-center">Status</th>
+                <Th label="Student" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left" />
+                <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left" />
+                <Th label="Status" sortKey="is_fully_cleared" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-center" center />
                 <th className="px-4 py-3 text-center">Progress</th>
                 <th className="px-4 py-3 text-left">Initiated</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {students.map(s => {
+              {(displayRows as typeof students).map(s => {
                 const pct = s.total_offices > 0 ? Math.round((s.cleared_count / s.total_offices) * 100) : 0;
                 return (
                   <tr key={s.id} className="hover:bg-slate-50">
@@ -216,6 +222,9 @@ export default function ClearancePage() {
               })}
             </tbody>
           </table>
+          <Pagination page={page} pageSize={pageSize} total={total}
+            onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
+          </>
         )}
       </div>
 

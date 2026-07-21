@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 import { api } from '@/lib/api';
 
 interface ExeatSettings { max_internal: number; max_external: number; semester_start_date: string | null; }
@@ -158,6 +160,9 @@ export default function AdminExeatPage() {
     );
   }, [exeats, search]);
 
+  const { displayRows, total: pagedTotal, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(filtered as Record<string, unknown>[]);
+
   const counts = useMemo(() => ({
     total:    exeats.length,
     out:      exeats.filter(e => e.status === 'active').length,
@@ -258,11 +263,11 @@ export default function AdminExeatPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-700 text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                  <th className="px-4 py-3 text-left">Student</th>
+                  <Th label="Student" sortKey="student_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left" />
                   <th className="px-4 py-3 text-left">House</th>
-                  <th className="px-4 py-3 text-left">Type</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-left">Departed</th>
+                  <Th label="Type" sortKey="exeat_type" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left" />
+                  <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left" />
+                  <Th label="Departed" sortKey="departure_date" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left" />
                   <th className="px-4 py-3 text-left">Exp. Return</th>
                   <th className="px-4 py-3 text-left">Returned</th>
                   <th className="px-4 py-3 text-left">Granted By</th>
@@ -270,7 +275,7 @@ export default function AdminExeatPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
-                {filtered.map(e => {
+                {(displayRows as typeof filtered).map(e => {
                   const meta   = STATUS_META[e.status] ?? STATUS_META.pending;
                   const isOpen = expanded === e.id;
                   return (
@@ -322,6 +327,8 @@ export default function AdminExeatPage() {
                 })}
               </tbody>
             </table>
+            <Pagination page={page} pageSize={pageSize} total={pagedTotal}
+              onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
           </div>
         )}
       </div>

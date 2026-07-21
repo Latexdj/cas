@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface OverdueLoan {
   id: string; issued_at: string; due_date: string; days_overdue: number;
@@ -18,6 +20,9 @@ export default function OverduePage() {
       .then(r => setLoans(r.data)).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(loans as Record<string, unknown>[]);
+
   return (
     <div className="p-6 space-y-5">
       <div>
@@ -34,13 +39,16 @@ export default function OverduePage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                {['Student','Book','Copy','Due Date','Days Overdue','Fine'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">{h}</th>
-                ))}
+                <Th label="Student" sortKey="student_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <Th label="Book" sortKey="book_title" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Copy</th>
+                <Th label="Due Date" sortKey="due_date" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <Th label="Days Overdue" sortKey="days_overdue" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <Th label="Fine" sortKey="fine_amount" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {loans.map(l => (
+              {(displayRows as OverdueLoan[]).map(l => (
                 <tr key={l.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-900 dark:text-white">{l.student_name}</p>
@@ -61,6 +69,10 @@ export default function OverduePage() {
               ))}
             </tbody>
           </table>
+        )}
+        {!loading && loans.length > 0 && (
+          <Pagination page={page} pageSize={pageSize} total={total}
+            onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
         )}
       </div>
     </div>

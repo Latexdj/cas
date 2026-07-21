@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface Teacher {
   id: string; name: string; teacher_code: string; email: string | null;
@@ -158,6 +160,9 @@ export default function PrimaryTeachersPage() {
     return t.name.toLowerCase().includes(q) || t.teacher_code.toLowerCase().includes(q) || (t.email ?? '').toLowerCase().includes(q);
   });
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(filtered as Record<string, unknown>[]);
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -201,9 +206,14 @@ export default function PrimaryTeachersPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {['Teacher ID','Name','Gender','Phone','Email','Role','Status','Actions'].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                ))}
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Teacher ID</th>
+                <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                <Th label="Gender" sortKey="gender" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Phone</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Email</th>
+                <Th label="Role" sortKey="is_admin" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -211,7 +221,7 @@ export default function PrimaryTeachersPage() {
                 <tr><td colSpan={8} className="text-center py-12">
                   <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
                 </td></tr>
-              ) : filtered.map(t => (
+              ) : (displayRows as Teacher[]).map(t => (
                 <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-3 py-2.5">
                     <span className="font-mono font-bold text-xs px-2 py-0.5 rounded border" style={{ color: '#15803D', backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }}>{t.teacher_code}</span>
@@ -245,6 +255,7 @@ export default function PrimaryTeachersPage() {
             </tbody>
           </table>
         </div>
+        <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} className="px-4" />
       </div>
 
       {/* Create/Edit Modal */}

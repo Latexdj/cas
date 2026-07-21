@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface PlacementRow {
   id: string; index_number: string; full_name: string; gender: string;
@@ -11,8 +13,6 @@ interface PlacementRow {
 
 export default function PlacementPage() {
   const [rows,     setRows]     = useState<PlacementRow[]>([]);
-  const [total,    setTotal]    = useState(0);
-  const [page,     setPage]     = useState(1);
   const [search,   setSearch]   = useState('');
   const [loading,  setLoading]  = useState(true);
   const [uploading,setUploading]= useState(false);
@@ -22,10 +22,10 @@ export default function PlacementPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/api/admin/admissions/placement', { params: { search, page } });
-      setRows(data.data); setTotal(data.total);
+      const { data } = await api.get('/api/admin/admissions/placement', { params: { search } });
+      setRows(data.data);
     } finally { setLoading(false); }
-  }, [search, page]);
+  }, [search]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -50,7 +50,8 @@ export default function PlacementPage() {
     load();
   }
 
-  const pages = Math.ceil(total / 50);
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(rows as Record<string, unknown>[]);
 
   return (
     <div className="space-y-5">
@@ -83,9 +84,16 @@ export default function PlacementPage() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-100">
-            <tr>{['Index No.','Name','Gender','Aggregate','Programme','Residential','Status',''].map(h =>
-              <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
-            )}</tr>
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Index No.</th>
+              <Th label="Name" sortKey="full_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Gender</th>
+              <Th label="Aggregate" sortKey="aggregate" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+              <Th label="Programme" sortKey="programme" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Residential</th>
+              <Th label="Status" sortKey="is_registered" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400"></th>
+            </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {loading ? (
@@ -94,7 +102,7 @@ export default function PlacementPage() {
               </td></tr>
             ) : rows.length === 0 ? (
               <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-slate-400">No students on the placement list yet. Upload the CSSPS Excel file above.</td></tr>
-            ) : rows.map(r => (
+            ) : (displayRows as unknown as PlacementRow[]).map(r => (
               <tr key={r.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3 font-mono text-xs text-slate-700">{r.index_number}</td>
                 <td className="px-4 py-3 font-semibold text-slate-800">{r.full_name || '—'}</td>
@@ -118,13 +126,7 @@ export default function PlacementPage() {
         </table>
       </div>
 
-      {pages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1}>Prev</Button>
-          <span className="text-xs text-slate-500">Page {page} of {pages}</span>
-          <Button variant="secondary" size="sm" onClick={() => setPage(p => Math.min(pages, p+1))} disabled={page === pages}>Next</Button>
-        </div>
-      )}
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(p) => { setPageSize(p); setPage(1); }} />
     </div>
   );
 }

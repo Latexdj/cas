@@ -2,6 +2,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import type { StudentAttendanceSession, StudentAttendanceRecord } from '@/types/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -217,6 +219,18 @@ export default function StudentAttendancePage() {
       setEditError((e as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Save failed');
     } finally { setSavingId(null); }
   }
+
+  const {
+    displayRows: sessDisplayRows, total: sessTotal, page: sessPage, setPage: setSessPage,
+    pageSize: sessPageSize, setPageSize: setSessPageSize, sortKey: sessSortKey,
+    sortDir: sessSortDir, handleSort: handleSessSort,
+  } = useTableControls(sessions as Record<string, unknown>[]);
+
+  const {
+    displayRows: repDisplayRows, total: repTotal, page: repPage, setPage: setRepPage,
+    pageSize: repPageSize, setPageSize: setRepPageSize, sortKey: repSortKey,
+    sortDir: repSortDir, handleSort: handleRepSort,
+  } = useTableControls(report as Record<string, unknown>[]);
 
   const uniqueClasses = [...new Set(sessions.map(s => s.class_name))].sort();
   const reportClasses = [...new Set(report.map(r => r.class_name))].sort();

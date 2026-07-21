@@ -4,6 +4,8 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface Staff {
   id: string; name: string; email: string; is_active: boolean;
@@ -89,6 +91,9 @@ export default function SupportStaffPage() {
     } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to send credentials'); }
   }
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(staff as unknown as Record<string, unknown>[]);
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
@@ -110,13 +115,16 @@ export default function SupportStaffPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                {['Name', 'Email', 'Roles', 'Status', 'Created', ''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">{h}</th>
-                ))}
+                <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <Th label="Email" sortKey="email" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Roles</th>
+                <Th label="Status" sortKey="is_active" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <Th label="Created" sortKey="created_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {staff.map(s => (
+              {(displayRows as unknown as Staff[]).map(s => (
                 <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                   <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{s.name}</td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs">{s.email}</td>
@@ -149,6 +157,8 @@ export default function SupportStaffPage() {
           </table>
         )}
       </div>
+
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(p) => { setPageSize(p); setPage(1); }} />
 
       <Modal open={modal !== 'none'} onClose={() => setModal('none')} title={modal === 'add' ? 'Add Support Staff' : 'Edit Support Staff'} maxWidth="max-w-md">
         <div className="space-y-4">

@@ -1,5 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 import Link from 'next/link';
 import Image from 'next/image';
 import { api } from '@/lib/api';
@@ -305,6 +307,9 @@ export default function StudentsPage() {
     s.student_code.toLowerCase().includes(search.toLowerCase())
   );
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
+    useTableControls(filtered as Record<string, unknown>[]);
+
   function printStudents() {
     const activeFilters: string[] = [];
     if (filterClass)   activeFilters.push(`Class: ${filterClass}`);
@@ -409,17 +414,27 @@ export default function StudentsPage() {
             <table className="min-w-[800px] w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
-                  {['', 'ID', 'Name', 'Class', 'Program', 'Status', 'Notes', ''].map(h => (
-                    <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
-                  ))}
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}></th>
+                  <Th label="ID" sortKey="student_code" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
+                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
+                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
+                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <Th label="Program" sortKey="program_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
+                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
+                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Notes</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((s, i) => {
+                {(displayRows as Student[]).map((s, i) => {
                   const sc = STATUS_COLORS[s.status] || STATUS_COLORS.Inactive;
                   return (
                     <tr key={s.id} className="hover:bg-slate-50 transition-colors"
-                      style={{ borderBottom: i < filtered.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                      style={{ borderBottom: i < displayRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
                       <td className="px-3 py-2">
                         <div className="w-8 h-8 rounded-full overflow-hidden border shrink-0" style={{ backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }}>
                           {s.picture_url
@@ -464,6 +479,8 @@ export default function StudentsPage() {
                 })}
               </tbody>
             </table>
+            <Pagination page={page} pageSize={pageSize} total={total}
+              onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
           </div>
         )}
       </div>
