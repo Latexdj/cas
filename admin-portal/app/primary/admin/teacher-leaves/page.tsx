@@ -115,7 +115,7 @@ export default function TeacherLeavesAdminPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  {['Teacher', 'Type', 'From', 'To', 'Reason', 'Status', 'Actions'].map(h => (
+                  {['Teacher', 'Type', 'From', 'To', 'Reason', 'Status', 'Reviewed By', 'Actions'].map(h => (
                     <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -134,6 +134,9 @@ export default function TeacherLeavesAdminPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">{chip(e.status)}</td>
+                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">
+                      {e.reviewed_by_name ?? <span className="text-slate-300 italic">—</span>}
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {e.status === 'Pending' ? (
                         <div className="flex items-center gap-2">

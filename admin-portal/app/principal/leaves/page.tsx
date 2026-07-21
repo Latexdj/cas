@@ -11,6 +11,7 @@ interface Leave {
   status: string; rejection_reason?: string; approved_at?: string; created_at: string;
   document_url?: string; document_filename?: string;
   teacher_name: string; teacher_code: string; department: string;
+  approved_by_name?: string | null;
 }
 
 const STATUS_STYLES: Record<string, { bg: string; bgD: string; text: string }> = {
@@ -150,6 +151,14 @@ export default function LeavesPage() {
                     <>
                       <span style={{ color: '#DC2626' }}>Reject reason</span>
                       <span style={{ color: '#DC2626' }}>{l.rejection_reason}</span>
+                    </>
+                  )}
+                  {l.approved_by_name && (
+                    <>
+                      <span style={{ color: dark ? '#64748B' : '#94A3B8' }}>
+                        {l.status === 'Approved' ? 'Approved by' : 'Actioned by'}
+                      </span>
+                      <span style={{ color: dark ? '#CBD5E1' : '#374151', fontWeight: 500 }}>{l.approved_by_name}</span>
                     </>
                   )}
                   <span style={{ color: dark ? '#64748B' : '#94A3B8' }}>Requested</span>

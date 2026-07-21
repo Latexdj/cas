@@ -5,6 +5,7 @@ const multer  = require('multer');
 const XLSX    = require('xlsx');
 const ExcelJS = require('exceljs');
 const { uploadFile } = require('../services/storage.service');
+const { createNotification, sendTeacherEmail } = require('../services/notification.service');
 const upload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.use(authenticate, requireActiveSubscription);
@@ -2458,6 +2459,19 @@ router.patch('/excuses/:id/approve', adminOnly, async (req, res, next) => {
        WHERE school_id=$1 AND teacher_id=$2 AND date BETWEEN $3 AND $4 AND is_auto_generated=true`,
       [req.schoolId, rows[0].teacher_id, rows[0].date_from, rows[0].date_to]
     );
+
+    // Notify teacher
+    try {
+      const { teacher_id, date_from, date_to } = rows[0];
+      const { rows: tr } = await pool.query(`SELECT name, email FROM teachers WHERE id=$1`, [teacher_id]);
+      const t = tr[0];
+      const dateRange = date_from === date_to ? date_from : `${date_from} to ${date_to}`;
+      const title = 'Leave Request Approved';
+      const msg = `Your leave request for ${dateRange} has been approved.`;
+      await createNotification(req.schoolId, teacher_id, title, msg);
+      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\n— CAS`);
+    } catch (e) { /* non-fatal */ }
+
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -2473,6 +2487,19 @@ router.patch('/excuses/:id/reject', adminOnly, async (req, res, next) => {
       [req.user.id, rejection_reason, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
+
+    // Notify teacher
+    try {
+      const { teacher_id, date_from, date_to } = rows[0];
+      const { rows: tr } = await pool.query(`SELECT name, email FROM teachers WHERE id=$1`, [teacher_id]);
+      const t = tr[0];
+      const dateRange = date_from === date_to ? date_from : `${date_from} to ${date_to}`;
+      const title = 'Leave Request Rejected';
+      const msg = `Your leave request for ${dateRange} has been rejected. Reason: ${rejection_reason}`;
+      await createNotification(req.schoolId, teacher_id, title, msg);
+      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\nIf you have questions, please contact your administrator.\n\n— CAS`);
+    } catch (e) { /* non-fatal */ }
+
     res.json(rows[0]);
   } catch (err) { next(err); }
 });

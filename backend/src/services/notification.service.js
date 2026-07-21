@@ -81,6 +81,7 @@ async function notifyTeacherAbsenceDeleted(schoolId, teacher, absence) {
 
 module.exports = {
   createNotification,
+  sendTeacherEmail,
   notifyTeacherAttendanceRevoked,
   notifyTeacherAttendanceDeleted,
   notifyTeacherAbsenceDeleted,

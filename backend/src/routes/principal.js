@@ -4,6 +4,7 @@ const jwt     = require('jsonwebtoken');
 const bcrypt  = require('bcrypt');
 const pool    = require('../config/db');
 const ExcelJS = require('exceljs');
+const { createNotification, sendTeacherEmail } = require('../services/notification.service');
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 function auth(req, res, next) {
@@ -429,9 +430,11 @@ router.get('/leaves', async (req, res, next) => {
       SELECT te.id, te.reason, te.type, te.date_from, te.date_to, te.status,
              te.rejection_reason, te.approved_at, te.created_at,
              te.document_url, te.document_filename,
-             t.name AS teacher_name, t.teacher_code, t.department
+             t.name AS teacher_name, t.teacher_code, t.department,
+             a.name AS approved_by_name
       FROM teacher_excuses te
       JOIN teachers t ON t.id = te.teacher_id
+      LEFT JOIN teachers a ON a.id = te.approved_by
       WHERE ${where}
       ORDER BY te.created_at DESC
       LIMIT 200
@@ -445,10 +448,10 @@ router.patch('/leaves/:id/approve', async (req, res, next) => {
   try {
     const { rows } = await pool.query(`
       UPDATE teacher_excuses
-      SET status = 'Approved', approved_by = NULL, approved_at = now(), updated_at = now()
+      SET status = 'Approved', approved_by = $3, approved_at = now(), updated_at = now()
       WHERE id = $1 AND school_id = $2 AND status = 'Pending'
       RETURNING id, status, teacher_id, date_from, date_to
-    `, [req.params.id, req.schoolId]);
+    `, [req.params.id, req.schoolId, req.user.id]);
     if (!rows.length) return res.status(404).json({ error: 'Request not found or already actioned' });
 
     // Retroactively excuse any absence records in the approved date range
@@ -461,6 +464,17 @@ router.patch('/leaves/:id/approve', async (req, res, next) => {
       [req.schoolId, teacher_id, date_from, date_to]
     );
 
+    // Notify teacher
+    try {
+      const { rows: tr } = await pool.query(`SELECT name, email FROM teachers WHERE id=$1`, [teacher_id]);
+      const t = tr[0];
+      const dateRange = date_from === date_to ? date_from : `${date_from} to ${date_to}`;
+      const title = 'Leave Request Approved';
+      const msg = `Your leave request for ${dateRange} has been approved.`;
+      await createNotification(req.schoolId, teacher_id, title, msg);
+      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\n— CAS`);
+    } catch (e) { /* non-fatal */ }
+
     res.json({ id: rows[0].id, status: rows[0].status });
   } catch (err) { next(err); }
 });
@@ -471,13 +485,26 @@ router.patch('/leaves/:id/reject', async (req, res, next) => {
     if (!reason) return res.status(400).json({ error: 'A reason is required when rejecting' });
     const { rows } = await pool.query(`
       UPDATE teacher_excuses
-      SET status = 'Rejected', approved_by = NULL, approved_at = now(),
+      SET status = 'Rejected', approved_by = $4, approved_at = now(),
           updated_at = now(), rejection_reason = $1
       WHERE id = $2 AND school_id = $3 AND status = 'Pending'
-      RETURNING id, status, rejection_reason
-    `, [reason, req.params.id, req.schoolId]);
+      RETURNING id, status, rejection_reason, teacher_id, date_from, date_to
+    `, [reason, req.params.id, req.schoolId, req.user.id]);
     if (!rows.length) return res.status(404).json({ error: 'Request not found or already actioned' });
-    res.json(rows[0]);
+
+    // Notify teacher
+    try {
+      const { teacher_id, date_from, date_to } = rows[0];
+      const { rows: tr } = await pool.query(`SELECT name, email FROM teachers WHERE id=$1`, [teacher_id]);
+      const t = tr[0];
+      const dateRange = date_from === date_to ? date_from : `${date_from} to ${date_to}`;
+      const title = 'Leave Request Rejected';
+      const msg = `Your leave request for ${dateRange} has been rejected. Reason: ${reason}`;
+      await createNotification(req.schoolId, teacher_id, title, msg);
+      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\nIf you have questions, please contact your principal.\n\n— CAS`);
+    } catch (e) { /* non-fatal */ }
+
+    res.json({ id: rows[0].id, status: rows[0].status, rejection_reason: rows[0].rejection_reason });
   } catch (err) { next(err); }
 });
 
