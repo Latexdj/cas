@@ -103,8 +103,8 @@ export default function AuditLogPage() {
   const sortedLogs = useMemo(() => {
     if (!sortKey || !sortDir) return logs;
     return [...logs].sort((a, b) => {
-      const av = String((a as Record<string, unknown>)[sortKey] ?? '').toLowerCase();
-      const bv = String((b as Record<string, unknown>)[sortKey] ?? '').toLowerCase();
+      const av = String(((a as unknown) as Record<string, unknown>)[sortKey] ?? '').toLowerCase();
+      const bv = String(((b as unknown) as Record<string, unknown>)[sortKey] ?? '').toLowerCase();
       const cmp = av < bv ? -1 : av > bv ? 1 : 0;
       return sortDir === 'asc' ? cmp : -cmp;
     });
