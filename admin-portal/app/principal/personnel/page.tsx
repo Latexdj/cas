@@ -210,7 +210,7 @@ export default function PersonnelPage() {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: dark ? '#64748B' : '#94A3B8' }}>Loading…</div>
-      ) : (
+      ) : (<>
         <div style={{
           background: dark ? '#1E293B' : '#FFFFFF',
           border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
@@ -325,7 +325,7 @@ export default function PersonnelPage() {
         ) : (
           <Pagination page={tcPage} pageSize={tcPageSize} total={tcTotal} onPage={tcSetPage} onPageSize={p => { tcSetPageSize(p); tcSetPage(1); }} />
         )}
-      )}
+      </>)}
     </div>
   );
 }

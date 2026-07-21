@@ -143,7 +143,7 @@ export default function ExeatsPage() {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: dark ? '#64748B' : '#94A3B8' }}>Loading…</div>
-      ) : (
+      ) : (<>
         <div style={{
           background: dark ? '#1E293B' : '#FFFFFF',
           border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
@@ -182,7 +182,7 @@ export default function ExeatsPage() {
           </div>
         </div>
         <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={p => { setPageSize(p); setPage(1); }} />
-      )}
+      </>)}
 
       {/* Quota override modal */}
       {editQuota && (
