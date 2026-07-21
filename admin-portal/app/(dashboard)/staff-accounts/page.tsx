@@ -92,7 +92,7 @@ export default function SupportStaffPage() {
   }
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(staff as unknown);
+    useTableControls(staff);
 
   return (
     <div className="p-6 space-y-6">

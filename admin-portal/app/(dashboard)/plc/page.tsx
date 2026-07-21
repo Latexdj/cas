@@ -317,19 +317,19 @@ export default function PlcPage() {
     displayRows: sessionRows, total: sessionTotal, page: sessionPage, setPage: setSessionPage,
     pageSize: sessionPageSize, setPageSize: setSessionPageSize,
     sortKey: seSortKey, sortDir: seSortDir, handleSort: seHandleSort,
-  } = useTableControls(sessions as unknown);
+  } = useTableControls(sessions);
 
   const {
     displayRows: plcAttRows, total: plcAttTotal, page: plcAttPage, setPage: setPlcAttPage,
     pageSize: plcAttPageSize, setPageSize: setPlcAttPageSize,
     sortKey: plcAttSortKey, sortDir: plcAttSortDir, handleSort: plcAttHandleSort,
-  } = useTableControls(attendance as unknown);
+  } = useTableControls(attendance);
 
   const {
     displayRows: plcAbsRows, total: plcAbsTotal, page: plcAbsPage, setPage: setPlcAbsPage,
     pageSize: plcAbsPageSize, setPageSize: setPlcAbsPageSize,
     sortKey: plcAbsSortKey, sortDir: plcAbsSortDir, handleSort: plcAbsHandleSort,
-  } = useTableControls(absences as unknown);
+  } = useTableControls(absences);
 
   const tabClass = (t: Tab) =>
     `px-5 py-2.5 text-sm font-semibold rounded-xl transition-all ${tab === t ? 'text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`;

@@ -1323,19 +1323,19 @@ export default function MeetingsPage() {
     displayRows: meetingRows, total: meetingTotal, page: meetingPage, setPage: setMeetingPage,
     pageSize: meetingPageSize, setPageSize: setMeetingPageSize,
     sortKey: mSortKey, sortDir: mSortDir, handleSort: mHandleSort,
-  } = useTableControls(meetings as unknown);
+  } = useTableControls(meetings);
 
   const {
     displayRows: attendanceRows, total: attendanceTotal, page: attendancePage, setPage: setAttendancePage,
     pageSize: attendancePageSize, setPageSize: setAttendancePageSize,
     sortKey: attSortKey, sortDir: attSortDir, handleSort: attHandleSort,
-  } = useTableControls(attendance as unknown);
+  } = useTableControls(attendance);
 
   const {
     displayRows: absenceRows, total: absenceTotal, page: absencePage, setPage: setAbsencePage,
     pageSize: absencePageSize, setPageSize: setAbsencePageSize,
     sortKey: absSortKey, sortDir: absSortDir, handleSort: absHandleSort,
-  } = useTableControls(absences as unknown);
+  } = useTableControls(absences);
 
   // ── Tab bar ────────────────────────────────────────────────────
 
