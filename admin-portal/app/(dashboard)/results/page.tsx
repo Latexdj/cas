@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 import type { AcademicYear, ReportRemark, StudentResult } from '@/types/api';
 
 function ordinal(n: number) {
@@ -689,6 +691,9 @@ export default function ResultsPage() {
   const exLabel  = results[0] ? `Exam (${results[0].exam_percentage}%)` : 'Exam';
   const sorted   = results.slice().sort((a, b) => (a.class_position ?? 999) - (b.class_position ?? 999));
 
+  const { displayRows: resultRows, total: resultTotal, page: resultPage, setPage: setResultPage, pageSize: resultPageSize, setPageSize: setResultPageSize } = useTableControls(sorted);
+  const { displayRows: queueRows, total: queueTotal, page: queuePage, setPage: setQueuePage, pageSize: queuePageSize, setPageSize: setQueuePageSize } = useTableControls(approvalQueue);
+
   const selectStyle = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent';
 
   function triggerPrint(target: 'all' | StudentResult) {
@@ -826,7 +831,7 @@ export default function ResultsPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {approvalQueue.map(item => {
+                        {(queueRows as typeof approvalQueue).map(item => {
                           const sc = SUB_STATUS[item.status] ?? { label: item.status, color: '#64748B', bg: '#F1F5F9' };
                           return (
                             <tr key={item.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
@@ -870,6 +875,7 @@ export default function ResultsPage() {
                         })}
                       </tbody>
                     </table>
+                    <Pagination page={queuePage} pageSize={queuePageSize} total={queueTotal} onPage={setQueuePage} onPageSize={(s) => { setQueuePageSize(s); setQueuePage(1); }} />
                   </div>
                 </>
               )}
@@ -956,7 +962,7 @@ export default function ResultsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {sorted.map(r => (
+                  {(resultRows as typeof sorted).map(r => (
                     <tr key={r.student_id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 font-bold text-slate-700">{r.class_position ? ordinal(r.class_position) : '—'}</td>
                       <td className="px-4 py-3">
@@ -985,6 +991,7 @@ export default function ResultsPage() {
                 </tbody>
               </table>
             </div>
+            <Pagination page={resultPage} pageSize={resultPageSize} total={resultTotal} onPage={setResultPage} onPageSize={(s) => { setResultPageSize(s); setResultPage(1); }} />
           </div>
         )}
 

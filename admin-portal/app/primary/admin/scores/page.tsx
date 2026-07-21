@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface Term    { id: string; name: string; is_current: boolean; }
 interface Subject { id: string; subject_name: string; max_class_score: number; max_exam_score: number; }
@@ -128,6 +130,7 @@ export default function PrimaryScoresAdminPage() {
 
   const activeSubject = subjects.find(s => s.id === selSubject);
   const existing = scoreMap[selSubject] ?? {};
+  const { displayRows: studentRows, total: studentTotal, page: studPage, setPage: setStudPage, pageSize: studPageSize, setPageSize: setStudPageSize } = useTableControls(students);
 
   return (
     <div className="space-y-5">
@@ -208,14 +211,15 @@ export default function PrimaryScoresAdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {students.map((s, i) => {
+                {(studentRows as typeof students).map((s, i) => {
+                  const rowNum = (studPage - 1) * (typeof studPageSize === 'number' ? studPageSize : 0) + i + 1;
                   const row   = existing[s.id];
                   const cs    = draft[s.id]?.cs ?? '';
                   const ex    = draft[s.id]?.ex ?? '';
                   const total = cs !== '' && ex !== '' ? (parseFloat(cs) + parseFloat(ex)).toFixed(1) : '—';
                   return (
                     <tr key={s.id} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 text-xs text-slate-400">{i + 1}</td>
+                      <td className="px-3 py-2 text-xs text-slate-400">{rowNum}</td>
                       <td className="px-3 py-2">
                         <p className="font-medium text-slate-900">{s.surname}{s.other_names ? ` ${s.other_names}` : ''}</p>
                         <p className="text-xs text-slate-400">{s.admission_number}</p>
@@ -244,6 +248,7 @@ export default function PrimaryScoresAdminPage() {
               </tbody>
             </table>
           </div>
+          <Pagination page={studPage} pageSize={studPageSize} total={studentTotal} onPage={setStudPage} onPageSize={(s) => { setStudPageSize(s); setStudPage(1); }} />
         </div>
       )}
 

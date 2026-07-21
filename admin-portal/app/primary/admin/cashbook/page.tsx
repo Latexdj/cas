@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 const FUND_SOURCES = ['Capitation Grant', 'PTA Fund', 'IGF', 'Other'];
 
@@ -231,6 +233,8 @@ export default function CashBookPage() {
   // ── Styles ──────────────────────────────────────────────────────────────────
   const inputCls = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 bg-white';
 
+  const { displayRows: pageEntries, total: entryTotal, page: entryPage, setPage: setEntryPage, pageSize: entryPageSize, setPageSize: setEntryPageSize } = useTableControls(displayEntries);
+
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-5">
@@ -313,7 +317,7 @@ export default function CashBookPage() {
           <div className="flex flex-wrap gap-3 items-center no-print">
             <select
               value={selectedId}
-              onChange={e => { setSelectedId(e.target.value); setFilterMonth(''); setFilterType('all'); }}
+              onChange={e => { setSelectedId(e.target.value); setFilterMonth(''); setFilterType('all'); setEntryPage(1); }}
               className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white font-semibold text-slate-800 max-w-xs">
               {cashbooks.map(cb => (
                 <option key={cb.id} value={cb.id}>
@@ -324,7 +328,7 @@ export default function CashBookPage() {
 
             <select
               value={filterType}
-              onChange={e => setFilterType(e.target.value as typeof filterType)}
+              onChange={e => { setFilterType(e.target.value as typeof filterType); setEntryPage(1); }}
               className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white">
               <option value="all">All entries</option>
               <option value="receipt">Receipts only</option>
@@ -334,7 +338,7 @@ export default function CashBookPage() {
             <input
               type="month"
               value={filterMonth}
-              onChange={e => setFilterMonth(e.target.value)}
+              onChange={e => { setFilterMonth(e.target.value); setEntryPage(1); }}
               className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white" />
 
             {filterMonth && (
@@ -416,7 +420,7 @@ export default function CashBookPage() {
                       </tr>
                     )}
 
-                    {displayEntries.map(e => (
+                    {(pageEntries as typeof displayEntries).map(e => (
                       <tr key={e.id} className="hover:bg-slate-50/60 transition-colors">
                         <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap text-xs">{fmtDate(e.entry_date)}</td>
                         <td className="px-3 py-2.5 text-slate-800 max-w-xs">
@@ -485,6 +489,8 @@ export default function CashBookPage() {
               </div>
             )}
           </div>
+
+          <Pagination className="no-print" page={entryPage} pageSize={entryPageSize} total={entryTotal} onPage={setEntryPage} onPageSize={(s) => { setEntryPageSize(s); setEntryPage(1); }} />
 
           {/* Expenditure breakdown */}
           {entries.some(e => e.entry_type === 'payment') && (

@@ -1,6 +1,8 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { teacherApi } from '@/lib/teacher-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface Notification {
   id: string;
@@ -41,6 +43,7 @@ export default function NotificationsPage() {
   }
 
   const unread = items.filter(n => !n.read).length;
+  const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(items);
 
   return (
     <div className="min-h-screen px-4 pt-6 pb-24" style={{ background: '#F4EFE6' }}>
@@ -70,7 +73,7 @@ export default function NotificationsPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {items.map(n => (
+          {(displayRows as typeof items).map(n => (
             <div key={n.id}
               className="bg-white rounded-2xl border p-4 transition-colors"
               style={{ borderColor: n.read ? '#E2D9CC' : '#FCA5A5', background: n.read ? 'white' : '#FFF8F8' }}>
@@ -95,6 +98,7 @@ export default function NotificationsPage() {
           ))}
         </div>
       )}
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
     </div>
   );
 }

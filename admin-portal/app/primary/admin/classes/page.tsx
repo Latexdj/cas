@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -417,6 +419,8 @@ export default function PrimaryClassesPage() {
     if (selected) loadRoster(selected);
   }
 
+  const { displayRows: classRows, total: classTotal, page: classPage, setPage: setClassPage, pageSize: classPageSize, setPageSize: setClassPageSize } = useTableControls(classes);
+
   const filteredRoster = roster.filter(s => {
     if (!rosterSearch) return true;
     const q = rosterSearch.toLowerCase();
@@ -460,7 +464,7 @@ export default function PrimaryClassesPage() {
               </button>
             </div>
           ) : (
-            classes.map(cls => {
+            (classRows as typeof classes).map(cls => {
               const active = selected?.id === cls.id;
               return (
                 <div key={cls.id} onClick={() => selectClass(cls)}
@@ -493,6 +497,7 @@ export default function PrimaryClassesPage() {
               );
             })
           )}
+          <Pagination page={classPage} pageSize={classPageSize} total={classTotal} onPage={setClassPage} onPageSize={(s) => { setClassPageSize(s); setClassPage(1); }} />
         </div>
       </aside>
 

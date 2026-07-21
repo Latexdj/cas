@@ -1,10 +1,12 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
 import type { AcademicYear, StudentResult } from '@/types/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 function ordinal(n: number) {
   const s = ['th', 'st', 'nd', 'rd'];
@@ -69,6 +71,9 @@ function ResultsContent() {
   const yearName = years.find(y => y.id === yearId)?.name ?? '';
   const caLabel  = results[0] ? `CA (${results[0].ca_percentage}%)` : 'CA';
   const exLabel  = results[0] ? `Exam (${results[0].exam_percentage}%)` : 'Exam';
+
+  const sortedResults = useMemo(() => results.slice().sort((a, b) => (a.class_position ?? 999) - (b.class_position ?? 999)), [results]);
+  const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(sortedResults);
 
   const selCls = 'flex-1 min-w-0 appearance-none border border-[#E2D9CC] rounded-xl px-3 py-2 pr-8 text-sm font-semibold text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]';
 
@@ -145,10 +150,7 @@ function ResultsContent() {
             <p className="text-xs text-[#8C7E6E]">{yearName} · Semester {semester} · {results.length} students</p>
           </div>
           <div className="divide-y divide-[#F4EFE6]">
-            {results
-              .slice()
-              .sort((a, b) => (a.class_position ?? 999) - (b.class_position ?? 999))
-              .map(r => (
+            {(displayRows as typeof sortedResults).map(r => (
                 <button
                   key={r.student_id}
                   onClick={() => setSelected(r)}
@@ -172,6 +174,8 @@ function ResultsContent() {
           </div>
         </div>
       )}
+
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
 
       {/* Report card slide-in */}
       {selected && (

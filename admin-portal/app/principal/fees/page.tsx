@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface Summary {
   total_billed: number;
@@ -84,6 +86,8 @@ export default function PrincipalFeesPage() {
     thead:   dark ? '#0F172A' : '#F8FAFC',
   };
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } = useTableControls(classes);
+
   if (loading) {
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 14, padding: 4 }}>
@@ -144,13 +148,16 @@ export default function PrincipalFeesPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: c.thead }}>
-                  {['Class', 'Students Billed', 'Total Billed', 'Collected', 'Outstanding', 'Collection Rate'].map(h => (
-                    <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: c.sub, borderBottom: `1px solid ${c.border}`, whiteSpace: 'nowrap' }}>{h}</th>
-                  ))}
+                  <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: c.sub, borderBottom: `1px solid ${c.border}`, whiteSpace: 'nowrap' }} />
+                  <Th label="Students Billed" sortKey="students_billed" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: c.sub, borderBottom: `1px solid ${c.border}`, whiteSpace: 'nowrap' }} />
+                  <Th label="Total Billed" sortKey="total_billed" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: c.sub, borderBottom: `1px solid ${c.border}`, whiteSpace: 'nowrap' }} />
+                  <Th label="Collected" sortKey="total_collected" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: c.sub, borderBottom: `1px solid ${c.border}`, whiteSpace: 'nowrap' }} />
+                  <Th label="Outstanding" sortKey="outstanding" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: c.sub, borderBottom: `1px solid ${c.border}`, whiteSpace: 'nowrap' }} />
+                  <Th label="Collection Rate" sortKey="collection_rate" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: c.sub, borderBottom: `1px solid ${c.border}`, whiteSpace: 'nowrap' }} />
                 </tr>
               </thead>
               <tbody>
-                {classes.map((row, i) => (
+                {(displayRows as typeof classes).map((row, i) => (
                   <tr key={row.class_name} style={{ background: i % 2 === 0 ? c.row : c.rowAlt, borderBottom: `1px solid ${c.border}` }}>
                     <td style={{ padding: '10px 14px', fontWeight: 700, color: c.text }}>{row.class_name}</td>
                     <td style={{ padding: '10px 14px', color: c.sub }}>{row.students_billed}</td>
@@ -175,6 +182,7 @@ export default function PrincipalFeesPage() {
               </tfoot>
             </table>
           </div>
+          <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
         </div>
       )}
 

@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { teacherApi } from '@/lib/teacher-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1062,6 +1064,8 @@ export default function HouseStudentsPage() {
   const isSenior      = role === 'senior_housemaster';
   const houseName     = isSenior ? (roomHouse || houseOptions[0] || '') : (dashboard?.house_name ?? '');
 
+  const { displayRows: stuRows, total: stuTotal, page: stuPage, setPage: setStuPage, pageSize: stuPageSize, setPageSize: setStuPageSize } = useTableControls(students);
+
   if (role === 'loading') {
     return <div className="flex items-center justify-center min-h-64"><div className="w-8 h-8 rounded-full border-2 border-green-500 border-t-transparent animate-spin" /></div>;
   }
@@ -1265,7 +1269,7 @@ export default function HouseStudentsPage() {
             <>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Showing {students.length} student{students.length !== 1 ? 's' : ''}</p>
               <div className="space-y-2">
-                {students.map(s => (
+                {(stuRows as typeof students).map(s => (
                   <div key={s.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 px-4 py-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{s.name}</p>
@@ -1289,6 +1293,7 @@ export default function HouseStudentsPage() {
                   </div>
                 ))}
               </div>
+              <Pagination page={stuPage} pageSize={stuPageSize} total={stuTotal} onPage={setStuPage} onPageSize={(s) => { setStuPageSize(s); setStuPage(1); }} />
             </>
           )}
         </div>

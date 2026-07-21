@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface Office {
   id: string; name: string; office_type: string;
@@ -149,6 +151,8 @@ export default function OfficesPage() {
     } catch { }
   }
 
+  const { displayRows: officeRows, total: officeTotal, page: officePage, setPage: setOfficePage, pageSize: officePageSize, setPageSize: setOfficePageSize } = useTableControls(offices);
+
   const sel = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500';
   const inp = `${sel} w-full`;
 
@@ -189,7 +193,7 @@ export default function OfficesPage() {
         <div className="space-y-3">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Clearance Offices</p>
           {offices.length === 0 && <p className="text-sm text-slate-400 py-4 text-center">No offices yet. Create one to get started.</p>}
-          {offices.map(o => (
+          {(officeRows as typeof offices).map(o => (
             <div key={o.id} className={`bg-white rounded-xl border p-4 cursor-pointer transition-colors ${selectedOffice?.id === o.id ? 'border-green-400 ring-1 ring-green-400' : 'border-slate-200 hover:border-slate-300'}`}
               onClick={() => loadOfficeStaff(o)}>
               <div className="flex items-center justify-between gap-2">
@@ -217,6 +221,7 @@ export default function OfficesPage() {
               </div>
             </div>
           ))}
+          <Pagination page={officePage} pageSize={officePageSize} total={officeTotal} onPage={setOfficePage} onPageSize={(s) => { setOfficePageSize(s); setOfficePage(1); }} />
         </div>
 
         {/* Right panel: staff assignments OR office form */}

@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -125,6 +127,8 @@ function ItemsTab({ items, loading, onRefresh }: { items: FeeItem[]; loading: bo
     }
   }
 
+  const { displayRows: itemRows, total: itemTotal, page: itemPage, setPage: setItemPage, pageSize: itemPageSize, setPageSize: setItemPageSize } = useTableControls(items);
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -143,7 +147,7 @@ function ItemsTab({ items, loading, onRefresh }: { items: FeeItem[]; loading: bo
             </thead>
             <tbody>
               {items.length === 0 && <tr><td colSpan={4} style={{ padding: 24, textAlign: 'center', color: '#94a3b8' }}>No fee items yet.</td></tr>}
-              {items.map(item => (
+              {(itemRows as typeof items).map(item => (
                 <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '10px 12px', fontWeight: 600 }}>{item.name}</td>
                   <td style={{ padding: '10px 12px', color: '#64748b' }}>{item.description ?? '—'}</td>
@@ -160,6 +164,7 @@ function ItemsTab({ items, loading, onRefresh }: { items: FeeItem[]; loading: bo
           </table>
         </div>
       )}
+      <Pagination page={itemPage} pageSize={itemPageSize} total={itemTotal} onPage={setItemPage} onPageSize={(s) => { setItemPageSize(s); setItemPage(1); }} />
       {showModal && (
         <Modal title={editing ? 'Edit Fee Item' : 'New Fee Item'} onClose={() => setShowModal(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -242,6 +247,8 @@ function SchedulesTab({ schedules, items, years, classes, loading, onRefresh, on
     } finally { setGenerating(null); }
   }
 
+  const { displayRows: scheduleRows, total: scheduleTotal, page: schedulePage, setPage: setSchedulePage, pageSize: schedulePageSize, setPageSize: setSchedulePageSize } = useTableControls(schedules);
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -265,7 +272,7 @@ function SchedulesTab({ schedules, items, years, classes, loading, onRefresh, on
             </thead>
             <tbody>
               {schedules.length === 0 && <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#94a3b8' }}>No schedules yet.</td></tr>}
-              {schedules.map(s => (
+              {(scheduleRows as typeof schedules).map(s => (
                 <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '10px 12px', fontWeight: 600 }}>{s.fee_item_name}</td>
                   <td style={{ padding: '10px 12px' }}>{s.class_name ?? <span style={{ color: '#94a3b8' }}>All Classes</span>}</td>
@@ -289,6 +296,7 @@ function SchedulesTab({ schedules, items, years, classes, loading, onRefresh, on
           </table>
         </div>
       )}
+      <Pagination page={schedulePage} pageSize={schedulePageSize} total={scheduleTotal} onPage={setSchedulePage} onPageSize={(s) => { setSchedulePageSize(s); setSchedulePage(1); }} />
       {showModal && (
         <Modal title={editing ? 'Edit Schedule' : 'New Fee Schedule'} onClose={() => setShowModal(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -587,8 +595,9 @@ function ArrearTab({ years, classes }: { years: AcademicYear[]; classes: string[
     finally { setLoading(false); }
   }
 
+  const { displayRows: arrearRows, total: arrearTotal, page: arrearPage, setPage: setArrearPage, pageSize: arrearPageSize, setPageSize: setArrearPageSize } = useTableControls(rows);
   const totalOutstanding = rows.reduce((s, r) => s + Number(r.outstanding), 0);
-  const byClass = rows.reduce<Record<string, ArrearRow[]>>((acc, r) => { (acc[r.class_name] ??= []).push(r); return acc; }, {});
+  const byClass = (arrearRows as typeof rows).reduce<Record<string, ArrearRow[]>>((acc, r) => { (acc[r.class_name] ??= []).push(r); return acc; }, {});
 
   return (
     <div>
@@ -626,7 +635,7 @@ function ArrearTab({ years, classes }: { years: AcademicYear[]; classes: string[
           <>
             <div style={{ marginBottom: 16, padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontWeight: 700, color: '#dc2626' }}>Total Outstanding: {fmt(totalOutstanding)}</span>
-              <span style={{ color: '#64748b', fontSize: 13 }}>{rows.length} student(s) with arrears</span>
+              <span style={{ color: '#64748b', fontSize: 13 }}>{arrearTotal} student(s) with arrears</span>
             </div>
             {Object.entries(byClass).map(([cls, students]) => (
               <div key={cls} style={{ marginBottom: 20 }}>
@@ -657,6 +666,7 @@ function ArrearTab({ years, classes }: { years: AcademicYear[]; classes: string[
                 </div>
               </div>
             ))}
+            <Pagination page={arrearPage} pageSize={arrearPageSize} total={arrearTotal} onPage={setArrearPage} onPageSize={(s) => { setArrearPageSize(s); setArrearPage(1); }} />
           </>
         )
       )}
@@ -725,6 +735,7 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
     finally { setLoadingSummary(false); }
   }
 
+  const { displayRows: expenseRows, total: expenseTotal, page: expensePage, setPage: setExpensePage, pageSize: expensePageSize, setPageSize: setExpensePageSize } = useTableControls(expenses);
   const totalShown = expenses.reduce((s, e) => s + Number(e.amount), 0);
 
   return (
@@ -800,7 +811,7 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
             </thead>
             <tbody>
               {expenses.length === 0 && <tr><td colSpan={7} style={{ padding: 24, textAlign: 'center', color: '#94a3b8' }}>No expenses recorded.</td></tr>}
-              {expenses.map(e => (
+              {(expenseRows as typeof expenses).map(e => (
                 <tr key={e.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '10px 12px', color: '#374151' }}>{e.expense_date}</td>
                   <td style={{ padding: '10px 12px' }}>
@@ -819,7 +830,7 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
                 </tr>
               ))}
             </tbody>
-            {expenses.length > 0 && (
+            {expenseTotal > 0 && (
               <tfoot>
                 <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
                   <td colSpan={5} style={{ padding: '10px 12px', fontWeight: 700, fontSize: 13 }}>Total</td>
@@ -832,6 +843,7 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
         </div>
       )}
 
+      <Pagination page={expensePage} pageSize={expensePageSize} total={expenseTotal} onPage={setExpensePage} onPageSize={(s) => { setExpensePageSize(s); setExpensePage(1); }} />
       {showModal && (
         <Modal title={editing ? 'Edit Expense' : 'Record Expense'} onClose={() => setShowModal(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

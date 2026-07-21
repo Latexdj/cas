@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface Excuse {
   id: string; teacher_name: string; excuse_type: string;
@@ -74,6 +76,7 @@ export default function TeacherLeavesAdminPage() {
 
   const displayed = filter === 'All' ? excuses : excuses.filter(e => e.status === filter);
   const pendingCount = excuses.filter(e => e.status === 'Pending').length;
+  const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(displayed);
 
   return (
     <div className="space-y-5">
@@ -88,7 +91,7 @@ export default function TeacherLeavesAdminPage() {
         </div>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
           {STATUS_FILTER.map(f => (
-            <button key={f} onClick={() => setFilter(f)}
+            <button key={f} onClick={() => { setFilter(f); setPage(1); }}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${filter === f ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}>
               {f}
             </button>
@@ -118,7 +121,7 @@ export default function TeacherLeavesAdminPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {displayed.map(e => (
+                {(displayRows as typeof displayed).map(e => (
                   <tr key={e.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">{e.teacher_name}</td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{e.excuse_type}</td>
@@ -158,6 +161,8 @@ export default function TeacherLeavesAdminPage() {
           </div>
         </div>
       )}
+
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
 
       {/* Reject modal */}
       {rejectId && (

@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { saApi } from '@/lib/super-admin-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface School {
   id: string;
@@ -109,6 +111,8 @@ export default function SchoolsListPage() {
     if (filter === 'expired') return !['active', 'trial'].includes(s.subscription_status);
     return true;
   });
+
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } = useTableControls(filtered);
 
   function toggleAll() {
     if (selected.size === filtered.length) {
@@ -240,16 +244,16 @@ export default function SchoolsListPage() {
                     <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0}
                       onChange={toggleAll} className="rounded border-slate-600 bg-slate-700 accent-indigo-500" />
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">School</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Subscription Period</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wide">Teachers</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-400 uppercase tracking-wide">Attendance</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Last Activity</th>
+                  <Th label="School" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide" />
+                  <Th label="Status" sortKey="subscription_status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide" />
+                  <Th label="Subscription Period" sortKey="ends_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide" />
+                  <Th label="Teachers" sortKey="active_teachers" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide" />
+                  <Th label="Attendance" sortKey="total_attendance" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide" />
+                  <Th label="Last Activity" sortKey="last_submission" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide" />
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(s => {
+                {(displayRows as typeof filtered).map(s => {
                   const badge = statusBadge(s.subscription_status);
                   return (
                     <tr key={s.id}
@@ -285,6 +289,7 @@ export default function SchoolsListPage() {
           </div>
         )}
       </div>
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
     </div>
   );
 }

@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface SchoolBreak {
   id: string;
@@ -116,6 +118,8 @@ export default function SchoolBreaksPage() {
     }
   }
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(breaks);
+
   const inputCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500';
   const labelCls = 'block text-sm font-medium text-slate-700 mb-1';
 
@@ -212,7 +216,7 @@ export default function SchoolBreaksPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {breaks.map(b => (
+            {(displayRows as typeof breaks).map(b => (
               <div key={b.id}
                 className="bg-white rounded-xl border px-4 py-3 flex items-center gap-4"
                 style={{ borderColor: editId === b.id ? '#15803D' : '#E2E8F0' }}>
@@ -244,6 +248,7 @@ export default function SchoolBreaksPage() {
             ))}
           </div>
         )}
+        <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
       </div>
     </div>
   );

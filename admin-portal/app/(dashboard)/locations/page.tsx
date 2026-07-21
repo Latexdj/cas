@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
@@ -63,6 +65,8 @@ export default function LocationsPage() {
     await load();
   }
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } = useTableControls(locs);
+
   function f(k: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm(prev => ({ ...prev, [k]: e.target.value }));
@@ -83,13 +87,17 @@ export default function LocationsPage() {
           <table className="min-w-[800px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {['Name','Type','Latitude','Longitude','Radius (m)','GPS',''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                ))}
+                <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                <Th label="Type" sortKey="type" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Latitude</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Longitude</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Radius (m)</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">GPS</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {locs.map(l => (
+              {(displayRows as typeof locs).map(l => (
                 <tr key={l.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">{l.name}</td>
                   <td className="px-4 py-3 text-gray-600 capitalize">{l.type}</td>
@@ -114,6 +122,7 @@ export default function LocationsPage() {
           </table>
         </div>
       )}
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
 
       <Modal open={modal !== null} onClose={() => setModal(null)} title={modal === 'create' ? 'Add Location' : 'Edit Location'}>
         <div className="space-y-3">

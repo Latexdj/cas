@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { studentApi } from '@/lib/student-api';
 import { getStudentColors } from '@/lib/student-auth';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface Book {
   id: string; title: string; author: string | null; subject: string | null;
@@ -112,6 +114,11 @@ export default function StudentLibraryPage() {
   const activeLoans   = loans.filter(l => l.status === 'active');
   const returnedLoans = loans.filter(l => l.status === 'returned');
 
+  const { displayRows: bookRows,    total: bookTotal,    page: bookPage,    setPage: setBookPage,    pageSize: bookPageSize,    setPageSize: setBookPageSize    } = useTableControls(filteredBooks);
+  const { displayRows: activeRows,  total: activeTotal,  page: activePage,  setPage: setActivePage,  pageSize: activePageSize,  setPageSize: setActivePageSize  } = useTableControls(activeLoans);
+  const { displayRows: retRows,     total: retTotal,     page: retPage,     setPage: setRetPage,     pageSize: retPageSize,     setPageSize: setRetPageSize     } = useTableControls(returnedLoans);
+  const { displayRows: resRows,     total: resTotal,     page: resPage,     setPage: setResPage,     pageSize: resPageSize,     setPageSize: setResPageSize     } = useTableControls(resources);
+
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-2xl mx-auto">
       <div>
@@ -144,7 +151,7 @@ export default function StudentLibraryPage() {
             <p className="text-sm text-slate-500 text-center py-10">No books found.</p>
           ) : (
             <div className="grid gap-3">
-              {filteredBooks.map(b => (
+              {(bookRows as typeof filteredBooks).map(b => (
                 <div key={b.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 flex gap-3">
                   {b.cover_url ? (
                     <img src={b.cover_url} alt="" className="w-12 h-16 rounded-lg object-cover shrink-0" />
@@ -176,6 +183,7 @@ export default function StudentLibraryPage() {
               ))}
             </div>
           )}
+          <Pagination page={bookPage} pageSize={bookPageSize} total={bookTotal} onPage={setBookPage} onPageSize={(s) => { setBookPageSize(s); setBookPage(1); }} />
         </div>
       )}
 
@@ -196,7 +204,7 @@ export default function StudentLibraryPage() {
                 <div>
                   <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Active Loans</h2>
                   <div className="space-y-3">
-                    {activeLoans.map(l => (
+                    {(activeRows as typeof activeLoans).map(l => (
                       <div key={l.id} className={`bg-white dark:bg-slate-800 rounded-xl border p-4 ${l.is_overdue ? 'border-red-200 dark:border-red-900' : 'border-slate-100 dark:border-slate-700'}`}>
                         <div className="flex justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -233,6 +241,7 @@ export default function StudentLibraryPage() {
                       </div>
                     ))}
                   </div>
+                  <Pagination page={activePage} pageSize={activePageSize} total={activeTotal} onPage={setActivePage} onPageSize={(s) => { setActivePageSize(s); setActivePage(1); }} />
                 </div>
               )}
 
@@ -240,7 +249,7 @@ export default function StudentLibraryPage() {
                 <div>
                   <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Return History</h2>
                   <div className="space-y-2">
-                    {returnedLoans.map(l => (
+                    {(retRows as typeof returnedLoans).map(l => (
                       <div key={l.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-3 flex justify-between items-center gap-2">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-slate-800 dark:text-white truncate">{l.book_title}</p>
@@ -252,6 +261,7 @@ export default function StudentLibraryPage() {
                       </div>
                     ))}
                   </div>
+                  <Pagination page={retPage} pageSize={retPageSize} total={retTotal} onPage={setRetPage} onPageSize={(s) => { setRetPageSize(s); setRetPage(1); }} />
                 </div>
               )}
             </>
@@ -279,7 +289,7 @@ export default function StudentLibraryPage() {
             <p className="text-sm text-slate-500 text-center py-10">No resources available.</p>
           ) : (
             <div className="space-y-3">
-              {resources.map(r => (
+              {(resRows as typeof resources).map(r => (
                 <div key={r.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${primary}20` }}>
                     <svg viewBox="0 0 24 24" fill="none" stroke={primary} strokeWidth={1.8} strokeLinecap="round" className="w-5 h-5">
@@ -309,6 +319,7 @@ export default function StudentLibraryPage() {
               ))}
             </div>
           )}
+          <Pagination page={resPage} pageSize={resPageSize} total={resTotal} onPage={setResPage} onPageSize={(s) => { setResPageSize(s); setResPage(1); }} />
         </div>
       )}
     </div>

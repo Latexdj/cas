@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface Leave {
   id: string;
@@ -77,6 +79,8 @@ export default function LeavesPage() {
 
   const pending = leaves.filter(l => l.status === 'Pending').length;
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(leaves);
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
@@ -106,9 +110,9 @@ export default function LeavesPage() {
         <div style={{ textAlign: 'center', padding: 60, color: dark ? '#64748B' : '#94A3B8' }}>Loading…</div>
       ) : leaves.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, color: dark ? '#64748B' : '#94A3B8' }}>No leave requests found.</div>
-      ) : (
+      ) : (<>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {leaves.map(l => {
+          {(displayRows as typeof leaves).map(l => {
             const ss = STATUS_STYLES[l.status] ?? STATUS_STYLES.Pending;
             return (
               <div key={l.id} style={{
@@ -208,7 +212,8 @@ export default function LeavesPage() {
             );
           })}
         </div>
-      )}
+        <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
+      </>)}
 
       {/* Action confirmation overlay */}
       {actId && action && (

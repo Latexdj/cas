@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -333,6 +335,13 @@ export default function HodPage() {
     { key: 'absences',   label: 'Absences' },
   ];
 
+  const { displayRows: absRows, total: absTotal, page: absPage, setPage: setAbsPage, pageSize: absPageSize, setPageSize: setAbsPageSize } = useTableControls(absences);
+  const { displayRows: teacherRows, total: teacherTotal, page: teacherPage, setPage: setTeacherPage, pageSize: teacherPageSize, setPageSize: setTeacherPageSize } = useTableControls(teachers);
+  const { displayRows: classRows, total: classTotal, page: classPage, setPage: setClassPage, pageSize: classPageSize, setPageSize: setClassPageSize } = useTableControls(classes);
+  const { displayRows: queueRows, total: queueTotal, page: queuePage, setPage: setQueuePage, pageSize: queuePageSize, setPageSize: setQueuePageSize } = useTableControls(queue);
+  const sortedHodResults = useMemo(() => [...hodResults].sort((a, b) => (a.class_position ?? 999) - (b.class_position ?? 999)), [hodResults]);
+  const { displayRows: hodResultRows, total: hodResultTotal, page: hodResultPage, setPage: setHodResultPage, pageSize: hodResultPageSize, setPageSize: setHodResultPageSize } = useTableControls(sortedHodResults);
+
   // ── Spinner ──
   function Spinner() {
     return (
@@ -448,7 +457,7 @@ export default function HodPage() {
               <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8', fontSize: 14 }}>No pending submissions.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {queue.map(item => (
+                {(queueRows as typeof queue).map(item => (
                   <div key={item.id} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                       <div style={{ flex: 1 }}>
@@ -470,6 +479,9 @@ export default function HodPage() {
                   </div>
                 ))}
               </div>
+            )}
+            {!queueLoading && queue.length > 0 && (
+              <Pagination page={queuePage} pageSize={queuePageSize} total={queueTotal} onPage={setQueuePage} onPageSize={(s) => { setQueuePageSize(s); setQueuePage(1); }} />
             )}
 
             {/* Review modal */}
@@ -641,7 +653,7 @@ export default function HodPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[...hodResults].sort((a,b)=>(a.class_position??999)-(b.class_position??999)).map((student, idx) => (
+                      {(hodResultRows as typeof sortedHodResults).map((student, idx) => (
                         <>
                           <tr key={student.student_id}
                             style={{ borderBottom: '1px solid #F1F5F9', background: idx % 2 === 0 ? '#fff' : '#FAFAFA' }}>
@@ -703,6 +715,9 @@ export default function HodPage() {
                 </div>
               </div>
             )}
+            {hodResults.length > 0 && (
+              <Pagination page={hodResultPage} pageSize={hodResultPageSize} total={hodResultTotal} onPage={setHodResultPage} onPageSize={(s) => { setHodResultPageSize(s); setHodResultPage(1); }} />
+            )}
           </div>
         )}
 
@@ -722,8 +737,9 @@ export default function HodPage() {
               </p>
             </div>
           ) : (
+            <>
             <div className="space-y-3">
-              {classes.map(cls => {
+              {(classRows as typeof classes).map(cls => {
                 const isSubject = overview?.hod_type === 'subject';
                 const teacherName  = isSubject ? cls.teacher_name  : cls.form_teacher_name;
                 const teacherPhone = isSubject ? cls.teacher_phone : cls.form_teacher_phone;
@@ -777,6 +793,8 @@ export default function HodPage() {
                 );
               })}
             </div>
+            <Pagination page={classPage} pageSize={classPageSize} total={classTotal} onPage={setClassPage} onPageSize={(s) => { setClassPageSize(s); setClassPage(1); }} />
+            </>
           )
         )}
 
@@ -787,8 +805,9 @@ export default function HodPage() {
               <p className="text-sm text-[#8C7E6E]">No teachers found in this department.</p>
             </div>
           ) : (
+            <>
             <div className="space-y-3">
-              {teachers.map(t => (
+              {(teacherRows as typeof teachers).map(t => (
                 <div key={t.id} className="bg-white rounded-2xl border border-[#E2D9CC] p-4 space-y-3">
                   {/* Name row */}
                   <div className="flex items-start justify-between">
@@ -852,6 +871,8 @@ export default function HodPage() {
                 </div>
               ))}
             </div>
+            <Pagination page={teacherPage} pageSize={teacherPageSize} total={teacherTotal} onPage={setTeacherPage} onPageSize={(s) => { setTeacherPageSize(s); setTeacherPage(1); }} />
+            </>
           )
         )}
 
@@ -893,7 +914,7 @@ export default function HodPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {absences.map(ab => {
+                {(absRows as typeof absences).map(ab => {
                   const style = ABSENCE_STATUS_STYLE[ab.status] ?? { color: '#64748B', bg: '#F1F5F9' };
                   return (
                     <div key={ab.id} className="bg-white rounded-2xl border border-[#E2D9CC] p-4">
@@ -911,6 +932,7 @@ export default function HodPage() {
                 })}
               </div>
             )}
+            <Pagination page={absPage} pageSize={absPageSize} total={absTotal} onPage={setAbsPage} onPageSize={(s) => { setAbsPageSize(s); setAbsPage(1); }} />
           </div>
         )}
       </div>

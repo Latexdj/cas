@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface PlcAbsence {
   id: string;
@@ -45,6 +47,8 @@ export default function PlcAbsencesPage() {
     loadData();
   }, [loadData]);
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(absences);
+
   return (
     <div className="min-h-screen px-4 pt-6 pb-24" style={{ background: '#F4EFE6' }}>
       <div className="flex items-center gap-3 mb-6">
@@ -74,7 +78,7 @@ export default function PlcAbsencesPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {absences.map(ab => {
+          {(displayRows as typeof absences).map(ab => {
             const s = ab.status ? statusStyle(ab.status) : null;
             return (
               <div key={ab.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
@@ -98,6 +102,7 @@ export default function PlcAbsencesPage() {
           })}
         </div>
       )}
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
     </div>
   );
 }

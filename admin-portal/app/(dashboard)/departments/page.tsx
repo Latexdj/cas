@@ -2,6 +2,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -232,6 +234,8 @@ export default function DepartmentsPage() {
     } finally { setSaving(false); }
   }
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(departments);
+
   // Teachers not yet in staff list
   const staffIds = new Set(staffList.map(s => s.id));
   const availableToAdd = allTeachers.filter(t => !staffIds.has(t.id));
@@ -258,9 +262,9 @@ export default function DepartmentsPage() {
           <p className="text-slate-400 text-sm">No departments yet.</p>
           <button onClick={openCreate} className="mt-3 text-sm text-green-700 font-semibold hover:underline">Add your first department</button>
         </div>
-      ) : (
+      ) : (<>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {departments.map(dept => (
+          {(displayRows as typeof departments).map(dept => (
             <div key={dept.id} className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 flex flex-col gap-4">
               {/* Header */}
               <div className="flex items-start justify-between gap-2">
@@ -344,7 +348,8 @@ export default function DepartmentsPage() {
             </div>
           ))}
         </div>
-      )}
+        <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
+      </>)}
 
       {/* ── Create Department ── */}
       <Modal open={modal?.type === 'create'} onClose={closeModal} title="Add Department" maxWidth="max-w-sm">

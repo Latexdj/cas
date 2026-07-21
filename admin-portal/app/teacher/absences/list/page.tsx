@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTeacher, getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface AbsenceRecord {
   id: string;
@@ -64,6 +66,8 @@ export default function AbsenceListPage() {
     } finally { setReasonLoading(false); }
   }
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(absences);
+
   return (
     <div className="min-h-screen px-4 pt-6 pb-24" style={{ background: '#F4EFE6' }}>
       {/* Header */}
@@ -96,7 +100,7 @@ export default function AbsenceListPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {absences.map(ab => (
+          {(displayRows as typeof absences).map(ab => (
             <div key={ab.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
               <p className="text-sm font-semibold text-[#2C2218]">{ab.subject} — {ab.class_name}</p>
               <p className="text-xs text-[#8C7E6E]">
@@ -150,6 +154,7 @@ export default function AbsenceListPage() {
           ))}
         </div>
       )}
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
     </div>
   );
 }

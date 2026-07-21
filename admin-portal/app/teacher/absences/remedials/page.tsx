@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTeacher, getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface RemedialLesson {
   id: string;
@@ -494,6 +496,8 @@ export default function RemedialsPage() {
     setTimeout(() => setRegSuccessId(null), 3000);
   }
 
+  const { displayRows: remRows, total: remTotal, page: remPage, setPage: setRemPage, pageSize: remPageSize, setPageSize: setRemPageSize } = useTableControls(remedials);
+
   return (
     <div className="min-h-screen px-4 pt-6 pb-24" style={{ background: '#F4EFE6' }}>
       <div className="flex items-center gap-3 mb-6">
@@ -536,7 +540,7 @@ export default function RemedialsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {remedials.map(rem => {
+          {(remRows as typeof remedials).map(rem => {
             const sc = statusColor(rem.status, primary);
             const started = rem.status === 'Scheduled'
               ? (liveIds.has(rem.id) || isStarted(rem.remedial_date, rem.remedial_time))
@@ -621,6 +625,8 @@ export default function RemedialsPage() {
           })}
         </div>
       )}
+
+      <Pagination page={remPage} pageSize={remPageSize} total={remTotal} onPage={setRemPage} onPageSize={(s) => { setRemPageSize(s); setRemPage(1); }} />
 
       {submitting && (
         <SubmitProofModal

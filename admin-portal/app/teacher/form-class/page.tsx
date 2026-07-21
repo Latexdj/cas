@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { teacherApi } from '@/lib/teacher-api';
 import { getTeacher, getTeacherColors } from '@/lib/teacher-auth';
 import type { AcademicYear, FormTeacherAssignment, FormTeacherStudent, ReportRemark, StudentResult } from '@/types/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function ordinal(n: number) {
@@ -252,6 +254,8 @@ export default function FormClassPage() {
   const drawerAttRow    = drawerStudent ? attData[drawerStudent.id] ?? null : null;
   const drawerRemark    = drawerStudent ? (remarksMap[drawerStudent.id] ?? draft[drawerStudent.id] ?? null) : null;
 
+  const { displayRows: stuRows, total: stuTotal, page: stuPage, setPage: setStuPage, pageSize: stuPageSize, setPageSize: setStuPageSize } = useTableControls(students);
+
   const selectCls = 'border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500';
 
   // ── No assignment state ───────────────────────────────────────────────────
@@ -348,7 +352,7 @@ export default function FormClassPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {students.map(s => (
+                {(stuRows as typeof students).map(s => (
                   <button key={s.id} onClick={() => setDrawerStudent(s)}
                     className="w-full bg-white rounded-xl border border-[#E2D9CC] p-3 flex items-center gap-3 hover:border-green-300 transition-colors text-left">
                     <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 flex-shrink-0">
@@ -380,6 +384,9 @@ export default function FormClassPage() {
                   </div>
                 )}
               </div>
+            )}
+            {students.length > 0 && (
+              <Pagination page={stuPage} pageSize={stuPageSize} total={stuTotal} onPage={setStuPage} onPageSize={(s) => { setStuPageSize(s); setStuPage(1); }} />
             )}
           </>
         )}

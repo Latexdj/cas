@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -229,6 +231,7 @@ export default function PrimarySubjectsPage() {
   }
 
   const assignedCount = Object.values(drafts).filter(d => d.assigned).length;
+  const { displayRows: catalogRows, total: catalogTotal, page: catalogPage, setPage: setCatalogPage, pageSize: catalogPageSize, setPageSize: setCatalogPageSize } = useTableControls(catalog);
 
   return (
     <div className="space-y-6">
@@ -268,7 +271,7 @@ export default function PrimarySubjectsPage() {
             </div>
           ) : (
             <ul className="divide-y divide-gray-50">
-              {catalog.map(s => (
+              {(catalogRows as typeof catalog).map(s => (
                 <li key={s.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 group">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-900 truncate">{s.subject_name}</p>
@@ -298,6 +301,7 @@ export default function PrimarySubjectsPage() {
               ))}
             </ul>
           )}
+          <Pagination page={catalogPage} pageSize={catalogPageSize} total={catalogTotal} onPage={setCatalogPage} onPageSize={(s) => { setCatalogPageSize(s); setCatalogPage(1); }} />
         </div>
 
         {/* ── RIGHT: Class Assignment ── */}

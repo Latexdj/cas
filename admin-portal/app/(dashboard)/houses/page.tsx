@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Input }  from '@/components/ui/Input';
 import { Modal }  from '@/components/ui/Modal';
@@ -48,6 +50,8 @@ export default function HousesPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } = useTableControls(houses);
 
   function openAdd() { setForm(emptyForm); setError(''); setModal('add'); }
   function openEdit(h: House) { setForm({ id: h.id, name: h.name, notes: h.notes ?? '' }); setError(''); setModal('edit'); }
@@ -127,13 +131,17 @@ export default function HousesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                    {['House', 'Housemaster', 'Students', 'Gender', 'Residential', 'Notes', ''].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                    ))}
+                    <Th label="House" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap" />
+                    <Th label="Housemaster" sortKey="housemaster_names" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap" />
+                    <Th label="Students" sortKey="student_count" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap" />
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Gender</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Residential</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Notes</th>
+                    <th className="px-4 py-3" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {houses.map(h => (
+                  {(displayRows as typeof houses).map(h => (
                     <tr key={h.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                       <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">{h.name}</td>
                       <td className="px-4 py-3">
@@ -169,7 +177,7 @@ export default function HousesPage() {
 
             {/* Mobile cards */}
             <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-700">
-              {houses.map(h => (
+              {(displayRows as typeof houses).map(h => (
                 <div key={h.id} className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
@@ -213,6 +221,7 @@ export default function HousesPage() {
           </>
         )}
       </div>
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
 
       <Modal
         open={modal !== 'none'}

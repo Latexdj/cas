@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getTeacher, getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface TeacherExcuse {
   id: string;
@@ -105,6 +107,8 @@ function LeavesContent() {
       setLeaveError(msg ?? 'Failed to submit leave request.');
     } finally { setLeaveLoading(false); }
   }
+
+  const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(leaves);
 
   return (
     <div className="min-h-screen px-4 pt-6 pb-24" style={{ background: '#F4EFE6' }}>
@@ -221,7 +225,7 @@ function LeavesContent() {
         </div>
       ) : (
         <div className="space-y-3">
-          {leaves.map(lv => {
+          {(displayRows as typeof leaves).map(lv => {
             const s = statusStyle(lv.status);
             const dateLabel = lv.date_from.slice(0, 10) === lv.date_to.slice(0, 10)
               ? fmt(lv.date_from)
@@ -262,6 +266,7 @@ function LeavesContent() {
           })}
         </div>
       )}
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
     </div>
   );
 }

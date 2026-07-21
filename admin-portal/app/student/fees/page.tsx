@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { studentApi } from '@/lib/student-api';
 import { getStudentColors } from '@/lib/student-auth';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface Bill {
   id: string;
@@ -50,6 +52,11 @@ export default function StudentFeesPage() {
   const colors  = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
   const primary = colors.primary;
 
+  const bills    = data?.bills    ?? [];
+  const payments = data?.payments ?? [];
+  const { displayRows: billRows,    total: billTotal,    page: billPage,    setPage: setBillPage,    pageSize: billPageSize,    setPageSize: setBillPageSize    } = useTableControls(bills);
+  const { displayRows: paymentRows, total: paymentTotal, page: paymentPage, setPage: setPaymentPage, pageSize: paymentPageSize, setPageSize: setPaymentPageSize } = useTableControls(payments);
+
   useEffect(() => {
     studentApi.get<FeesData>('/api/student/fees')
       .then(r => setData(r.data))
@@ -87,7 +94,7 @@ export default function StudentFeesPage() {
     </div>
   );
 
-  const { summary, bills, payments } = data;
+  const { summary } = data;
   const hasOutstanding = summary.outstanding > 0;
   const collectionPct  = summary.total_billed > 0
     ? Math.round((summary.total_paid / summary.total_billed) * 100) : 0;
@@ -164,7 +171,7 @@ export default function StudentFeesPage() {
             <div className="bg-white rounded-xl border border-slate-100 p-8 text-center">
               <p className="text-slate-400 text-sm font-medium">No fee bills yet</p>
             </div>
-          ) : bills.map(bill => {
+          ) : (billRows as typeof bills).map(bill => {
             const name = bill.fee_item_name || bill.label || bill.schedule_name || 'Fee Bill';
             return (
               <div key={bill.id} className="bg-white rounded-xl border border-slate-100 p-4">
@@ -205,6 +212,7 @@ export default function StudentFeesPage() {
               </div>
             );
           })}
+          <Pagination page={billPage} pageSize={billPageSize} total={billTotal} onPage={setBillPage} onPageSize={(s) => { setBillPageSize(s); setBillPage(1); }} />
         </div>
       )}
 
@@ -215,7 +223,7 @@ export default function StudentFeesPage() {
             <div className="bg-white rounded-xl border border-slate-100 p-8 text-center">
               <p className="text-slate-400 text-sm font-medium">No payments recorded yet</p>
             </div>
-          ) : payments.map(pmt => {
+          ) : (paymentRows as typeof payments).map(pmt => {
             const label = pmt.fee_item_name || pmt.bill_label || 'Payment';
             return (
               <div key={pmt.id} className="bg-white rounded-xl border border-slate-100 p-4 flex items-start gap-3">
@@ -245,6 +253,7 @@ export default function StudentFeesPage() {
               </div>
             );
           })}
+          <Pagination page={paymentPage} pageSize={paymentPageSize} total={paymentTotal} onPage={setPaymentPage} onPageSize={(s) => { setPaymentPageSize(s); setPaymentPage(1); }} />
         </div>
       )}
     </div>

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface Excuse {
   id: string; date_from: string; date_to: string; excuse_type: string;
@@ -52,6 +54,8 @@ export default function TeacherLeavesPage() {
     setExcuses(prev => prev.filter(e => e.id !== id));
   }
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(excuses);
+
   return (
     <div className="space-y-5 max-w-xl">
       <div className="flex items-center justify-between">
@@ -76,7 +80,7 @@ export default function TeacherLeavesPage() {
         <div className="text-center py-16 text-slate-400 text-sm">No leave requests yet.</div>
       ) : (
         <div className="space-y-3">
-          {excuses.map(e => (
+          {(displayRows as typeof excuses).map(e => (
             <div key={e.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
@@ -105,6 +109,7 @@ export default function TeacherLeavesPage() {
           ))}
         </div>
       )}
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
 
       {/* New Request Modal */}
       {modal && (

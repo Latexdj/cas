@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
@@ -92,6 +94,7 @@ export default function ResourcesPage() {
   }
 
   const filtered = resources.filter(r => !filterType || r.resource_type === filterType);
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } = useTableControls(filtered);
 
   return (
     <div className="p-6 space-y-5">
@@ -109,7 +112,7 @@ export default function ResourcesPage() {
         {[{ value: '', label: 'All' }, ...RESOURCE_TYPES.map(t => ({ value: t, label: TYPE_LABELS[t] }))].map(({ value, label }) => (
           <button
             key={value}
-            onClick={() => setFilterType(value)}
+            onClick={() => { setFilterType(value); setPage(1); }}
             className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${filterType === value ? 'bg-green-700 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
           >
             {label}
@@ -126,13 +129,18 @@ export default function ResourcesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                {['Title','Type','Subject','Year','Level','Size','Downloads',''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">{h}</th>
-                ))}
+                <Th label="Title" sortKey="title" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <Th label="Type" sortKey="resource_type" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Subject</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Year</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Level</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Size</th>
+                <Th label="Downloads" sortKey="download_count" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {filtered.map(r => (
+              {(displayRows as typeof filtered).map(r => (
                 <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                   <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{r.title}</td>
                   <td className="px-4 py-3">
@@ -157,6 +165,8 @@ export default function ResourcesPage() {
           </table>
         )}
       </div>
+
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
 
       <Modal open={showModal} onClose={() => setShowModal(false)} title="Upload Resource" maxWidth="max-w-lg">
         <div className="space-y-4">

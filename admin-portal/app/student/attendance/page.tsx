@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { studentApi } from '@/lib/student-api';
 import { getStudentColors } from '@/lib/student-auth';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; current_semester: number; }
 interface AttSummary { present: number; absent: number; late: number; total: number; rate: number | null; }
@@ -45,6 +47,8 @@ export default function StudentAttendancePage() {
 
   const rate = summary?.rate ?? null;
   const rateColor = rate === null ? '#94A3B8' : rate >= 85 ? '#16a34a' : rate >= 70 ? '#d97706' : '#dc2626';
+
+  const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(sessions);
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-2xl mx-auto">
@@ -126,7 +130,7 @@ export default function StudentAttendancePage() {
           <div className="p-10 text-center text-slate-400 text-sm">No attendance records found for this period.</div>
         ) : (
           <div className="divide-y divide-slate-50">
-            {sessions.map(s => {
+            {(displayRows as typeof sessions).map(s => {
               const style = STATUS_STYLE[s.status] ?? STATUS_STYLE.Absent;
               const d = new Date(s.date + 'T00:00:00');
               return (
@@ -148,6 +152,7 @@ export default function StudentAttendancePage() {
             })}
           </div>
         )}
+        <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
       </div>
     </div>
   );

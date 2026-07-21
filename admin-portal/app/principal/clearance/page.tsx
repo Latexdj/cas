@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface ClearanceRow {
   id: string; student_code: string; name: string; class_name: string; program_name?: string;
@@ -61,6 +63,8 @@ export default function ClearancePage() {
   const filtered = data.filter(r =>
     !search || r.name.toLowerCase().includes(search.toLowerCase()) || r.student_code.toLowerCase().includes(search.toLowerCase())
   );
+
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } = useTableControls(filtered);
 
   async function checkCertificate() {
     if (!certCode.trim()) return;
@@ -235,7 +239,7 @@ export default function ClearancePage() {
 
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: dark ? '#64748B' : '#94A3B8' }}>Loading…</div>
-      ) : (
+      ) : (<>
         <div style={{
           background: dark ? '#1E293B' : '#FFFFFF',
           border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
@@ -245,18 +249,18 @@ export default function ClearancePage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: dark ? '#0F172A' : '#F8FAFC', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
-                  {['Student', 'Class', 'Program', 'Progress', 'Status', ''].map(h => (
-                    <th key={h} style={{
-                      padding: '10px 14px', textAlign: 'left', fontWeight: 600,
-                      color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase',
-                    }}>{h}</th>
-                  ))}
+                  <Th label="Student" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
+                  <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
+                  <Th label="Program" sortKey="program_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
+                  <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Progress</th>
+                  <Th label="Status" sortKey="is_fully_cleared" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
+                  <th style={{ padding: '10px 14px' }} />
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: dark ? '#475569' : '#94A3B8' }}>No students found</td></tr>
-                ) : filtered.map((r, i) => {
+                ) : (displayRows as typeof filtered).map((r, i) => {
                   const pct = r.total_offices > 0 ? Math.round((r.cleared_offices / r.total_offices) * 100) : null;
                   return (
                     <tr key={r.id} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F1F5F9'}` : 'none' }}>
@@ -306,7 +310,8 @@ export default function ClearancePage() {
             </table>
           </div>
         </div>
-      )}
+        <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
+      </>)}
 
       {/* Detail modal */}
       {detailId && (

@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface LibraryStaff {
   id: string; name: string; email: string; is_active: boolean; created_at: string;
@@ -102,6 +104,8 @@ export default function LibraryStaffPage() {
     } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to remove'); }
   }
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } = useTableControls(staff);
+
   const assignedTeacherIds = new Set(libTeachers.map(t => t.teacher_id));
   const filteredTeachers = teachers.filter(t =>
     !assignedTeacherIds.has(t.id) &&
@@ -146,14 +150,14 @@ export default function LibraryStaffPage() {
             <table className="w-full text-sm">
               <thead className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
                 <tr>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Name</th>
+                  <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide" />
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Email</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
                   <th className="px-4 py-2.5" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                {staff.map(s => (
+                {(displayRows as typeof staff).map(s => (
                   <tr key={s.id}>
                     {editId === s.id ? (
                       <td colSpan={4} className="px-4 py-3">
@@ -206,6 +210,8 @@ export default function LibraryStaffPage() {
             </table>
           )}
         </div>
+
+        <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
 
         {showAdd && (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 space-y-3">

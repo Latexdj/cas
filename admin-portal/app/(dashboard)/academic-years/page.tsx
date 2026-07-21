@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
@@ -58,6 +60,8 @@ export default function AcademicYearsPage() {
     await load();
   }
 
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } = useTableControls(years);
+
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
@@ -73,13 +77,14 @@ export default function AcademicYearsPage() {
           <table className="min-w-[600px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {['Year Name','Current','Semester',''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                ))}
+                <Th label="Year Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Current</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Semester</th>
+                <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {years.map(y => (
+              {(displayRows as typeof years).map(y => (
                 <tr key={y.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">{y.name}</td>
                   <td className="px-4 py-3">
@@ -101,6 +106,7 @@ export default function AcademicYearsPage() {
           </table>
         </div>
       )}
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
 
       <Modal open={modal !== null} onClose={() => setModal(null)} title={modal === 'create' ? 'Add Academic Year' : 'Edit Academic Year'}>
         <div className="space-y-3">

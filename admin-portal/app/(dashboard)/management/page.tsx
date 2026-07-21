@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 
@@ -57,6 +59,8 @@ export default function ManagementUsersPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } = useTableControls(users);
 
   // Teachers who don't already have a management role (for the dropdown)
   const assignedIds = new Set(users.map(u => u.id));
@@ -131,15 +135,15 @@ export default function ManagementUsersPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Name</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Role</th>
+                <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300" />
+                <Th label="Role" sortKey="role" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300" />
                 <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Teacher ID (Login)</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Department</th>
+                <Th label="Department" sortKey="department" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300" />
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
-              {users.map(u => (
+              {(displayRows as typeof users).map(u => (
                 <tr key={u.id} className="border-b border-gray-50 dark:border-gray-700/50 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{u.name}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{roleLabel(u.role)}</td>
@@ -165,6 +169,7 @@ export default function ManagementUsersPage() {
           </table>
         </div>
       )}
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
 
       {/* Assign / Edit Modal */}
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Change Management Role' : 'Assign Management Role'}>

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination, Th } from '@/components/ui/Pagination';
 import type { AcademicYear, FormTeacherAssignment, Teacher } from '@/types/api';
 
 interface AssignModalProps {
@@ -162,6 +164,9 @@ export default function FormTeachersPage() {
   const assigned   = classes.filter(c => assignmentMap[c]);
   const unassigned = classes.filter(c => !assignmentMap[c]);
 
+  const classRows = useMemo(() => classes.map(c => ({ class_name: c })), [classes]);
+  const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } = useTableControls(classRows);
+
   return (
     <div className="space-y-5 max-w-4xl mx-auto">
 
@@ -213,14 +218,14 @@ export default function FormTeachersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide border-b border-slate-100">
-                  <th className="px-5 py-3 text-left">Class</th>
+                  <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-5 py-3 text-left" />
                   <th className="px-5 py-3 text-left">Form Teacher</th>
                   <th className="px-5 py-3 text-left">Teacher Code</th>
                   <th className="px-5 py-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {classes.map(cls => {
+                {(displayRows as typeof classRows).map(({ class_name: cls }) => {
                   const a = assignmentMap[cls];
                   return (
                     <tr key={cls} className="hover:bg-slate-50">
@@ -249,6 +254,7 @@ export default function FormTeachersPage() {
           )}
         </div>
       )}
+      <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
 
       {/* Assign modal */}
       {modal && (

@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
+import { useTableControls } from '@/hooks/useTableControls';
+import { Pagination } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import type { Subject, ClassItem, Program, House, AssessmentMode } from '@/types/api';
@@ -109,6 +111,8 @@ function SubjectsTab() {
     }
   }
 
+  const { displayRows: subjectRows, total: subjectTotal, page: subjectPage, setPage: setSubjectPage, pageSize: subjectPageSize, setPageSize: setSubjectPageSize } = useTableControls(subjects);
+
   async function handleUpload() {
     const file = fileRef.current?.files?.[0];
     if (!file) { setUploadErr('Please select a file.'); return; }
@@ -153,9 +157,9 @@ function SubjectsTab() {
               </tr>
             </thead>
             <tbody>
-              {subjects.map((s, i) => (
+              {(subjectRows as typeof subjects).map((s, i) => (
                 <tr key={s.id} className="hover:bg-slate-50 transition-colors"
-                  style={{ borderBottom: i < subjects.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                  style={{ borderBottom: i < subjectRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
                   <td className="px-4 py-3 font-medium" style={{ color: '#0F172A' }}>{s.name}</td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{s.code ?? '—'}</td>
                   <td className="px-4 py-3">
@@ -174,6 +178,7 @@ function SubjectsTab() {
           </div>
         </div>
       )}
+      <Pagination page={subjectPage} pageSize={subjectPageSize} total={subjectTotal} onPage={setSubjectPage} onPageSize={(s) => { setSubjectPageSize(s); setSubjectPage(1); }} />
 
       <Modal open={modal === 'create' || modal === 'edit'} onClose={() => setModal(null)}
         title={modal === 'create' ? 'Add Subject' : 'Edit Subject'} maxWidth="max-w-sm">
@@ -288,6 +293,8 @@ function ClassesTab() {
     }
   }
 
+  const { displayRows: classRows, total: classTotal, page: classPage, setPage: setClassPage, pageSize: classPageSize, setPageSize: setClassPageSize } = useTableControls(classes);
+
   return (
     <div className="space-y-4 max-w-sm">
       <div className="flex items-center justify-between">
@@ -311,9 +318,9 @@ function ClassesTab() {
               </tr>
             </thead>
             <tbody>
-              {classes.map((c, i) => (
+              {(classRows as typeof classes).map((c, i) => (
                 <tr key={c.id} className="hover:bg-slate-50 transition-colors"
-                  style={{ borderBottom: i < classes.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                  style={{ borderBottom: i < classRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
                   <td className="px-4 py-3 font-medium" style={{ color: '#0F172A' }}>{c.name}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
@@ -331,6 +338,7 @@ function ClassesTab() {
           </div>
         </div>
       )}
+      <Pagination page={classPage} pageSize={classPageSize} total={classTotal} onPage={setClassPage} onPageSize={(s) => { setClassPageSize(s); setClassPage(1); }} />
 
       <Modal open={modal !== null} onClose={() => setModal(null)}
         title={modal === 'create' ? 'Add Class' : 'Edit Class'} maxWidth="max-w-xs">
@@ -399,6 +407,8 @@ function ProgramsTab() {
     }
   }
 
+  const { displayRows: programRows, total: programTotal, page: programPage, setPage: setProgramPage, pageSize: programPageSize, setPageSize: setProgramPageSize } = useTableControls(programs);
+
   const examBodyBadge = (eb: string) => {
     const styles: Record<string, { bg: string; color: string }> = {
       WAEC:  { bg: '#DBEAFE', color: '#1D4ED8' },
@@ -436,9 +446,9 @@ function ProgramsTab() {
               </tr>
             </thead>
             <tbody>
-              {programs.map((p, i) => (
+              {(programRows as typeof programs).map((p, i) => (
                 <tr key={p.id} className="hover:bg-slate-50 transition-colors"
-                  style={{ borderBottom: i < programs.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                  style={{ borderBottom: i < programRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
                   <td className="px-4 py-3 font-medium" style={{ color: '#0F172A' }}>{p.name}</td>
                   <td className="px-4 py-3">{examBodyBadge(p.exam_body || 'WAEC')}</td>
                   <td className="px-4 py-3">
@@ -463,6 +473,7 @@ function ProgramsTab() {
           </div>
         </div>
       )}
+      <Pagination page={programPage} pageSize={programPageSize} total={programTotal} onPage={setProgramPage} onPageSize={(s) => { setProgramPageSize(s); setProgramPage(1); }} />
 
       <Modal open={modal !== null} onClose={() => setModal(null)}
         title={modal === 'create' ? 'Add Program' : 'Edit Program'} maxWidth="max-w-sm">
@@ -536,6 +547,8 @@ function HousesTab() {
     }
   }
 
+  const { displayRows: houseRows, total: houseTotal, page: housePage, setPage: setHousePage, pageSize: housePageSize, setPageSize: setHousePageSize } = useTableControls(houses);
+
   return (
     <div className="space-y-4 max-w-2xl">
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -559,9 +572,9 @@ function HousesTab() {
                 </tr>
               </thead>
               <tbody>
-                {houses.map((h, i) => (
+                {(houseRows as typeof houses).map((h, i) => (
                   <tr key={h.id} className="hover:bg-slate-50 transition-colors"
-                    style={{ borderBottom: i < houses.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                    style={{ borderBottom: i < houseRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
                     <td className="px-4 py-3 font-medium" style={{ color: '#0F172A' }}>{h.name}</td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
@@ -585,6 +598,7 @@ function HousesTab() {
           </div>
         </div>
       )}
+      <Pagination page={housePage} pageSize={housePageSize} total={houseTotal} onPage={setHousePage} onPageSize={(s) => { setHousePageSize(s); setHousePage(1); }} />
 
       <Modal open={modal !== null} onClose={() => setModal(null)}
         title={modal === 'create' ? 'Add House' : 'Edit House'} maxWidth="max-w-sm">
@@ -662,6 +676,8 @@ function AssessmentModesTab() {
 
   const totalContribution = modes.reduce((s, m) => s + parseFloat(String(m.ca_contribution)), 0);
 
+  const { displayRows: modeRows, total: modeTotal, page: modePage, setPage: setModePage, pageSize: modePageSize, setPageSize: setModePageSize } = useTableControls(modes);
+
   return (
     <div className="space-y-4 max-w-2xl">
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -698,9 +714,9 @@ function AssessmentModesTab() {
                 </tr>
               </thead>
               <tbody>
-                {modes.map((m, i) => (
+                {(modeRows as typeof modes).map((m, i) => (
                   <tr key={m.id} className="hover:bg-slate-50 transition-colors"
-                    style={{ borderBottom: i < modes.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                    style={{ borderBottom: i < modeRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
                     <td className="px-4 py-3 font-medium" style={{ color: '#0F172A' }}>{m.name}</td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
@@ -725,7 +741,7 @@ function AssessmentModesTab() {
                   <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: '#94A3B8' }}>No modes yet. Example: Class Test (20 marks), Assignment (10 marks).</td></tr>
                 )}
               </tbody>
-              {modes.length > 0 && (
+              {modeRows.length > 0 && (
                 <tfoot style={{ borderTop: '2px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
                   <tr>
                     <td className="px-4 py-3 text-xs font-bold" style={{ color: '#0F172A' }}>Total</td>
@@ -742,6 +758,7 @@ function AssessmentModesTab() {
           </div>
         </div>
       )}
+      <Pagination page={modePage} pageSize={modePageSize} total={modeTotal} onPage={setModePage} onPageSize={(s) => { setModePageSize(s); setModePage(1); }} />
 
       <Modal open={modal !== null} onClose={() => setModal(null)}
         title={modal === 'create' ? 'Add CA Mode' : 'Edit CA Mode'} maxWidth="max-w-sm">
@@ -889,6 +906,9 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
   const unalloc    = subjects.filter(s => !allocIds.has(s.id));
   const selectCls  = 'rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
 
+  const { displayRows: allocRows, total: allocTotal, page: allocPage, setPage: setAllocPage, pageSize: allocPageSize, setPageSize: setAllocPageSize } = useTableControls(allocations);
+  useEffect(() => { setAllocPage(1); }, [selectedClass, setAllocPage]);
+
   return (
     <div className="space-y-5 max-w-3xl">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -929,7 +949,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {allocations.map(a => {
+                {(allocRows as typeof allocations).map(a => {
                   const cov = covMap.get(a.subject_name.toLowerCase());
                   const st  = cov ? STATUS_CFG[cov.status] : null;
                   return (
@@ -976,6 +996,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
               </tbody>
             </table>
           </div>
+          <Pagination page={allocPage} pageSize={allocPageSize} total={allocTotal} onPage={setAllocPage} onPageSize={(s) => { setAllocPageSize(s); setAllocPage(1); }} />
 
           {unalloc.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
