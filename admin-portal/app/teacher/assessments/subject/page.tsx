@@ -40,6 +40,28 @@ const STATUS_CONFIG: Record<SubmissionStatus, { label: string; color: string; bg
   rejected:       { label: 'Returned',         color: '#991B1B', bg: '#FEE2E2', border: '#FCA5A5', desc: 'Results returned for correction. Edit scores and resubmit.' },
 };
 
+interface ReadinessCheck {
+  examScoresEntered: boolean;
+  missingModes: string[];
+  studentsWithoutExamScore: number;
+  studentsWithoutAnyCA: number;
+  totalStudents: number;
+  canSubmit: boolean;
+}
+
+function CheckRow({ ok, label, blocking }: { ok: boolean; label: string; blocking: boolean }) {
+  const bg     = ok ? '#F0FDF4' : blocking ? '#FEF2F2' : '#FFFBEB';
+  const border = ok ? '#86EFAC' : blocking ? '#FCA5A5' : '#FDE68A';
+  const color  = ok ? '#15803D' : blocking ? '#DC2626' : '#92400E';
+  const icon   = ok ? '✅' : blocking ? '❌' : '⚠️';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: bg, border: `1px solid ${border}` }}>
+      <span style={{ fontSize: 15, flexShrink: 0 }}>{icon}</span>
+      <span style={{ fontSize: 13, color }}>{label}</span>
+    </div>
+  );
+}
+
 function SubjectContent() {
   const router = useRouter();
   const sp = useSearchParams();
@@ -56,9 +78,11 @@ function SubjectContent() {
   const [error, setError] = useState('');
 
   // Submission status state
-  const [subStatus, setSubStatus] = useState<SubStatus | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [subError, setSubError] = useState('');
+  const [subStatus,        setSubStatus]        = useState<SubStatus | null>(null);
+  const [submitting,       setSubmitting]        = useState(false);
+  const [subError,         setSubError]          = useState('');
+  const [readiness,        setReadiness]         = useState<ReadinessCheck | null>(null);
+  const [showConfirmModal, setShowConfirmModal]  = useState(false);
 
   // Modal state
   const [showModal, setShowModal]  = useState(false);
@@ -107,16 +131,25 @@ function SubjectContent() {
       setModes(mRes.data ?? []);
       if (mRes.data?.length > 0) setModeId(prev => prev || mRes.data[0].id);
 
-      // Fetch submission status
-      try {
-        const { data: statuses } = await teacherApi.get<Array<SubStatus & { subject: string; class_name: string }>>(
+      // Fetch submission status and readiness in parallel (both non-fatal)
+      const [statusRes, readinessRes] = await Promise.allSettled([
+        teacherApi.get<Array<SubStatus & { subject: string; class_name: string }>>(
           `/api/result-submissions/my-status?academic_year_id=${year_id}&semester=${semester}`
-        );
-        const myStatus = statuses.find(s => s.subject === subject && s.class_name === class_name);
+        ),
+        teacherApi.get<ReadinessCheck>('/api/result-submissions/readiness-check', {
+          params: { academic_year_id: year_id, semester, subject, class_name },
+        }),
+      ]);
+
+      if (statusRes.status === 'fulfilled') {
+        const myStatus = statusRes.value.data.find(s => s.subject === subject && s.class_name === class_name);
         setSubStatus(myStatus ?? { status: 'draft', submitted_at: null, hod_comment: null, rejected_reason: null, published_at: null });
-      } catch {
-        // Non-fatal — default to draft
+      } else {
         setSubStatus({ status: 'draft', submitted_at: null, hod_comment: null, rejected_reason: null, published_at: null });
+      }
+
+      if (readinessRes.status === 'fulfilled') {
+        setReadiness(readinessRes.value.data);
       }
     } catch {
       setError('Failed to load assessments.');
@@ -190,6 +223,22 @@ function SubjectContent() {
   }
 
   async function submitForReview() {
+    setSubError('');
+    // If readiness hasn't loaded yet, fetch it now before opening the modal
+    if (!readiness) {
+      setSubmitting(true);
+      try {
+        const res = await teacherApi.get<ReadinessCheck>('/api/result-submissions/readiness-check', {
+          params: { academic_year_id: year_id, semester, subject, class_name },
+        });
+        setReadiness(res.data);
+      } catch { /* proceed — backend will validate */ }
+      finally { setSubmitting(false); }
+    }
+    setShowConfirmModal(true);
+  }
+
+  async function confirmSubmit() {
     setSubmitting(true); setSubError('');
     try {
       await teacherApi.post('/api/result-submissions/submit', {
@@ -198,12 +247,21 @@ function SubjectContent() {
         subject,
         class_name,
       });
-      // Reload status
-      const { data: statuses } = await teacherApi.get<Array<SubStatus & { subject: string; class_name: string }>>(
-        `/api/result-submissions/my-status?academic_year_id=${year_id}&semester=${semester}`
-      );
-      const myStatus = statuses.find(s => s.subject === subject && s.class_name === class_name);
-      setSubStatus(myStatus ?? null);
+      setShowConfirmModal(false);
+      // Reload both status and readiness
+      const [statusRes, readinessRes] = await Promise.allSettled([
+        teacherApi.get<Array<SubStatus & { subject: string; class_name: string }>>(
+          `/api/result-submissions/my-status?academic_year_id=${year_id}&semester=${semester}`
+        ),
+        teacherApi.get<ReadinessCheck>('/api/result-submissions/readiness-check', {
+          params: { academic_year_id: year_id, semester, subject, class_name },
+        }),
+      ]);
+      if (statusRes.status === 'fulfilled') {
+        const myStatus = statusRes.value.data.find(s => s.subject === subject && s.class_name === class_name);
+        setSubStatus(myStatus ?? null);
+      }
+      if (readinessRes.status === 'fulfilled') setReadiness(readinessRes.value.data);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setSubError(msg ?? 'Failed to submit.');
@@ -283,6 +341,13 @@ function SubjectContent() {
   }
 
   const inputCls = 'w-full border border-[#E2D9CC] rounded-xl px-3 py-2.5 text-sm text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]';
+
+  // Derived: how many assessments exist per mode (for Layer 4 badges)
+  const modeUsage = modes.reduce<Record<string, number>>((acc, m) => {
+    acc[m.id] = assessments.filter(a => a.mode_id === m.id).length;
+    return acc;
+  }, {});
+  const activeModes = modes.filter(m => m.ca_contribution > 0);
 
   return (
     <div className="min-h-screen px-4 pt-6 pb-10" style={{ background: '#F4EFE6' }}>
@@ -377,13 +442,16 @@ function SubjectContent() {
         );
       })()}
 
-      {/* Exam scores link */}
+      {/* Exam scores link — shows whether scores have been entered */}
       <button
         onClick={() => router.push(
           `/teacher/assessments/exam?subject=${encodeURIComponent(subject)}&class_name=${encodeURIComponent(class_name)}&year_id=${year_id}&semester=${semester}&year_name=${encodeURIComponent(year_name)}`
         )}
-        className="w-full flex items-center gap-2.5 bg-white border-2 border-dashed border-[#E2D9CC] rounded-2xl px-4 py-3 mb-4 text-sm font-semibold hover:border-[#8C7E6E] transition-colors text-left"
-        style={{ color: primary }}
+        className="w-full flex items-center gap-2.5 bg-white rounded-2xl px-4 py-3 mb-3 text-sm font-semibold transition-colors text-left"
+        style={{
+          border: `2px ${readiness ? 'solid' : 'dashed'} ${readiness?.examScoresEntered ? '#86EFAC' : readiness ? '#FCA5A5' : '#E2D9CC'}`,
+          color: primary,
+        }}
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 shrink-0" style={{ color: primary }}>
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
@@ -391,8 +459,32 @@ function SubjectContent() {
           <line x1="16" y1="13" x2="8" y2="13" />
           <line x1="16" y1="17" x2="8" y2="17" />
         </svg>
-        Enter End-of-Semester Exam Scores
+        <span className="flex-1">End-of-Semester Exam Scores</span>
+        {readiness && (
+          <span className="text-xs font-bold shrink-0" style={{ color: readiness.examScoresEntered ? '#15803D' : '#DC2626' }}>
+            {readiness.examScoresEntered ? '✓ Entered' : '✗ Not entered'}
+          </span>
+        )}
       </button>
+
+      {/* CA mode completion badges (Layer 4) */}
+      {activeModes.length > 0 && (
+        <div className="bg-white rounded-2xl border border-[#E2D9CC] px-4 py-3 mb-4">
+          <p className="text-[10px] font-bold text-[#8C7E6E] uppercase tracking-wide mb-2">CA Modes</p>
+          <div className="flex flex-wrap gap-2">
+            {activeModes.map(m => {
+              const count = modeUsage[m.id] ?? 0;
+              const done  = count > 0;
+              return (
+                <span key={m.id} className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
+                  style={{ background: done ? '#DCFCE7' : '#FEE2E2', color: done ? '#15803D' : '#DC2626' }}>
+                  {done ? '✓' : '✗'} {m.name} ({count})
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-3">
@@ -683,6 +775,70 @@ function SubjectContent() {
                 style={{ background: primary }}
               >
                 {creating ? 'Creating…' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Submit confirmation modal (Layer 2) */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center" onClick={() => { if (!submitting) setShowConfirmModal(false); }}>
+          <div className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-3xl p-6 pb-8 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-base font-bold text-[#2C2218]">Submit for HOD Review</h2>
+              {!submitting && (
+                <button onClick={() => setShowConfirmModal(false)} className="w-7 h-7 rounded-full bg-[#F4EFE6] flex items-center justify-center text-[#8C7E6E] text-xs font-bold">✕</button>
+              )}
+            </div>
+            <p className="text-xs text-[#8C7E6E] mb-4">{subject} · {class_name} · Semester {semester}</p>
+
+            {readiness ? (
+              <div className="space-y-2 mb-5">
+                <CheckRow ok={readiness.examScoresEntered} label="End-of-semester exam scores entered" blocking={true} />
+                {activeModes.map(m => {
+                  const count = modeUsage[m.id] ?? 0;
+                  return (
+                    <CheckRow key={m.id} ok={count > 0} label={`${m.name} — ${count} assessment${count !== 1 ? 's' : ''} created`} blocking={true} />
+                  );
+                })}
+                {readiness.studentsWithoutExamScore > 0 && (
+                  <CheckRow ok={false} label={`${readiness.studentsWithoutExamScore} of ${readiness.totalStudents} student${readiness.studentsWithoutExamScore !== 1 ? 's' : ''} missing exam score`} blocking={false} />
+                )}
+                {readiness.studentsWithoutAnyCA > 0 && (
+                  <CheckRow ok={false} label={`${readiness.studentsWithoutAnyCA} of ${readiness.totalStudents} student${readiness.studentsWithoutAnyCA !== 1 ? 's' : ''} have no CA scores at all`} blocking={false} />
+                )}
+                {readiness.canSubmit && readiness.studentsWithoutExamScore === 0 && readiness.studentsWithoutAnyCA === 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: '#F0FDF4', border: '1px solid #86EFAC' }}>
+                    <span style={{ fontSize: 15 }}>✅</span>
+                    <span style={{ fontSize: 13, color: '#15803D', fontWeight: 600 }}>All checks passed. Ready to submit.</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex justify-center py-6 mb-5">
+                <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+              </div>
+            )}
+
+            {subError && <p className="text-xs text-[#B83232] mb-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{subError}</p>}
+
+            {readiness && !readiness.canSubmit && (
+              <p className="text-xs text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] rounded-xl px-3 py-2 mb-3">
+                Fix the issues marked ❌ above before submitting. Scores are incomplete.
+              </p>
+            )}
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowConfirmModal(false)} disabled={submitting}
+                className="flex-1 py-3 rounded-xl border border-[#E2D9CC] text-sm font-semibold text-[#5C4F42] bg-[#F4EFE6] disabled:opacity-50">
+                Cancel
+              </button>
+              <button
+                onClick={confirmSubmit}
+                disabled={submitting || (readiness !== null && !readiness.canSubmit)}
+                className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-50"
+                style={{ background: '#15803D' }}>
+                {submitting ? 'Submitting…' : readiness?.canSubmit ? 'Confirm & Submit' : 'Cannot Submit Yet'}
               </button>
             </div>
           </div>

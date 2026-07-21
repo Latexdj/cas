@@ -242,6 +242,75 @@ router.get('/final-queue', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /readiness-check — preflight check before teacher submits ──────────────
+router.get('/readiness-check', async (req, res, next) => {
+  try {
+    const { academic_year_id, semester, subject, class_name } = req.query;
+    if (!academic_year_id || !semester || !subject || !class_name) {
+      return res.status(400).json({ error: 'academic_year_id, semester, subject, class_name are required' });
+    }
+    const sem = parseInt(semester);
+    const p   = [req.schoolId, academic_year_id, sem, subject, class_name];
+
+    const [examRes, missingRes, totalRes, scoredExamRes, scoredCaRes] = await Promise.all([
+      // A: any exam score entered?
+      pool.query(
+        `SELECT COUNT(*) AS cnt FROM exam_scores
+         WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3 AND subject=$4 AND class_name=$5`,
+        p
+      ),
+      // B: CA modes with ca_contribution > 0 that have no assessment created yet
+      pool.query(
+        `SELECT m.name FROM assessment_modes m
+         WHERE m.school_id=$1 AND m.ca_contribution > 0
+           AND NOT EXISTS (
+             SELECT 1 FROM assessments a
+             WHERE a.school_id=$1 AND a.mode_id=m.id
+               AND a.subject=$4 AND a.class_name=$5
+               AND a.academic_year_id=$2 AND a.semester=$3
+           )
+         ORDER BY m.sort_order`,
+        p
+      ),
+      // C: total active students in the class
+      pool.query(
+        `SELECT COUNT(*) AS cnt FROM students WHERE school_id=$1 AND class_name=$5 AND status='Active'`,
+        p
+      ),
+      // D: students who already have an exam score
+      pool.query(
+        `SELECT COUNT(DISTINCT student_id) AS cnt FROM exam_scores
+         WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3 AND subject=$4 AND class_name=$5`,
+        p
+      ),
+      // E: students who have at least one CA score
+      pool.query(
+        `SELECT COUNT(DISTINCT asc2.student_id) AS cnt
+         FROM assessment_scores asc2
+         JOIN assessments a ON a.id = asc2.assessment_id
+         WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
+           AND a.subject=$4 AND a.class_name=$5 AND asc2.score IS NOT NULL`,
+        p
+      ),
+    ]);
+
+    const examScoresEntered = parseInt(examRes.rows[0].cnt) > 0;
+    const missingModes      = missingRes.rows.map(r => r.name);
+    const totalStudents     = parseInt(totalRes.rows[0].cnt);
+    const studentsWithoutExamScore = Math.max(0, totalStudents - parseInt(scoredExamRes.rows[0].cnt));
+    const studentsWithoutAnyCA     = Math.max(0, totalStudents - parseInt(scoredCaRes.rows[0].cnt));
+
+    res.json({
+      examScoresEntered,
+      missingModes,
+      studentsWithoutExamScore,
+      studentsWithoutAnyCA,
+      totalStudents,
+      canSubmit: examScoresEntered && missingModes.length === 0,
+    });
+  } catch (err) { next(err); }
+});
+
 // ── POST /submit — teacher submits a subject for HOD review ───────────────────
 router.post('/submit', async (req, res, next) => {
   try {
@@ -250,25 +319,38 @@ router.post('/submit', async (req, res, next) => {
       return res.status(400).json({ error: 'academic_year_id, semester, subject, class_name are required' });
     }
 
-    // Check at least 1 score exists
-    const { rows: scoreCheck } = await pool.query(
+    const sem = parseInt(semester);
+
+    // Check A: end-of-semester exam scores must exist
+    const { rows: examCheck } = await pool.query(
       `SELECT 1 FROM exam_scores
        WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3 AND subject=$4 AND class_name=$5
        LIMIT 1`,
-      [req.schoolId, academic_year_id, parseInt(semester), subject, class_name]
+      [req.schoolId, academic_year_id, sem, subject, class_name]
     );
-    const { rows: caCheck } = await pool.query(
-      `SELECT 1 FROM assessment_scores asc2
-       JOIN assessments a ON a.id = asc2.assessment_id
-       WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3 AND a.subject=$4 AND a.class_name=$5
-       LIMIT 1`,
-      [req.schoolId, academic_year_id, parseInt(semester), subject, class_name]
-    );
-    if (!scoreCheck.length && !caCheck.length) {
-      return res.status(400).json({ error: 'No scores have been entered yet. Please enter at least exam scores before submitting.' });
+    if (!examCheck.length) {
+      return res.status(400).json({ error: 'End-of-semester exam scores have not been entered yet. Please enter exam scores before submitting.' });
     }
 
-    const sub = await getOrCreateSubmission(req.schoolId, academic_year_id, parseInt(semester), subject, class_name, req.user.id);
+    // Check B: every CA mode with a contribution must have at least one assessment
+    const { rows: missingModes } = await pool.query(
+      `SELECT m.name FROM assessment_modes m
+       WHERE m.school_id=$1 AND m.ca_contribution > 0
+         AND NOT EXISTS (
+           SELECT 1 FROM assessments a
+           WHERE a.school_id=$1 AND a.mode_id=m.id
+             AND a.subject=$4 AND a.class_name=$5
+             AND a.academic_year_id=$2 AND a.semester=$3
+         )
+       ORDER BY m.sort_order`,
+      [req.schoolId, academic_year_id, sem, subject, class_name]
+    );
+    if (missingModes.length) {
+      const names = missingModes.map(m => m.name).join(', ');
+      return res.status(400).json({ error: `Missing assessments for: ${names}. Every CA mode must have at least one assessment before submitting.` });
+    }
+
+    const sub = await getOrCreateSubmission(req.schoolId, academic_year_id, sem, subject, class_name, req.user.id);
 
     if (!['draft', 'rejected'].includes(sub.status)) {
       return res.status(409).json({ error: `Cannot submit — current status is "${sub.status}".` });
