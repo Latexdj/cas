@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -51,7 +51,7 @@ export default function PlacementPage() {
   }
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(rows as Record<string, unknown>[]);
+    useTableControls(rows);
 
   return (
     <div className="space-y-5">

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
@@ -83,8 +83,8 @@ export default function PersonnelPage() {
     ((r as Student).student_code || (r as Teacher).teacher_code || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const stFiltered = scope === 'students' ? (filtered as Record<string, unknown>[]) : [];
-  const tcFiltered = scope === 'teachers' ? (filtered as Record<string, unknown>[]) : [];
+  const stFiltered = scope === 'students' ? (filtered) : [];
+  const tcFiltered = scope === 'teachers' ? (filtered) : [];
 
   const {
     displayRows: stDisplayRows, total: stTotal, page: stPage, setPage: stSetPage,

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 
 type SortDir = 'asc' | 'desc' | null;
 
-export function useTableControls<T extends Record<string, unknown>>(
+export function useTableControls<T extends object>(
   data: T[],
   defaultPageSize: number | 'all' = 20,
 ) {
@@ -25,8 +25,8 @@ export function useTableControls<T extends Record<string, unknown>>(
   const sorted = useMemo(() => {
     if (!sortKey || !sortDir) return data;
     return [...data].sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
+      const av = (a as Record<string, unknown>)[sortKey];
+      const bv = (b as Record<string, unknown>)[sortKey];
       if (av == null && bv == null) return 0;
       if (av == null) return 1;
       if (bv == null) return -1;

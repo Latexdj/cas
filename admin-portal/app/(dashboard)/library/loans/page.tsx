@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -41,7 +41,7 @@ export default function LoansPage() {
     return true;
   });
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(filtered as Record<string, unknown>[]);
+    useTableControls(filtered);
 
   return (
     <div className="p-6 space-y-5">

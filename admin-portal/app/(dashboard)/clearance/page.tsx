@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -50,7 +50,7 @@ export default function ClearancePage() {
   const [ovSaving,    setOvSaving]    = useState(false);
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(students as Record<string, unknown>[]);
+    useTableControls(students);
 
   useEffect(() => {
     api.get<string[]>('/api/clearance-admin/classes').then(r => setClasses(r.data)).catch(() => {});

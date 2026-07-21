@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import type { StudentAttendanceSession, StudentAttendanceRecord } from '@/types/api';
@@ -224,13 +224,13 @@ export default function StudentAttendancePage() {
     displayRows: sessDisplayRows, total: sessTotal, page: sessPage, setPage: setSessPage,
     pageSize: sessPageSize, setPageSize: setSessPageSize, sortKey: sessSortKey,
     sortDir: sessSortDir, handleSort: handleSessSort,
-  } = useTableControls(sessions as Record<string, unknown>[]);
+  } = useTableControls(sessions);
 
   const {
     displayRows: repDisplayRows, total: repTotal, page: repPage, setPage: setRepPage,
     pageSize: repPageSize, setPageSize: setRepPageSize, sortKey: repSortKey,
     sortDir: repSortDir, handleSort: handleRepSort,
-  } = useTableControls(report as Record<string, unknown>[]);
+  } = useTableControls(report);
 
   const uniqueClasses = [...new Set(sessions.map(s => s.class_name))].sort();
   const reportClasses = [...new Set(report.map(r => r.class_name))].sort();

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
@@ -68,7 +68,7 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
   const [saving,      setSaving]      = useState(false);
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(records as Record<string, unknown>[]);
+    useTableControls(records);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -363,7 +363,7 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
   const { displayRows: remRows, total: remTotal, page: remPage, setPage: setRemPage,
           pageSize: remPageSize, setPageSize: setRemPageSize,
           sortKey: remSortKey, sortDir: remSortDir, handleSort: handleRemSort } =
-    useTableControls(displayed as Record<string, unknown>[]);
+    useTableControls(displayed);
 
   async function cancel(id: string) {
     if (!confirm('Cancel this remedial lesson?')) return;
@@ -662,7 +662,7 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
   const { displayRows: excRows, total: excTotal, page: excPage, setPage: setExcPage,
           pageSize: excPageSize, setPageSize: setExcPageSize,
           sortKey: excSortKey, sortDir: excSortDir, handleSort: handleExcSort } =
-    useTableControls(excuses as Record<string, unknown>[]);
+    useTableControls(excuses);
 
   const load = useCallback(async () => {
     setLoading(true);

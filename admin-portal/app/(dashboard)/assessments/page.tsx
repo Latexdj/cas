@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -62,7 +62,7 @@ export default function AdminAssessmentsPage() {
   const [deleteError,  setDeleteError]  = useState('');
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(rows as Record<string, unknown>[]);
+    useTableControls(rows);
 
   useEffect(() => {
     Promise.all([

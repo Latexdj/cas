@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
@@ -229,7 +229,7 @@ export default function AssessmentTrackerPage() {
   );
 
   const { displayRows: pagedTeachers, total: totalTeachers, page, setPage, pageSize, setPageSize } =
-    useTableControls(filtered as Record<string, unknown>[], 20);
+    useTableControls(filtered, 20);
 
   const depts = [...new Set(teachers.map(t => t.department).filter(Boolean))].sort() as string[];
   const s = data?.summary;

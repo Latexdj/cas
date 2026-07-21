@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
@@ -195,7 +195,7 @@ export default function PrimaryStudentsPage() {
   const photoSrc = form.picture_data || photoPreview;
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(students as Record<string, unknown>[]);
+    useTableControls(students);
 
   return (
     <div className="space-y-5">

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { api } from '@/lib/api';
@@ -161,7 +161,7 @@ export default function PrimaryTeachersPage() {
   });
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(filtered as Record<string, unknown>[]);
+    useTableControls(filtered);
 
   return (
     <div className="space-y-5">

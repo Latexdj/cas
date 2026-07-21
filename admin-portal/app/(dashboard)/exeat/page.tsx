@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
@@ -161,7 +161,7 @@ export default function AdminExeatPage() {
   }, [exeats, search]);
 
   const { displayRows, total: pagedTotal, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(filtered as Record<string, unknown>[]);
+    useTableControls(filtered);
 
   const counts = useMemo(() => ({
     total:    exeats.length,

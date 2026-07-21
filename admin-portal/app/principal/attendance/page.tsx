@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
@@ -113,7 +113,7 @@ function ClassTable({ rows, dark, search }: { rows: ClassRow[]; dark: boolean; s
   const schoolPct = totals.s > 0 ? Math.round(100 * totals.p / totals.s) : null;
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(filtered as Record<string, unknown>[]);
+    useTableControls(filtered);
 
   const hStyle: React.CSSProperties = {
     padding: '10px 14px', textAlign: 'left', fontWeight: 600,
@@ -192,7 +192,7 @@ function MeetingTable({ rows, dark, search }: { rows: MeetingRow[]; dark: boolea
   const schoolPct = totals.s > 0 ? Math.round(100 * totals.p / totals.s) : null;
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(filtered as Record<string, unknown>[]);
+    useTableControls(filtered);
 
   const hStyle: React.CSSProperties = {
     padding: '10px 14px', textAlign: 'left', fontWeight: 600,

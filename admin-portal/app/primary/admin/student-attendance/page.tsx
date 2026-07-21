@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -109,12 +109,12 @@ export default function PrimaryStudentAttendancePage() {
   const {
     displayRows: dailyDisplayRows, total: dailyTotal, page: dailyPage, setPage: setDailyPage,
     pageSize: dailyPageSize, setPageSize: setDailyPageSize, sortKey: dailySortKey, sortDir: dailySortDir, handleSort: handleDailySort,
-  } = useTableControls(rows as Record<string, unknown>[]);
+  } = useTableControls(rows);
 
   const {
     displayRows: sumDisplayRows, total: sumTotal, page: sumPage, setPage: setSumPage,
     pageSize: sumPageSize, setPageSize: setSumPageSize, sortKey: sumSortKey, sortDir: sumSortDir, handleSort: handleSumSort,
-  } = useTableControls(summary as Record<string, unknown>[]);
+  } = useTableControls(summary);
 
   return (
     <div className="space-y-5">

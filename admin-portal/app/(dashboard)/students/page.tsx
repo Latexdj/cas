@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
@@ -308,7 +308,7 @@ export default function StudentsPage() {
   );
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(filtered as Record<string, unknown>[]);
+    useTableControls(filtered);
 
   function printStudents() {
     const activeFilters: string[] = [];

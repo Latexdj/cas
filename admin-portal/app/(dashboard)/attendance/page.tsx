@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { Input } from '@/components/ui/Input';
@@ -105,7 +105,7 @@ export default function AttendancePage() {
   const [revokeError,  setRevokeError]  = useState('');
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(records as Record<string, unknown>[]);
+    useTableControls(records);
 
   const load = useCallback(async () => {
     setLoading(true);

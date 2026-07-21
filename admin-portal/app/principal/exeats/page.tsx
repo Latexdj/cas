@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
@@ -64,7 +64,7 @@ export default function ExeatsPage() {
   );
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(filtered as Record<string, unknown>[]);
+    useTableControls(filtered);
 
   const overLimit = students.filter(s =>
     s.internal_used >= (data?.internal_quota ?? 5) || s.external_used >= (data?.external_quota ?? 2)

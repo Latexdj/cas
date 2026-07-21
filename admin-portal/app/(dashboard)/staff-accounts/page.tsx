@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -92,7 +92,7 @@ export default function SupportStaffPage() {
   }
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
-    useTableControls(staff as unknown as Record<string, unknown>[]);
+    useTableControls(staff as unknown);
 
   return (
     <div className="p-6 space-y-6">

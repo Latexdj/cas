@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -1323,19 +1323,19 @@ export default function MeetingsPage() {
     displayRows: meetingRows, total: meetingTotal, page: meetingPage, setPage: setMeetingPage,
     pageSize: meetingPageSize, setPageSize: setMeetingPageSize,
     sortKey: mSortKey, sortDir: mSortDir, handleSort: mHandleSort,
-  } = useTableControls(meetings as unknown as Record<string, unknown>[]);
+  } = useTableControls(meetings as unknown);
 
   const {
     displayRows: attendanceRows, total: attendanceTotal, page: attendancePage, setPage: setAttendancePage,
     pageSize: attendancePageSize, setPageSize: setAttendancePageSize,
     sortKey: attSortKey, sortDir: attSortDir, handleSort: attHandleSort,
-  } = useTableControls(attendance as unknown as Record<string, unknown>[]);
+  } = useTableControls(attendance as unknown);
 
   const {
     displayRows: absenceRows, total: absenceTotal, page: absencePage, setPage: setAbsencePage,
     pageSize: absencePageSize, setPageSize: setAbsencePageSize,
     sortKey: absSortKey, sortDir: absSortDir, handleSort: absHandleSort,
-  } = useTableControls(absences as unknown as Record<string, unknown>[]);
+  } = useTableControls(absences as unknown);
 
   // ── Tab bar ────────────────────────────────────────────────────
 
