@@ -41,6 +41,11 @@ interface Student {
   name: string;
 }
 
+type PendingCheckpoint = {
+  attendanceId: string; classNames: string; endTime: string;
+  subject: string; slotId: string; date: string;
+};
+
 function compressToBase64(file: File): Promise<{ dataUrl: string; kb: number }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -113,6 +118,9 @@ export default function SubmitPage() {
   const [classQueue,    setClassQueue]    = useState<string[]>([]);
   const [classQueueIdx, setClassQueueIdx] = useState(0);
 
+  // Resume banner: shown when a previous Step 1 completed but Step 2 was never finished
+  const [resumePending, setResumePending] = useState<PendingCheckpoint | null>(null);
+
   useEffect(() => setMounted(true), []);
 
   const isDark = mounted && resolvedTheme === 'dark';
@@ -162,7 +170,30 @@ export default function SubmitPage() {
     setPrimary(colors.primary);
     load();
     grabGps();
+
+    // Resume check: if Step 1 completed but Step 2 was never finished (e.g. tab closed, phone call),
+    // the checkpoint in localStorage lets the teacher pick up where they left off.
+    try {
+      const raw = localStorage.getItem('pending_student_att');
+      if (raw) {
+        const pending = JSON.parse(raw) as PendingCheckpoint;
+        const today = new Date().toISOString().slice(0, 10);
+        if (pending.date === today) {
+          setResumePending(pending);
+        } else {
+          localStorage.removeItem('pending_student_att');
+        }
+      }
+    } catch { /* ignore */ }
   }, [load]);
+
+  // Warn the teacher before closing/refreshing the tab while in Step 2
+  useEffect(() => {
+    if (step === 1) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [step]);
 
   function stopCamera() {
     if (scanTimer.current) { clearInterval(scanTimer.current); scanTimer.current = null; }
@@ -237,6 +268,17 @@ export default function SubmitPage() {
     );
   }
 
+  async function handleResume(pending: PendingCheckpoint) {
+    setResumePending(null);
+    setAttendanceId(pending.attendanceId);
+    setSelectedId(pending.slotId);
+    const queue = pending.classNames.split(',').map(c => c.trim()).filter(Boolean);
+    setClassQueue(queue);
+    setClassQueueIdx(0);
+    await loadClassAtIndex(queue, 0, pending.attendanceId);
+    setStep(2);
+  }
+
   async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -296,6 +338,18 @@ export default function SubmitPage() {
       const newId = res.data?.record?.id ?? res.data?.id ?? '';
       setAttendanceId(newId);
 
+      // Persist checkpoint so Step 2 can be resumed if the page is closed or the browser loses focus
+      try {
+        localStorage.setItem('pending_student_att', JSON.stringify({
+          attendanceId: newId,
+          classNames:   slot.class_names,
+          endTime:      slot.end_time,
+          subject:      slot.subject,
+          slotId:       slot.id,
+          date:         new Date().toISOString().slice(0, 10),
+        } satisfies PendingCheckpoint));
+      } catch { /* non-critical */ }
+
       const queue = slot.class_names.split(',').map(c => c.trim()).filter(Boolean);
       setClassQueue(queue);
       setClassQueueIdx(0);
@@ -339,6 +393,7 @@ export default function SubmitPage() {
         setClassQueueIdx(nextIdx);
         await loadClassAtIndex(classQueue, nextIdx, attendanceId);
       } else {
+        try { localStorage.removeItem('pending_student_att'); } catch { /* ignore */ }
         router.push('/teacher');
       }
     } catch (err: unknown) {
@@ -375,6 +430,29 @@ export default function SubmitPage() {
       <div className="flex gap-2 mb-6">
         {[1,2].map(s => <div key={s} className="h-1 flex-1 rounded-full" style={{ background: s <= step ? primary : dk.border }} />)}
       </div>
+
+      {/* Resume banner — shown when Step 1 completed but Step 2 was never finished */}
+      {resumePending && step === 1 && (
+        <div className="rounded-2xl p-4 mb-2" style={{ background: '#FEF3C7', border: '1px solid #FDE68A' }}>
+          <p className="text-sm font-bold" style={{ color: '#92400E' }}>Incomplete Attendance Detected</p>
+          <p className="text-xs mt-1" style={{ color: '#92400E' }}>
+            Your teacher attendance for <strong>{resumePending.subject}</strong> was saved but student attendance was not completed.
+            This may have been caused by a phone call or the page being closed.
+          </p>
+          <div className="flex gap-3 mt-3">
+            <button type="button" onClick={() => handleResume(resumePending)}
+              className="px-4 py-1.5 rounded-lg text-xs font-bold text-white"
+              style={{ background: primary }}>
+              Continue Marking Students →
+            </button>
+            <button type="button" onClick={() => { setResumePending(null); try { localStorage.removeItem('pending_student_att'); } catch { /* ignore */ } }}
+              className="px-4 py-1.5 rounded-lg text-xs font-bold"
+              style={{ color: '#92400E', background: '#FDE68A' }}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── STEP 1 ── */}
       {step === 1 && (

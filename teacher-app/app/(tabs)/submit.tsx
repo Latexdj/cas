@@ -3,6 +3,7 @@ import {
   Alert, Image, Modal, FlatList, Platform, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImageManipulator from 'expo-image-manipulator';
 import NetInfo from '@react-native-community/netinfo';
 import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
@@ -72,8 +73,34 @@ export default function SubmitScreen() {
   const qrScannedRef = useRef(false);
 
   useFocusEffect(useCallback(() => {
-    loadData();
-    grabGps();
+    async function init() {
+      await loadData();
+      grabGps();
+
+      // Resume check: if a phone call or other interruption caused Step 2 to be skipped,
+      // the attendanceId was persisted. Prompt the teacher to complete student attendance.
+      try {
+        const raw = await AsyncStorage.getItem('pending_student_att');
+        if (!raw) return;
+        const pending = JSON.parse(raw) as {
+          attendanceId: string; classNames: string; endTime: string; subject: string; date: string;
+        };
+        const today = new Date().toISOString().slice(0, 10);
+        if (pending.date !== today) {
+          await AsyncStorage.removeItem('pending_student_att');
+          return;
+        }
+        Alert.alert(
+          'Incomplete Attendance',
+          `Your teacher attendance for ${pending.subject} was saved but student attendance was not completed — possibly because of a phone call.\n\nContinue marking students now?`,
+          [
+            { text: 'Continue', onPress: () => loadStudentsForClass(pending.classNames, pending.attendanceId, pending.endTime) },
+            { text: 'Later', style: 'cancel' },
+          ]
+        );
+      } catch { /* non-critical */ }
+    }
+    init();
   }, [user]));
 
   async function loadData() {
@@ -282,6 +309,17 @@ export default function SubmitScreen() {
       const res = await api.post<{ record: { id: string } }>('/api/attendance/submit', payload);
       const newAttendanceId = res.data.record?.id || null;
 
+      // Persist checkpoint so Step 2 can be resumed if a phone call interrupts the flow
+      try {
+        await AsyncStorage.setItem('pending_student_att', JSON.stringify({
+          attendanceId: newAttendanceId,
+          classNames:   selectedSlot.class_names,
+          endTime:      selectedSlot.end_time,
+          subject:      selectedSlot.subject,
+          date:         new Date().toISOString().slice(0, 10),
+        }));
+      } catch { /* non-critical */ }
+
       // Transition to step 2 — load students for this class
       await loadStudentsForClass(selectedSlot.class_names, newAttendanceId, selectedSlot.end_time);
     } catch (err: any) {
@@ -330,6 +368,7 @@ export default function SubmitScreen() {
       setStep('students');
     } catch {
       Alert.alert('Error', 'Could not load students. Teacher attendance was saved.');
+      AsyncStorage.removeItem('pending_student_att').catch(() => {});
       resetTeacherForm();
       await loadData();
     } finally {
@@ -393,6 +432,7 @@ export default function SubmitScreen() {
   }
 
   function resetAll() {
+    AsyncStorage.removeItem('pending_student_att').catch(() => {});
     resetTeacherForm();
     setStep('teacher'); setStudents([]); setStatuses({}); setAttendanceId(null);
     setClassQueue([]); setClassQueueIndex(0);
