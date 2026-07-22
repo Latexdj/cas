@@ -104,11 +104,20 @@ function StudentDrawer({
                 <div><p className="text-lg font-black text-slate-700">{result.class_position ? ordinal(result.class_position) : '—'}</p><p className="text-[10px] text-slate-400">Position</p></div>
                 <div><p className="text-lg font-black text-slate-700">{result.overall_grade || '—'}</p><p className="text-[10px] text-slate-400">Grade</p></div>
               </div>
+              <div className="flex items-center gap-1 text-[9px] font-semibold text-slate-400 uppercase tracking-wide pb-1 mb-0.5 border-b border-slate-100">
+                <span className="flex-1">Subject</span>
+                <span className="w-8 text-center">CA</span>
+                <span className="w-8 text-center">Exam</span>
+                <span className="w-8 text-center">Total</span>
+                <span className="w-7 text-center">Grd</span>
+              </div>
               {result.subjects.map(s => (
-                <div key={s.subject} className="flex items-center justify-between py-1 border-b border-slate-100 last:border-0 text-xs">
-                  <span className="text-slate-700 truncate flex-1 mr-2">{s.subject}</span>
-                  <span className="font-bold text-slate-600 mr-2">{s.total ?? '—'}</span>
-                  <span className="font-bold text-slate-500">{s.grade}</span>
+                <div key={s.subject} className="flex items-center gap-1 py-1 border-b border-slate-100 last:border-0 text-xs">
+                  <span className="text-slate-700 truncate flex-1">{s.subject}</span>
+                  <span className="text-slate-500 w-8 text-center">{s.ca_score != null ? s.ca_score : '—'}</span>
+                  <span className="text-slate-500 w-8 text-center">{s.exam_score != null ? s.exam_score : '—'}</span>
+                  <span className="font-bold text-slate-700 w-8 text-center">{s.total != null ? s.total : '—'}</span>
+                  <span className="font-bold text-slate-500 w-7 text-center">{s.grade && s.grade !== '-' ? s.grade : '—'}</span>
                 </div>
               ))}
             </div>

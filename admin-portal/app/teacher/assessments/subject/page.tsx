@@ -82,6 +82,8 @@ function SubjectContent() {
   const [submitting,       setSubmitting]        = useState(false);
   const [subError,         setSubError]          = useState('');
   const [readiness,        setReadiness]         = useState<ReadinessCheck | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
+  const [readinessError,   setReadinessError]   = useState('');
   const [showConfirmModal, setShowConfirmModal]  = useState(false);
 
   // Modal state
@@ -222,20 +224,46 @@ function SubjectContent() {
     }
   }
 
+  async function fetchReadiness() {
+    setReadinessLoading(true);
+    setReadinessError('');
+    try {
+      // CA mode completeness comes from data already on the page (no extra API call)
+      const missingModes = activeModes
+        .filter(m => (modeUsage[m.id] ?? 0) === 0)
+        .map(m => m.name);
+
+      // Exam scores completeness: hit the existing exam-scores endpoint
+      const examRes = await teacherApi.get<{ score: number | null }[]>('/api/exam-scores', {
+        params: { academic_year_id: year_id, semester, subject, class_name },
+      });
+      const examRows = examRes.data ?? [];
+      const totalStudents = examRows.length;
+      const withExamScore = examRows.filter(r => r.score !== null).length;
+      const examScoresEntered = withExamScore > 0;
+
+      setReadiness({
+        examScoresEntered,
+        missingModes,
+        studentsWithoutExamScore: Math.max(0, totalStudents - withExamScore),
+        studentsWithoutAnyCA: 0,
+        totalStudents,
+        canSubmit: examScoresEntered && missingModes.length === 0,
+      });
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setReadinessError(msg ?? 'Failed to load submission check. Please try again.');
+    } finally {
+      setReadinessLoading(false);
+    }
+  }
+
   async function submitForReview() {
     setSubError('');
-    // If readiness hasn't loaded yet, fetch it now before opening the modal
-    if (!readiness) {
-      setSubmitting(true);
-      try {
-        const res = await teacherApi.get<ReadinessCheck>('/api/result-submissions/readiness-check', {
-          params: { academic_year_id: year_id, semester, subject, class_name },
-        });
-        setReadiness(res.data);
-      } catch { /* proceed — backend will validate */ }
-      finally { setSubmitting(false); }
-    }
     setShowConfirmModal(true);
+    if (!readiness) {
+      await fetchReadiness();
+    }
   }
 
   async function confirmSubmit() {
@@ -792,7 +820,16 @@ function SubjectContent() {
             </div>
             <p className="text-xs text-[#8C7E6E] mb-4">{subject} · {class_name} · Semester {semester}</p>
 
-            {readiness ? (
+            {readinessLoading ? (
+              <div className="flex justify-center py-6 mb-5">
+                <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+              </div>
+            ) : readinessError ? (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 text-center">
+                <p className="text-sm text-[#B83232] mb-3">{readinessError}</p>
+                <button onClick={fetchReadiness} className="text-sm font-semibold text-[#B83232] underline">Retry</button>
+              </div>
+            ) : readiness ? (
               <div className="space-y-2 mb-5">
                 <CheckRow ok={readiness.examScoresEntered} label="End-of-semester exam scores entered" blocking={true} />
                 {activeModes.map(m => {
@@ -814,15 +851,11 @@ function SubjectContent() {
                   </div>
                 )}
               </div>
-            ) : (
-              <div className="flex justify-center py-6 mb-5">
-                <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
-              </div>
-            )}
+            ) : null}
 
             {subError && <p className="text-xs text-[#B83232] mb-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{subError}</p>}
 
-            {readiness && !readiness.canSubmit && (
+            {readiness && !readiness.canSubmit && !readinessLoading && (
               <p className="text-xs text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] rounded-xl px-3 py-2 mb-3">
                 Fix the issues marked ❌ above before submitting. Scores are incomplete.
               </p>
@@ -835,10 +868,10 @@ function SubjectContent() {
               </button>
               <button
                 onClick={confirmSubmit}
-                disabled={submitting || (readiness !== null && !readiness.canSubmit)}
+                disabled={submitting || readinessLoading || !!readinessError || !readiness?.canSubmit}
                 className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-50"
                 style={{ background: '#15803D' }}>
-                {submitting ? 'Submitting…' : readiness?.canSubmit ? 'Confirm & Submit' : 'Cannot Submit Yet'}
+                {submitting ? 'Submitting…' : readinessLoading ? 'Checking…' : readiness?.canSubmit ? 'Confirm & Submit' : 'Cannot Submit Yet'}
               </button>
             </div>
           </div>
