@@ -190,19 +190,20 @@ export default function FormClassPage() {
     setLoadingTab(true);
 
     if (tab === 'remarks') {
-      teacherApi.get(`/api/form-teacher/remarks?academic_year_id=${yearId}&semester=${semester}`)
-        .then(r => {
-          const m: Record<string, ReportRemark> = {};
-          for (const rem of r.data) m[rem.student_id] = rem;
-          setRemarksMap(m);
-          setDraft(prev => {
-            const next = { ...prev };
-            for (const s of students) next[s.id] = m[s.id] ?? { student_id: s.id, attitude: null, conduct: null, general_remarks: null };
-            return next;
-          });
-        })
-        .catch(() => {})
-        .finally(() => setLoadingTab(false));
+      Promise.all([
+        teacherApi.get(`/api/form-teacher/remarks?academic_year_id=${yearId}&semester=${semester}`),
+        teacherApi.get(`/api/results?academic_year_id=${yearId}&semester=${semester}&class_name=${encodeURIComponent(assignment.class_name)}`),
+      ]).then(([remarksRes, resultsRes]) => {
+        const m: Record<string, ReportRemark> = {};
+        for (const rem of remarksRes.data) m[rem.student_id] = rem;
+        setRemarksMap(m);
+        setDraft(prev => {
+          const next = { ...prev };
+          for (const s of students) next[s.id] = m[s.id] ?? { student_id: s.id, attitude: null, conduct: null, general_remarks: null };
+          return next;
+        });
+        setResultsData(resultsRes.data ?? []);
+      }).catch(() => {}).finally(() => setLoadingTab(false));
     } else if (tab === 'attendance') {
       teacherApi.get(`/api/form-teacher/attendance?academic_year_id=${yearId}&semester=${semester}`)
         .then(r => {
@@ -418,15 +419,51 @@ export default function FormClassPage() {
                 <div className="divide-y divide-slate-50">
                   {students.map((s, i) => {
                     const d = draft[s.id] ?? { student_id: s.id, attitude: null, conduct: null, general_remarks: null };
+                    const sResult = resultsData.find(r => r.student_id === s.id) ?? null;
+                    const att = s.attendance;
                     return (
                       <div key={s.id} className={`p-4 ${i % 2 === 0 ? '' : 'bg-slate-50/40'}`}>
-                        <div className="flex items-center gap-2 mb-3">
+                        {/* Name row with quick-access buttons */}
+                        <div className="flex items-center gap-2 mb-1.5">
                           <div className="w-7 h-7 rounded-full overflow-hidden border border-slate-200 flex-shrink-0">
                             <Avatar url={s.picture_url} name={s.name} gender={s.gender} />
                           </div>
-                          <p className="text-sm font-semibold text-slate-800">{s.name}</p>
-                          <span className="text-xs text-slate-400">{s.student_code}</span>
-                          {remarksMap[s.id] && <span className="ml-auto text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">Saved</span>}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-sm font-semibold text-slate-800 truncate">{s.name}</p>
+                              <span className="text-xs text-slate-400">{s.student_code}</span>
+                              {remarksMap[s.id] && <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">Saved</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button type="button" onClick={() => setDrawerStudent(s)}
+                              className="text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600 transition-colors whitespace-nowrap">
+                              Attendance
+                            </button>
+                            <button type="button" onClick={() => setDrawerStudent(s)}
+                              className="text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-200 text-slate-500 hover:border-green-300 hover:text-green-600 transition-colors whitespace-nowrap">
+                              Results
+                            </button>
+                          </div>
+                        </div>
+                        {/* Compact stat strip */}
+                        <div className="flex items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 mb-2.5 flex-wrap">
+                          <span>
+                            Att: <span className={`font-bold ${att.pct != null ? (att.pct >= 80 ? 'text-green-600' : att.pct >= 60 ? 'text-amber-600' : 'text-red-500') : 'text-slate-400'}`}>{att.pct != null ? `${att.pct}%` : '—'}</span>
+                            <span className="text-slate-400 ml-1">({att.present}P · {att.absent}A{att.late > 0 ? ` · ${att.late}L` : ''})</span>
+                          </span>
+                          {sResult ? (
+                            <>
+                              <span className="text-slate-300">·</span>
+                              <span>Pos: <span className="font-bold text-slate-700">{sResult.class_position ? ordinal(sResult.class_position) : '—'}</span></span>
+                              <span className="text-slate-300">·</span>
+                              <span>Avg: <span className={`font-bold ${sResult.average != null ? (sResult.average >= 70 ? 'text-green-600' : sResult.average >= 50 ? 'text-amber-600' : 'text-red-500') : 'text-slate-400'}`}>{sResult.average != null ? `${sResult.average}%` : '—'}</span></span>
+                              <span className="text-slate-300">·</span>
+                              <span>Grade: <span className="font-bold text-slate-700">{sResult.overall_grade || '—'}</span></span>
+                            </>
+                          ) : !loadingTab ? (
+                            <><span className="text-slate-300">·</span><span className="text-slate-300 italic">Results not yet available</span></>
+                          ) : null}
                         </div>
                         <div className="grid grid-cols-2 gap-2 mb-2">
                           <div>
