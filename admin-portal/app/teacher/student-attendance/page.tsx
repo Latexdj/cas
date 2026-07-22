@@ -10,6 +10,7 @@ interface StudentSession {
   date: string;
   subject: string;
   class_name: string;
+  lesson_end_time: string | null;
   total: number;
   present: number;
   absent: number;
@@ -57,6 +58,13 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 };
 
 const RISK_THRESHOLD = 75;
+
+function isEditWindowOpen(sessionDate: string, lessonEndTime: string | null): boolean {
+  if (!lessonEndTime) return false;
+  const endDt  = new Date(`${sessionDate}T${lessonEndTime}`);
+  const cutoff = new Date(endDt.getTime() + 30 * 60 * 1000);
+  return new Date() <= cutoff;
+}
 
 /* ─── Component ─── */
 export default function StudentAttendancePage() {
@@ -269,31 +277,46 @@ export default function StudentAttendancePage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {sessions.map(sess => (
-                  <button key={sess.id} type="button"
-                    onClick={() => openDetail(sess.id)}
-                    className="w-full bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 text-left active:opacity-80 transition-opacity">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="text-sm font-semibold text-[#2C2218]">{sess.subject} — {sess.class_name}</p>
-                        <p className="text-xs text-[#8C7E6E] mt-0.5">{formatDate(sess.date)}</p>
-                      </div>
-                      <p className="text-xs font-semibold text-[#8C7E6E] mt-0.5">{sess.total} students</p>
-                    </div>
-                    <div className="flex gap-3">
-                      {[
-                        { label: 'Present', val: sess.present, color: '#15803D', bg: '#DCFCE7' },
-                        { label: 'Absent',  val: sess.absent,  color: '#DC2626', bg: '#FEF2F2' },
-                        { label: 'Late',    val: sess.late,    color: '#D97706', bg: '#FFFBEB' },
-                      ].map(({ label, val, color, bg }) => (
-                        <div key={label} className="flex-1 rounded-lg py-1.5 text-center" style={{ background: bg }}>
-                          <p className="text-base font-bold" style={{ color }}>{val}</p>
-                          <p className="text-[10px] font-semibold" style={{ color }}>{label}</p>
+                {sessions.map(sess => {
+                  const canEdit = isEditWindowOpen(sess.date, sess.lesson_end_time);
+                  return (
+                    <div key={sess.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="text-sm font-semibold text-[#2C2218]">{sess.subject} — {sess.class_name}</p>
+                          <p className="text-xs text-[#8C7E6E] mt-0.5">{formatDate(sess.date)}</p>
                         </div>
-                      ))}
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-semibold text-[#8C7E6E]">{sess.total} students</p>
+                          <button
+                            type="button"
+                            disabled={!canEdit}
+                            onClick={() => openDetail(sess.id)}
+                            className="text-xs font-bold px-2.5 py-1 rounded-lg disabled:opacity-40 transition-opacity"
+                            style={canEdit
+                              ? { background: `${primary}20`, color: primary }
+                              : { background: '#F1F5F9', color: '#94A3B8' }}
+                            title={canEdit ? 'Edit attendance' : 'Edit window closed (30 min limit)'}
+                          >
+                            {canEdit ? 'Edit' : '🔒'}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex gap-3">
+                        {[
+                          { label: 'Present', val: sess.present, color: '#15803D', bg: '#DCFCE7' },
+                          { label: 'Absent',  val: sess.absent,  color: '#DC2626', bg: '#FEF2F2' },
+                          { label: 'Late',    val: sess.late,    color: '#D97706', bg: '#FFFBEB' },
+                        ].map(({ label, val, color, bg }) => (
+                          <div key={label} className="flex-1 rounded-lg py-1.5 text-center" style={{ background: bg }}>
+                            <p className="text-base font-bold" style={{ color }}>{val}</p>
+                            <p className="text-[10px] font-semibold" style={{ color }}>{label}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

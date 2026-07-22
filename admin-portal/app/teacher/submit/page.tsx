@@ -46,6 +46,45 @@ type PendingCheckpoint = {
   subject: string; slotId: string; date: string;
 };
 
+interface StudentSession {
+  id: string;
+  date: string;
+  subject: string;
+  class_name: string;
+  lesson_end_time: string | null;
+  total: number;
+  present: number;
+  absent: number;
+  late: number;
+}
+
+interface SessionRecord {
+  id: string;
+  status: 'Present' | 'Absent' | 'Late';
+  student_id: string;
+  student_code: string;
+  name: string;
+  class_name: string;
+}
+
+interface SessionDetail {
+  session: StudentSession & { teacher_name: string };
+  records: SessionRecord[];
+}
+
+const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
+  Present: { bg: '#DCFCE7', color: '#15803D' },
+  Absent:  { bg: '#FEF2F2', color: '#DC2626' },
+  Late:    { bg: '#FFFBEB', color: '#D97706' },
+};
+
+function isEditWindowOpen(sessionDate: string, lessonEndTime: string | null): boolean {
+  if (!lessonEndTime) return false;
+  const endDt  = new Date(`${sessionDate}T${lessonEndTime}`);
+  const cutoff = new Date(endDt.getTime() + 30 * 60 * 1000);
+  return new Date() <= cutoff;
+}
+
 function compressToBase64(file: File): Promise<{ dataUrl: string; kb: number }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -122,6 +161,13 @@ export default function SubmitPage() {
   // Resume banner: shown when a previous Step 1 completed but Step 2 was never finished
   const [resumePending, setResumePending] = useState<PendingCheckpoint | null>(null);
 
+  // Edit attendance modal
+  const [todaySessions,  setTodaySessions]  = useState<StudentSession[]>([]);
+  const [editDetail,     setEditDetail]     = useState<SessionDetail | null>(null);
+  const [editDetailLoading, setEditDetailLoading] = useState(false);
+  const [editRecordLoading, setEditRecordLoading] = useState<string | null>(null);
+  const [editModalError,    setEditModalError]    = useState('');
+
   useEffect(() => setMounted(true), []);
 
   const isDark = mounted && resolvedTheme === 'dark';
@@ -154,16 +200,19 @@ export default function SubmitPage() {
   const load = useCallback(async () => {
     const teacher = getTeacher();
     if (!teacher) return;
-    const [slotsRes, locsRes, attRes, absRes] = await Promise.allSettled([
+    const today = new Date().toISOString().slice(0, 10);
+    const [slotsRes, locsRes, attRes, absRes, sessRes] = await Promise.allSettled([
       teacherApi.get<TimetableSlot[]>(`/api/timetable/today/${teacher.id}`),
       teacherApi.get<Location[]>('/api/locations'),
       teacherApi.get<AttendanceRecord[]>(`/api/attendance/today/${teacher.id}`),
       teacherApi.get<TodayAbsence[]>(`/api/absences/today/${teacher.id}`),
+      teacherApi.get<StudentSession[]>(`/api/student-attendance/teacher/${teacher.id}?from=${today}&to=${today}`),
     ]);
     if (slotsRes.status === 'fulfilled') setSlots(slotsRes.value.data ?? []);
     if (locsRes.status === 'fulfilled')  setLocations(locsRes.value.data ?? []);
     if (attRes.status  === 'fulfilled')  setSubmitted(attRes.value.data ?? []);
     if (absRes.status  === 'fulfilled')  setAbsences(absRes.value.data ?? []);
+    if (sessRes.status === 'fulfilled')  setTodaySessions(sessRes.value.data ?? []);
   }, []);
 
   useEffect(() => {
@@ -308,6 +357,75 @@ export default function SubmitPage() {
   }
 
   useEffect(() => () => stopCamera(), []);
+
+  async function openEditDetail(sessionId: string) {
+    setEditDetailLoading(true); setEditDetail(null); setEditModalError('');
+    try {
+      const res = await teacherApi.get<SessionDetail>(`/api/student-attendance/session/${sessionId}`);
+      setEditDetail(res.data);
+    } finally {
+      setEditDetailLoading(false);
+    }
+  }
+
+  async function updateEditRecordStatus(recordId: string, newStatus: 'Present' | 'Absent' | 'Late') {
+    if (!editDetail) return;
+    const oldRecord = editDetail.records.find(r => r.id === recordId);
+    if (!oldRecord || oldRecord.status === newStatus) return;
+    const oldStatus = oldRecord.status;
+    const sessionId = editDetail.session.id;
+
+    setEditDetail(prev => {
+      if (!prev) return prev;
+      const updated = prev.records.map(r => r.id === recordId ? { ...r, status: newStatus } : r);
+      return {
+        ...prev,
+        records: updated,
+        session: {
+          ...prev.session,
+          present: updated.filter(r => r.status === 'Present').length,
+          absent:  updated.filter(r => r.status === 'Absent').length,
+          late:    updated.filter(r => r.status === 'Late').length,
+        },
+      };
+    });
+    setTodaySessions(prev => prev.map(s => s.id === sessionId ? {
+      ...s,
+      present: s.present + (newStatus === 'Present' ? 1 : 0) - (oldStatus === 'Present' ? 1 : 0),
+      absent:  s.absent  + (newStatus === 'Absent'  ? 1 : 0) - (oldStatus === 'Absent'  ? 1 : 0),
+      late:    s.late    + (newStatus === 'Late'    ? 1 : 0) - (oldStatus === 'Late'    ? 1 : 0),
+    } : s));
+
+    setEditRecordLoading(recordId); setEditModalError('');
+    try {
+      await teacherApi.patch(`/api/student-attendance/records/${recordId}`, { status: newStatus });
+    } catch (err: unknown) {
+      setEditDetail(prev => {
+        if (!prev) return prev;
+        const reverted = prev.records.map(r => r.id === recordId ? { ...r, status: oldStatus } : r);
+        return {
+          ...prev,
+          records: reverted,
+          session: {
+            ...prev.session,
+            present: reverted.filter(r => r.status === 'Present').length,
+            absent:  reverted.filter(r => r.status === 'Absent').length,
+            late:    reverted.filter(r => r.status === 'Late').length,
+          },
+        };
+      });
+      setTodaySessions(prev => prev.map(s => s.id === sessionId ? {
+        ...s,
+        present: s.present - (newStatus === 'Present' ? 1 : 0) + (oldStatus === 'Present' ? 1 : 0),
+        absent:  s.absent  - (newStatus === 'Absent'  ? 1 : 0) + (oldStatus === 'Absent'  ? 1 : 0),
+        late:    s.late    - (newStatus === 'Late'    ? 1 : 0) + (oldStatus === 'Late'    ? 1 : 0),
+      } : s));
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setEditModalError(msg ?? 'Failed to update status. Please try again.');
+    } finally {
+      setEditRecordLoading(null);
+    }
+  }
 
   async function handleStep1(e: React.FormEvent) {
     e.preventDefault();
@@ -488,7 +606,41 @@ export default function SubmitPage() {
                       <div className="flex-1">
                         <p className="text-sm font-semibold" style={{ color: dk.text }}>{slot.subject} — {slot.class_names}</p>
                         <p className="text-xs" style={{ color: dk.muted }}>{slot.start_time.slice(0,5)} – {slot.end_time.slice(0,5)}{slot.periods ? ` · ${slot.periods} period${slot.periods !== 1 ? 's' : ''}` : ''}</p>
-                        {done   && <p className="text-xs font-semibold mt-0.5" style={{ color: '#2D7A4F' }}>✓ Submitted</p>}
+                        {done && (
+                          <>
+                            <p className="text-xs font-semibold mt-0.5" style={{ color: '#2D7A4F' }}>✓ Submitted</p>
+                            {(() => {
+                              const slotClasses = slot.class_names.split(',').map(c => c.trim());
+                              const sessions = todaySessions.filter(s =>
+                                s.subject.toLowerCase() === slot.subject.toLowerCase() &&
+                                slotClasses.some(c => c.toLowerCase() === s.class_name.toLowerCase())
+                              );
+                              if (!sessions.length) return null;
+                              return (
+                                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                  {sessions.map(sess => {
+                                    const canEdit = isEditWindowOpen(sess.date, sess.lesson_end_time);
+                                    return (
+                                      <button
+                                        key={sess.id}
+                                        type="button"
+                                        disabled={!canEdit}
+                                        onClick={e => { e.preventDefault(); openEditDetail(sess.id); }}
+                                        className="text-xs font-bold px-2.5 py-1 rounded-lg disabled:opacity-40 transition-opacity"
+                                        style={canEdit
+                                          ? { background: '#E4F4EB', color: '#1A4D2E' }
+                                          : { background: '#F1F5F9', color: '#94A3B8' }}
+                                        title={canEdit ? 'Edit student attendance' : 'Edit window closed (30 min limit)'}
+                                      >
+                                        {canEdit ? `✏ Edit ${slotClasses.length > 1 ? sess.class_name : 'Attendance'}` : `🔒 ${slotClasses.length > 1 ? sess.class_name : 'Locked'}`}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+                          </>
+                        )}
                         {absent && <p className="text-xs font-semibold mt-0.5" style={{ color: '#DC2626' }}>✗ Marked Absent — contact admin to resubmit</p>}
                       </div>
                     </label>
@@ -744,6 +896,85 @@ export default function SubmitPage() {
                 ? `Submit & Mark ${classQueue[classQueueIdx + 1]} →`
                 : 'Submit Student Attendance ✓'}
           </button>
+        </div>
+      )}
+
+      {/* ── Edit Attendance Modal ── */}
+      {(editDetail || editDetailLoading) && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+          <div className="rounded-t-3xl w-full max-h-[85vh] flex flex-col shadow-xl"
+            style={{ background: dk.cardBg }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4"
+              style={{ borderBottom: `1px solid ${dk.border}` }}>
+              <div>
+                <h2 className="text-base font-bold" style={{ color: dk.text }}>
+                  {editDetail ? `${editDetail.session.class_name} — ${editDetail.session.subject}` : 'Loading…'}
+                </h2>
+                {editDetail && (
+                  <p className="text-xs mt-0.5" style={{ color: dk.muted }}>
+                    {new Date(editDetail.session.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </p>
+                )}
+              </div>
+              {editDetail && (
+                <div className="flex gap-3 text-xs font-bold mr-3">
+                  <span style={{ color: '#15803D' }}>{editDetail.records.filter(r => r.status === 'Present').length} Present</span>
+                  <span style={{ color: '#DC2626' }}>{editDetail.records.filter(r => r.status === 'Absent').length} Absent</span>
+                  {editDetail.records.filter(r => r.status === 'Late').length > 0 && (
+                    <span style={{ color: '#D97706' }}>{editDetail.records.filter(r => r.status === 'Late').length} Late</span>
+                  )}
+                </div>
+              )}
+              <button onClick={() => setEditDetail(null)} className="text-2xl font-bold leading-none" style={{ color: dk.muted }}>×</button>
+            </div>
+            {editModalError && (
+              <p className="text-xs text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-2 mx-5 mt-2">
+                {editModalError}
+              </p>
+            )}
+            {/* Body */}
+            <div className="overflow-y-auto flex-1 px-5 py-3">
+              {editDetailLoading && !editDetail && (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+                    style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+                </div>
+              )}
+              {editDetail && (
+                <>
+                  <p className="text-[10px] font-semibold mb-2" style={{ color: dk.muted }}>
+                    Tap a badge to cycle status: Present → Absent → Late
+                  </p>
+                  <div className="space-y-2">
+                    {editDetail.records.map(r => {
+                      const nextSt: 'Present' | 'Absent' | 'Late' =
+                        r.status === 'Present' ? 'Absent' : r.status === 'Absent' ? 'Late' : 'Present';
+                      const sc = STATUS_STYLE[r.status] ?? STATUS_STYLE.Present;
+                      const isUpdating = editRecordLoading === r.id;
+                      return (
+                        <div key={r.id} className="flex items-center justify-between py-2.5"
+                          style={{ borderBottom: `1px solid ${dk.border}` }}>
+                          <div>
+                            <p className="text-xs font-bold" style={{ color: dk.muted }}>{r.student_code}</p>
+                            <p className="text-sm font-semibold" style={{ color: dk.text }}>{r.name}</p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isUpdating}
+                            onClick={() => updateEditRecordStatus(r.id, nextSt)}
+                            className="text-xs font-semibold px-2.5 py-1 rounded-full disabled:opacity-60 active:opacity-70 transition-opacity"
+                            style={{ background: sc.bg, color: sc.color }}>
+                            {isUpdating ? '…' : r.status}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -202,7 +202,7 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
     if (to)   { params.push(to);   conds.push(`s.date <= $${params.length}`); }
 
     const { rows } = await pool.query(
-      `SELECT s.id, s.date, s.subject, s.class_name,
+      `SELECT s.id, s.date, s.subject, s.class_name, s.lesson_end_time,
               COUNT(r.id)::int                                             AS total,
               SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END)::int  AS present,
               SUM(CASE WHEN r.status = 'Absent'  THEN 1 ELSE 0 END)::int  AS absent,
