@@ -60,8 +60,11 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
 const RISK_THRESHOLD = 75;
 
 function isEditWindowOpen(sessionDate: string, lessonEndTime: string | null): boolean {
-  if (!lessonEndTime) return false;
-  const endDt  = new Date(`${sessionDate}T${lessonEndTime}`);
+  if (!lessonEndTime) return true; // no end time = always editable (mirrors backend)
+  const dateOnly = sessionDate.slice(0, 10);        // "YYYY-MM-DD" regardless of ISO suffix
+  const timeOnly = lessonEndTime.slice(0, 8);       // "HH:MM:SS" regardless of tz suffix
+  const endDt    = new Date(`${dateOnly}T${timeOnly}`);
+  if (isNaN(endDt.getTime())) return true;           // parse failure = assume editable
   const cutoff = new Date(endDt.getTime() + 30 * 60 * 1000);
   return new Date() <= cutoff;
 }
