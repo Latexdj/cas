@@ -35,6 +35,7 @@ export default function ScoresScreen() {
   const [loading,    setLoading]    = useState(true);
   const [saving,     setSaving]     = useState(false);
   const [saved,      setSaved]      = useState(false);
+  const [lastSaved,  setLastSaved]  = useState<Date | null>(null);
   const [error,      setError]      = useState('');
 
   const inputRefs = useRef<Record<string, TextInput | null>>({});
@@ -71,6 +72,7 @@ export default function ScoresScreen() {
       }));
       await api.post(`/api/assessments/${assessment_id}/scores`, { scores: payload });
       setSaved(true);
+      setLastSaved(new Date());
       setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -144,7 +146,7 @@ export default function ScoresScreen() {
 
       {/* Save footer */}
       <View style={[styles.footer, { backgroundColor: Colors.surface, borderTopColor: Colors.border }]}>
-        <Text style={[styles.footerMeta, { color: Colors.muted }]}>{rows.length} student{rows.length !== 1 ? 's' : ''}</Text>
+        <Text style={[styles.footerMeta, { color: Colors.muted }]}>{rows.length} student{rows.length !== 1 ? 's' : ''}{lastSaved ? `\nSaved ${lastSaved.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}</Text>
         <TouchableOpacity
           style={[styles.saveBtn, { backgroundColor: Colors.primary }]}
           onPress={save}

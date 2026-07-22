@@ -36,9 +36,10 @@ function ExamContent() {
   const [scores,   setScores]  = useState<Record<string, string>>({});
   const [maxScore, setMaxScore] = useState('');
   const [loading,  setLoading] = useState(true);
-  const [saving,   setSaving]  = useState(false);
-  const [saved,    setSaved]   = useState(false);
-  const [error,    setError]   = useState('');
+  const [saving,    setSaving]    = useState(false);
+  const [saved,     setSaved]     = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [error,     setError]     = useState('');
   const [subLocked,   setSubLocked]   = useState(false);
   const [subStatus,   setSubStatus]   = useState<string>('draft');
   const [subjRemarks,    setSubjRemarks]    = useState<SubjectRemark[]>([]);
@@ -187,6 +188,7 @@ function ExamContent() {
         scores:           payload,
       });
       setSaved(true);
+      setLastSaved(new Date());
       setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -376,7 +378,7 @@ function ExamContent() {
           >
             {saving ? 'Saving…' : rows.some(r => r.score !== null) ? 'Save Changes' : 'Save Scores'}
           </button>
-          <p className="text-xs text-[#8C7E6E]">{rows.length} student{rows.length !== 1 ? 's' : ''}</p>
+          <p className="text-xs text-[#8C7E6E]">{rows.length} student{rows.length !== 1 ? 's' : ''}{lastSaved && ` · Saved ${lastSaved.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}</p>
         </div>
       )}
 

@@ -583,6 +583,7 @@ export default function HodPage() {
         {/* ── Results ── */}
         {tab === 'results' && (
           <div>
+            <style dangerouslySetInnerHTML={{ __html: `@media print { aside, nav, .no-print { display: none !important; } [class*="ml-60"] { margin-left: 0 !important; } }` }} />
             <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>Class Results</h3>
             <p style={{ fontSize: 12, color: '#64748B', marginBottom: 16 }}>View academic results for classes in your department or programme.</p>
 
@@ -616,6 +617,17 @@ export default function HodPage() {
                 style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (resultsLoading || !resultsClass || !resultsYear) ? 0.5 : 1 }}>
                 {resultsLoading ? 'Loading…' : 'View Results'}
               </button>
+              {hodResults.length > 0 && (
+                <button onClick={() => window.print()}
+                  className="no-print"
+                  style={{ background: '#fff', color: '#374151', border: '1px solid #E2E8F0', borderRadius: 8, padding: '7px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ width: 14, height: 14 }} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
+                    <rect x="6" y="14" width="12" height="8" />
+                  </svg>
+                  Print Report
+                </button>
+              )}
             </div>
 
             {resultsError && <p style={{ fontSize: 13, color: '#DC2626', marginBottom: 12 }}>{resultsError}</p>}
