@@ -76,7 +76,10 @@ router.get('/', async (req, res, next) => {
               a.subject, a.class_name,
               a.academic_year_id, a.semester, a.created_at,
               t.name AS teacher_name,
-              COUNT(sc.id)::int AS score_count
+              COUNT(CASE WHEN sc.score IS NOT NULL OR sc.absent = true THEN sc.id END)::int AS score_count,
+              (SELECT COUNT(*)::int FROM students s
+               WHERE s.school_id = a.school_id AND LOWER(s.class_name) = LOWER(a.class_name) AND s.status = 'Active'
+              ) AS total_students
        FROM assessments a
        JOIN assessment_modes m ON m.id = a.mode_id
        LEFT JOIN teachers t ON t.id = a.teacher_id

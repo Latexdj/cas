@@ -16,6 +16,7 @@ interface Assessment {
   date: string | null;
   max_score: number;
   score_count: number;
+  total_students: number;
   academic_year_id: string;
   semester: number;
   created_at: string;
@@ -41,11 +42,11 @@ const STATUS_CONFIG: Record<SubmissionStatus, { label: string; color: string; bg
 };
 
 interface ReadinessCheck {
-  examScoresEntered: boolean;
-  missingModes: string[];
-  studentsWithoutExamScore: number;
-  studentsWithoutAnyCA: number;
   totalStudents: number;
+  examScoredCount: number;
+  examComplete: boolean;
+  missingModes: string[];
+  incompleteAssessments: Array<{ id: string; label: string; modeName: string; actedOn: number }>;
   canSubmit: boolean;
 }
 
@@ -228,27 +229,37 @@ function SubjectContent() {
     setReadinessLoading(true);
     setReadinessError('');
     try {
-      // CA mode completeness comes from data already on the page (no extra API call)
-      const missingModes = activeModes
-        .filter(m => (modeUsage[m.id] ?? 0) === 0)
-        .map(m => m.name);
-
-      // Exam scores completeness: hit the existing exam-scores endpoint
+      // Exam scores: fetch student rows to count completeness
       const examRes = await teacherApi.get<{ score: number | null }[]>('/api/exam-scores', {
         params: { academic_year_id: year_id, semester, subject, class_name },
       });
       const examRows = examRes.data ?? [];
       const totalStudents = examRows.length;
-      const withExamScore = examRows.filter(r => r.score !== null).length;
-      const examScoresEntered = withExamScore > 0;
+      const examScoredCount = examRows.filter(r => r.score !== null).length;
+      const examComplete = totalStudents > 0 && examScoredCount === totalStudents;
+
+      // CA mode completeness from data already loaded on the page
+      const missingModes = activeModes
+        .filter(m => (modeUsage[m.id] ?? 0) === 0)
+        .map(m => m.name);
+
+      // Per-assessment completeness: which assessments have students not yet acted on?
+      const incompleteAssessments = assessments
+        .filter(a => a.score_count < (a.total_students ?? totalStudents))
+        .map(a => ({
+          id: a.id,
+          label: a.title ?? a.mode_name,
+          modeName: a.mode_name,
+          actedOn: a.score_count,
+        }));
 
       setReadiness({
-        examScoresEntered,
-        missingModes,
-        studentsWithoutExamScore: Math.max(0, totalStudents - withExamScore),
-        studentsWithoutAnyCA: 0,
         totalStudents,
-        canSubmit: examScoresEntered && missingModes.length === 0,
+        examScoredCount,
+        examComplete,
+        missingModes,
+        incompleteAssessments,
+        canSubmit: examComplete && missingModes.length === 0 && incompleteAssessments.length === 0,
       });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -477,7 +488,7 @@ function SubjectContent() {
         )}
         className="w-full flex items-center gap-2.5 bg-white rounded-2xl px-4 py-3 mb-3 text-sm font-semibold transition-colors text-left"
         style={{
-          border: `2px ${readiness ? 'solid' : 'dashed'} ${readiness?.examScoresEntered ? '#86EFAC' : readiness ? '#FCA5A5' : '#E2D9CC'}`,
+          border: `2px ${readiness ? 'solid' : 'dashed'} ${readiness?.examComplete ? '#86EFAC' : readiness ? '#FCA5A5' : '#E2D9CC'}`,
           color: primary,
         }}
       >
@@ -489,8 +500,10 @@ function SubjectContent() {
         </svg>
         <span className="flex-1">End-of-Semester Exam Scores</span>
         {readiness && (
-          <span className="text-xs font-bold shrink-0" style={{ color: readiness.examScoresEntered ? '#15803D' : '#DC2626' }}>
-            {readiness.examScoresEntered ? '✓ Entered' : '✗ Not entered'}
+          <span className="text-xs font-bold shrink-0" style={{ color: readiness.examComplete ? '#15803D' : '#DC2626' }}>
+            {readiness.examComplete
+              ? `✓ ${readiness.examScoredCount}/${readiness.totalStudents}`
+              : `✗ ${readiness.examScoredCount}/${readiness.totalStudents}`}
           </span>
         )}
       </button>
@@ -554,8 +567,10 @@ function SubjectContent() {
                     {dateStr && <span className="text-[10px] text-[#8C7E6E]">{dateStr}</span>}
                   </div>
                   <p className="text-sm font-bold text-[#2C2218]">{label}</p>
-                  <p className="text-xs text-[#8C7E6E] mt-0.5">
-                    Max: {item.max_score} · {item.score_count} score{item.score_count !== 1 ? 's' : ''} entered
+                  <p className="text-xs mt-0.5" style={{
+                    color: item.total_students > 0 && item.score_count >= item.total_students ? '#15803D' : '#8C7E6E'
+                  }}>
+                    Max: {item.max_score} · {item.score_count}/{item.total_students} students scored/absent
                   </p>
                 </button>
                 <button
@@ -831,20 +846,34 @@ function SubjectContent() {
               </div>
             ) : readiness ? (
               <div className="space-y-2 mb-5">
-                <CheckRow ok={readiness.examScoresEntered} label="End-of-semester exam scores entered" blocking={true} />
-                {activeModes.map(m => {
-                  const count = modeUsage[m.id] ?? 0;
-                  return (
-                    <CheckRow key={m.id} ok={count > 0} label={`${m.name} — ${count} assessment${count !== 1 ? 's' : ''} created`} blocking={true} />
-                  );
-                })}
-                {readiness.studentsWithoutExamScore > 0 && (
-                  <CheckRow ok={false} label={`${readiness.studentsWithoutExamScore} of ${readiness.totalStudents} student${readiness.studentsWithoutExamScore !== 1 ? 's' : ''} missing exam score`} blocking={false} />
-                )}
-                {readiness.studentsWithoutAnyCA > 0 && (
-                  <CheckRow ok={false} label={`${readiness.studentsWithoutAnyCA} of ${readiness.totalStudents} student${readiness.studentsWithoutAnyCA !== 1 ? 's' : ''} have no CA scores at all`} blocking={false} />
-                )}
-                {readiness.canSubmit && readiness.studentsWithoutExamScore === 0 && readiness.studentsWithoutAnyCA === 0 && (
+                {/* Exam scores completeness */}
+                <CheckRow
+                  ok={readiness.examComplete}
+                  label={`End-of-semester exam — ${readiness.examScoredCount}/${readiness.totalStudents} students scored`}
+                  blocking={true}
+                />
+                {/* CA modes that have no assessment at all */}
+                {readiness.missingModes.map(name => (
+                  <CheckRow key={name} ok={false} label={`${name} — no assessment created yet`} blocking={true} />
+                ))}
+                {/* Assessments where not all students are acted on */}
+                {readiness.incompleteAssessments.map(a => (
+                  <CheckRow
+                    key={a.id}
+                    ok={false}
+                    label={`${a.label} (${a.modeName}) — ${a.actedOn}/${readiness.totalStudents} students scored/absent`}
+                    blocking={true}
+                  />
+                ))}
+                {/* Modes with assessments but all complete — show ✓ */}
+                {activeModes
+                  .filter(m => (modeUsage[m.id] ?? 0) > 0)
+                  .filter(m => !readiness.incompleteAssessments.some(a => a.modeName === m.name))
+                  .map(m => (
+                    <CheckRow key={m.id} ok={true} label={`${m.name} — all students scored/absent`} blocking={true} />
+                  ))
+                }
+                {readiness.canSubmit && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: '#F0FDF4', border: '1px solid #86EFAC' }}>
                     <span style={{ fontSize: 15 }}>✅</span>
                     <span style={{ fontSize: 13, color: '#15803D', fontWeight: 600 }}>All checks passed. Ready to submit.</span>

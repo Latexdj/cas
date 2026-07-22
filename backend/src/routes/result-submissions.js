@@ -320,16 +320,30 @@ router.post('/submit', async (req, res, next) => {
     }
 
     const sem = parseInt(semester);
+    const p   = [req.schoolId, academic_year_id, sem, subject, class_name];
 
-    // Check A: end-of-semester exam scores must exist
-    const { rows: examCheck } = await pool.query(
-      `SELECT 1 FROM exam_scores
-       WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3 AND subject=$4 AND class_name=$5
-       LIMIT 1`,
-      [req.schoolId, academic_year_id, sem, subject, class_name]
+    // Pre-fetch total active students in the class (used in multiple checks)
+    const { rows: totalRows } = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM students
+       WHERE school_id=$1 AND LOWER(class_name)=LOWER($5) AND status='Active'`,
+      p
     );
-    if (!examCheck.length) {
-      return res.status(400).json({ error: 'End-of-semester exam scores have not been entered yet. Please enter exam scores before submitting.' });
+    const totalStudents = totalRows[0]?.total ?? 0;
+
+    // Check A: ALL active students must have exam scores entered
+    const { rows: examRows } = await pool.query(
+      `SELECT COUNT(DISTINCT student_id)::int AS cnt FROM exam_scores
+       WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3
+         AND LOWER(subject)=LOWER($4) AND LOWER(class_name)=LOWER($5)
+         AND score IS NOT NULL`,
+      p
+    );
+    const examScored = examRows[0]?.cnt ?? 0;
+    if (examScored < totalStudents) {
+      const missing = totalStudents - examScored;
+      return res.status(400).json({
+        error: `Exam scores incomplete: ${missing} of ${totalStudents} student${missing !== 1 ? 's' : ''} ${missing !== 1 ? 'are' : 'is'} missing exam scores. Enter a score (or 0) for every student before submitting.`,
+      });
     }
 
     // Check B: every CA mode with a contribution must have at least one assessment
@@ -339,15 +353,36 @@ router.post('/submit', async (req, res, next) => {
          AND NOT EXISTS (
            SELECT 1 FROM assessments a
            WHERE a.school_id=$1 AND a.mode_id=m.id
-             AND a.subject=$4 AND a.class_name=$5
+             AND LOWER(a.subject)=LOWER($4) AND LOWER(a.class_name)=LOWER($5)
              AND a.academic_year_id=$2 AND a.semester=$3
          )
        ORDER BY m.sort_order`,
-      [req.schoolId, academic_year_id, sem, subject, class_name]
+      p
     );
     if (missingModes.length) {
       const names = missingModes.map(m => m.name).join(', ');
       return res.status(400).json({ error: `Missing assessments for: ${names}. Every CA mode must have at least one assessment before submitting.` });
+    }
+
+    // Check C: every CA assessment must have ALL students acted on (scored or absent)
+    const { rows: incomplete } = await pool.query(
+      `SELECT a.id,
+              COALESCE(a.title, m.name || ' #' || ROW_NUMBER() OVER (PARTITION BY a.mode_id ORDER BY a.created_at)) AS label,
+              COUNT(CASE WHEN sc.score IS NOT NULL OR sc.absent = true THEN sc.student_id END)::int AS acted_on
+       FROM assessments a
+       JOIN assessment_modes m ON m.id = a.mode_id
+       LEFT JOIN assessment_scores sc ON sc.assessment_id = a.id
+       WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
+         AND LOWER(a.subject)=LOWER($4) AND LOWER(a.class_name)=LOWER($5)
+       GROUP BY a.id, m.name, m.id
+       HAVING COUNT(CASE WHEN sc.score IS NOT NULL OR sc.absent = true THEN sc.student_id END) < $6`,
+      [...p, totalStudents]
+    );
+    if (incomplete.length) {
+      const names = incomplete.map(a => `"${a.label}" (${a.acted_on}/${totalStudents})`).join(', ');
+      return res.status(400).json({
+        error: `Some assessments are incomplete: ${names}. All students must have a score or be marked absent before submitting.`,
+      });
     }
 
     const sub = await getOrCreateSubmission(req.schoolId, academic_year_id, sem, subject, class_name, req.user.id);
