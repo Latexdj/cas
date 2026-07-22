@@ -17,6 +17,9 @@ interface AbsenceRecord {
   reason: string | null;
   periods_lost: number;
   period_duration_minutes: number;
+  absence_group_id: string | null;
+  all_absence_ids: string[];
+  is_combined: boolean;
 }
 
 function fmt(iso: string) {
@@ -102,8 +105,13 @@ export default function AbsenceListPage() {
         <div className="space-y-3">
           {(displayRows as typeof absences).map(ab => (
             <div key={ab.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
-              <p className="text-sm font-semibold text-[#2C2218]">{ab.subject} — {ab.class_name}</p>
-              <p className="text-xs text-[#8C7E6E]">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-semibold text-[#2C2218]">{ab.subject} — {ab.class_name}</p>
+                {ab.is_combined && (
+                  <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Combined</span>
+                )}
+              </div>
+              <p className="text-xs text-[#8C7E6E] mt-0.5">
                 {fmt(ab.date)}{ab.scheduled_period ? ` · ${ab.scheduled_period}` : ''}
                 {ab.periods_lost > 1 ? ` · ${ab.periods_lost} periods outstanding` : ' · 1 period outstanding'}
               </p>
@@ -120,9 +128,10 @@ export default function AbsenceListPage() {
                   {reasonId === ab.id ? 'Cancel' : ab.reason ? 'Edit Reason' : 'Add Reason'}
                 </button>
                 <button
-                  onClick={() => router.push(
-                    `/teacher/absences/remedial?absenceId=${ab.id}&subject=${encodeURIComponent(ab.subject)}&className=${encodeURIComponent(ab.class_name)}&date=${ab.date}&periodsLost=${ab.periods_lost ?? 1}&periodDuration=${ab.period_duration_minutes ?? 60}`
-                  )}
+                  onClick={() => {
+                    const base = `/teacher/absences/remedial?absenceId=${ab.id}&subject=${encodeURIComponent(ab.subject)}&className=${encodeURIComponent(ab.class_name)}&date=${ab.date}&periodsLost=${ab.periods_lost ?? 1}&periodDuration=${ab.period_duration_minutes ?? 60}`;
+                    router.push(ab.absence_group_id ? `${base}&absenceGroupId=${ab.absence_group_id}` : base);
+                  }}
                   className="flex-1 py-2 rounded-xl text-xs font-semibold text-white"
                   style={{ background: primary }}
                 >

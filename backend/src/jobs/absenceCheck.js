@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const pool = require('../config/db');
+const { randomUUID } = require('crypto');
 const { sendAbsenceNotification, sendDailyAbsenceReport } = require('../services/email.service');
 
 // Africa/Accra = UTC+0 (no DST), so new Date() == Accra time.
@@ -129,31 +130,34 @@ async function runAbsenceCheck(schoolId) {
       .map(c => c.trim())
       .filter(Boolean);
 
-    for (const className of individualClasses) {
-      try {
-        if (hasAttendance(lesson.teacher_id, lesson.subject, className)) continue;
+    // Only process classes where attendance was not submitted
+    const absentClasses = individualClasses.filter(cn => !hasAttendance(lesson.teacher_id, lesson.subject, cn));
+    if (absentClasses.length === 0) continue;
 
-        const lessonMins  = timeToMinutes(lesson.end_time) - timeToMinutes(lesson.start_time);
-        const periodsLost = Math.max(1, Math.round(lessonMins / periodMins));
+    const lessonMins  = timeToMinutes(lesson.end_time) - timeToMinutes(lesson.start_time);
+    const periodsLost = Math.max(1, Math.round(lessonMins / periodMins));
+    // Combined lessons share a group UUID so one remedial covers all classes;
+    // siblings get periods_lost = 0 to avoid double-counting teacher-time.
+    const groupId = absentClasses.length > 1 ? randomUUID() : null;
+
+    for (let i = 0; i < absentClasses.length; i++) {
+      const className = absentClasses[i];
+      try {
         const { rows: inserted } = await pool.query(`
           INSERT INTO absences
             (school_id, date, detected_at, teacher_id, subject, class_name,
-             scheduled_period, status, is_auto_generated, reason, periods_lost)
+             scheduled_period, status, is_auto_generated, reason, periods_lost, absence_group_id)
           VALUES
-            ($1, $2, $3::time, $4, $5, $6, $7, 'Absent', true, 'Daily automated check', $8)
+            ($1, $2, $3::time, $4, $5, $6, $7, 'Absent', true, 'Daily automated check', $8, $9)
           ON CONFLICT (date, teacher_id, subject, class_name)
             WHERE is_auto_generated = true
           DO NOTHING
           RETURNING id
         `, [
-          schoolId,
-          today,
-          now,
-          lesson.teacher_id,
-          lesson.subject,
-          className,
+          schoolId, today, now, lesson.teacher_id, lesson.subject, className,
           `${lesson.start_time}–${lesson.end_time}`,
-          periodsLost,
+          i === 0 ? periodsLost : 0,
+          groupId,
         ]);
 
         if (inserted.length) {
@@ -238,22 +242,26 @@ async function runPerLessonCheck(schoolId) {
     }
 
     const individualClasses = lesson.class_names.split(',').map(c => c.trim()).filter(Boolean);
-    for (const className of individualClasses) {
-      try {
-        if (hasAttendance(lesson.teacher_id, lesson.subject, className)) continue;
+    const absentClasses = individualClasses.filter(cn => !hasAttendance(lesson.teacher_id, lesson.subject, cn));
+    if (absentClasses.length === 0) continue;
 
-        const lessonMins  = timeToMinutes(lesson.end_time) - timeToMinutes(lesson.start_time);
-        const periodsLost = Math.max(1, Math.round(lessonMins / periodMins));
+    const lessonMins  = timeToMinutes(lesson.end_time) - timeToMinutes(lesson.start_time);
+    const periodsLost = Math.max(1, Math.round(lessonMins / periodMins));
+    const groupId     = absentClasses.length > 1 ? randomUUID() : null;
+
+    for (let i = 0; i < absentClasses.length; i++) {
+      const className = absentClasses[i];
+      try {
         await pool.query(`
           INSERT INTO absences
             (school_id, date, detected_at, teacher_id, subject, class_name,
-             scheduled_period, status, is_auto_generated, reason, periods_lost)
-          VALUES ($1,$2,$3::time,$4,$5,$6,$7,'Absent',true,'Grace period expired — no attendance submitted',$8)
+             scheduled_period, status, is_auto_generated, reason, periods_lost, absence_group_id)
+          VALUES ($1,$2,$3::time,$4,$5,$6,$7,'Absent',true,'Grace period expired — no attendance submitted',$8,$9)
           ON CONFLICT (date, teacher_id, subject, class_name)
             WHERE is_auto_generated = true
           DO NOTHING
         `, [schoolId, today, now, lesson.teacher_id, lesson.subject, className,
-            `${lesson.start_time}–${lesson.end_time}`, periodsLost]);
+            `${lesson.start_time}–${lesson.end_time}`, i === 0 ? periodsLost : 0, groupId]);
       } catch (err) {
         console.error(`[PerLessonCheck] Error: ${lesson.teacher_name} / ${className}:`, err.message);
       }

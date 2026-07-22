@@ -13,7 +13,7 @@ import { Location } from '@/types/api';
 
 export default function ScheduleRemedialScreen() {
   const { user } = useAuth();
-  const params = useLocalSearchParams<{ absenceId: string; subject: string; className: string; date: string }>();
+  const params = useLocalSearchParams<{ absenceId: string; subject: string; className: string; date: string; absenceGroupId: string }>();
 
   const [locations,    setLocations]    = useState<Location[]>([]);
   const [remedialDate, setRemedialDate] = useState('');
@@ -39,6 +39,7 @@ export default function ScheduleRemedialScreen() {
       await api.post('/api/remedial', {
         teacherId:            user!.id,
         absenceId:            params.absenceId,
+        absenceGroupId:       params.absenceGroupId || undefined,
         originalAbsenceDate:  params.date,
         subject:              params.subject,
         className:            params.className,
@@ -64,6 +65,9 @@ export default function ScheduleRemedialScreen() {
         <Text style={styles.absenceLabel}>Making up absence for:</Text>
         <Text style={styles.absenceSubject}>{params.subject} · {params.className}</Text>
         <Text style={styles.absenceDate}>{new Date(params.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
+        {params.absenceGroupId ? (
+          <Text style={styles.combinedNote}>Combined class — this remedial covers all classes in this lesson</Text>
+        ) : null}
       </View>
 
       <Input
@@ -142,6 +146,7 @@ const styles = StyleSheet.create({
   absenceLabel:     { fontSize: 12, color: '#92400E', fontWeight: '600', marginBottom: 4 },
   absenceSubject:   { fontSize: 16, fontWeight: '700', color: Colors.text },
   absenceDate:      { fontSize: 13, color: Colors.muted, marginTop: 2 },
+  combinedNote:     { fontSize: 12, color: '#92400E', fontWeight: '600', marginTop: 6 },
   fieldLabel:       { fontSize: 13, fontWeight: '600', color: Colors.text, marginBottom: 6 },
   picker:           { backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
   pickerVal:        { fontSize: 15, color: Colors.text },

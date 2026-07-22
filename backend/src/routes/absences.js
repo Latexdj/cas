@@ -63,19 +63,35 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
     if (req.user.role === 'teacher' && req.user.id !== req.params.teacherId) {
       return res.status(403).json({ error: 'Access denied' });
     }
+    // Combined-class absences share an absence_group_id; group them into one card so the
+    // teacher schedules a single remedial that covers all classes in the combined lesson.
+    // Siblings get periods_lost = 0 to avoid double-counting, so SUM gives the true value.
     const { rows } = await pool.query(
       `SELECT
-         ab.id, ab.date::text AS date, ab.subject, ab.class_name,
-         ab.scheduled_period, ab.status, ab.reason, ab.created_at,
-         ab.periods_lost,
-         s.period_duration_minutes
+         COALESCE(
+           MAX(CASE WHEN ab.periods_lost > 0 THEN ab.id END),
+           MIN(ab.id)
+         ) AS id,
+         MIN(ab.date)::text AS date,
+         MIN(ab.subject) AS subject,
+         string_agg(ab.class_name, ', ' ORDER BY ab.class_name) AS class_name,
+         MIN(ab.scheduled_period) AS scheduled_period,
+         MIN(ab.status) AS status,
+         MIN(ab.reason) AS reason,
+         MIN(ab.created_at) AS created_at,
+         SUM(ab.periods_lost) AS periods_lost,
+         MIN(s.period_duration_minutes) AS period_duration_minutes,
+         MAX(ab.absence_group_id) AS absence_group_id,
+         array_agg(ab.id ORDER BY ab.id) AS all_absence_ids,
+         (COUNT(*) > 1) AS is_combined
        FROM absences ab
        JOIN schools s ON s.id = ab.school_id
        WHERE ab.school_id = $1 AND ab.teacher_id = $2
          AND ab.status = 'Absent'
          AND ab.is_auto_generated = true
          AND ab.date >= CURRENT_DATE - INTERVAL '30 days'
-       ORDER BY ab.date DESC`,
+       GROUP BY COALESCE(ab.absence_group_id::text, ab.id::text)
+       ORDER BY MIN(ab.date) DESC`,
       [req.schoolId, req.params.teacherId]
     );
     res.json(rows);

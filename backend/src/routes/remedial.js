@@ -101,7 +101,7 @@ router.get('/outstanding/:teacherId', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const {
-      absenceId, originalAbsenceDate,
+      absenceId, absenceGroupId, originalAbsenceDate,
       subject, className, remedialDate, remedialTime,
       remedialEndTime, durationPeriods, periodsCovered,
       topic, locationName, notes,
@@ -157,7 +157,15 @@ router.post('/', async (req, res, next) => {
       ]
     );
 
-    if (absenceId) {
+    // For combined-class absences, update every sibling via the shared group UUID;
+    // for solo absences, update the single row by id.
+    if (absenceGroupId) {
+      await pool.query(
+        `UPDATE absences SET status = 'Remedial Scheduled', updated_at = now()
+         WHERE absence_group_id = $1 AND school_id = $2`,
+        [absenceGroupId, req.schoolId]
+      );
+    } else if (absenceId) {
       await pool.query(
         `UPDATE absences SET status = 'Remedial Scheduled', updated_at = now()
          WHERE id = $1 AND school_id = $2`,
@@ -365,11 +373,18 @@ router.post('/:id/submit', async (req, res, next) => {
     );
 
     if (rl.absence_id) {
-      await pool.query(
+      const { rows: [updAbs] } = await pool.query(
         `UPDATE absences SET status = 'Made Up', updated_at = now()
-         WHERE id = $1 AND school_id = $2`,
+         WHERE id = $1 AND school_id = $2 RETURNING absence_group_id`,
         [rl.absence_id, req.schoolId]
       );
+      if (updAbs?.absence_group_id) {
+        await pool.query(
+          `UPDATE absences SET status = 'Made Up', updated_at = now()
+           WHERE absence_group_id = $1 AND id != $2 AND school_id = $3`,
+          [updAbs.absence_group_id, rl.absence_id, req.schoolId]
+        );
+      }
     }
 
     res.json({ message: 'Remedial attendance submitted successfully', record: rows[0], locationMessage: locationMsg });
@@ -400,23 +415,32 @@ router.patch('/:id/verify', adminOnly, async (req, res, next) => {
     if (rows[0].absence_id) {
       const periodsCovered = rows[0].duration_periods ?? 1;
 
-      // Fetch current periods_lost on the absence
+      // Fetch current periods_lost and group on the primary absence
       const { rows: absRows } = await pool.query(
-        `SELECT periods_lost FROM absences WHERE id = $1 AND school_id = $2`,
+        `SELECT periods_lost, absence_group_id FROM absences WHERE id = $1 AND school_id = $2`,
         [rows[0].absence_id, req.schoolId]
       );
       const periodsLost = absRows[0]?.periods_lost ?? 1;
+      const groupId     = absRows[0]?.absence_group_id ?? null;
       const remaining   = periodsLost - periodsCovered;
 
       if (remaining <= 0) {
-        // All periods covered — fully resolve the absence
+        // Fully resolved — mark primary Made Up
         await pool.query(
           `UPDATE absences SET status = 'Made Up', periods_lost = 0, updated_at = now()
            WHERE id = $1 AND school_id = $2`,
           [rows[0].absence_id, req.schoolId]
         );
+        // Resolve combined-class siblings (their periods_lost = 0 so they close automatically)
+        if (groupId) {
+          await pool.query(
+            `UPDATE absences SET status = 'Made Up', periods_lost = 0, updated_at = now()
+             WHERE absence_group_id = $1 AND id != $2 AND school_id = $3`,
+            [groupId, rows[0].absence_id, req.schoolId]
+          );
+        }
       } else {
-        // Partial coverage — reduce periods_lost, leave status 'Absent' so it reappears in outstanding
+        // Partial coverage — reduce periods_lost; siblings remain as-is (periods_lost = 0)
         await pool.query(
           `UPDATE absences SET periods_lost = $1, updated_at = now()
            WHERE id = $2 AND school_id = $3`,
@@ -479,13 +503,20 @@ router.patch('/:id/reject', adminOnly, async (req, res, next) => {
         [req.params.id, req.schoolId]
       );
 
-      // Revert absence back to Absent so teacher still owes the remedial
+      // Revert primary absence and any combined-class siblings back to Absent
       if (rl.absence_id) {
-        await client.query(
+        const { rows: [updAbs] } = await client.query(
           `UPDATE absences SET status = 'Absent', updated_at = now()
-           WHERE id = $1 AND school_id = $2`,
+           WHERE id = $1 AND school_id = $2 RETURNING absence_group_id`,
           [rl.absence_id, req.schoolId]
         );
+        if (updAbs?.absence_group_id) {
+          await client.query(
+            `UPDATE absences SET status = 'Absent', updated_at = now()
+             WHERE absence_group_id = $1 AND id != $2 AND school_id = $3`,
+            [updAbs.absence_group_id, rl.absence_id, req.schoolId]
+          );
+        }
       }
 
       await client.query('COMMIT');
@@ -538,11 +569,18 @@ router.patch('/:id/cancel', async (req, res, next) => {
     );
 
     if (rl.absence_id) {
-      await pool.query(
+      const { rows: [updAbs] } = await pool.query(
         `UPDATE absences SET status = 'Absent', updated_at = now()
-         WHERE id = $1 AND school_id = $2`,
+         WHERE id = $1 AND school_id = $2 RETURNING absence_group_id`,
         [rl.absence_id, req.schoolId]
       );
+      if (updAbs?.absence_group_id) {
+        await pool.query(
+          `UPDATE absences SET status = 'Absent', updated_at = now()
+           WHERE absence_group_id = $1 AND id != $2 AND school_id = $3`,
+          [updAbs.absence_group_id, rl.absence_id, req.schoolId]
+        );
+      }
     }
 
     res.json({ message: 'Remedial lesson cancelled' });

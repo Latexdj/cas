@@ -458,6 +458,8 @@ async function runMigrations() {
       )
     `);
     await pool.query(`ALTER TABLE absences ADD COLUMN IF NOT EXISTS periods_lost INTEGER NOT NULL DEFAULT 1`);
+    await pool.query(`ALTER TABLE absences ADD COLUMN IF NOT EXISTS absence_group_id UUID`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_absences_group ON absences(absence_group_id) WHERE absence_group_id IS NOT NULL`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS remedial_lessons (
         id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),

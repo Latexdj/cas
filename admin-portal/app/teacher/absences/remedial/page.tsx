@@ -57,11 +57,12 @@ export default function RemedialPage() {
   const router       = useRouter();
   const searchParams = useSearchParams();
 
-  const absenceId     = searchParams.get('absenceId')     ?? '';
-  const subject       = searchParams.get('subject')       ?? '';
-  const className     = searchParams.get('className')     ?? '';
-  const date          = searchParams.get('date')          ?? '';
-  const periodsLost   = Math.max(1, parseInt(searchParams.get('periodsLost')     ?? '1'));
+  const absenceId      = searchParams.get('absenceId')      ?? '';
+  const absenceGroupId = searchParams.get('absenceGroupId') ?? '';
+  const subject        = searchParams.get('subject')        ?? '';
+  const className      = searchParams.get('className')      ?? '';
+  const date           = searchParams.get('date')           ?? '';
+  const periodsLost    = Math.max(1, parseInt(searchParams.get('periodsLost')     ?? '1'));
   const periodDuration = Math.max(1, parseInt(searchParams.get('periodDuration') ?? '60'));
 
   const [primary,    setPrimary]    = useState('#2ab289');
@@ -124,6 +125,7 @@ export default function RemedialPage() {
       await teacherApi.post('/api/remedial', {
         teacherId:            teacher?.id,
         absenceId,
+        absenceGroupId:       absenceGroupId || undefined,
         subject,
         className,
         originalAbsenceDate:  date,
@@ -169,6 +171,9 @@ export default function RemedialPage() {
           <p className="text-xs font-bold uppercase tracking-wide text-[#92400E] mb-1">Absence to make up</p>
           {subject && <p className="text-sm font-semibold text-[#78350F]">{subject} — {className}</p>}
           {date && <p className="text-xs text-[#92400E] mt-0.5">{formatDate(date)}</p>}
+          {absenceGroupId && (
+            <p className="text-xs text-[#92400E] mt-1 font-semibold">Combined class — this remedial covers all classes in this lesson</p>
+          )}
         </div>
       )}
 

@@ -65,7 +65,14 @@ export default function AbsenceListScreen() {
         )
         : absences.map(ab => (
           <View key={ab.id} style={styles.card}>
-            <Text style={styles.subject}>{ab.subject} — {ab.class_name}</Text>
+            <View style={styles.subjectRow}>
+              <Text style={[styles.subject, { flex: 1 }]}>{ab.subject} — {ab.class_name}</Text>
+              {ab.is_combined && (
+                <View style={styles.combinedBadge}>
+                  <Text style={styles.combinedBadgeText}>Combined</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.meta}>
               {fmt(ab.date)}{ab.scheduled_period ? ` · ${ab.scheduled_period}` : ''}
             </Text>
@@ -87,7 +94,13 @@ export default function AbsenceListScreen() {
                 style={[styles.btnPrimary, { backgroundColor: Colors.primary }]}
                 onPress={() => router.push({
                   pathname: '/absences/remedial',
-                  params: { absenceId: ab.id, subject: ab.subject, className: ab.class_name, date: ab.date },
+                  params: {
+                    absenceId: ab.id,
+                    subject: ab.subject,
+                    className: ab.class_name,
+                    date: ab.date,
+                    absenceGroupId: ab.absence_group_id ?? '',
+                  },
                 })}
               >
                 <Text style={styles.btnPrimaryText}>Schedule Remedial</Text>
@@ -131,7 +144,10 @@ const styles = StyleSheet.create({
   emptyTitle:      { fontSize: 15, fontWeight: '700', color: '#2C2218' },
   emptySub:        { fontSize: 13, color: '#8C7E6E', marginTop: 4 },
   card:            { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 16, marginBottom: 12 },
+  subjectRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 2 },
   subject:         { fontSize: 14, fontWeight: '700', color: '#2C2218' },
+  combinedBadge:   { backgroundColor: '#FEF3C7', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
+  combinedBadgeText: { fontSize: 11, fontWeight: '700', color: '#92400E' },
   meta:            { fontSize: 12, color: '#8C7E6E', marginTop: 2 },
   reason:          { fontSize: 12, color: '#4A3F32', fontStyle: 'italic', marginTop: 6 },
   btnRow:          { flexDirection: 'row', gap: 8, marginTop: 12 },

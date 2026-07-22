@@ -46,6 +46,11 @@ export interface AbsenceRecord {
   status: string;
   reason: string | null;
   created_at: string;
+  periods_lost?: number;
+  period_duration_minutes?: number;
+  absence_group_id: string | null;
+  all_absence_ids: string[];
+  is_combined: boolean;
 }
 
 export interface RemedialLesson {
