@@ -19,6 +19,7 @@ export default function AbsenceListScreen() {
   const { user } = useAuth();
   const [absences,   setAbsences]   = useState<AbsenceRecord[]>([]);
   const [loading,    setLoading]    = useState(true);
+  const [loadError,  setLoadError]  = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [reasonId,   setReasonId]   = useState('');
   const [reasonText, setReasonText] = useState('');
@@ -26,11 +27,13 @@ export default function AbsenceListScreen() {
 
   const load = useCallback(async () => {
     if (!user) return;
+    setLoadError('');
     try {
       const res = await api.get(`/api/absences/teacher/${user.id}`);
       setAbsences(Array.isArray(res.data) ? res.data : []);
-    } catch {}
-    finally { setLoading(false); setRefreshing(false); }
+    } catch (err: any) {
+      setLoadError(err?.response?.data?.error ?? 'Failed to load absences.');
+    } finally { setLoading(false); setRefreshing(false); }
   }, [user]);
 
   useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
@@ -55,6 +58,15 @@ export default function AbsenceListScreen() {
     >
       {loading
         ? [1, 2, 3].map(i => <View key={i} style={styles.skeleton} />)
+        : loadError
+        ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{loadError}</Text>
+            <TouchableOpacity onPress={() => { setLoading(true); load(); }}>
+              <Text style={[styles.errorText, { textDecorationLine: 'underline', marginTop: 8 }]}>Tap to retry</Text>
+            </TouchableOpacity>
+          </View>
+        )
         : absences.length === 0
         ? (
           <View style={styles.empty}>
@@ -139,6 +151,8 @@ const styles = StyleSheet.create({
   container:       { flex: 1, backgroundColor: '#F4EFE6' },
   content:         { padding: 16, paddingBottom: 40 },
   skeleton:        { backgroundColor: '#E5DDD5', borderRadius: 16, height: 96, marginBottom: 12 },
+  errorBox:        { backgroundColor: '#FEE2E2', borderRadius: 16, borderWidth: 1, borderColor: '#FECACA', padding: 20, alignItems: 'center' },
+  errorText:       { fontSize: 13, color: '#B91C1C', textAlign: 'center', fontWeight: '600' },
   empty:           { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 32, alignItems: 'center' },
   emptyIcon:       { fontSize: 32, marginBottom: 8 },
   emptyTitle:      { fontSize: 15, fontWeight: '700', color: '#2C2218' },

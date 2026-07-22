@@ -32,6 +32,7 @@ export default function AbsenceListPage() {
   const [primary, setPrimary] = useState('#2ab289');
   const [absences, setAbsences] = useState<AbsenceRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const [reasonId,      setReasonId]      = useState('');
   const [reasonText,    setReasonText]    = useState('');
@@ -42,9 +43,13 @@ export default function AbsenceListPage() {
     const teacher = getTeacher();
     if (!teacher) return;
     setLoading(true);
+    setLoadError('');
     try {
       const res = await teacherApi.get(`/api/absences/teacher/${teacher.id}`);
       setAbsences(Array.isArray(res.data) ? res.data : []);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setLoadError(msg ?? 'Failed to load absences. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -89,13 +94,20 @@ export default function AbsenceListPage() {
         </div>
       </div>
 
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4">
+          <p className="text-sm text-[#B83232]">{loadError}</p>
+          <button onClick={loadData} className="mt-2 text-xs font-semibold text-[#B83232] underline">Retry</button>
+        </div>
+      )}
+
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map(i => (
             <div key={i} className="bg-white rounded-2xl h-24 animate-pulse border border-[#E2D9CC]" />
           ))}
         </div>
-      ) : absences.length === 0 ? (
+      ) : loadError ? null : absences.length === 0 ? (
         <div className="bg-white rounded-2xl border border-[#E2D9CC] p-8 text-center">
           <p className="text-3xl mb-2">🎉</p>
           <p className="text-sm font-semibold text-[#2C2218]">No outstanding absences</p>

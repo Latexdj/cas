@@ -63,38 +63,46 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
     if (req.user.role === 'teacher' && req.user.id !== req.params.teacherId) {
       return res.status(403).json({ error: 'Access denied' });
     }
-    // Combined-class absences share an absence_group_id; group them into one card so the
-    // teacher schedules a single remedial that covers all classes in the combined lesson.
-    // Siblings get periods_lost = 0 to avoid double-counting, so SUM gives the true value.
     const { rows } = await pool.query(
       `SELECT
-         COALESCE(
-           MAX(CASE WHEN ab.periods_lost > 0 THEN ab.id END),
-           MIN(ab.id)
-         ) AS id,
-         MIN(ab.date)::text AS date,
-         MIN(ab.subject) AS subject,
-         string_agg(ab.class_name, ', ' ORDER BY ab.class_name) AS class_name,
-         MIN(ab.scheduled_period) AS scheduled_period,
-         MIN(ab.status) AS status,
-         MIN(ab.reason) AS reason,
-         MIN(ab.created_at) AS created_at,
-         SUM(ab.periods_lost) AS periods_lost,
-         MIN(s.period_duration_minutes) AS period_duration_minutes,
-         MAX(ab.absence_group_id) AS absence_group_id,
-         array_agg(ab.id ORDER BY ab.id) AS all_absence_ids,
-         (COUNT(*) > 1) AS is_combined
+         ab.id, ab.date::text AS date, ab.subject, ab.class_name,
+         ab.scheduled_period, ab.status, ab.reason, ab.created_at,
+         ab.periods_lost, s.period_duration_minutes,
+         ab.absence_group_id
        FROM absences ab
        JOIN schools s ON s.id = ab.school_id
        WHERE ab.school_id = $1 AND ab.teacher_id = $2
          AND ab.status = 'Absent'
          AND ab.is_auto_generated = true
          AND ab.date >= CURRENT_DATE - INTERVAL '30 days'
-       GROUP BY COALESCE(ab.absence_group_id::text, ab.id::text)
-       ORDER BY MIN(ab.date) DESC`,
+       ORDER BY ab.date DESC`,
       [req.schoolId, req.params.teacherId]
     );
-    res.json(rows);
+
+    // Group combined-class siblings (same absence_group_id) into one card
+    const groupMap = new Map();
+    for (const row of rows) {
+      const key = row.absence_group_id ?? row.id;
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          ...row,
+          all_absence_ids: [row.id],
+          is_combined: false,
+        });
+      } else {
+        const g = groupMap.get(key);
+        g.all_absence_ids.push(row.id);
+        // Merge class name (sort for consistent ordering)
+        const names = [...new Set([...g.class_name.split(', '), row.class_name])].sort();
+        g.class_name = names.join(', ');
+        // Primary absence carries full periods_lost; sibling has 0
+        g.periods_lost = (g.periods_lost || 0) + (row.periods_lost || 0);
+        if (row.periods_lost > 0) g.id = row.id; // keep primary id
+        g.is_combined = true;
+      }
+    }
+
+    res.json([...groupMap.values()]);
   } catch (err) {
     next(err);
   }
