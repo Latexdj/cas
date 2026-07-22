@@ -89,6 +89,7 @@ export default function StudentAttendancePage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [editLoading,   setEditLoading]  = useState<string | null>(null);
   const [editError,     setEditError]    = useState('');
+  const [statusSheet,   setStatusSheet]  = useState<{ recordId: string; name: string; currentStatus: string } | null>(null);
 
   /* ── At Risk state ── */
   const [atRisk,        setAtRisk]       = useState<AtRiskStudent[]>([]);
@@ -324,6 +325,51 @@ export default function StudentAttendancePage() {
             )}
           </div>
 
+          {/* Status picker overlay */}
+          {statusSheet && (
+            <div className="fixed inset-0 z-[60] flex items-end justify-center"
+              style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+              onClick={() => setStatusSheet(null)}>
+              <div className="bg-white rounded-t-3xl w-full shadow-xl"
+                onClick={e => e.stopPropagation()}>
+                <div className="px-5 pt-5 pb-3 border-b border-[#E2D9CC]">
+                  <p className="text-xs font-semibold text-[#8C7E6E]">Change status for</p>
+                  <p className="text-base font-bold text-[#2C2218] mt-0.5">{statusSheet.name}</p>
+                </div>
+                {(['Present', 'Absent', 'Late'] as const).map(status => {
+                  const sc = STATUS_STYLE[status];
+                  const isCurrent = statusSheet.currentStatus === status;
+                  return (
+                    <button key={status} type="button"
+                      onClick={() => {
+                        setStatusSheet(null);
+                        updateRecordStatus(statusSheet.recordId, status);
+                      }}
+                      className="w-full flex items-center justify-between px-5 py-4 border-b border-[#F4EFE6] last:border-0 active:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span className="w-9 h-9 rounded-full flex items-center justify-center text-base font-bold shrink-0"
+                          style={{ background: sc.bg, color: sc.color }}>
+                          {status === 'Present' ? '✓' : status === 'Absent' ? '✗' : '⏰'}
+                        </span>
+                        <span className="text-sm font-semibold text-[#2C2218]">{status}</span>
+                      </div>
+                      {isCurrent && (
+                        <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+                          style={{ background: sc.bg, color: sc.color }}>
+                          Current
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+                <button type="button" onClick={() => setStatusSheet(null)}
+                  className="w-full py-4 text-sm font-semibold text-[#8C7E6E] active:bg-gray-50">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Session detail bottom sheet */}
           {(detail || detailLoading) && (
             <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
@@ -361,35 +407,33 @@ export default function StudentAttendancePage() {
                     </div>
                   )}
                   {detail && (
-                    <>
-                      <p className="text-[10px] font-semibold text-[#8C7E6E] mb-2">
-                        Tap a badge to cycle status: Present → Absent → Late
-                      </p>
-                      <div className="space-y-2">
-                        {detail.records.map(r => {
-                          const nextSt: 'Present' | 'Absent' | 'Late' =
-                            r.status === 'Present' ? 'Absent' : r.status === 'Absent' ? 'Late' : 'Present';
-                          const sc = STATUS_STYLE[r.status] ?? STATUS_STYLE.Present;
-                          const isUpdating = editLoading === r.id;
-                          return (
-                            <div key={r.id} className="flex items-center justify-between py-2.5 border-b border-[#F4EFE6] last:border-0">
-                              <div>
-                                <p className="text-xs font-bold text-[#8C7E6E]">{r.student_code}</p>
-                                <p className="text-sm font-semibold text-[#2C2218]">{r.name}</p>
-                              </div>
-                              <button
-                                type="button"
-                                disabled={isUpdating}
-                                onClick={() => updateRecordStatus(r.id, nextSt)}
-                                className="text-xs font-semibold px-2.5 py-1 rounded-full disabled:opacity-60 active:opacity-70 transition-opacity"
+                    <div className="space-y-0">
+                      {detail.records.map(r => {
+                        const sc = STATUS_STYLE[r.status] ?? STATUS_STYLE.Present;
+                        const isUpdating = editLoading === r.id;
+                        return (
+                          <div key={r.id} className="flex items-center justify-between py-3 border-b border-[#F4EFE6] last:border-0">
+                            <div className="flex-1 min-w-0 pr-3">
+                              <p className="text-xs font-bold text-[#8C7E6E]">{r.student_code}</p>
+                              <p className="text-sm font-semibold text-[#2C2218]">{r.name}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs font-semibold px-2.5 py-1 rounded-full"
                                 style={{ background: sc.bg, color: sc.color }}>
                                 {isUpdating ? '…' : r.status}
+                              </span>
+                              <button type="button"
+                                disabled={isUpdating}
+                                onClick={() => setStatusSheet({ recordId: r.id, name: r.name, currentStatus: r.status })}
+                                className="text-xs font-semibold px-2.5 py-1 rounded-lg border disabled:opacity-50 active:opacity-70 transition-opacity"
+                                style={{ color: primary, borderColor: `${primary}50`, background: `${primary}12` }}>
+                                Change
                               </button>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               </div>
