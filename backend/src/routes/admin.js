@@ -577,9 +577,15 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
       abs AS (
         SELECT
           ab.teacher_id,
-          COUNT(*) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')) AS absent_periods,
-          COUNT(*) FILTER (WHERE ab.status  = 'Excused')                            AS excused_periods,
-          COUNT(*) FILTER (WHERE ab.status IN ('Made Up','Verified'))               AS made_up_periods
+          -- Use DISTINCT on the lesson group key so a combined-class absence (which has
+          -- one primary row + one or more sibling rows sharing absence_group_id) counts
+          -- as a single lesson event, not one event per class.
+          COUNT(DISTINCT CASE WHEN ab.status NOT IN ('Excused','Made Up','Verified')
+                              THEN COALESCE(ab.absence_group_id::text, ab.id::text) END) AS absent_periods,
+          COUNT(DISTINCT CASE WHEN ab.status  = 'Excused'
+                              THEN COALESCE(ab.absence_group_id::text, ab.id::text) END) AS excused_periods,
+          COUNT(DISTINCT CASE WHEN ab.status IN ('Made Up','Verified')
+                              THEN COALESCE(ab.absence_group_id::text, ab.id::text) END) AS made_up_periods
         FROM absences ab, dr
         WHERE ab.school_id = $1
           AND ab.date >= dr.min_date

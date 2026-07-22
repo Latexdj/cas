@@ -286,9 +286,12 @@ router.get('/my-summary', async (req, res, next) => {
       ),
       abs AS (
         SELECT
-          COUNT(*) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')) AS absent_periods,
-          COUNT(*) FILTER (WHERE ab.status  = 'Excused')                            AS excused_periods,
-          COUNT(*) FILTER (WHERE ab.status IN ('Made Up','Verified'))               AS made_up_periods
+          COUNT(DISTINCT CASE WHEN ab.status NOT IN ('Excused','Made Up','Verified')
+                              THEN COALESCE(ab.absence_group_id::text, ab.id::text) END) AS absent_periods,
+          COUNT(DISTINCT CASE WHEN ab.status  = 'Excused'
+                              THEN COALESCE(ab.absence_group_id::text, ab.id::text) END) AS excused_periods,
+          COUNT(DISTINCT CASE WHEN ab.status IN ('Made Up','Verified')
+                              THEN COALESCE(ab.absence_group_id::text, ab.id::text) END) AS made_up_periods
         FROM absences ab, dr
         WHERE ab.teacher_id = $4
           AND ab.school_id  = $1
