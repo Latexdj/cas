@@ -116,6 +116,8 @@ export default function HistoryPage() {
   /* ── Session detail ── */
   const [detail,       setDetail]       = useState<SessionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [editLoading,  setEditLoading]  = useState<string | null>(null);
+  const [editError,    setEditError]    = useState('');
 
   /* ── Meetings state ── */
   const [plcRecords,     setPlcRecords]     = useState<MeetingRecord[]>([]);
@@ -274,12 +276,71 @@ export default function HistoryPage() {
   }
 
   async function openDetail(sessionId: string) {
-    setDetailLoading(true); setDetail(null);
+    setDetailLoading(true); setDetail(null); setEditError('');
     try {
       const res = await teacherApi.get<SessionDetail>(`/api/student-attendance/session/${sessionId}`);
       setDetail(res.data);
     } finally {
       setDetailLoading(false);
+    }
+  }
+
+  async function updateRecordStatus(recordId: string, newStatus: 'Present' | 'Absent' | 'Late') {
+    if (!detail) return;
+    const oldRecord = detail.records.find(r => r.id === recordId);
+    if (!oldRecord || oldRecord.status === newStatus) return;
+    const oldStatus = oldRecord.status;
+    const sessionId = detail.session.id;
+
+    setDetail(prev => {
+      if (!prev) return prev;
+      const updated = prev.records.map(r => r.id === recordId ? { ...r, status: newStatus } : r);
+      return {
+        ...prev,
+        records: updated,
+        session: {
+          ...prev.session,
+          present: updated.filter(r => r.status === 'Present').length,
+          absent:  updated.filter(r => r.status === 'Absent').length,
+          late:    updated.filter(r => r.status === 'Late').length,
+        },
+      };
+    });
+    setSessions(prev => prev.map(s => s.id === sessionId ? {
+      ...s,
+      present: s.present + (newStatus === 'Present' ? 1 : 0) - (oldStatus === 'Present' ? 1 : 0),
+      absent:  s.absent  + (newStatus === 'Absent'  ? 1 : 0) - (oldStatus === 'Absent'  ? 1 : 0),
+      late:    s.late    + (newStatus === 'Late'    ? 1 : 0) - (oldStatus === 'Late'    ? 1 : 0),
+    } : s));
+
+    setEditLoading(recordId); setEditError('');
+    try {
+      await teacherApi.patch(`/api/student-attendance/records/${recordId}`, { status: newStatus });
+    } catch (err: unknown) {
+      setDetail(prev => {
+        if (!prev) return prev;
+        const reverted = prev.records.map(r => r.id === recordId ? { ...r, status: oldStatus } : r);
+        return {
+          ...prev,
+          records: reverted,
+          session: {
+            ...prev.session,
+            present: reverted.filter(r => r.status === 'Present').length,
+            absent:  reverted.filter(r => r.status === 'Absent').length,
+            late:    reverted.filter(r => r.status === 'Late').length,
+          },
+        };
+      });
+      setSessions(prev => prev.map(s => s.id === sessionId ? {
+        ...s,
+        present: s.present - (newStatus === 'Present' ? 1 : 0) + (oldStatus === 'Present' ? 1 : 0),
+        absent:  s.absent  - (newStatus === 'Absent'  ? 1 : 0) + (oldStatus === 'Absent'  ? 1 : 0),
+        late:    s.late    - (newStatus === 'Late'    ? 1 : 0) + (oldStatus === 'Late'    ? 1 : 0),
+      } : s));
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setEditError(msg ?? 'Failed to update status. Please try again.');
+    } finally {
+      setEditLoading(null);
     }
   }
 
@@ -489,6 +550,11 @@ export default function HistoryPage() {
                 </div>
 
                 {/* Modal body */}
+                {editError && (
+                  <p className="text-xs text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-2 mx-5 mt-2">
+                    {editError}
+                  </p>
+                )}
                 <div className="overflow-y-auto flex-1 px-5 py-3">
                   {detailLoading && !detail && (
                     <div className="flex justify-center py-8">
@@ -496,23 +562,33 @@ export default function HistoryPage() {
                     </div>
                   )}
                   {detail && (
-                    <div className="space-y-2">
-                      {detail.records.map(r => {
-                        const sc = STATUS_STYLE[r.status] ?? STATUS_STYLE.Present;
-                        return (
-                          <div key={r.id} className="flex items-center justify-between py-2.5 border-b border-[#F4EFE6] last:border-0">
-                            <div>
-                              <p className="text-xs font-bold text-[#8C7E6E]">{r.student_code}</p>
-                              <p className="text-sm font-semibold text-[#2C2218]">{r.name}</p>
+                    <>
+                      <p className="text-[10px] font-semibold text-[#8C7E6E] mb-2">Tap a badge to cycle status: Present → Absent → Late</p>
+                      <div className="space-y-2">
+                        {detail.records.map(r => {
+                          const nextSt: 'Present' | 'Absent' | 'Late' =
+                            r.status === 'Present' ? 'Absent' : r.status === 'Absent' ? 'Late' : 'Present';
+                          const sc = STATUS_STYLE[r.status] ?? STATUS_STYLE.Present;
+                          const isUpdating = editLoading === r.id;
+                          return (
+                            <div key={r.id} className="flex items-center justify-between py-2.5 border-b border-[#F4EFE6] last:border-0">
+                              <div>
+                                <p className="text-xs font-bold text-[#8C7E6E]">{r.student_code}</p>
+                                <p className="text-sm font-semibold text-[#2C2218]">{r.name}</p>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={isUpdating}
+                                onClick={() => updateRecordStatus(r.id, nextSt)}
+                                className="text-xs font-semibold px-2.5 py-1 rounded-full disabled:opacity-60 active:opacity-70 transition-opacity"
+                                style={{ background: sc.bg, color: sc.color }}>
+                                {isUpdating ? '…' : r.status}
+                              </button>
                             </div>
-                            <span className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                              style={{ background: sc.bg, color: sc.color }}>
-                              {r.status}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
