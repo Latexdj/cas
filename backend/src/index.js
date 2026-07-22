@@ -460,6 +460,29 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE absences ADD COLUMN IF NOT EXISTS periods_lost INTEGER NOT NULL DEFAULT 1`);
     await pool.query(`ALTER TABLE absences ADD COLUMN IF NOT EXISTS absence_group_id UUID`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_absences_group ON absences(absence_group_id) WHERE absence_group_id IS NOT NULL`);
+    // Retroactively link absences that pre-date the absence_group_id column.
+    // Two auto-generated absences for the same teacher/subject/date/period are
+    // always siblings from the same combined lesson — stamp them with a shared UUID
+    // and zero out periods_lost on the non-primary to stop double-counting.
+    await pool.query(`
+      WITH groups AS (
+        SELECT
+          gen_random_uuid()                                   AS group_uuid,
+          array_agg(id ORDER BY created_at, id)              AS ids,
+          (array_agg(id ORDER BY created_at, id))[1]         AS primary_id
+        FROM absences
+        WHERE is_auto_generated = true
+          AND absence_group_id IS NULL
+          AND scheduled_period IS NOT NULL
+        GROUP BY school_id, teacher_id, subject, date, scheduled_period
+        HAVING COUNT(*) > 1
+      )
+      UPDATE absences a
+      SET absence_group_id = g.group_uuid,
+          periods_lost     = CASE WHEN a.id = g.primary_id THEN a.periods_lost ELSE 0 END
+      FROM groups g
+      WHERE a.id = ANY(g.ids)
+    `);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS remedial_lessons (
         id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -79,25 +79,32 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
       [req.schoolId, req.params.teacherId]
     );
 
-    // Group combined-class siblings (same absence_group_id) into one card
+    // Group combined-class siblings into one card.
+    // Primary key: absence_group_id (set by absenceCheck for new absences, and by
+    // the retroactive migration for pre-existing ones).
+    // Fallback key: date+subject+scheduled_period catches any that slipped through
+    // (e.g. created before the column existed and scheduled_period was NULL).
     const groupMap = new Map();
     for (const row of rows) {
-      const key = row.absence_group_id ?? row.id;
+      const key = row.absence_group_id
+        ?? (row.scheduled_period
+          ? `legacy:${row.date}:${row.subject}:${row.scheduled_period}`
+          : row.id);
+
       if (!groupMap.has(key)) {
-        groupMap.set(key, {
-          ...row,
-          all_absence_ids: [row.id],
-          is_combined: false,
-        });
+        groupMap.set(key, { ...row, all_absence_ids: [row.id], is_combined: false });
       } else {
         const g = groupMap.get(key);
         g.all_absence_ids.push(row.id);
-        // Merge class name (sort for consistent ordering)
         const names = [...new Set([...g.class_name.split(', '), row.class_name])].sort();
         g.class_name = names.join(', ');
-        // Primary absence carries full periods_lost; sibling has 0
-        g.periods_lost = (g.periods_lost || 0) + (row.periods_lost || 0);
-        if (row.periods_lost > 0) g.id = row.id; // keep primary id
+        if (row.absence_group_id) {
+          // New / migrated data: primary has periods_lost = N, sibling has 0 → SUM is correct
+          g.periods_lost = (g.periods_lost || 0) + (row.periods_lost || 0);
+          if (row.periods_lost > 0) g.id = row.id;
+        }
+        // Legacy fallback: both rows have periods_lost = N; keep the first row's value to
+        // avoid doubling. The remedial flow will only update the primary absence in this case.
         g.is_combined = true;
       }
     }
