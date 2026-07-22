@@ -35,12 +35,13 @@ type Tab = 'overview' | 'remarks' | 'attendance' | 'results';
 
 // ── Student detail drawer ─────────────────────────────────────────────────────
 function StudentDrawer({
-  student, remark, attRow, result, onClose,
+  student, remark, attRow, result, resultsLoading, onClose,
 }: {
   student: FormTeacherStudent;
   remark: ReportRemark | null;
   attRow: { present: number; absent: number; late: number; total: number; pct: number | null } | null;
   result: StudentResult | null;
+  resultsLoading?: boolean;
   onClose: () => void;
 }) {
   return (
@@ -88,7 +89,14 @@ function StudentDrawer({
             </div>
           )}
           {/* Academic */}
-          {result && (
+          {resultsLoading ? (
+            <div className="bg-slate-50 rounded-xl p-3">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Academic</p>
+              <div className="flex justify-center py-2">
+                <div className="w-5 h-5 rounded-full border-2 border-slate-300 border-t-slate-500 animate-spin" />
+              </div>
+            </div>
+          ) : result ? (
             <div className="bg-slate-50 rounded-xl p-3">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Academic</p>
               <div className="grid grid-cols-3 gap-2 text-center mb-3">
@@ -96,7 +104,7 @@ function StudentDrawer({
                 <div><p className="text-lg font-black text-slate-700">{result.class_position ? ordinal(result.class_position) : '—'}</p><p className="text-[10px] text-slate-400">Position</p></div>
                 <div><p className="text-lg font-black text-slate-700">{result.overall_grade || '—'}</p><p className="text-[10px] text-slate-400">Grade</p></div>
               </div>
-              {result.subjects.slice(0, 6).map(s => (
+              {result.subjects.map(s => (
                 <div key={s.subject} className="flex items-center justify-between py-1 border-b border-slate-100 last:border-0 text-xs">
                   <span className="text-slate-700 truncate flex-1 mr-2">{s.subject}</span>
                   <span className="font-bold text-slate-600 mr-2">{s.total ?? '—'}</span>
@@ -104,7 +112,7 @@ function StudentDrawer({
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
           {/* Remarks */}
           {remark && (remark.attitude || remark.conduct || remark.general_remarks) && (
             <div className="bg-green-50 border border-green-100 rounded-xl p-3">
@@ -618,6 +626,7 @@ export default function FormClassPage() {
           remark={remarksMap[drawerStudent.id] ?? draft[drawerStudent.id] ?? null}
           attRow={attData[drawerStudent.id] ?? drawerStudent.attendance}
           result={drawerResult}
+          resultsLoading={loadingTab && tab === 'remarks' && resultsData.length === 0}
           onClose={() => setDrawerStudent(null)}
         />
       )}
