@@ -20,6 +20,7 @@ interface AbsenceRecord {
   absence_group_id: string | null;
   all_absence_ids: string[];
   is_combined: boolean;
+  rejection_reason: string | null;
 }
 
 function fmt(iso: string) {
@@ -127,6 +128,12 @@ export default function AbsenceListPage() {
                 {fmt(ab.date)}{ab.scheduled_period ? ` · ${ab.scheduled_period}` : ''}
                 {ab.periods_lost > 1 ? ` · ${ab.periods_lost} periods outstanding` : ' · 1 period outstanding'}
               </p>
+              {ab.rejection_reason && (
+                <div className="mt-1.5 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+                  <p className="text-xs font-semibold text-red-700">Remedial rejected — please reschedule</p>
+                  <p className="text-xs text-red-600 mt-0.5">{ab.rejection_reason}</p>
+                </div>
+              )}
               {ab.reason && <p className="text-xs text-[#8C7E6E] mt-1 italic">&ldquo;{ab.reason}&rdquo;</p>}
 
               <div className="flex gap-2 mt-3">

@@ -51,6 +51,7 @@ export interface AbsenceRecord {
   absence_group_id: string | null;
   all_absence_ids: string[];
   is_combined: boolean;
+  rejection_reason: string | null;
 }
 
 export interface RemedialLesson {

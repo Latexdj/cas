@@ -88,6 +88,12 @@ export default function AbsenceListScreen() {
             <Text style={styles.meta}>
               {fmt(ab.date)}{ab.scheduled_period ? ` · ${ab.scheduled_period}` : ''}
             </Text>
+            {ab.rejection_reason ? (
+              <View style={styles.rejectionBox}>
+                <Text style={styles.rejectionTitle}>Remedial rejected — please reschedule</Text>
+                <Text style={styles.rejectionText}>{ab.rejection_reason}</Text>
+              </View>
+            ) : null}
             {ab.reason ? <Text style={styles.reason}>"{ab.reason}"</Text> : null}
 
             <View style={styles.btnRow}>
@@ -163,6 +169,9 @@ const styles = StyleSheet.create({
   combinedBadge:   { backgroundColor: '#FEF3C7', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
   combinedBadgeText: { fontSize: 11, fontWeight: '700', color: '#92400E' },
   meta:            { fontSize: 12, color: '#8C7E6E', marginTop: 2 },
+  rejectionBox:    { backgroundColor: '#FEF2F2', borderRadius: 8, borderWidth: 1, borderColor: '#FECACA', padding: 8, marginTop: 6 },
+  rejectionTitle:  { fontSize: 11, fontWeight: '700', color: '#B91C1C', marginBottom: 2 },
+  rejectionText:   { fontSize: 11, color: '#DC2626' },
   reason:          { fontSize: 12, color: '#4A3F32', fontStyle: 'italic', marginTop: 6 },
   btnRow:          { flexDirection: 'row', gap: 8, marginTop: 12 },
   btnSecondary:    { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: '#E2D9CC', backgroundColor: '#F4EFE6', alignItems: 'center' },

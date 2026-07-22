@@ -68,13 +68,38 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
          ab.id, ab.date::text AS date, ab.subject, ab.class_name,
          ab.scheduled_period, ab.status, ab.reason, ab.created_at,
          ab.periods_lost, s.period_duration_minutes,
-         ab.absence_group_id
+         ab.absence_group_id,
+         (SELECT rl.notes FROM remedial_lessons rl
+          WHERE rl.status = 'Rejected'
+            AND (rl.absence_id = ab.id OR (
+              ab.absence_group_id IS NOT NULL AND rl.absence_id IN (
+                SELECT id FROM absences ab2 WHERE ab2.absence_group_id = ab.absence_group_id AND ab2.school_id = $1
+              )
+            ))
+          ORDER BY rl.updated_at DESC LIMIT 1) AS rejection_reason
        FROM absences ab
        JOIN schools s ON s.id = ab.school_id
        WHERE ab.school_id = $1 AND ab.teacher_id = $2
          AND ab.status = 'Absent'
          AND ab.is_auto_generated = true
-         AND ab.date >= CURRENT_DATE - INTERVAL '30 days'
+         AND (
+           ab.date >= CURRENT_DATE - INTERVAL '30 days'
+           OR EXISTS (
+             SELECT 1 FROM remedial_lessons rl
+             WHERE rl.school_id = $1
+               AND rl.status IN ('Rejected', 'Cancelled')
+               AND (
+                 rl.absence_id = ab.id
+                 OR (
+                   ab.absence_group_id IS NOT NULL
+                   AND rl.absence_id IN (
+                     SELECT id FROM absences
+                     WHERE absence_group_id = ab.absence_group_id AND school_id = $1
+                   )
+                 )
+               )
+           )
+         )
        ORDER BY ab.date DESC`,
       [req.schoolId, req.params.teacherId]
     );

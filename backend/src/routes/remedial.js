@@ -87,7 +87,24 @@ router.get('/outstanding/:teacherId', async (req, res, next) => {
        WHERE ab.school_id = $1 AND ab.teacher_id = $2
          AND ab.status = 'Absent'
          AND ab.is_auto_generated = true
-         AND ab.date >= CURRENT_DATE - INTERVAL '30 days'
+         AND (
+           ab.date >= CURRENT_DATE - INTERVAL '30 days'
+           OR EXISTS (
+             SELECT 1 FROM remedial_lessons rl
+             WHERE rl.school_id = $1
+               AND rl.status IN ('Rejected', 'Cancelled')
+               AND (
+                 rl.absence_id = ab.id
+                 OR (
+                   ab.absence_group_id IS NOT NULL
+                   AND rl.absence_id IN (
+                     SELECT id FROM absences
+                     WHERE absence_group_id = ab.absence_group_id AND school_id = $1
+                   )
+                 )
+               )
+           )
+         )
        ORDER BY ab.date DESC`,
       [req.schoolId, req.params.teacherId]
     );
