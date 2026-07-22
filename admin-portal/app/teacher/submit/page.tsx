@@ -111,7 +111,7 @@ export default function SubmitPage() {
   // Step 2
   const [attendanceId,  setAttendanceId]  = useState('');
   const [students,      setStudents]      = useState<Student[]>([]);
-  const [statusMap,     setStatusMap]     = useState<Map<string, 'Present' | 'Absent' | 'Late'>>(new Map());
+  const [absentIds,     setAbsentIds]     = useState<Set<string>>(new Set());
   const [exeatIds,      setExeatIds]      = useState<Set<string>>(new Set());
   const [studLoading,   setStudLoading]   = useState(false);
   const [step2Loading,  setStep2Loading]  = useState(false);
@@ -372,7 +372,7 @@ export default function SubmitPage() {
       ]);
       setStudents(sr.status === 'fulfilled' ? sr.value.data ?? [] : []);
       setExeatIds(new Set(er.status === 'fulfilled' ? er.value.data : []));
-      setStatusMap(new Map());
+      setAbsentIds(new Set());
     } finally {
       setStudLoading(false);
     }
@@ -392,7 +392,7 @@ export default function SubmitPage() {
         lessonEndTime:  slot.end_time,
         records: students
           .filter(s => !exeatIds.has(s.id))
-          .map(s => ({ studentId: s.id, status: statusMap.get(s.id) ?? 'Present' })),
+          .map(s => ({ studentId: s.id, status: absentIds.has(s.id) ? 'Absent' : 'Present' })),
       });
 
       const nextIdx = classQueueIdx + 1;
@@ -411,9 +411,7 @@ export default function SubmitPage() {
 
   const selectedSlot = slots.find(s => s.id === selectedId);
   const exeatCount   = students.filter(s => exeatIds.has(s.id)).length;
-  const absentCount  = students.filter(s => !exeatIds.has(s.id) && statusMap.get(s.id) === 'Absent').length;
-  const lateCount    = students.filter(s => !exeatIds.has(s.id) && statusMap.get(s.id) === 'Late').length;
-  const presentCount = students.length - exeatCount - absentCount - lateCount;
+  const presentCount = students.length - absentIds.size - exeatCount;
 
   return (
     <div className="min-h-screen px-4 pt-6 pb-24" style={{ background: dk.pageBg }}>
@@ -659,13 +657,12 @@ export default function SubmitPage() {
           )}
 
           {/* Counts */}
-          <div className={`grid gap-3 ${exeatCount > 0 && lateCount > 0 ? 'grid-cols-5' : exeatCount > 0 || lateCount > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          <div className={`grid gap-3 ${exeatCount > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}>
             {[
-              { label: 'Present',  count: presentCount,  color: dk.presentCountText,                          bg: dk.presentCountBg },
-              ...(lateCount > 0  ? [{ label: 'Late',     count: lateCount,    color: isDark ? '#FCD34D' : '#B45309', bg: isDark ? '#1C1917' : '#FFFBEB' }] : []),
-              { label: 'Absent',   count: absentCount,   color: dk.absentCountText,                           bg: dk.absentCountBg  },
-              ...(exeatCount > 0 ? [{ label: 'On Exeat', count: exeatCount,   color: isDark ? '#FCD34D' : '#92400E', bg: isDark ? '#44403C' : '#FEF3C7' }] : []),
-              { label: 'Total',    count: students.length, color: dk.totalCountText,                          bg: dk.totalCountBg   },
+              { label: 'Present',  count: presentCount,    color: dk.presentCountText, bg: dk.presentCountBg },
+              { label: 'Absent',   count: absentIds.size,  color: dk.absentCountText,  bg: dk.absentCountBg  },
+              ...(exeatCount > 0 ? [{ label: 'On Exeat', count: exeatCount, color: isDark ? '#FCD34D' : '#92400E', bg: isDark ? '#44403C' : '#FEF3C7' }] : []),
+              { label: 'Total',    count: students.length, color: dk.totalCountText,   bg: dk.totalCountBg   },
             ].map(({ label, count, color, bg }) => (
               <div key={label} className="rounded-2xl p-3 text-center" style={{ background: bg }}>
                 <p className="text-2xl font-bold" style={{ color }}>{count}</p>
@@ -675,7 +672,7 @@ export default function SubmitPage() {
           </div>
 
           <p className="text-xs font-bold uppercase tracking-wide" style={{ color: dk.muted }}>
-            Tap to cycle: Present → Absent → Late
+            Tap a student to mark absent
           </p>
 
           {studLoading ? (
@@ -692,6 +689,7 @@ export default function SubmitPage() {
             <div className="space-y-2">
               {students.map(s => {
                 const onExeat = exeatIds.has(s.id);
+                const absent  = !onExeat && absentIds.has(s.id);
                 if (onExeat) {
                   return (
                     <div key={s.id} className="w-full flex items-center justify-between p-3.5 rounded-xl"
@@ -711,26 +709,24 @@ export default function SubmitPage() {
                     </div>
                   );
                 }
-                const status = statusMap.get(s.id) ?? 'Present';
-                const nextSt: 'Present' | 'Absent' | 'Late' =
-                  status === 'Present' ? 'Absent' : status === 'Absent' ? 'Late' : 'Present';
-                const cardBg     = status === 'Absent' ? dk.absentCardBg  : status === 'Late' ? (isDark ? '#1C1917' : '#FFFBEB') : dk.presentCardBg;
-                const cardBorder = status === 'Absent' ? dk.absentCardBorder : status === 'Late' ? (isDark ? '#78350F' : '#FDE68A') : dk.presentCardBorder;
-                const nameColor  = status === 'Absent' ? '#F87171' : status === 'Late' ? (isDark ? '#FCD34D' : '#92400E') : dk.text;
-                const badgeBg    = status === 'Absent' ? (isDark ? '#7F1D1D' : '#FEE2E2') : status === 'Late' ? (isDark ? '#451A03' : '#FEF3C7') : (isDark ? '#14532D' : '#DCFCE7');
-                const badgeColor = status === 'Absent' ? (isDark ? '#FCA5A5' : '#DC2626') : status === 'Late' ? (isDark ? '#FCD34D' : '#B45309') : (isDark ? '#86EFAC' : '#166634');
                 return (
-                  <button key={s.id} type="button" onClick={() => setStatusMap(prev => {
-                    const n = new Map(prev); n.set(s.id, nextSt); return n;
+                  <button key={s.id} type="button" onClick={() => setAbsentIds(prev => {
+                    const n = new Set(prev); absent ? n.delete(s.id) : n.add(s.id); return n;
                   })} className="w-full flex items-center justify-between p-3.5 rounded-xl transition-colors text-left"
-                    style={{ background: cardBg, border: `1px solid ${cardBorder}` }}>
+                    style={{
+                      background:   absent ? dk.absentCardBg    : dk.presentCardBg,
+                      border:       `1px solid ${absent ? dk.absentCardBorder : dk.presentCardBorder}`,
+                    }}>
                     <div>
                       <p className="text-xs font-bold" style={{ color: dk.muted }}>{s.student_code}</p>
-                      <p className="text-sm font-semibold" style={{ color: nameColor }}>{s.name}</p>
+                      <p className="text-sm font-semibold" style={{ color: absent ? '#F87171' : dk.text }}>{s.name}</p>
                     </div>
                     <span className="text-xs font-bold px-2.5 py-1 rounded-full"
-                      style={{ background: badgeBg, color: badgeColor }}>
-                      {status}
+                      style={{
+                        background: absent ? (isDark ? '#7F1D1D' : '#FEE2E2') : (isDark ? '#14532D' : '#DCFCE7'),
+                        color:      absent ? (isDark ? '#FCA5A5' : '#DC2626') : (isDark ? '#86EFAC' : '#166634'),
+                      }}>
+                      {absent ? 'Absent' : 'Present'}
                     </span>
                   </button>
                 );
