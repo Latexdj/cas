@@ -575,41 +575,54 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
           AND ($3::int  IS NULL OR semester = $3::int)
       ),
       abs AS (
+        -- SUM(periods_lost) counts actual teaching periods missed.
+        -- Sibling rows in a combined lesson have periods_lost = 0, so they don't add to the total.
+        -- Manual / legacy rows with periods_lost = NULL fall back to 1 period.
         SELECT
           ab.teacher_id,
-          -- Use DISTINCT on the lesson group key so a combined-class absence (which has
-          -- one primary row + one or more sibling rows sharing absence_group_id) counts
-          -- as a single lesson event, not one event per class.
-          COUNT(DISTINCT CASE WHEN ab.status NOT IN ('Excused','Made Up','Verified')
-                              THEN COALESCE(ab.absence_group_id::text, ab.id::text) END) AS absent_periods,
-          COUNT(DISTINCT CASE WHEN ab.status  = 'Excused'
-                              THEN COALESCE(ab.absence_group_id::text, ab.id::text) END) AS excused_periods,
-          COUNT(DISTINCT CASE WHEN ab.status IN ('Made Up','Verified')
-                              THEN COALESCE(ab.absence_group_id::text, ab.id::text) END) AS made_up_periods
+          COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')), 0) AS absent_periods,
+          COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status = 'Excused'), 0)                             AS excused_periods
         FROM absences ab, dr
         WHERE ab.school_id = $1
           AND ab.date >= dr.min_date
           AND ab.date <= dr.max_date
+        GROUP BY ab.teacher_id
+      ),
+      made AS (
+        -- Sum the remedial lesson's own duration_periods (not the original absence periods_lost,
+        -- which gets zeroed out on verification). One remedial covers both classes in a combined
+        -- lesson, so combined lessons are correctly counted once.
+        SELECT
+          ab.teacher_id,
+          COALESCE(SUM(COALESCE(rl.duration_periods, 1)), 0) AS made_up_periods
+        FROM absences ab
+        JOIN remedial_lessons rl ON rl.absence_id = ab.id
+        , dr
+        WHERE ab.school_id = $1
+          AND ab.date >= dr.min_date
+          AND ab.date <= dr.max_date
+          AND ab.status IN ('Made Up','Verified')
         GROUP BY ab.teacher_id
       )
       SELECT
         t.id,
         t.name,
         COALESCE(t.department, '—') AS department,
-        (COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0))::int AS present_periods,
-        COALESCE(abs.absent_periods, 0)::int                                        AS absent_periods,
-        COALESCE(abs.excused_periods, 0)::int                                       AS excused_periods,
-        COALESCE(abs.made_up_periods, 0)::int                                       AS made_up_periods,
-        (COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0) + COALESCE(abs.absent_periods, 0))::int AS total_scheduled,
+        (COALESCE(att.present_periods, 0) + COALESCE(made.made_up_periods, 0))::int AS present_periods,
+        COALESCE(abs.absent_periods, 0)::int                                         AS absent_periods,
+        COALESCE(abs.excused_periods, 0)::int                                        AS excused_periods,
+        COALESCE(made.made_up_periods, 0)::int                                       AS made_up_periods,
+        (COALESCE(att.present_periods, 0) + COALESCE(made.made_up_periods, 0) + COALESCE(abs.absent_periods, 0))::int AS total_scheduled,
         CASE
-          WHEN (COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0) + COALESCE(abs.absent_periods, 0)) = 0 THEN NULL
+          WHEN (COALESCE(att.present_periods, 0) + COALESCE(made.made_up_periods, 0) + COALESCE(abs.absent_periods, 0)) = 0 THEN NULL
           ELSE ROUND(
-            100.0 * (COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0)) /
-            NULLIF(COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0) + COALESCE(abs.absent_periods, 0), 0), 1)
+            100.0 * (COALESCE(att.present_periods, 0) + COALESCE(made.made_up_periods, 0)) /
+            NULLIF(COALESCE(att.present_periods, 0) + COALESCE(made.made_up_periods, 0) + COALESCE(abs.absent_periods, 0), 0), 1)
         END AS attendance_pct
       FROM teachers t
-      LEFT JOIN att ON att.teacher_id = t.id
-      LEFT JOIN abs ON abs.teacher_id = t.id
+      LEFT JOIN att  ON att.teacher_id  = t.id
+      LEFT JOIN abs  ON abs.teacher_id  = t.id
+      LEFT JOIN made ON made.teacher_id = t.id
       WHERE t.school_id = $1 AND t.status = 'Active'
       ORDER BY attendance_pct ASC NULLS LAST, t.name
     `, [req.schoolId, yearId || null, sem || null]);

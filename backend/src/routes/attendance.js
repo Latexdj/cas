@@ -286,31 +286,39 @@ router.get('/my-summary', async (req, res, next) => {
       ),
       abs AS (
         SELECT
-          COUNT(DISTINCT CASE WHEN ab.status NOT IN ('Excused','Made Up','Verified')
-                              THEN COALESCE(ab.absence_group_id::text, ab.id::text) END) AS absent_periods,
-          COUNT(DISTINCT CASE WHEN ab.status  = 'Excused'
-                              THEN COALESCE(ab.absence_group_id::text, ab.id::text) END) AS excused_periods,
-          COUNT(DISTINCT CASE WHEN ab.status IN ('Made Up','Verified')
-                              THEN COALESCE(ab.absence_group_id::text, ab.id::text) END) AS made_up_periods
+          COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')), 0) AS absent_periods,
+          COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status = 'Excused'), 0)                             AS excused_periods
         FROM absences ab, dr
         WHERE ab.teacher_id = $4
           AND ab.school_id  = $1
           AND ab.date >= dr.min_date
           AND ab.date <= dr.max_date
+      ),
+      made AS (
+        SELECT
+          COALESCE(SUM(COALESCE(rl.duration_periods, 1)), 0) AS made_up_periods
+        FROM absences ab
+        JOIN remedial_lessons rl ON rl.absence_id = ab.id
+        , dr
+        WHERE ab.teacher_id = $4
+          AND ab.school_id  = $1
+          AND ab.date >= dr.min_date
+          AND ab.date <= dr.max_date
+          AND ab.status IN ('Made Up','Verified')
       )
       SELECT
-        (att.present_periods + abs.made_up_periods)::int                         AS present_periods,
+        (att.present_periods + made.made_up_periods)::int                          AS present_periods,
         abs.absent_periods::int,
         abs.excused_periods::int,
-        abs.made_up_periods::int,
-        (att.present_periods + abs.made_up_periods + abs.absent_periods)::int    AS total_scheduled,
+        made.made_up_periods::int                                                   AS made_up_periods,
+        (att.present_periods + made.made_up_periods + abs.absent_periods)::int     AS total_scheduled,
         CASE
-          WHEN (att.present_periods + abs.made_up_periods + abs.absent_periods) = 0 THEN NULL
+          WHEN (att.present_periods + made.made_up_periods + abs.absent_periods) = 0 THEN NULL
           ELSE ROUND(
-            100.0 * (att.present_periods + abs.made_up_periods) /
-            NULLIF(att.present_periods + abs.made_up_periods + abs.absent_periods, 0), 1)
+            100.0 * (att.present_periods + made.made_up_periods) /
+            NULLIF(att.present_periods + made.made_up_periods + abs.absent_periods, 0), 1)
         END AS attendance_pct
-      FROM att, abs
+      FROM att, abs, made
     `, [req.schoolId, yearId || null, sem || null, req.user.id]);
 
     res.json(rows[0] || {
