@@ -24,10 +24,11 @@ const OWN_COLORS: Record<string, string> = {
   departmental:  'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 };
 
+// ownership_value: 'general' OR a department UUID
 const EMPTY_FORM = {
   name: '', item_type: 'equipment', category_id: '', description: '', serial_number: '',
   asset_tag: '', quantity: '1', condition: 'Good', location: '', acquired_date: '', notes: '',
-  ownership_type: 'general', department_id: '',
+  ownership_value: 'general',
 };
 
 const ISSUE_TYPES = [
@@ -121,8 +122,7 @@ export default function InventoryItemsPage() {
       condition: item.condition, location: item.location ?? '',
       acquired_date: item.acquired_date ? item.acquired_date.slice(0, 10) : '',
       notes: item.notes ?? '',
-      ownership_type: item.ownership_type ?? 'general',
-      department_id: item.department_id ?? '',
+      ownership_value: item.ownership_type === 'departmental' && item.department_id ? item.department_id : 'general',
     });
     setFormError(''); setShowForm(true);
   }
@@ -130,10 +130,12 @@ export default function InventoryItemsPage() {
   async function saveItem() {
     setSaving(true); setFormError('');
     try {
+      const isGeneral = form.ownership_value === 'general';
       const payload = {
         ...form,
         category_id: form.category_id || null,
-        department_id: form.ownership_type === 'departmental' ? (form.department_id || null) : null,
+        ownership_type: isGeneral ? 'general' : 'departmental',
+        department_id: isGeneral ? null : form.ownership_value,
         quantity: parseInt(form.quantity) || 1,
         acquired_date: form.acquired_date || null,
       };
@@ -366,21 +368,12 @@ export default function InventoryItemsPage() {
                 </div>
                 {/* Ownership */}
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Ownership</label>
-                  <select value={form.ownership_type} onChange={e => setForm(f => ({ ...f, ownership_type: e.target.value, department_id: '' }))} className={inputCls}>
-                    <option value="general">General (school-wide / store officer)</option>
-                    <option value="departmental">Departmental (HOD manages)</option>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Ownership / Department</label>
+                  <select value={form.ownership_value} onChange={e => setForm(f => ({ ...f, ownership_value: e.target.value }))} className={inputCls}>
+                    <option value="general">General (store officer manages)</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name} Department (HOD)</option>)}
                   </select>
                 </div>
-                {form.ownership_type === 'departmental' && (
-                  <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Department *</label>
-                    <select value={form.department_id} onChange={e => setForm(f => ({ ...f, department_id: e.target.value }))} className={inputCls}>
-                      <option value="">— Select department —</option>
-                      {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                    </select>
-                  </div>
-                )}
                 <div>
                   <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Description</label>
                   <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2}
