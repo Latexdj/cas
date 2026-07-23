@@ -209,6 +209,31 @@ const sections: Section[] = [
     ],
   },
   {
+    label: 'INVENTORY',
+    items: [
+      {
+        href: '/inventory', label: 'Overview',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />,
+        module: 'inventory',
+      },
+      {
+        href: '/inventory/items', label: 'Items',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M6.429 9.75 2.25 12l4.179 2.25m0-4.5 5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L21.75 12l-4.179 2.25m0 0 4.179 2.25L12 21.75 2.25 16.5l4.179-2.25m11.142 0-5.571 3-5.571-3" />,
+        module: 'inventory',
+      },
+      {
+        href: '/inventory/categories', label: 'Categories',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L9.568 3z M6 6h.008v.008H6V6z" />,
+        module: 'inventory',
+      },
+      {
+        href: '/inventory/transactions', label: 'Transaction Log',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 002.25 2.25h13.5M6 7.5h3v3H6v-3z" />,
+        module: 'inventory',
+      },
+    ],
+  },
+  {
     label: 'FINANCES',
     items: [
       {

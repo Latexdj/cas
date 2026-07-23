@@ -56,6 +56,7 @@ const monitoringRoutes        = require('./routes/assessment-monitoring');
 const departmentRoutes        = require('./routes/departments');
 const primaryRoutes           = require('./routes/primary');
 const lmsRoutes               = require('./routes/lms');
+const inventoryRoutes         = require('./routes/inventory');
 const { startAbsenceCheckJob }          = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob }    = require('./jobs/subscriptionExpiry');
 const { startLibraryNotificationJob }   = require('./jobs/libraryNotifications');
@@ -141,6 +142,7 @@ app.use('/api/assessment-monitoring', monitoringRoutes);
 app.use('/api/departments',           departmentRoutes);
 app.use('/api/primary',               primaryRoutes);
 app.use('/api/lms',                   lmsRoutes);
+app.use('/api/inventory',             inventoryRoutes);
 
 app.use(errorHandler);
 
@@ -1901,6 +1903,69 @@ async function runMigrations() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_pasco_subject         ON lms_pasco_questions(school_id, subject_name)`);
     // Migrate existing is_single_instance=true rows → max_instances=1
     await pool.query(`UPDATE primary_assessment_modes SET max_instances=1 WHERE is_single_instance=true AND max_instances IS NULL`);
+
+    // ── Inventory module ──────────────────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inventory_categories (
+        id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name        TEXT        NOT NULL,
+        description TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, name)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inventory_items (
+        id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id          UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        category_id        UUID        REFERENCES inventory_categories(id) ON DELETE SET NULL,
+        name               TEXT        NOT NULL,
+        item_type          TEXT        NOT NULL DEFAULT 'equipment'
+                             CHECK (item_type IN ('equipment','book','asset')),
+        description        TEXT,
+        serial_number      TEXT,
+        asset_tag          TEXT,
+        quantity_total     INTEGER     NOT NULL DEFAULT 1,
+        quantity_available INTEGER     NOT NULL DEFAULT 1,
+        condition          TEXT        NOT NULL DEFAULT 'Good'
+                             CHECK (condition IN ('Good','Damaged','Written Off')),
+        location           TEXT,
+        acquired_date      DATE,
+        notes              TEXT,
+        created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_items_school ON inventory_items(school_id, condition)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_items_category ON inventory_items(category_id)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS inventory_transactions (
+        id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id         UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        item_id           UUID        NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
+        type              TEXT        NOT NULL
+                            CHECK (type IN ('issued','returned','damaged','repaired','written_off','added','adjusted')),
+        quantity          INTEGER     NOT NULL DEFAULT 1,
+        issued_to_name    TEXT,
+        issued_to_role    TEXT,
+        notes             TEXT,
+        performed_by_id   UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        performed_by_name TEXT,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_txn_school ON inventory_transactions(school_id, created_at DESC)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_inventory_txn_item   ON inventory_transactions(item_id, created_at DESC)`);
+    // Backfill inventory module for all existing schools
+    await pool.query(`
+      INSERT INTO school_modules (school_id, module_key, enabled)
+      SELECT s.id, 'inventory', true FROM schools s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM school_modules sm WHERE sm.school_id = s.id AND sm.module_key = 'inventory'
+      )
+      ON CONFLICT DO NOTHING
+    `);
 
     console.log('Migrations OK');
   } catch (err) {

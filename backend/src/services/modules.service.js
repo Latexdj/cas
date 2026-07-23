@@ -4,7 +4,7 @@ const ALL_MODULE_KEYS = [
   'teacher_attendance', 'student_attendance', 'timetable',
   'leave_management', 'meeting_attendance', 'plc',
   'remedial_lessons', 'assessments', 'houses',
-  'exeat', 'clearance', 'library', 'classroom_qr', 'fees',
+  'exeat', 'clearance', 'library', 'classroom_qr', 'fees', 'inventory',
 ];
 
 const MODULE_REGISTRY = [
@@ -22,6 +22,7 @@ const MODULE_REGISTRY = [
   { key: 'library',            label: 'Library',              description: 'Book catalog, loans, and overdue tracking',                        core: false, defaultFor: ['JHS','SHS','University'] },
   { key: 'classroom_qr',       label: 'Classroom QR',         description: 'QR codes for classroom location verification',                     core: false, defaultFor: 'all' },
   { key: 'fees',               label: 'Accounts & Fees',      description: 'Fee schedules, payments, and outstanding balance tracking',      core: false, defaultFor: [] },
+  { key: 'inventory',          label: 'Inventory',            description: 'Track school assets, equipment, books, and issue/return logs',     core: false, defaultFor: 'all' },
 ];
 
 function defaultModulesForType(schoolType, schoolCategory) {
