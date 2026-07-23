@@ -274,8 +274,8 @@ router.get('/readiness-check', async (req, res, next) => {
       ),
       // C: total active students in the class
       pool.query(
-        `SELECT COUNT(*) AS cnt FROM students WHERE school_id=$1 AND class_name=$5 AND status='Active'`,
-        p
+        `SELECT COUNT(*) AS cnt FROM students WHERE school_id=$1 AND class_name=$2 AND status='Active'`,
+        [req.schoolId, class_name]
       ),
       // D: students who already have an exam score
       pool.query(
@@ -325,8 +325,8 @@ router.post('/submit', async (req, res, next) => {
     // Pre-fetch total active students in the class (used in multiple checks)
     const { rows: totalRows } = await pool.query(
       `SELECT COUNT(*)::int AS total FROM students
-       WHERE school_id=$1 AND LOWER(class_name)=LOWER($5) AND status='Active'`,
-      p
+       WHERE school_id=$1 AND LOWER(class_name)=LOWER($2) AND status='Active'`,
+      [req.schoolId, class_name]
     );
     const totalStudents = totalRows[0]?.total ?? 0;
 
