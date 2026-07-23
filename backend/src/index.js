@@ -1890,7 +1890,12 @@ async function runMigrations() {
     // Migrate selected_option from INTEGER to TEXT (was declared INTEGER but stores letter strings a/b/c/d)
     await pool.query(`ALTER TABLE lms_quiz_answers ALTER COLUMN selected_option TYPE TEXT USING selected_option::text`);
     // Add unique constraint on quiz answers so ON CONFLICT DO NOTHING is meaningful
-    await pool.query(`ALTER TABLE lms_quiz_answers ADD CONSTRAINT IF NOT EXISTS uq_lms_quiz_answers_attempt_question UNIQUE (attempt_id, question_id)`);
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE lms_quiz_answers ADD CONSTRAINT uq_lms_quiz_answers_attempt_question UNIQUE (attempt_id, question_id);
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$
+    `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_lessons_course        ON lms_lessons(course_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_assignments_course    ON lms_assignments(course_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_quiz_questions_quiz   ON lms_quiz_questions(quiz_id)`);
