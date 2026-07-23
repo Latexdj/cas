@@ -479,29 +479,29 @@ router.get('/report', async (req, res, next) => {
          i.ownership_type,
          d.name AS department_name,
          COUNT(i.id)::int AS item_count,
-         COALESCE(SUM(i.quantity_total),0)::int AS total_units,
-         COALESCE(SUM(i.quantity_available),0)::int AS available_units,
-         COALESCE(SUM(i.quantity_total - i.quantity_available) FILTER (WHERE i.condition!='Written Off'),0)::int AS units_issued,
-         COUNT(i.id) FILTER (WHERE i.condition='Good')::int AS good_count,
-         COUNT(i.id) FILTER (WHERE i.condition='Damaged')::int AS damaged_count,
-         COUNT(i.id) FILTER (WHERE i.condition='Written Off')::int AS written_off_count
+         COALESCE(SUM(i.quantity_total), 0)::int AS total_units,
+         COALESCE(SUM(i.quantity_available), 0)::int AS available_units,
+         COALESCE(SUM(CASE WHEN i.condition != 'Written Off' THEN i.quantity_total - i.quantity_available ELSE 0 END), 0)::int AS units_issued,
+         COALESCE(SUM(CASE WHEN i.condition = 'Good'         THEN 1 ELSE 0 END), 0)::int AS good_count,
+         COALESCE(SUM(CASE WHEN i.condition = 'Damaged'      THEN 1 ELSE 0 END), 0)::int AS damaged_count,
+         COALESCE(SUM(CASE WHEN i.condition = 'Written Off'  THEN 1 ELSE 0 END), 0)::int AS written_off_count
        FROM inventory_items i
        LEFT JOIN departments d ON d.id = i.department_id
-       WHERE i.school_id=$1
+       WHERE i.school_id = $1
        GROUP BY i.ownership_type, d.name
-       ORDER BY i.ownership_type DESC, COALESCE(d.name,'') ASC`,
+       ORDER BY i.ownership_type DESC, COALESCE(d.name, '') ASC`,
       [req.schoolId]
     );
 
     const { rows: totals } = await pool.query(
       `SELECT
          COUNT(*)::int AS total_items,
-         COALESCE(SUM(quantity_total),0)::int AS total_units,
-         COALESCE(SUM(quantity_available),0)::int AS available_units,
-         COUNT(*) FILTER (WHERE condition='Good')::int AS good_count,
-         COUNT(*) FILTER (WHERE condition='Damaged')::int AS damaged_count,
-         COUNT(*) FILTER (WHERE condition='Written Off')::int AS written_off_count
-       FROM inventory_items WHERE school_id=$1`,
+         COALESCE(SUM(quantity_total), 0)::int AS total_units,
+         COALESCE(SUM(quantity_available), 0)::int AS available_units,
+         COALESCE(SUM(CASE WHEN condition = 'Good'        THEN 1 ELSE 0 END), 0)::int AS good_count,
+         COALESCE(SUM(CASE WHEN condition = 'Damaged'     THEN 1 ELSE 0 END), 0)::int AS damaged_count,
+         COALESCE(SUM(CASE WHEN condition = 'Written Off' THEN 1 ELSE 0 END), 0)::int AS written_off_count
+       FROM inventory_items WHERE school_id = $1`,
       [req.schoolId]
     );
 
