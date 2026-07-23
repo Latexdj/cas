@@ -1971,6 +1971,12 @@ async function runMigrations() {
       )
       ON CONFLICT DO NOTHING
     `);
+    // Inventory ownership + department linkage
+    await pool.query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS ownership_type TEXT NOT NULL DEFAULT 'general' CHECK (ownership_type IN ('general', 'departmental'))`);
+    await pool.query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES departments(id) ON DELETE SET NULL`);
+    // Inventory transaction recipient typing
+    await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS issued_to_type TEXT CHECK (issued_to_type IN ('student', 'staff', 'department'))`);
+    await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS student_id UUID REFERENCES students(id) ON DELETE SET NULL`);
 
     console.log('Migrations OK');
   } catch (err) {

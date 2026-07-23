@@ -31,7 +31,7 @@ router.post('/', async (req, res, next) => {
     if (!name?.trim() || !email?.trim() || !password)
       return res.status(400).json({ error: 'name, email and password are required' });
     if (!roles.length)
-      return res.status(400).json({ error: 'At least one role (clearance or library) is required' });
+      return res.status(400).json({ error: 'At least one role (clearance, library, or inventory) is required' });
     if (password.length < 6)
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
 

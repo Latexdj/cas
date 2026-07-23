@@ -26,6 +26,16 @@ interface HistoryItem {
   item_id: string; office_name: string; status: string; notes: string | null; actioned_at: string | null;
 }
 
+// ─── Inventory types ──────────────────────────────────────────────────────────
+interface InvItem {
+  id: string; name: string; item_type: string; asset_tag: string | null;
+  quantity_total: number; quantity_available: number; condition: string;
+  location: string | null; category_name: string | null;
+}
+interface InvStudent {
+  id: string; name: string; student_code: string; class_name: string; picture_url: string | null;
+}
+
 // ─── Library types ────────────────────────────────────────────────────────────
 interface DashStats { total_books: number; available_copies: number; active_loans: number; overdue_loans: number; returned_today: number; }
 interface Book { id: string; title: string; author: string | null; subject: string | null; available_copies: number; total_copies: number; }
@@ -51,9 +61,10 @@ const STATUS_STYLE = {
   pending:     { badge: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400', label: 'Pending'    },
 };
 
-type Section     = 'clearance' | 'library';
+type Section     = 'clearance' | 'library' | 'inventory';
 type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
+type InvTab      = 'items' | 'issue' | 'return';
 
 export default function StaffPortalPage() {
   const user   = typeof window !== 'undefined' ? getStaffUser() : null;
@@ -64,8 +75,9 @@ export default function StaffPortalPage() {
   const staffRoles: string[] = user?.staffRoles ?? [];
   const hasLib  = staffRoles.includes('library');
   const hasCl   = staffRoles.includes('clearance');
+  const hasInv  = staffRoles.includes('inventory');
 
-  const defaultSection: Section = hasCl ? 'clearance' : 'library';
+  const defaultSection: Section = hasCl ? 'clearance' : hasLib ? 'library' : 'inventory';
   const [section, setSection] = useState<Section>(defaultSection);
 
   // ── Clearance state ─────────────────────────────────────────────────────────
@@ -115,6 +127,31 @@ export default function StaffPortalPage() {
   const [overdue,       setOverdue]       = useState<OverdueLoan[]>([]);
   const [overdueLoading, setOverdueLoading] = useState(false);
 
+  // ── Inventory state ──────────────────────────────────────────────────────────
+  const [invTab,          setInvTab]          = useState<InvTab>('items');
+  const [invItems,        setInvItems]        = useState<InvItem[]>([]);
+  const [invLoading,      setInvLoading]      = useState(false);
+
+  // Issue
+  const [invIssueCode,    setInvIssueCode]    = useState('');
+  const [invIssueStudent, setInvIssueStudent] = useState<InvStudent | null>(null);
+  const [invIssueStudErr, setInvIssueStudErr] = useState('');
+  const [invIssueStudLoad,setInvIssueStudLoad]= useState(false);
+  const [invIssueItem,    setInvIssueItem]    = useState('');
+  const [invIssueQty,     setInvIssueQty]     = useState('1');
+  const [invIssueNotes,   setInvIssueNotes]   = useState('');
+  const [invIssuing,      setInvIssuing]      = useState(false);
+  const [invIssueErr,     setInvIssueErr]     = useState('');
+
+  // Return
+  const [invReturnItem,   setInvReturnItem]   = useState('');
+  const [invReturnQty,    setInvReturnQty]    = useState('1');
+  const [invReturnCond,   setInvReturnCond]   = useState('Good');
+  const [invReturnNotes,  setInvReturnNotes]  = useState('');
+  const [invReturning,    setInvReturning]    = useState(false);
+  const [invReturnErr,    setInvReturnErr]    = useState('');
+  const [invReturnOk,     setInvReturnOk]     = useState(false);
+
   // ── Initial load ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!hasCl) return;
@@ -133,8 +170,9 @@ export default function StaffPortalPage() {
     if (section === 'library' && libTab === 'issue') { loadBooks(); setIssueStudent(null); setIssueCode(''); }
     if (section === 'library' && libTab === 'return') { setReturnStudent(null); setReturnCode(''); }
     if (section === 'library' && libTab === 'overdue') loadOverdue();
+    if (section === 'inventory') loadInvItems();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section, libTab]);
+  }, [section, libTab, invTab]);
 
   // ── Clearance helpers ─────────────────────────────────────────────────────────
   async function handleLookup(e: React.FormEvent) {
@@ -253,6 +291,57 @@ export default function StaffPortalPage() {
     finally { setReturning(null); }
   }
 
+  // ── Inventory helpers ─────────────────────────────────────────────────────────
+  function loadInvItems() {
+    setInvLoading(true);
+    api.get<InvItem[]>('/api/inventory/items')
+      .then(r => setInvItems(r.data)).catch(() => {}).finally(() => setInvLoading(false));
+  }
+
+  async function lookupInvStudent() {
+    if (!invIssueCode.trim()) return;
+    setInvIssueStudLoad(true); setInvIssueStudErr(''); setInvIssueStudent(null);
+    try {
+      const r = await api.get<InvStudent>(`/api/inventory/students/${invIssueCode.trim()}`);
+      setInvIssueStudent(r.data);
+    } catch { setInvIssueStudErr('Student not found.'); }
+    finally { setInvIssueStudLoad(false); }
+  }
+
+  async function submitInvIssue() {
+    if (!invIssueStudent || !invIssueItem) return;
+    const item = invItems.find(i => i.id === invIssueItem);
+    if (!item) return;
+    setInvIssuing(true); setInvIssueErr('');
+    try {
+      await api.post(`/api/inventory/items/${invIssueItem}/issue`, {
+        issued_to_name: invIssueStudent.name,
+        issued_to_type: 'student',
+        student_id: invIssueStudent.id,
+        quantity: parseInt(invIssueQty) || 1,
+        notes: invIssueNotes || null,
+      });
+      setInvIssueStudent(null); setInvIssueCode(''); setInvIssueItem(''); setInvIssueQty('1'); setInvIssueNotes('');
+      loadInvItems();
+    } catch (e: any) { setInvIssueErr(e.response?.data?.error ?? 'Failed to issue'); }
+    finally { setInvIssuing(false); }
+  }
+
+  async function submitInvReturn() {
+    if (!invReturnItem) return;
+    setInvReturning(true); setInvReturnErr(''); setInvReturnOk(false);
+    try {
+      await api.post(`/api/inventory/items/${invReturnItem}/return`, {
+        quantity: parseInt(invReturnQty) || 1,
+        condition: invReturnCond,
+        notes: invReturnNotes || null,
+      });
+      setInvReturnOk(true); setInvReturnItem(''); setInvReturnQty('1'); setInvReturnCond('Good'); setInvReturnNotes('');
+      loadInvItems();
+    } catch (e: any) { setInvReturnErr(e.response?.data?.error ?? 'Failed to process return'); }
+    finally { setInvReturning(false); }
+  }
+
   const filteredPending = officeFilter ? pending.filter(p => p.office_id === officeFilter) : pending;
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -267,16 +356,18 @@ export default function StaffPortalPage() {
         </p>
       </div>
 
-      {/* Section switcher (only shown if user has both roles) */}
-      {hasLib && hasCl && (
+      {/* Section switcher (shown when user has more than one role) */}
+      {([hasCl, hasLib, hasInv].filter(Boolean).length > 1) && (
         <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-          {(['clearance', 'library'] as Section[]).map(s => (
-            <button key={s} onClick={() => setSection(s)}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors capitalize ${section === s ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-              style={section === s ? { background: primary } : {}}>
-              {s === 'clearance' ? 'Clearance' : 'Library'}
-            </button>
-          ))}
+          {([hasCl && 'clearance', hasLib && 'library', hasInv && 'inventory'] as (Section | false)[])
+            .filter((s): s is Section => !!s)
+            .map(s => (
+              <button key={s} onClick={() => setSection(s)}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors capitalize ${section === s ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                style={section === s ? { background: primary } : {}}>
+                {s === 'clearance' ? 'Clearance' : s === 'library' ? 'Library' : 'Inventory'}
+              </button>
+            ))}
         </div>
       )}
 
@@ -616,6 +707,170 @@ export default function StaffPortalPage() {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Inventory Section ─────────────────────────────────────────────── */}
+      {hasInv && section === 'inventory' && (
+        <div className="space-y-4">
+          <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
+            {([['items', 'Items'], ['issue', 'Issue'], ['return', 'Return']] as const).map(([key, label]) => (
+              <button key={key} onClick={() => { setInvTab(key); setInvReturnOk(false); }}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${invTab === key ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
+                style={invTab === key ? { background: primary } : {}}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {invLoading && <div className="flex justify-center py-10"><div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} /></div>}
+
+          {/* Items list */}
+          {invTab === 'items' && !invLoading && (
+            <div>
+              {invItems.length === 0
+                ? <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-10 text-center text-slate-400 text-sm">No inventory items found.</div>
+                : <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
+                    {invItems.map(item => {
+                      const issued = item.quantity_total - item.quantity_available;
+                      return (
+                        <div key={item.id} className="px-4 py-3 flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{item.name}</p>
+                            <p className="text-xs text-slate-400">{item.category_name ?? item.item_type}{item.asset_tag ? ` · ${item.asset_tag}` : ''}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-bold text-slate-900 dark:text-white">{item.quantity_available} <span className="font-normal text-slate-400">/ {item.quantity_total}</span></p>
+                            {issued > 0 && <p className="text-xs text-amber-600">{issued} out</p>}
+                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${item.condition === 'Good' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : item.condition === 'Damaged' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                            {item.condition}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+              }
+            </div>
+          )}
+
+          {/* Issue */}
+          {invTab === 'issue' && (
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <input value={invIssueCode}
+                  onChange={e => { setInvIssueCode(e.target.value.toUpperCase()); setInvIssueStudent(null); setInvIssueStudErr(''); }}
+                  onKeyDown={e => e.key === 'Enter' && lookupInvStudent()}
+                  placeholder="Enter Student ID…"
+                  className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono uppercase tracking-widest bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                <button onClick={lookupInvStudent} disabled={invIssueStudLoad || !invIssueCode.trim()}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
+                  {invIssueStudLoad ? '…' : 'Find'}
+                </button>
+              </div>
+              {invIssueStudErr && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">{invIssueStudErr}</p>}
+              {invIssueStudent && (
+                <div className="space-y-4">
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-lg font-bold text-slate-500 overflow-hidden shrink-0">
+                      {invIssueStudent.picture_url ? <img src={invIssueStudent.picture_url} alt="" className="w-full h-full object-cover" /> : invIssueStudent.name[0]}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-800 dark:text-white">{invIssueStudent.name}</p>
+                      <p className="text-xs text-slate-400">{invIssueStudent.student_code} · {invIssueStudent.class_name}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Select Item</label>
+                      <select className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
+                        value={invIssueItem} onChange={e => { setInvIssueItem(e.target.value); setInvIssueQty('1'); }}>
+                        <option value="">— Select item —</option>
+                        {invItems.filter(i => i.quantity_available > 0 && i.condition !== 'Written Off').map(i => (
+                          <option key={i.id} value={i.id}>{i.name} ({i.quantity_available} avail.)</option>
+                        ))}
+                      </select>
+                    </div>
+                    {invIssueItem && (
+                      <>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Quantity</label>
+                          <input type="number" min="1"
+                            max={invItems.find(i => i.id === invIssueItem)?.quantity_available ?? 1}
+                            value={invIssueQty} onChange={e => setInvIssueQty(e.target.value)}
+                            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Notes (optional)</label>
+                          <input value={invIssueNotes} onChange={e => setInvIssueNotes(e.target.value)}
+                            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
+                        </div>
+                      </>
+                    )}
+                    {invIssueErr && <p className="text-sm text-red-500">{invIssueErr}</p>}
+                    <button onClick={submitInvIssue} disabled={!invIssueItem || invIssuing}
+                      className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
+                      {invIssuing ? 'Issuing…' : 'Issue Item'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Return */}
+          {invTab === 'return' && (
+            <div className="space-y-4">
+              {invReturnOk && (
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900 rounded-xl p-4">
+                  <p className="font-semibold text-green-800 dark:text-green-300">Item returned successfully!</p>
+                  <button className="text-xs text-green-700 dark:text-green-400 underline mt-1" onClick={() => setInvReturnOk(false)}>Dismiss</button>
+                </div>
+              )}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Select Item to Return</label>
+                  <select className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
+                    value={invReturnItem} onChange={e => { setInvReturnItem(e.target.value); setInvReturnQty('1'); setInvReturnErr(''); }}>
+                    <option value="">— Select item —</option>
+                    {invItems.filter(i => i.quantity_available < i.quantity_total).map(i => {
+                      const out = i.quantity_total - i.quantity_available;
+                      return <option key={i.id} value={i.id}>{i.name} ({out} out)</option>;
+                    })}
+                  </select>
+                </div>
+                {invReturnItem && (
+                  <>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Quantity Returned</label>
+                      <input type="number" min="1"
+                        max={(() => { const it = invItems.find(i => i.id === invReturnItem); return it ? it.quantity_total - it.quantity_available : 1; })()}
+                        value={invReturnQty} onChange={e => setInvReturnQty(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Returned Condition</label>
+                      <select value={invReturnCond} onChange={e => setInvReturnCond(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
+                        <option value="Good">Good</option>
+                        <option value="Damaged">Damaged</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Notes (optional)</label>
+                      <input value={invReturnNotes} onChange={e => setInvReturnNotes(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
+                    </div>
+                  </>
+                )}
+                {invReturnErr && <p className="text-sm text-red-500">{invReturnErr}</p>}
+                <button onClick={submitInvReturn} disabled={!invReturnItem || invReturning}
+                  className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 bg-green-600">
+                  {invReturning ? 'Processing…' : 'Confirm Return'}
+                </button>
+              </div>
             </div>
           )}
         </div>
