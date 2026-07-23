@@ -86,23 +86,28 @@ export default function InventoryItemsPage() {
 
   const [deletingId, setDeletingId] = useState('');
 
+  // Departments loaded once on mount, independently
+  useEffect(() => {
+    api.get<Department[]>('/api/inventory/departments')
+      .then(r => setDepartments(r.data))
+      .catch(() => {});
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, string> = {};
-      if (search)     params.search       = search;
-      if (filterCat)  params.category_id  = filterCat;
-      if (filterCond) params.condition    = filterCond;
-      if (filterType) params.item_type    = filterType;
+      if (search)     params.search         = search;
+      if (filterCat)  params.category_id    = filterCat;
+      if (filterCond) params.condition      = filterCond;
+      if (filterType) params.item_type      = filterType;
       if (filterOwn)  params.ownership_type = filterOwn;
-      const [itemsRes, catsRes, deptsRes] = await Promise.all([
+      const [itemsRes, catsRes] = await Promise.all([
         api.get<Item[]>('/api/inventory/items', { params }),
         api.get<Category[]>('/api/inventory/categories'),
-        api.get<Department[]>('/api/inventory/departments'),
       ]);
       setItems(itemsRes.data);
       setCategories(catsRes.data);
-      setDepartments(deptsRes.data);
     } catch { /* silent */ }
     finally { setLoading(false); }
   }, [search, filterCat, filterCond, filterType, filterOwn]);
