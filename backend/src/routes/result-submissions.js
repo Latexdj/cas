@@ -294,19 +294,20 @@ router.get('/readiness-check', async (req, res, next) => {
       ),
     ]);
 
-    const examScoresEntered = parseInt(examRes.rows[0].cnt) > 0;
-    const missingModes      = missingRes.rows.map(r => r.name);
-    const totalStudents     = parseInt(totalRes.rows[0].cnt);
-    const studentsWithoutExamScore = Math.max(0, totalStudents - parseInt(scoredExamRes.rows[0].cnt));
-    const studentsWithoutAnyCA     = Math.max(0, totalStudents - parseInt(scoredCaRes.rows[0].cnt));
+    const totalStudents    = parseInt(totalRes.rows[0].cnt);
+    const examScoredCount  = parseInt(scoredExamRes.rows[0].cnt);
+    const examComplete     = totalStudents > 0 && examScoredCount === totalStudents;
+    const missingModes     = missingRes.rows.map(r => r.name);
+    const studentsWithoutAnyCA = Math.max(0, totalStudents - parseInt(scoredCaRes.rows[0].cnt));
 
     res.json({
-      examScoresEntered,
-      missingModes,
-      studentsWithoutExamScore,
-      studentsWithoutAnyCA,
+      examScoredCount,
+      examComplete,
       totalStudents,
-      canSubmit: examScoresEntered && missingModes.length === 0,
+      missingModes,
+      incompleteAssessments: [],
+      studentsWithoutAnyCA,
+      canSubmit: examComplete && missingModes.length === 0,
     });
   } catch (err) { next(err); }
 });
