@@ -607,6 +607,19 @@ export default function ResultsPage() {
   const [previewLoading,  setPreviewLoading]  = useState(false);
   const [previewError,    setPreviewError]    = useState('');
 
+  interface AssessmentCheck { label: string; modeName: string; actedOn: number; total: number; complete: boolean; }
+  interface ReadinessData {
+    totalStudents:  number;
+    examScoredCount: number;
+    examComplete:   boolean;
+    missingModes:   string[];
+    assessments:    AssessmentCheck[];
+    canApprove:     boolean;
+  }
+  const [readiness,        setReadiness]        = useState<ReadinessData | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
+  const [readinessError,   setReadinessError]   = useState('');
+
   useEffect(() => {
     api.get<SchoolProfile>('/api/admin/school-profile').then(r => setSchool(r.data)).catch(() => {});
   }, []);
@@ -665,19 +678,38 @@ export default function ResultsPage() {
     setApprovalError('');
     setPreviewResults([]);
     setPreviewError('');
-    // Fetch results preview for approve/publish actions
+    setReadiness(null);
+    setReadinessError('');
+
     if (action === 'approve' || action === 'publish') {
-      setPreviewLoading(true);
-      try {
-        const { data } = await api.get<StudentResult[]>('/api/results', {
-          params: { academic_year_id: item.academic_year_id, semester: item.semester, class_name: item.class_name },
-        });
-        setPreviewResults(data);
-      } catch {
-        setPreviewError('Could not load results preview.');
-      } finally {
-        setPreviewLoading(false);
+      // Fetch results preview and (for approve) the completeness check in parallel
+      const fetches: Promise<void>[] = [
+        (async () => {
+          setPreviewLoading(true);
+          try {
+            const { data } = await api.get<StudentResult[]>('/api/results', {
+              params: { academic_year_id: item.academic_year_id, semester: item.semester, class_name: item.class_name },
+            });
+            setPreviewResults(data);
+          } catch { setPreviewError('Could not load results preview.'); }
+          finally { setPreviewLoading(false); }
+        })(),
+      ];
+
+      if (action === 'approve') {
+        fetches.push(
+          (async () => {
+            setReadinessLoading(true);
+            try {
+              const { data } = await api.get<ReadinessData>(`/api/result-submissions/submission-readiness?submission_id=${item.id}`);
+              setReadiness(data);
+            } catch { setReadinessError('Could not load completeness check.'); }
+            finally { setReadinessLoading(false); }
+          })()
+        );
       }
+
+      await Promise.all(fetches);
     }
   }
 
@@ -920,6 +952,67 @@ export default function ResultsPage() {
                       {approvalTarget.subject} · {approvalTarget.class_name} · {approvalTarget.teacher_name}
                     </p>
 
+                    {/* Completeness check — shown only for Approve action */}
+                    {approvalAction === 'approve' && (
+                      <div style={{ marginBottom: 16 }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Scores Completeness
+                        </p>
+                        {readinessLoading ? (
+                          <div style={{ textAlign: 'center', padding: '10px 0', color: '#94A3B8', fontSize: 12 }}>Checking…</div>
+                        ) : readinessError ? (
+                          <p style={{ fontSize: 12, color: '#DC2626' }}>{readinessError}</p>
+                        ) : readiness ? (() => {
+                          const tick   = (ok: boolean) => ok
+                            ? <span style={{ color: '#15803D', fontWeight: 700, marginRight: 6 }}>✓</span>
+                            : <span style={{ color: '#DC2626', fontWeight: 700, marginRight: 6 }}>✗</span>;
+                          const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 10px', fontSize: 12, borderBottom: '1px solid #F1F5F9' };
+                          return (
+                            <div style={{ border: '1px solid #E2E8F0', borderRadius: 8, overflow: 'hidden', background: readiness.canApprove ? '#F0FDF4' : '#FFF7ED' }}>
+                              {/* Exam row */}
+                              <div style={rowStyle}>
+                                <span style={{ display: 'flex', alignItems: 'center' }}>
+                                  {tick(readiness.examComplete)}
+                                  <span style={{ color: '#374151' }}>Exam scores</span>
+                                </span>
+                                <span style={{ fontWeight: 600, color: readiness.examComplete ? '#15803D' : '#DC2626' }}>
+                                  {readiness.examScoredCount} / {readiness.totalStudents} students
+                                </span>
+                              </div>
+                              {/* Missing CA modes */}
+                              {readiness.missingModes.map(m => (
+                                <div key={m} style={rowStyle}>
+                                  <span style={{ display: 'flex', alignItems: 'center' }}>
+                                    {tick(false)}
+                                    <span style={{ color: '#374151' }}>{m} <span style={{ color: '#94A3B8', fontSize: 11 }}>(no assessment created)</span></span>
+                                  </span>
+                                  <span style={{ fontWeight: 600, color: '#DC2626' }}>Missing</span>
+                                </div>
+                              ))}
+                              {/* Per-assessment CA rows */}
+                              {readiness.assessments.map(a => (
+                                <div key={a.label} style={rowStyle}>
+                                  <span style={{ display: 'flex', alignItems: 'center' }}>
+                                    {tick(a.complete)}
+                                    <span style={{ color: '#374151' }}>{a.label} <span style={{ color: '#94A3B8', fontSize: 11 }}>({a.modeName})</span></span>
+                                  </span>
+                                  <span style={{ fontWeight: 600, color: a.complete ? '#15803D' : '#DC2626' }}>
+                                    {a.actedOn} / {a.total} students
+                                  </span>
+                                </div>
+                              ))}
+                              {/* Overall banner */}
+                              <div style={{ padding: '7px 10px', background: readiness.canApprove ? '#DCFCE7' : '#FEE2E2', fontSize: 12, fontWeight: 700, color: readiness.canApprove ? '#15803D' : '#DC2626' }}>
+                                {readiness.canApprove
+                                  ? '✓ All scores complete — safe to approve'
+                                  : '✗ Scores incomplete — reject back to teacher to fix'}
+                              </div>
+                            </div>
+                          );
+                        })() : null}
+                      </div>
+                    )}
+
                     {/* Results preview for approve / publish actions */}
                     {(approvalAction === 'approve' || approvalAction === 'publish') && (
                       <div style={{ marginBottom: 16 }}>
@@ -1003,8 +1096,13 @@ export default function ResultsPage() {
                         style={{ flex: 1, padding: '9px 0', border: '1px solid #E2E8F0', borderRadius: 10, fontSize: 13, fontWeight: 600, background: '#fff', color: '#374151', cursor: 'pointer' }}>
                         Cancel
                       </button>
-                      <button onClick={doApprovalAction} disabled={approving}
-                        style={{ flex: 1, padding: '9px 0', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: approving ? 0.7 : 1,
+                      <button
+                        onClick={doApprovalAction}
+                        disabled={approving || (approvalAction === 'approve' && readiness !== null && !readiness.canApprove)}
+                        title={approvalAction === 'approve' && readiness && !readiness.canApprove ? 'Scores are incomplete — reject back to the teacher to fix first' : undefined}
+                        style={{ flex: 1, padding: '9px 0', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                          cursor: (approving || (approvalAction === 'approve' && readiness !== null && !readiness.canApprove)) ? 'not-allowed' : 'pointer',
+                          opacity: (approving || (approvalAction === 'approve' && readiness !== null && !readiness.canApprove)) ? 0.45 : 1,
                           background: approvalAction === 'reject' ? '#DC2626' : approvalAction === 'unlock' ? '#64748B' : approvalAction === 'publish' ? '#3730A3' : '#15803D',
                           color: '#fff' }}>
                         {approving ? '…' : approvalAction === 'approve' ? 'Final Approve' : approvalAction === 'publish' ? 'Publish' : approvalAction === 'unlock' ? 'Unlock' : 'Reject & Return'}

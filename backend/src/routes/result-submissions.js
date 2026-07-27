@@ -254,6 +254,94 @@ router.get('/final-queue', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /submission-readiness — admin sees the same score-completeness checks ──
+// identical gate logic to /submit so academics see exactly what blocked/passed
+router.get('/submission-readiness', adminOnly, async (req, res, next) => {
+  try {
+    const { submission_id } = req.query;
+    if (!submission_id) return res.status(400).json({ error: 'submission_id is required' });
+
+    const { rows: subRows } = await pool.query(
+      `SELECT subject, class_name, academic_year_id, semester
+       FROM result_submissions WHERE id=$1 AND school_id=$2`,
+      [submission_id, req.schoolId]
+    );
+    if (!subRows.length) return res.status(404).json({ error: 'Submission not found' });
+
+    const { subject, class_name, academic_year_id, semester } = subRows[0];
+    const sem = parseInt(semester);
+    const p   = [req.schoolId, academic_year_id, sem, subject, class_name];
+
+    const [totalRes, examRes, missingModesRes, incompleteRes] = await Promise.all([
+      // total active students in the class
+      pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM students
+         WHERE school_id=$1 AND LOWER(class_name)=LOWER($2) AND status='Active'`,
+        [req.schoolId, class_name]
+      ),
+      // active students with an exam score for this subject
+      pool.query(
+        `SELECT COUNT(DISTINCT es.student_id)::int AS cnt
+         FROM exam_scores es
+         JOIN students s ON s.id = es.student_id
+         WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3
+           AND LOWER(es.subject)=LOWER($4) AND LOWER(es.class_name)=LOWER($5)
+           AND es.score IS NOT NULL
+           AND s.status='Active' AND LOWER(s.class_name)=LOWER($5)`,
+        p
+      ),
+      // CA modes with ca_contribution > 0 that have no assessment created yet
+      pool.query(
+        `SELECT m.name FROM assessment_modes m
+         WHERE m.school_id=$1 AND m.ca_contribution > 0
+           AND NOT EXISTS (
+             SELECT 1 FROM assessments a
+             WHERE a.school_id=$1 AND a.mode_id=m.id
+               AND LOWER(a.subject)=LOWER($4) AND LOWER(a.class_name)=LOWER($5)
+               AND a.academic_year_id=$2 AND a.semester=$3
+           )
+         ORDER BY m.sort_order`,
+        p
+      ),
+      // assessments where some students are still not acted on (no score & not absent)
+      pool.query(
+        `SELECT a.id,
+                COALESCE(a.title, m.name || ' #' || ROW_NUMBER() OVER (PARTITION BY a.mode_id ORDER BY a.created_at)) AS label,
+                m.name AS mode_name,
+                COUNT(CASE WHEN sc.score IS NOT NULL OR sc.absent = true THEN sc.student_id END)::int AS acted_on
+         FROM assessments a
+         JOIN assessment_modes m ON m.id = a.mode_id
+         LEFT JOIN assessment_scores sc ON sc.assessment_id = a.id
+         WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
+           AND LOWER(a.subject)=LOWER($4) AND LOWER(a.class_name)=LOWER($5)
+         GROUP BY a.id, m.name, m.id`,
+        p
+      ),
+    ]);
+
+    const totalStudents  = totalRes.rows[0].cnt;
+    const examScoredCount = examRes.rows[0].cnt;
+    const examComplete   = totalStudents > 0 && examScoredCount === totalStudents;
+    const missingModes   = missingModesRes.rows.map(r => r.name);
+    const assessments    = incompleteRes.rows.map(r => ({
+      label:    r.label,
+      modeName: r.mode_name,
+      actedOn:  r.acted_on,
+      total:    totalStudents,
+      complete: r.acted_on >= totalStudents,
+    }));
+
+    res.json({
+      totalStudents,
+      examScoredCount,
+      examComplete,
+      missingModes,
+      assessments,
+      canApprove: examComplete && missingModes.length === 0 && assessments.every(a => a.complete),
+    });
+  } catch (err) { next(err); }
+});
+
 // ── GET /readiness-check — preflight check before teacher submits ──────────────
 router.get('/readiness-check', async (req, res, next) => {
   try {
