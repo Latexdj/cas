@@ -943,14 +943,17 @@ export default function ResultsPage() {
               {approvalTarget && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
                   onClick={() => setApprovalTarget(null)}>
-                  <div style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 560, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
+                  <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 560, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 48px)' }}
                     onClick={e => e.stopPropagation()}>
-                    <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>
-                      {approvalAction === 'approve' ? 'Final Approval' : approvalAction === 'publish' ? 'Publish Results' : approvalAction === 'unlock' ? 'Unlock Submission' : 'Reject & Return'}
-                    </h3>
-                    <p style={{ fontSize: 13, color: '#64748B', marginBottom: 12 }}>
-                      {approvalTarget.subject} · {approvalTarget.class_name} · {approvalTarget.teacher_name}
-                    </p>
+                    <div style={{ padding: '20px 24px 14px', borderBottom: '1px solid #F1F5F9', flexShrink: 0 }}>
+                      <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>
+                        {approvalAction === 'approve' ? 'Final Approval' : approvalAction === 'publish' ? 'Publish Results' : approvalAction === 'unlock' ? 'Unlock Submission' : 'Reject & Return'}
+                      </h3>
+                      <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>
+                        {approvalTarget.subject} · {approvalTarget.class_name} · {approvalTarget.teacher_name}
+                      </p>
+                    </div>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
 
                     {/* Completeness check — shown only for Approve action */}
                     {approvalAction === 'approve' && (
@@ -1089,9 +1092,11 @@ export default function ResultsPage() {
                       </>
                     )}
 
-                    {approvalError && <p style={{ fontSize: 12, color: '#DC2626', marginTop: 6 }}>{approvalError}</p>}
+                    </div>
+                    <div style={{ padding: '12px 24px 20px', borderTop: '1px solid #F1F5F9', flexShrink: 0 }}>
+                    {approvalError && <p style={{ fontSize: 12, color: '#DC2626', marginBottom: 8 }}>{approvalError}</p>}
 
-                    <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                    <div style={{ display: 'flex', gap: 10 }}>
                       <button onClick={() => setApprovalTarget(null)}
                         style={{ flex: 1, padding: '9px 0', border: '1px solid #E2E8F0', borderRadius: 10, fontSize: 13, fontWeight: 600, background: '#fff', color: '#374151', cursor: 'pointer' }}>
                         Cancel
@@ -1107,6 +1112,7 @@ export default function ResultsPage() {
                           color: '#fff' }}>
                         {approving ? '…' : approvalAction === 'approve' ? 'Final Approve' : approvalAction === 'publish' ? 'Publish' : approvalAction === 'unlock' ? 'Unlock' : 'Reject & Return'}
                       </button>
+                    </div>
                     </div>
                   </div>
                 </div>
