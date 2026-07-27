@@ -173,9 +173,20 @@ router.get('/hod-queue', async (req, res, next) => {
         params.push(hod.programmeId);
         deptFilter = `AND s.program_id = $${params.length}`;
       } else if (hod.hodDept) {
-        // Subject HOD: show submissions from teachers in the same department
+        // Subject HOD: show submissions from teachers whose department matches,
+        // OR whose teacher record IS the head_teacher_id of the HOD's department
+        // (covers the case where the HOD's own teachers.department differs from departments.name)
         params.push(hod.hodDept);
-        deptFilter = `AND LOWER(t.department) = LOWER($${params.length})`;
+        const deptParam = params.length;
+        deptFilter = `AND (
+          LOWER(t.department) = LOWER($${deptParam})
+          OR EXISTS (
+            SELECT 1 FROM departments d
+            WHERE d.school_id = $1
+              AND LOWER(d.name) = LOWER($${deptParam})
+              AND d.head_teacher_id = t.id
+          )
+        )`;
       }
     }
 
