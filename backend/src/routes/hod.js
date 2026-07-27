@@ -131,11 +131,19 @@ router.get('/overview', hodOnly, async (req, res, next) => {
           [req.schoolId, req.programmeId]
         );
 
+    // dept_member_clause: true for any teacher whose department field matches OR who is
+    // the head_teacher_id of this department (covers HODs whose teachers.department
+    // field does not exactly match departments.name)
+    const deptMember = `(
+      LOWER(t.department) = LOWER($2)
+      OR EXISTS (SELECT 1 FROM departments d WHERE d.school_id = $1 AND LOWER(d.name) = LOWER($2) AND d.head_teacher_id = t.id)
+    )`;
+
     const absenceQuery = pool.query(
       `SELECT COUNT(*)::int AS count FROM absences ab
        JOIN teachers t ON t.id = ab.teacher_id
        WHERE ab.school_id = $1
-         AND LOWER(t.department) = LOWER($2)
+         AND ${deptMember}
          AND ab.status NOT IN ('Made Up','Cleared','Verified','Excused')`,
       [req.schoolId, dept]
     );
@@ -144,7 +152,7 @@ router.get('/overview', hodOnly, async (req, res, next) => {
       `SELECT COUNT(*)::int AS count FROM remedial_lessons rl
        JOIN teachers t ON t.id = rl.teacher_id
        WHERE rl.school_id = $1
-         AND LOWER(t.department) = LOWER($2)
+         AND ${deptMember}
          AND rl.status IN ('Scheduled','Completed')`,
       [req.schoolId, dept]
     );
@@ -158,7 +166,7 @@ router.get('/overview', hodOnly, async (req, res, next) => {
            FROM assessments a
            JOIN teachers t ON t.id = a.teacher_id
            WHERE a.school_id = $1
-             AND LOWER(t.department) = LOWER($2)
+             AND ${deptMember}
              AND a.academic_year_id = $3
              AND a.semester = $4`,
           [req.schoolId, dept, ay.id, ay.current_semester]
@@ -166,8 +174,8 @@ router.get('/overview', hodOnly, async (req, res, next) => {
       : Promise.resolve({ rows: [{ total: 0, with_scores: 0 }] });
 
     const teacherQuery = pool.query(
-      `SELECT COUNT(*)::int AS count FROM teachers
-       WHERE school_id = $1 AND LOWER(department) = LOWER($2) AND status = 'Active'`,
+      `SELECT COUNT(*)::int AS count FROM teachers t
+       WHERE t.school_id = $1 AND t.status = 'Active' AND ${deptMember}`,
       [req.schoolId, dept]
     );
 
@@ -281,7 +289,11 @@ router.get('/teachers', hodOnly, async (req, res, next) => {
        LEFT JOIN form_teacher_assignments fta
          ON fta.teacher_id = t.id AND fta.school_id = t.school_id
          AND fta.academic_year_id = $3
-       WHERE t.school_id = $1 AND LOWER(t.department) = LOWER($2) AND t.status = 'Active'
+       WHERE t.school_id = $1 AND t.status = 'Active'
+         AND (
+           LOWER(t.department) = LOWER($2)
+           OR EXISTS (SELECT 1 FROM departments d WHERE d.school_id = $1 AND LOWER(d.name) = LOWER($2) AND d.head_teacher_id = t.id)
+         )
        GROUP BY t.id, t.name, t.email, t.phone, t.teacher_code, fta.class_name
        ORDER BY t.name`,
       [req.schoolId, dept, ay?.id ?? '00000000-0000-0000-0000-000000000000', ay?.current_semester ?? 1]
@@ -308,7 +320,11 @@ router.get('/absences', hodOnly, async (req, res, next) => {
               t.id AS teacher_id, t.name AS teacher_name
        FROM absences ab
        JOIN teachers t ON t.id = ab.teacher_id
-       WHERE ab.school_id = $1 AND LOWER(t.department) = LOWER($2)
+       WHERE ab.school_id = $1
+         AND (
+           LOWER(t.department) = LOWER($2)
+           OR EXISTS (SELECT 1 FROM departments d WHERE d.school_id = $1 AND LOWER(d.name) = LOWER($2) AND d.head_teacher_id = t.id)
+         )
          ${filters.length ? 'AND ' + filters.join(' AND ') : ''}
        ORDER BY ab.date DESC`,
       params
