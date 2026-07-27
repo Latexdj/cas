@@ -602,7 +602,8 @@ export default function ResultsPage() {
   const [approvalComment, setApprovalComment] = useState('');
   const [approving,       setApproving]       = useState(false);
   const [approvalError,   setApprovalError]   = useState('');
-  const [showApprovals,   setShowApprovals]   = useState(false);
+  const [showApprovals,      setShowApprovals]      = useState(false);
+  const [queueStatusFilter,  setQueueStatusFilter]  = useState<'all' | 'hod_approved' | 'final_approved' | 'published'>('all');
   const [previewResults,  setPreviewResults]  = useState<StudentResult[]>([]);
   const [previewLoading,  setPreviewLoading]  = useState(false);
   const [previewError,    setPreviewError]    = useState('');
@@ -751,7 +752,8 @@ export default function ResultsPage() {
   const sorted   = results.slice().sort((a, b) => (a.class_position ?? 999) - (b.class_position ?? 999));
 
   const { displayRows: resultRows, total: resultTotal, page: resultPage, setPage: setResultPage, pageSize: resultPageSize, setPageSize: setResultPageSize } = useTableControls(sorted);
-  const { displayRows: queueRows, total: queueTotal, page: queuePage, setPage: setQueuePage, pageSize: queuePageSize, setPageSize: setQueuePageSize } = useTableControls(approvalQueue);
+  const filteredQueue = queueStatusFilter === 'all' ? approvalQueue : approvalQueue.filter(q => q.status === queueStatusFilter);
+  const { displayRows: queueRows, total: queueTotal, page: queuePage, setPage: setQueuePage, pageSize: queuePageSize, setPageSize: setQueuePageSize } = useTableControls(filteredQueue);
 
   const selectStyle = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent';
 
@@ -874,9 +876,27 @@ export default function ResultsPage() {
                 <div style={{ textAlign: 'center', padding: 24, color: '#94A3B8', fontSize: 13 }}>No submissions in queue for selected filters.</div>
               ) : (
                 <>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {([
+                        { key: 'all',            label: 'All',           count: approvalQueue.length },
+                        { key: 'hod_approved',   label: 'Pending',       count: approvalQueue.filter(q => q.status === 'hod_approved').length },
+                        { key: 'final_approved', label: 'Final Approved',count: approvalQueue.filter(q => q.status === 'final_approved').length },
+                        { key: 'published',      label: 'Published',     count: approvalQueue.filter(q => q.status === 'published').length },
+                      ] as const).map(({ key, label, count }) => {
+                        const active = queueStatusFilter === key;
+                        return (
+                          <button key={key} onClick={() => { setQueueStatusFilter(key); setQueuePage(1); }}
+                            style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: active ? 'none' : '1px solid #E2E8F0',
+                              background: active ? '#0F172A' : '#F8FAFC', color: active ? '#fff' : '#64748B' }}>
+                            {label}
+                            <span style={{ marginLeft: 5, background: active ? 'rgba(255,255,255,0.25)' : '#E2E8F0', color: active ? '#fff' : '#374151', borderRadius: 10, padding: '1px 6px', fontSize: 11 }}>{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                     <button onClick={publishAll}
-                      style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       Publish All Final-Approved
                     </button>
                   </div>
