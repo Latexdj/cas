@@ -226,6 +226,7 @@ router.get('/final-queue', adminOnly, async (req, res, next) => {
               rs.hod_reviewed_at, rs.hod_comment,
               rs.final_reviewed_at, rs.final_comment, rs.rejected_reason,
               rs.published_at,
+              rs.academic_year_id,
               t.name AS teacher_name,
               hod.name AS hod_name,
               ay.name AS academic_year, rs.semester,

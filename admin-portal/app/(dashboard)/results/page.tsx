@@ -560,6 +560,7 @@ interface FinalQueueItem {
   final_comment: string | null;
   rejected_reason: string | null;
   published_at: string | null;
+  academic_year_id: string;
   teacher_name: string;
   hod_name: string | null;
   academic_year: string;
@@ -602,6 +603,9 @@ export default function ResultsPage() {
   const [approving,       setApproving]       = useState(false);
   const [approvalError,   setApprovalError]   = useState('');
   const [showApprovals,   setShowApprovals]   = useState(false);
+  const [previewResults,  setPreviewResults]  = useState<StudentResult[]>([]);
+  const [previewLoading,  setPreviewLoading]  = useState(false);
+  const [previewError,    setPreviewError]    = useState('');
 
   useEffect(() => {
     api.get<SchoolProfile>('/api/admin/school-profile').then(r => setSchool(r.data)).catch(() => {});
@@ -653,6 +657,29 @@ export default function ResultsPage() {
   useEffect(() => {
     if (yearId || semester) loadApprovalQueue();
   }, [yearId, semester, loadApprovalQueue]);
+
+  async function openApprovalModal(item: FinalQueueItem, action: 'approve' | 'reject' | 'publish' | 'unlock') {
+    setApprovalTarget(item);
+    setApprovalAction(action);
+    setApprovalComment('');
+    setApprovalError('');
+    setPreviewResults([]);
+    setPreviewError('');
+    // Fetch results preview for approve/publish actions
+    if (action === 'approve' || action === 'publish') {
+      setPreviewLoading(true);
+      try {
+        const { data } = await api.get<StudentResult[]>('/api/results', {
+          params: { academic_year_id: item.academic_year_id, semester: item.semester, class_name: item.class_name },
+        });
+        setPreviewResults(data);
+      } catch {
+        setPreviewError('Could not load results preview.');
+      } finally {
+        setPreviewLoading(false);
+      }
+    }
+  }
 
   async function doApprovalAction() {
     if (!approvalTarget) return;
@@ -846,24 +873,24 @@ export default function ResultsPage() {
                                 <div style={{ display: 'flex', gap: 6 }}>
                                   {item.status === 'hod_approved' && (
                                     <>
-                                      <button onClick={() => { setApprovalTarget(item); setApprovalAction('approve'); setApprovalComment(''); setApprovalError(''); }}
+                                      <button onClick={() => openApprovalModal(item, 'approve')}
                                         style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                                         Approve
                                       </button>
-                                      <button onClick={() => { setApprovalTarget(item); setApprovalAction('reject'); setApprovalComment(''); setApprovalError(''); }}
+                                      <button onClick={() => openApprovalModal(item, 'reject')}
                                         style={{ background: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                                         Reject
                                       </button>
                                     </>
                                   )}
                                   {item.status === 'final_approved' && (
-                                    <button onClick={() => { setApprovalTarget(item); setApprovalAction('publish'); setApprovalComment(''); setApprovalError(''); }}
+                                    <button onClick={() => openApprovalModal(item, 'publish')}
                                       style={{ background: '#3730A3', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                                       Publish
                                     </button>
                                   )}
                                   {item.status === 'published' && (
-                                    <button onClick={() => { setApprovalTarget(item); setApprovalAction('unlock'); setApprovalComment(''); setApprovalError(''); }}
+                                    <button onClick={() => openApprovalModal(item, 'unlock')}
                                       style={{ background: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                                       Unlock
                                     </button>
@@ -884,12 +911,73 @@ export default function ResultsPage() {
               {approvalTarget && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
                   onClick={() => setApprovalTarget(null)}>
-                  <div style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
+                  <div style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 560, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
                     onClick={e => e.stopPropagation()}>
                     <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>
                       {approvalAction === 'approve' ? 'Final Approval' : approvalAction === 'publish' ? 'Publish Results' : approvalAction === 'unlock' ? 'Unlock Submission' : 'Reject & Return'}
                     </h3>
-                    <p style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>{approvalTarget.subject} · {approvalTarget.class_name}</p>
+                    <p style={{ fontSize: 13, color: '#64748B', marginBottom: 12 }}>
+                      {approvalTarget.subject} · {approvalTarget.class_name} · {approvalTarget.teacher_name}
+                    </p>
+
+                    {/* Results preview for approve / publish actions */}
+                    {(approvalAction === 'approve' || approvalAction === 'publish') && (
+                      <div style={{ marginBottom: 16 }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Results Preview
+                        </p>
+                        {previewLoading ? (
+                          <div style={{ textAlign: 'center', padding: '14px 0', color: '#94A3B8', fontSize: 12 }}>Loading results…</div>
+                        ) : previewError ? (
+                          <p style={{ fontSize: 12, color: '#DC2626' }}>{previewError}</p>
+                        ) : previewResults.length === 0 ? (
+                          <p style={{ fontSize: 12, color: '#94A3B8', fontStyle: 'italic' }}>No result data found for this class.</p>
+                        ) : (() => {
+                          const subject = approvalTarget.subject;
+                          const sorted  = [...previewResults].sort((a, b) => {
+                            const aS = a.subjects.find(s => s.subject.toLowerCase() === subject.toLowerCase());
+                            const bS = b.subjects.find(s => s.subject.toLowerCase() === subject.toLowerCase());
+                            return (bS?.total ?? -1) - (aS?.total ?? -1);
+                          });
+                          const withSubject = sorted.filter(r => r.subjects.some(s => s.subject.toLowerCase() === subject.toLowerCase()));
+                          const missing = previewResults.length - withSubject.length;
+                          return (
+                            <>
+                              <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 12 }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                  <thead style={{ position: 'sticky', top: 0, background: '#F8FAFC', zIndex: 1 }}>
+                                    <tr style={{ borderBottom: '1px solid #E2E8F0' }}>
+                                      {['Student', 'CA', 'Exam', 'Total', 'Grade'].map(h => (
+                                        <th key={h} style={{ padding: '6px 10px', textAlign: h === 'Student' ? 'left' : 'center', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>{h}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {sorted.map((student, idx) => {
+                                      const sub = student.subjects.find(s => s.subject.toLowerCase() === subject.toLowerCase());
+                                      return (
+                                        <tr key={student.student_id} style={{ borderTop: '1px solid #F1F5F9', background: idx % 2 === 0 ? '#fff' : '#FAFAFA' }}>
+                                          <td style={{ padding: '6px 10px', fontWeight: 500, color: '#0F172A' }}>{student.name}</td>
+                                          <td style={{ padding: '6px 10px', textAlign: 'center', color: '#374151' }}>{sub?.ca_score != null ? sub.ca_score.toFixed(1) : '—'}</td>
+                                          <td style={{ padding: '6px 10px', textAlign: 'center', color: '#374151' }}>{sub?.exam_score != null ? sub.exam_score.toFixed(1) : '—'}</td>
+                                          <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#0F172A' }}>{sub?.total != null ? sub.total : '—'}</td>
+                                          <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700, color: sub?.grade?.startsWith('F') || sub?.grade === 'E8' ? '#DC2626' : '#15803D' }}>{sub?.grade ?? '—'}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                              {missing > 0 && (
+                                <p style={{ fontSize: 11, color: '#DC2626', marginTop: 6 }}>
+                                  ⚠ {missing} student{missing !== 1 ? 's' : ''} have no score for {subject}
+                                </p>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
 
                     {approvalAction === 'publish' && (
                       <p style={{ fontSize: 13, color: '#374151', background: '#FEF3C7', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
