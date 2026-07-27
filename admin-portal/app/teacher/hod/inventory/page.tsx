@@ -35,6 +35,10 @@ export default function HodInventoryPage() {
   const router  = useRouter();
   const [primary, setPrimary] = useState('#2ab289');
 
+  // Multi-dept switcher
+  const [depts,          setDepts]          = useState<{ id: string; name: string }[]>([]);
+  const [selectedDeptId, setSelectedDeptId] = useState('');
+
   const [invItems,   setInvItems]   = useState<InvItem[]>([]);
   const [invLoading, setInvLoading] = useState(true);
   const [subTab,     setSubTab]     = useState<InvSubTab>('items');
@@ -64,13 +68,29 @@ export default function HodInventoryPage() {
   const [returnSuccess,   setReturnSuccess]   = useState('');
 
   useEffect(() => { setPrimary(getTeacherColors().primary); }, []);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { loadItems(); }, []);
+
+  // Load dept list, then trigger item load via selectedDeptId
+  useEffect(() => {
+    teacherApi.get<{ is_hod: boolean; depts: { id: string; name: string }[] }>('/api/hod/check')
+      .then(r => {
+        const d = r.data.depts ?? [];
+        setDepts(d);
+        setSelectedDeptId(d.length ? d[0].id : '__legacy__');
+      })
+      .catch(() => setSelectedDeptId('__legacy__'));
+  }, []);
+
+  // Reload items when selected dept changes
+  useEffect(() => {
+    if (!selectedDeptId) return;
+    loadItems();
+  }, [selectedDeptId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadItems() {
     setInvLoading(true);
     try {
-      const { data } = await teacherApi.get<InvItem[]>('/api/inventory/items');
+      const qs = selectedDeptId && selectedDeptId !== '__legacy__' ? `?dept_id=${selectedDeptId}` : '';
+      const { data } = await teacherApi.get<InvItem[]>(`/api/inventory/items${qs}`);
       setInvItems(data);
     } catch { /* ignore */ }
     finally { setInvLoading(false); }
@@ -102,6 +122,7 @@ export default function HodInventoryPage() {
         student_id: issueToType === 'student' ? issueStudent?.id : undefined,
         quantity: issueQty,
         notes: issueNotes.trim() || undefined,
+        ...(selectedDeptId && selectedDeptId !== '__legacy__' ? { dept_id: selectedDeptId } : {}),
       });
       setIssueSuccess('Item issued successfully');
       setIssueItemId(''); setIssueName(''); setIssueRole('');
@@ -121,6 +142,7 @@ export default function HodInventoryPage() {
         quantity: returnQty,
         condition: returnCondition,
         notes: returnNotes.trim() || undefined,
+        ...(selectedDeptId && selectedDeptId !== '__legacy__' ? { dept_id: selectedDeptId } : {}),
       });
       setReturnSuccess('Item returned successfully');
       setReturnItemId(''); setReturnQty(1); setReturnCondition('Good'); setReturnNotes('');
@@ -157,11 +179,29 @@ export default function HodInventoryPage() {
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-[#2C2218]">Dept Inventory</h1>
             <p className="text-xs text-[#8C7E6E]">Items assigned to your department</p>
           </div>
         </div>
+        {/* Department switcher — only shown when teacher heads multiple departments */}
+        {depts.length > 1 && (
+          <div className="mt-3 relative">
+            <select
+              value={selectedDeptId}
+              onChange={e => setSelectedDeptId(e.target.value)}
+              className="w-full appearance-none bg-white border border-[#E2D9CC] rounded-xl px-3 py-2.5 pr-8 text-sm font-semibold text-[#2C2218] focus:outline-none focus:border-[#8C7E6E]"
+            >
+              {depts.map(d => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+              className="w-3.5 h-3.5 text-[#8C7E6E] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </div>
+        )}
       </div>
 
       <div className="px-4 space-y-4">

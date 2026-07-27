@@ -26,12 +26,14 @@ async function inventoryAccess(req, res, next) {
       if (resp.length) { req.inventoryScope = 'all'; return next(); }
 
       const { rows: dept } = await pool.query(
-        `SELECT id FROM departments WHERE school_id=$1 AND head_teacher_id=$2`,
+        `SELECT id FROM departments WHERE school_id=$1 AND head_teacher_id=$2 ORDER BY name`,
         [req.schoolId, req.user.id]
       );
       if (dept.length) {
+        const requestedId = req.query.dept_id || req.body?.dept_id;
+        const selected = requestedId ? (dept.find(r => r.id === requestedId) ?? dept[0]) : dept[0];
         req.inventoryScope = 'department';
-        req.inventoryDeptId = dept[0].id;
+        req.inventoryDeptId = selected.id;
         return next();
       }
     }

@@ -16,12 +16,12 @@ router.use(authenticate, requireActiveSubscription);
 async function hodOnly(req, res, next) {
   try {
     const [{ rows: deptRows }, { rows: officeRows }] = await Promise.all([
-      // Primary: Departments page assignment
+      // Primary: Departments page assignment — load ALL departments (teacher may head more than one)
       pool.query(
-        `SELECT d.name AS dept_name
+        `SELECT d.id, d.name AS dept_name
          FROM departments d
          WHERE d.school_id = $1 AND d.head_teacher_id = $2
-         LIMIT 1`,
+         ORDER BY d.name`,
         [req.schoolId, req.user.id]
       ),
       // Fallback: legacy clearance-office HOD assignment
@@ -42,17 +42,28 @@ async function hodOnly(req, res, next) {
 
     if (deptRows.length) {
       // Departments page HOD — always a subject HOD; no programme name lookup
-      req.hodDept       = deptRows[0].dept_name;
+      req.hodDepts = deptRows.map(r => ({ id: r.id, name: r.dept_name }));
+
+      // Pick the department requested via ?dept_id=, defaulting to first
+      const requestedId = req.query.dept_id;
+      const selected = requestedId
+        ? (deptRows.find(r => r.id === requestedId) ?? deptRows[0])
+        : deptRows[0];
+
+      req.hodDept       = selected.dept_name;
+      req.hodDeptId     = selected.id;
       req.programmeId   = null;
-      req.programmeName = deptRows[0].dept_name;
+      req.programmeName = selected.dept_name;
       req.isSubjectHod  = true;
     } else {
       // clearance-office path
+      req.hodDepts = [];
       const { rows: tRows } = await pool.query(
         `SELECT department FROM teachers WHERE id = $1 AND school_id = $2 LIMIT 1`,
         [req.user.id, req.schoolId]
       );
       req.hodDept       = tRows[0]?.department ?? null;
+      req.hodDeptId     = null;
       req.programmeId   = officeRows[0]?.linked_programme_id ?? null;
       req.programmeName = officeRows[0]?.programme_name ?? req.hodDept;
 
@@ -85,7 +96,7 @@ async function getCurrentYear(schoolId) {
 // Returns 200 + dept info if the teacher is an HOD via any assignment path,
 // 403 otherwise. The frontend calls this to show/hide the "My Dept" nav link.
 router.get('/check', hodOnly, (req, res) => {
-  res.json({ is_hod: true, dept: req.hodDept, is_subject_hod: req.isSubjectHod });
+  res.json({ is_hod: true, dept: req.hodDept, is_subject_hod: req.isSubjectHod, depts: req.hodDepts ?? [] });
 });
 
 // ── GET /api/hod/overview ────────────────────────────────────────────────────

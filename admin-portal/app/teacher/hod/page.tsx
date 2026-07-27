@@ -148,6 +148,10 @@ export default function HodPage() {
   const [primary, setPrimary] = useState('#2ab289');
   const [tab,     setTab]     = useState<Tab>('overview');
 
+  // Multi-dept switcher
+  const [depts,         setDepts]         = useState<{ id: string; name: string }[]>([]);
+  const [selectedDeptId, setSelectedDeptId] = useState('');
+
   const [overview,  setOverview]  = useState<Overview | null>(null);
   const [classes,   setClasses]   = useState<ClassRow[]>([]);
   const [teachers,  setTeachers]  = useState<TeacherRow[]>([]);
@@ -192,19 +196,46 @@ export default function HodPage() {
 
   useEffect(() => { setPrimary(getTeacherColors().primary); }, []);
 
-  // Load overview once
+  // Load dept list from /check, then trigger overview via selectedDeptId
   useEffect(() => {
+    teacherApi.get<{ is_hod: boolean; dept: string; depts: { id: string; name: string }[] }>('/api/hod/check')
+      .then(r => {
+        const d = r.data.depts ?? [];
+        setDepts(d);
+        setSelectedDeptId(d.length ? d[0].id : '__legacy__');
+      })
+      .catch(() => {
+        setError('Could not load HOD data. Make sure you are assigned as an HOD.');
+        setLoadingOv(false);
+      });
+  }, []);
+
+  // Reload overview (and reset lazy tabs) whenever the selected dept changes
+  useEffect(() => {
+    if (!selectedDeptId) return;
     setLoadingOv(true);
-    teacherApi.get<Overview>('/api/hod/overview')
+    setOverview(null);
+    const qs = selectedDeptId !== '__legacy__' ? `?dept_id=${selectedDeptId}` : '';
+    teacherApi.get<Overview>(`/api/hod/overview${qs}`)
       .then(r => setOverview(r.data))
       .catch(() => setError('Could not load HOD data. Make sure you are assigned as an HOD.'))
       .finally(() => setLoadingOv(false));
-  }, []);
+
+    // Reset lazy-loaded tabs so they re-fetch for the new dept
+    clTriggered.current = false;
+    teTriggered.current = false;
+    setClasses([]);
+    setTeachers([]);
+    setAbsences([]);
+    setQueue([]);
+    setTab('overview');
+  }, [selectedDeptId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Results functions ──
   async function loadResultsTab() {
+    const deptQs = selectedDeptId && selectedDeptId !== '__legacy__' ? `?dept_id=${selectedDeptId}` : '';
     // Fetch independently so a failure in one doesn't blank out the other
-    teacherApi.get<HodClass[]>('/api/hod/classes')
+    teacherApi.get<HodClass[]>(`/api/hod/classes${deptQs}`)
       .then(r => setHodClasses(r.data))
       .catch(() => {});
 
@@ -226,8 +257,9 @@ export default function HodPage() {
     if (!resultsClass || !resultsYear) { setResultsError('Select a class and academic year.'); return; }
     setResultsLoading(true); setResultsError('');
     try {
+      const deptPart = selectedDeptId && selectedDeptId !== '__legacy__' ? `&dept_id=${selectedDeptId}` : '';
       const { data } = await teacherApi.get<HodStudentResult[]>(
-        `/api/hod/results?academic_year_id=${resultsYear}&semester=${resultsSem}&class_name=${encodeURIComponent(resultsClass)}`
+        `/api/hod/results?academic_year_id=${resultsYear}&semester=${resultsSem}&class_name=${encodeURIComponent(resultsClass)}${deptPart}`
       );
       setHodResults(data);
     } catch (err: unknown) {
@@ -255,8 +287,9 @@ export default function HodPage() {
     setPreviewError('');
     setPreviewLoading(true);
     try {
+      const deptPart = selectedDeptId && selectedDeptId !== '__legacy__' ? `&dept_id=${selectedDeptId}` : '';
       const { data } = await teacherApi.get<HodStudentResult[]>(
-        `/api/hod/results?academic_year_id=${item.academic_year_id}&semester=${item.semester}&class_name=${encodeURIComponent(item.class_name)}`
+        `/api/hod/results?academic_year_id=${item.academic_year_id}&semester=${item.semester}&class_name=${encodeURIComponent(item.class_name)}${deptPart}`
       );
       setPreviewResults(data);
     } catch {
@@ -291,32 +324,35 @@ export default function HodPage() {
     if (clTriggered.current) return;
     clTriggered.current = true;
     setLoadingCl(true);
-    teacherApi.get<ClassRow[]>('/api/hod/classes')
+    const deptQs = selectedDeptId && selectedDeptId !== '__legacy__' ? `?dept_id=${selectedDeptId}` : '';
+    teacherApi.get<ClassRow[]>(`/api/hod/classes${deptQs}`)
       .then(r => setClasses(r.data))
       .catch(() => {})
       .finally(() => setLoadingCl(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedDeptId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadTeachers = useCallback(() => {
     if (teTriggered.current) return;
     teTriggered.current = true;
     setLoadingTe(true);
-    teacherApi.get<TeacherRow[]>('/api/hod/teachers')
+    const deptQs = selectedDeptId && selectedDeptId !== '__legacy__' ? `?dept_id=${selectedDeptId}` : '';
+    teacherApi.get<TeacherRow[]>(`/api/hod/teachers${deptQs}`)
       .then(r => setTeachers(r.data))
       .catch(() => {})
       .finally(() => setLoadingTe(false));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedDeptId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadAbsences = useCallback(() => {
     setLoadingAb(true);
     const params = new URLSearchParams();
+    if (selectedDeptId && selectedDeptId !== '__legacy__') params.set('dept_id', selectedDeptId);
     if (abTeacher) params.set('teacherId', abTeacher);
     if (abStatus)  params.set('status', abStatus);
     teacherApi.get<AbsenceRow[]>(`/api/hod/absences?${params}`)
       .then(r => setAbsences(r.data))
       .catch(() => {})
       .finally(() => setLoadingAb(false));
-  }, [abTeacher, abStatus]);
+  }, [selectedDeptId, abTeacher, abStatus]);
 
   useEffect(() => {
     if (tab === 'approvals') loadQueue();
@@ -366,7 +402,7 @@ export default function HodPage() {
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-[#2C2218]">
               {overview?.programme_name ?? 'My Department'}
             </h1>
@@ -375,6 +411,24 @@ export default function HodPage() {
             </p>
           </div>
         </div>
+        {/* Department switcher — only shown when teacher heads multiple departments */}
+        {depts.length > 1 && (
+          <div className="mt-3 relative">
+            <select
+              value={selectedDeptId}
+              onChange={e => setSelectedDeptId(e.target.value)}
+              className="w-full appearance-none bg-white border border-[#E2D9CC] rounded-xl px-3 py-2.5 pr-8 text-sm font-semibold text-[#2C2218] focus:outline-none focus:border-[#8C7E6E]"
+            >
+              {depts.map(d => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+              className="w-3.5 h-3.5 text-[#8C7E6E] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
