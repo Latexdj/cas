@@ -277,10 +277,14 @@ router.get('/readiness-check', async (req, res, next) => {
         `SELECT COUNT(*) AS cnt FROM students WHERE school_id=$1 AND class_name=$2 AND status='Active'`,
         [req.schoolId, class_name]
       ),
-      // D: students who already have an exam score
+      // D: ACTIVE students in this class who already have an exam score
       pool.query(
-        `SELECT COUNT(DISTINCT student_id) AS cnt FROM exam_scores
-         WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3 AND subject=$4 AND class_name=$5`,
+        `SELECT COUNT(DISTINCT es.student_id) AS cnt
+         FROM exam_scores es
+         JOIN students s ON s.id = es.student_id
+         WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3
+           AND es.subject=$4 AND es.class_name=$5
+           AND s.status='Active' AND LOWER(s.class_name)=LOWER($5)`,
         p
       ),
       // E: students who have at least one CA score
@@ -333,10 +337,13 @@ router.post('/submit', async (req, res, next) => {
 
     // Check A: ALL active students must have exam scores entered
     const { rows: examRows } = await pool.query(
-      `SELECT COUNT(DISTINCT student_id)::int AS cnt FROM exam_scores
-       WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3
-         AND LOWER(subject)=LOWER($4) AND LOWER(class_name)=LOWER($5)
-         AND score IS NOT NULL`,
+      `SELECT COUNT(DISTINCT es.student_id)::int AS cnt
+       FROM exam_scores es
+       JOIN students s ON s.id = es.student_id
+       WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3
+         AND LOWER(es.subject)=LOWER($4) AND LOWER(es.class_name)=LOWER($5)
+         AND es.score IS NOT NULL
+         AND s.status='Active' AND LOWER(s.class_name)=LOWER($5)`,
       p
     );
     const examScored = examRows[0]?.cnt ?? 0;
