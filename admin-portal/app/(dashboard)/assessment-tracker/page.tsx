@@ -377,8 +377,8 @@ export default function AssessmentTrackerPage() {
                     </p>
                   </div>
 
-                  {/* Progress bar */}
-                  <div className="hidden sm:flex items-center gap-2 w-40">
+                  {/* Progress bar — fixed width, never shrinks */}
+                  <div className="hidden sm:flex items-center gap-2 w-40 flex-shrink-0">
                     <div className="flex-1 h-1.5 rounded-full bg-slate-100">
                       <div className="h-1.5 rounded-full transition-all"
                         style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#15803D' : pct > 50 ? '#D97706' : '#DC2626' }} />
@@ -386,22 +386,23 @@ export default function AssessmentTrackerPage() {
                     <span className="text-xs text-slate-500 w-8 text-right">{pct}%</span>
                   </div>
 
-                  {notStarted > 0 && (
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                      style={{ color: '#DC2626', background: '#FEF2F2' }}>
-                      {notStarted} not started
+                  {/* Fixed-width right zone — badges always consume the same horizontal space */}
+                  <div className="flex items-center justify-end gap-2 min-w-[220px]">
+                    {notStarted > 0 && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                        style={{ color: '#DC2626', background: '#FEF2F2' }}>
+                        {notStarted} not started
+                      </span>
+                    )}
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full min-w-[110px] text-center"
+                      style={{ color: cfg.color, background: cfg.bg }}>
+                      {cfg.label}
                     </span>
-                  )}
-
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                    style={{ color: cfg.color, background: cfg.bg }}>
-                    {cfg.label}
-                  </span>
-
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
-                    className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                      className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </div>
                 </button>
 
                 {/* Expanded subject rows */}
