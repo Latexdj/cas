@@ -38,11 +38,17 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": ""
+        "projectId": "6347356a-f6be-409c-acb9-4893f128a320"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
-    }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6347356a-f6be-409c-acb9-4893f128a320",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD"
+    },
+    "owner": "latexdj"
   }
 }
