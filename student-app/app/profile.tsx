@@ -70,7 +70,7 @@ export default function ProfileScreen() {
             { label: 'Gender',          value: profile?.gender },
             { label: 'Date of Birth',   value: profile?.date_of_birth ? formatDate(profile.date_of_birth) : null },
             { label: 'House',           value: profile?.house },
-            { label: 'Form Teacher',    value: profile?.form_teacher },
+            { label: 'Form Teacher',    value: profile?.form_teacher ? (typeof profile.form_teacher === 'string' ? profile.form_teacher : profile.form_teacher.teacher_name) : null },
             { label: 'Guardian',        value: profile?.guardian_name },
             { label: 'Guardian Phone',  value: profile?.guardian_phone },
           ].filter(row => row.value).map(row => (

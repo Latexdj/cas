@@ -23,7 +23,7 @@ export interface StudentProfile {
   date_of_birth:   string | null;
   guardian_name:   string | null;
   guardian_phone:  string | null;
-  form_teacher:    string | null;
+  form_teacher:    { teacher_name: string; teacher_phone: string | null } | string | null;
   house:           string | null;
 }
 

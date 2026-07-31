@@ -163,12 +163,18 @@ export default function HomeScreen() {
         {profile?.form_teacher && (
           <Card style={s.formTeacherCard}>
             <Text style={[s.formTeacherLabel, { color: C.muted }]}>Form Teacher</Text>
-            <Text style={[s.formTeacherName, { color: C.text }]}>{profile.form_teacher}</Text>
+            <Text style={[s.formTeacherName, { color: C.text }]}>{getTeacherName(profile.form_teacher)}</Text>
           </Card>
         )}
       </View>
     </ScrollView>
   );
+}
+
+function getTeacherName(ft: { teacher_name: string; teacher_phone: string | null } | string | null): string {
+  if (!ft) return '';
+  if (typeof ft === 'string') return ft;
+  return ft.teacher_name;
 }
 
 function getTimeOfDay() {
