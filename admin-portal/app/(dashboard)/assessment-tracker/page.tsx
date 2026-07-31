@@ -244,6 +244,18 @@ export default function AssessmentTrackerPage() {
   return (
     <div className="space-y-5">
       <style>{`
+        @page {
+          size: A4 landscape;
+          margin: 12mm 14mm;
+          @bottom-center {
+            content: "Assessment Score Entry Report";
+            font-size: 7pt; color: #999;
+          }
+          @bottom-right {
+            content: "Page " counter(page) " of " counter(pages);
+            font-size: 7pt; color: #999;
+          }
+        }
         @media print {
           body * { visibility: hidden !important; }
           #print-report {
@@ -258,18 +270,6 @@ export default function AssessmentTrackerPage() {
           #print-report * { visibility: visible !important; }
           .pr-teacher-block { page-break-inside: avoid; break-inside: avoid; }
           .pr-page-break    { page-break-before: always; break-before: page; }
-          @page {
-            size: A4 landscape;
-            margin: 12mm 14mm;
-            @bottom-center {
-              content: "Assessment Score Entry Report — " attr(data-year);
-              font-size: 7pt; color: #999;
-            }
-            @bottom-right {
-              content: "Page " counter(page) " of " counter(pages);
-              font-size: 7pt; color: #999;
-            }
-          }
         }
       `}</style>
 
@@ -589,7 +589,7 @@ export default function AssessmentTrackerPage() {
                             <th style={{ ...thStyle, width: '7%', textAlign: 'center' }}>Students</th>
                             <th style={{ ...thStyle, width: '40%' }}>Outstanding CA Modes</th>
                             <th style={{ ...thStyle, width: '16%' }}>Exam Scores</th>
-                            <th style={{ ...thStyle, width: '10%', textAlign: 'center', borderRight: 'none' }}>Completion</th>
+                            <th style={{ ...thStyle, width: '10%', textAlign: 'right', borderRight: 'none' }}>Completion</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -612,7 +612,7 @@ export default function AssessmentTrackerPage() {
                                 <td style={{ ...tdBase, textAlign: 'center', color: '#556' }}>{r.total_students}</td>
                                 <td style={{ ...tdBase, color: caComplete ? '#15803D' : '#92400E' }}>{outstanding}</td>
                                 <td style={{ ...tdBase, color: examColor }}>{examLabel}</td>
-                                <td style={{ ...tdBase, textAlign: 'center', fontWeight: 800, fontSize: '9pt', color: cellPctColor }}>{pct}%</td>
+                                <td style={{ ...tdBase, textAlign: 'right', fontWeight: 800, fontSize: '9pt', color: cellPctColor, fontVariantNumeric: 'tabular-nums' }}>{pct}%</td>
                               </tr>
                             );
                           })}
