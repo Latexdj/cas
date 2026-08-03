@@ -503,24 +503,40 @@ router.get('/timetable', async (req, res, next) => {
     const student = await getStudentProfile(req.schoolId, req.user.id);
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
+    // Resolve current academic year / semester for filtering
+    const { rows: yearRows } = await pool.query(
+      `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+      [req.schoolId]
+    );
+    const cur = yearRows[0];
+
+    const params = [req.schoolId, student.class_name];
+    const yearFilter = cur
+      ? `AND tt.academic_year_id = $3 AND tt.semester = $4`
+      : '';
+    if (cur) { params.push(cur.id, cur.current_semester); }
+
     const { rows } = await pool.query(
-      `SELECT tt.id, tt.day_of_week, tt.start_time, tt.end_time, tt.subject, tt.class_names,
+      `SELECT tt.id,
+              CASE tt.day_of_week
+                WHEN 1 THEN 'Monday'
+                WHEN 2 THEN 'Tuesday'
+                WHEN 3 THEN 'Wednesday'
+                WHEN 4 THEN 'Thursday'
+                WHEN 5 THEN 'Friday'
+                WHEN 6 THEN 'Saturday'
+                WHEN 7 THEN 'Sunday'
+              END AS day_of_week,
+              tt.start_time, tt.end_time, tt.subject,
               te.name AS teacher_name
        FROM timetable tt
-       JOIN teachers te ON te.id = tt.teacher_id
+       LEFT JOIN teachers te ON te.id = tt.teacher_id
        WHERE tt.school_id = $1
-         AND (
-           tt.class_names ILIKE $2
-           OR tt.class_names ILIKE $3
-           OR tt.class_names ILIKE $4
-         )
+         AND ',' || REPLACE(tt.class_names, ' ', '') || ','
+             ILIKE '%,' || REPLACE($2, ' ', '') || ',%'
+         ${yearFilter}
        ORDER BY tt.day_of_week, tt.start_time`,
-      [
-        req.schoolId,
-        student.class_name,
-        `%,${student.class_name}%`,
-        `${student.class_name},%`,
-      ]
+      params
     );
     res.json(rows);
   } catch (err) { next(err); }

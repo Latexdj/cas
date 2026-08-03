@@ -27,7 +27,7 @@ export default function TimetableScreen() {
   if (loading) return <Spinner message="Loading timetable…" />;
 
   const byDay = DAYS.reduce<Record<string, TimetableRow[]>>((acc, d) => {
-    acc[d] = rows.filter(r => r.day === d).sort((a, b) => a.start_time.localeCompare(b.start_time));
+    acc[d] = rows.filter(r => r.day_of_week === d).sort((a, b) => a.start_time.localeCompare(b.start_time));
     return acc;
   }, {});
 
@@ -39,7 +39,7 @@ export default function TimetableScreen() {
       contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.accent} />}
     >
-      {rows.length === 0 && (
+      {(rows.length === 0 || DAYS.every(d => !byDay[d]?.length)) && (
         <Text style={[s.empty, { color: C.muted }]}>No timetable found for your class.</Text>
       )}
       {DAYS.map(day => {
@@ -61,7 +61,7 @@ export default function TimetableScreen() {
                   </View>
                   <View style={s.subjectCol}>
                     <Text style={[s.subject, { color: C.text }]}>{row.subject}</Text>
-                    {row.teacher && <Text style={[s.teacher, { color: C.muted }]}>{row.teacher}</Text>}
+                    {row.teacher_name && <Text style={[s.teacher, { color: C.muted }]}>{row.teacher_name}</Text>}
                     {row.room && <Text style={[s.room, { color: C.muted }]}>Room {row.room}</Text>}
                   </View>
                 </View>

@@ -1,45 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { Spinner } from '@/components/ui/Spinner';
-import { storage } from '@/lib/storage';
 
 function InitialLayout() {
   const { user, isLoading, mustChangePassword } = useAuth();
   const router   = useRouter();
   const segments = useSegments();
-  const [schoolCode, setSchoolCode] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
-    setSchoolCode(undefined);
-    storage.getSchoolCode().then(c => setSchoolCode(c));
-  }, [segments]);
+    if (isLoading) return;
 
-  useEffect(() => {
-    if (isLoading || schoolCode === undefined) return;
+    const seg         = segments[0] as string;
+    const inTabs      = seg === '(tabs)';
+    const inLogin     = seg === 'login';
+    const inChangePwd = seg === 'change-password';
+    const inModal     = ['timetable', 'calendar', 'fees', 'clearance', 'library', 'exeat', 'profile'].includes(seg);
 
-    const inTabs       = segments[0] === '(tabs)';
-    const inLogin      = segments[0] === 'login';
-    const inSetup      = segments[0] === 'setup';
-    const inChangePwd  = segments[0] === 'change-password';
-
-    if (!schoolCode && !inSetup) {
-      router.replace('/setup');
-    } else if (schoolCode && !user && !inLogin && !inSetup) {
+    if (!user && !inLogin) {
       router.replace('/login');
     } else if (user && mustChangePassword && !inChangePwd) {
       router.replace('/change-password');
-    } else if (user && !mustChangePassword && !inTabs) {
+    } else if (user && !mustChangePassword && !inTabs && !inModal) {
       router.replace('/(tabs)');
     }
-  }, [user, isLoading, segments, schoolCode, mustChangePassword]);
+  }, [user, isLoading, segments, mustChangePassword]);
 
   return (
     <>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="setup"           />
         <Stack.Screen name="login"           />
         <Stack.Screen name="change-password" />
         <Stack.Screen name="(tabs)"          />
@@ -52,7 +43,7 @@ function InitialLayout() {
         <Stack.Screen name="profile"         options={{ headerShown: true, title: 'Profile',    headerBackTitle: 'Back' }} />
       </Stack>
 
-      {(isLoading || schoolCode === undefined) && (
+      {isLoading && (
         <View style={s.overlay}>
           <Spinner message="Loading…" />
         </View>

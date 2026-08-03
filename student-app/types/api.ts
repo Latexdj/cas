@@ -60,25 +60,28 @@ export interface AttendanceSession {
   date:       string;
   period:     string | null;
   subject:    string | null;
-  status:     'present' | 'absent' | 'late';
+  status:     'Present' | 'Absent' | 'Late';
   teacher:    string | null;
 }
 
 export interface AttendanceSummary {
-  present: number;
-  absent:  number;
-  late:    number;
-  rate:    number;
+  summary: {
+    present: number;
+    absent:  number;
+    late:    number;
+    total:   number;
+    rate:    number | null;
+  };
   sessions: AttendanceSession[];
 }
 
 export interface TimetableRow {
-  day:        string;
-  start_time: string;
-  end_time:   string;
-  subject:    string;
-  teacher:    string | null;
-  room:       string | null;
+  day_of_week: string;
+  start_time:  string;
+  end_time:    string;
+  subject:     string;
+  teacher_name:string | null;
+  room:        string | null;
 }
 
 export interface CalendarEvent {
