@@ -260,6 +260,7 @@ export interface StudentProfile extends Student {
   guardian_name: string | null;
   guardian_occupation: string | null;
   guardian_mobile: string | null;
+  year_of_admission: number | null;
 }
 
 export interface StudentAttendanceSession {
