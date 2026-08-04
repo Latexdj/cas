@@ -71,6 +71,7 @@ interface SlFilters {
   classes: string[];
   programs: { id: string; name: string }[];
   departments: { id: string; name: string }[];
+  years: number[];
 }
 
 export default function StaffPortalPage() {
@@ -173,7 +174,8 @@ export default function StaffPortalPage() {
   const [slResStatus,      setSlResStatus]      = useState('');
   const [slDeptId,         setSlDeptId]         = useState('');
   const [slTeacherGender,  setSlTeacherGender]  = useState('');
-  const [slFilters,        setSlFilters]        = useState<SlFilters>({ classes: [], programs: [], departments: [] });
+  const [slYearBatch,      setSlYearBatch]      = useState('');
+  const [slFilters,        setSlFilters]        = useState<SlFilters>({ classes: [], programs: [], departments: [], years: [] });
   const [slCount,          setSlCount]          = useState<number | null>(null);
   const [slCountLoad,      setSlCountLoad]      = useState(false);
   const [slGenerating,     setSlGenerating]     = useState(false);
@@ -380,10 +382,11 @@ export default function StaffPortalPage() {
   function slBuildParams(): Record<string, string> {
     const p: Record<string, string> = { recipient_type: slRecipType };
     if (slRecipType === 'students') {
-      if (slClassName) p.class_name         = slClassName;
-      if (slProgramId) p.program_id         = slProgramId;
-      if (slGender)    p.gender             = slGender;
-      if (slResStatus) p.residential_status = slResStatus;
+      if (slClassName)  p.class_name         = slClassName;
+      if (slProgramId)  p.program_id         = slProgramId;
+      if (slGender)     p.gender             = slGender;
+      if (slResStatus)  p.residential_status = slResStatus;
+      if (slYearBatch)  p.year_of_admission  = slYearBatch;
     } else {
       if (slDeptId)       p.department_id = slDeptId;
       if (slTeacherGender) p.gender       = slTeacherGender;
@@ -399,6 +402,7 @@ export default function StaffPortalPage() {
         const prog = slFilters.programs.find(x => x.id === slProgramId);
         if (prog) parts.push(prog.name);
       }
+      if (slYearBatch) parts.push(`${slYearBatch} Batch`);
       if (slGender)    parts.push(slGender);
       if (slResStatus) parts.push(slResStatus + ' Students');
     } else {
@@ -988,6 +992,11 @@ export default function StaffPortalPage() {
                       className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
                       <option value="">All Programs</option>
                       {slFilters.programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <select value={slYearBatch} onChange={e => { setSlYearBatch(e.target.value); slRefreshCount(); }}
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
+                      <option value="">All Year Batches</option>
+                      {slFilters.years.map(y => <option key={y} value={String(y)}>{y} Batch</option>)}
                     </select>
                     <div className="grid grid-cols-2 gap-2">
                       <select value={slGender} onChange={e => { setSlGender(e.target.value); slRefreshCount(); }}

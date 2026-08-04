@@ -7,6 +7,7 @@ interface SlFilters {
   classes: string[];
   programs: { id: string; name: string }[];
   departments: { id: string; name: string }[];
+  years: number[];
 }
 
 interface RecipientsResponse {
@@ -33,13 +34,14 @@ export default function SignListPage() {
   const [programId,         setProgramId]         = useState('');
   const [gender,            setGender]            = useState('');
   const [residentialStatus, setResidentialStatus] = useState('');
+  const [yearOfAdmission,   setYearOfAdmission]   = useState('');
 
   // Teacher filters
   const [departmentId,      setDepartmentId]      = useState('');
   const [teacherGender,     setTeacherGender]     = useState('');
 
   // Data
-  const [filters,           setFilters]           = useState<SlFilters>({ classes: [], programs: [], departments: [] });
+  const [filters,           setFilters]           = useState<SlFilters>({ classes: [], programs: [], departments: [], years: [] });
   const [count,             setCount]             = useState<number | null>(null);
   const [countLoading,      setCountLoading]      = useState(false);
   const [generating,        setGenerating]        = useState(false);
@@ -65,7 +67,7 @@ export default function SignListPage() {
     }, 450);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recipientType, className, programId, gender, residentialStatus, departmentId, teacherGender]);
+  }, [recipientType, className, programId, gender, residentialStatus, yearOfAdmission, departmentId, teacherGender]);
 
   function buildParams(): Record<string, string> {
     const p: Record<string, string> = { recipient_type: recipientType };
@@ -74,6 +76,7 @@ export default function SignListPage() {
       if (programId)         p.program_id         = programId;
       if (gender)            p.gender             = gender;
       if (residentialStatus) p.residential_status = residentialStatus;
+      if (yearOfAdmission)   p.year_of_admission  = yearOfAdmission;
     } else {
       if (departmentId)  p.department_id = departmentId;
       if (teacherGender) p.gender        = teacherGender;
@@ -89,6 +92,7 @@ export default function SignListPage() {
         const prog = filters.programs.find(x => x.id === programId);
         if (prog) parts.push(prog.name);
       }
+      if (yearOfAdmission) parts.push(`${yearOfAdmission} Batch`);
       if (gender) parts.push(gender);
       if (residentialStatus) parts.push(residentialStatus + ' Students');
     } else {
@@ -216,6 +220,13 @@ export default function SignListPage() {
                   <select value={programId} onChange={e => setProgramId(e.target.value)} className={iCls}>
                     <option value="">All Programs</option>
                     {filters.programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={lCls}>Year Batch</label>
+                  <select value={yearOfAdmission} onChange={e => setYearOfAdmission(e.target.value)} className={iCls}>
+                    <option value="">All Year Batches</option>
+                    {filters.years.map(y => <option key={y} value={String(y)}>{y} Batch</option>)}
                   </select>
                 </div>
                 <div>

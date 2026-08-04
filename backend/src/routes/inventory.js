@@ -514,7 +514,7 @@ router.get('/report', async (req, res, next) => {
 // ── Sign List: available filter options ───────────────────────────────────────
 router.get('/sign-list/filters', async (req, res, next) => {
   try {
-    const [classesR, programsR, deptsR] = await Promise.all([
+    const [classesR, programsR, deptsR, yearsR] = await Promise.all([
       pool.query(
         `SELECT DISTINCT class_name FROM students WHERE school_id=$1 AND status='Active' ORDER BY class_name`,
         [req.schoolId]
@@ -527,11 +527,18 @@ router.get('/sign-list/filters', async (req, res, next) => {
         `SELECT id, name FROM departments WHERE school_id=$1 ORDER BY name`,
         [req.schoolId]
       ),
+      pool.query(
+        `SELECT DISTINCT EXTRACT(year FROM created_at)::int AS year
+         FROM students WHERE school_id=$1 AND status='Active'
+         ORDER BY year DESC`,
+        [req.schoolId]
+      ),
     ]);
     res.json({
       classes:     classesR.rows.map(r => r.class_name),
       programs:    programsR.rows,
       departments: deptsR.rows,
+      years:       yearsR.rows.map(r => r.year),
     });
   } catch (err) { next(err); }
 });
@@ -539,7 +546,7 @@ router.get('/sign-list/filters', async (req, res, next) => {
 // ── Sign List: recipient list ─────────────────────────────────────────────────
 router.get('/sign-list/recipients', async (req, res, next) => {
   try {
-    const { recipient_type, class_name, program_id, gender, residential_status, department_id } = req.query;
+    const { recipient_type, class_name, program_id, gender, residential_status, department_id, year_of_admission } = req.query;
 
     if (!recipient_type || !['students', 'teachers'].includes(recipient_type)) {
       return res.status(400).json({ error: 'recipient_type must be "students" or "teachers"' });
@@ -559,6 +566,7 @@ router.get('/sign-list/recipients', async (req, res, next) => {
       if (program_id)         { params.push(program_id);         conditions.push(`s.program_id=$${params.length}`); }
       if (gender)             { params.push(gender);             conditions.push(`s.gender=$${params.length}`); }
       if (residential_status) { params.push(residential_status); conditions.push(`s.residential_status=$${params.length}`); }
+      if (year_of_admission)  { params.push(parseInt(year_of_admission)); conditions.push(`EXTRACT(year FROM s.created_at)::int=$${params.length}`); }
 
       const { rows } = await pool.query(
         `SELECT s.id, s.name, s.student_code, s.class_name, s.gender, s.residential_status,
