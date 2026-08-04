@@ -514,7 +514,7 @@ router.get('/report', async (req, res, next) => {
 // ── Sign List: available filter options ───────────────────────────────────────
 router.get('/sign-list/filters', async (req, res, next) => {
   try {
-    const [classesR, programsR, deptsR, yearsR] = await Promise.all([
+    const [classesR, programsR, deptsR, yearsR] = await Promise.allSettled([
       pool.query(
         `SELECT DISTINCT class_name FROM students WHERE school_id=$1 AND status='Active' ORDER BY class_name`,
         [req.schoolId]
@@ -535,10 +535,10 @@ router.get('/sign-list/filters', async (req, res, next) => {
       ),
     ]);
     res.json({
-      classes:     classesR.rows.map(r => r.class_name),
-      programs:    programsR.rows,
-      departments: deptsR.rows,
-      years:       yearsR.rows.map(r => r.year),
+      classes:     classesR.status === 'fulfilled' ? classesR.value.rows.map(r => r.class_name) : [],
+      programs:    programsR.status === 'fulfilled' ? programsR.value.rows : [],
+      departments: deptsR.status === 'fulfilled' ? deptsR.value.rows : [],
+      years:       yearsR.status === 'fulfilled' ? yearsR.value.rows.map(r => r.year).filter(Boolean) : [],
     });
   } catch (err) { next(err); }
 });

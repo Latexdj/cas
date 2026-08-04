@@ -579,14 +579,15 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/** GET /api/students/batch-year-review — students missing year_of_admission, grouped by class */
+/** GET /api/students/batch-year-review — all classes with their year_of_admission breakdown */
 router.get('/batch-year-review', adminOnly, async (req, res, next) => {
   try {
-    const [unassigned, assigned] = await Promise.all([
+    const [byClassYear, assignedByYear] = await Promise.all([
       pool.query(
-        `SELECT class_name, COUNT(*)::int AS count
-         FROM students WHERE school_id=$1 AND status='Active' AND year_of_admission IS NULL
-         GROUP BY class_name ORDER BY class_name`,
+        `SELECT class_name, year_of_admission, COUNT(*)::int AS count
+         FROM students WHERE school_id=$1 AND status='Active'
+         GROUP BY class_name, year_of_admission
+         ORDER BY class_name, year_of_admission NULLS FIRST`,
         [req.schoolId]
       ),
       pool.query(
@@ -596,15 +597,21 @@ router.get('/batch-year-review', adminOnly, async (req, res, next) => {
         [req.schoolId]
       ),
     ]);
-    const total_unassigned = unassigned.rows.reduce((s, r) => s + r.count, 0);
-    res.json({ unassigned_by_class: unassigned.rows, assigned_by_year: assigned.rows, total_unassigned });
+    const total_unassigned = byClassYear.rows
+      .filter(r => r.year_of_admission === null)
+      .reduce((s, r) => s + r.count, 0);
+    res.json({
+      by_class_year:   byClassYear.rows,
+      assigned_by_year: assignedByYear.rows,
+      total_unassigned,
+    });
   } catch (err) { next(err); }
 });
 
 /** POST /api/students/batch-year-assign — bulk-assign year_of_admission by class or student list */
 router.post('/batch-year-assign', adminOnly, async (req, res, next) => {
   try {
-    const { year_of_admission, class_name, student_ids } = req.body;
+    const { year_of_admission, class_name, student_ids, overwrite } = req.body;
     const year = parseInt(year_of_admission);
     if (!year || isNaN(year)) return res.status(400).json({ error: 'year_of_admission (YYYY) is required' });
 
@@ -617,9 +624,10 @@ router.post('/batch-year-assign', adminOnly, async (req, res, next) => {
       );
       rowCount = rc;
     } else if (class_name) {
+      const nullOnly = !overwrite ? ' AND year_of_admission IS NULL' : '';
       const { rowCount: rc } = await pool.query(
         `UPDATE students SET year_of_admission=$1, updated_at=now()
-         WHERE school_id=$2 AND class_name=$3 AND year_of_admission IS NULL`,
+         WHERE school_id=$2 AND class_name=$3${nullOnly}`,
         [year, req.schoolId, class_name]
       );
       rowCount = rc;
