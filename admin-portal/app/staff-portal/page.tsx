@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
+import { buildSignListHtml, type SlRecipient, type SlSchool } from '@/lib/sign-list-print';
 import { getStaffUser, getStaffColors, getStaffToken } from './layout';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -64,7 +65,13 @@ const STATUS_STYLE = {
 type Section     = 'clearance' | 'library' | 'inventory';
 type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
-type InvTab      = 'items' | 'issue' | 'return';
+type InvTab      = 'items' | 'issue' | 'return' | 'sign-list';
+
+interface SlFilters {
+  classes: string[];
+  programs: { id: string; name: string }[];
+  departments: { id: string; name: string }[];
+}
 
 export default function StaffPortalPage() {
   const user   = typeof window !== 'undefined' ? getStaffUser() : null;
@@ -152,6 +159,27 @@ export default function StaffPortalPage() {
   const [invReturnErr,    setInvReturnErr]    = useState('');
   const [invReturnOk,     setInvReturnOk]     = useState(false);
 
+  // Sign List
+  const today = new Date().toISOString().split('T')[0];
+  const [slTitle,          setSlTitle]          = useState('');
+  const [slItemName,       setSlItemName]       = useState('');
+  const [slIssueDate,      setSlIssueDate]      = useState(today);
+  const [slQtyPerPerson,   setSlQtyPerPerson]   = useState('1');
+  const [slNotes,          setSlNotes]          = useState('');
+  const [slRecipType,      setSlRecipType]      = useState<'students' | 'teachers'>('students');
+  const [slClassName,      setSlClassName]      = useState('');
+  const [slProgramId,      setSlProgramId]      = useState('');
+  const [slGender,         setSlGender]         = useState('');
+  const [slResStatus,      setSlResStatus]      = useState('');
+  const [slDeptId,         setSlDeptId]         = useState('');
+  const [slTeacherGender,  setSlTeacherGender]  = useState('');
+  const [slFilters,        setSlFilters]        = useState<SlFilters>({ classes: [], programs: [], departments: [] });
+  const [slCount,          setSlCount]          = useState<number | null>(null);
+  const [slCountLoad,      setSlCountLoad]      = useState(false);
+  const [slGenerating,     setSlGenerating]     = useState(false);
+  const [slError,          setSlError]          = useState('');
+  const slDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ── Initial load ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!hasCl) return;
@@ -171,6 +199,7 @@ export default function StaffPortalPage() {
     if (section === 'library' && libTab === 'return') { setReturnStudent(null); setReturnCode(''); }
     if (section === 'library' && libTab === 'overdue') loadOverdue();
     if (section === 'inventory') loadInvItems();
+    if (section === 'inventory' && invTab === 'sign-list') loadSlFilters();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, libTab, invTab]);
 
@@ -340,6 +369,88 @@ export default function StaffPortalPage() {
       loadInvItems();
     } catch (e: any) { setInvReturnErr(e.response?.data?.error ?? 'Failed to process return'); }
     finally { setInvReturning(false); }
+  }
+
+  // ── Sign List helpers ─────────────────────────────────────────────────────────
+  function loadSlFilters() {
+    api.get<SlFilters>('/api/inventory/sign-list/filters')
+      .then(r => setSlFilters(r.data)).catch(() => {});
+  }
+
+  function slBuildParams(): Record<string, string> {
+    const p: Record<string, string> = { recipient_type: slRecipType };
+    if (slRecipType === 'students') {
+      if (slClassName) p.class_name         = slClassName;
+      if (slProgramId) p.program_id         = slProgramId;
+      if (slGender)    p.gender             = slGender;
+      if (slResStatus) p.residential_status = slResStatus;
+    } else {
+      if (slDeptId)       p.department_id = slDeptId;
+      if (slTeacherGender) p.gender       = slTeacherGender;
+    }
+    return p;
+  }
+
+  function slBuildFilterLabel(): string {
+    const parts: string[] = [];
+    if (slRecipType === 'students') {
+      parts.push(slClassName || 'All Classes');
+      if (slProgramId) {
+        const prog = slFilters.programs.find(x => x.id === slProgramId);
+        if (prog) parts.push(prog.name);
+      }
+      if (slGender)    parts.push(slGender);
+      if (slResStatus) parts.push(slResStatus + ' Students');
+    } else {
+      if (slDeptId) {
+        const dept = slFilters.departments.find(x => x.id === slDeptId);
+        if (dept) parts.push(dept.name);
+      } else {
+        parts.push('All Departments');
+      }
+      if (slTeacherGender) parts.push(slTeacherGender);
+      parts.push('Teachers');
+    }
+    return parts.join(' · ');
+  }
+
+  function slRefreshCount() {
+    if (slDebounceRef.current) clearTimeout(slDebounceRef.current);
+    slDebounceRef.current = setTimeout(() => {
+      setSlCountLoad(true);
+      api.get<{ total: number }>('/api/inventory/sign-list/recipients', { params: slBuildParams() })
+        .then(r => setSlCount(r.data.total))
+        .catch(() => setSlCount(null))
+        .finally(() => setSlCountLoad(false));
+    }, 450);
+  }
+
+  async function handleSlGenerate() {
+    if (!slTitle.trim()) { setSlError('Please enter a document title.'); return; }
+    setSlError('');
+    setSlGenerating(true);
+    try {
+      const r = await api.get<{ recipients: SlRecipient[]; school: SlSchool; total: number }>(
+        '/api/inventory/sign-list/recipients', { params: slBuildParams() }
+      );
+      if (!r.data.recipients.length) { setSlError('No recipients match the current filters.'); return; }
+      const html = buildSignListHtml({
+        title: slTitle, itemName: slItemName, issueDate: slIssueDate,
+        qtyPerPerson: slQtyPerPerson, notes: slNotes,
+        recipientType: slRecipType, filterLabel: slBuildFilterLabel(),
+        recipients: r.data.recipients, school: r.data.school,
+      });
+      const w = window.open('', '_blank');
+      if (!w) { setSlError('Pop-ups are blocked — please allow pop-ups and try again.'); return; }
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => w.print(), 300);
+    } catch (e: any) {
+      setSlError(e?.response?.data?.error || 'Failed to generate sign list.');
+    } finally {
+      setSlGenerating(false);
+    }
   }
 
   const filteredPending = officeFilter ? pending.filter(p => p.office_id === officeFilter) : pending;
@@ -716,9 +827,9 @@ export default function StaffPortalPage() {
       {hasInv && section === 'inventory' && (
         <div className="space-y-4">
           <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-            {([['items', 'Items'], ['issue', 'Issue'], ['return', 'Return']] as const).map(([key, label]) => (
-              <button key={key} onClick={() => { setInvTab(key); setInvReturnOk(false); }}
-                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${invTab === key ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
+            {([['items', 'Items'], ['issue', 'Issue'], ['return', 'Return'], ['sign-list', 'Sign List']] as const).map(([key, label]) => (
+              <button key={key} onClick={() => { setInvTab(key); setInvReturnOk(false); if (key === 'sign-list') { loadSlFilters(); slRefreshCount(); } }}
+                className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${invTab === key ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
                 style={invTab === key ? { background: primary } : {}}>
                 {label}
               </button>
@@ -817,6 +928,117 @@ export default function StaffPortalPage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Sign List */}
+          {invTab === 'sign-list' && (
+            <div className="space-y-4">
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Document Details</p>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Title <span className="text-red-500">*</span></label>
+                  <input value={slTitle} onChange={e => { setSlTitle(e.target.value); setSlError(''); }} placeholder="e.g. Exercise Books — Term 2"
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Item / Reference</label>
+                    <input value={slItemName} onChange={e => setSlItemName(e.target.value)} placeholder="Item name"
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Qty / Person</label>
+                    <input type="number" min="1" value={slQtyPerPerson} onChange={e => setSlQtyPerPerson(e.target.value)}
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Issue Date</label>
+                  <input type="date" value={slIssueDate} onChange={e => setSlIssueDate(e.target.value)}
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Notes (optional)</label>
+                  <input value={slNotes} onChange={e => setSlNotes(e.target.value)} placeholder="Printed at top of sheet"
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Recipients</p>
+                <div className="flex gap-2">
+                  {(['students', 'teachers'] as const).map(t => (
+                    <button key={t} onClick={() => { setSlRecipType(t); setTimeout(slRefreshCount, 0); }}
+                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${slRecipType === t ? 'text-white' : 'text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600'}`}
+                      style={slRecipType === t ? { background: primary, borderColor: primary } : {}}>
+                      {t === 'students' ? 'Students' : 'Teachers'}
+                    </button>
+                  ))}
+                </div>
+
+                {slRecipType === 'students' ? (
+                  <div className="space-y-2">
+                    <select value={slClassName} onChange={e => { setSlClassName(e.target.value); slRefreshCount(); }}
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
+                      <option value="">All Classes</option>
+                      {slFilters.classes.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <select value={slProgramId} onChange={e => { setSlProgramId(e.target.value); slRefreshCount(); }}
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
+                      <option value="">All Programs</option>
+                      {slFilters.programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <div className="grid grid-cols-2 gap-2">
+                      <select value={slGender} onChange={e => { setSlGender(e.target.value); slRefreshCount(); }}
+                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
+                        <option value="">All Genders</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                      </select>
+                      <select value={slResStatus} onChange={e => { setSlResStatus(e.target.value); slRefreshCount(); }}
+                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
+                        <option value="">Day &amp; Boarding</option>
+                        <option value="Day">Day Only</option>
+                        <option value="Boarding">Boarding Only</option>
+                      </select>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <select value={slDeptId} onChange={e => { setSlDeptId(e.target.value); slRefreshCount(); }}
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
+                      <option value="">All Departments</option>
+                      {slFilters.departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                    <select value={slTeacherGender} onChange={e => { setSlTeacherGender(e.target.value); slRefreshCount(); }}
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
+                      <option value="">All Genders</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                    </select>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/40 rounded-xl px-4 py-2.5">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Matching recipients:</span>
+                  <span className="font-bold text-slate-800 dark:text-white tabular-nums">
+                    {slCountLoad ? '…' : (slCount ?? '—')}
+                  </span>
+                </div>
+
+                {slError && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">{slError}</p>}
+
+                <button onClick={handleSlGenerate} disabled={slGenerating || slCountLoad}
+                  className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center justify-center gap-2"
+                  style={{ background: primary }}>
+                  {slGenerating ? (
+                    <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Generating…</>
+                  ) : (
+                    <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2z" /></svg>Generate &amp; Print</>
+                  )}
+                </button>
+              </div>
             </div>
           )}
 

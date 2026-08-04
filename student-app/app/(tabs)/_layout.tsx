@@ -47,11 +47,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="lms"
+        name="materials"
         options={{
-          title:      'LMS',
-          tabBarIcon: ({ color, size }) => <Ionicons name="book-outline" size={size} color={color} />,
+          title:      'Materials',
+          tabBarIcon: ({ color, size }) => <Ionicons name="folder-open-outline" size={size} color={color} />,
         }}
+      />
+      <Tabs.Screen
+        name="lms"
+        options={{ href: null }} // hidden from tab bar — accessible via More menu
       />
       <Tabs.Screen
         name="more"

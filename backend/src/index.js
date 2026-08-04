@@ -1977,6 +1977,15 @@ async function runMigrations() {
     // Inventory transaction recipient typing
     await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS issued_to_type TEXT CHECK (issued_to_type IN ('student', 'staff', 'department'))`);
     await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS student_id UUID REFERENCES students(id) ON DELETE SET NULL`);
+    // Fix school_staff_roles CHECK constraint to allow 'inventory' role
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE school_staff_roles DROP CONSTRAINT IF EXISTS school_staff_roles_role_check;
+        ALTER TABLE school_staff_roles
+          ADD CONSTRAINT school_staff_roles_role_check
+          CHECK (role IN ('clearance','library','inventory'));
+      EXCEPTION WHEN OTHERS THEN NULL; END $$
+    `);
 
     console.log('Migrations OK');
   } catch (err) {

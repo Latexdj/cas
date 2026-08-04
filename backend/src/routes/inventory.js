@@ -511,4 +511,84 @@ router.get('/report', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Sign List: available filter options ───────────────────────────────────────
+router.get('/sign-list/filters', async (req, res, next) => {
+  try {
+    const [classesR, programsR, deptsR] = await Promise.all([
+      pool.query(
+        `SELECT DISTINCT class_name FROM students WHERE school_id=$1 AND status='Active' ORDER BY class_name`,
+        [req.schoolId]
+      ),
+      pool.query(
+        `SELECT id, name FROM programs WHERE school_id=$1 ORDER BY name`,
+        [req.schoolId]
+      ),
+      pool.query(
+        `SELECT id, name FROM departments WHERE school_id=$1 ORDER BY name`,
+        [req.schoolId]
+      ),
+    ]);
+    res.json({
+      classes:     classesR.rows.map(r => r.class_name),
+      programs:    programsR.rows,
+      departments: deptsR.rows,
+    });
+  } catch (err) { next(err); }
+});
+
+// ── Sign List: recipient list ─────────────────────────────────────────────────
+router.get('/sign-list/recipients', async (req, res, next) => {
+  try {
+    const { recipient_type, class_name, program_id, gender, residential_status, department_id } = req.query;
+
+    if (!recipient_type || !['students', 'teachers'].includes(recipient_type)) {
+      return res.status(400).json({ error: 'recipient_type must be "students" or "teachers"' });
+    }
+
+    const { rows: schRows } = await pool.query(
+      `SELECT name, address, logo_url FROM schools WHERE id=$1`,
+      [req.schoolId]
+    );
+    const school = schRows[0] ?? {};
+
+    if (recipient_type === 'students') {
+      const params = [req.schoolId];
+      const conditions = [`s.school_id=$1`, `s.status='Active'`];
+
+      if (class_name)         { params.push(class_name);         conditions.push(`s.class_name=$${params.length}`); }
+      if (program_id)         { params.push(program_id);         conditions.push(`s.program_id=$${params.length}`); }
+      if (gender)             { params.push(gender);             conditions.push(`s.gender=$${params.length}`); }
+      if (residential_status) { params.push(residential_status); conditions.push(`s.residential_status=$${params.length}`); }
+
+      const { rows } = await pool.query(
+        `SELECT s.id, s.name, s.student_code, s.class_name, s.gender, s.residential_status,
+                p.name AS program_name
+         FROM students s
+         LEFT JOIN programs p ON p.id=s.program_id
+         WHERE ${conditions.join(' AND ')}
+         ORDER BY s.class_name, s.name`,
+        params
+      );
+      return res.json({ recipients: rows, school, total: rows.length });
+    }
+
+    // Teachers
+    const params = [req.schoolId];
+    const conditions = [`t.school_id=$1`, `t.status='Active'`];
+
+    if (gender)        { params.push(gender);        conditions.push(`t.gender=$${params.length}`); }
+    if (department_id) { params.push(department_id); conditions.push(`d.id=$${params.length}`); }
+
+    const { rows } = await pool.query(
+      `SELECT t.id, t.name, t.teacher_code, t.gender, t.department, d.id AS dept_id, d.name AS dept_name
+       FROM teachers t
+       LEFT JOIN departments d ON d.school_id=t.school_id AND LOWER(d.name)=LOWER(t.department)
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY t.name`,
+      params
+    );
+    return res.json({ recipients: rows, school, total: rows.length });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

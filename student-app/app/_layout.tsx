@@ -17,13 +17,14 @@ function InitialLayout() {
     const inTabs      = seg === '(tabs)';
     const inLogin     = seg === 'login';
     const inChangePwd = seg === 'change-password';
+    const inPublic    = ['welcome', 'materials', 'viewer'].includes(seg);
     const inModal     = ['timetable', 'calendar', 'fees', 'clearance', 'library', 'exeat', 'profile'].includes(seg);
 
-    if (!user && !inLogin) {
-      router.replace('/login');
+    if (!user && !inLogin && !inPublic) {
+      router.replace('/welcome');
     } else if (user && mustChangePassword && !inChangePwd) {
       router.replace('/change-password');
-    } else if (user && !mustChangePassword && !inTabs && !inModal) {
+    } else if (user && !mustChangePassword && !inTabs && !inModal && !inPublic) {
       router.replace('/(tabs)');
     }
   }, [user, isLoading, segments, mustChangePassword]);
@@ -31,9 +32,12 @@ function InitialLayout() {
   return (
     <>
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="welcome"         />
         <Stack.Screen name="login"           />
         <Stack.Screen name="change-password" />
         <Stack.Screen name="(tabs)"          />
+        <Stack.Screen name="materials"       options={{ headerShown: true, title: 'Learning Materials', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="viewer"          options={{ headerShown: true, headerBackTitle: 'Back' }} />
         <Stack.Screen name="timetable"       options={{ headerShown: true, title: 'Timetable',  headerBackTitle: 'Back' }} />
         <Stack.Screen name="calendar"        options={{ headerShown: true, title: 'Calendar',   headerBackTitle: 'Back' }} />
         <Stack.Screen name="fees"            options={{ headerShown: true, title: 'Fees',        headerBackTitle: 'Back' }} />
