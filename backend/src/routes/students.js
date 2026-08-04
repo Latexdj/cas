@@ -60,7 +60,7 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
       'Mobile No.', 'Aggregate', 'House', 'Residential Status (Day/Boarding)',
       'Religion', 'Religious Denomination',
       'Guardian Name', 'Guardian Occupation', 'Guardian Mobile',
-      'Notes',
+      'Notes', 'Year of Admission (YYYY)',
     ];
 
     let dataRows;
@@ -102,15 +102,16 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
         s.guardian_occupation ?? '',
         s.guardian_mobile     ?? '',
         s.notes               ?? '',
+        s.year_of_admission   != null ? s.year_of_admission : '',
       ]);
       dataStyle = { fill: { patternType: 'solid', fgColor: { rgb: 'F0FDF4' } } };
     } else {
       const p0 = programs[0]?.name ?? '';
       const p1 = programs[1]?.name ?? p0;
       dataRows = [
-        ['',     'Kwame Mensah', '1A', p0, 'Active', 'GHA-JHS-001', '2008-03-15', 'Male',   'Accra',    '12 Main St', 'GHA-001', 'NHIA-001', '024-000-0001', 8,  'Blue',  'Day',      'Christianity', 'Methodist', 'Kofi Mensah',  'Farmer',   '020-000-0001', ''],
-        ['',     'Abena Osei',   '2B', p1, 'Active', 'GHA-JHS-002', '2007-07-20', 'Female', 'Kumasi',   '5 Ring Rd',  '',        '',          '',             12, 'Red',   'Boarding', 'Islam',        'Sunni',     'Ama Osei',     'Teacher',  '024-000-0002', 'Transferred in'],
-        ['S003', 'Kofi Asante',  '3C', p0, 'Active', 'GHA-JHS-003', '2006-11-05', 'Male',   'Takoradi', '3 Beach Rd', 'GHA-003', 'NHIA-003', '027-000-0003', 10, 'Green', 'Day',      'Christianity', 'Catholic',  'Yaw Asante',   'Engineer', '027-000-0003', ''],
+        ['',     'Kwame Mensah', '1A', p0, 'Active', 'GHA-JHS-001', '2008-03-15', 'Male',   'Accra',    '12 Main St', 'GHA-001', 'NHIA-001', '024-000-0001', 8,  'Blue',  'Day',      'Christianity', 'Methodist', 'Kofi Mensah',  'Farmer',   '020-000-0001', '',  2024],
+        ['',     'Abena Osei',   '2B', p1, 'Active', 'GHA-JHS-002', '2007-07-20', 'Female', 'Kumasi',   '5 Ring Rd',  '',        '',          '',             12, 'Red',   'Boarding', 'Islam',        'Sunni',     'Ama Osei',     'Teacher',  '024-000-0002', 'Transferred in', 2024],
+        ['S003', 'Kofi Asante',  '3C', p0, 'Active', 'GHA-JHS-003', '2006-11-05', 'Male',   'Takoradi', '3 Beach Rd', 'GHA-003', 'NHIA-003', '027-000-0003', 10, 'Green', 'Day',      'Christianity', 'Catholic',  'Yaw Asante',   'Engineer', '027-000-0003', '',  2023],
       ];
       dataStyle = { fill: { patternType: 'solid', fgColor: { rgb: 'EFF6FF' } } };
     }
@@ -122,7 +123,7 @@ router.get('/upload/template', adminOnly, async (req, res, next) => {
       { wch: 18 }, { wch: 26 }, { wch: 22 }, { wch: 18 }, { wch: 30 },
       { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 12 }, { wch: 14 },
       { wch: 28 }, { wch: 18 }, { wch: 24 }, { wch: 26 }, { wch: 22 },
-      { wch: 18 }, { wch: 28 },
+      { wch: 18 }, { wch: 28 }, { wch: 26 },
     ];
     ws['!freeze'] = { xSplit: 0, ySplit: 1 };
 
@@ -277,6 +278,8 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       const guardian_occupation    = String(row[19] ?? '').trim() || null;
       const guardian_mobile        = String(row[20] ?? '').trim() || null;
       const notes                  = String(row[21] ?? '').trim() || null;
+      const yearRaw                = String(row[22] ?? '').trim();
+      const year_of_admission      = yearRaw ? (parseInt(yearRaw) || null) : null;
 
       if (!name && !studentCode) continue;
       if (!name)      { errors.push({ row: rowNum, message: 'Name is required' });  continue; }
@@ -308,7 +311,7 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
         jhs_index_number, date_of_birth, gender, hometown, residential_address,
         ghana_card_number, nhia_number, mobile_number, aggregate, house,
         residential_status, religion, religious_denomination,
-        guardian_name, guardian_occupation, guardian_mobile });
+        guardian_name, guardian_occupation, guardian_mobile, year_of_admission });
     }
 
     // Pass 2: one multi-value INSERT — each cell is its own parameter so nulls work naturally
@@ -322,9 +325,9 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
           r.jhs_index_number, r.date_of_birth || null, r.gender, r.hometown, r.residential_address,
           r.ghana_card_number, r.nhia_number, r.mobile_number, r.aggregate, r.house,
           r.residential_status, r.religion, r.religious_denomination,
-          r.guardian_name, r.guardian_occupation, r.guardian_mobile
+          r.guardian_name, r.guardian_occupation, r.guardian_mobile, r.year_of_admission
         );
-        return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},$${b+11},$${b+12},$${b+13},$${b+14},$${b+15},$${b+16},$${b+17},$${b+18},$${b+19},$${b+20},$${b+21},$${b+22},$${b+23})`;
+        return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7},$${b+8},$${b+9},$${b+10},$${b+11},$${b+12},$${b+13},$${b+14},$${b+15},$${b+16},$${b+17},$${b+18},$${b+19},$${b+20},$${b+21},$${b+22},$${b+23},$${b+24})`;
       });
       await pool.query(
         `INSERT INTO students
@@ -332,7 +335,7 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
             jhs_index_number, date_of_birth, gender, hometown, residential_address,
             ghana_card_number, nhia_number, mobile_number, aggregate, house,
             residential_status, religion, religious_denomination,
-            guardian_name, guardian_occupation, guardian_mobile)
+            guardian_name, guardian_occupation, guardian_mobile, year_of_admission)
          VALUES ${placeholders.join(',')}`,
         params
       );
@@ -433,6 +436,8 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
       add('guardian_occupation',   String(row[19] ?? '').trim() || undefined);
       add('guardian_mobile',       String(row[20] ?? '').trim() || undefined);
       add('notes',                 String(row[21] ?? '').trim() || undefined);
+      const yearUpd = parseInt(String(row[22] ?? '').trim());
+      if (!isNaN(yearUpd) && yearUpd > 1999) add('year_of_admission', yearUpd);
 
       if (statusRaw) {
         const status = validStatuses.find(s => s.toLowerCase() === statusRaw.toLowerCase());
@@ -574,6 +579,57 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/** GET /api/students/batch-year-review — students missing year_of_admission, grouped by class */
+router.get('/batch-year-review', adminOnly, async (req, res, next) => {
+  try {
+    const [unassigned, assigned] = await Promise.all([
+      pool.query(
+        `SELECT class_name, COUNT(*)::int AS count
+         FROM students WHERE school_id=$1 AND status='Active' AND year_of_admission IS NULL
+         GROUP BY class_name ORDER BY class_name`,
+        [req.schoolId]
+      ),
+      pool.query(
+        `SELECT year_of_admission, COUNT(*)::int AS count
+         FROM students WHERE school_id=$1 AND status='Active' AND year_of_admission IS NOT NULL
+         GROUP BY year_of_admission ORDER BY year_of_admission DESC`,
+        [req.schoolId]
+      ),
+    ]);
+    const total_unassigned = unassigned.rows.reduce((s, r) => s + r.count, 0);
+    res.json({ unassigned_by_class: unassigned.rows, assigned_by_year: assigned.rows, total_unassigned });
+  } catch (err) { next(err); }
+});
+
+/** POST /api/students/batch-year-assign — bulk-assign year_of_admission by class or student list */
+router.post('/batch-year-assign', adminOnly, async (req, res, next) => {
+  try {
+    const { year_of_admission, class_name, student_ids } = req.body;
+    const year = parseInt(year_of_admission);
+    if (!year || isNaN(year)) return res.status(400).json({ error: 'year_of_admission (YYYY) is required' });
+
+    let rowCount;
+    if (Array.isArray(student_ids) && student_ids.length > 0) {
+      const { rowCount: rc } = await pool.query(
+        `UPDATE students SET year_of_admission=$1, updated_at=now()
+         WHERE school_id=$2 AND id=ANY($3::uuid[])`,
+        [year, req.schoolId, student_ids]
+      );
+      rowCount = rc;
+    } else if (class_name) {
+      const { rowCount: rc } = await pool.query(
+        `UPDATE students SET year_of_admission=$1, updated_at=now()
+         WHERE school_id=$2 AND class_name=$3 AND year_of_admission IS NULL`,
+        [year, req.schoolId, class_name]
+      );
+      rowCount = rc;
+    } else {
+      return res.status(400).json({ error: 'Either student_ids or class_name is required' });
+    }
+    res.json({ updated: rowCount });
+  } catch (err) { next(err); }
+});
+
 /** GET /api/students/:id */
 router.get('/:id', async (req, res, next) => {
   try {
@@ -584,6 +640,7 @@ router.get('/:id', async (req, res, next) => {
               s.ghana_card_number, s.nhia_number, s.mobile_number, s.aggregate, s.house,
               s.residential_status, s.religion, s.religious_denomination,
               s.guardian_name, s.guardian_occupation, s.guardian_mobile, s.picture_url,
+              s.year_of_admission,
               DATE_PART('year', AGE(s.date_of_birth))::integer AS age,
               (s.pin_hash IS NOT NULL) AS has_pin
        FROM students s
@@ -615,7 +672,7 @@ router.post('/:id/set-pin', adminOnly, async (req, res, next) => {
 /** POST /api/students */
 router.post('/', adminOnly, async (req, res, next) => {
   try {
-    const { name, class_name, student_code, status = 'Active', notes, program_id } = req.body;
+    const { name, class_name, student_code, status = 'Active', notes, program_id, year_of_admission } = req.body;
     if (!name)       return res.status(400).json({ error: 'name is required' });
     if (!class_name) return res.status(400).json({ error: 'class_name is required' });
     const valErrors = validateStudentFields(req.body);
@@ -624,10 +681,10 @@ router.post('/', adminOnly, async (req, res, next) => {
     const code = student_code?.trim() || await nextStudentCode(req.schoolId);
     const defaultHash = await bcrypt.hash(DEFAULT_STUDENT_PIN, 12);
     const { rows } = await pool.query(
-      `INSERT INTO students (school_id, student_code, name, class_name, status, notes, program_id, pin_hash)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-       RETURNING id, student_code, name, class_name, status, notes, program_id`,
-      [req.schoolId, code, name.trim(), class_name.trim(), status, notes || null, program_id || null, defaultHash]
+      `INSERT INTO students (school_id, student_code, name, class_name, status, notes, program_id, pin_hash, year_of_admission)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING id, student_code, name, class_name, status, notes, program_id, year_of_admission`,
+      [req.schoolId, code, name.trim(), class_name.trim(), status, notes || null, program_id || null, defaultHash, year_of_admission || null]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -644,7 +701,7 @@ router.put('/:id', adminOnly, async (req, res, next) => {
       jhs_index_number, date_of_birth, gender, hometown, residential_address,
       ghana_card_number, nhia_number, mobile_number, aggregate, house,
       residential_status, religion, religious_denomination,
-      guardian_name, guardian_occupation, guardian_mobile,
+      guardian_name, guardian_occupation, guardian_mobile, year_of_admission,
     } = req.body;
     const valErrors = validateStudentFields(req.body);
     if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
@@ -672,13 +729,14 @@ router.put('/:id', adminOnly, async (req, res, next) => {
          guardian_name          = COALESCE($20, guardian_name),
          guardian_occupation    = COALESCE($21, guardian_occupation),
          guardian_mobile        = COALESCE($22, guardian_mobile),
+         year_of_admission      = COALESCE($23, year_of_admission),
          updated_at             = now()
-       WHERE id = $23 AND school_id = $24
+       WHERE id = $24 AND school_id = $25
        RETURNING id, student_code, name, class_name, status, notes, program_id,
                  jhs_index_number, date_of_birth, gender, hometown, residential_address,
                  ghana_card_number, nhia_number, mobile_number, aggregate, house,
                  residential_status, religion, religious_denomination,
-                 guardian_name, guardian_occupation, guardian_mobile, picture_url`,
+                 guardian_name, guardian_occupation, guardian_mobile, picture_url, year_of_admission`,
       [student_code?.trim() || null, name || null, class_name?.trim() || null,
        status || null, notes !== undefined ? (notes || null) : undefined,
        program_id || null,
@@ -687,6 +745,7 @@ router.put('/:id', adminOnly, async (req, res, next) => {
        aggregate !== undefined ? (aggregate || null) : undefined,
        house||null, residential_status||null, religion||null, religious_denomination||null,
        guardian_name||null, guardian_occupation||null, guardian_mobile||null,
+       year_of_admission != null ? Number(year_of_admission) : null,
        req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Student not found' });

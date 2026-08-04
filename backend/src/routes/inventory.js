@@ -528,8 +528,8 @@ router.get('/sign-list/filters', async (req, res, next) => {
         [req.schoolId]
       ),
       pool.query(
-        `SELECT DISTINCT EXTRACT(year FROM created_at)::int AS year
-         FROM students WHERE school_id=$1 AND status='Active'
+        `SELECT DISTINCT year_of_admission AS year
+         FROM students WHERE school_id=$1 AND status='Active' AND year_of_admission IS NOT NULL
          ORDER BY year DESC`,
         [req.schoolId]
       ),
@@ -566,7 +566,7 @@ router.get('/sign-list/recipients', async (req, res, next) => {
       if (program_id)         { params.push(program_id);         conditions.push(`s.program_id=$${params.length}`); }
       if (gender)             { params.push(gender);             conditions.push(`s.gender=$${params.length}`); }
       if (residential_status) { params.push(residential_status); conditions.push(`s.residential_status=$${params.length}`); }
-      if (year_of_admission)  { params.push(parseInt(year_of_admission)); conditions.push(`EXTRACT(year FROM s.created_at)::int=$${params.length}`); }
+      if (year_of_admission)  { params.push(parseInt(year_of_admission)); conditions.push(`s.year_of_admission=$${params.length}`); }
 
       const { rows } = await pool.query(
         `SELECT s.id, s.name, s.student_code, s.class_name, s.gender, s.residential_status,

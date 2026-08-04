@@ -1987,6 +1987,22 @@ async function runMigrations() {
       EXCEPTION WHEN OTHERS THEN NULL; END $$
     `);
 
+    // ── Year of admission ─────────────────────────────────────────────────────
+    await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS year_of_admission SMALLINT`);
+    // Backfill codes following the {prefix}{4-digit-seq}{2-digit-year} format (e.g. STU000124 → 2024)
+    await pool.query(`
+      UPDATE students
+      SET year_of_admission = (2000 + RIGHT(student_code, 2)::int)::smallint
+      WHERE year_of_admission IS NULL
+        AND student_code ~ '^[A-Za-z]+[0-9]{6}$'
+    `);
+    // Fall back to created_at year for any remaining NULLs (S001-style codes, etc.)
+    await pool.query(`
+      UPDATE students
+      SET year_of_admission = EXTRACT(year FROM created_at)::smallint
+      WHERE year_of_admission IS NULL
+    `);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

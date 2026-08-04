@@ -20,6 +20,7 @@ type StudentForm = {
   house: string; residential_status: string; jhs_index_number: string;
   religion: string; religious_denomination: string;
   guardian_name: string; guardian_occupation: string; guardian_mobile: string;
+  year_of_admission: string;
 };
 
 const STUDENT_EMPTY: StudentForm = {
@@ -27,7 +28,7 @@ const STUDENT_EMPTY: StudentForm = {
   gender: '', date_of_birth: '', hometown: '', residential_address: '', ghana_card_number: '',
   nhia_number: '', mobile_number: '', aggregate: '', house: '', residential_status: '',
   jhs_index_number: '', religion: '', religious_denomination: '',
-  guardian_name: '', guardian_occupation: '', guardian_mobile: '',
+  guardian_name: '', guardian_occupation: '', guardian_mobile: '', year_of_admission: '',
 };
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
@@ -63,6 +64,7 @@ export default function StudentsPage() {
   const [resettingId,  setResettingId]  = useState<string | null>(null);
   const fileRef       = useRef<HTMLInputElement>(null);
   const updateFileRef = useRef<HTMLInputElement>(null);
+  const [unassignedCount, setUnassignedCount] = useState(0);
 
   // Template download modal
   const [tmplOpen,    setTmplOpen]    = useState(false);
@@ -115,6 +117,12 @@ export default function StudentsPage() {
 
   useEffect(() => { load(); }, [filterClass, filterStatus, filterProgram]);
 
+  useEffect(() => {
+    api.get<{ total_unassigned: number }>('/api/students/batch-year-review')
+      .then(r => setUnassignedCount(r.data.total_unassigned))
+      .catch(() => {});
+  }, []);
+
   function openAdd() {
     setEditing(null); setForm(STUDENT_EMPTY); setError(''); setFieldErrors({}); setModal('add');
   }
@@ -135,10 +143,12 @@ export default function StudentsPage() {
         religious_denomination: data.religious_denomination ?? '',
         guardian_name: data.guardian_name ?? '', guardian_occupation: data.guardian_occupation ?? '',
         guardian_mobile: data.guardian_mobile ?? '',
+        year_of_admission: data.year_of_admission != null ? String(data.year_of_admission) : '',
       });
     } catch {
       setForm({ ...STUDENT_EMPTY, student_code: s.student_code, name: s.name,
-        class_name: s.class_name, status: s.status, notes: s.notes ?? '', program_id: s.program_id ?? '' });
+        class_name: s.class_name, status: s.status, notes: s.notes ?? '', program_id: s.program_id ?? '',
+        year_of_admission: (s as any).year_of_admission != null ? String((s as any).year_of_admission) : '' });
     }
     setModal('edit');
   }
@@ -187,6 +197,7 @@ export default function StudentsPage() {
         religion: form.religion || null, religious_denomination: form.religious_denomination || null,
         guardian_name: form.guardian_name || null, guardian_occupation: form.guardian_occupation || null,
         guardian_mobile: form.guardian_mobile || null,
+        year_of_admission: form.year_of_admission ? Number(form.year_of_admission) : null,
       };
       if (editing) await api.put(`/api/students/${editing.id}`, body);
       else await api.post('/api/students', body);
@@ -373,6 +384,25 @@ export default function StudentsPage() {
         </div>
       </div>
 
+      {/* Year-of-admission review banner */}
+      {unassignedCount > 0 && (
+        <Link href="/students/batch-review"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors group">
+          <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              {unassignedCount} active student{unassignedCount !== 1 ? 's are' : ' is'} missing a year of admission
+            </span>
+            <span className="text-sm text-amber-600 dark:text-amber-500 ml-2">— click to review and assign</span>
+          </div>
+          <svg className="w-4 h-4 text-amber-500 dark:text-amber-400 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
+      )}
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <input
@@ -540,7 +570,7 @@ export default function StudentsPage() {
                       </select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-4 gap-3">
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>House</label>
                       <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.house} onChange={sf('house')}>
@@ -555,6 +585,10 @@ export default function StudentsPage() {
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>JHS Index No.</label>
                       <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.jhs_index_number} onChange={sf('jhs_index_number')} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Year of Admission</label>
+                      <input type="number" min={2000} max={2100} className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.year_of_admission} onChange={sf('year_of_admission')} placeholder="e.g. 2024" />
                     </div>
                   </div>
                 </div>

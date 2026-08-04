@@ -223,7 +223,7 @@ router.delete('/applications/:id', async (req, res, next) => {
 
 // ── Migration ─────────────────────────────────────────────────────────────────
 
-async function migrateOne(client, app, defaultClass, schoolId) {
+async function migrateOne(client, app, defaultClass, schoolId, admissionYear) {
   const { rows: codeRows } = await client.query(
     `SELECT COALESCE(MAX(CAST(SUBSTRING(student_code FROM 2) AS INTEGER)), 0) + 1 AS next_num
      FROM students WHERE school_id = $1 AND student_code ~ '^S[0-9]+$'`,
@@ -236,14 +236,15 @@ async function migrateOne(client, app, defaultClass, schoolId) {
        jhs_index_number, date_of_birth, gender, hometown, residential_address,
        ghana_card_number, nhia_number, mobile_number, aggregate,
        house, residential_status, religion, religious_denomination,
-       guardian_name, guardian_occupation, guardian_mobile, picture_url
-     ) VALUES ($1,$2,$3,$4,'Active',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+       guardian_name, guardian_occupation, guardian_mobile, picture_url, year_of_admission
+     ) VALUES ($1,$2,$3,$4,'Active',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
      RETURNING id`,
     [schoolId, studentCode, app.full_name, defaultClass, app.program_id,
      app.index_number, app.date_of_birth, app.gender, app.hometown, app.residential_address,
      app.ghana_card_number, app.nhia_number, app.mobile_number, app.aggregate,
      app.house, app.residential_status, app.religion, app.religious_denomination,
-     app.guardian_name, app.guardian_occupation, app.guardian_mobile, app.picture_url]
+     app.guardian_name, app.guardian_occupation, app.guardian_mobile, app.picture_url,
+     admissionYear || null]
   );
   const studentId = rows[0].id;
   await client.query(
@@ -256,17 +257,24 @@ async function migrateOne(client, app, defaultClass, schoolId) {
 router.post('/applications/migrate-bulk', async (req, res, next) => {
   try {
     const { default_class = '1' } = req.body;
-    const { rows } = await pool.query(
-      `SELECT * FROM admission_applications WHERE school_id=$1 AND status='reported' ORDER BY created_at`,
-      [req.schoolId]
-    );
+    const [{ rows }, { rows: settingsRows }] = await Promise.all([
+      pool.query(
+        `SELECT * FROM admission_applications WHERE school_id=$1 AND status='reported' ORDER BY created_at`,
+        [req.schoolId]
+      ),
+      pool.query(
+        `SELECT admission_year FROM school_admission_settings WHERE school_id=$1`,
+        [req.schoolId]
+      ),
+    ]);
     if (!rows.length) return res.json({ migrated: 0, skipped: 0, errors: [] });
+    const admissionYear = settingsRows[0] ? (2000 + settingsRows[0].admission_year) : null;
     const client = await pool.connect();
     let migrated = 0, skipped = 0; const errors = [];
     try {
       await client.query('BEGIN');
       for (const app of rows) {
-        try { await migrateOne(client, app, default_class, req.schoolId); migrated++; }
+        try { await migrateOne(client, app, default_class, req.schoolId, admissionYear); migrated++; }
         catch (e) { errors.push({ id: app.id, name: app.full_name, error: e.message }); skipped++; }
       }
       await client.query('COMMIT');
@@ -279,15 +287,22 @@ router.post('/applications/migrate-bulk', async (req, res, next) => {
 router.post('/applications/:id/migrate', async (req, res, next) => {
   try {
     const { default_class = '1' } = req.body;
-    const { rows } = await pool.query(
-      `SELECT * FROM admission_applications WHERE id=$1 AND school_id=$2 AND status='reported'`,
-      [req.params.id, req.schoolId]
-    );
+    const [{ rows }, { rows: settingsRows }] = await Promise.all([
+      pool.query(
+        `SELECT * FROM admission_applications WHERE id=$1 AND school_id=$2 AND status='reported'`,
+        [req.params.id, req.schoolId]
+      ),
+      pool.query(
+        `SELECT admission_year FROM school_admission_settings WHERE school_id=$1`,
+        [req.schoolId]
+      ),
+    ]);
     if (!rows.length) return res.status(404).json({ error: 'Application not found or not in reported status.' });
+    const admissionYear = settingsRows[0] ? (2000 + settingsRows[0].admission_year) : null;
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const studentId = await migrateOne(client, rows[0], default_class, req.schoolId);
+      const studentId = await migrateOne(client, rows[0], default_class, req.schoolId, admissionYear);
       await client.query('COMMIT');
       res.json({ migrated: 1, student_id: studentId });
     } catch (e) { await client.query('ROLLBACK'); throw e; }
