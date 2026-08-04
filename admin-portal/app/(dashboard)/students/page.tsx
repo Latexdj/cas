@@ -65,6 +65,7 @@ export default function StudentsPage() {
   const fileRef       = useRef<HTMLInputElement>(null);
   const updateFileRef = useRef<HTMLInputElement>(null);
   const [unassignedCount, setUnassignedCount] = useState(0);
+  const [yearReviewReady, setYearReviewReady] = useState(false);
 
   // Template download modal
   const [tmplOpen,    setTmplOpen]    = useState(false);
@@ -119,8 +120,8 @@ export default function StudentsPage() {
 
   useEffect(() => {
     api.get<{ total_unassigned: number }>('/api/students/batch-year-review')
-      .then(r => setUnassignedCount(r.data.total_unassigned))
-      .catch(() => {});
+      .then(r => { setUnassignedCount(r.data.total_unassigned); setYearReviewReady(true); })
+      .catch(() => setYearReviewReady(true));
   }, []);
 
   function openAdd() {
@@ -380,12 +381,15 @@ export default function StudentsPage() {
           <Button variant="secondary" size="sm" onClick={() => { setFromClass(''); setToClass(''); setActionResult(''); setModal('promote'); }}>Promote Class</Button>
           <Button variant="secondary" size="sm" onClick={() => { setUploadResult(null); setModal('upload'); }}>↑ Import Students</Button>
           <Button variant="secondary" size="sm" onClick={() => { setUpdateResult(null); setModal('update'); }}>↑ Update Records</Button>
+          <Link href="/students/batch-review">
+            <Button variant="secondary" size="sm">📅 Admission Years</Button>
+          </Link>
           <Button size="sm" onClick={openAdd}>+ Add Student</Button>
         </div>
       </div>
 
-      {/* Year-of-admission review banner */}
-      {unassignedCount > 0 && (
+      {/* Year-of-admission review banner — shown when students have no year assigned */}
+      {yearReviewReady && unassignedCount > 0 && (
         <Link href="/students/batch-review"
           className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors group">
           <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
