@@ -2008,6 +2008,20 @@ async function runMigrations() {
         AND year_of_admission = EXTRACT(year FROM created_at)::smallint
     `);
 
+    // ── Vacation periods ──────────────────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_vacation_periods (
+        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id  UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        start_date DATE NOT NULL,
+        end_date   DATE NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT vp_end_after_start CHECK (end_date >= start_date)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_vacation_periods_school ON school_vacation_periods(school_id, start_date, end_date)`);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

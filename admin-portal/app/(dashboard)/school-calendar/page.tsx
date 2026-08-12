@@ -3,6 +3,23 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { SchoolCalendarEntry } from '@/types/api';
 
+interface VacationPeriod {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  created_at: string;
+}
+
+function vacationDays(start: string, end: string) {
+  const ms = new Date(end).getTime() - new Date(start).getTime();
+  return Math.round(ms / 86400000) + 1;
+}
+
+function fmt(d: string) {
+  return new Date(d + 'T00:00:00').toLocaleDateString('default', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 const TYPE_STYLES: Record<string, { bg: string; color: string; dot: string }> = {
   'Holiday':      { bg: '#FEF2F2', color: '#DC2626', dot: '#DC2626' },
   'School Event': { bg: '#EFF6FF', color: '#2563EB', dot: '#2563EB' },
@@ -24,21 +41,32 @@ function Badge({ type }: { type: string }) {
 
 export default function SchoolCalendarPage() {
   const thisYear  = new Date().getFullYear();
-  const [entries, setEntries] = useState<SchoolCalendarEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [year,    setYear]    = useState(thisYear);
+  const [entries,   setEntries]   = useState<SchoolCalendarEntry[]>([]);
+  const [vacations, setVacations] = useState<VacationPeriod[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [year,      setYear]      = useState(thisYear);
 
-  // Add form
+  // Calendar entry add form
   const [adding,  setAdding]  = useState(false);
   const [form,    setForm]    = useState({ date: '', name: '', type: 'Holiday' as typeof TYPES[number], notes: '', start_time: '', end_time: '' });
   const [saving,  setSaving]  = useState(false);
   const [error,   setError]   = useState('');
 
+  // Vacation period add form
+  const [addingVac, setAddingVac] = useState(false);
+  const [vacForm,   setVacForm]   = useState({ name: '', start_date: '', end_date: '' });
+  const [savingVac, setSavingVac] = useState(false);
+  const [vacError,  setVacError]  = useState('');
+
   async function load() {
     setLoading(true);
     try {
-      const { data } = await api.get<SchoolCalendarEntry[]>(`/api/school-calendar?year=${year}`);
-      setEntries(data);
+      const [calRes, vacRes] = await Promise.allSettled([
+        api.get<SchoolCalendarEntry[]>(`/api/school-calendar?year=${year}`),
+        api.get<VacationPeriod[]>(`/api/school-calendar/vacations?year=${year}`),
+      ]);
+      if (calRes.status === 'fulfilled') setEntries(calRes.value.data);
+      if (vacRes.status === 'fulfilled') setVacations(vacRes.value.data);
     } finally { setLoading(false); }
   }
 
@@ -66,6 +94,34 @@ export default function SchoolCalendarPage() {
     if (!confirm(`Remove "${name}" from the school calendar?`)) return;
     try { await api.delete(`/api/school-calendar/${id}`); await load(); }
     catch { alert('Failed to delete.'); }
+  }
+
+  async function saveVacation() {
+    if (!vacForm.name.trim() || !vacForm.start_date || !vacForm.end_date) {
+      setVacError('Name, start date and end date are required.'); return;
+    }
+    if (vacForm.end_date < vacForm.start_date) {
+      setVacError('End date must be on or after start date.'); return;
+    }
+    setSavingVac(true); setVacError('');
+    try {
+      const { data } = await api.post<{ absences_excused: number } & VacationPeriod>('/api/school-calendar/vacations', vacForm);
+      setAddingVac(false);
+      setVacForm({ name: '', start_date: '', end_date: '' });
+      if (data.absences_excused > 0) {
+        alert(`Vacation period saved. ${data.absences_excused} false absence record${data.absences_excused !== 1 ? 's' : ''} from this period were automatically excused.`);
+      }
+      await load();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setVacError(msg ?? 'Failed to save.');
+    } finally { setSavingVac(false); }
+  }
+
+  async function delVacation(id: string, name: string) {
+    if (!confirm(`Remove vacation period "${name}"? Absences from this period will not be un-excused.`)) return;
+    try { await api.delete(`/api/school-calendar/vacations/${id}`); await load(); }
+    catch { alert('Failed to delete vacation period.'); }
   }
 
   async function reapply(id: string, name: string) {
@@ -250,6 +306,102 @@ export default function SchoolCalendarPage() {
           {entries.length} entr{entries.length === 1 ? 'y' : 'ies'} in {year} · teachers are not marked absent on these days
         </p>
       )}
+
+      {/* ── Vacation Periods ── */}
+      <div className="pt-4 border-t border-slate-100 dark:border-slate-700 space-y-4">
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <div>
+            <h2 className="text-lg font-bold" style={{ color: '#0F172A' }}>Vacation Periods</h2>
+            <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>
+              Date ranges when school is closed — absence detection is paused for the entire period
+            </p>
+          </div>
+          <button
+            onClick={() => { setAddingVac(a => !a); setVacError(''); }}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
+            style={{ backgroundColor: addingVac ? '#64748B' : '#15803D' }}>
+            {addingVac ? 'Cancel' : '+ Add Vacation'}
+          </button>
+        </div>
+
+        {addingVac && (
+          <div className="bg-white rounded-xl p-5 space-y-4" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+            <h3 className="text-sm font-bold" style={{ color: '#0F172A' }}>New Vacation Period</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-1">
+                <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Name *</label>
+                <input className={inputCls} value={vacForm.name}
+                  onChange={e => setVacForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Long Vacation 2025" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Start Date *</label>
+                <input type="date" className={inputCls} value={vacForm.start_date}
+                  onChange={e => setVacForm(f => ({ ...f, start_date: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>End Date *</label>
+                <input type="date" className={inputCls} value={vacForm.end_date}
+                  onChange={e => setVacForm(f => ({ ...f, end_date: e.target.value }))} />
+              </div>
+            </div>
+            {vacForm.start_date && vacForm.end_date && vacForm.end_date >= vacForm.start_date && (
+              <p className="text-xs" style={{ color: '#94A3B8' }}>
+                {vacationDays(vacForm.start_date, vacForm.end_date)} day{vacationDays(vacForm.start_date, vacForm.end_date) !== 1 ? 's' : ''} · absence detection will be paused for this entire period
+              </p>
+            )}
+            {vacError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{vacError}</p>}
+            <div className="flex justify-end">
+              <button onClick={saveVacation} disabled={savingVac}
+                className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+                style={{ backgroundColor: '#15803D' }}>
+                {savingVac ? 'Saving…' : 'Save Vacation Period'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!loading && vacations.length === 0 && !addingVac && (
+          <div className="bg-white rounded-xl text-center py-10 text-sm" style={{ border: '1px solid #F1F5F9', color: '#94A3B8' }}>
+            No vacation periods set for {year}. Add one above to pause absence detection during school breaks.
+          </div>
+        )}
+
+        {vacations.length > 0 && (
+          <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-50" style={{ borderBottom: '1px solid #F1F5F9' }}>
+                  <th className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Name</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Start</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>End</th>
+                  <th className="text-left px-5 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Duration</th>
+                  <th className="px-5 py-3" />
+                </tr>
+              </thead>
+              <tbody>
+                {vacations.map((v, i) => (
+                  <tr key={v.id} className="hover:bg-slate-50 transition-colors"
+                    style={{ borderTop: i > 0 ? '1px solid #F8FAFC' : 'none' }}>
+                    <td className="px-5 py-3 font-semibold" style={{ color: '#0F172A' }}>{v.name}</td>
+                    <td className="px-5 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{fmt(v.start_date)}</td>
+                    <td className="px-5 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{fmt(v.end_date)}</td>
+                    <td className="px-5 py-3 text-xs" style={{ color: '#94A3B8' }}>
+                      {vacationDays(v.start_date, v.end_date)} day{vacationDays(v.start_date, v.end_date) !== 1 ? 's' : ''}
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <button onClick={() => delVacation(v.id, v.name)}
+                        className="text-xs font-semibold" style={{ color: '#DC2626' }}>
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

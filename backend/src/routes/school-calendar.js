@@ -145,6 +145,72 @@ router.post('/:id/reapply', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Vacation periods ──────────────────────────────────────────────────────────
+
+// GET /api/school-calendar/vacations?year=YYYY
+router.get('/vacations', async (req, res, next) => {
+  try {
+    const { year } = req.query;
+    const params = [req.schoolId];
+    let filter = '';
+    if (year) {
+      params.push(year);
+      filter = ` AND (EXTRACT(YEAR FROM start_date) = $2 OR EXTRACT(YEAR FROM end_date) = $2)`;
+    }
+    const { rows } = await pool.query(
+      `SELECT id, name, start_date::text AS start_date, end_date::text AS end_date, created_at
+       FROM school_vacation_periods WHERE school_id = $1${filter}
+       ORDER BY start_date ASC`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/school-calendar/vacations — admin only; retroactively excuses absences in range
+router.post('/vacations', adminOnly, async (req, res, next) => {
+  try {
+    const { name, start_date, end_date } = req.body;
+    if (!name || !start_date || !end_date) {
+      return res.status(400).json({ error: 'name, start_date and end_date are required' });
+    }
+    if (end_date < start_date) {
+      return res.status(400).json({ error: 'end_date must be on or after start_date' });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO school_vacation_periods (school_id, name, start_date, end_date)
+       VALUES ($1,$2,$3,$4)
+       RETURNING id, name, start_date::text AS start_date, end_date::text AS end_date, created_at`,
+      [req.schoolId, name.trim(), start_date, end_date]
+    );
+    // Retroactively excuse any auto-generated absences within this vacation window
+    const { rowCount } = await pool.query(
+      `UPDATE absences SET status = 'Excused', updated_at = now()
+       WHERE school_id = $1 AND date BETWEEN $2 AND $3
+         AND is_auto_generated = true AND status = 'Absent'`,
+      [req.schoolId, start_date, end_date]
+    );
+    if (rowCount > 0) {
+      console.log(`[Calendar] Vacation "${name}": retroactively excused ${rowCount} absence(s) for school ${req.schoolId}`);
+    }
+    res.status(201).json({ ...rows[0], absences_excused: rowCount });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/school-calendar/vacations/:id — admin only
+router.delete('/vacations/:id', adminOnly, async (req, res, next) => {
+  try {
+    const { rowCount } = await pool.query(
+      `DELETE FROM school_vacation_periods WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Vacation period not found' });
+    res.json({ message: 'Removed' });
+  } catch (err) { next(err); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // DELETE /api/school-calendar/:id — admin only
 router.delete('/:id', adminOnly, async (req, res, next) => {
   try {

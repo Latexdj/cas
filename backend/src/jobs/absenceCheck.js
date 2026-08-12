@@ -46,6 +46,16 @@ async function buildAttendanceLookup(schoolId, date) {
   };
 }
 
+// Returns the vacation period record if today falls inside one, otherwise null.
+async function getVacationPeriod(schoolId, date) {
+  const { rows } = await pool.query(
+    `SELECT name FROM school_vacation_periods
+     WHERE school_id = $1 AND start_date <= $2 AND end_date >= $2 LIMIT 1`,
+    [schoolId, date]
+  );
+  return rows[0] ?? null;
+}
+
 // Core absence-check logic — scoped to a single school.
 // Exported so it can be triggered manually from the admin route.
 async function runAbsenceCheck(schoolId) {
@@ -71,6 +81,11 @@ async function runAbsenceCheck(schoolId) {
   if (wholeDayEvent) {
     console.log(`[AbsenceCheck] Skipping — ${wholeDayEvent.type}: "${wholeDayEvent.name}"`);
     return { date: today, schoolId, newAbsences: 0, skipped: wholeDayEvent.name };
+  }
+  const vacation = await getVacationPeriod(schoolId, today);
+  if (vacation) {
+    console.log(`[AbsenceCheck] Skipping — vacation period: "${vacation.name}"`);
+    return { date: today, schoolId, newAbsences: 0, skipped: `Vacation: ${vacation.name}` };
   }
   const partialEvents = calRows.filter(e => e.start_time && e.end_time);
 
@@ -275,12 +290,13 @@ async function runPlcAbsenceCheck(schoolId) {
   const dayOfWeek = getAccraDayOfWeek();
   const now       = new Date().toTimeString().slice(0, 5);
 
-  // Skip on school holidays
+  // Skip on school holidays or vacation periods
   const { rows: calRows } = await pool.query(
     'SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 LIMIT 1',
     [schoolId, today]
   );
   if (calRows.length) return;
+  if (await getVacationPeriod(schoolId, today)) return;
 
   // Get today's active PLC session (if any)
   const { rows: sessions } = await pool.query(
@@ -446,12 +462,14 @@ async function runPrimaryAbsenceCheck(schoolId) {
   );
   if (!schoolRow || schoolRow.school_level !== 'primary') return { date: today, schoolId, newAbsences: 0, skipped: 'Not a primary school' };
 
-  // Skip if today is a school calendar holiday
+  // Skip if today is a school calendar holiday or vacation period
   const { rows: calRows } = await pool.query(
     `SELECT name FROM school_calendar WHERE school_id=$1 AND date=$2 AND start_time IS NULL AND end_time IS NULL`,
     [schoolId, today]
   );
   if (calRows.length) return { date: today, schoolId, newAbsences: 0, skipped: calRows[0].name };
+  const vacation = await getVacationPeriod(schoolId, today);
+  if (vacation) return { date: today, schoolId, newAbsences: 0, skipped: `Vacation: ${vacation.name}` };
 
   // Check approved excuses
   const { rows: excuseRows } = await pool.query(
