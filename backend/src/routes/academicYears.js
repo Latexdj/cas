@@ -2,6 +2,29 @@ const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 
+// Self-healing: ensure columns and tables exist regardless of migration chain state
+(async () => {
+  try {
+    await pool.query(`ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS start_date DATE`);
+    await pool.query(`ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS end_date DATE`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS semesters (
+        id               UUID     PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID     NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        academic_year_id UUID     NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        number           SMALLINT NOT NULL CHECK (number IN (1, 2)),
+        name             TEXT     NOT NULL,
+        start_date       DATE,
+        end_date         DATE,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, academic_year_id, number)
+      )
+    `);
+  } catch (e) {
+    console.error('[academicYears] self-heal error:', e.message);
+  }
+})();
+
 router.use(authenticate, requireActiveSubscription);
 
 // ── Academic Years ─────────────────────────────────────────────────────────────
