@@ -2093,7 +2093,7 @@ async function runMigrations() {
         id               UUID     PRIMARY KEY DEFAULT gen_random_uuid(),
         school_id        UUID     NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
         academic_year_id UUID     NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
-        number           SMALLINT NOT NULL CHECK (number IN (1, 2, 3)),
+        number           SMALLINT NOT NULL CHECK (number IN (1, 2)),
         name             TEXT     NOT NULL,
         start_date       DATE,
         end_date         DATE,

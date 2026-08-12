@@ -122,7 +122,7 @@ router.post('/:yearId/semesters', adminOnly, async (req, res, next) => {
   try {
     const { number, name, start_date, end_date } = req.body;
     if (!number || !name) return res.status(400).json({ error: 'number and name are required' });
-    if (![1, 2, 3].includes(Number(number))) return res.status(400).json({ error: 'number must be 1, 2 or 3' });
+    if (![1, 2].includes(Number(number))) return res.status(400).json({ error: 'number must be 1 or 2' });
     if (start_date && end_date && end_date < start_date) {
       return res.status(400).json({ error: 'end_date must be on or after start_date' });
     }

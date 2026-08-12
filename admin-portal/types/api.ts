@@ -51,7 +51,7 @@ export interface AcademicYear {
 export interface Semester {
   id: string;
   academic_year_id: string;
-  number: 1 | 2 | 3;
+  number: 1 | 2;
   name: string;
   start_date: string | null;
   end_date: string | null;

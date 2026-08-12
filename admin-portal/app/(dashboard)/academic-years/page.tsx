@@ -19,7 +19,7 @@ const inputCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 t
   + ' focus:outline-none focus:ring-2 focus:ring-green-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white';
 const labelCls = 'block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1';
 
-const SEM_NAMES: Record<number, string> = { 1: 'First Semester', 2: 'Second Semester', 3: 'Third Semester' };
+const SEM_NAMES: Record<number, string> = { 1: 'First Semester', 2: 'Second Semester' };
 
 // ── page ──────────────────────────────────────────────────────────────────────
 
@@ -156,7 +156,6 @@ export default function AcademicYearsPage() {
               className={inputCls}>
               <option value="1">Semester 1</option>
               <option value="2">Semester 2</option>
-              <option value="3">Semester 3</option>
             </select>
           </div>
 
@@ -293,9 +292,9 @@ function SemesterPanel({ yearId, onRefresh: _onRefresh }: { yearId: string; onRe
               <label className={labelCls}>Number *</label>
               <select className={inputCls} value={form.number}
                 onChange={e => setForm(f => ({ ...f, number: e.target.value }))}>
-                {[1, 2, 3].map(n => (
-                  <option key={n} value={n} disabled={usedNumbers.has(n as 1|2|3)}>
-                    Semester {n}{usedNumbers.has(n as 1|2|3) ? ' (exists)' : ''}
+                {[1, 2].map(n => (
+                  <option key={n} value={n} disabled={usedNumbers.has(n as 1|2)}>
+                    Semester {n}{usedNumbers.has(n as 1|2) ? ' (exists)' : ''}
                   </option>
                 ))}
               </select>
