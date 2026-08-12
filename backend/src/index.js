@@ -2083,6 +2083,40 @@ async function runMigrations() {
       EXCEPTION WHEN duplicate_object THEN NULL; END $$
     `);
 
+    // Invigilation attendance tables
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS invigilation_check_ins (
+        id                            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id                     UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        exam_session_id               UUID        NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
+        teacher_id                    UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        date                          DATE        NOT NULL,
+        gps_coordinates               TEXT,
+        photo_url                     TEXT,
+        photo_size_kb                 INTEGER,
+        location_verified             BOOLEAN     NOT NULL DEFAULT false,
+        location_verification_message TEXT,
+        notes                         TEXT,
+        academic_year_id              UUID        REFERENCES academic_years(id) ON DELETE SET NULL,
+        semester                      SMALLINT,
+        submitted_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (exam_session_id, teacher_id, date)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS exam_student_attendance (
+        id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id       UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        exam_session_id UUID        NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
+        student_id      UUID        NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        status          TEXT        NOT NULL DEFAULT 'Present' CHECK (status IN ('Present','Absent')),
+        submitted_by    UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        submitted_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        notes           TEXT,
+        UNIQUE (exam_session_id, student_id)
+      )
+    `);
+
     // Academic year date range
     await pool.query(`ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS start_date DATE`);
     await pool.query(`ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS end_date DATE`);

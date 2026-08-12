@@ -1,6 +1,9 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { verifyLocation } = require('../services/geo.service');
+const { uploadPhoto }    = require('../services/storage.service');
+const { logAudit }       = require('../services/audit.service');
 
 // ── Self-healing table setup ──────────────────────────────────────────────────
 // Runs once at module load. If the migration missed these tables this creates
@@ -51,6 +54,46 @@ const _setupDone = (async () => {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_invigilation_duties_session ON invigilation_duties(exam_session_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_invigilation_duties_teacher ON invigilation_duties(school_id, teacher_id)`);
+
+    // Invigilator self check-in (photo + GPS)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS invigilation_check_ins (
+        id                            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id                     UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        exam_session_id               UUID        NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
+        teacher_id                    UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        date                          DATE        NOT NULL,
+        gps_coordinates               TEXT,
+        photo_url                     TEXT,
+        photo_size_kb                 INTEGER,
+        location_verified             BOOLEAN     NOT NULL DEFAULT false,
+        location_verification_message TEXT,
+        notes                         TEXT,
+        academic_year_id              UUID        REFERENCES academic_years(id) ON DELETE SET NULL,
+        semester                      SMALLINT,
+        submitted_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (exam_session_id, teacher_id, date)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_invig_checkins_session ON invigilation_check_ins(exam_session_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_invig_checkins_teacher ON invigilation_check_ins(school_id, teacher_id, date)`);
+
+    // Student register per exam session
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS exam_student_attendance (
+        id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id       UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        exam_session_id UUID        NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
+        student_id      UUID        NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        status          TEXT        NOT NULL DEFAULT 'Present' CHECK (status IN ('Present','Absent')),
+        submitted_by    UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        submitted_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        notes           TEXT,
+        UNIQUE (exam_session_id, student_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_exam_student_att_session ON exam_student_attendance(exam_session_id)`);
+
     console.log('[exams] DB tables ready');
   } catch (err) {
     _setupErr = err;
@@ -89,7 +132,11 @@ router.get('/sessions', async (req, res, next) => {
                   json_build_object('id', d.id, 'teacher_id', d.teacher_id,
                                     'teacher_name', t.name, 'role', d.role)
                 ) FILTER (WHERE d.id IS NOT NULL), '[]'
-              ) AS duties
+              ) AS duties,
+              (SELECT COUNT(*) FROM invigilation_check_ins ci
+               WHERE ci.exam_session_id = es.id) AS check_in_count,
+              (SELECT COUNT(*) FROM exam_student_attendance esa
+               WHERE esa.exam_session_id = es.id) AS register_count
        FROM exam_sessions es
        LEFT JOIN invigilation_duties d ON d.exam_session_id = es.id
        LEFT JOIN teachers t            ON t.id = d.teacher_id
@@ -506,6 +553,279 @@ router.delete('/duties/:id', adminOnly, async (req, res, next) => {
     );
     if (!rowCount) return res.status(404).json({ error: 'Duty not found' });
     res.json({ message: 'Deleted' });
+  } catch (err) { next(err); }
+});
+
+// ── Invigilation Attendance ───────────────────────────────────────────────────
+
+// GET /sessions/duties/mine — teacher: their assigned sessions (today + upcoming)
+router.get('/sessions/duties/mine', async (req, res, next) => {
+  if (setupGuard(res)) return;
+  try {
+    const teacherId = req.user.id;
+    const today     = new Date().toISOString().slice(0, 10);
+
+    const { rows } = await pool.query(
+      `SELECT es.id, es.date::text, es.start_time::text, es.end_time::text,
+              es.subject, es.class_name, es.hall_name, d.role,
+              ci.id              AS check_in_id,
+              ci.submitted_at    AS checked_in_at,
+              ci.photo_url       AS check_in_photo,
+              ci.location_verified,
+              (SELECT COUNT(*) FROM exam_student_attendance esa
+               WHERE esa.exam_session_id = es.id) AS register_count,
+              (SELECT COUNT(*) FROM students s
+               WHERE s.school_id = es.school_id
+                 AND LOWER(s.class_name) = ANY(
+                   SELECT LOWER(TRIM(c))
+                   FROM UNNEST(STRING_TO_ARRAY(es.class_name, ',')) AS c
+                 )) AS student_count
+       FROM exam_sessions es
+       JOIN invigilation_duties d ON d.exam_session_id = es.id AND d.teacher_id = $2
+       LEFT JOIN invigilation_check_ins ci
+              ON ci.exam_session_id = es.id AND ci.teacher_id = $2 AND ci.date = es.date
+       WHERE es.school_id = $1 AND es.date >= $3
+       ORDER BY es.date, es.start_time`,
+      [req.schoolId, teacherId, new Date(Date.now() - 86400000).toISOString().slice(0, 10)]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /sessions/:id/check-in — invigilator submits own attendance (photo + GPS)
+router.post('/sessions/:id/check-in', async (req, res, next) => {
+  if (setupGuard(res)) return;
+  try {
+    const { gpsCoordinates, imageBase64, photoSizeKb, notes } = req.body;
+    const teacherId = req.user.id;
+
+    if (!gpsCoordinates || !imageBase64) {
+      return res.status(400).json({ error: 'gpsCoordinates and imageBase64 are required' });
+    }
+
+    // Verify teacher is assigned to this session
+    const { rows: sessionRows } = await pool.query(
+      `SELECT es.*, d.id AS duty_id
+       FROM exam_sessions es
+       JOIN invigilation_duties d ON d.exam_session_id = es.id AND d.teacher_id = $2
+       WHERE es.id = $1 AND es.school_id = $3`,
+      [req.params.id, teacherId, req.schoolId]
+    );
+    if (!sessionRows.length) {
+      return res.status(403).json({ error: 'You are not assigned to this exam session' });
+    }
+    const session = sessionRows[0];
+    const sessionDate = session.date instanceof Date
+      ? session.date.toISOString().slice(0, 10)
+      : String(session.date).slice(0, 10);
+
+    // Only allow check-in on the exam day
+    const today = new Date().toISOString().slice(0, 10);
+    if (sessionDate !== today) {
+      return res.status(400).json({ error: `Check-in is only available on the exam day (${sessionDate})` });
+    }
+
+    // Duplicate check — return existing record info so client can know it's already done
+    const { rows: existing } = await pool.query(
+      `SELECT id, submitted_at FROM invigilation_check_ins
+       WHERE exam_session_id = $1 AND teacher_id = $2 AND date = $3`,
+      [req.params.id, teacherId, today]
+    );
+    if (existing.length) {
+      return res.status(409).json({
+        error: 'You have already checked in for this session.',
+        check_in_id: existing[0].id,
+        submitted_at: existing[0].submitted_at,
+      });
+    }
+
+    // GPS verification — try to match hall_name to a known location
+    let locationVerified = false;
+    let locationMsg      = 'Location recorded (hall not in location registry)';
+    const { rows: locRows } = await pool.query(
+      `SELECT * FROM locations WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
+      [req.schoolId, session.hall_name]
+    );
+    if (locRows.length && locRows[0].has_coordinates) {
+      const [lat, lng] = gpsCoordinates.split(',').map(Number);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        const result   = verifyLocation(locRows[0], lat, lng);
+        locationVerified = result.verified;
+        locationMsg      = result.message;
+        if (!result.valid) {
+          return res.status(400).json({
+            error: `You do not appear to be in ${session.hall_name}. ${result.message}`,
+          });
+        }
+      }
+    }
+
+    // Academic year
+    const { rows: ayRows } = await pool.query(
+      `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+      [req.schoolId]
+    );
+    const yearId = ayRows[0]?.id              ?? null;
+    const sem    = ayRows[0]?.current_semester ?? null;
+
+    // Upload photo
+    const { rows: tRows } = await pool.query(`SELECT name FROM teachers WHERE id = $1`, [teacherId]);
+    const tName    = tRows[0]?.name ?? teacherId;
+    const fileName = `invigilation/${req.schoolId}/${tName}_${today}_${Date.now()}.jpg`;
+    const photoUrl = await uploadPhoto(imageBase64, fileName);
+
+    // Insert check-in record
+    const { rows: inserted } = await pool.query(
+      `INSERT INTO invigilation_check_ins
+         (school_id, exam_session_id, teacher_id, date, gps_coordinates, photo_url,
+          photo_size_kb, location_verified, location_verification_message, notes,
+          academic_year_id, semester)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       RETURNING *`,
+      [req.schoolId, req.params.id, teacherId, today, gpsCoordinates, photoUrl,
+       photoSizeKb || null, locationVerified, locationMsg, notes?.trim() || null, yearId, sem]
+    );
+
+    await logAudit(
+      req.schoolId, 'INVIGILATION_CHECKIN', teacherId, tName,
+      'invigilation_check_ins', inserted[0].id,
+      { session_id: req.params.id, subject: session.subject, hall: session.hall_name, date: today }
+    );
+
+    res.status(201).json({
+      message: 'Checked in successfully',
+      record: inserted[0],
+      locationMessage: locationMsg,
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /sessions/:id/check-ins — admin: view all check-ins for a session
+router.get('/sessions/:id/check-ins', adminOnly, async (req, res, next) => {
+  if (setupGuard(res)) return;
+  try {
+    const { rows } = await pool.query(
+      `SELECT ci.id, ci.date::text, ci.submitted_at, ci.gps_coordinates,
+              ci.photo_url, ci.photo_size_kb, ci.location_verified,
+              ci.location_verification_message, ci.notes,
+              t.name AS teacher_name, t.id AS teacher_id
+       FROM invigilation_check_ins ci
+       JOIN teachers t ON t.id = ci.teacher_id
+       WHERE ci.exam_session_id = $1 AND ci.school_id = $2
+       ORDER BY ci.submitted_at`,
+      [req.params.id, req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// GET /sessions/:id/register — load student roster (+ existing attendance if any)
+router.get('/sessions/:id/register', async (req, res, next) => {
+  if (setupGuard(res)) return;
+  try {
+    const teacherId = req.user.id;
+
+    // Admins can always view; teachers must be assigned
+    if (req.user.role === 'teacher') {
+      const { rowCount } = await pool.query(
+        `SELECT 1 FROM invigilation_duties WHERE exam_session_id = $1 AND teacher_id = $2 AND school_id = $3`,
+        [req.params.id, teacherId, req.schoolId]
+      );
+      if (!rowCount) return res.status(403).json({ error: 'You are not assigned to this session' });
+    }
+
+    const { rows: sessionRows } = await pool.query(
+      `SELECT class_name FROM exam_sessions WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!sessionRows.length) return res.status(404).json({ error: 'Session not found' });
+
+    // Parse class names (handles merged sessions like "Form 1A, Form 1B")
+    const classNames = sessionRows[0].class_name.split(',').map(c => c.trim().toLowerCase());
+
+    const { rows: students } = await pool.query(
+      `SELECT s.id, s.student_code, s.name, s.class_name,
+              esa.status, esa.notes AS attendance_notes, esa.submitted_at
+       FROM students s
+       LEFT JOIN exam_student_attendance esa
+              ON esa.student_id = s.id AND esa.exam_session_id = $1
+       WHERE s.school_id = $2 AND LOWER(s.class_name) = ANY($3::text[])
+       ORDER BY s.class_name, s.name`,
+      [req.params.id, req.schoolId, classNames]
+    );
+    res.json(students);
+  } catch (err) { next(err); }
+});
+
+// POST /sessions/:id/register — submit student attendance (requires check-in first)
+router.post('/sessions/:id/register', async (req, res, next) => {
+  if (setupGuard(res)) return;
+  try {
+    const { records } = req.body; // [{ student_id, status, notes }]
+    const teacherId   = req.user.id;
+
+    if (!Array.isArray(records) || !records.length) {
+      return res.status(400).json({ error: 'records[] is required' });
+    }
+
+    // Verify assignment
+    const { rowCount: assigned } = await pool.query(
+      `SELECT 1 FROM invigilation_duties WHERE exam_session_id = $1 AND teacher_id = $2 AND school_id = $3`,
+      [req.params.id, teacherId, req.schoolId]
+    );
+    if (!assigned && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'You are not assigned to this session' });
+    }
+
+    // Natural guard: teacher must have checked in first
+    if (req.user.role === 'teacher') {
+      const today = new Date().toISOString().slice(0, 10);
+      const { rows: sessionRows } = await pool.query(
+        `SELECT date::text AS date FROM exam_sessions WHERE id = $1 AND school_id = $2`,
+        [req.params.id, req.schoolId]
+      );
+      if (!sessionRows.length) return res.status(404).json({ error: 'Session not found' });
+      const sessionDate = sessionRows[0].date.slice(0, 10);
+
+      const { rowCount: checkedIn } = await pool.query(
+        `SELECT 1 FROM invigilation_check_ins
+         WHERE exam_session_id = $1 AND teacher_id = $2 AND date = $3`,
+        [req.params.id, teacherId, sessionDate]
+      );
+      if (!checkedIn) {
+        return res.status(403).json({
+          error: 'You must check in first before submitting the student register.',
+          code: 'CHECKIN_REQUIRED',
+        });
+      }
+    }
+
+    // Bulk upsert student attendance
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      let count = 0;
+      for (const r of records) {
+        const status = ['Present', 'Absent'].includes(r.status) ? r.status : 'Present';
+        await client.query(
+          `INSERT INTO exam_student_attendance
+             (school_id, exam_session_id, student_id, status, submitted_by, notes, submitted_at)
+           VALUES ($1,$2,$3,$4,$5,$6,now())
+           ON CONFLICT (exam_session_id, student_id) DO UPDATE
+             SET status = EXCLUDED.status, submitted_by = EXCLUDED.submitted_by,
+                 notes  = EXCLUDED.notes,  submitted_at  = now()`,
+          [req.schoolId, req.params.id, r.student_id, status, teacherId, r.notes?.trim() || null]
+        );
+        count++;
+      }
+      await client.query('COMMIT');
+      res.json({ message: 'Register submitted', count });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) { next(err); }
 });
 
