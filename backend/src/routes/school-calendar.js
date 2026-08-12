@@ -2,6 +2,20 @@ const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 
+// Ensure kind column exists independently of the main migration chain
+(async () => {
+  try {
+    await pool.query(`ALTER TABLE school_vacation_periods ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'vacation'`);
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE school_vacation_periods ADD CONSTRAINT svp_kind_check CHECK (kind IN ('vacation','exam'));
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$
+    `);
+  } catch (err) {
+    console.error('[school-calendar] kind column setup failed:', err.message);
+  }
+})();
+
 router.use(authenticate, requireActiveSubscription);
 
 // GET /api/school-calendar?year=2026&month=5  — all authenticated users (teachers read-only)
