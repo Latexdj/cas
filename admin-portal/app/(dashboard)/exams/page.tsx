@@ -177,7 +177,9 @@ function SessionsTab() {
       setAdding(false);
       await load();
     } catch (e: any) {
-      setError(e?.response?.data?.error ?? 'Failed to save.');
+      const msg  = e?.response?.data?.error ?? 'Failed to save.';
+      const code = e?.response?.data?.code;
+      setError(code ? `${msg} (${code})` : msg);
     } finally { setSaving(false); }
   }
 

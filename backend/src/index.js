@@ -2011,49 +2011,57 @@ async function runMigrations() {
     `);
 
     // ── Invigilation / Exam management ───────────────────────────────────────
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS exam_sessions (
-        id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-        school_id           UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-        academic_year_id    UUID        REFERENCES academic_years(id) ON DELETE SET NULL,
-        semester            SMALLINT,
-        date                DATE        NOT NULL,
-        start_time          TIME        NOT NULL,
-        end_time            TIME        NOT NULL,
-        subject             TEXT        NOT NULL,
-        class_name          TEXT        NOT NULL,
-        hall_name           TEXT        NOT NULL,
-        invigilators_needed SMALLINT    NOT NULL DEFAULT 2,
-        created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
-      )
-    `);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_exam_sessions_school ON exam_sessions(school_id, date)`);
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS exam_invigilator_pool (
-        id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-        school_id       UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-        teacher_id      UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
-        is_excluded     BOOLEAN     NOT NULL DEFAULT false,
-        excluded_reason TEXT,
-        notes           TEXT,
-        created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-        UNIQUE (school_id, teacher_id)
-      )
-    `);
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS invigilation_duties (
-        id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-        school_id        UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-        exam_session_id  UUID        NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
-        teacher_id       UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
-        role             TEXT        NOT NULL DEFAULT 'assistant',
-        is_auto_generated BOOLEAN    NOT NULL DEFAULT false,
-        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-        UNIQUE (exam_session_id, teacher_id)
-      )
-    `);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_invigilation_duties_session ON invigilation_duties(exam_session_id)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_invigilation_duties_teacher ON invigilation_duties(school_id, teacher_id)`);
+    // Isolated try/catch so a failure in earlier migration steps never prevents
+    // these tables from being created on the next restart.
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS exam_sessions (
+          id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id           UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          academic_year_id    UUID        REFERENCES academic_years(id) ON DELETE SET NULL,
+          semester            SMALLINT,
+          date                DATE        NOT NULL,
+          start_time          TIME        NOT NULL,
+          end_time            TIME        NOT NULL,
+          subject             TEXT        NOT NULL,
+          class_name          TEXT        NOT NULL,
+          hall_name           TEXT        NOT NULL,
+          invigilators_needed SMALLINT    NOT NULL DEFAULT 2,
+          created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`ALTER TABLE exam_sessions ADD COLUMN IF NOT EXISTS academic_year_id UUID REFERENCES academic_years(id) ON DELETE SET NULL`);
+      await pool.query(`ALTER TABLE exam_sessions ADD COLUMN IF NOT EXISTS semester SMALLINT`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_exam_sessions_school ON exam_sessions(school_id, date)`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS exam_invigilator_pool (
+          id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id       UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          teacher_id      UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+          is_excluded     BOOLEAN     NOT NULL DEFAULT false,
+          excluded_reason TEXT,
+          notes           TEXT,
+          created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+          UNIQUE (school_id, teacher_id)
+        )
+      `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS invigilation_duties (
+          id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id        UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          exam_session_id  UUID        NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
+          teacher_id       UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+          role             TEXT        NOT NULL DEFAULT 'assistant',
+          is_auto_generated BOOLEAN    NOT NULL DEFAULT false,
+          created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+          UNIQUE (exam_session_id, teacher_id)
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_invigilation_duties_session ON invigilation_duties(exam_session_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_invigilation_duties_teacher ON invigilation_duties(school_id, teacher_id)`);
+    } catch (e) {
+      console.error('Invigilation migration error:', e.message);
+    }
 
     // ── Vacation periods ──────────────────────────────────────────────────────
     await pool.query(`

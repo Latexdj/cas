@@ -22,11 +22,11 @@ function errorHandler(err, _req, res, _next) {
   // Map PostgreSQL errors to safe messages so internal schema details
   // are never exposed to clients.
   if (err.code && PG_MESSAGES[err.code]) {
-    return res.status(400).json({ error: PG_MESSAGES[err.code] });
+    return res.status(400).json({ error: PG_MESSAGES[err.code], code: err.code });
   }
 
   // Catch-all: never leak err.message for unknown server errors.
-  res.status(500).json({ error: 'Internal server error.' });
+  res.status(500).json({ error: 'Internal server error.', code: err.code ?? null });
 }
 
 function notFound(_req, res) {
