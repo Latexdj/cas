@@ -11,6 +11,26 @@ interface Duty {
   role: 'chief' | 'assistant';
 }
 
+interface ReportRow {
+  session_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  subject: string;
+  class_name: string;
+  hall_name: string;
+  teacher_id: string;
+  teacher_name: string;
+  role: 'chief' | 'assistant';
+  checked_in: boolean;
+  checked_in_at: string | null;
+  is_manual: boolean;
+  location_verified: boolean;
+  students_present: number;
+  students_absent: number;
+  register_count: number;
+}
+
 interface CheckInRecord {
   id: string;
   teacher_id: string;
@@ -80,7 +100,7 @@ const labelCls = 'block text-xs font-semibold uppercase tracking-wide text-slate
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type Tab = 'sessions' | 'pool' | 'roster';
+type Tab = 'sessions' | 'pool' | 'roster' | 'report';
 
 export default function ExamsPage() {
   const [tab, setTab] = useState<Tab>('sessions');
@@ -109,12 +129,14 @@ export default function ExamsPage() {
           {tabBtn('sessions', 'Exam Sessions')}
           {tabBtn('pool', 'Invigilator Pool')}
           {tabBtn('roster', 'Duty Roster')}
+          {tabBtn('report', 'Attendance Report')}
         </div>
       </div>
 
       {tab === 'sessions' && <SessionsTab />}
       {tab === 'pool'     && <PoolTab />}
       {tab === 'roster'   && <RosterTab />}
+      {tab === 'report'   && <ReportTab />}
     </div>
   );
 }
@@ -642,6 +664,357 @@ function SessionsTab() {
             {merging ? 'Merging…' : `Merge ${mergeIds.length >= 2 ? mergeIds.length : ''} Sessions`}
           </button>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── Attendance Report tab ─────────────────────────────────────────────────────
+
+function ReportTab() {
+  const todayStr  = new Date().toISOString().slice(0, 10);
+  const monthAgo  = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 10); })();
+
+  const [from,       setFrom]       = useState(monthAgo);
+  const [to,         setTo]         = useState(todayStr);
+  const [teacherId,  setTeacherId]  = useState('');
+  const [subjectVal, setSubjectVal] = useState('');
+  const [rows,       setRows]       = useState<ReportRow[]>([]);
+  const [loading,    setLoading]    = useState(false);
+  const [generated,  setGenerated]  = useState(false);
+  const [error,      setError]      = useState('');
+  const [pool,       setPool]       = useState<PoolTeacher[]>([]);
+  const [subjects,   setSubjects]   = useState<Subject[]>([]);
+
+  useEffect(() => {
+    api.get<PoolTeacher[]>('/api/exams/pool').then(r => setPool(r.data)).catch(() => {});
+    api.get<Subject[]>('/api/subjects').then(r => setSubjects(r.data)).catch(() => {});
+  }, []);
+
+  async function generate() {
+    setLoading(true); setError('');
+    try {
+      const p = new URLSearchParams({ from, to });
+      if (teacherId)  p.set('teacher_id', teacherId);
+      if (subjectVal) p.set('subject', subjectVal);
+      const { data } = await api.get<ReportRow[]>(`/api/exams/report?${p}`);
+      setRows(data);
+      setGenerated(true);
+    } catch (e: any) {
+      setError(e?.response?.data?.error ?? 'Failed to generate report.');
+    } finally { setLoading(false); }
+  }
+
+  // Group rows by session (preserving backend order)
+  const sessionGroups = useMemo(() => {
+    const map = new Map<string, { info: ReportRow; teachers: ReportRow[] }>();
+    const order: string[] = [];
+    for (const r of rows) {
+      if (!map.has(r.session_id)) { map.set(r.session_id, { info: r, teachers: [] }); order.push(r.session_id); }
+      map.get(r.session_id)!.teachers.push(r);
+    }
+    return order.map(id => ({ id, ...map.get(id)! }));
+  }, [rows]);
+
+  const totalDuties    = rows.length;
+  const totalCheckIns  = rows.filter(r => r.checked_in).length;
+  const checkInRate    = totalDuties ? Math.round(totalCheckIns / totalDuties * 100) : 0;
+  const sessionsWithReg = new Set(rows.filter(r => Number(r.register_count) > 0).map(r => r.session_id)).size;
+
+  const teacherStats = useMemo(() => {
+    const map = new Map<string, { name: string; duties: number; ci: number; manual: number; registers: Set<string> }>();
+    for (const r of rows) {
+      if (!map.has(r.teacher_id)) map.set(r.teacher_id, { name: r.teacher_name, duties: 0, ci: 0, manual: 0, registers: new Set() });
+      const s = map.get(r.teacher_id)!;
+      s.duties++;
+      if (r.checked_in) { s.ci++; if (r.is_manual) s.manual++; }
+      if (Number(r.register_count) > 0) s.registers.add(r.session_id);
+    }
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [rows]);
+
+  function exportCSV() {
+    const headers = ['Date','Time','Subject','Class','Hall','Teacher','Role','Checked In','Check-in Time','Entry Type','GPS Verified','Students Present','Students Absent','Register Total'];
+    const csvRows = rows.map(r => [
+      r.date,
+      `${r.start_time.slice(0,5)}-${r.end_time.slice(0,5)}`,
+      r.subject,
+      r.class_name,
+      r.hall_name,
+      r.teacher_name,
+      r.role === 'chief' ? 'Chief' : 'Assistant',
+      r.checked_in ? 'Yes' : 'No',
+      r.checked_in_at ? new Date(r.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+      r.checked_in ? (r.is_manual ? 'Admin' : 'Self') : '',
+      r.checked_in ? (r.location_verified ? 'Yes' : 'No') : '',
+      r.students_present ?? 0,
+      r.students_absent ?? 0,
+      Number(r.students_present ?? 0) + Number(r.students_absent ?? 0),
+    ].map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','));
+    const csv = '﻿' + [headers.join(','), ...csvRows].join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    a.download = `invigilation-report-${from}-to-${to}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+
+  const fmtT = (t: string) => t.slice(0, 5);
+  const fmtD = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  return (
+    <div id="invigilation-report" className="space-y-5">
+      {/* Print CSS — hides everything except this section */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          #invigilation-report, #invigilation-report * { visibility: visible !important; }
+          #invigilation-report { position: absolute; left: 0; top: 0; width: 100%; background: white; padding: 20px; }
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+          #invigilation-report table { font-size: 9pt; border-collapse: collapse; width: 100%; }
+          #invigilation-report th, #invigilation-report td { border: 1px solid #ddd; padding: 4px 6px; }
+          #invigilation-report thead { background: #f1f5f9 !important; -webkit-print-color-adjust: exact; }
+        }
+        .print-only { display: none; }
+      `}</style>
+
+      {/* ── Filter bar ── */}
+      <div className="no-print bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-5 space-y-4">
+        <h2 className="text-sm font-bold text-slate-800 dark:text-white">Report Filters</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div>
+            <label className={labelCls}>From</label>
+            <input type="date" className={inputCls} value={from} onChange={e => setFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>To</label>
+            <input type="date" className={inputCls} value={to} onChange={e => setTo(e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>Teacher</label>
+            <select className={inputCls} value={teacherId} onChange={e => setTeacherId(e.target.value)}>
+              <option value="">All Teachers</option>
+              {pool.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Subject</label>
+            <select className={inputCls} value={subjectVal} onChange={e => setSubjectVal(e.target.value)}>
+              <option value="">All Subjects</option>
+              {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button onClick={generate} disabled={loading}
+            className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+            style={{ backgroundColor: '#15803D' }}>
+            {loading ? 'Generating…' : 'Generate Report'}
+          </button>
+          {generated && rows.length > 0 && (
+            <>
+              <button onClick={exportCSV}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M8 12l4 4 4-4M12 4v12" />
+                </svg>
+                Export Excel (.csv)
+              </button>
+              <button onClick={() => window.print()}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700">
+                <svg className="w-4 h-4 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>
+                </svg>
+                Export PDF (Print)
+              </button>
+            </>
+          )}
+        </div>
+        {error && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>}
+      </div>
+
+      {!generated && (
+        <div className="text-center py-16 text-sm text-slate-400">
+          Set filters above and click <strong>Generate Report</strong>
+        </div>
+      )}
+
+      {generated && rows.length === 0 && (
+        <div className="text-center py-16 text-sm text-slate-400">No invigilation data found for the selected period.</div>
+      )}
+
+      {generated && rows.length > 0 && (
+        <>
+          {/* Print-only header */}
+          <div className="print-only mb-4">
+            <h1 style={{ fontSize: '18pt', fontWeight: 'bold', marginBottom: 4 }}>Invigilation Attendance Report</h1>
+            <p style={{ fontSize: '10pt', color: '#555' }}>Period: {fmtD(from)} — {fmtD(to)}</p>
+            <p style={{ fontSize: '9pt', color: '#888' }}>Generated: {new Date().toLocaleString()}</p>
+          </div>
+
+          {/* ── Stats cards ── */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'Exam Sessions',        value: String(sessionGroups.length) },
+              { label: 'Duties Assigned',       value: String(totalDuties) },
+              { label: 'Check-in Rate',         value: `${checkInRate}%`,  warn: checkInRate < 80 },
+              { label: 'Registers Submitted',   value: `${sessionsWithReg}/${sessionGroups.length}` },
+            ].map(c => (
+              <div key={c.label} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{c.label}</p>
+                <p className={`text-3xl font-bold mt-1 tabular-nums ${c.warn ? 'text-red-600' : 'text-slate-800 dark:text-white'}`}>{c.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Teacher summary ── */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-700">
+              <h2 className="text-sm font-bold text-slate-800 dark:text-white">Teacher Summary</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    <th className="text-left px-4 py-2.5">Teacher</th>
+                    <th className="text-center px-4 py-2.5">Duties</th>
+                    <th className="text-center px-4 py-2.5">Checked In</th>
+                    <th className="text-center px-4 py-2.5">Rate</th>
+                    <th className="text-center px-4 py-2.5">Absent</th>
+                    <th className="text-center px-4 py-2.5">Admin Manual</th>
+                    <th className="text-center px-4 py-2.5">Registers</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
+                  {teacherStats.map(ts => {
+                    const absent = ts.duties - ts.ci;
+                    const r = ts.duties ? Math.round(ts.ci / ts.duties * 100) : 0;
+                    return (
+                      <tr key={ts.name} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                        <td className="px-4 py-2.5 font-semibold text-slate-800 dark:text-white">{ts.name}</td>
+                        <td className="px-4 py-2.5 text-center tabular-nums text-slate-600 dark:text-slate-300">{ts.duties}</td>
+                        <td className="px-4 py-2.5 text-center tabular-nums font-semibold text-green-600 dark:text-green-400">{ts.ci}</td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                            r === 100 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : r >= 60 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                            : 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                          }`}>{r}%</span>
+                        </td>
+                        <td className="px-4 py-2.5 text-center tabular-nums font-semibold text-red-500">
+                          {absent > 0 ? absent : <span className="text-slate-300 dark:text-slate-600 font-normal">—</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-center tabular-nums text-slate-400">
+                          {ts.manual > 0 ? ts.manual : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-center tabular-nums text-slate-600 dark:text-slate-300">{ts.registers.size}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ── Session detail ── */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-700">
+              <h2 className="text-sm font-bold text-slate-800 dark:text-white">Session Detail</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                    <th className="text-left px-4 py-2.5">Date</th>
+                    <th className="text-left px-4 py-2.5">Time</th>
+                    <th className="text-left px-4 py-2.5">Subject</th>
+                    <th className="text-left px-4 py-2.5">Class</th>
+                    <th className="text-left px-4 py-2.5">Hall</th>
+                    <th className="text-left px-4 py-2.5">Teacher</th>
+                    <th className="text-center px-4 py-2.5">Role</th>
+                    <th className="text-center px-4 py-2.5">✓</th>
+                    <th className="text-left px-4 py-2.5">Time</th>
+                    <th className="text-center px-4 py-2.5">Entry</th>
+                    <th className="text-center px-4 py-2.5">GPS</th>
+                    <th className="text-center px-4 py-2.5">Present</th>
+                    <th className="text-center px-4 py-2.5">Absent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sessionGroups.map(({ id, info, teachers }, gi) =>
+                    teachers.map((t, ti) => (
+                      <tr key={`${id}-${t.teacher_id}`}
+                        className={`hover:bg-slate-50 dark:hover:bg-slate-700/20 ${
+                          ti === 0 && gi > 0 ? 'border-t-2 border-slate-200 dark:border-slate-600' : 'border-t border-slate-50 dark:border-slate-700'
+                        }`}>
+                        {/* Session-level cells — rowSpan to avoid repetition */}
+                        {ti === 0 && (
+                          <>
+                            <td className="px-4 py-2 text-xs text-slate-500 whitespace-nowrap align-top" rowSpan={teachers.length}>{fmtD(info.date)}</td>
+                            <td className="px-4 py-2 text-xs font-mono text-slate-400 whitespace-nowrap align-top" rowSpan={teachers.length}>{fmtT(info.start_time)}–{fmtT(info.end_time)}</td>
+                            <td className="px-4 py-2 font-semibold text-slate-800 dark:text-white align-top" rowSpan={teachers.length}>{info.subject}</td>
+                            <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400 align-top" rowSpan={teachers.length}>{info.class_name}</td>
+                            <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400 align-top" rowSpan={teachers.length}>{info.hall_name}</td>
+                          </>
+                        )}
+                        {/* Teacher-level cells */}
+                        <td className="px-4 py-2 text-slate-800 dark:text-slate-200">{t.teacher_name}</td>
+                        <td className="px-4 py-2 text-center">
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${
+                            t.role === 'chief'
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                              : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                          }`}>{t.role === 'chief' ? 'Chief' : 'Asst'}</span>
+                        </td>
+                        <td className="px-4 py-2 text-center text-lg leading-none">
+                          {t.checked_in
+                            ? <span className="text-green-500 font-bold">✓</span>
+                            : <span className="text-red-400 font-bold">✗</span>}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-slate-500 whitespace-nowrap">
+                          {t.checked_in_at
+                            ? new Date(t.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            : <span className="text-slate-300 dark:text-slate-600">—</span>}
+                        </td>
+                        <td className="px-4 py-2 text-center">
+                          {t.checked_in && (
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${
+                              t.is_manual
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            }`}>{t.is_manual ? 'Admin' : 'Self'}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-center text-xs">
+                          {t.checked_in
+                            ? t.location_verified
+                              ? <span className="font-bold text-green-600 dark:text-green-400">✓</span>
+                              : <span className="text-slate-300 dark:text-slate-600">—</span>
+                            : null}
+                        </td>
+                        {/* Register stats — same for all teachers in session; show via rowSpan */}
+                        {ti === 0 && (
+                          <>
+                            <td className="px-4 py-2 text-center font-semibold tabular-nums align-top text-green-600 dark:text-green-400" rowSpan={teachers.length}>
+                              {Number(info.students_present) + Number(info.students_absent) > 0
+                                ? info.students_present
+                                : <span className="text-slate-300 dark:text-slate-600 font-normal text-xs">—</span>}
+                            </td>
+                            <td className="px-4 py-2 text-center font-semibold tabular-nums align-top text-red-500" rowSpan={teachers.length}>
+                              {Number(info.students_present) + Number(info.students_absent) > 0
+                                ? info.students_absent
+                                : <span className="text-slate-300 dark:text-slate-600 font-normal text-xs">—</span>}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

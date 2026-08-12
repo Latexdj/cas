@@ -803,6 +803,54 @@ router.post('/sessions/:id/check-in/manual', adminOnly, async (req, res, next) =
   } catch (err) { next(err); }
 });
 
+// GET /report — admin: invigilation attendance report across sessions
+router.get('/report', adminOnly, async (req, res, next) => {
+  if (setupGuard(res)) return;
+  try {
+    const { from, to, teacher_id, subject } = req.query;
+    const params = [req.schoolId];
+    const conditions = ['es.school_id = $1', 'd.school_id = $1'];
+    let p = 2;
+    if (from)       { conditions.push(`es.date >= $${p++}`); params.push(from); }
+    if (to)         { conditions.push(`es.date <= $${p++}`); params.push(to); }
+    if (teacher_id) { conditions.push(`d.teacher_id = $${p++}`); params.push(teacher_id); }
+    if (subject)    { conditions.push(`LOWER(es.subject) = LOWER($${p++})`); params.push(subject); }
+
+    const { rows } = await pool.query(`
+      SELECT
+        es.id                                     AS session_id,
+        es.date::text,
+        es.start_time::text,
+        es.end_time::text,
+        es.subject,
+        es.class_name,
+        es.hall_name,
+        t.id                                      AS teacher_id,
+        t.name                                    AS teacher_name,
+        d.role,
+        (ci.id IS NOT NULL)                       AS checked_in,
+        ci.submitted_at                           AS checked_in_at,
+        COALESCE(ci.is_manual, false)             AS is_manual,
+        COALESCE(ci.location_verified, false)     AS location_verified,
+        (SELECT COUNT(*) FROM exam_student_attendance
+         WHERE exam_session_id = es.id AND status = 'Present') AS students_present,
+        (SELECT COUNT(*) FROM exam_student_attendance
+         WHERE exam_session_id = es.id AND status = 'Absent')  AS students_absent,
+        (SELECT COUNT(*) FROM exam_student_attendance
+         WHERE exam_session_id = es.id)                        AS register_count
+      FROM exam_sessions es
+      JOIN invigilation_duties d ON d.exam_session_id = es.id
+      JOIN teachers t ON t.id = d.teacher_id
+      LEFT JOIN invigilation_check_ins ci
+             ON ci.exam_session_id = es.id AND ci.teacher_id = t.id AND ci.school_id = $1
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY es.date DESC, es.start_time, es.subject, t.name
+    `, params);
+
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // GET /sessions/:id/register — load student roster (+ existing attendance if any)
 router.get('/sessions/:id/register', async (req, res, next) => {
   if (setupGuard(res)) return;
