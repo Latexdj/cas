@@ -136,6 +136,9 @@ function SessionsTab() {
   const [editForm,   setEditForm]   = useState({ date: '', start_time: '', end_time: '', subject: '', class_name: '', hall_name: '', invigilators_needed: 2 });
   const [editSaving, setEditSaving] = useState(false);
   const [editError,  setEditError]  = useState('');
+  const [mergeMode,  setMergeMode]  = useState(false);
+  const [mergeIds,   setMergeIds]   = useState<string[]>([]);
+  const [merging,    setMerging]    = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -257,6 +260,22 @@ function SessionsTab() {
     } finally { setEditSaving(false); }
   }
 
+  async function doMerge() {
+    if (mergeIds.length < 2) return;
+    const names = mergeIds.map(id => sessions.find(s => s.id === id)?.class_name).filter(Boolean).join(', ');
+    if (!confirm(`Merge these sessions into one?\n\n${names}\n\nThe earliest session keeps its date/time/hall. Invigilator counts are summed.`)) return;
+    setMerging(true);
+    try {
+      await api.post('/api/exams/sessions/merge', { session_ids: mergeIds });
+      setMergeMode(false); setMergeIds([]);
+      await load();
+    } catch (e: any) {
+      const msg  = e?.response?.data?.error ?? 'Merge failed.';
+      const code = e?.response?.data?.code;
+      alert(code ? `${msg} (${code})` : msg);
+    } finally { setMerging(false); }
+  }
+
   const checkedRows   = classRows.filter(r => r.checked);
   const selectedCount = checkedRows.length;  // sessions that will be created
   const classCount    = checkedRows.reduce((n, r) => n + (r.members?.length ?? 1), 0);
@@ -272,9 +291,17 @@ function SessionsTab() {
 
   return (
     <div className="space-y-5">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {!adding && sessions.length > 1 && (
+          <button
+            onClick={() => { setMergeMode(m => !m); setMergeIds([]); setEditingId(null); }}
+            className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+            style={{ backgroundColor: mergeMode ? '#64748B' : '#2563EB', color: 'white' }}>
+            {mergeMode ? 'Cancel Merge' : 'Merge Sessions'}
+          </button>
+        )}
         <button
-          onClick={() => adding ? setAdding(false) : openAdd()}
+          onClick={() => { adding ? setAdding(false) : openAdd(); setMergeMode(false); setMergeIds([]); }}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
           style={{ backgroundColor: adding ? '#64748B' : '#15803D' }}>
           {adding ? 'Cancel' : '+ Add Sessions'}
@@ -425,16 +452,31 @@ function SessionsTab() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700">
+                      {mergeMode && <th className="w-10 px-3 py-2.5" />}
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Time</th>
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Subject</th>
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Class</th>
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Hall</th>
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Assigned</th>
-                      <th className="px-4 py-2.5" />
+                      {!mergeMode && <th className="px-4 py-2.5" />}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                    {byDate[date].map(s => editingId === s.id ? (
+                    {byDate[date].map(s => mergeMode ? (
+                      <tr key={s.id}
+                        onClick={() => setMergeIds(ids => ids.includes(s.id) ? ids.filter(i => i !== s.id) : [...ids, s.id])}
+                        className={`cursor-pointer transition-colors ${mergeIds.includes(s.id) ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
+                        <td className="px-3 py-2.5 text-center">
+                          <input type="checkbox" readOnly checked={mergeIds.includes(s.id)}
+                            className="rounded border-slate-300 text-blue-600 pointer-events-none" />
+                        </td>
+                        <td className="px-4 py-2.5 font-mono text-xs text-slate-500 whitespace-nowrap">{fmtTime(s.start_time)}–{fmtTime(s.end_time)}</td>
+                        <td className="px-4 py-2.5 font-semibold text-slate-800 dark:text-white">{s.subject}</td>
+                        <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{s.class_name}</td>
+                        <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{s.hall_name}</td>
+                        <td className="px-4 py-2.5 text-xs text-slate-400">{s.duties.length} assigned</td>
+                      </tr>
+                    ) : editingId === s.id ? (
                       <tr key={s.id} className="bg-blue-50/40 dark:bg-blue-900/10">
                         <td colSpan={6} className="px-4 py-3">
                           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-2">
@@ -535,6 +577,21 @@ function SessionsTab() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {mergeMode && (
+        <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-3">
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            {mergeIds.length === 0
+              ? 'Click sessions to select them for merging'
+              : `${mergeIds.length} session${mergeIds.length !== 1 ? 's' : ''} selected`}
+          </p>
+          <button onClick={doMerge} disabled={mergeIds.length < 2 || merging}
+            className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+            style={{ backgroundColor: '#2563EB' }}>
+            {merging ? 'Merging…' : `Merge ${mergeIds.length >= 2 ? mergeIds.length : ''} Sessions`}
+          </button>
         </div>
       )}
     </div>

@@ -164,6 +164,50 @@ router.post('/sessions/bulk', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/exams/sessions/merge — combine multiple sessions into one
+router.post('/sessions/merge', adminOnly, async (req, res, next) => {
+  if (setupGuard(res)) return;
+  try {
+    const { session_ids } = req.body;
+    if (!Array.isArray(session_ids) || session_ids.length < 2) {
+      return res.status(400).json({ error: 'At least 2 session_ids are required' });
+    }
+    const { rows: sessions } = await pool.query(
+      `SELECT id, class_name, invigilators_needed FROM exam_sessions
+       WHERE school_id=$1 AND id=ANY($2::uuid[]) ORDER BY created_at`,
+      [req.schoolId, session_ids]
+    );
+    if (sessions.length < 2) {
+      return res.status(404).json({ error: 'One or more sessions not found' });
+    }
+    const primary  = sessions[0];
+    const toMerge  = sessions.slice(1);
+    const combined = sessions.map(s => s.class_name).join(', ');
+    const totalInv = sessions.reduce((n, s) => n + s.invigilators_needed, 0);
+
+    await pool.query(
+      `UPDATE exam_sessions SET class_name=$1, invigilators_needed=$2 WHERE id=$3 AND school_id=$4`,
+      [combined, totalInv, primary.id, req.schoolId]
+    );
+
+    for (const other of toMerge) {
+      // Move non-conflicting duties to the primary session
+      await pool.query(
+        `UPDATE invigilation_duties SET exam_session_id=$1
+         WHERE exam_session_id=$2 AND school_id=$3
+           AND teacher_id NOT IN (
+             SELECT teacher_id FROM invigilation_duties WHERE exam_session_id=$1 AND school_id=$3
+           )`,
+        [primary.id, other.id, req.schoolId]
+      );
+      // Deleting the session cascades remaining (conflicting) duties
+      await pool.query(`DELETE FROM exam_sessions WHERE id=$1 AND school_id=$2`, [other.id, req.schoolId]);
+    }
+
+    res.json({ merged_into: primary.id, class_name: combined });
+  } catch (err) { next(err); }
+});
+
 router.put('/sessions/:id', adminOnly, async (req, res, next) => {
   try {
     const { date, start_time, end_time, subject, class_name, hall_name,
