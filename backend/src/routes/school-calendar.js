@@ -2,17 +2,30 @@ const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 
-// Ensure kind column exists independently of the main migration chain
+// Self-heal: ensure vacation/exam periods table and kind column exist
 (async () => {
   try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS school_vacation_periods (
+        id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id  UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        start_date DATE NOT NULL,
+        end_date   DATE NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT vp_end_after_start CHECK (end_date >= start_date)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_vacation_periods_school ON school_vacation_periods(school_id, start_date, end_date)`);
     await pool.query(`ALTER TABLE school_vacation_periods ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'vacation'`);
     await pool.query(`
       DO $$ BEGIN
         ALTER TABLE school_vacation_periods ADD CONSTRAINT svp_kind_check CHECK (kind IN ('vacation','exam'));
       EXCEPTION WHEN duplicate_object THEN NULL; END $$
     `);
+    console.log('[school-calendar] DB ready');
   } catch (err) {
-    console.error('[school-calendar] kind column setup failed:', err.message);
+    console.error('[school-calendar] DB setup failed:', err.code, err.message);
   }
 })();
 

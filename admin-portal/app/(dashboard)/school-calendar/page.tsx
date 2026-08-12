@@ -334,8 +334,8 @@ function PeriodTab({ periods, kind, year, onRefresh }: { periods: Period[]; kind
       }
       onRefresh();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg ?? 'Failed to save.');
+      const d = (err as { response?: { data?: { error?: string; code?: string } } })?.response?.data;
+      setError(d?.error ? (d.code ? `${d.error} (${d.code})` : d.error) : 'Failed to save.');
     } finally { setSaving(false); }
   }
 
