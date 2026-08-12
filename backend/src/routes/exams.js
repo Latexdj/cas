@@ -77,6 +77,8 @@ const _setupDone = (async () => {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_invig_checkins_session ON invigilation_check_ins(exam_session_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_invig_checkins_teacher ON invigilation_check_ins(school_id, teacher_id, date)`);
+    await pool.query(`ALTER TABLE invigilation_check_ins ADD COLUMN IF NOT EXISTS is_manual BOOLEAN NOT NULL DEFAULT FALSE`);
+    await pool.query(`ALTER TABLE invigilation_check_ins ADD COLUMN IF NOT EXISTS manually_entered_by UUID REFERENCES teachers(id) ON DELETE SET NULL`);
 
     // Student register per exam session
     await pool.query(`
@@ -639,26 +641,33 @@ router.post('/sessions/:id/check-in', async (req, res, next) => {
       });
     }
 
-    // GPS verification — try to match hall_name to a known location
-    let locationVerified = false;
-    let locationMsg      = 'Location recorded (hall not in location registry)';
+    // GPS verification — hall must be in the location registry with coordinates configured
     const { rows: locRows } = await pool.query(
       `SELECT * FROM locations WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
       [req.schoolId, session.hall_name]
     );
-    if (locRows.length && locRows[0].has_coordinates) {
-      const [lat, lng] = gpsCoordinates.split(',').map(Number);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        const result   = verifyLocation(locRows[0], lat, lng);
-        locationVerified = result.verified;
-        locationMsg      = result.message;
-        if (!result.valid) {
-          return res.status(400).json({
-            error: `You do not appear to be in ${session.hall_name}. ${result.message}`,
-          });
-        }
-      }
+    if (!locRows.length) {
+      return res.status(400).json({
+        error: `Exam hall "${session.hall_name}" is not registered as a location. Ask your administrator to add it to the Locations list before check-in is available.`,
+      });
     }
+    if (!locRows[0].has_coordinates) {
+      return res.status(400).json({
+        error: `GPS coordinates have not been configured for "${session.hall_name}". Ask your administrator to set the coordinates for this hall.`,
+      });
+    }
+    const [lat, lng] = gpsCoordinates.split(',').map(Number);
+    if (isNaN(lat) || isNaN(lng)) {
+      return res.status(400).json({ error: 'Invalid GPS coordinates. Please refresh your location and try again.' });
+    }
+    const result = verifyLocation(locRows[0], lat, lng);
+    if (!result.valid) {
+      return res.status(400).json({
+        error: `You do not appear to be in ${session.hall_name}. ${result.message}`,
+      });
+    }
+    const locationVerified = result.verified;
+    const locationMsg      = result.message;
 
     // Academic year
     const { rows: ayRows } = await pool.query(
@@ -708,6 +717,7 @@ router.get('/sessions/:id/check-ins', adminOnly, async (req, res, next) => {
       `SELECT ci.id, ci.date::text, ci.submitted_at, ci.gps_coordinates,
               ci.photo_url, ci.photo_size_kb, ci.location_verified,
               ci.location_verification_message, ci.notes,
+              ci.is_manual, ci.manually_entered_by,
               t.name AS teacher_name, t.id AS teacher_id
        FROM invigilation_check_ins ci
        JOIN teachers t ON t.id = ci.teacher_id
@@ -716,6 +726,80 @@ router.get('/sessions/:id/check-ins', adminOnly, async (req, res, next) => {
       [req.params.id, req.schoolId]
     );
     res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /sessions/:id/check-in/manual — admin manually records an invigilator's attendance
+router.post('/sessions/:id/check-in/manual', adminOnly, async (req, res, next) => {
+  if (setupGuard(res)) return;
+  try {
+    const { teacher_id, notes } = req.body;
+    if (!teacher_id) return res.status(400).json({ error: 'teacher_id is required.' });
+
+    // Verify session belongs to this school
+    const { rows: sessionRows } = await pool.query(
+      `SELECT es.*, ay.id AS ay_id, ay.current_semester AS ay_sem
+       FROM exam_sessions es
+       LEFT JOIN academic_years ay ON ay.school_id = es.school_id AND ay.is_current = TRUE
+       WHERE es.id = $1 AND es.school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!sessionRows.length) return res.status(404).json({ error: 'Session not found.' });
+    const session = sessionRows[0];
+
+    // Verify teacher is assigned to this session
+    const { rowCount: assigned } = await pool.query(
+      `SELECT 1 FROM invigilation_duties WHERE exam_session_id = $1 AND teacher_id = $2 AND school_id = $3`,
+      [req.params.id, teacher_id, req.schoolId]
+    );
+    if (!assigned) return res.status(400).json({ error: 'This teacher is not assigned to this exam session.' });
+
+    // Get teacher name for audit
+    const { rows: tRows } = await pool.query(
+      `SELECT name FROM teachers WHERE id = $1 AND school_id = $2`,
+      [teacher_id, req.schoolId]
+    );
+    if (!tRows.length) return res.status(404).json({ error: 'Teacher not found.' });
+
+    const sessionDate = session.date instanceof Date
+      ? session.date.toISOString().slice(0, 10)
+      : String(session.date).slice(0, 10);
+
+    // Duplicate guard
+    const { rows: existing } = await pool.query(
+      `SELECT id, submitted_at FROM invigilation_check_ins
+       WHERE exam_session_id = $1 AND teacher_id = $2 AND date = $3`,
+      [req.params.id, teacher_id, sessionDate]
+    );
+    if (existing.length) {
+      return res.status(409).json({
+        error: `${tRows[0].name} has already been checked in for this session.`,
+        check_in_id: existing[0].id,
+        submitted_at: existing[0].submitted_at,
+      });
+    }
+
+    const adminId = req.user?.id ?? null;
+
+    const { rows: inserted } = await pool.query(
+      `INSERT INTO invigilation_check_ins
+         (school_id, exam_session_id, teacher_id, date, notes,
+          is_manual, manually_entered_by, academic_year_id, semester)
+       VALUES ($1, $2, $3, $4, $5, TRUE, $6, $7, $8)
+       RETURNING *`,
+      [req.schoolId, req.params.id, teacher_id, sessionDate,
+       notes?.trim() || 'Manually recorded by administrator',
+       adminId, session.ay_id, session.ay_sem]
+    );
+
+    await logAudit(
+      req.schoolId, 'INVIGILATION_CHECKIN_MANUAL', adminId, 'Administrator',
+      'invigilation_check_ins', inserted[0].id,
+      { session_id: req.params.id, teacher_id, teacher_name: tRows[0].name,
+        subject: session.subject, hall: session.hall_name, date: sessionDate }
+    );
+
+    res.json({ ok: true, check_in: inserted[0] });
   } catch (err) { next(err); }
 });
 

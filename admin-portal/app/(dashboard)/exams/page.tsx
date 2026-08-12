@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { api } from '@/lib/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -9,6 +9,16 @@ interface Duty {
   teacher_id: string;
   teacher_name: string;
   role: 'chief' | 'assistant';
+}
+
+interface CheckInRecord {
+  id: string;
+  teacher_id: string;
+  teacher_name: string;
+  submitted_at: string;
+  is_manual: boolean;
+  location_verified: boolean;
+  notes: string | null;
 }
 
 interface ExamSession {
@@ -23,6 +33,8 @@ interface ExamSession {
   academic_year_id: string | null;
   semester: number | null;
   duties: Duty[];
+  check_in_count: number;
+  register_count: number;
 }
 
 interface PoolTeacher {
@@ -136,9 +148,10 @@ function SessionsTab() {
   const [editForm,   setEditForm]   = useState({ date: '', start_time: '', end_time: '', subject: '', class_name: '', hall_name: '', invigilators_needed: 2 });
   const [editSaving, setEditSaving] = useState(false);
   const [editError,  setEditError]  = useState('');
-  const [mergeMode,  setMergeMode]  = useState(false);
-  const [mergeIds,   setMergeIds]   = useState<string[]>([]);
-  const [merging,    setMerging]    = useState(false);
+  const [mergeMode,    setMergeMode]    = useState(false);
+  const [mergeIds,     setMergeIds]     = useState<string[]>([]);
+  const [merging,      setMerging]      = useState(false);
+  const [checkInsId,   setCheckInsId]   = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -458,119 +471,155 @@ function SessionsTab() {
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Class</th>
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Hall</th>
                       <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Assigned</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Attendance</th>
                       {!mergeMode && <th className="px-4 py-2.5" />}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
-                    {byDate[date].map(s => mergeMode ? (
-                      <tr key={s.id}
-                        onClick={() => setMergeIds(ids => ids.includes(s.id) ? ids.filter(i => i !== s.id) : [...ids, s.id])}
-                        className={`cursor-pointer transition-colors ${mergeIds.includes(s.id) ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
-                        <td className="px-3 py-2.5 text-center">
-                          <input type="checkbox" readOnly checked={mergeIds.includes(s.id)}
-                            className="rounded border-slate-300 text-blue-600 pointer-events-none" />
-                        </td>
-                        <td className="px-4 py-2.5 font-mono text-xs text-slate-500 whitespace-nowrap">{fmtTime(s.start_time)}–{fmtTime(s.end_time)}</td>
-                        <td className="px-4 py-2.5 font-semibold text-slate-800 dark:text-white">{s.subject}</td>
-                        <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{s.class_name}</td>
-                        <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{s.hall_name}</td>
-                        <td className="px-4 py-2.5 text-xs text-slate-400">{s.duties.length} assigned</td>
-                      </tr>
-                    ) : editingId === s.id ? (
-                      <tr key={s.id} className="bg-blue-50/40 dark:bg-blue-900/10">
-                        <td colSpan={6} className="px-4 py-3">
-                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-2">
-                            <div>
-                              <label className={labelCls}>Date</label>
-                              <input type="date" className={inputCls} value={editForm.date}
-                                onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} />
-                            </div>
-                            <div>
-                              <label className={labelCls}>Start</label>
-                              <input type="time" className={inputCls} value={editForm.start_time}
-                                onChange={e => setEditForm(f => ({ ...f, start_time: e.target.value }))} />
-                            </div>
-                            <div>
-                              <label className={labelCls}>End</label>
-                              <input type="time" className={inputCls} value={editForm.end_time}
-                                onChange={e => setEditForm(f => ({ ...f, end_time: e.target.value }))} />
-                            </div>
-                            <div>
-                              <label className={labelCls}>Subject</label>
-                              <select className={inputCls} value={editForm.subject}
-                                onChange={e => setEditForm(f => ({ ...f, subject: e.target.value }))}>
-                                <option value="">— select —</option>
-                                {subjects.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                              </select>
-                            </div>
-                            <div>
-                              <label className={labelCls}>Class</label>
-                              <input className={inputCls} value={editForm.class_name}
-                                onChange={e => setEditForm(f => ({ ...f, class_name: e.target.value }))} />
-                            </div>
-                            <div>
-                              <label className={labelCls}>Hall</label>
-                              <input className={inputCls} value={editForm.hall_name}
-                                onChange={e => setEditForm(f => ({ ...f, hall_name: e.target.value }))} />
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <label className={labelCls + ' mb-0 mr-1'}>Invigilators</label>
-                            <input type="number" min={1} max={10} className={`${inputCls} w-20 text-center`}
-                              value={editForm.invigilators_needed}
-                              onChange={e => setEditForm(f => ({ ...f, invigilators_needed: Number(e.target.value) }))} />
-                            {editError && <span className="text-xs text-red-600">{editError}</span>}
-                            <div className="ml-auto flex gap-2">
-                              <button onClick={() => setEditingId(null)}
-                                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200">
-                                Cancel
+                    {byDate[date].map(s => (
+                      <React.Fragment key={s.id}>
+                        {mergeMode ? (
+                          <tr
+                            onClick={() => setMergeIds(ids => ids.includes(s.id) ? ids.filter(i => i !== s.id) : [...ids, s.id])}
+                            className={`cursor-pointer transition-colors ${mergeIds.includes(s.id) ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
+                            <td className="px-3 py-2.5 text-center">
+                              <input type="checkbox" readOnly checked={mergeIds.includes(s.id)}
+                                className="rounded border-slate-300 text-blue-600 pointer-events-none" />
+                            </td>
+                            <td className="px-4 py-2.5 font-mono text-xs text-slate-500 whitespace-nowrap">{fmtTime(s.start_time)}–{fmtTime(s.end_time)}</td>
+                            <td className="px-4 py-2.5 font-semibold text-slate-800 dark:text-white">{s.subject}</td>
+                            <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{s.class_name}</td>
+                            <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{s.hall_name}</td>
+                            <td className="px-4 py-2.5 text-xs text-slate-400">{s.duties.length} assigned</td>
+                            <td />
+                          </tr>
+                        ) : editingId === s.id ? (
+                          <tr className="bg-blue-50/40 dark:bg-blue-900/10">
+                            <td colSpan={7} className="px-4 py-3">
+                              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-2">
+                                <div>
+                                  <label className={labelCls}>Date</label>
+                                  <input type="date" className={inputCls} value={editForm.date}
+                                    onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} />
+                                </div>
+                                <div>
+                                  <label className={labelCls}>Start</label>
+                                  <input type="time" className={inputCls} value={editForm.start_time}
+                                    onChange={e => setEditForm(f => ({ ...f, start_time: e.target.value }))} />
+                                </div>
+                                <div>
+                                  <label className={labelCls}>End</label>
+                                  <input type="time" className={inputCls} value={editForm.end_time}
+                                    onChange={e => setEditForm(f => ({ ...f, end_time: e.target.value }))} />
+                                </div>
+                                <div>
+                                  <label className={labelCls}>Subject</label>
+                                  <select className={inputCls} value={editForm.subject}
+                                    onChange={e => setEditForm(f => ({ ...f, subject: e.target.value }))}>
+                                    <option value="">— select —</option>
+                                    {subjects.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className={labelCls}>Class</label>
+                                  <input className={inputCls} value={editForm.class_name}
+                                    onChange={e => setEditForm(f => ({ ...f, class_name: e.target.value }))} />
+                                </div>
+                                <div>
+                                  <label className={labelCls}>Hall</label>
+                                  <input className={inputCls} value={editForm.hall_name}
+                                    onChange={e => setEditForm(f => ({ ...f, hall_name: e.target.value }))} />
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <label className={labelCls + ' mb-0 mr-1'}>Invigilators</label>
+                                <input type="number" min={1} max={10} className={`${inputCls} w-20 text-center`}
+                                  value={editForm.invigilators_needed}
+                                  onChange={e => setEditForm(f => ({ ...f, invigilators_needed: Number(e.target.value) }))} />
+                                {editError && <span className="text-xs text-red-600">{editError}</span>}
+                                <div className="ml-auto flex gap-2">
+                                  <button onClick={() => setEditingId(null)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200">
+                                    Cancel
+                                  </button>
+                                  <button onClick={saveEdit} disabled={editSaving}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
+                                    style={{ backgroundColor: '#15803D' }}>
+                                    {editSaving ? 'Saving…' : 'Save'}
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          <tr className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                            <td className="px-4 py-2.5 font-mono text-xs text-slate-500 whitespace-nowrap">
+                              {fmtTime(s.start_time)}–{fmtTime(s.end_time)}
+                            </td>
+                            <td className="px-4 py-2.5 font-semibold text-slate-800 dark:text-white">{s.subject}</td>
+                            <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{s.class_name}</td>
+                            <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{s.hall_name}</td>
+                            <td className="px-4 py-2.5">
+                              {s.duties.length === 0 ? (
+                                <span className="text-xs text-slate-300 dark:text-slate-600">None</span>
+                              ) : (
+                                <div className="flex flex-wrap gap-1">
+                                  {s.duties.map(d => (
+                                    <span key={d.id} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      d.role === 'chief'
+                                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                        : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                                    }`}>
+                                      {d.role === 'chief' && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />}
+                                      {d.teacher_name}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 whitespace-nowrap">
+                              {s.duties.length > 0 && (
+                                <button
+                                  onClick={() => {
+                                    setCheckInsId(id => id === s.id ? null : s.id);
+                                    setEditingId(null);
+                                  }}
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
+                                    checkInsId === s.id
+                                      ? 'bg-green-700 text-white'
+                                      : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-700 dark:hover:text-green-400'
+                                  }`}>
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  {s.check_in_count ?? 0}/{s.duties.length}
+                                </button>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                              <button onClick={() => { startEdit(s); setCheckInsId(null); }}
+                                className="text-xs font-semibold text-blue-500 hover:text-blue-700 mr-3">
+                                Edit
                               </button>
-                              <button onClick={saveEdit} disabled={editSaving}
-                                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
-                                style={{ backgroundColor: '#15803D' }}>
-                                {editSaving ? 'Saving…' : 'Save'}
+                              <button onClick={() => del(s.id)} disabled={deleting === s.id}
+                                className="text-xs font-semibold text-red-500 hover:text-red-700 disabled:opacity-40">
+                                {deleting === s.id ? '…' : 'Delete'}
                               </button>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                        <td className="px-4 py-2.5 font-mono text-xs text-slate-500 whitespace-nowrap">
-                          {fmtTime(s.start_time)}–{fmtTime(s.end_time)}
-                        </td>
-                        <td className="px-4 py-2.5 font-semibold text-slate-800 dark:text-white">{s.subject}</td>
-                        <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{s.class_name}</td>
-                        <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">{s.hall_name}</td>
-                        <td className="px-4 py-2.5">
-                          {s.duties.length === 0 ? (
-                            <span className="text-xs text-slate-300 dark:text-slate-600">None</span>
-                          ) : (
-                            <div className="flex flex-wrap gap-1">
-                              {s.duties.map(d => (
-                                <span key={d.id} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  d.role === 'chief'
-                                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
-                                }`}>
-                                  {d.role === 'chief' && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />}
-                                  {d.teacher_name}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                          <button onClick={() => startEdit(s)}
-                            className="text-xs font-semibold text-blue-500 hover:text-blue-700 mr-3">
-                            Edit
-                          </button>
-                          <button onClick={() => del(s.id)} disabled={deleting === s.id}
-                            className="text-xs font-semibold text-red-500 hover:text-red-700 disabled:opacity-40">
-                            {deleting === s.id ? '…' : 'Delete'}
-                          </button>
-                        </td>
-                      </tr>
+                            </td>
+                          </tr>
+                        )}
+                        {checkInsId === s.id && !mergeMode && editingId !== s.id && (
+                          <tr>
+                            <td colSpan={7} className="px-4 pb-3 pt-0 bg-green-50/40 dark:bg-green-900/10">
+                              <CheckInPanel
+                                session={s}
+                                onClose={() => setCheckInsId(null)}
+                                onSuccess={() => load()}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -592,6 +641,143 @@ function SessionsTab() {
             style={{ backgroundColor: '#2563EB' }}>
             {merging ? 'Merging…' : `Merge ${mergeIds.length >= 2 ? mergeIds.length : ''} Sessions`}
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Check-in management panel (admin manual entry) ────────────────────────────
+
+function CheckInPanel({
+  session,
+  onClose,
+  onSuccess,
+}: {
+  session: ExamSession;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [checkIns,  setCheckIns]  = useState<CheckInRecord[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [markingId, setMarkingId] = useState<string | null>(null);
+  const [notesMap,  setNotesMap]  = useState<Record<string, string>>({});
+  const [error,     setError]     = useState('');
+
+  const loadCheckIns = useCallback(async () => {
+    try {
+      const { data } = await api.get<CheckInRecord[]>(`/api/exams/sessions/${session.id}/check-ins`);
+      setCheckIns(data);
+    } catch { /* non-fatal */ }
+    finally { setLoading(false); }
+  }, [session.id]);
+
+  useEffect(() => { loadCheckIns(); }, [loadCheckIns]);
+
+  const checkedInIds = new Set(checkIns.map(c => c.teacher_id));
+  const unchecked    = session.duties.filter(d => !checkedInIds.has(d.teacher_id));
+  const checked      = session.duties.filter(d => checkedInIds.has(d.teacher_id));
+
+  async function markPresent(teacherId: string) {
+    setMarkingId(teacherId); setError('');
+    try {
+      await api.post(`/api/exams/sessions/${session.id}/check-in/manual`, {
+        teacher_id: teacherId,
+        notes: notesMap[teacherId]?.trim() || undefined,
+      });
+      await loadCheckIns();
+      onSuccess();
+    } catch (e: any) {
+      setError(e?.response?.data?.error ?? 'Failed to record attendance.');
+    } finally { setMarkingId(null); }
+  }
+
+  const fmtTime12 = (iso: string) =>
+    new Date(iso).toLocaleTimeString('default', { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div className="mt-2 rounded-xl border border-green-200 dark:border-green-800 bg-white dark:bg-slate-800 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide">
+          Check-in — {session.subject} · {session.hall_name}
+        </p>
+        <button onClick={onClose} className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">✕ Close</button>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-4">
+          <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin border-green-600" />
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {/* Already checked in */}
+          {checked.map(d => {
+            const rec = checkIns.find(c => c.teacher_id === d.teacher_id)!;
+            return (
+              <div key={d.id} className="flex items-center gap-3 py-1.5">
+                <span className="w-5 h-5 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-3 h-3 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </span>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{d.teacher_name}</span>
+                  <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${
+                    d.role === 'chief'
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                      : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                  }`}>{d.role}</span>
+                </div>
+                <span className="text-xs text-slate-400 whitespace-nowrap">
+                  {rec.is_manual ? '(manual) ' : ''}{fmtTime12(rec.submitted_at)}
+                  {rec.location_verified && (
+                    <span className="ml-1 text-green-600 dark:text-green-400">· GPS ✓</span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+
+          {/* Not yet checked in */}
+          {unchecked.map(d => (
+            <div key={d.id} className="rounded-lg border border-slate-100 dark:border-slate-700 p-2.5 space-y-2">
+              <div className="flex items-center gap-3">
+                <span className="w-5 h-5 rounded-full border-2 border-slate-300 dark:border-slate-600 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{d.teacher_name}</span>
+                  <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${
+                    d.role === 'chief'
+                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                      : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                  }`}>{d.role}</span>
+                  <span className="ml-2 text-xs text-slate-400">Not checked in</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pl-8">
+                <input
+                  className="flex-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500 placeholder:text-slate-400"
+                  placeholder="Reason / note (optional)"
+                  value={notesMap[d.teacher_id] ?? ''}
+                  onChange={e => setNotesMap(m => ({ ...m, [d.teacher_id]: e.target.value }))}
+                />
+                <button
+                  onClick={() => markPresent(d.teacher_id)}
+                  disabled={markingId === d.teacher_id}
+                  className="px-3 py-1 rounded-lg text-xs font-semibold text-white disabled:opacity-50 whitespace-nowrap"
+                  style={{ backgroundColor: '#15803D' }}>
+                  {markingId === d.teacher_id ? '…' : 'Mark Present'}
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {session.duties.length === 0 && (
+            <p className="text-xs text-slate-400 text-center py-2">No invigilators assigned to this session yet.</p>
+          )}
+
+          {error && (
+            <p className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>
+          )}
         </div>
       )}
     </div>
