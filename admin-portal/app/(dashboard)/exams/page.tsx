@@ -109,35 +109,71 @@ export default function ExamsPage() {
 
 // ── Sessions tab ──────────────────────────────────────────────────────────────
 
-const EMPTY_SESSION = { date: '', start_time: '', end_time: '', subject: '', class_name: '', hall_name: '', invigilators_needed: '2' };
+interface SchoolClass { id: string; name: string; }
+interface ClassRow { class_name: string; hall_name: string; invigilators_needed: number; checked: boolean; }
+
+const EMPTY_HEADER = { date: '', start_time: '', end_time: '', subject: '' };
 
 function SessionsTab() {
-  const [sessions, setSessions] = useState<ExamSession[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [adding,   setAdding]   = useState(false);
-  const [form,     setForm]     = useState(EMPTY_SESSION);
-  const [saving,   setSaving]   = useState(false);
-  const [error,    setError]    = useState('');
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [sessions,   setSessions]   = useState<ExamSession[]>([]);
+  const [classes,    setClasses]    = useState<SchoolClass[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [adding,     setAdding]     = useState(false);
+  const [header,     setHeader]     = useState(EMPTY_HEADER);
+  const [classRows,  setClassRows]  = useState<ClassRow[]>([]);
+  const [saving,     setSaving]     = useState(false);
+  const [error,      setError]      = useState('');
+  const [deleting,   setDeleting]   = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get<ExamSession[]>('/api/exams/sessions');
-      setSessions(data);
+      const [sRes, cRes] = await Promise.allSettled([
+        api.get<ExamSession[]>('/api/exams/sessions'),
+        api.get<SchoolClass[]>('/api/classes'),
+      ]);
+      if (sRes.status === 'fulfilled') setSessions(sRes.value.data);
+      if (cRes.status === 'fulfilled') {
+        setClasses(cRes.value.data);
+        setClassRows(cRes.value.data.map(c => ({ class_name: c.name, hall_name: '', invigilators_needed: 2, checked: false })));
+      }
     } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
+  function openAdd() {
+    setAdding(true); setError(''); setHeader(EMPTY_HEADER);
+    setClassRows(classes.map(c => ({ class_name: c.name, hall_name: '', invigilators_needed: 2, checked: false })));
+  }
+
+  function updateRow(idx: number, patch: Partial<ClassRow>) {
+    setClassRows(prev => prev.map((r, i) => i === idx ? { ...r, ...patch } : r));
+  }
+
+  function toggleAll(checked: boolean) {
+    setClassRows(prev => prev.map(r => ({ ...r, checked })));
+  }
+
   async function save() {
-    if (!form.date || !form.start_time || !form.end_time || !form.subject || !form.class_name || !form.hall_name) {
-      setError('All fields are required.'); return;
+    const selected = classRows.filter(r => r.checked);
+    if (!header.date || !header.start_time || !header.end_time || !header.subject) {
+      setError('Date, times and subject are required.'); return;
     }
+    if (!selected.length) { setError('Select at least one class.'); return; }
+    const missingHall = selected.find(r => !r.hall_name.trim());
+    if (missingHall) { setError(`Enter a hall name for ${missingHall.class_name}.`); return; }
+
     setSaving(true); setError('');
     try {
-      await api.post('/api/exams/sessions', { ...form, invigilators_needed: Number(form.invigilators_needed) });
-      setAdding(false); setForm(EMPTY_SESSION); await load();
+      const { data } = await api.post<{ count: number }>('/api/exams/sessions/bulk', {
+        ...header,
+        classes: selected.map(r => ({ class_name: r.class_name, hall_name: r.hall_name.trim(), invigilators_needed: r.invigilators_needed })),
+      });
+      setAdding(false);
+      await load();
+      // brief success hint via page state — no alert needed, list updates immediately
+      _ = data;
     } catch (e: any) {
       setError(e?.response?.data?.error ?? 'Failed to save.');
     } finally { setSaving(false); }
@@ -151,6 +187,8 @@ function SessionsTab() {
     finally { setDeleting(null); }
   }
 
+  const selectedCount = classRows.filter(r => r.checked).length;
+
   // Group by date
   const byDate: Record<string, ExamSession[]> = {};
   for (const s of sessions) {
@@ -163,53 +201,107 @@ function SessionsTab() {
     <div className="space-y-5">
       <div className="flex justify-end">
         <button
-          onClick={() => { setAdding(a => !a); setError(''); }}
+          onClick={() => adding ? setAdding(false) : openAdd()}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
           style={{ backgroundColor: adding ? '#64748B' : '#15803D' }}>
-          {adding ? 'Cancel' : '+ Add Session'}
+          {adding ? 'Cancel' : '+ Add Sessions'}
         </button>
       </div>
 
       {adding && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-5 space-y-4">
-          <h2 className="text-sm font-bold text-slate-800 dark:text-white">New Exam Session</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-5 space-y-5">
+          <h2 className="text-sm font-bold text-slate-800 dark:text-white">New Exam Sessions</h2>
+
+          {/* Shared header */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className={labelCls}>Date *</label>
-              <input type="date" className={inputCls} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+              <input type="date" className={inputCls} value={header.date}
+                onChange={e => setHeader(h => ({ ...h, date: e.target.value }))} />
             </div>
             <div>
               <label className={labelCls}>Start Time *</label>
-              <input type="time" className={inputCls} value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} />
+              <input type="time" className={inputCls} value={header.start_time}
+                onChange={e => setHeader(h => ({ ...h, start_time: e.target.value }))} />
             </div>
             <div>
               <label className={labelCls}>End Time *</label>
-              <input type="time" className={inputCls} value={form.end_time} onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} />
+              <input type="time" className={inputCls} value={header.end_time}
+                onChange={e => setHeader(h => ({ ...h, end_time: e.target.value }))} />
             </div>
             <div>
               <label className={labelCls}>Subject *</label>
-              <input className={inputCls} value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} placeholder="e.g. Mathematics" />
-            </div>
-            <div>
-              <label className={labelCls}>Class *</label>
-              <input className={inputCls} value={form.class_name} onChange={e => setForm(f => ({ ...f, class_name: e.target.value }))} placeholder="e.g. Form 3" />
-            </div>
-            <div>
-              <label className={labelCls}>Hall *</label>
-              <input className={inputCls} value={form.hall_name} onChange={e => setForm(f => ({ ...f, hall_name: e.target.value }))} placeholder="e.g. Main Hall" />
+              <input className={inputCls} value={header.subject} placeholder="e.g. Mathematics"
+                onChange={e => setHeader(h => ({ ...h, subject: e.target.value }))} />
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="w-40">
-              <label className={labelCls}>Invigilators Needed</label>
-              <input type="number" min={1} max={10} className={inputCls} value={form.invigilators_needed}
-                onChange={e => setForm(f => ({ ...f, invigilators_needed: e.target.value }))} />
+
+          {/* Class picker table */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className={labelCls + ' mb-0'}>Select Classes *</label>
+              <div className="flex gap-3">
+                <button onClick={() => toggleAll(true)}  className="text-xs font-semibold text-green-700 dark:text-green-400 hover:underline">All</button>
+                <button onClick={() => toggleAll(false)} className="text-xs font-semibold text-slate-400 hover:underline">None</button>
+              </div>
             </div>
-            {error && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2 flex-1">{error}</p>}
-            <button onClick={save} disabled={saving}
-              className="ml-auto px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
+            <div className="border border-slate-200 dark:border-slate-600 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-200 dark:border-slate-600">
+                    <th className="w-10 px-3 py-2.5" />
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Class</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Hall / Venue</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Invigilators</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                  {classRows.length === 0 && (
+                    <tr><td colSpan={4} className="px-4 py-6 text-center text-xs text-slate-400">No classes found — add classes first in Setup</td></tr>
+                  )}
+                  {classRows.map((row, idx) => (
+                    <tr key={row.class_name} className={`transition-colors ${row.checked ? 'bg-green-50/50 dark:bg-green-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/20'}`}>
+                      <td className="px-3 py-2 text-center">
+                        <input type="checkbox" checked={row.checked}
+                          onChange={e => updateRow(idx, { checked: e.target.checked })}
+                          className="rounded border-slate-300 text-green-600" />
+                      </td>
+                      <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-200">{row.class_name}</td>
+                      <td className="px-3 py-2">
+                        <input
+                          className={`${inputCls} ${!row.checked ? 'opacity-40' : ''}`}
+                          placeholder="e.g. Main Hall"
+                          value={row.hall_name}
+                          disabled={!row.checked}
+                          onChange={e => updateRow(idx, { hall_name: e.target.value })}
+                        />
+                      </td>
+                      <td className="px-3 py-2 w-28">
+                        <input type="number" min={1} max={10}
+                          className={`${inputCls} text-center ${!row.checked ? 'opacity-40' : ''}`}
+                          value={row.invigilators_needed}
+                          disabled={!row.checked}
+                          onChange={e => updateRow(idx, { invigilators_needed: Number(e.target.value) })}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {error && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>}
+
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-slate-400">
+              {selectedCount} class{selectedCount !== 1 ? 'es' : ''} selected
+              {selectedCount > 0 && header.date ? ` · ${selectedCount} session${selectedCount !== 1 ? 's' : ''} will be created` : ''}
+            </p>
+            <button onClick={save} disabled={saving || !selectedCount}
+              className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
               style={{ backgroundColor: '#15803D' }}>
-              {saving ? 'Saving…' : 'Save Session'}
+              {saving ? 'Saving…' : `Create ${selectedCount || ''} Session${selectedCount !== 1 ? 's' : ''}`}
             </button>
           </div>
         </div>

@@ -62,6 +62,42 @@ router.post('/sessions', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/exams/sessions/bulk — create one session per class in a single request
+router.post('/sessions/bulk', adminOnly, async (req, res, next) => {
+  try {
+    const { date, start_time, end_time, subject, academic_year_id, semester, classes } = req.body;
+    if (!date || !start_time || !end_time || !subject) {
+      return res.status(400).json({ error: 'date, start_time, end_time and subject are required' });
+    }
+    if (!Array.isArray(classes) || !classes.length) {
+      return res.status(400).json({ error: 'classes array is required' });
+    }
+    if (end_time <= start_time) {
+      return res.status(400).json({ error: 'end_time must be after start_time' });
+    }
+
+    const created = [];
+    for (const cls of classes) {
+      const { class_name, hall_name, invigilators_needed = 2 } = cls;
+      if (!class_name || !hall_name) continue;
+      const { rows } = await pool.query(
+        `INSERT INTO exam_sessions
+           (school_id, date, start_time, end_time, subject, class_name, hall_name,
+            invigilators_needed, academic_year_id, semester)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         RETURNING id, date::text, start_time::text, end_time::text,
+                   subject, class_name, hall_name, invigilators_needed,
+                   academic_year_id, semester`,
+        [req.schoolId, date, start_time, end_time, subject.trim(), class_name.trim(),
+         hall_name.trim(), Number(invigilators_needed) || 2,
+         academic_year_id || null, semester || null]
+      );
+      if (rows[0]) created.push({ ...rows[0], duties: [] });
+    }
+    res.status(201).json({ created, count: created.length });
+  } catch (err) { next(err); }
+});
+
 router.put('/sessions/:id', adminOnly, async (req, res, next) => {
   try {
     const { date, start_time, end_time, subject, class_name, hall_name,
