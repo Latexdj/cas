@@ -2076,6 +2076,12 @@ async function runMigrations() {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_vacation_periods_school ON school_vacation_periods(school_id, start_date, end_date)`);
+    await pool.query(`ALTER TABLE school_vacation_periods ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'vacation'`);
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE school_vacation_periods ADD CONSTRAINT svp_kind_check CHECK (kind IN ('vacation','exam'));
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$
+    `);
 
     console.log('Migrations OK');
   } catch (err) {
