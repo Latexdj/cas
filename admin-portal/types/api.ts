@@ -44,6 +44,17 @@ export interface AcademicYear {
   name: string;
   is_current: boolean;
   current_semester: 1 | 2 | null;
+  start_date: string | null;
+  end_date: string | null;
+}
+
+export interface Semester {
+  id: string;
+  academic_year_id: string;
+  number: 1 | 2 | 3;
+  name: string;
+  start_date: string | null;
+  end_date: string | null;
 }
 
 export interface Location {

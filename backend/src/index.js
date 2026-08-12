@@ -2083,6 +2083,26 @@ async function runMigrations() {
       EXCEPTION WHEN duplicate_object THEN NULL; END $$
     `);
 
+    // Academic year date range
+    await pool.query(`ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS start_date DATE`);
+    await pool.query(`ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS end_date DATE`);
+
+    // Semester date ranges
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS semesters (
+        id               UUID     PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID     NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        academic_year_id UUID     NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        number           SMALLINT NOT NULL CHECK (number IN (1, 2, 3)),
+        name             TEXT     NOT NULL,
+        start_date       DATE,
+        end_date         DATE,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, academic_year_id, number)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_semesters_year ON semesters(academic_year_id)`);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);
