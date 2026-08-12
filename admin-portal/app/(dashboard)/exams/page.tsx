@@ -166,14 +166,12 @@ function SessionsTab() {
 
     setSaving(true); setError('');
     try {
-      const { data } = await api.post<{ count: number }>('/api/exams/sessions/bulk', {
+      await api.post<{ count: number }>('/api/exams/sessions/bulk', {
         ...header,
         classes: selected.map(r => ({ class_name: r.class_name, hall_name: r.hall_name.trim(), invigilators_needed: r.invigilators_needed })),
       });
       setAdding(false);
       await load();
-      // brief success hint via page state — no alert needed, list updates immediately
-      _ = data;
     } catch (e: any) {
       setError(e?.response?.data?.error ?? 'Failed to save.');
     } finally { setSaving(false); }
