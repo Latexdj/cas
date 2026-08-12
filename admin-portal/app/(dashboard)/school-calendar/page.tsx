@@ -135,24 +135,105 @@ export default function SchoolCalendarPage() {
 
 // ── Events tab ────────────────────────────────────────────────────────────────
 
+type EntryForm = { date: string; name: string; type: typeof TYPES[number]; notes: string; start_time: string; end_time: string };
+const ENTRY_EMPTY: EntryForm = { date: '', name: '', type: 'Holiday', notes: '', start_time: '', end_time: '' };
+
+function EntryFormFields({ form, onChange }: { form: EntryForm; onChange: (f: EntryForm) => void }) {
+  return (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div>
+          <label className={labelCls}>Date *</label>
+          <input type="date" className={inputCls} value={form.date}
+            onChange={e => onChange({ ...form, date: e.target.value })} />
+        </div>
+        <div>
+          <label className={labelCls}>Type *</label>
+          <select className={inputCls} value={form.type}
+            onChange={e => onChange({ ...form, type: e.target.value as typeof TYPES[number] })}>
+            {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={labelCls}>Name *</label>
+          <input className={inputCls} value={form.name} placeholder="e.g. Independence Day"
+            onChange={e => onChange({ ...form, name: e.target.value })} />
+        </div>
+        <div>
+          <label className={labelCls}>Notes</label>
+          <input className={inputCls} value={form.notes} placeholder="Optional"
+            onChange={e => onChange({ ...form, notes: e.target.value })} />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+        <div>
+          <label className={labelCls}>Start Time <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></label>
+          <input type="time" className={inputCls} value={form.start_time}
+            onChange={e => onChange({ ...form, start_time: e.target.value })} />
+        </div>
+        <div>
+          <label className={labelCls}>End Time <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></label>
+          <input type="time" className={inputCls} value={form.end_time}
+            onChange={e => onChange({ ...form, end_time: e.target.value })} />
+        </div>
+        <div className="flex items-end pb-1">
+          <p className="text-xs text-slate-400">
+            {form.start_time && form.end_time
+              ? `Only lessons from ${form.start_time}–${form.end_time} will be affected.`
+              : 'No times set — affects all lessons on this day.'}
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function EventsTab({ entries, year, onRefresh }: { entries: SchoolCalendarEntry[]; year: number; onRefresh: () => void }) {
-  const [adding, setAdding] = useState(false);
-  const [form,   setForm]   = useState({ date: '', name: '', type: 'Holiday' as typeof TYPES[number], notes: '', start_time: '', end_time: '' });
-  const [saving, setSaving] = useState(false);
-  const [error,  setError]  = useState('');
+  const [adding,    setAdding]    = useState(false);
+  const [form,      setForm]      = useState<EntryForm>(ENTRY_EMPTY);
+  const [saving,    setSaving]    = useState(false);
+  const [error,     setError]     = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm,  setEditForm]  = useState<EntryForm>(ENTRY_EMPTY);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError,  setEditError]  = useState('');
 
   async function save() {
     if (!form.date || !form.name.trim()) { setError('Date and name are required.'); return; }
     setSaving(true); setError('');
     try {
       await api.post('/api/school-calendar', { ...form, start_time: form.start_time || undefined, end_time: form.end_time || undefined });
-      setAdding(false);
-      setForm({ date: '', name: '', type: 'Holiday', notes: '', start_time: '', end_time: '' });
-      onRefresh();
+      setAdding(false); setForm(ENTRY_EMPTY); onRefresh();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? 'Failed to save.');
     } finally { setSaving(false); }
+  }
+
+  function startEdit(e: SchoolCalendarEntry) {
+    setEditingId(e.id);
+    setEditForm({
+      date: e.date, name: e.name, type: e.type as typeof TYPES[number],
+      notes: e.notes ?? '', start_time: e.start_time?.slice(0, 5) ?? '', end_time: e.end_time?.slice(0, 5) ?? '',
+    });
+    setEditError('');
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+    if (!editForm.date || !editForm.name.trim()) { setEditError('Date and name are required.'); return; }
+    setEditSaving(true); setEditError('');
+    try {
+      await api.put(`/api/school-calendar/${editingId}`, {
+        ...editForm,
+        start_time: editForm.start_time || null,
+        end_time:   editForm.end_time   || null,
+      });
+      setEditingId(null); onRefresh();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setEditError(msg ?? 'Failed to save.');
+    } finally { setEditSaving(false); }
   }
 
   async function del(id: string, name: string) {
@@ -180,7 +261,7 @@ function EventsTab({ entries, year, onRefresh }: { entries: SchoolCalendarEntry[
   return (
     <div className="space-y-5">
       <div className="flex justify-end">
-        <button onClick={() => { setAdding(a => !a); setError(''); }}
+        <button onClick={() => { setAdding(a => !a); setError(''); setEditingId(null); }}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
           style={{ backgroundColor: adding ? '#64748B' : '#15803D' }}>
           {adding ? 'Cancel' : '+ Add Entry'}
@@ -190,49 +271,7 @@ function EventsTab({ entries, year, onRefresh }: { entries: SchoolCalendarEntry[
       {adding && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-5 space-y-4">
           <h2 className="text-sm font-bold text-slate-800 dark:text-white">New Calendar Entry</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <div>
-              <label className={labelCls}>Date *</label>
-              <input type="date" className={inputCls} value={form.date}
-                onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-            </div>
-            <div>
-              <label className={labelCls}>Type *</label>
-              <select className={inputCls} value={form.type}
-                onChange={e => setForm(f => ({ ...f, type: e.target.value as typeof TYPES[number] }))}>
-                {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Name *</label>
-              <input className={inputCls} value={form.name} placeholder="e.g. Independence Day"
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div>
-              <label className={labelCls}>Notes</label>
-              <input className={inputCls} value={form.notes} placeholder="Optional"
-                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-            <div>
-              <label className={labelCls}>Start Time <span className="font-normal normal-case tracking-normal text-slate-400">(optional — leave blank for whole day)</span></label>
-              <input type="time" className={inputCls} value={form.start_time}
-                onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} />
-            </div>
-            <div>
-              <label className={labelCls}>End Time <span className="font-normal normal-case tracking-normal text-slate-400">(optional)</span></label>
-              <input type="time" className={inputCls} value={form.end_time}
-                onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} />
-            </div>
-            <div className="flex items-end pb-1">
-              <p className="text-xs text-slate-400">
-                {form.start_time && form.end_time
-                  ? `Only lessons from ${form.start_time}–${form.end_time} will be affected.`
-                  : 'No times set — affects all lessons on this day.'}
-              </p>
-            </div>
-          </div>
+          <EntryFormFields form={form} onChange={setForm} />
           {error && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>}
           <div className="flex justify-end">
             <button onClick={save} disabled={saving}
@@ -259,24 +298,54 @@ function EventsTab({ entries, year, onRefresh }: { entries: SchoolCalendarEntry[
                   <table className="min-w-[640px] w-full text-sm">
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
                       {byMonth[month].map(e => (
-                        <tr key={e.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                          <td className="px-4 py-3 font-mono text-xs w-28 text-slate-500">
-                            {new Date(e.date + 'T00:00:00').toLocaleDateString('default', { weekday: 'short', day: '2-digit', month: 'short' })}
-                          </td>
-                          <td className="px-4 py-3 font-semibold text-slate-800 dark:text-white">{e.name}</td>
-                          <td className="px-4 py-3"><Badge type={e.type} /></td>
-                          <td className="px-4 py-3 text-xs text-slate-500">
-                            {e.start_time && e.end_time ? `${e.start_time.slice(0,5)}–${e.end_time.slice(0,5)}` : <span className="text-slate-300 dark:text-slate-600">Whole day</span>}
-                          </td>
-                          <td className="px-4 py-3 text-xs text-slate-400">{e.notes ?? ''}</td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex items-center justify-end gap-3">
-                              <button onClick={() => reapply(e.id, e.name)} className="text-xs font-semibold text-blue-500 hover:text-blue-700"
-                                title="Re-run absence clearing for this event">Fix Absences</button>
-                              <button onClick={() => del(e.id, e.name)} className="text-xs font-semibold text-red-500 hover:text-red-700">Remove</button>
-                            </div>
-                          </td>
-                        </tr>
+                        <>
+                          <tr key={e.id} className={`transition-colors ${editingId === e.id ? 'bg-amber-50 dark:bg-amber-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
+                            <td className="px-4 py-3 font-mono text-xs w-28 text-slate-500">
+                              {new Date(e.date + 'T00:00:00').toLocaleDateString('default', { weekday: 'short', day: '2-digit', month: 'short' })}
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-slate-800 dark:text-white">{e.name}</td>
+                            <td className="px-4 py-3"><Badge type={e.type} /></td>
+                            <td className="px-4 py-3 text-xs text-slate-500">
+                              {e.start_time && e.end_time ? `${e.start_time.slice(0,5)}–${e.end_time.slice(0,5)}` : <span className="text-slate-300 dark:text-slate-600">Whole day</span>}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-slate-400">{e.notes ?? ''}</td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-3">
+                                {editingId === e.id ? (
+                                  <button onClick={() => setEditingId(null)} className="text-xs font-semibold text-slate-500 hover:text-slate-700">Cancel</button>
+                                ) : (
+                                  <>
+                                    <button onClick={() => startEdit(e)} className="text-xs font-semibold text-amber-600 hover:text-amber-800">Edit</button>
+                                    <button onClick={() => reapply(e.id, e.name)} className="text-xs font-semibold text-blue-500 hover:text-blue-700"
+                                      title="Re-run absence clearing for this event">Fix Absences</button>
+                                    <button onClick={() => del(e.id, e.name)} className="text-xs font-semibold text-red-500 hover:text-red-700">Remove</button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                          {editingId === e.id && (
+                            <tr key={`${e.id}-edit`}>
+                              <td colSpan={6} className="px-5 py-4 bg-amber-50 dark:bg-amber-900/10 border-t border-amber-100 dark:border-amber-900/30">
+                                <div className="space-y-3">
+                                  <EntryFormFields form={editForm} onChange={setEditForm} />
+                                  {editError && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{editError}</p>}
+                                  <div className="flex justify-end gap-2">
+                                    <button onClick={() => setEditingId(null)}
+                                      className="px-4 py-2 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                                      Cancel
+                                    </button>
+                                    <button onClick={saveEdit} disabled={editSaving}
+                                      className="px-4 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
+                                      style={{ backgroundColor: '#15803D' }}>
+                                      {editSaving ? 'Saving…' : 'Save Changes'}
+                                    </button>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </>
                       ))}
                     </tbody>
                   </table>
@@ -316,10 +385,16 @@ const PERIOD_CONFIG = {
 
 function PeriodTab({ periods, kind, year, onRefresh }: { periods: Period[]; kind: 'vacation' | 'exam'; year: number; onRefresh: () => void }) {
   const cfg = PERIOD_CONFIG[kind];
-  const [adding,  setAdding]  = useState(false);
-  const [form,    setForm]    = useState({ name: '', start_date: '', end_date: '' });
-  const [saving,  setSaving]  = useState(false);
-  const [error,   setError]   = useState('');
+  const accent = kind === 'exam' ? '#7C3AED' : '#0D9488';
+
+  const [adding,     setAdding]     = useState(false);
+  const [form,       setForm]       = useState({ name: '', start_date: '', end_date: '' });
+  const [saving,     setSaving]     = useState(false);
+  const [error,      setError]      = useState('');
+  const [editingId,  setEditingId]  = useState<string | null>(null);
+  const [editForm,   setEditForm]   = useState({ name: '', start_date: '', end_date: '' });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError,  setEditError]  = useState('');
 
   async function save() {
     if (!form.name.trim() || !form.start_date || !form.end_date) { setError('Name, start date and end date are required.'); return; }
@@ -339,6 +414,26 @@ function PeriodTab({ periods, kind, year, onRefresh }: { periods: Period[]; kind
     } finally { setSaving(false); }
   }
 
+  function startEdit(p: Period) {
+    setEditingId(p.id);
+    setEditForm({ name: p.name, start_date: p.start_date, end_date: p.end_date });
+    setEditError('');
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+    if (!editForm.name.trim() || !editForm.start_date || !editForm.end_date) { setEditError('All fields are required.'); return; }
+    if (editForm.end_date < editForm.start_date) { setEditError('End date must be on or after start date.'); return; }
+    setEditSaving(true); setEditError('');
+    try {
+      await api.put(`/api/school-calendar/vacations/${editingId}`, editForm);
+      setEditingId(null); onRefresh();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setEditError(msg ?? 'Failed to save.');
+    } finally { setEditSaving(false); }
+  }
+
   async function del(id: string, name: string) {
     if (!confirm(`Remove "${name}"? Absences from this period will not be un-excused.`)) return;
     try { await api.delete(`/api/school-calendar/vacations/${id}`); onRefresh(); }
@@ -347,13 +442,15 @@ function PeriodTab({ periods, kind, year, onRefresh }: { periods: Period[]; kind
 
   const days = form.start_date && form.end_date && form.end_date >= form.start_date
     ? periodDays(form.start_date, form.end_date) : null;
+  const editDays = editForm.start_date && editForm.end_date && editForm.end_date >= editForm.start_date
+    ? periodDays(editForm.start_date, editForm.end_date) : null;
 
   return (
     <div className="space-y-5">
       <div className="flex justify-end">
-        <button onClick={() => { setAdding(a => !a); setError(''); }}
+        <button onClick={() => { setAdding(a => !a); setError(''); setEditingId(null); }}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
-          style={{ backgroundColor: adding ? '#64748B' : kind === 'exam' ? '#7C3AED' : '#0D9488' }}>
+          style={{ backgroundColor: adding ? '#64748B' : accent }}>
           {adding ? 'Cancel' : cfg.addBtn}
         </button>
       </div>
@@ -378,14 +475,12 @@ function PeriodTab({ periods, kind, year, onRefresh }: { periods: Period[]; kind
                 onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} />
             </div>
           </div>
-          {days !== null && (
-            <p className="text-xs text-slate-400">{days} day{days !== 1 ? 's' : ''} · {cfg.note}</p>
-          )}
+          {days !== null && <p className="text-xs text-slate-400">{days} day{days !== 1 ? 's' : ''} · {cfg.note}</p>}
           {error && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>}
           <div className="flex justify-end">
             <button onClick={save} disabled={saving}
               className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
-              style={{ backgroundColor: kind === 'exam' ? '#7C3AED' : '#0D9488' }}>
+              style={{ backgroundColor: accent }}>
               {saving ? 'Saving…' : `Save ${cfg.label}`}
             </button>
           </div>
@@ -411,20 +506,70 @@ function PeriodTab({ periods, kind, year, onRefresh }: { periods: Period[]; kind
             <tbody className="divide-y divide-slate-50 dark:divide-slate-700">
               {periods.map(p => {
                 const d = periodDays(p.start_date, p.end_date);
+                const isEditing = editingId === p.id;
                 return (
-                  <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                    <td className="px-5 py-3">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${cfg.badgeCls}`}>
-                        {p.name}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 font-mono text-xs text-slate-500">{fmt(p.start_date)}</td>
-                    <td className="px-5 py-3 font-mono text-xs text-slate-500">{fmt(p.end_date)}</td>
-                    <td className="px-5 py-3 text-xs text-slate-400">{d} day{d !== 1 ? 's' : ''}</td>
-                    <td className="px-5 py-3 text-right">
-                      <button onClick={() => del(p.id, p.name)} className="text-xs font-semibold text-red-500 hover:text-red-700">Remove</button>
-                    </td>
-                  </tr>
+                  <>
+                    <tr key={p.id} className={`transition-colors ${isEditing ? 'bg-amber-50 dark:bg-amber-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
+                      <td className="px-5 py-3">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${cfg.badgeCls}`}>
+                          {p.name}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 font-mono text-xs text-slate-500">{fmt(p.start_date)}</td>
+                      <td className="px-5 py-3 font-mono text-xs text-slate-500">{fmt(p.end_date)}</td>
+                      <td className="px-5 py-3 text-xs text-slate-400">{d} day{d !== 1 ? 's' : ''}</td>
+                      <td className="px-5 py-3 text-right">
+                        <div className="flex items-center justify-end gap-3">
+                          {isEditing ? (
+                            <button onClick={() => setEditingId(null)} className="text-xs font-semibold text-slate-500 hover:text-slate-700">Cancel</button>
+                          ) : (
+                            <>
+                              <button onClick={() => startEdit(p)} className="text-xs font-semibold text-amber-600 hover:text-amber-800">Edit</button>
+                              <button onClick={() => del(p.id, p.name)} className="text-xs font-semibold text-red-500 hover:text-red-700">Remove</button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {isEditing && (
+                      <tr key={`${p.id}-edit`}>
+                        <td colSpan={5} className="px-5 py-4 bg-amber-50 dark:bg-amber-900/10 border-t border-amber-100 dark:border-amber-900/30">
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div>
+                                <label className={labelCls}>Name *</label>
+                                <input className={inputCls} value={editForm.name}
+                                  onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                              </div>
+                              <div>
+                                <label className={labelCls}>Start Date *</label>
+                                <input type="date" className={inputCls} value={editForm.start_date}
+                                  onChange={e => setEditForm(f => ({ ...f, start_date: e.target.value }))} />
+                              </div>
+                              <div>
+                                <label className={labelCls}>End Date *</label>
+                                <input type="date" className={inputCls} value={editForm.end_date}
+                                  onChange={e => setEditForm(f => ({ ...f, end_date: e.target.value }))} />
+                              </div>
+                            </div>
+                            {editDays !== null && <p className="text-xs text-slate-400">{editDays} day{editDays !== 1 ? 's' : ''}</p>}
+                            {editError && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{editError}</p>}
+                            <div className="flex justify-end gap-2">
+                              <button onClick={() => setEditingId(null)}
+                                className="px-4 py-2 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                                Cancel
+                              </button>
+                              <button onClick={saveEdit} disabled={editSaving}
+                                className="px-4 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
+                                style={{ backgroundColor: accent }}>
+                                {editSaving ? 'Saving…' : 'Save Changes'}
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 );
               })}
             </tbody>

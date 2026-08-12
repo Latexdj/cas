@@ -231,6 +231,27 @@ router.post('/vacations', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// PUT /api/school-calendar/vacations/:id — admin only
+router.put('/vacations/:id', adminOnly, async (req, res, next) => {
+  try {
+    const { name, start_date, end_date } = req.body;
+    if (start_date && end_date && end_date < start_date) {
+      return res.status(400).json({ error: 'end_date must be on or after start_date' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE school_vacation_periods
+       SET name       = COALESCE($1, name),
+           start_date = COALESCE($2, start_date),
+           end_date   = COALESCE($3, end_date)
+       WHERE id = $4 AND school_id = $5
+       RETURNING id, name, kind, start_date::text AS start_date, end_date::text AS end_date, created_at`,
+      [name?.trim() || null, start_date || null, end_date || null, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Period not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
 // DELETE /api/school-calendar/vacations/:id — admin only
 router.delete('/vacations/:id', adminOnly, async (req, res, next) => {
   try {
@@ -244,6 +265,40 @@ router.delete('/vacations/:id', adminOnly, async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// PUT /api/school-calendar/:id — admin only
+router.put('/:id', adminOnly, async (req, res, next) => {
+  try {
+    const { date, name, type, notes, start_time, end_time } = req.body;
+    const valid = ['Holiday', 'School Event', 'Closed Day'];
+    if (type && !valid.includes(type)) {
+      return res.status(400).json({ error: `type must be one of: ${valid.join(', ')}` });
+    }
+    if ((start_time && !end_time) || (!start_time && end_time)) {
+      return res.status(400).json({ error: 'Provide both start_time and end_time, or neither' });
+    }
+    if (start_time && end_time && start_time >= end_time) {
+      return res.status(400).json({ error: 'end_time must be after start_time' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE school_calendar
+       SET date       = COALESCE($1, date),
+           name       = COALESCE($2, name),
+           type       = COALESCE($3, type),
+           notes      = $4,
+           start_time = $5,
+           end_time   = $6
+       WHERE id = $7 AND school_id = $8
+       RETURNING id, date::text AS date, name, type, notes,
+                 start_time::text AS start_time, end_time::text AS end_time, created_at`,
+      [date || null, name?.trim() || null, type || null,
+       notes ?? null, start_time || null, end_time || null,
+       req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Entry not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
 
 // DELETE /api/school-calendar/:id — admin only
 router.delete('/:id', adminOnly, async (req, res, next) => {
