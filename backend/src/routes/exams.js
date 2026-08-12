@@ -567,13 +567,16 @@ router.get('/sessions/duties/mine', async (req, res, next) => {
     const teacherId = req.user.id;
     const today     = new Date().toISOString().slice(0, 10);
 
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+
     const { rows } = await pool.query(
       `SELECT es.id, es.date::text, es.start_time::text, es.end_time::text,
               es.subject, es.class_name, es.hall_name, d.role,
-              ci.id              AS check_in_id,
-              ci.submitted_at    AS checked_in_at,
-              ci.photo_url       AS check_in_photo,
+              ci.id                          AS check_in_id,
+              ci.submitted_at                AS checked_in_at,
+              ci.photo_url                   AS check_in_photo,
               ci.location_verified,
+              COALESCE(ci.is_manual, false)  AS is_manual,
               (SELECT COUNT(*) FROM exam_student_attendance esa
                WHERE esa.exam_session_id = es.id) AS register_count,
               (SELECT COUNT(*) FROM students s
@@ -588,7 +591,7 @@ router.get('/sessions/duties/mine', async (req, res, next) => {
               ON ci.exam_session_id = es.id AND ci.teacher_id = $2 AND ci.date = es.date
        WHERE es.school_id = $1 AND es.date >= $3
        ORDER BY es.date, es.start_time`,
-      [req.schoolId, teacherId, new Date(Date.now() - 86400000).toISOString().slice(0, 10)]
+      [req.schoolId, teacherId, thirtyDaysAgo]
     );
     res.json(rows);
   } catch (err) { next(err); }

@@ -18,6 +18,7 @@ interface ExamDuty {
   checked_in_at: string | null;
   check_in_photo: string | null;
   location_verified: boolean | null;
+  is_manual: boolean;
   register_count: number;
   student_count: number;
 }
@@ -201,6 +202,7 @@ export default function InvigilationPage() {
 
   const todayDuties    = duties.filter(d => d.date === today);
   const upcomingDuties = duties.filter(d => d.date > today);
+  const pastDuties     = duties.filter(d => d.date < today).reverse(); // most recent first
 
   const presentCount = students.filter(s => (attendance[s.id] ?? 'Present') === 'Present').length;
   const absentCount  = students.length - presentCount;
@@ -420,6 +422,15 @@ export default function InvigilationPage() {
               </div>
             </section>
           )}
+          {pastDuties.length > 0 && (
+            <section>
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Past (last 30 days)</p>
+              <div className="space-y-3">
+                {pastDuties.map(d => <DutyCard key={d.id} duty={d} isToday={false} isPast primary={primary}
+                  onCheckIn={() => {}} onRegister={() => {}} />)}
+              </div>
+            </section>
+          )}
         </div>
       )}
     </div>
@@ -428,19 +439,26 @@ export default function InvigilationPage() {
 
 // ── Duty Card ─────────────────────────────────────────────────────────────────
 
-function DutyCard({ duty, isToday, primary, onCheckIn, onRegister }: {
+function DutyCard({ duty, isToday, isPast = false, primary, onCheckIn, onRegister }: {
   duty: ExamDuty;
   isToday: boolean;
+  isPast?: boolean;
   primary: string;
   onCheckIn: () => void;
   onRegister: () => void;
 }) {
-  const checkedIn     = !!duty.check_in_id;
-  const registerDone  = duty.register_count > 0;
-  const canRegister   = checkedIn && isToday;
+  const checkedIn    = !!duty.check_in_id;
+  const registerDone = duty.register_count > 0;
+  const canRegister  = checkedIn && isToday;
+
+  const checkInLabel = duty.checked_in_at
+    ? `Checked in ${new Date(duty.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${duty.is_manual ? ' (Admin)' : ''}`
+    : 'Checked In';
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
+    <div className={`bg-white dark:bg-slate-800 rounded-xl border shadow-sm overflow-hidden ${
+      isPast ? 'border-slate-100 dark:border-slate-700 opacity-80' : 'border-slate-100 dark:border-slate-700'
+    }`}>
       {/* Header strip */}
       <div className="px-4 py-3 border-b border-slate-50 dark:border-slate-700">
         <div className="flex items-start justify-between gap-2">
@@ -459,11 +477,9 @@ function DutyCard({ duty, isToday, primary, onCheckIn, onRegister }: {
 
       {/* Status + actions */}
       <div className="px-4 py-3 space-y-3">
-        {/* Status pills */}
         <div className="flex gap-2 flex-wrap">
-          <StatusPill done={checkedIn} label="Check-In" doneLabel={duty.checked_in_at
-            ? `Checked in ${new Date(duty.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-            : 'Checked In'} />
+          <StatusPill done={checkedIn} label="Check-In" doneLabel={checkInLabel}
+            manual={duty.is_manual} />
           <StatusPill done={registerDone}
             label={`Register (${duty.register_count}/${duty.student_count})`}
             doneLabel={`Register done · ${duty.register_count}/${duty.student_count}`} />
@@ -494,15 +510,26 @@ function DutyCard({ duty, isToday, primary, onCheckIn, onRegister }: {
             </button>
           </div>
         )}
+
+        {/* Past sessions: show absence notice if not checked in */}
+        {isPast && !checkedIn && (
+          <p className="text-xs text-red-500 font-medium">No check-in recorded for this session</p>
+        )}
       </div>
     </div>
   );
 }
 
-function StatusPill({ done, label, doneLabel }: { done: boolean; label: string; doneLabel: string }) {
+function StatusPill({ done, label, doneLabel, manual = false }: {
+  done: boolean; label: string; doneLabel: string; manual?: boolean;
+}) {
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
-      done ? 'bg-green-100 text-green-700' : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500'
+      done
+        ? manual
+          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+          : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+        : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500'
     }`}>
       {done ? '✓' : '○'} {done ? doneLabel : label}
     </span>
