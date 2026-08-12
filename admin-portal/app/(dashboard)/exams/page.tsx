@@ -111,12 +111,14 @@ export default function ExamsPage() {
 
 interface SchoolClass { id: string; name: string; }
 interface ClassRow { class_name: string; hall_name: string; invigilators_needed: number; checked: boolean; }
+interface Subject { id: string; name: string; code: string | null; }
 
 const EMPTY_HEADER = { date: '', start_time: '', end_time: '', subject: '' };
 
 function SessionsTab() {
   const [sessions,   setSessions]   = useState<ExamSession[]>([]);
   const [classes,    setClasses]    = useState<SchoolClass[]>([]);
+  const [subjects,   setSubjects]   = useState<Subject[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [adding,     setAdding]     = useState(false);
   const [header,     setHeader]     = useState(EMPTY_HEADER);
@@ -128,15 +130,17 @@ function SessionsTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [sRes, cRes] = await Promise.allSettled([
+      const [sRes, cRes, subRes] = await Promise.allSettled([
         api.get<ExamSession[]>('/api/exams/sessions'),
         api.get<SchoolClass[]>('/api/classes'),
+        api.get<Subject[]>('/api/subjects'),
       ]);
       if (sRes.status === 'fulfilled') setSessions(sRes.value.data);
       if (cRes.status === 'fulfilled') {
         setClasses(cRes.value.data);
         setClassRows(cRes.value.data.map(c => ({ class_name: c.name, hall_name: '', invigilators_needed: 2, checked: false })));
       }
+      if (subRes.status === 'fulfilled') setSubjects(subRes.value.data);
     } finally { setLoading(false); }
   }, []);
 
@@ -229,8 +233,13 @@ function SessionsTab() {
             </div>
             <div>
               <label className={labelCls}>Subject *</label>
-              <input className={inputCls} value={header.subject} placeholder="e.g. Mathematics"
-                onChange={e => setHeader(h => ({ ...h, subject: e.target.value }))} />
+              <select className={inputCls} value={header.subject}
+                onChange={e => setHeader(h => ({ ...h, subject: e.target.value }))}>
+                <option value="">— Select subject —</option>
+                {subjects.map(s => (
+                  <option key={s.id} value={s.name}>{s.name}{s.code ? ` (${s.code})` : ''}</option>
+                ))}
+              </select>
             </div>
           </div>
 
