@@ -110,7 +110,13 @@ export default function ExamsPage() {
 // ── Sessions tab ──────────────────────────────────────────────────────────────
 
 interface SchoolClass { id: string; name: string; }
-interface ClassRow { class_name: string; hall_name: string; invigilators_needed: number; checked: boolean; }
+interface ClassRow {
+  class_name: string;       // display name; for merged rows: "Form 1A, Form 1B"
+  hall_name: string;
+  invigilators_needed: number;
+  checked: boolean;
+  members?: string[];        // set only on merged rows; contains original class names
+}
 interface Subject { id: string; name: string; code: string | null; }
 
 const EMPTY_HEADER = { date: '', start_time: '', end_time: '', subject: '' };
@@ -159,6 +165,42 @@ function SessionsTab() {
     setClassRows(prev => prev.map(r => ({ ...r, checked })));
   }
 
+  function groupSelected() {
+    const checkedRows = classRows.filter(r => r.checked);
+    if (checkedRows.length < 2) return;
+    const memberNames = checkedRows.flatMap(r => r.members ?? [r.class_name]);
+    const groupRow: ClassRow = {
+      class_name: memberNames.join(', '),
+      hall_name: '',
+      invigilators_needed: 2,
+      checked: true,
+      members: memberNames,
+    };
+    let inserted = false;
+    setClassRows(prev => {
+      const result: ClassRow[] = [];
+      for (const row of prev) {
+        if (row.checked) {
+          if (!inserted) { result.push(groupRow); inserted = true; }
+        } else {
+          result.push(row);
+        }
+      }
+      return result;
+    });
+  }
+
+  function ungroupRow(idx: number) {
+    setClassRows(prev => {
+      const row = prev[idx];
+      if (!row.members) return prev;
+      const expanded: ClassRow[] = row.members.map(name => ({
+        class_name: name, hall_name: '', invigilators_needed: 2, checked: false,
+      }));
+      return [...prev.slice(0, idx), ...expanded, ...prev.slice(idx + 1)];
+    });
+  }
+
   async function save() {
     const selected = classRows.filter(r => r.checked);
     if (!header.date || !header.start_time || !header.end_time || !header.subject) {
@@ -191,7 +233,10 @@ function SessionsTab() {
     finally { setDeleting(null); }
   }
 
-  const selectedCount = classRows.filter(r => r.checked).length;
+  const checkedRows   = classRows.filter(r => r.checked);
+  const selectedCount = checkedRows.length;  // sessions that will be created
+  const classCount    = checkedRows.reduce((n, r) => n + (r.members?.length ?? 1), 0);
+  const canGroup      = checkedRows.length >= 2;
 
   // Group by date
   const byDate: Record<string, ExamSession[]> = {};
@@ -249,7 +294,13 @@ function SessionsTab() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className={labelCls + ' mb-0'}>Select Classes *</label>
-              <div className="flex gap-3">
+              <div className="flex gap-3 items-center">
+                {canGroup && (
+                  <button onClick={groupSelected}
+                    className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+                    Group selected
+                  </button>
+                )}
                 <button onClick={() => toggleAll(true)}  className="text-xs font-semibold text-green-700 dark:text-green-400 hover:underline">All</button>
                 <button onClick={() => toggleAll(false)} className="text-xs font-semibold text-slate-400 hover:underline">None</button>
               </div>
@@ -269,13 +320,27 @@ function SessionsTab() {
                     <tr><td colSpan={4} className="px-4 py-6 text-center text-xs text-slate-400">No classes found — add classes first in Setup</td></tr>
                   )}
                   {classRows.map((row, idx) => (
-                    <tr key={row.class_name} className={`transition-colors ${row.checked ? 'bg-green-50/50 dark:bg-green-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/20'}`}>
+                    <tr key={idx} className={`transition-colors ${row.checked ? 'bg-green-50/50 dark:bg-green-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/20'}`}>
                       <td className="px-3 py-2 text-center">
                         <input type="checkbox" checked={row.checked}
                           onChange={e => updateRow(idx, { checked: e.target.checked })}
                           className="rounded border-slate-300 text-green-600" />
                       </td>
-                      <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-200">{row.class_name}</td>
+                      <td className="px-3 py-2">
+                        {row.members ? (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {row.members.map(m => (
+                              <span key={m} className="px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">{m}</span>
+                            ))}
+                            <button onClick={() => ungroupRow(idx)}
+                              className="text-xs text-slate-400 hover:text-red-500 hover:underline ml-1">
+                              Ungroup
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{row.class_name}</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2">
                         <input
                           className={`${inputCls} ${!row.checked ? 'opacity-40' : ''}`}
@@ -304,8 +369,11 @@ function SessionsTab() {
 
           <div className="flex items-center justify-between">
             <p className="text-xs text-slate-400">
-              {selectedCount} class{selectedCount !== 1 ? 'es' : ''} selected
-              {selectedCount > 0 && header.date ? ` · ${selectedCount} session${selectedCount !== 1 ? 's' : ''} will be created` : ''}
+              {classCount > 0
+                ? classCount === selectedCount
+                  ? `${selectedCount} class${selectedCount !== 1 ? 'es' : ''} · ${selectedCount} session${selectedCount !== 1 ? 's' : ''} will be created`
+                  : `${classCount} class${classCount !== 1 ? 'es' : ''} → ${selectedCount} session${selectedCount !== 1 ? 's' : ''} will be created`
+                : 'No classes selected'}
             </p>
             <button onClick={save} disabled={saving || !selectedCount}
               className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
