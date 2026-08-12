@@ -335,6 +335,76 @@ function ClassroomCard({ row }: { row: ClassroomStatus }) {
   );
 }
 
+// ── notices widget ───────────────────────────────────────────────────────────
+
+interface Notice {
+  id: string;
+  title: string;
+  body: string;
+  priority: 'normal' | 'important' | 'urgent';
+  author_name: string;
+  is_pinned: boolean;
+  expires_at: string | null;
+  created_at: string;
+}
+
+const PRIORITY_STYLE: Record<string, { bg: string; border: string; text: string; badge: string }> = {
+  urgent:    { bg: '#FEF2F2', border: '#FECACA', text: '#991B1B', badge: '#DC2626' },
+  important: { bg: '#FFFBEB', border: '#FDE68A', text: '#92400E', badge: '#D97706' },
+  normal:    { bg: '#EFF6FF', border: '#BFDBFE', text: '#1E40AF', badge: '#2563EB' },
+};
+
+function AdminNoticesWidget() {
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get<Notice[]>('/api/notices')
+      .then(r => setNotices(r.data.slice(0, 5)))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading || notices.length === 0) return null;
+
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>
+          Notice Board
+        </h2>
+        <a href="/notice-board" className="text-xs font-semibold" style={{ color: '#15803D' }}>
+          Manage notices →
+        </a>
+      </div>
+      <div className="space-y-2">
+        {notices.map(n => {
+          const s = PRIORITY_STYLE[n.priority] ?? PRIORITY_STYLE.normal;
+          return (
+            <div key={n.id} className="rounded-xl px-4 py-3 flex gap-3"
+              style={{ backgroundColor: s.bg, border: `1px solid ${s.border}`, borderLeft: `4px solid ${s.badge}` }}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {n.is_pinned && <span className="text-xs">📌</span>}
+                  <span className="text-xs font-bold uppercase tracking-wide" style={{ color: s.badge }}>
+                    {n.priority}
+                  </span>
+                  <span className="text-sm font-semibold truncate" style={{ color: '#0F172A' }}>{n.title}</span>
+                </div>
+                <p className="text-xs mt-1 line-clamp-2" style={{ color: '#475569' }}>{n.body}</p>
+                <p className="text-[10px] mt-1.5" style={{ color: '#94A3B8' }}>
+                  Posted by {n.author_name} · {new Date(n.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  {n.expires_at && ` · Expires ${new Date(n.expires_at + 'T12:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 // ── main page ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -518,6 +588,8 @@ export default function DashboardPage() {
           </Button>
         </div>
       </div>
+
+      <AdminNoticesWidget />
 
       {/* ── stat cards ── */}
       {stats && (

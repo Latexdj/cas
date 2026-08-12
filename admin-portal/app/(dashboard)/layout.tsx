@@ -32,6 +32,7 @@ const pageTitles: Record<string, string> = {
   '/exeat':              'Exeat Records',
   '/lms':               'LMS Overview',
   '/lms/pasco':         'Pasco Bank',
+  '/notice-board':      'Notice Board',
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

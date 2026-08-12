@@ -43,6 +43,23 @@ interface MeetingRow {
   pct: number | null;
 }
 
+interface Notice {
+  id: string;
+  title: string;
+  body: string;
+  priority: 'normal' | 'important' | 'urgent';
+  author_name: string;
+  is_pinned: boolean;
+  expires_at: string | null;
+  created_at: string;
+}
+
+const NOTICE_STYLE: Record<string, { bg: string; border: string; badge: string }> = {
+  urgent:    { bg: '#FEF2F2', border: '#FECACA', badge: '#DC2626' },
+  important: { bg: '#FFFBEB', border: '#FDE68A', badge: '#D97706' },
+  normal:    { bg: '#F0FDF4', border: '#BBF7D0', badge: '#16A34A' },
+};
+
 function formatLocalDate(iso: string) {
   const d = iso.slice(0, 10);
   const [y, m, day] = d.split('-').map(Number);
@@ -71,6 +88,7 @@ export default function TeacherDashboardPage() {
   const [loading,        setLoading]        = useState(true);
   const [error,     setError]     = useState('');
   const [primary,   setPrimary]   = useState('#2ab289');
+  const [notices,   setNotices]   = useState<Notice[]>([]);
 
   const loadData = useCallback(async () => {
     const teacher = getTeacher();
@@ -106,6 +124,12 @@ export default function TeacherDashboardPage() {
     setPrimary(colors.primary);
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    teacherApi.get<Notice[]>('/api/notices')
+      .then(r => setNotices(Array.isArray(r.data) ? r.data : []))
+      .catch(() => {});
+  }, []);
 
   function isSlotSubmitted(slot: TimetableSlot) {
     return attendance.some((a) => {
@@ -150,6 +174,35 @@ export default function TeacherDashboardPage() {
 
       {error && (
         <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{error}</p>
+      )}
+
+      {/* Notices */}
+      {notices.length > 0 && (
+        <div className="mb-5 space-y-2">
+          {notices.map(n => {
+            const s = NOTICE_STYLE[n.priority] ?? NOTICE_STYLE.normal;
+            return (
+              <div key={n.id} className="rounded-2xl px-4 py-3 shadow-sm"
+                style={{ backgroundColor: s.bg, border: `1px solid ${s.border}`, borderLeft: `4px solid ${s.badge}` }}>
+                <div className="flex items-start gap-2">
+                  {n.is_pinned && <span className="text-sm shrink-0 mt-0.5">📌</span>}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                      <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: s.badge }}>
+                        {n.priority}
+                      </span>
+                      <span className="text-sm font-bold text-[#2C2218] leading-tight">{n.title}</span>
+                    </div>
+                    <p className="text-xs text-[#5C4F40] leading-relaxed whitespace-pre-wrap">{n.body}</p>
+                    <p className="text-[10px] text-[#8C7E6E] mt-1.5">
+                      {n.author_name} · {new Date(n.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {/* Stats bar */}

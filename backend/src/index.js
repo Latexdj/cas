@@ -58,6 +58,7 @@ const primaryRoutes           = require('./routes/primary');
 const lmsRoutes               = require('./routes/lms');
 const inventoryRoutes         = require('./routes/inventory');
 const examsRoutes             = require('./routes/exams');
+const noticesRoutes           = require('./routes/notices');
 const { startAbsenceCheckJob }          = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob }    = require('./jobs/subscriptionExpiry');
 const { startLibraryNotificationJob }   = require('./jobs/libraryNotifications');
@@ -145,6 +146,7 @@ app.use('/api/primary',               primaryRoutes);
 app.use('/api/lms',                   lmsRoutes);
 app.use('/api/inventory',             inventoryRoutes);
 app.use('/api/exams',                 examsRoutes);
+app.use('/api/notices',               noticesRoutes);
 
 app.use(errorHandler);
 
