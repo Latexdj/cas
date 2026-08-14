@@ -54,10 +54,14 @@ async function requestPermission(): Promise<'granted' | 'denied'> {
   if (Platform.OS !== 'android') return 'granted';
   const v = Number(Platform.Version);
 
-  // Android 11+ (API 30+): arbitrary external storage requires MANAGE_EXTERNAL_STORAGE,
-  // which can only be granted through Settings → not via PermissionsAndroid.request.
-  // We attempt the read optimistically; the loadDir catch handles any failure.
-  if (v >= 30) return 'granted';
+  if (v >= 30) {
+    // Android 11+: MANAGE_EXTERNAL_STORAGE can only be granted through Settings.
+    // Check whether it has already been granted — never assume it is.
+    const has = await PermissionsAndroid.check(
+      'android.permission.MANAGE_EXTERNAL_STORAGE' as any
+    ).catch(() => false);
+    return has ? 'granted' : 'denied';
+  }
 
   // Android 10 and below: runtime READ_EXTERNAL_STORAGE is sufficient.
   const r = await PermissionsAndroid.request(
@@ -217,7 +221,14 @@ export default function FileBrowser({ showBackAsClose }: Props) {
         </TouchableOpacity>
         <TouchableOpacity style={[s.permBtn, { backgroundColor: C.surface, marginTop: 10, borderWidth: 1, borderColor: C.border }]} onPress={async () => {
           setLoading(true); setError(null);
-          await loadDir(LM_URI);
+          const perm = await requestPermission();
+          if (perm === 'granted') {
+            setStack([]);
+            await loadDir(LM_URI);
+          } else {
+            setError('permission');
+            setLoading(false);
+          }
         }}>
           <Text style={[s.permBtnText, { color: C.text }]}>Retry</Text>
         </TouchableOpacity>
