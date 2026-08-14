@@ -56,12 +56,16 @@ async function requestPermission(): Promise<'granted' | 'denied'> {
   const v = Number(Platform.Version);
 
   if (v >= 30) {
-    // Android 11+: MANAGE_EXTERNAL_STORAGE can only be granted through Settings.
-    // Check whether it has already been granted — never assume it is.
-    const has = await PermissionsAndroid.check(
-      'android.permission.MANAGE_EXTERNAL_STORAGE' as any
-    ).catch(() => false);
-    return has ? 'granted' : 'denied';
+    // PermissionsAndroid.check() always returns false for MANAGE_EXTERNAL_STORAGE
+    // because Android uses Environment.isExternalStorageManager() for this special
+    // permission, not checkSelfPermission(). Probe the real filesystem instead:
+    // /storage/emulated/0 always exists and is non-empty when access is granted.
+    try {
+      await FileSystem.readDirectoryAsync('file:///storage/emulated/0/');
+      return 'granted';
+    } catch {
+      return 'denied';
+    }
   }
 
   // Android 10 and below: runtime READ_EXTERNAL_STORAGE is sufficient.
