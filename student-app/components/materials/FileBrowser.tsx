@@ -4,6 +4,7 @@ import {
   Platform, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
@@ -183,6 +184,29 @@ export default function FileBrowser({ showBackAsClose }: Props) {
 
   if (error === 'permission') {
     const needsAllFiles = Platform.OS === 'android' && Number(Platform.Version) >= 30;
+
+    // On Android 11+, deep-link directly to the All Files Access page for this app.
+    // The user just needs to flip one toggle — no digging through menus.
+    function openPermissionSettings() {
+      if (needsAllFiles) {
+        Linking.openURL('package:com.cas.student').catch(() => Linking.openSettings());
+      } else {
+        Linking.openSettings();
+      }
+    }
+
+    async function retry() {
+      setLoading(true); setError(null);
+      const perm = await requestPermission();
+      if (perm === 'granted') {
+        setStack([]);
+        await loadDir(LM_URI);
+      } else {
+        setError('permission');
+        setLoading(false);
+      }
+    }
+
     return (
       <View style={[s.permRoot, { backgroundColor: C.bg }]}>
         <Ionicons name="lock-closed-outline" size={52} color={C.muted as string} />
@@ -191,45 +215,38 @@ export default function FileBrowser({ showBackAsClose }: Props) {
         {needsAllFiles ? (
           <>
             <Text style={[s.stateText, { color: C.muted }]}>
-              This device requires <Text style={{ fontWeight: '800', color: C.text }}>All files access</Text> to read the LM folder.
+              Tap <Text style={{ fontWeight: '800', color: C.text }}>Grant Permission</Text> below.
+              On the next screen, enable{' '}
+              <Text style={{ fontWeight: '800', color: C.text }}>"Allow management of all files"</Text>,
+              then come back and tap <Text style={{ fontWeight: '800', color: C.text }}>Retry</Text>.
             </Text>
-            <View style={[s.steps, { borderColor: C.border, backgroundColor: C.surface }]}>
-              {[
-                'Tap "Open App Settings" below',
-                'Tap  Permissions',
-                'Tap  Files and media',
-                'Choose  "Allow management of all files"',
-                'Come back and tap Retry',
-              ].map((step, i) => (
-                <View key={i} style={s.stepRow}>
-                  <View style={[s.stepNum, { backgroundColor: C.primary }]}>
-                    <Text style={s.stepNumText}>{i + 1}</Text>
-                  </View>
-                  <Text style={[s.stepText, { color: C.text }]}>{step}</Text>
-                </View>
-              ))}
-            </View>
+            <TouchableOpacity
+              style={[s.permBtn, { backgroundColor: C.primary }]}
+              onPress={() =>
+                IntentLauncher.startActivityAsync(
+                  'android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION',
+                  { data: 'package:com.cas.student' }
+                ).catch(() => Linking.openSettings())
+              }
+            >
+              <Text style={s.permBtnText}>Grant Permission</Text>
+            </TouchableOpacity>
           </>
         ) : (
-          <Text style={[s.stateText, { color: C.muted }]}>
-            The app needs permission to read learning materials from the device storage.
-          </Text>
+          <>
+            <Text style={[s.stateText, { color: C.muted }]}>
+              The app needs permission to read learning materials from the device storage.
+            </Text>
+            <TouchableOpacity style={[s.permBtn, { backgroundColor: C.primary }]} onPress={openPermissionSettings}>
+              <Text style={s.permBtnText}>Open App Settings</Text>
+            </TouchableOpacity>
+          </>
         )}
 
-        <TouchableOpacity style={[s.permBtn, { backgroundColor: C.primary }]} onPress={() => Linking.openSettings()}>
-          <Text style={s.permBtnText}>Open App Settings</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.permBtn, { backgroundColor: C.surface, marginTop: 10, borderWidth: 1, borderColor: C.border }]} onPress={async () => {
-          setLoading(true); setError(null);
-          const perm = await requestPermission();
-          if (perm === 'granted') {
-            setStack([]);
-            await loadDir(LM_URI);
-          } else {
-            setError('permission');
-            setLoading(false);
-          }
-        }}>
+        <TouchableOpacity
+          style={[s.permBtn, { backgroundColor: C.surface, marginTop: 10, borderWidth: 1, borderColor: C.border }]}
+          onPress={retry}
+        >
           <Text style={[s.permBtnText, { color: C.text }]}>Retry</Text>
         </TouchableOpacity>
       </View>
