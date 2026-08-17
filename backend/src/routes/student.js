@@ -115,15 +115,27 @@ router.get('/results', async (req, res, next) => {
          WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.semester = $3
            AND LOWER(a.class_name) = LOWER($4)
            AND sc.student_id = $5
-           AND sc.score IS NOT NULL AND sc.absent = false`,
+           AND sc.score IS NOT NULL AND sc.absent = false
+           AND EXISTS (
+             SELECT 1 FROM result_submissions rs
+             WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.semester = $3
+               AND LOWER(rs.subject) = LOWER(a.subject)
+               AND LOWER(rs.class_name) = LOWER($4) AND rs.status = 'published'
+           )`,
         [req.schoolId, academic_year_id, semInt, className, student.id]
       ),
       pool.query(
-        `SELECT subject, score, max_score
-         FROM exam_scores
-         WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
-           AND LOWER(class_name) = LOWER($4) AND student_id = $5
-           AND score IS NOT NULL`,
+        `SELECT es.subject, es.score, es.max_score
+         FROM exam_scores es
+         WHERE es.school_id = $1 AND es.academic_year_id = $2 AND es.semester = $3
+           AND LOWER(es.class_name) = LOWER($4) AND es.student_id = $5
+           AND es.score IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM result_submissions rs
+             WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.semester = $3
+               AND LOWER(rs.subject) = LOWER(es.subject)
+               AND LOWER(rs.class_name) = LOWER($4) AND rs.status = 'published'
+           )`,
         [req.schoolId, academic_year_id, semInt, className, student.id]
       ),
       pool.query(
@@ -219,17 +231,29 @@ router.get('/results', async (req, res, next) => {
         if (cm.id === student.id) return average;
         const [caR, exR, impR] = await Promise.all([
           pool.query(
-            `SELECT a.mode_id, a.max_score, sc.score FROM assessments a
+            `SELECT a.subject, a.mode_id, a.max_score, sc.score FROM assessments a
              JOIN assessment_scores sc ON sc.assessment_id = a.id
              WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.semester = $3
                AND LOWER(a.class_name) = LOWER($4) AND sc.student_id = $5
-               AND sc.score IS NOT NULL AND sc.absent = false`,
+               AND sc.score IS NOT NULL AND sc.absent = false
+               AND EXISTS (
+                 SELECT 1 FROM result_submissions rs
+                 WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.semester = $3
+                   AND LOWER(rs.subject) = LOWER(a.subject)
+                   AND LOWER(rs.class_name) = LOWER($4) AND rs.status = 'published'
+               )`,
             [req.schoolId, academic_year_id, semInt, className, cm.id]
           ),
           pool.query(
-            `SELECT subject, score, max_score FROM exam_scores
-             WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
-               AND LOWER(class_name) = LOWER($4) AND student_id = $5 AND score IS NOT NULL`,
+            `SELECT es.subject, es.score, es.max_score FROM exam_scores es
+             WHERE es.school_id = $1 AND es.academic_year_id = $2 AND es.semester = $3
+               AND LOWER(es.class_name) = LOWER($4) AND es.student_id = $5 AND es.score IS NOT NULL
+               AND EXISTS (
+                 SELECT 1 FROM result_submissions rs
+                 WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.semester = $3
+                   AND LOWER(rs.subject) = LOWER(es.subject)
+                   AND LOWER(rs.class_name) = LOWER($4) AND rs.status = 'published'
+               )`,
             [req.schoolId, academic_year_id, semInt, className, cm.id]
           ),
           pool.query(
