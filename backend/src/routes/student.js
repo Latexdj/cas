@@ -107,7 +107,7 @@ router.get('/results', async (req, res, next) => {
     const boundaries    = boundariesRow.rows;
     const totalConfigCA = modes.reduce((s, m) => s + parseFloat(m.ca_contribution), 0) || caPercentage;
 
-    const [{ rows: assessments }, { rows: examScores }, { rows: imported }] = await Promise.all([
+    const [{ rows: assessments }, { rows: examScores }, { rows: imported }, { rows: pubRows }] = await Promise.all([
       pool.query(
         `SELECT a.subject, a.mode_id, a.max_score, sc.score
          FROM assessments a
@@ -115,13 +115,7 @@ router.get('/results', async (req, res, next) => {
          WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.semester = $3
            AND LOWER(a.class_name) = LOWER($4)
            AND sc.student_id = $5
-           AND sc.score IS NOT NULL AND sc.absent = false
-           AND EXISTS (
-             SELECT 1 FROM result_submissions rs
-             WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.semester = $3
-               AND LOWER(rs.subject) = LOWER(a.subject)
-               AND LOWER(rs.class_name) = LOWER($4) AND rs.status = 'published'
-           )`,
+           AND sc.score IS NOT NULL AND sc.absent = false`,
         [req.schoolId, academic_year_id, semInt, className, student.id]
       ),
       pool.query(
@@ -129,13 +123,7 @@ router.get('/results', async (req, res, next) => {
          FROM exam_scores es
          WHERE es.school_id = $1 AND es.academic_year_id = $2 AND es.semester = $3
            AND LOWER(es.class_name) = LOWER($4) AND es.student_id = $5
-           AND es.score IS NOT NULL
-           AND EXISTS (
-             SELECT 1 FROM result_submissions rs
-             WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.semester = $3
-               AND LOWER(rs.subject) = LOWER(es.subject)
-               AND LOWER(rs.class_name) = LOWER($4) AND rs.status = 'published'
-           )`,
+           AND es.score IS NOT NULL`,
         [req.schoolId, academic_year_id, semInt, className, student.id]
       ),
       pool.query(
@@ -145,7 +133,16 @@ router.get('/results', async (req, res, next) => {
            AND student_id = $4`,
         [req.schoolId, academic_year_id, semInt, student.id]
       ),
+      pool.query(
+        `SELECT LOWER(subject) AS subject FROM result_submissions
+         WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
+           AND LOWER(class_name) = LOWER($4) AND status = 'published'`,
+        [req.schoolId, academic_year_id, semInt, className]
+      ),
     ]);
+
+    // Set of lowercase subject names that have been published for this class/term
+    const publishedSubjects = new Set(pubRows.map(r => r.subject));
 
     // Build subject map
     const subjectMap = {};
@@ -166,9 +163,9 @@ router.get('/results', async (req, res, next) => {
       subjectMap[row.subject].examMax = parseFloat(row.max_score);
     }
 
-    // Imported fallback: apply when no live CA exists, even if live exam data is present
+    // Imported fallback: only when the subject has no live data at all (matches admin portal logic)
     for (const row of imported) {
-      if (!subjectMap[row.subject] || subjectMap[row.subject].caMaxRaw === 0) {
+      if (!subjectMap[row.subject] || (subjectMap[row.subject].caMaxRaw === 0 && subjectMap[row.subject].exam === null)) {
         subjectMap[row.subject] = {
           caRaw: row.ca_score ?? null,
           caMaxRaw: null,
@@ -210,7 +207,12 @@ router.get('/results', async (req, res, next) => {
 
     subjects.sort((a, b) => a.subject.localeCompare(b.subject));
 
-    const validTotals = subjects.filter(s => s.total !== null).map(s => s.total);
+    // Show only published live subjects OR admin-imported subjects (imports are always visible)
+    const filteredSubjects = subjects.filter(s =>
+      s.is_imported || publishedSubjects.has(s.subject.toLowerCase())
+    );
+
+    const validTotals = filteredSubjects.filter(s => s.total !== null).map(s => s.total);
     const average = validTotals.length
       ? Math.round(validTotals.reduce((a, b) => a + b, 0) / validTotals.length * 10) / 10
       : null;
@@ -235,25 +237,13 @@ router.get('/results', async (req, res, next) => {
              JOIN assessment_scores sc ON sc.assessment_id = a.id
              WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.semester = $3
                AND LOWER(a.class_name) = LOWER($4) AND sc.student_id = $5
-               AND sc.score IS NOT NULL AND sc.absent = false
-               AND EXISTS (
-                 SELECT 1 FROM result_submissions rs
-                 WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.semester = $3
-                   AND LOWER(rs.subject) = LOWER(a.subject)
-                   AND LOWER(rs.class_name) = LOWER($4) AND rs.status = 'published'
-               )`,
+               AND sc.score IS NOT NULL AND sc.absent = false`,
             [req.schoolId, academic_year_id, semInt, className, cm.id]
           ),
           pool.query(
             `SELECT es.subject, es.score, es.max_score FROM exam_scores es
              WHERE es.school_id = $1 AND es.academic_year_id = $2 AND es.semester = $3
-               AND LOWER(es.class_name) = LOWER($4) AND es.student_id = $5 AND es.score IS NOT NULL
-               AND EXISTS (
-                 SELECT 1 FROM result_submissions rs
-                 WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.semester = $3
-                   AND LOWER(rs.subject) = LOWER(es.subject)
-                   AND LOWER(rs.class_name) = LOWER($4) AND rs.status = 'published'
-               )`,
+               AND LOWER(es.class_name) = LOWER($4) AND es.student_id = $5 AND es.score IS NOT NULL`,
             [req.schoolId, academic_year_id, semInt, className, cm.id]
           ),
           pool.query(
@@ -275,16 +265,18 @@ router.get('/results', async (req, res, next) => {
           subMap[r.subject].examMax = parseFloat(r.max_score);
         }
         for (const r of impR.rows) {
-          if (!subMap[r.subject] || subMap[r.subject].caMaxRaw === 0) {
+          if (!subMap[r.subject]) {
             subMap[r.subject] = { caRaw: 0, caMaxRaw: 0, exam: null, examMax: null, total: r.total_score, imported: true };
           }
         }
-        const tots = Object.entries(subMap).map(([, d]) => {
-          if (d.imported && d.total != null) return d.total;
-          const ca = d.caMaxRaw > 0 ? (d.caRaw / d.caMaxRaw) * caPercentage : null;
-          const ex = d.exam !== null && d.examMax > 0 ? (d.exam / d.examMax) * examPct : null;
-          return ca !== null && ex !== null ? ca + ex : null;
-        }).filter(t => t !== null);
+        const tots = Object.entries(subMap)
+          .filter(([subject, d]) => d.imported || publishedSubjects.has(subject.toLowerCase()))
+          .map(([, d]) => {
+            if (d.imported && d.total != null) return d.total;
+            const ca = d.caMaxRaw > 0 ? (d.caRaw / d.caMaxRaw) * caPercentage : null;
+            const ex = d.exam !== null && d.examMax > 0 ? (d.exam / d.examMax) * examPct : null;
+            return ca !== null && ex !== null ? ca + ex : null;
+          }).filter(t => t !== null);
         return tots.length ? tots.reduce((a, b) => a + b, 0) / tots.length : null;
       }));
 
@@ -322,7 +314,7 @@ router.get('/results', async (req, res, next) => {
         id: student.id, name: student.name, student_code: student.student_code,
         class_name: className, program_name: student.program_name, picture_url: student.picture_url,
       },
-      subjects,
+      subjects: filteredSubjects,
       average,
       overall_grade: overallGrade,
       class_position,
