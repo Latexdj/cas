@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
@@ -33,7 +33,7 @@ export default function StatsPage() {
       const res = await saApi.get('/api/super-admin/stats');
       setStats(res.data);
     } catch {
-      setError('Failed to load statistics.');
+      setError('Could not load statistics.');
     } finally { setLoading(false); }
   }, []);
 
@@ -60,13 +60,13 @@ export default function StatsPage() {
 
       {loading ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {[1,2,3,4,5,6,7].map(i => <div key={i} className="h-24 bg-slate-800 rounded-2xl animate-pulse" />)}
+          {[1,2,3,4,5,6,7].map(i => <div key={i} className="h-24 bg-slate-800 rounded-xl animate-pulse" />)}
         </div>
       ) : stats ? (
         <>
           {/* School breakdown */}
           <div className="mb-2">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-3">Schools</p>
+            <p className="text-xs font-bold font-medium text-slate-400 mb-3">Schools</p>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 { label: 'Total',    value: stats.total_schools,   color: '#818cf8' },
@@ -74,7 +74,7 @@ export default function StatsPage() {
                 { label: 'On Trial', value: stats.trial_schools,   color: '#fbbf24' },
                 { label: 'Expired',  value: stats.expired_schools, color: '#f87171' },
               ].map(s => (
-                <div key={s.label} className="bg-slate-800 border border-slate-700 rounded-2xl p-5 text-center">
+                <div key={s.label} className="bg-slate-800 border border-slate-700 rounded-xl p-5 text-center">
                   <p className="text-3xl font-bold" style={{ color: s.color }}>{s.value}</p>
                   <p className="text-xs text-slate-400 mt-1 font-medium">{s.label}</p>
                 </div>
@@ -84,14 +84,14 @@ export default function StatsPage() {
 
           {/* Attendance + teachers */}
           <div className="mb-6">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-3 mt-6">Usage</p>
+            <p className="text-xs font-bold font-medium text-slate-400 mb-3 mt-6">Usage</p>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {[
                 { label: 'Active Teachers (all schools)',   value: stats.total_teachers.toLocaleString(),            color: '#a78bfa' },
                 { label: 'Attendance Records This Month',   value: stats.attendance_this_month.toLocaleString(),     color: '#34d399' },
                 { label: 'Total Attendance (all time)',     value: stats.total_attendance.toLocaleString(),          color: '#94a3b8' },
               ].map(s => (
-                <div key={s.label} className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+                <div key={s.label} className="bg-slate-800 border border-slate-700 rounded-xl p-5">
                   <p className="text-3xl font-bold" style={{ color: s.color }}>{s.value}</p>
                   <p className="text-xs text-slate-400 mt-1 font-medium">{s.label}</p>
                 </div>
@@ -101,15 +101,15 @@ export default function StatsPage() {
 
           {/* Most active school */}
           {stats.most_active_school && (
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 mb-6">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-3">Most Active This Month</p>
+            <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6">
+              <p className="text-xs font-bold font-medium text-slate-400 mb-3">Most Active This Month</p>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-base font-bold text-white">{stats.most_active_school.name}</p>
                   <p className="text-xs text-slate-400">{stats.most_active_school.code}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-2xl font-bold text-green-400">{stats.most_active_school.attendance_count.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-[#2ab289]">{stats.most_active_school.attendance_count.toLocaleString()}</p>
                   <p className="text-xs text-slate-400">attendance records</p>
                 </div>
               </div>
@@ -117,8 +117,8 @@ export default function StatsPage() {
           )}
 
           {/* Inactive schools */}
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+            <p className="text-xs font-bold font-medium text-slate-400 mb-4">
               Inactive Schools (no activity in 7+ days)
             </p>
             {stats.inactive_schools.length === 0 ? (

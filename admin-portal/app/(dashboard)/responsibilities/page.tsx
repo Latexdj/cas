@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 
 const MODULE_LABELS: Record<string, { label: string; color: string }> = {
-  library: { label: 'Library', color: 'bg-green-100 text-green-700' },
+  library: { label: 'Library', color: 'bg-[#D1EAD9] text-[#145C44]' },
 };
 
 interface AssignedTeacher { id: string; name: string; teacher_code: string; }
@@ -78,7 +78,7 @@ export default function ResponsibilitiesPage() {
         <button
           onClick={openCreate}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white"
-          style={{ background: '#15803D' }}
+          style={{ background: '#145C44' }}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
             <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -94,7 +94,7 @@ export default function ResponsibilitiesPage() {
       ) : items.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 py-16 text-center">
           <p className="text-gray-400 text-sm">No responsibilities defined yet.</p>
-          <button onClick={openCreate} className="mt-3 text-sm font-semibold text-green-700 hover:underline">
+          <button onClick={openCreate} className="mt-3 text-sm font-semibold text-[#145C44] hover:underline">
             Create your first responsibility
           </button>
         </div>
@@ -148,7 +148,7 @@ export default function ResponsibilitiesPage() {
                     <div className="flex flex-wrap gap-2">
                       {r.teachers.map(t => (
                         <span key={t.id} className="inline-flex items-center gap-1.5 text-xs font-medium bg-white border border-gray-200 rounded-full px-3 py-1 text-gray-700">
-                          <span className="font-mono text-green-700 font-bold text-[10px]">{t.teacher_code}</span>
+                          <span className="font-mono text-[#145C44] font-bold text-[10px]">{t.teacher_code}</span>
                           {t.name}
                         </span>
                       ))}
@@ -164,7 +164,7 @@ export default function ResponsibilitiesPage() {
       {/* Create / Edit Modal */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
             <h2 className="text-lg font-bold text-gray-900">
               {modal === 'create' ? 'New Responsibility' : 'Edit Responsibility'}
             </h2>
@@ -224,7 +224,7 @@ export default function ResponsibilitiesPage() {
               </button>
               <button onClick={save} disabled={saving}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                style={{ background: '#15803D' }}>
+                style={{ background: '#145C44' }}>
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </div>

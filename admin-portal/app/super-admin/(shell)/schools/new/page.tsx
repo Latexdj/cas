@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -78,16 +78,16 @@ export default function NewSchoolPage() {
 
     return (
       <div className="p-6 max-w-lg mx-auto">
-        <div className="bg-green-900/30 border border-green-700 rounded-2xl p-6 mb-6">
+        <div className="bg-green-900/30 border border-green-700 rounded-xl p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-green-700 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[#145C44] flex items-center justify-center">
               <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} className="w-5 h-5">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
             <div>
               <p className="text-base font-bold text-white">School Created!</p>
-              <p className="text-xs text-green-300">All systems are ready</p>
+              <p className="text-xs text-[#5DAA82]">All systems are ready</p>
             </div>
           </div>
           <div className="bg-slate-900/60 rounded-xl p-4 space-y-2 text-sm">
@@ -97,7 +97,7 @@ export default function NewSchoolPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">School Code</span>
-              <span className="font-mono font-bold text-indigo-400 text-base">{result.school.code}</span>
+              <span className="font-mono font-bold text-[#C8973A] text-base">{result.school.code}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Admin Name</span>
@@ -119,8 +119,8 @@ export default function NewSchoolPage() {
         </div>
 
         {/* Onboarding checklist */}
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 mb-6">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-4">Onboarding Checklist</p>
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-6">
+          <p className="text-xs font-bold font-medium text-slate-400 mb-4">Onboarding Checklist</p>
           <div className="space-y-3">
             {CHECKLIST.map((item, i) => (
               <button
@@ -133,7 +133,7 @@ export default function NewSchoolPage() {
                 className="flex items-center gap-3 w-full text-left"
               >
                 <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                  checked.has(i) ? 'bg-indigo-600 border-indigo-600' : 'border-slate-600 bg-slate-700'
+                  checked.has(i) ? 'bg-[#145C44] border-[#B8D9C8]' : 'border-slate-600 bg-slate-700'
                 }`}>
                   {checked.has(i) && (
                     <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3} className="w-3 h-3">
@@ -148,7 +148,7 @@ export default function NewSchoolPage() {
             ))}
           </div>
           {checked.size === CHECKLIST.length && (
-            <p className="text-xs text-green-400 bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-4">
+            <p className="text-xs text-[#2ab289] bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-4">
               All steps complete — school is fully onboarded!
             </p>
           )}
@@ -157,7 +157,7 @@ export default function NewSchoolPage() {
         <div className="flex gap-3">
           <button
             onClick={() => router.push(`/super-admin/schools/${result.school.id}`)}
-            className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-colors"
+            className="flex-1 py-3 rounded-xl bg-[#145C44] hover:bg-[#145C44] text-white font-semibold text-sm transition-colors"
           >
             View School
           </button>
@@ -188,8 +188,8 @@ export default function NewSchoolPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-4">School Info</p>
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+          <p className="text-xs font-bold font-medium text-slate-400 mb-4">School Info</p>
           <div className="space-y-3">
             {[
               { label: 'School Name *', value: name, set: setName, placeholder: 'e.g. Accra Academy' },
@@ -204,7 +204,7 @@ export default function NewSchoolPage() {
                   value={f.value}
                   onChange={e => { f.set(e.target.value); setError(''); }}
                   placeholder={f.placeholder}
-                  className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-slate-500"
+                  className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B8D9C8] placeholder-slate-500"
                 />
               </div>
             ))}
@@ -212,14 +212,14 @@ export default function NewSchoolPage() {
               <div>
                 <label className="text-xs text-slate-400 block mb-1">School Type</label>
                 <select value={schoolType} onChange={e => { setSchoolType(e.target.value); setError(''); }}
-                  className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                  className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B8D9C8]">
                   {SCHOOL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-slate-400 block mb-1">Category</label>
                 <select value={schoolCategory} onChange={e => { setSchoolCategory(e.target.value); setError(''); }}
-                  className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                  className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B8D9C8]">
                   {SCHOOL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
@@ -227,15 +227,15 @@ export default function NewSchoolPage() {
           </div>
         </div>
 
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-4">Admin Account</p>
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+          <p className="text-xs font-bold font-medium text-slate-400 mb-4">Admin Account</p>
           <div className="space-y-3">
             <div>
               <label className="text-xs text-slate-400 block mb-1">Admin Full Name *</label>
               <input
                 type="text" value={adminName} onChange={e => { setAdminName(e.target.value); setError(''); }}
                 placeholder="e.g. Kofi Mensah"
-                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-slate-500"
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B8D9C8] placeholder-slate-500"
               />
             </div>
             <div>
@@ -243,14 +243,14 @@ export default function NewSchoolPage() {
               <input
                 type="text" value={adminPin} onChange={e => { setAdminPin(e.target.value); setError(''); }}
                 placeholder="e.g. 5678" maxLength={8}
-                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-slate-500"
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B8D9C8] placeholder-slate-500"
               />
             </div>
           </div>
         </div>
 
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Teacher Limit</p>
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+          <p className="text-xs font-bold font-medium text-slate-400 mb-1">Teacher Limit</p>
           <p className="text-xs text-slate-500 mb-4">Maximum number of Active teachers this school can register. Applies to both trial and paid plan.</p>
           <div>
             <label className="text-xs text-slate-400 block mb-1">Number of Teachers *</label>
@@ -258,7 +258,7 @@ export default function NewSchoolPage() {
               type="number" value={teacherLimit}
               onChange={e => { setTeacherLimit(e.target.value); setError(''); }}
               min="10" placeholder="Minimum 10"
-              className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-slate-500"
+              className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B8D9C8] placeholder-slate-500"
             />
           </div>
         </div>
@@ -268,7 +268,7 @@ export default function NewSchoolPage() {
         )}
 
         <button type="submit" disabled={loading}
-          className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-colors disabled:opacity-40">
+          className="w-full py-3.5 rounded-xl bg-[#145C44] hover:bg-[#145C44] text-white font-semibold text-sm transition-colors disabled:opacity-40">
           {loading ? (
             <span className="flex items-center justify-center gap-2">
               <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />

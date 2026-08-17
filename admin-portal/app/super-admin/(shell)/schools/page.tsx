@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -98,7 +98,7 @@ export default function SchoolsListPage() {
       const res = await saApi.get('/api/schools');
       setSchools(Array.isArray(res.data) ? res.data : []);
     } catch (err: unknown) {
-      setLoadErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to load schools. The backend may need redeploying.');
+      setLoadErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Could not load schools. The backend may need redeploying.');
     } finally { setLoading(false); }
   }, []);
 
@@ -173,7 +173,7 @@ export default function SchoolsListPage() {
           </button>
           <button
             onClick={() => router.push('/super-admin/schools/new')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-white bg-[#145C44] hover:bg-[#145C44] transition-colors"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -188,7 +188,7 @@ export default function SchoolsListPage() {
         {FILTERS.map(f => (
           <button key={f.key} onClick={() => { setFilter(f.key); setSelected(new Set()); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              filter === f.key ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'
+              filter === f.key ? 'bg-[#145C44] text-white' : 'text-slate-400 hover:text-white'
             }`}>
             {f.label}
           </button>
@@ -197,8 +197,8 @@ export default function SchoolsListPage() {
 
       {/* Bulk actions bar */}
       {selected.size > 0 && (
-        <div className="bg-indigo-900/40 border border-indigo-700 rounded-xl px-4 py-3 mb-4 flex flex-wrap items-center gap-3">
-          <span className="text-sm text-indigo-300 font-semibold">{selected.size} selected</span>
+        <div className="bg-[#145C44]/20 border border-[#B8D9C8] rounded-xl px-4 py-3 mb-4 flex flex-wrap items-center gap-3">
+          <span className="text-sm text-[#C8973A] font-semibold">{selected.size} selected</span>
           <div className="flex items-center gap-2">
             <input
               type="number" value={bulkDays} onChange={e => setBulkDays(e.target.value)}
@@ -212,7 +212,7 @@ export default function SchoolsListPage() {
             </button>
           </div>
           <button onClick={bulkActivate} disabled={bulkLoading}
-            className="px-3 py-1.5 rounded-lg bg-green-700 hover:bg-green-600 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
+            className="px-3 py-1.5 rounded-lg bg-[#145C44] hover:bg-[#0B3D2E] text-white text-xs font-semibold disabled:opacity-40 transition-colors">
             Activate Paid
           </button>
           <button onClick={() => setSelected(new Set())} className="ml-auto text-xs text-slate-400 hover:text-white">
@@ -222,11 +222,11 @@ export default function SchoolsListPage() {
       )}
 
       {bulkMsg && (
-        <p className="text-xs text-green-400 bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mb-4">{bulkMsg}</p>
+        <p className="text-xs text-[#2ab289] bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mb-4">{bulkMsg}</p>
       )}
 
       {/* Table */}
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
         {loadErr ? (
           <div className="text-center py-16 text-red-400 text-sm px-6">{loadErr}</div>
         ) : loading ? (
@@ -244,12 +244,12 @@ export default function SchoolsListPage() {
                     <input type="checkbox" checked={selected.size === filtered.length && filtered.length > 0}
                       onChange={toggleAll} className="rounded border-slate-600 bg-slate-700 accent-indigo-500" />
                   </th>
-                  <Th label="School" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide" />
-                  <Th label="Status" sortKey="subscription_status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide" />
-                  <Th label="Subscription Period" sortKey="ends_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide" />
-                  <Th label="Teachers" sortKey="active_teachers" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide" />
-                  <Th label="Attendance" sortKey="total_attendance" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide" />
-                  <Th label="Last Activity" sortKey="last_submission" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide" />
+                  <Th label="School" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 font-medium" />
+                  <Th label="Status" sortKey="subscription_status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 font-medium" />
+                  <Th label="Subscription Period" sortKey="ends_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 font-medium" />
+                  <Th label="Teachers" sortKey="active_teachers" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-slate-400 font-medium" />
+                  <Th label="Attendance" sortKey="total_attendance" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-slate-400 font-medium" />
+                  <Th label="Last Activity" sortKey="last_submission" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 font-medium" />
                 </tr>
               </thead>
               <tbody>

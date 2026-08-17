@@ -14,7 +14,7 @@ interface Loan {
 
 const STATUS_COLORS: Record<string, string> = {
   active:   'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  returned: 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  returned: 'bg-[#E8F4EE] text-[#145C44] dark:bg-green-900/30 dark:text-[#2ab289]',
   overdue:  'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400',
   lost:     'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
 };
@@ -78,14 +78,14 @@ export default function LoansPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                <Th label="Student" sortKey="student_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <Th label="Book" sortKey="book_title" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Copy</th>
-                <Th label="Issued" sortKey="issued_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <Th label="Due" sortKey="due_date" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Returned</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Fine</th>
-                <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <Th label="Student" sortKey="student_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap" />
+                <Th label="Book" sortKey="book_title" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap" />
+                <th className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap">Copy</th>
+                <Th label="Issued" sortKey="issued_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap" />
+                <Th label="Due" sortKey="due_date" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap" />
+                <th className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap">Returned</th>
+                <th className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap">Fine</th>
+                <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -111,8 +111,8 @@ export default function LoansPage() {
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     {l.fine_amount > 0 ? (
-                      <span className={l.fine_paid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                        GHS {l.fine_amount.toFixed(2)}{l.fine_paid ? ' ✓' : ''}
+                      <span className={l.fine_paid ? 'text-[#145C44] dark:text-[#2ab289]' : 'text-red-600 dark:text-red-400'}>
+                        GHS {l.fine_amount.toFixed(2)}{l.fine_paid ? ' (paid)' : ''}
                       </span>
                     ) : '—'}
                   </td>

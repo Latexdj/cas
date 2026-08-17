@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { getTeacher, getTeacherColors } from '@/lib/teacher-auth';
@@ -52,7 +52,7 @@ function formatDate(iso: string) {
 }
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  Present: { bg: '#DCFCE7', color: '#15803D' },
+  Present: { bg: '#DCFCE7', color: '#145C44' },
   Absent:  { bg: '#FEF2F2', color: '#DC2626' },
   Late:    { bg: '#FFFBEB', color: '#D97706' },
 };
@@ -112,7 +112,7 @@ export default function StudentAttendancePage() {
       );
       setSessions(Array.isArray(res.data) ? res.data : []);
     } catch {
-      setSessError('Failed to load sessions.');
+      setSessError('Could not load sessions.');
     } finally {
       setSessLoading(false);
     }
@@ -130,7 +130,7 @@ export default function StudentAttendancePage() {
       );
       setAtRisk(Array.isArray(res.data) ? res.data : []);
     } catch {
-      setRiskError('Failed to load student data.');
+      setRiskError('Could not load student data.');
     } finally {
       setRiskLoading(false);
     }
@@ -224,7 +224,7 @@ export default function StudentAttendancePage() {
 
       {/* Tab toggle */}
       <div className="px-4 mb-4">
-        <div className="flex bg-white rounded-2xl border border-[#E2D9CC] p-1 gap-1">
+        <div className="flex bg-white rounded-xl border border-[#E2D9CC] p-1 gap-1">
           {([
             ['sessions', 'Sessions'],
             ['atrisk',   'At Risk'],
@@ -270,12 +270,12 @@ export default function StudentAttendancePage() {
             {sessLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map(i => (
-                  <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-24 animate-pulse" />
+                  <div key={i} className="bg-white rounded-xl border border-[#E2D9CC] h-24 animate-pulse" />
                 ))}
               </div>
             ) : sessions.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-8 text-center">
-                <p className="text-3xl mb-2">📋</p>
+              <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-8 text-center">
+                
                 <p className="text-sm font-semibold text-[#2C2218]">No student sessions found</p>
                 <p className="text-xs text-[#8C7E6E] mt-1">Adjust the date range to see earlier records</p>
               </div>
@@ -284,7 +284,7 @@ export default function StudentAttendancePage() {
                 {sessions.map(sess => {
                   const canEdit = isEditWindowOpen(sess.date, sess.lesson_end_time);
                   return (
-                    <div key={sess.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
+                    <div key={sess.id} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <p className="text-sm font-semibold text-[#2C2218]">{sess.subject} — {sess.class_name}</p>
@@ -308,7 +308,7 @@ export default function StudentAttendancePage() {
                       </div>
                       <div className="flex gap-3">
                         {[
-                          { label: 'Present', val: sess.present, color: '#15803D', bg: '#DCFCE7' },
+                          { label: 'Present', val: sess.present, color: '#145C44', bg: '#DCFCE7' },
                           { label: 'Absent',  val: sess.absent,  color: '#DC2626', bg: '#FEF2F2' },
                           { label: 'Late',    val: sess.late,    color: '#D97706', bg: '#FFFBEB' },
                         ].map(({ label, val, color, bg }) => (
@@ -345,7 +345,7 @@ export default function StudentAttendancePage() {
                         setStatusSheet(null);
                         updateRecordStatus(statusSheet.recordId, status);
                       }}
-                      className="w-full flex items-center justify-between px-5 py-4 border-b border-[#F4EFE6] last:border-0 active:bg-gray-50 transition-colors">
+                      className="w-full flex items-center justify-between px-5 py-4 border-b border-[#F4EFE6] last:border-0 active:bg-[#F5F0E8] transition-colors">
                       <div className="flex items-center gap-3">
                         <span className="w-9 h-9 rounded-full flex items-center justify-center text-base font-bold shrink-0"
                           style={{ background: sc.bg, color: sc.color }}>
@@ -363,7 +363,7 @@ export default function StudentAttendancePage() {
                   );
                 })}
                 <button type="button" onClick={() => setStatusSheet(null)}
-                  className="w-full py-4 text-sm font-semibold text-[#8C7E6E] active:bg-gray-50">
+                  className="w-full py-4 text-sm font-semibold text-[#8C7E6E] active:bg-[#F5F0E8]">
                   Cancel
                 </button>
               </div>
@@ -384,7 +384,7 @@ export default function StudentAttendancePage() {
                   </div>
                   {detail && (
                     <div className="flex gap-3 text-xs font-bold mr-3">
-                      <span style={{ color: '#15803D' }}>{detail.records.filter(r => r.status === 'Present').length} Present</span>
+                      <span style={{ color: '#145C44' }}>{detail.records.filter(r => r.status === 'Present').length} Present</span>
                       <span style={{ color: '#DC2626' }}>{detail.records.filter(r => r.status === 'Absent').length} Absent</span>
                       {detail.records.filter(r => r.status === 'Late').length > 0 && (
                         <span style={{ color: '#D97706' }}>{detail.records.filter(r => r.status === 'Late').length} Late</span>
@@ -481,7 +481,7 @@ export default function StudentAttendancePage() {
             {riskLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3, 4].map(i => (
-                  <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-16 animate-pulse" />
+                  <div key={i} className="bg-white rounded-xl border border-[#E2D9CC] h-16 animate-pulse" />
                 ))}
               </div>
             ) : (() => {
@@ -494,8 +494,8 @@ export default function StudentAttendancePage() {
               const classGroups = [...classMap.entries()].sort(([a], [b]) => a.localeCompare(b));
 
               if (classGroups.length === 0) return (
-                <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-8 text-center">
-                  <p className="text-3xl mb-2">{riskBelowOnly ? '✅' : '📋'}</p>
+                <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-8 text-center">
+                  
                   <p className="text-sm font-semibold text-[#2C2218]">
                     {riskBelowOnly ? 'No students below threshold' : 'No student data for this period'}
                   </p>
@@ -510,7 +510,7 @@ export default function StudentAttendancePage() {
                     const belowCount = students.filter(s => s.present_pct !== null && s.present_pct < RISK_THRESHOLD).length;
                     const hasAlert = belowCount > 0;
                     return (
-                      <div key={className} className="rounded-2xl overflow-hidden border"
+                      <div key={className} className="rounded-xl overflow-hidden border"
                         style={{ borderColor: hasAlert ? '#FECACA' : '#E2D9CC' }}>
                         <button type="button"
                           onClick={() => setOpenClasses(prev => {
@@ -540,7 +540,7 @@ export default function StudentAttendancePage() {
                           <div className="bg-white divide-y divide-[#F4EFE6]">
                             {students.map(s => {
                               const pct = s.present_pct ?? 0;
-                              const barColor = pct >= 90 ? '#15803D' : pct >= RISK_THRESHOLD ? '#D97706' : '#DC2626';
+                              const barColor = pct >= 90 ? '#145C44' : pct >= RISK_THRESHOLD ? '#D97706' : '#DC2626';
                               const isLow = s.present_pct !== null && s.present_pct < RISK_THRESHOLD;
                               return (
                                 <div key={s.id} className="px-4 py-3"

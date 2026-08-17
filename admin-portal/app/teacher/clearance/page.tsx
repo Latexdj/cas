@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { teacherApi } from '@/lib/teacher-api';
@@ -19,7 +19,7 @@ interface HistoryItem {
 }
 
 const STATUS_STYLE = {
-  cleared:     { dot: 'bg-green-500',  badge: 'bg-green-100 text-green-700',  label: 'Cleared'     },
+  cleared:     { dot: 'bg-[#145C44]',  badge: 'bg-[#D1EAD9] text-[#145C44]',  label: 'Cleared'     },
   not_cleared: { dot: 'bg-red-500',    badge: 'bg-red-100 text-red-700',      label: 'Not Cleared' },
   pending:     { dot: 'bg-amber-400',  badge: 'bg-amber-100 text-amber-700',  label: 'Pending'     },
 };
@@ -114,7 +114,7 @@ export default function TeacherClearancePage() {
 
   if (offices.length === 0) return (
     <div className="max-w-lg mx-auto p-6 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+      <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
         <svg viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
           <path d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.745 3.745 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
         </svg>
@@ -132,7 +132,7 @@ export default function TeacherClearancePage() {
         <h1 className="text-xl font-bold text-slate-800">Clearance</h1>
         <div className="flex flex-wrap gap-2 mt-1.5">
           {offices.map(o => (
-            <span key={o.id} className="text-xs font-semibold px-2.5 py-1 rounded-full bg-green-100 text-green-700">{o.name}</span>
+            <span key={o.id} className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#D1EAD9] text-[#145C44]">{o.name}</span>
           ))}
         </div>
       </div>
@@ -166,7 +166,7 @@ export default function TeacherClearancePage() {
             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
               <div className="divide-y divide-slate-50">
                 {filteredPending.map(s => (
-                  <div key={s.item_id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
+                  <div key={s.item_id} className="flex items-center gap-3 px-4 py-3 hover:bg-[#F5F0E8]">
                     <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center shrink-0 text-sm font-bold text-slate-500 overflow-hidden">
                       {s.picture_url ? <img src={s.picture_url} alt="" className="w-full h-full object-cover" /> : s.name[0]}
                     </div>
@@ -197,7 +197,7 @@ export default function TeacherClearancePage() {
           <form onSubmit={handleLookup} className="flex gap-2">
             <input value={lookupCode} onChange={e => { setLookupCode(e.target.value.toUpperCase()); setLookupError(''); setLookupResult(null); }}
               placeholder="Enter Student ID…" maxLength={20}
-              className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 font-mono uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 font-mono font-medium focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
             <button type="submit" disabled={lookupLoading || !lookupCode.trim()}
               className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center gap-2"
               style={{ background: primary }}>
@@ -277,8 +277,8 @@ export default function TeacherClearancePage() {
 
       {/* Action Modal */}
       {action && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <p className="font-bold text-slate-800">Clearance Action</p>
               <button onClick={() => setAction(null)} className="text-slate-400 hover:text-slate-600">
@@ -288,10 +288,10 @@ export default function TeacherClearancePage() {
             <div className="px-5 py-4 space-y-4">
               <p className="text-sm text-slate-500">Office: <span className="font-semibold text-slate-700">{action.office_name}</span></p>
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-2">Decision</label>
+                <label className="text-xs font-semibold text-slate-500 font-medium block mb-2">Decision</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => setAcStatus('cleared')}
-                    className={`py-2.5 rounded-xl text-sm font-bold border transition-colors ${acStatus === 'cleared' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-slate-600 border-slate-200 hover:border-green-300'}`}>
+                    className={`py-2.5 rounded-xl text-sm font-bold border transition-colors ${acStatus === 'cleared' ? 'bg-[#145C44] text-white border-green-600' : 'bg-white text-slate-600 border-slate-200 hover:border-[#8FC4A4]'}`}>
                     Cleared
                   </button>
                   <button onClick={() => setAcStatus('not_cleared')}
@@ -301,18 +301,18 @@ export default function TeacherClearancePage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">
+                <label className="text-xs font-semibold text-slate-500 font-medium block mb-1">
                   Reason / Notes {acStatus === 'not_cleared' && <span className="text-red-500">*</span>}
                 </label>
                 <textarea value={acNotes} onChange={e => { setAcNotes(e.target.value); setAcError(''); }} rows={3}
                   placeholder={acStatus === 'not_cleared' ? 'Required — state the reason clearly…' : 'Optional notes…'}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" />
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44] resize-none" />
               </div>
               {acError && <p className="text-sm text-red-600">{acError}</p>}
               <div className="flex gap-3">
-                <button onClick={() => setAction(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</button>
+                <button onClick={() => setAction(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-[#F5F0E8]">Cancel</button>
                 <button onClick={submitAction} disabled={acSaving || (acStatus === 'not_cleared' && !acNotes.trim())}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 ${acStatus === 'not_cleared' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}>
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 ${acStatus === 'not_cleared' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#145C44] hover:bg-[#145C44]'}`}>
                   {acSaving ? 'Saving…' : 'Confirm'}
                 </button>
               </div>

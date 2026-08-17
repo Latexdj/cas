@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { getTeacherColors } from '@/lib/teacher-auth';
@@ -93,7 +93,7 @@ export default function HistoryPage() {
       setHasMore(newRecords.length === PAGE_SIZE);
       setOffset(currentOffset + newRecords.length);
     } catch {
-      setError('Failed to load history.');
+      setError('Could not load history.');
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -121,7 +121,7 @@ export default function HistoryPage() {
       setPlcHasMore(rows.length === PAGE_SIZE);
       setPlcOffset(currentOffset + rows.length);
     } catch {
-      setPlcError('Failed to load meeting history.');
+      setPlcError('Could not load meeting history.');
     } finally {
       setPlcLoading(false);
       setPlcLoadingMore(false);
@@ -181,7 +181,7 @@ export default function HistoryPage() {
 
       {/* Tab toggle */}
       <div className="px-4 mb-4">
-        <div className="flex bg-white rounded-2xl border border-[#E2D9CC] p-1 gap-1">
+        <div className="flex bg-white rounded-xl border border-[#E2D9CC] p-1 gap-1">
           {([
             ['my',       'Lessons'],
             ['meetings', 'Meetings'],
@@ -234,24 +234,24 @@ export default function HistoryPage() {
           </div>
 
           <div className="px-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-3">
+            <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">
               {selectedYearName} · {semLabel}
             </p>
             {error && <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{error}</p>}
             {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-24 animate-pulse" />
+                  <div key={i} className="bg-white rounded-xl border border-[#E2D9CC] h-24 animate-pulse" />
                 ))}
               </div>
             ) : records.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-8 text-center">
+              <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-8 text-center">
                 <p className="text-[#8C7E6E] text-sm">No records for {selectedYearName} · {semLabel}</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {records.map(rec => (
-                  <div key={rec.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
+                  <div key={rec.id} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-[#2C2218] truncate">{rec.subject} — {rec.class_names}</p>
@@ -320,7 +320,7 @@ export default function HistoryPage() {
           <div className="px-4">
             {!plcLoading && plcRecords.length > 0 && (
               <div className="flex gap-3 mb-4">
-                <div className="flex-1 bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-3 text-center">
+                <div className="flex-1 bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-3 text-center">
                   <p className="text-2xl font-bold" style={{ color: primary }}>{plcRecords.length}{plcHasMore ? '+' : ''}</p>
                   <p className="text-xs text-[#8C7E6E] mt-0.5">Sessions attended</p>
                 </div>
@@ -330,17 +330,17 @@ export default function HistoryPage() {
             {plcLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-24 animate-pulse" />
+                  <div key={i} className="bg-white rounded-xl border border-[#E2D9CC] h-24 animate-pulse" />
                 ))}
               </div>
             ) : plcRecords.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-8 text-center">
+              <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-8 text-center">
                 <p className="text-[#8C7E6E] text-sm">No meeting records for this period</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {plcRecords.map(rec => (
-                  <div key={rec.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4"
+                  <div key={rec.id} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4"
                     style={{ borderLeftColor: '#A7D7B8', borderLeftWidth: 3 }}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -352,7 +352,7 @@ export default function HistoryPage() {
                         {rec.location_name && (
                           <p className="text-xs text-[#8C7E6E] mt-1 truncate">
                             <span className="font-medium">Venue:</span> {rec.location_name}
-                            {rec.location_verified && <span className="text-green-600 ml-1">✓</span>}
+                            {rec.location_verified && <span className="text-[#145C44] ml-1">✓</span>}
                           </p>
                         )}
                         {rec.notes && (

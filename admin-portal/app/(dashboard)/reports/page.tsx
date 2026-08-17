@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
@@ -79,7 +79,7 @@ function ReportTable({ data }: { data: ReportData }) {
             {columns.map((col, ci) => (
               <th
                 key={ci}
-                className="px-4 py-3 text-xs font-semibold uppercase tracking-wide whitespace-nowrap"
+                className="px-4 py-3 text-xs font-semibold font-medium whitespace-nowrap"
                 style={{ color: '#D1FAE5', textAlign: isFirst(ci) ? 'left' : 'center' }}
               >
                 {col}
@@ -98,14 +98,14 @@ function ReportTable({ data }: { data: ReportData }) {
             rows.map((row, ri) => (
               <tr
                 key={ri}
-                className="hover:bg-green-50 transition-colors"
+                className="hover:bg-[#E8F4EE] transition-colors"
                 style={{ backgroundColor: ri % 2 === 0 ? '#FFFFFF' : '#F2F8F5', borderBottom: '1px solid #F1F5F9' }}
               >
                 {keys.map((key, ci) => (
                   <td
                     key={ci}
                     className="px-4 py-2.5 text-sm"
-                    style={{ color: isFirst(ci) ? '#0F172A' : '#475569', textAlign: isFirst(ci) ? 'left' : 'center', fontWeight: isFirst(ci) ? 500 : 400 }}
+                    style={{ color: isFirst(ci) ? '#1C1208' : '#475569', textAlign: isFirst(ci) ? 'left' : 'center', fontWeight: isFirst(ci) ? 500 : 400 }}
                   >
                     {row[key] ?? '—'}
                   </td>
@@ -149,7 +149,7 @@ function SidebarContent({
 }) {
   return (
     <nav className="py-5 px-3">
-      <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Student Reports</p>
+      <p className="px-3 text-[10px] font-bold font-medium text-slate-400 mb-2">Student Reports</p>
       {STUDENT_REPORTS.map(r => (
         <button
           key={r.key}
@@ -157,14 +157,14 @@ function SidebarContent({
           className="w-full text-left px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors font-medium"
           style={{
             backgroundColor: reportMode !== 'academic' && selected.key === r.key && selected.scope === 'students' ? 'rgba(21,128,61,0.1)' : 'transparent',
-            color:           reportMode !== 'academic' && selected.key === r.key && selected.scope === 'students' ? '#15803D' : '#475569',
+            color:           reportMode !== 'academic' && selected.key === r.key && selected.scope === 'students' ? '#145C44' : '#475569',
           }}
         >
           {r.label}
         </button>
       ))}
 
-      <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-5 mb-2">Teacher Reports</p>
+      <p className="px-3 text-[10px] font-bold font-medium text-slate-400 mt-5 mb-2">Teacher Reports</p>
       {TEACHER_REPORTS.map(r => (
         <button
           key={r.key}
@@ -172,14 +172,14 @@ function SidebarContent({
           className="w-full text-left px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors font-medium"
           style={{
             backgroundColor: reportMode !== 'academic' && selected.key === r.key && selected.scope === 'teachers' ? 'rgba(21,128,61,0.1)' : 'transparent',
-            color:           reportMode !== 'academic' && selected.key === r.key && selected.scope === 'teachers' ? '#15803D' : '#475569',
+            color:           reportMode !== 'academic' && selected.key === r.key && selected.scope === 'teachers' ? '#145C44' : '#475569',
           }}
         >
           {r.label}
         </button>
       ))}
 
-      <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-5 mb-2">Academic Reports</p>
+      <p className="px-3 text-[10px] font-bold font-medium text-slate-400 mt-5 mb-2">Academic Reports</p>
       {ACADEMIC_REPORTS.map(r => (
         <button
           key={r.key}
@@ -187,7 +187,7 @@ function SidebarContent({
           className="w-full text-left px-3 py-2 rounded-lg text-sm mb-0.5 transition-colors font-medium"
           style={{
             backgroundColor: reportMode === 'academic' && academicType.key === r.key ? 'rgba(21,128,61,0.1)' : 'transparent',
-            color:           reportMode === 'academic' && academicType.key === r.key ? '#15803D' : '#475569',
+            color:           reportMode === 'academic' && academicType.key === r.key ? '#145C44' : '#475569',
           }}
         >
           {r.label}
@@ -252,7 +252,7 @@ export default function ReportsPage() {
         setData(res);
       }
     } catch {
-      setError('Failed to load report. Please try again.');
+      setError('Could not load report. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -308,12 +308,12 @@ export default function ReportsPage() {
         }
       `}</style>
 
-      <div className="flex h-full min-h-screen" style={{ backgroundColor: '#F8FAFC' }}>
+      <div className="flex h-full min-h-screen" style={{ backgroundColor: '#F5F0E8' }}>
 
         {/* ── Mobile drawer backdrop ── */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+            className="fixed inset-0 bg-[#0B3D2E]/45 z-40 lg:hidden"
             onClick={() => setSidebarOpen(false)}
           />
         )}
@@ -375,7 +375,7 @@ export default function ReportsPage() {
                   onClick={handleExcel}
                   disabled={loading || !data}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-40 transition-colors"
-                  style={{ backgroundColor: '#15803D' }}
+                  style={{ backgroundColor: '#145C44' }}
                   title="Export to Excel"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 flex-shrink-0">
@@ -437,7 +437,7 @@ export default function ReportsPage() {
                     key={s}
                     onClick={() => setStatus(s)}
                     className="px-3 py-1.5 font-semibold transition-colors whitespace-nowrap"
-                    style={{ backgroundColor: status === s ? '#15803D' : '#FFFFFF', color: status === s ? '#FFFFFF' : '#64748B' }}
+                    style={{ backgroundColor: status === s ? '#145C44' : '#FFFFFF', color: status === s ? '#FFFFFF' : '#64748B' }}
                   >
                     {s === 'active' ? 'Active' : 'All'}
                   </button>
@@ -455,7 +455,7 @@ export default function ReportsPage() {
 
               {loading ? (
                 <div className="flex justify-center items-center py-20 print:hidden">
-                  <div className="w-10 h-10 rounded-full border-4 animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                  <div className="w-10 h-10 rounded-full border-4 animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
                 </div>
               ) : error ? (
                 <div className="text-center py-20 print:hidden">

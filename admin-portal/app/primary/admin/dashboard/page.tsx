@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -20,7 +20,7 @@ interface AttRow {
 function StatCard({ label, value, sub, color, href }: { label: string; value: number; sub?: string; color: string; href?: string }) {
   const content = (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow cursor-pointer">
-      <p className="text-3xl font-black" style={{ color }}>{value.toLocaleString()}</p>
+      <p className="text-3xl font-bold" style={{ color }}>{value.toLocaleString()}</p>
       <p className="text-sm font-semibold text-slate-700 mt-1">{label}</p>
       {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
     </div>
@@ -30,13 +30,13 @@ function StatCard({ label, value, sub, color, href }: { label: string; value: nu
 
 function QuickLink({ href, label, d }: { href: string; label: string; d: string }) {
   return (
-    <Link href={href} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 bg-white hover:border-green-200 hover:bg-green-50 transition-all group shadow-sm">
-      <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#15803D" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+    <Link href={href} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 bg-white hover:border-[#B8D9C8] hover:bg-[#E8F4EE] transition-all group shadow-sm">
+      <div className="w-8 h-8 rounded-lg bg-[#E8F4EE] flex items-center justify-center flex-shrink-0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#145C44" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
           <path d={d} />
         </svg>
       </div>
-      <span className="text-sm font-medium text-slate-700 group-hover:text-green-700">{label}</span>
+      <span className="text-sm font-medium text-slate-700 group-hover:text-[#145C44]">{label}</span>
     </Link>
   );
 }
@@ -72,7 +72,7 @@ export default function PrimaryAdminDashboard() {
 
   if (loading) return (
     <div className="flex justify-center py-20">
-      <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+      <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
     </div>
   );
 
@@ -103,8 +103,8 @@ export default function PrimaryAdminDashboard() {
 
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Active Students"  value={stats?.active_students ?? 0}  color="#15803D" href="/primary/admin/students" />
-        <StatCard label="Total Students"   value={stats?.total_students  ?? 0}  color="#0F172A" href="/primary/admin/students" />
+        <StatCard label="Active Students"  value={stats?.active_students ?? 0}  color="#145C44" href="/primary/admin/students" />
+        <StatCard label="Total Students"   value={stats?.total_students  ?? 0}  color="#1C1208" href="/primary/admin/students" />
         <StatCard label="Classes"          value={stats?.total_classes   ?? 0}  color="#1D4ED8" href="/primary/admin/classes" />
         <StatCard label="Present Today"    value={stats?.attendance_today ?? 0} color="#D97706" sub="students marked present" href="/primary/admin/student-attendance" />
       </div>
@@ -115,17 +115,17 @@ export default function PrimaryAdminDashboard() {
           <h2 className="text-sm font-bold text-slate-700 mb-4">Today&apos;s Attendance</h2>
           <div className="flex items-center gap-4 mb-3">
             <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
-              <div className="h-full rounded-full transition-all" style={{ width: `${attendancePct}%`, backgroundColor: '#15803D' }} />
+              <div className="h-full rounded-full transition-all" style={{ width: `${attendancePct}%`, backgroundColor: '#145C44' }} />
             </div>
-            <span className="text-sm font-bold" style={{ color: '#15803D' }}>{attendancePct}%</span>
+            <span className="text-sm font-bold" style={{ color: '#145C44' }}>{attendancePct}%</span>
           </div>
           <div className="grid grid-cols-2 gap-3 text-center">
-            <div className="rounded-xl py-3 bg-green-50">
-              <p className="text-2xl font-black text-green-700">{present}</p>
+            <div className="rounded-xl py-3 bg-[#E8F4EE]">
+              <p className="text-2xl font-bold text-[#145C44]">{present}</p>
               <p className="text-xs font-medium text-slate-500 mt-0.5">Present</p>
             </div>
             <div className="rounded-xl py-3 bg-red-50">
-              <p className="text-2xl font-black text-red-600">{total - present > 0 ? total - present : 0}</p>
+              <p className="text-2xl font-bold text-red-600">{total - present > 0 ? total - present : 0}</p>
               <p className="text-xs font-medium text-slate-500 mt-0.5">Not yet marked / Absent</p>
             </div>
           </div>
@@ -138,7 +138,7 @@ export default function PrimaryAdminDashboard() {
           <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
               <h2 className="text-sm font-bold text-slate-700">Students by Class</h2>
-              <Link href="/primary/admin/students" className="text-xs font-semibold hover:underline" style={{ color: '#15803D' }}>View all</Link>
+              <Link href="/primary/admin/students" className="text-xs font-semibold hover:underline" style={{ color: '#145C44' }}>View all</Link>
             </div>
             <div className="divide-y divide-gray-50">
               {stats.classes.map(c => {
@@ -147,9 +147,9 @@ export default function PrimaryAdminDashboard() {
                   <div key={c.class_name} className="flex items-center gap-4 px-5 py-2.5">
                     <span className="text-sm font-medium text-slate-800 w-28 flex-shrink-0">{c.class_name}</span>
                     <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: '#15803D' }} />
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: '#145C44' }} />
                     </div>
-                    <span className="text-sm font-bold w-10 text-right" style={{ color: '#15803D' }}>{c.student_count}</span>
+                    <span className="text-sm font-bold w-10 text-right" style={{ color: '#145C44' }}>{c.student_count}</span>
                   </div>
                 );
               })}
@@ -159,7 +159,7 @@ export default function PrimaryAdminDashboard() {
 
         {/* Quick links */}
         <div className="space-y-2.5">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Quick Actions</p>
+          <p className="text-xs font-bold text-slate-400 font-medium">Quick Actions</p>
           <QuickLink href="/primary/admin/student-attendance" label="Mark Student Attendance"
             d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
           <QuickLink href="/primary/admin/teacher-attendance" label="View Teacher Attendance"
@@ -185,22 +185,22 @@ export default function PrimaryAdminDashboard() {
               <option value="">Select term…</option>
               {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
-            <Link href="/primary/admin/teacher-attendance" className="text-xs font-semibold hover:underline" style={{ color: '#15803D' }}>Full report →</Link>
+            <Link href="/primary/admin/teacher-attendance" className="text-xs font-semibold hover:underline" style={{ color: '#145C44' }}>Full report →</Link>
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className="bg-[#F5F0E8] border-b border-gray-100">
               <tr>
                 {['Teacher', 'Present', 'Absent', 'Excused', 'Days Marked', 'Attendance %'].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {attLoading ? (
                 <tr><td colSpan={6} className="text-center py-10">
-                  <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                  <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
                 </td></tr>
               ) : !termId ? (
                 <tr><td colSpan={6} className="text-center py-10 text-slate-400 text-sm">Select a term to view teacher attendance.</td></tr>
@@ -208,21 +208,21 @@ export default function PrimaryAdminDashboard() {
                 <tr><td colSpan={6} className="text-center py-10 text-slate-400 text-sm">No attendance records for this term.</td></tr>
               ) : attReport.map(r => {
                 const pct = r.attendance_pct;
-                const pctColor = pct === null ? 'text-slate-400' : pct >= 90 ? 'text-green-600' : pct >= 75 ? 'text-amber-600' : 'text-red-600';
+                const pctColor = pct === null ? 'text-slate-400' : pct >= 90 ? 'text-[#145C44]' : pct >= 75 ? 'text-amber-600' : 'text-red-600';
                 return (
-                  <tr key={r.teacher_id} className="hover:bg-gray-50">
+                  <tr key={r.teacher_id} className="hover:bg-[#F5F0E8]">
                     <td className="px-3 py-2.5">
                       <p className="font-medium text-slate-900">{r.teacher_name}</p>
                       <span className="font-mono text-xs text-slate-400">{r.teacher_code}</span>
                     </td>
-                    <td className="px-3 py-2.5 font-semibold text-green-700 tabular-nums">{r.days_present}</td>
+                    <td className="px-3 py-2.5 font-semibold text-[#145C44] tabular-nums">{r.days_present}</td>
                     <td className="px-3 py-2.5 font-semibold tabular-nums" style={{ color: r.days_absent > 0 ? '#DC2626' : '#9CA3AF' }}>{r.days_absent}</td>
                     <td className="px-3 py-2.5 font-semibold text-blue-600 tabular-nums">{r.days_excused}</td>
                     <td className="px-3 py-2.5 text-slate-500 tabular-nums">{r.total_marked}</td>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
                         <div className="w-16 bg-gray-100 rounded-full h-2 overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${pct ?? 0}%`, backgroundColor: '#15803D' }} />
+                          <div className="h-full rounded-full" style={{ width: `${pct ?? 0}%`, backgroundColor: '#145C44' }} />
                         </div>
                         <span className={`text-xs font-bold tabular-nums ${pctColor}`}>
                           {pct !== null ? `${pct}%` : '—'}
@@ -233,9 +233,9 @@ export default function PrimaryAdminDashboard() {
                 );
               })}
               {attReport.length > 0 && (
-                <tr className="bg-gray-50 border-t-2 border-gray-200 font-semibold">
-                  <td className="px-3 py-2.5 text-xs text-slate-500 uppercase tracking-wide">Total</td>
-                  <td className="px-3 py-2.5 text-green-700 tabular-nums">{attReport.reduce((s, r) => s + r.days_present, 0)}</td>
+                <tr className="bg-[#F5F0E8] border-t-2 border-gray-200 font-semibold">
+                  <td className="px-3 py-2.5 text-xs text-slate-500 font-medium">Total</td>
+                  <td className="px-3 py-2.5 text-[#145C44] tabular-nums">{attReport.reduce((s, r) => s + r.days_present, 0)}</td>
                   <td className="px-3 py-2.5 text-red-600 tabular-nums">{attReport.reduce((s, r) => s + r.days_absent, 0)}</td>
                   <td className="px-3 py-2.5 text-blue-600 tabular-nums">{attReport.reduce((s, r) => s + r.days_excused, 0)}</td>
                   <td className="px-3 py-2.5 text-slate-500 tabular-nums">{attReport.reduce((s, r) => s + r.total_marked, 0)}</td>

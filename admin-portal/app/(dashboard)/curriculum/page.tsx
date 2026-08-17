@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -32,7 +32,7 @@ function TabBar({ active, onSelect, subjectCount, classCount, programCount, hous
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
           style={{
             backgroundColor: active === t.id ? '#FFFFFF' : 'transparent',
-            color: active === t.id ? '#0F172A' : '#64748B',
+            color: active === t.id ? '#1C1208' : '#64748B',
             boxShadow: active === t.id ? '0 1px 3px rgba(15,23,42,0.08)' : 'none',
           }}
         >
@@ -149,18 +149,18 @@ function SubjectsTab() {
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
           <div className="overflow-x-auto">
           <table className="min-w-[450px] w-full text-sm">
-            <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+            <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
               <tr>
                 {['Subject Name', 'Code', ''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {(subjectRows as typeof subjects).map((s, i) => (
                 <tr key={s.id} className="hover:bg-slate-50 transition-colors"
-                  style={{ borderBottom: i < subjectRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
-                  <td className="px-4 py-3 font-medium" style={{ color: '#0F172A' }}>{s.name}</td>
+                  style={{ borderBottom: i < subjectRows.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
+                  <td className="px-4 py-3 font-medium" style={{ color: '#1C1208' }}>{s.name}</td>
                   <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{s.code ?? '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
@@ -184,11 +184,11 @@ function SubjectsTab() {
         title={modal === 'create' ? 'Add Subject' : 'Edit Subject'} maxWidth="max-w-sm">
         <div className="space-y-3">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Subject Name *</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Subject Name *</label>
             <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. MATHEMATICS" />
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Short Code</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Short Code</label>
             <input className={inputCls} value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="e.g. Math" />
             <p className="mt-1 text-xs text-slate-400">Optional abbreviation used in reports.</p>
           </div>
@@ -212,20 +212,20 @@ function SubjectsTab() {
             </p>
             <p className="text-xs text-slate-400">Existing subjects are updated. New subjects are added. Blank rows are skipped.</p>
           </div>
-          <button onClick={downloadTemplate} className="text-sm font-semibold text-green-700 hover:underline">
+          <button onClick={downloadTemplate} className="text-sm font-semibold text-[#145C44] hover:underline">
             ↓ Download template CSV
           </button>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">
+            <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">
               Select file (.xlsx, .xls, .csv)
             </label>
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv"
-              className="w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-green-600 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-green-700 cursor-pointer" />
+              className="w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-[#145C44] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-[#145C44] cursor-pointer" />
           </div>
           {uploadErr && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{uploadErr}</p>}
           {result && (
             <div className="space-y-2">
-              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+              <div className="rounded-lg bg-[#E8F4EE] border border-[#B8D9C8] px-4 py-3 text-sm text-[#0B3D2E]">
                 <span className="font-semibold">{result.inserted}</span> new &nbsp;·&nbsp;
                 <span className="font-semibold">{result.updated}</span> updated &nbsp;·&nbsp;
                 <span className="font-semibold">{result.skipped}</span> skipped
@@ -310,18 +310,18 @@ function ClassesTab() {
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
           <div className="overflow-x-auto">
           <table className="min-w-[350px] w-full text-sm">
-            <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+            <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
               <tr>
                 {['Class Name', ''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {(classRows as typeof classes).map((c, i) => (
                 <tr key={c.id} className="hover:bg-slate-50 transition-colors"
-                  style={{ borderBottom: i < classRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
-                  <td className="px-4 py-3 font-medium" style={{ color: '#0F172A' }}>{c.name}</td>
+                  style={{ borderBottom: i < classRows.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
+                  <td className="px-4 py-3 font-medium" style={{ color: '#1C1208' }}>{c.name}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
                       <Button variant="ghost" size="sm" onClick={() => openEdit(c)}>Edit</Button>
@@ -344,7 +344,7 @@ function ClassesTab() {
         title={modal === 'create' ? 'Add Class' : 'Edit Class'} maxWidth="max-w-xs">
         <div className="space-y-3">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Class Name *</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Class Name *</label>
             <input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Form 1" maxLength={20} />
           </div>
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
@@ -438,21 +438,21 @@ function ProgramsTab() {
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
           <div className="overflow-x-auto">
           <table className="min-w-[600px] w-full text-sm">
-            <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+            <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
               <tr>
                 {['Program Name', 'Exam Body', 'Active Students', 'Notes', ''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {(programRows as typeof programs).map((p, i) => (
                 <tr key={p.id} className="hover:bg-slate-50 transition-colors"
-                  style={{ borderBottom: i < programRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
-                  <td className="px-4 py-3 font-medium" style={{ color: '#0F172A' }}>{p.name}</td>
+                  style={{ borderBottom: i < programRows.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
+                  <td className="px-4 py-3 font-medium" style={{ color: '#1C1208' }}>{p.name}</td>
                   <td className="px-4 py-3">{examBodyBadge(p.exam_body || 'WAEC')}</td>
                   <td className="px-4 py-3">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#DCFCE7', color: '#145C44' }}>
                       {p.student_count}
                     </span>
                   </td>
@@ -479,18 +479,18 @@ function ProgramsTab() {
         title={modal === 'create' ? 'Add Program' : 'Edit Program'} maxWidth="max-w-sm">
         <div className="space-y-3">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Program Name *</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Program Name *</label>
             <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Science, General Arts" />
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Exam Body *</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Exam Body *</label>
             <select className={inputCls} value={form.exam_body} onChange={e => setForm(f => ({ ...f, exam_body: e.target.value as ExamBody }))}>
               {EXAM_BODIES.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
             <p className="mt-1 text-xs text-slate-400">Determines grading scale used on report cards for students in this program.</p>
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Notes</label>
             <input className={inputCls} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional description" />
           </div>
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
@@ -564,20 +564,20 @@ function HousesTab() {
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
           <div className="overflow-x-auto">
             <table className="min-w-[500px] w-full text-sm">
-              <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+              <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
                 <tr>
                   {['House Name', 'Active Students', 'Notes', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {(houseRows as typeof houses).map((h, i) => (
                   <tr key={h.id} className="hover:bg-slate-50 transition-colors"
-                    style={{ borderBottom: i < houseRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
-                    <td className="px-4 py-3 font-medium" style={{ color: '#0F172A' }}>{h.name}</td>
+                    style={{ borderBottom: i < houseRows.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
+                    <td className="px-4 py-3 font-medium" style={{ color: '#1C1208' }}>{h.name}</td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#DCFCE7', color: '#145C44' }}>
                         {h.student_count}
                       </span>
                     </td>
@@ -604,11 +604,11 @@ function HousesTab() {
         title={modal === 'create' ? 'Add House' : 'Edit House'} maxWidth="max-w-sm">
         <div className="space-y-3">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">House Name *</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">House Name *</label>
             <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Unity, Courage, Integrity" />
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Notes</label>
             <input className={inputCls} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional description or house colour" />
           </div>
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
@@ -685,7 +685,7 @@ function AssessmentModesTab() {
           <p className="text-sm" style={{ color: '#94A3B8' }}>{modes.length} CA mode{modes.length !== 1 ? 's' : ''}</p>
           {modes.length > 0 && (
             <p className="text-xs mt-0.5" style={{ color: totalContribution > 0 ? '#64748B' : '#94A3B8' }}>
-              Total CA contribution: <span className="font-semibold" style={{ color: '#0F172A' }}>{totalContribution}</span> marks
+              Total CA contribution: <span className="font-semibold" style={{ color: '#1C1208' }}>{totalContribution}</span> marks
               <span className="ml-1 text-slate-400">(set CA % in Settings)</span>
             </p>
           )}
@@ -706,18 +706,18 @@ function AssessmentModesTab() {
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
           <div className="overflow-x-auto">
             <table className="min-w-[480px] w-full text-sm">
-              <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+              <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
                 <tr>
                   {['Mode Name', 'CA Contribution (marks)', 'Max Instances', 'Order', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {(modeRows as typeof modes).map((m, i) => (
                   <tr key={m.id} className="hover:bg-slate-50 transition-colors"
-                    style={{ borderBottom: i < modeRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
-                    <td className="px-4 py-3 font-medium" style={{ color: '#0F172A' }}>{m.name}</td>
+                    style={{ borderBottom: i < modeRows.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
+                    <td className="px-4 py-3 font-medium" style={{ color: '#1C1208' }}>{m.name}</td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#EFF6FF', color: '#1D4ED8' }}>
                         {m.ca_contribution}
@@ -742,11 +742,11 @@ function AssessmentModesTab() {
                 )}
               </tbody>
               {modeRows.length > 0 && (
-                <tfoot style={{ borderTop: '2px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+                <tfoot style={{ borderTop: '2px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
                   <tr>
-                    <td className="px-4 py-3 text-xs font-bold" style={{ color: '#0F172A' }}>Total</td>
+                    <td className="px-4 py-3 text-xs font-bold" style={{ color: '#1C1208' }}>Total</td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold" style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold" style={{ backgroundColor: '#DCFCE7', color: '#145C44' }}>
                         {totalContribution}
                       </span>
                     </td>
@@ -764,18 +764,18 @@ function AssessmentModesTab() {
         title={modal === 'create' ? 'Add CA Mode' : 'Edit CA Mode'} maxWidth="max-w-sm">
         <div className="space-y-3">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Mode Name *</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Mode Name *</label>
             <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Class Test, Assignment, Portfolio" />
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">CA Contribution (marks) *</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">CA Contribution (marks) *</label>
             <input className={inputCls} type="number" min="0" max="100" step="0.5"
               value={form.ca_contribution} onChange={e => setForm(f => ({ ...f, ca_contribution: e.target.value }))}
               placeholder="e.g. 20" />
             <p className="mt-1 text-xs text-slate-400">How many of the total CA marks this mode contributes.</p>
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Max Instances per Subject/Semester</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Max Instances per Subject/Semester</label>
             <input className={inputCls} type="number" min="1" step="1"
               value={form.max_instances} onChange={e => setForm(f => ({ ...f, max_instances: e.target.value }))}
               placeholder="Leave blank for unlimited" />
@@ -784,7 +784,7 @@ function AssessmentModesTab() {
             </p>
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Display Order</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Display Order</label>
             <input className={inputCls} type="number" min="0"
               value={form.sort_order} onChange={e => setForm(f => ({ ...f, sort_order: e.target.value }))}
               placeholder="0" />
@@ -822,7 +822,7 @@ function fmtDuration(mins: number): string {
   return `${h}h ${m}min`;
 }
 const STATUS_CFG = {
-  covered:     { label: 'Covered',    color: '#15803D', bg: '#F0FDF4', dot: '#16A34A' },
+  covered:     { label: 'Covered',    color: '#145C44', bg: '#F0FDF4', dot: '#16A34A' },
   unteachered: { label: 'No Teacher', color: '#B45309', bg: '#FFFBEB', dot: '#D97706' },
   unscheduled: { label: 'Missing',    color: '#DC2626', bg: '#FEF2F2', dot: '#EF4444' },
 };
@@ -919,14 +919,14 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
       </div>
 
       {seedMsg && (
-        <div className="flex items-center justify-between rounded-lg bg-green-50 border border-green-200 px-4 py-2.5 text-sm text-green-800">
+        <div className="flex items-center justify-between rounded-lg bg-[#E8F4EE] border border-[#B8D9C8] px-4 py-2.5 text-sm text-[#0B3D2E]">
           <span>{seedMsg}</span>
-          <button onClick={() => setSeedMsg(null)} className="text-green-600 font-bold ml-4">✕</button>
+          <button onClick={() => setSeedMsg(null)} className="text-[#145C44] font-bold ml-4">✕</button>
         </div>
       )}
 
       <div className="flex items-center gap-3 flex-wrap">
-        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Class</label>
+        <label className="text-xs font-semibold font-medium text-slate-500">Class</label>
         <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className={selectCls}>
           {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
         </select>
@@ -944,7 +944,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
                   {['Subject', 'Periods/Week', 'Scheduled', 'Duration/Week', 'Status', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -990,7 +990,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
                 {allocations.length === 0 && (
                   <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
                     No subjects allocated to {selectedClass || 'this class'} yet.{' '}
-                    <button className="underline text-green-600 font-medium" onClick={seed}>Auto-seed from timetable</button>
+                    <button className="underline text-[#145C44] font-medium" onClick={seed}>Auto-seed from timetable</button>
                   </td></tr>
                 )}
               </tbody>
@@ -1057,7 +1057,7 @@ export default function CurriculumPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: '#0F172A' }}>Curriculum</h1>
+        <h1 className="text-2xl font-bold" style={{ color: '#1C1208' }}>Curriculum</h1>
         <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>Manage subjects, class groups, programs, houses, and assessment modes</p>
       </div>
 

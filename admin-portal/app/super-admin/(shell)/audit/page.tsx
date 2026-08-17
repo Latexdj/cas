@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { saApi } from '@/lib/super-admin-api';
@@ -61,7 +61,7 @@ export default function AuditLogPage() {
       setTotal(res.data.total ?? 0);
       setOffset(off);
     } catch {
-      setError('Failed to load audit log.');
+      setError('Could not load audit log.');
     } finally { setLoading(false); }
   }, []);
 
@@ -89,7 +89,7 @@ export default function AuditLogPage() {
 
       {error && <p className="text-sm text-red-400 bg-red-900/30 border border-red-800 rounded-xl px-4 py-3 mb-4">{error}</p>}
 
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
         {loading ? (
           <div className="space-y-px">
             {Array.from({ length: 8 }).map((_, i) => (

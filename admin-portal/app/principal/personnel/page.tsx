@@ -97,7 +97,7 @@ export default function PersonnelPage() {
   } = useTableControls(tcFiltered);
 
   const labelSt = (st: string) => {
-    if (st === 'Active')    return { bg: '#DCFCE7', bgD: '#14532D33', text: '#15803D' };
+    if (st === 'Active')    return { bg: '#DCFCE7', bgD: '#14532D33', text: '#145C44' };
     if (st === 'Inactive')  return { bg: '#F3F4F6', bgD: '#1E293B88', text: '#6B7280' };
     return { bg: '#FEF3C7', bgD: '#78350F33', text: '#D97706' };
   };
@@ -105,7 +105,7 @@ export default function PersonnelPage() {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A' }}>Personnel Records</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208' }}>Personnel Records</h2>
         <p style={{ fontSize: 13, color: dark ? '#64748B' : '#94A3B8', marginTop: 2 }}>
           View and export teacher or student personal details.
         </p>
@@ -119,7 +119,7 @@ export default function PersonnelPage() {
             onClick={() => { setScope(s); setCls(''); setDept(''); setSearch(''); }}
             style={{
               padding: '7px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer',
-              background: scope === s ? '#10B981' : 'transparent',
+              background: scope === s ? '#145C44' : 'transparent',
               color: scope === s ? '#FFFFFF' : (dark ? '#94A3B8' : '#64748B'),
               transition: 'all 0.15s',
             }}
@@ -137,7 +137,7 @@ export default function PersonnelPage() {
           onChange={e => setSearch(e.target.value)}
           style={{
             flex: 1, minWidth: 180, border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#0F172A',
+            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#1C1208',
             borderRadius: 8, padding: '7px 12px', fontSize: 13,
           }}
         />
@@ -147,7 +147,7 @@ export default function PersonnelPage() {
           onChange={e => setStatus(e.target.value)}
           style={{
             border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#0F172A',
+            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#1C1208',
             borderRadius: 8, padding: '7px 12px', fontSize: 13,
           }}
         >
@@ -163,7 +163,7 @@ export default function PersonnelPage() {
             onChange={e => setCls(e.target.value)}
             style={{
               border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-              background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#0F172A',
+              background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#1C1208',
               borderRadius: 8, padding: '7px 12px', fontSize: 13,
             }}
           >
@@ -178,7 +178,7 @@ export default function PersonnelPage() {
             onChange={e => setDept(e.target.value)}
             style={{
               border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-              background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#0F172A',
+              background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#1C1208',
               borderRadius: 8, padding: '7px 12px', fontSize: 13,
             }}
           >
@@ -192,7 +192,7 @@ export default function PersonnelPage() {
           disabled={exporting || data.length === 0}
           style={{
             padding: '7px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-            background: exporting ? '#6EE7B7' : '#10B981', color: '#FFFFFF',
+            background: exporting ? '#6EE7B7' : '#145C44', color: '#FFFFFF',
             border: 'none', cursor: exporting || data.length === 0 ? 'not-allowed' : 'pointer',
             display: 'flex', alignItems: 'center', gap: 6,
           }}
@@ -220,7 +220,7 @@ export default function PersonnelPage() {
             {scope === 'students' ? (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
-                  <tr style={{ background: dark ? '#0F172A' : '#F8FAFC', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
+                  <tr style={{ background: dark ? '#1C1208' : '#F5F0E8', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
                     <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ID</th>
                     <Th label="Name" sortKey="name" currentKey={stSortKey} currentDir={stSortDir} onSort={stHandleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
                     <Th label="Class" sortKey="class_name" currentKey={stSortKey} currentDir={stSortDir} onSort={stHandleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
@@ -239,7 +239,7 @@ export default function PersonnelPage() {
                     return (
                       <tr key={s.student_code} style={{ borderBottom: i < stDisplayRows.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F1F5F9'}` : 'none' }}>
                         <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: 12, color: dark ? '#64748B' : '#94A3B8', whiteSpace: 'nowrap' }}>{s.student_code}</td>
-                        <td style={{ padding: '10px 14px', fontWeight: 600, color: dark ? '#F1F5F9' : '#0F172A', whiteSpace: 'nowrap' }}>{s.name}</td>
+                        <td style={{ padding: '10px 14px', fontWeight: 600, color: dark ? '#F1F5F9' : '#1C1208', whiteSpace: 'nowrap' }}>{s.name}</td>
                         <td style={{ padding: '10px 14px', color: dark ? '#CBD5E1' : '#374151' }}>{s.class_name}</td>
                         <td style={{ padding: '10px 14px', color: dark ? '#94A3B8' : '#64748B', fontSize: 12 }}>{s.program_name || '—'}</td>
                         <td style={{ padding: '10px 14px', color: dark ? '#CBD5E1' : '#374151' }}>{s.gender || '—'}</td>
@@ -261,7 +261,7 @@ export default function PersonnelPage() {
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
-                  <tr style={{ background: dark ? '#0F172A' : '#F8FAFC', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
+                  <tr style={{ background: dark ? '#1C1208' : '#F5F0E8', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
                     <th style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>ID</th>
                     <Th label="Name" sortKey="name" currentKey={tcSortKey} currentDir={tcSortDir} onSort={tcHandleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
                     <Th label="Department" sortKey="department" currentKey={tcSortKey} currentDir={tcSortDir} onSort={tcHandleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
@@ -280,7 +280,7 @@ export default function PersonnelPage() {
                     return (
                       <tr key={t.teacher_code} style={{ borderBottom: i < tcDisplayRows.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F1F5F9'}` : 'none' }}>
                         <td style={{ padding: '10px 14px', fontFamily: 'monospace', fontSize: 12, color: dark ? '#64748B' : '#94A3B8', whiteSpace: 'nowrap' }}>{t.teacher_code}</td>
-                        <td style={{ padding: '10px 14px', fontWeight: 600, color: dark ? '#F1F5F9' : '#0F172A', whiteSpace: 'nowrap' }}>{t.name}</td>
+                        <td style={{ padding: '10px 14px', fontWeight: 600, color: dark ? '#F1F5F9' : '#1C1208', whiteSpace: 'nowrap' }}>{t.name}</td>
                         <td style={{ padding: '10px 14px', color: dark ? '#CBD5E1' : '#374151' }}>{t.department || '—'}</td>
                         <td style={{ padding: '10px 14px', color: dark ? '#94A3B8' : '#64748B', fontSize: 12 }}>{t.rank || '—'}</td>
                         <td style={{ padding: '10px 14px', color: dark ? '#CBD5E1' : '#374151' }}>{t.gender || '—'}</td>
@@ -294,8 +294,8 @@ export default function PersonnelPage() {
                                 style={{
                                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                                   width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-                                  background: dark ? '#14532D44' : '#DCFCE7', color: '#15803D',
-                                  textDecoration: 'none', border: '1.5px solid #15803D55',
+                                  background: dark ? '#14532D44' : '#DCFCE7', color: '#145C44',
+                                  textDecoration: 'none', border: '1.5px solid #145C4455',
                                 }}
                               >
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}

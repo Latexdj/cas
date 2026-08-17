@@ -38,7 +38,7 @@ function TabBar({ active, onChange, absCount, remCount, excCount }: {
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
           style={{
             backgroundColor: active === key ? '#FFFFFF' : 'transparent',
-            color: active === key ? '#0F172A' : '#64748B',
+            color: active === key ? '#1C1208' : '#64748B',
             boxShadow: active === key ? '0 1px 3px rgba(15,23,42,0.08)' : 'none',
           }}
         >
@@ -105,17 +105,17 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
       {/* Filters */}
       <form onSubmit={e => { e.preventDefault(); load(); }} className="flex items-end gap-3 flex-wrap">
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Teacher</label>
+          <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Teacher</label>
           <select value={teacherId} onChange={e => setTeacherId(e.target.value)}
-            className="mt-1 w-44 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}>
+            className="mt-1 w-44 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}>
             <option value="">All</option>
             {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Status</label>
+          <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Status</label>
           <select value={status} onChange={e => setStatus(e.target.value)}
-            className="mt-1 w-44 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}>
+            className="mt-1 w-44 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}>
             <option value="">All</option>
             {['Absent','Excused','Remedial Scheduled','Completed','Verified','Made Up','Cleared'].map(s => (
               <option key={s} value={s}>{s}</option>
@@ -132,30 +132,30 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
 
       {loading ? (
         <div className="flex justify-center h-32 items-center">
-          <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : (
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
           <div className="overflow-x-auto">
             <table className="min-w-[900px] w-full text-sm">
               <thead>
-                <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
-                  <Th label="Date" sortKey="date" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
-                  <Th label="Teacher" sortKey="teacher_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Subject</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Class</th>
-                  <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Reason</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Source</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}></th>
+                <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
+                  <Th label="Date" sortKey="date" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
+                  <Th label="Teacher" sortKey="teacher_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Subject</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Class</th>
+                  <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Reason</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Source</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {(displayRows as typeof records).map((r, i) => (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors"
-                    style={{ borderBottom: i < displayRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                    style={{ borderBottom: i < displayRows.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
                     <td className="px-4 py-3 text-xs" style={{ color: '#475569' }}>{fmtDate(r.date)}</td>
-                    <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{r.teacher_name}</td>
+                    <td className="px-4 py-3 font-semibold" style={{ color: '#1C1208' }}>{r.teacher_name}</td>
                     <td className="px-4 py-3" style={{ color: '#475569' }}>{r.subject}</td>
                     <td className="px-4 py-3" style={{ color: '#475569' }}>{r.class_name}</td>
                     <td className="px-4 py-3"><Badge status={r.status} /></td>
@@ -184,12 +184,12 @@ function AbsencesTab({ teachers }: { teachers: Teacher[] }) {
         {reasonModal && (
           <div className="space-y-3">
             <p className="text-sm" style={{ color: '#475569' }}>
-              <strong style={{ color: '#0F172A' }}>{reasonModal.teacher_name}</strong> — {reasonModal.subject} / {reasonModal.class_name} on {fmtDate(reasonModal.date)}
+              <strong style={{ color: '#1C1208' }}>{reasonModal.teacher_name}</strong> — {reasonModal.subject} / {reasonModal.class_name} on {fmtDate(reasonModal.date)}
             </p>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Reason</label>
+              <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Reason</label>
               <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
-                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}
+                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}
                 placeholder="Enter reason for absence…" />
             </div>
             <div className="flex justify-end gap-2 pt-2">
@@ -222,7 +222,7 @@ function AdminRegisterModal({ remedial, onClose, onSuccess }: { remedial: Remedi
         res.data.students.forEach(s => { init[s.id] = (s.status as 'Present' | 'Absent' | 'Late') || 'Present'; });
         setStatuses(init);
       })
-      .catch(() => setError('Failed to load student list.'))
+      .catch(() => setError('Could not load student list.'))
       .finally(() => setLoading(false));
   }, [remedial.id]);
 
@@ -263,7 +263,7 @@ function AdminRegisterModal({ remedial, onClose, onSuccess }: { remedial: Remedi
         <div className="flex gap-2">
           <button onClick={() => markAll('Present')}
             className="flex-1 text-xs font-semibold py-1.5 rounded-lg border"
-            style={{ background: '#F0FDF4', color: '#15803D', borderColor: '#BBF7D0' }}>
+            style={{ background: '#F0FDF4', color: '#145C44', borderColor: '#BBF7D0' }}>
             All Present
           </button>
           <button onClick={() => markAll('Absent')}
@@ -276,7 +276,7 @@ function AdminRegisterModal({ remedial, onClose, onSuccess }: { remedial: Remedi
         {/* Student list */}
         {loading ? (
           <div className="flex justify-center py-8">
-            <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+            <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
           </div>
         ) : students.length === 0 ? (
           <p className="text-sm text-center py-6" style={{ color: '#94A3B8' }}>No students found in {remedial.class_name}</p>
@@ -285,15 +285,15 @@ function AdminRegisterModal({ remedial, onClose, onSuccess }: { remedial: Remedi
             {students.map(s => {
               const st = statuses[s.id] || 'Present';
               const style = st === 'Present'
-                ? { bg: '#F0FDF4', color: '#15803D', label: 'P' }
+                ? { bg: '#F0FDF4', color: '#145C44', label: 'P' }
                 : st === 'Absent'
                   ? { bg: '#FEF2F2', color: '#B91C1C', label: 'A' }
                   : { bg: '#FEFCE8', color: '#92400E', label: 'L' };
               return (
                 <div key={s.id} className="flex items-center justify-between px-3 py-2.5"
-                  style={{ borderBottom: '1px solid #F8FAFC' }}>
+                  style={{ borderBottom: '1px solid #F0EBE1' }}>
                   <div>
-                    <p className="text-sm font-medium" style={{ color: '#0F172A' }}>{s.name}</p>
+                    <p className="text-sm font-medium" style={{ color: '#1C1208' }}>{s.name}</p>
                     <p className="text-xs" style={{ color: '#94A3B8' }}>{s.student_code}{isMerged ? ` · ${s.class_name}` : ''}</p>
                   </div>
                   <button onClick={() => toggle(s.id)}
@@ -401,17 +401,17 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
       {/* Filters */}
       <form onSubmit={e => { e.preventDefault(); load(); }} className="flex items-end gap-3 flex-wrap">
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Teacher</label>
+          <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Teacher</label>
           <select value={teacherId} onChange={e => setTeacherId(e.target.value)}
-            className="mt-1 w-44 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}>
+            className="mt-1 w-44 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}>
             <option value="">All</option>
             {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Status</label>
+          <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Status</label>
           <select value={status} onChange={e => setStatus(e.target.value)}
-            className="mt-1 w-44 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}>
+            className="mt-1 w-44 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}>
             <option value="">All</option>
             {['Scheduled','Completed','Verified','Rejected','Cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -433,35 +433,35 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
 
       {loading ? (
         <div className="flex justify-center h-32 items-center">
-          <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : (
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
           <div className="overflow-x-auto">
             <table className="min-w-[1100px] w-full text-sm">
               <thead>
-                <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Absence Date</th>
-                  <Th label="Remedial Date" sortKey="remedial_date" currentKey={remSortKey} currentDir={remSortDir} onSort={handleRemSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
-                  <Th label="Teacher" sortKey="teacher_name" currentKey={remSortKey} currentDir={remSortDir} onSort={handleRemSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Subject</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Class</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Location</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Duration</th>
-                  <Th label="Status" sortKey="status" currentKey={remSortKey} currentDir={remSortDir} onSort={handleRemSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Register</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}></th>
+                <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Absence Date</th>
+                  <Th label="Remedial Date" sortKey="remedial_date" currentKey={remSortKey} currentDir={remSortDir} onSort={handleRemSort} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
+                  <Th label="Teacher" sortKey="teacher_name" currentKey={remSortKey} currentDir={remSortDir} onSort={handleRemSort} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Subject</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Class</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Location</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Duration</th>
+                  <Th label="Status" sortKey="status" currentKey={remSortKey} currentDir={remSortDir} onSort={handleRemSort} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Register</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {(remRows as typeof displayed).map((r, i) => (
                   <tr key={r.id} className="hover:bg-slate-50 transition-colors"
-                    style={{ borderBottom: i < remRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                    style={{ borderBottom: i < remRows.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
                     <td className="px-4 py-3 text-xs" style={{ color: '#64748B' }}>{fmtDate(r.original_absence_date)}</td>
-                    <td className="px-4 py-3 text-xs" style={{ color: '#0F172A' }}>
+                    <td className="px-4 py-3 text-xs" style={{ color: '#1C1208' }}>
                       {fmtDate(r.remedial_date)} <span style={{ color: '#94A3B8' }}>{r.remedial_time}</span>
                     </td>
-                    <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{r.teacher_name}</td>
+                    <td className="px-4 py-3 font-semibold" style={{ color: '#1C1208' }}>{r.teacher_name}</td>
                     <td className="px-4 py-3" style={{ color: '#475569' }}>{r.subject}</td>
                     <td className="px-4 py-3" style={{ color: '#475569' }}>{r.class_name}</td>
                     <td className="px-4 py-3 text-xs" style={{ color: '#64748B' }}>{r.location_name ?? '—'}</td>
@@ -472,7 +472,7 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
                         <span className="text-xs" style={{ color: '#CBD5E1' }}>—</span>
                       ) : r.has_register ? (
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                          style={{ background: '#F0FDF4', color: '#15803D' }}>✓ Taken</span>
+                          style={{ background: '#F0FDF4', color: '#145C44' }}>✓ Taken</span>
                       ) : (
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
                           style={{ background: '#FEF9C3', color: '#92400E' }}>Missing</span>
@@ -519,15 +519,15 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
 
       {/* Reject modal */}
       {rejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
+          <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <p className="font-bold" style={{ color: '#0F172A' }}>Reject Remedial Submission</p>
+              <p className="font-bold" style={{ color: '#1C1208' }}>Reject Remedial Submission</p>
               <button onClick={() => setRejectModal(null)}
                 className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm">✕</button>
             </div>
             <div className="rounded-lg p-3 text-sm space-y-0.5" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
-              <p style={{ color: '#0F172A' }}><strong>{rejectModal.teacher_name}</strong></p>
+              <p style={{ color: '#1C1208' }}><strong>{rejectModal.teacher_name}</strong></p>
               <p style={{ color: '#475569' }}>{rejectModal.subject} — {rejectModal.class_name}</p>
               <p style={{ color: '#64748B', fontSize: 12 }}>Absence: {fmtDate(rejectModal.original_absence_date)} · Remedial: {fmtDate(rejectModal.remedial_date)}</p>
             </div>
@@ -535,7 +535,7 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
               Rejecting will revert the absence to <strong>Outstanding</strong> and delete the student attendance register taken during this lesson.
             </p>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide block mb-1" style={{ color: '#64748B' }}>
+              <label className="text-xs font-semibold font-medium block mb-1" style={{ color: '#64748B' }}>
                 Rejection Reason <span style={{ color: '#DC2626' }}>*</span>
               </label>
               <textarea value={rejectReason} rows={3}
@@ -573,7 +573,7 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
                 />
               </div>
             ) : (
-              <div className="rounded-xl flex items-center justify-center h-32 text-sm" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', color: '#94A3B8' }}>
+              <div className="rounded-xl flex items-center justify-center h-32 text-sm" style={{ backgroundColor: '#F5F0E8', border: '1px solid #E2E8F0', color: '#94A3B8' }}>
                 No photo submitted
               </div>
             )}
@@ -595,9 +595,9 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
                 { label: 'Location',     value: notesModal.location_name ?? '—' },
                 { label: 'Topic',        value: notesModal.topic ?? '—' },
               ].map(({ label, value }) => (
-                <div key={label} className="rounded-lg p-2.5" style={{ backgroundColor: '#F8FAFC' }}>
-                  <p className="text-xs font-semibold uppercase tracking-wide mb-0.5" style={{ color: '#94A3B8' }}>{label}</p>
-                  <p className="font-medium" style={{ color: '#0F172A' }}>{value}</p>
+                <div key={label} className="rounded-lg p-2.5" style={{ backgroundColor: '#F5F0E8' }}>
+                  <p className="text-xs font-semibold font-medium mb-0.5" style={{ color: '#94A3B8' }}>{label}</p>
+                  <p className="font-medium" style={{ color: '#1C1208' }}>{value}</p>
                 </div>
               ))}
             </div>
@@ -621,9 +621,9 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
 
             {/* Verification notes */}
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Verification Notes (optional)</label>
+              <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Verification Notes (optional)</label>
               <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}
+                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}
                 placeholder="Add verification notes…" />
             </div>
 
@@ -641,7 +641,7 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
 // ── Excuses tab ────────────────────────────────────────────────
 const EXCUSE_STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   Pending:  { bg: '#FFFBEB', color: '#D97706' },
-  Approved: { bg: '#DCFCE7', color: '#15803D' },
+  Approved: { bg: '#DCFCE7', color: '#145C44' },
   Rejected: { bg: '#FEF2F2', color: '#DC2626' },
 };
 
@@ -753,7 +753,7 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
         <button
           onClick={() => { setAddOpen(o => !o); setFormError(''); }}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
-          style={{ backgroundColor: addOpen ? '#64748B' : '#15803D' }}>
+          style={{ backgroundColor: addOpen ? '#64748B' : '#145C44' }}>
           {addOpen ? 'Cancel' : '+ Add Excuse'}
         </button>
       </div>
@@ -761,33 +761,33 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
       {/* Add form */}
       {addOpen && (
         <div className="bg-white rounded-xl p-5 space-y-4" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
-          <p className="text-sm font-bold" style={{ color: '#0F172A' }}>
+          <p className="text-sm font-bold" style={{ color: '#1C1208' }}>
             New Excuse <span className="font-normal text-xs" style={{ color: '#94A3B8' }}>(admin-created excuses are automatically approved)</span>
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Teacher *</label>
+              <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Teacher *</label>
               <select className={inputCls} value={form.teacherId} onChange={e => setForm(f => ({ ...f, teacherId: e.target.value }))}>
                 <option value="">Select teacher…</option>
                 {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Type *</label>
+              <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Type *</label>
               <select className={inputCls} value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
                 {['Official Duty', 'Permission', 'Sick Leave', 'Other'].map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Date From *</label>
+              <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Date From *</label>
               <input type="date" className={inputCls} value={form.dateFrom} onChange={e => setForm(f => ({ ...f, dateFrom: e.target.value }))} />
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Date To *</label>
+              <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Date To *</label>
               <input type="date" className={inputCls} value={form.dateTo} onChange={e => setForm(f => ({ ...f, dateTo: e.target.value }))} />
             </div>
             <div className="sm:col-span-2 lg:col-span-2">
-              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Reason *</label>
+              <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Reason *</label>
               <input className={inputCls} value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
                 placeholder="e.g. Regional workshop, medical appointment…" />
             </div>
@@ -796,7 +796,7 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
           <div className="flex justify-end">
             <button onClick={saveExcuse} disabled={saving}
               className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
-              style={{ backgroundColor: '#15803D' }}>
+              style={{ backgroundColor: '#145C44' }}>
               {saving ? 'Saving…' : 'Save Excuse'}
             </button>
           </div>
@@ -807,23 +807,23 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
       <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+            <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
           </div>
         ) : excuses.length === 0 ? (
           <div className="text-center py-16 text-sm" style={{ color: '#94A3B8' }}>No excuse records found.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-[800px] w-full text-sm">
-              <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+              <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
                 <tr>
-                  <Th label="Teacher" sortKey="teacher_name" currentKey={excSortKey} currentDir={excSortDir} onSort={handleExcSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
-                  <Th label="Type" sortKey="type" currentKey={excSortKey} currentDir={excSortDir} onSort={handleExcSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Period</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Reason</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Document</th>
-                  <Th label="Status" sortKey="status" currentKey={excSortKey} currentDir={excSortDir} onSort={handleExcSort} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Approved By</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}></th>
+                  <Th label="Teacher" sortKey="teacher_name" currentKey={excSortKey} currentDir={excSortDir} onSort={handleExcSort} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
+                  <Th label="Type" sortKey="type" currentKey={excSortKey} currentDir={excSortDir} onSort={handleExcSort} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Period</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Reason</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Document</th>
+                  <Th label="Status" sortKey="status" currentKey={excSortKey} currentDir={excSortDir} onSort={handleExcSort} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Approved By</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -832,8 +832,8 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
                   const period = ex.date_from === ex.date_to ? fmtDate(ex.date_from) : `${fmtDate(ex.date_from)} – ${fmtDate(ex.date_to)}`;
                   return (
                     <tr key={ex.id} className="hover:bg-slate-50 transition-colors"
-                      style={{ borderBottom: i < excRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
-                      <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{ex.teacher_name}</td>
+                      style={{ borderBottom: i < excRows.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
+                      <td className="px-4 py-3 font-semibold" style={{ color: '#1C1208' }}>{ex.teacher_name}</td>
                       <td className="px-4 py-3 text-xs" style={{ color: '#475569' }}>{ex.type}</td>
                       <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{period}</td>
                       <td className="px-4 py-3 max-w-xs truncate" style={{ color: '#475569' }} title={ex.reason}>{ex.reason}</td>
@@ -874,7 +874,7 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
                                   onClick={() => approve(ex.id)}
                                   title={docRequired ? 'Supporting document required before approval' : ''}
                                   className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                                  style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}>
+                                  style={{ backgroundColor: '#DCFCE7', color: '#145C44' }}>
                                   {acting === ex.id ? '…' : 'Approve'}
                                 </button>
                                 <button disabled={acting === ex.id}
@@ -905,15 +905,15 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
 
       {/* Reject modal */}
       {rejectId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
+          <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <p className="font-bold" style={{ color: '#0F172A' }}>Reject Leave Request</p>
+              <p className="font-bold" style={{ color: '#1C1208' }}>Reject Leave Request</p>
               <button onClick={() => setRejectId(null)}
                 className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm">✕</button>
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide block mb-1" style={{ color: '#64748B' }}>
+              <label className="text-xs font-semibold font-medium block mb-1" style={{ color: '#64748B' }}>
                 Reason <span className="text-red-500">*</span>
               </label>
               <textarea value={rejectReason} rows={3}
@@ -960,7 +960,7 @@ export default function AbsencesPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: '#0F172A' }}>Absences & Remedials</h1>
+        <h1 className="text-2xl font-bold" style={{ color: '#1C1208' }}>Absences & Remedials</h1>
         <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>Track teacher absences, remedial lessons, and approved excuses</p>
       </div>
 

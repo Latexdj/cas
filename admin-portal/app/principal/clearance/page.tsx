@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
@@ -98,7 +98,7 @@ export default function ClearancePage() {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A' }}>Student Clearance</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208' }}>Student Clearance</h2>
       </div>
 
       {/* Certificate check */}
@@ -107,7 +107,7 @@ export default function ClearancePage() {
         border: `1.5px solid ${dark ? '#334155' : '#E2E8F0'}`,
         borderRadius: 14, padding: '18px 20px', marginBottom: 24,
       }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A', marginBottom: 4 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208', marginBottom: 4 }}>
           Certificate Clearance Check
         </div>
         <p style={{ fontSize: 12, color: dark ? '#64748B' : '#94A3B8', marginBottom: 14 }}>
@@ -121,7 +121,7 @@ export default function ClearancePage() {
             placeholder="Student ID or Name…"
             style={{
               flex: 1, minWidth: 200, border: `1.5px solid ${dark ? '#334155' : '#E2E8F0'}`,
-              background: dark ? '#0F172A' : '#F8FAFC', color: dark ? '#F1F5F9' : '#0F172A',
+              background: dark ? '#1C1208' : '#F5F0E8', color: dark ? '#F1F5F9' : '#1C1208',
               borderRadius: 8, padding: '8px 12px', fontSize: 13,
             }}
           />
@@ -130,7 +130,7 @@ export default function ClearancePage() {
             disabled={certLoading || !certCode.trim()}
             style={{
               padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-              background: '#10B981', color: '#FFFFFF', border: 'none',
+              background: '#145C44', color: '#FFFFFF', border: 'none',
               cursor: certLoading ? 'not-allowed' : 'pointer', opacity: certLoading ? 0.7 : 1,
             }}
           >
@@ -145,12 +145,12 @@ export default function ClearancePage() {
             marginTop: 16, padding: '14px 16px', borderRadius: 10,
             background: certResult.clearance?.is_fully_cleared
               ? (dark ? '#14532D33' : '#DCFCE7') : (dark ? '#7F1D1D33' : '#FEE2E2'),
-            border: `1px solid ${certResult.clearance?.is_fully_cleared ? '#10B981' : '#EF4444'}`,
+            border: `1px solid ${certResult.clearance?.is_fully_cleared ? '#145C44' : '#EF4444'}`,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 28 }}>{certResult.clearance?.is_fully_cleared ? '✅' : '❌'}</span>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: dark ? '#F1F5F9' : '#0F172A' }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: dark ? '#F1F5F9' : '#1C1208' }}>
                   {certResult.student.name}
                 </div>
                 <div style={{ fontSize: 12, color: dark ? '#94A3B8' : '#64748B' }}>
@@ -158,7 +158,7 @@ export default function ClearancePage() {
                   {certResult.student.program_name ? ` · ${certResult.student.program_name}` : ''}
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4,
-                  color: certResult.clearance?.is_fully_cleared ? '#10B981' : '#EF4444' }}>
+                  color: certResult.clearance?.is_fully_cleared ? '#145C44' : '#EF4444' }}>
                   {certResult.clearance?.is_fully_cleared
                     ? `Fully Cleared — ${fmt(certResult.clearance.fully_cleared_at)}`
                     : certResult.clearance
@@ -190,7 +190,7 @@ export default function ClearancePage() {
       {!loading && (
         <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
           {[
-            { label: 'Fully Cleared', count: cleared,    color: '#10B981', filter: 'fully_cleared' },
+            { label: 'Fully Cleared', count: cleared,    color: '#145C44', filter: 'fully_cleared' },
             { label: 'In Progress',   count: inProgress, color: '#F59E0B', filter: 'in_progress'  },
             { label: 'Not Started',   count: notStarted, color: '#94A3B8', filter: 'not_started'  },
           ].map(s => (
@@ -199,7 +199,7 @@ export default function ClearancePage() {
               onClick={() => setStatus(status === s.filter ? '' : s.filter)}
               style={{
                 padding: '8px 14px', borderRadius: 10, cursor: 'pointer',
-                background: status === s.filter ? s.color : (dark ? '#1E293B' : '#F8FAFC'),
+                background: status === s.filter ? s.color : (dark ? '#1E293B' : '#F5F0E8'),
                 border: `1px solid ${status === s.filter ? s.color : (dark ? '#334155' : '#E2E8F0')}`,
                 color: status === s.filter ? '#FFFFFF' : s.color, fontWeight: 600, fontSize: 13,
                 transition: 'all 0.15s',
@@ -219,7 +219,7 @@ export default function ClearancePage() {
           onChange={e => setSearch(e.target.value)}
           style={{
             flex: 1, minWidth: 180, border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#0F172A',
+            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#1C1208',
             borderRadius: 8, padding: '7px 12px', fontSize: 13,
           }}
         />
@@ -228,7 +228,7 @@ export default function ClearancePage() {
           onChange={e => setCls(e.target.value)}
           style={{
             border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#0F172A',
+            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#1C1208',
             borderRadius: 8, padding: '7px 12px', fontSize: 13,
           }}
         >
@@ -248,7 +248,7 @@ export default function ClearancePage() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr style={{ background: dark ? '#0F172A' : '#F8FAFC', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
+                <tr style={{ background: dark ? '#1C1208' : '#F5F0E8', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
                   <Th label="Student" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
                   <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
                   <Th label="Program" sortKey="program_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
@@ -265,7 +265,7 @@ export default function ClearancePage() {
                   return (
                     <tr key={r.id} style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F1F5F9'}` : 'none' }}>
                       <td style={{ padding: '10px 14px' }}>
-                        <div style={{ fontWeight: 600, color: dark ? '#F1F5F9' : '#0F172A' }}>{r.name}</div>
+                        <div style={{ fontWeight: 600, color: dark ? '#F1F5F9' : '#1C1208' }}>{r.name}</div>
                         <div style={{ fontSize: 11, fontFamily: 'monospace', color: dark ? '#64748B' : '#94A3B8' }}>{r.student_code}</div>
                       </td>
                       <td style={{ padding: '10px 14px', color: dark ? '#CBD5E1' : '#374151' }}>{r.class_name}</td>
@@ -276,7 +276,7 @@ export default function ClearancePage() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, fontSize: 11 }}>
                               <div style={{ flex: 1, height: 5, background: '#E2E8F0', borderRadius: 3 }}>
                                 <div style={{ width: `${pct}%`, height: '100%', borderRadius: 3,
-                                  background: pct === 100 ? '#10B981' : '#F59E0B' }} />
+                                  background: pct === 100 ? '#145C44' : '#F59E0B' }} />
                               </div>
                               <span style={{ color: dark ? '#94A3B8' : '#64748B', minWidth: 32 }}>{r.cleared_offices}/{r.total_offices}</span>
                             </div>
@@ -290,7 +290,7 @@ export default function ClearancePage() {
                           fontSize: 11, fontWeight: 600, borderRadius: 20, padding: '3px 10px',
                           background: r.is_fully_cleared ? (dark ? '#14532D33' : '#DCFCE7') :
                             r.clearance_id ? (dark ? '#78350F33' : '#FEF3C7') : (dark ? '#1E293B' : '#F1F5F9'),
-                          color: r.is_fully_cleared ? '#10B981' : r.clearance_id ? '#D97706' : (dark ? '#475569' : '#94A3B8'),
+                          color: r.is_fully_cleared ? '#145C44' : r.clearance_id ? '#D97706' : (dark ? '#475569' : '#94A3B8'),
                         }}>
                           {r.is_fully_cleared ? 'Cleared' : r.clearance_id ? 'In Progress' : 'Not Started'}
                         </span>
@@ -329,7 +329,7 @@ export default function ClearancePage() {
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 16, color: dark ? '#F1F5F9' : '#0F172A' }}>{detail.student.name}</div>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: dark ? '#F1F5F9' : '#1C1208' }}>{detail.student.name}</div>
                     <div style={{ fontSize: 12, color: dark ? '#64748B' : '#94A3B8' }}>
                       {detail.student.student_code} · {detail.student.class_name}
                     </div>
@@ -346,7 +346,7 @@ export default function ClearancePage() {
                       background: detail.clearance.is_fully_cleared ? (dark ? '#14532D33' : '#DCFCE7') : (dark ? '#78350F33' : '#FEF3C7'),
                     }}>
                       <span style={{ fontWeight: 700, fontSize: 14,
-                        color: detail.clearance.is_fully_cleared ? '#10B981' : '#D97706' }}>
+                        color: detail.clearance.is_fully_cleared ? '#145C44' : '#D97706' }}>
                         {detail.clearance.is_fully_cleared
                           ? `Fully Cleared on ${fmt(detail.clearance.fully_cleared_at)}`
                           : 'Clearance In Progress'}
@@ -356,14 +356,14 @@ export default function ClearancePage() {
                       {detail.offices.map(o => (
                         <div key={o.office_name} style={{
                           display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-                          borderRadius: 10, background: dark ? '#0F172A33' : '#F8FAFC',
+                          borderRadius: 10, background: dark ? '#1C120833' : '#F5F0E8',
                           border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
                         }}>
                           <span style={{ fontSize: 18 }}>
                             {o.status === 'cleared' ? '✅' : o.status === 'not_cleared' ? '❌' : '⏳'}
                           </span>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 600, fontSize: 13, color: dark ? '#F1F5F9' : '#0F172A' }}>{o.office_name}</div>
+                            <div style={{ fontWeight: 600, fontSize: 13, color: dark ? '#F1F5F9' : '#1C1208' }}>{o.office_name}</div>
                             {o.actioned_at && (
                               <div style={{ fontSize: 11, color: dark ? '#64748B' : '#94A3B8' }}>
                                 {fmt(o.actioned_at)}{o.actioned_by_name ? ` · ${o.actioned_by_name}` : ''}
@@ -380,7 +380,7 @@ export default function ClearancePage() {
                             )}
                           </div>
                           <span style={{ fontSize: 12, fontWeight: 600,
-                            color: o.status === 'cleared' ? '#10B981' : o.status === 'not_cleared' ? '#EF4444' : '#D97706' }}>
+                            color: o.status === 'cleared' ? '#145C44' : o.status === 'not_cleared' ? '#EF4444' : '#D97706' }}>
                             {o.status === 'cleared' ? 'Cleared' : o.status === 'not_cleared' ? 'Not Cleared' : 'Pending'}
                           </span>
                         </div>

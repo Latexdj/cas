@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -44,7 +44,7 @@ export default function PrimaryScoresPage() {
       setStudents(data.students);
       setScoreMap(data.scoreMap);
       if (data.subjects.length && !selSubject) setSelSubject(data.subjects[0].id);
-    } catch { setError('Failed to load scores.'); }
+    } catch { setError('Could not load scores.'); }
     finally { setLoading(false); }
   }, [termId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -100,7 +100,7 @@ export default function PrimaryScoresPage() {
           <p className="text-sm text-slate-500 mt-0.5">Enter class and exam scores for each subject.</p>
         </div>
         <button onClick={save} disabled={saving || loading || !selSubject}
-          className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+          className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#145C44' }}>
           {saving ? 'Saving…' : saved ? 'Saved ✓' : students.some(s => scoreMap[selSubject]?.[s.id]?.class_score != null || scoreMap[selSubject]?.[s.id]?.exam_score != null) ? 'Save Changes' : 'Save Scores'}
         </button>
       </div>
@@ -129,7 +129,7 @@ export default function PrimaryScoresPage() {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : !selSubject ? (
         <div className="text-center py-12 text-slate-400 text-sm">Select a term and subject to enter scores.</div>
@@ -137,19 +137,19 @@ export default function PrimaryScoresPage() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-[#F5F0E8] border-b border-slate-200">
                 <tr>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide w-8">#</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Student</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium w-8">#</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Student</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">
                     Class Score<br/><span className="text-slate-400 normal-case font-normal">/{activeSubject?.max_class_score ?? 30}</span>
                   </th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">
                     Exam Score<br/><span className="text-slate-400 normal-case font-normal">/{activeSubject?.max_exam_score ?? 70}</span>
                   </th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Grade</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Pos.</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Total</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Grade</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Pos.</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -159,7 +159,7 @@ export default function PrimaryScoresPage() {
                   const ex     = draft[s.id]?.exam_score  ?? '';
                   const total  = cs !== '' && ex !== '' ? (parseFloat(cs) + parseFloat(ex)).toFixed(1) : '—';
                   return (
-                    <tr key={s.id} className="hover:bg-slate-50">
+                    <tr key={s.id} className="hover:bg-[#F5F0E8]">
                       <td className="px-3 py-2 text-xs text-slate-400">{i + 1}</td>
                       <td className="px-3 py-2">
                         <p className="font-medium text-slate-900">{s.surname}{s.other_names ? ` ${s.other_names}` : ''}</p>
@@ -177,7 +177,7 @@ export default function PrimaryScoresPage() {
                       </td>
                       <td className="px-3 py-2 font-semibold text-slate-900">{total}</td>
                       <td className="px-3 py-2">
-                        <span className={`text-xs font-bold ${row?.grade ? 'text-green-700' : 'text-slate-300'}`}>
+                        <span className={`text-xs font-bold ${row?.grade ? 'text-[#145C44]' : 'text-slate-300'}`}>
                           {row?.grade ?? '—'}
                         </span>
                       </td>

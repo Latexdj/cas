@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { publicApi } from '@/lib/api';
@@ -40,13 +40,13 @@ export default function CheckPlacementPage() {
       router.push(`/admissions/${slug}/apply/${data.token}`);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg ?? 'Something went wrong. Please try again.');
+      setError(msg ?? 'Something went wrong. Try again.');
       setLoading(false);
     }
   }
 
   const primary = info?.portal_primary_color || '#16A34A';
-  const accent  = info?.portal_accent_color  || '#15803D';
+  const accent  = info?.portal_accent_color  || '#145C44';
   const chars   = idx.replace(/\s/g, '').length;
   const filled  = chars === 12;
 
@@ -60,7 +60,7 @@ export default function CheckPlacementPage() {
         <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full bg-white/5 blur-3xl translate-y-1/2 -translate-x-1/2" />
         <div className="relative z-10 text-center space-y-6 max-w-xs">
           {info?.portal_logo_url && (
-            <img src={info.portal_logo_url} alt="Logo" className="w-20 h-20 object-contain rounded-2xl bg-white/15 p-2 mx-auto shadow-2xl" />
+            <img src={info.portal_logo_url} alt="Logo" className="w-20 h-20 object-contain rounded-xl bg-white/15 p-2 mx-auto shadow-2xl" />
           )}
           <div>
             <h2 className="text-2xl font-black leading-tight">{info?.website_title || info?.school_name || 'School Admissions'}</h2>
@@ -101,10 +101,10 @@ export default function CheckPlacementPage() {
 
           <form onSubmit={check} className="space-y-5">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Your Index Number</label>
+              <label className="block text-xs font-bold font-medium text-slate-500 mb-3">Your Index Number</label>
 
               {/* Segmented-style input */}
-              <div className={`relative rounded-2xl border-2 transition-all duration-200 ${focused ? 'shadow-lg' : 'border-slate-200'}`}
+              <div className={`relative rounded-xl border-2 transition-all duration-200 ${focused ? 'shadow-lg' : 'border-slate-200'}`}
                 style={{ borderColor: focused ? primary : undefined }}>
                 <input
                   value={idx}
@@ -113,7 +113,7 @@ export default function CheckPlacementPage() {
                   placeholder="E.g.  0 1 2 3 4 5 6 7 8 9 0 1"
                   onFocus={() => setFocused(true)}
                   onBlur={() => setFocused(false)}
-                  className="w-full px-5 py-5 text-xl font-mono font-bold tracking-[0.3em] text-slate-900 bg-transparent focus:outline-none rounded-2xl placeholder:text-slate-300 placeholder:text-base placeholder:tracking-normal placeholder:font-normal"
+                  className="w-full px-5 py-5 text-xl font-mono font-bold tracking-[0.3em] text-slate-900 bg-transparent focus:outline-none rounded-xl placeholder:text-slate-300 placeholder:text-base placeholder:tracking-normal placeholder:font-normal"
                   autoFocus
                 />
                 {filled && (
@@ -132,12 +132,12 @@ export default function CheckPlacementPage() {
                 <div className="flex-1 h-1 rounded-full bg-slate-100 overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-300" style={{ width: `${(chars / 12) * 100}%`, backgroundColor: chars === 12 ? primary : '#94A3B8' }} />
                 </div>
-                <span className={`text-xs font-semibold tabular-nums ${chars === 12 ? 'text-green-600' : 'text-slate-400'}`}>{chars}/12</span>
+                <span className={`text-xs font-semibold tabular-nums ${chars === 12 ? 'text-[#145C44]' : 'text-slate-400'}`}>{chars}/12</span>
               </div>
             </div>
 
             {error && (
-              <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-50 border border-red-100">
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-100">
                 <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -147,9 +147,9 @@ export default function CheckPlacementPage() {
 
             <button
               type="submit" disabled={loading || chars < 12}
-              className="relative w-full py-4 rounded-2xl text-white font-bold text-base shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden group"
+              className="relative w-full py-4 rounded-xl text-white font-bold text-base shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden group"
               style={{ background: `linear-gradient(135deg, ${primary}, ${accent})` }}>
-              <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-200 rounded-2xl" />
+              <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors duration-200 rounded-xl" />
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
@@ -166,7 +166,7 @@ export default function CheckPlacementPage() {
             </button>
           </form>
 
-          <div className="rounded-2xl bg-blue-50 border border-blue-100 p-4 flex gap-3">
+          <div className="rounded-xl bg-blue-50 border border-blue-100 p-4 flex gap-3">
             <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>

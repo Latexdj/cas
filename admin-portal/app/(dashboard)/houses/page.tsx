@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -131,12 +131,12 @@ export default function HousesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                    <Th label="House" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap" />
-                    <Th label="Housemaster" sortKey="housemaster_names" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap" />
-                    <Th label="Students" sortKey="student_count" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap" />
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Gender</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Residential</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Notes</th>
+                    <Th label="House" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap" />
+                    <Th label="Housemaster" sortKey="housemaster_names" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap" />
+                    <Th label="Students" sortKey="student_count" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap" />
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Gender</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Residential</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Notes</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -198,9 +198,9 @@ export default function HousesPage() {
                       <p className="text-lg font-bold text-slate-900 dark:text-white">{h.student_count}</p>
                       <p className="text-[10px] text-slate-500">Total</p>
                     </div>
-                    <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg py-2">
-                      <p className="text-lg font-bold text-indigo-700 dark:text-indigo-300">{h.boarding_count}</p>
-                      <p className="text-[10px] text-indigo-500">Boarding</p>
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg py-2">
+                      <p className="text-lg font-bold text-[#1D4ED8] dark:text-[#93C5FD]">{h.boarding_count}</p>
+                      <p className="text-[10px] text-[#3B82F6]">Boarding</p>
                     </div>
                     <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg py-2">
                       <p className="text-lg font-bold text-amber-700 dark:text-amber-300">{h.day_count}</p>
@@ -237,13 +237,13 @@ export default function HousesPage() {
             placeholder="e.g. Aggrey House"
           />
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 block mb-1.5">Notes</label>
+            <label className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400 block mb-1.5">Notes</label>
             <textarea
               value={form.notes}
               onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
               placeholder="Optional description…"
               rows={3}
-              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44] resize-none"
             />
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-700 rounded-lg px-3 py-2">

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -21,7 +21,7 @@ interface FeeSummary { total_billed: number; total_paid: number; outstanding: nu
 
 function AttPill({ rate }: { rate: number | null }) {
   if (rate === null) return <span className="text-xs text-slate-400">—</span>;
-  const color = rate >= 85 ? 'bg-green-100 text-green-700' : rate >= 70 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
+  const color = rate >= 85 ? 'bg-[#D1EAD9] text-[#145C44]' : rate >= 70 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
   return <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${color}`}>{rate}%</span>;
 }
 
@@ -87,7 +87,7 @@ export default function StudentDashboard() {
   const worst3 = validSubjects.slice(-3).reverse();
 
   const eventTypeColor: Record<string, string> = {
-    'Holiday': 'bg-green-100 text-green-700',
+    'Holiday': 'bg-[#D1EAD9] text-[#145C44]',
     'School Event': 'bg-blue-100 text-blue-700',
     'Closed Day': 'bg-red-100 text-red-700',
   };
@@ -130,7 +130,7 @@ export default function StudentDashboard() {
       )}
 
       {/* Welcome card */}
-      <div className="rounded-2xl p-5 text-white" style={{ background: `linear-gradient(135deg, ${primary}, ${primary}cc)` }}>
+      <div className="rounded-xl p-5 text-white" style={{ backgroundColor: primary }}>
         <div className="flex items-center gap-4">
           {profile?.picture_url ? (
             <img src={profile.picture_url} alt="" className="w-14 h-14 rounded-full object-cover border-2 border-white/40" />
@@ -158,8 +158,8 @@ export default function StudentDashboard() {
           { label: 'Attendance', value: att?.rate !== null && att?.rate !== undefined ? `${att.rate}%` : '—', sub: att ? `${att.present} present` : '' },
         ].map(({ label, value, sub }) => (
           <div key={label} className="bg-white rounded-xl border border-slate-100 p-3 text-center">
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{label}</p>
-            <p className="text-xl font-black text-slate-800">{value}</p>
+            <p className="text-[10px] font-semibold text-slate-400 font-medium mb-1">{label}</p>
+            <p className="text-xl font-bold text-slate-800">{value}</p>
             {sub && <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>}
           </div>
         ))}
@@ -177,12 +177,12 @@ export default function StudentDashboard() {
           <div className="grid grid-cols-2 gap-4">
             {best3.length > 0 && (
               <div>
-                <p className="text-[10px] font-bold text-green-600 uppercase tracking-wide mb-2">Top subjects</p>
+                <p className="text-[10px] font-bold text-[#145C44] font-medium mb-2">Top subjects</p>
                 <div className="space-y-1.5">
                   {best3.map(s => (
                     <div key={s.subject} className="flex items-center justify-between">
                       <span className="text-xs text-slate-600 truncate flex-1 mr-2">{s.subject}</span>
-                      <span className="text-xs font-bold text-green-700">{s.total}%</span>
+                      <span className="text-xs font-bold text-[#145C44]">{s.total}%</span>
                     </div>
                   ))}
                 </div>
@@ -190,7 +190,7 @@ export default function StudentDashboard() {
             )}
             {worst3.length > 0 && (
               <div>
-                <p className="text-[10px] font-bold text-red-500 uppercase tracking-wide mb-2">Needs work</p>
+                <p className="text-[10px] font-bold text-red-500 font-medium mb-2">Needs work</p>
                 <div className="space-y-1.5">
                   {worst3.map(s => (
                     <div key={s.subject} className="flex items-center justify-between">
@@ -214,12 +214,12 @@ export default function StudentDashboard() {
           </div>
           <div className="grid grid-cols-3 gap-2 mb-3">
             {[
-              { label: 'Present', value: att.present, color: 'text-green-700 bg-green-50' },
+              { label: 'Present', value: att.present, color: 'text-[#145C44] bg-[#E8F4EE]' },
               { label: 'Absent',  value: att.absent,  color: 'text-red-600 bg-red-50' },
               { label: 'Late',    value: att.late,    color: 'text-amber-600 bg-amber-50' },
             ].map(({ label, value, color }) => (
               <div key={label} className={`rounded-lg p-2 text-center ${color}`}>
-                <p className="text-lg font-black">{value}</p>
+                <p className="text-lg font-bold">{value}</p>
                 <p className="text-[10px] font-semibold">{label}</p>
               </div>
             ))}
@@ -266,7 +266,7 @@ export default function StudentDashboard() {
                 <div key={ev.id} className="flex items-center gap-3">
                   <div className="text-center w-10 shrink-0">
                     <p className="text-[10px] text-slate-400 font-medium">{d.toLocaleDateString('en', { month: 'short' })}</p>
-                    <p className="text-lg font-black text-slate-700 leading-none">{d.getDate()}</p>
+                    <p className="text-lg font-bold text-slate-700 leading-none">{d.getDate()}</p>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-700 truncate">{ev.name}</p>

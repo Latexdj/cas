@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -40,7 +40,7 @@ const GES_DEFAULTS: Record<string, string[]> = {
 function Spinner() {
   return (
     <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin mx-auto"
-      style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+      style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
   );
 }
 
@@ -73,27 +73,27 @@ function CatalogModal({ editing, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
         <h2 className="font-bold text-slate-900">{editing ? 'Edit Subject' : 'Add Subject to Catalog'}</h2>
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1">Subject Name *</label>
           <input value={name} onChange={e => setName(e.target.value)} autoFocus
             placeholder="e.g. English Language"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
         </div>
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1">Description <span className="font-normal text-slate-400">(optional)</span></label>
           <input value={desc} onChange={e => setDesc(e.target.value)}
             placeholder="Short note about this subject"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
         </div>
         {err && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
         <div className="flex justify-end gap-3 pt-1">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-semibold border border-gray-200 text-slate-700 hover:bg-gray-50">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-semibold border border-gray-200 text-slate-700 hover:bg-[#F5F0E8]">Cancel</button>
           <button onClick={save} disabled={saving}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-            style={{ backgroundColor: '#15803D' }}>
+            style={{ backgroundColor: '#145C44' }}>
             {saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Subject'}
           </button>
         </div>
@@ -129,7 +129,7 @@ export default function PrimarySubjectsPage() {
     try {
       const { data } = await api.get<CatalogSubject[]>('/api/primary/subject-catalog');
       setCatalog(data);
-    } catch { setCatError('Failed to load subjects.'); }
+    } catch { setCatError('Could not load subjects.'); }
     finally { setCatLoading(false); }
   }, []);
 
@@ -152,7 +152,7 @@ export default function PrimarySubjectsPage() {
         };
       });
       setDrafts(d);
-    } catch { setAssignError('Failed to load class subjects.'); }
+    } catch { setAssignError('Could not load class subjects.'); }
     finally { setAssignLoad(false); }
   }, []);
 
@@ -251,7 +251,7 @@ export default function PrimarySubjectsPage() {
             </div>
             <button onClick={() => { setEditItem(null); setModal('create'); }}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-90"
-              style={{ backgroundColor: '#15803D' }}>
+              style={{ backgroundColor: '#145C44' }}>
               + Add Subject
             </button>
           </div>
@@ -265,19 +265,19 @@ export default function PrimarySubjectsPage() {
               <p className="text-sm text-slate-400 mb-3">No subjects yet.</p>
               <p className="text-xs text-slate-400">Add subjects to the catalog first, then assign them to classes.</p>
               <button onClick={() => { setEditItem(null); setModal('create'); }}
-                className="mt-3 text-xs font-semibold hover:underline" style={{ color: '#15803D' }}>
+                className="mt-3 text-xs font-semibold hover:underline" style={{ color: '#145C44' }}>
                 + Add First Subject
               </button>
             </div>
           ) : (
             <ul className="divide-y divide-gray-50">
               {(catalogRows as typeof catalog).map(s => (
-                <li key={s.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 group">
+                <li key={s.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#F5F0E8] group">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-900 truncate">{s.subject_name}</p>
                     <p className="text-xs text-slate-400 mt-0.5">
                       {s.class_count > 0
-                        ? <span style={{ color: '#15803D' }}>{s.class_count} class{s.class_count !== 1 ? 'es' : ''}</span>
+                        ? <span style={{ color: '#145C44' }}>{s.class_count} class{s.class_count !== 1 ? 'es' : ''}</span>
                         : <span className="italic">Not assigned to any class</span>}
                       {s.description ? ` · ${s.description}` : ''}
                     </p>
@@ -318,18 +318,18 @@ export default function PrimarySubjectsPage() {
               {selClass && catalog.length > 0 && (
                 <>
                   <button onClick={seedGES} disabled={seeding}
-                    className="px-3 py-2 rounded-lg text-xs font-semibold border border-gray-200 text-slate-600 hover:bg-gray-50 disabled:opacity-50">
+                    className="px-3 py-2 rounded-lg text-xs font-semibold border border-gray-200 text-slate-600 hover:bg-[#F5F0E8] disabled:opacity-50">
                     {seeding ? 'Seeding…' : '⚡ Seed GES Defaults'}
                   </button>
                   <button onClick={saveAssignments} disabled={saving}
                     className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 ml-auto"
-                    style={{ backgroundColor: '#15803D' }}>
+                    style={{ backgroundColor: '#145C44' }}>
                     {saving ? 'Saving…' : `Save (${assignedCount} subject${assignedCount !== 1 ? 's' : ''})`}
                   </button>
                 </>
               )}
             </div>
-            {saveMsg && <p className="text-xs font-semibold mt-2" style={{ color: '#15803D' }}>✓ {saveMsg}</p>}
+            {saveMsg && <p className="text-xs font-semibold mt-2" style={{ color: '#145C44' }}>✓ {saveMsg}</p>}
             {assignError && <p className="text-xs text-red-600 mt-2">{assignError}</p>}
           </div>
 
@@ -362,7 +362,7 @@ export default function PrimarySubjectsPage() {
                       classSubjs.forEach(s => { n[s.catalog_id] = { ...n[s.catalog_id], assigned: !allOn }; });
                       return n;
                     });
-                  }} className="text-xs font-semibold hover:underline" style={{ color: '#15803D' }}>
+                  }} className="text-xs font-semibold hover:underline" style={{ color: '#145C44' }}>
                     {classSubjs.every(s => drafts[s.catalog_id]?.assigned) ? 'Deselect all' : 'Select all'}
                   </button>
                 </div>
@@ -373,7 +373,7 @@ export default function PrimarySubjectsPage() {
                   const d = drafts[s.catalog_id] ?? { assigned: false, cs: '30', ex: '70' };
                   return (
                     <div key={s.catalog_id}
-                      className={`px-4 py-3 transition-colors ${d.assigned ? 'bg-green-50/50' : 'hover:bg-gray-50'}`}>
+                      className={`px-4 py-3 transition-colors ${d.assigned ? 'bg-[#E8F4EE]/50' : 'hover:bg-[#F5F0E8]'}`}>
                       {/* Top row: checkbox + subject name */}
                       <div className="flex items-center gap-3">
                         <input type="checkbox" checked={d.assigned}
@@ -381,7 +381,7 @@ export default function PrimarySubjectsPage() {
                             ...prev,
                             [s.catalog_id]: { ...prev[s.catalog_id], assigned: e.target.checked }
                           }))}
-                          className="w-4 h-4 rounded accent-green-600 flex-shrink-0 cursor-pointer" />
+                          className="w-4 h-4 rounded accent-[#145C44] flex-shrink-0 cursor-pointer" />
                         <span className={`text-sm ${d.assigned ? 'font-semibold text-slate-900' : 'text-slate-500'}`}>
                           {s.subject_name}
                         </span>
@@ -397,7 +397,7 @@ export default function PrimarySubjectsPage() {
                                 [s.catalog_id]: { ...prev[s.catalog_id], cs: e.target.value }
                               }))}
                               min={0} max={100} step={1}
-                              className="w-16 border border-gray-200 rounded-md px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-green-500" />
+                              className="w-16 border border-gray-200 rounded-md px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-[#145C44]" />
                           </div>
                           <div className="flex items-center gap-1.5">
                             <label className="text-xs text-slate-400 whitespace-nowrap">Exam score /</label>
@@ -407,7 +407,7 @@ export default function PrimarySubjectsPage() {
                                 [s.catalog_id]: { ...prev[s.catalog_id], ex: e.target.value }
                               }))}
                               min={0} max={100} step={1}
-                              className="w-16 border border-gray-200 rounded-md px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-green-500" />
+                              className="w-16 border border-gray-200 rounded-md px-2 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-[#145C44]" />
                           </div>
                           <span className="text-xs text-slate-400">
                             = {(parseFloat(d.cs) || 0) + (parseFloat(d.ex) || 0)}
@@ -420,13 +420,13 @@ export default function PrimarySubjectsPage() {
               </div>
 
               {/* Footer save */}
-              <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
+              <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between bg-[#F5F0E8]/50">
                 <p className="text-xs text-slate-500">
-                  <span className="font-semibold" style={{ color: '#15803D' }}>{assignedCount}</span> of {classSubjs.length} subjects assigned to {selClass}
+                  <span className="font-semibold" style={{ color: '#145C44' }}>{assignedCount}</span> of {classSubjs.length} subjects assigned to {selClass}
                 </p>
                 <button onClick={saveAssignments} disabled={saving}
                   className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                  style={{ backgroundColor: '#15803D' }}>
+                  style={{ backgroundColor: '#145C44' }}>
                   {saving ? 'Saving…' : 'Save Changes'}
                 </button>
               </div>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { publicApi } from '@/lib/api';
@@ -38,7 +38,7 @@ const STEPS = [
 ];
 
 const inputCls = 'w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-current transition-colors bg-white placeholder:text-slate-300';
-const labelCls = 'block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2';
+const labelCls = 'block text-xs font-bold font-medium text-slate-500 mb-2';
 
 export default function ApplicationFormPage() {
   const { slug, token } = useParams<{ slug: string; token: string }>();
@@ -146,14 +146,14 @@ export default function ApplicationFormPage() {
       <div className="text-center space-y-4 max-w-sm">
         <p className="text-xl font-bold text-red-700">Error</p>
         <p className="text-slate-500 text-sm">{error}</p>
-        <button onClick={() => router.back()} className="text-sm text-green-700 underline">Go back</button>
+        <button onClick={() => router.back()} className="text-sm text-[#145C44] underline">Go back</button>
       </div>
     </div>
   );
   if (!app) return null;
 
   const primary  = app.school.portal_primary_color || '#16A34A';
-  const accent   = app.school.portal_accent_color  || '#15803D';
+  const accent   = app.school.portal_accent_color  || '#145C44';
   const programs = app.school.programs ?? [];
 
   return (
@@ -218,13 +218,13 @@ export default function ApplicationFormPage() {
 
         {/* Section heading */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-white flex-shrink-0" style={{ background: `linear-gradient(135deg,${primary},${accent})` }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white flex-shrink-0" style={{ background: `linear-gradient(135deg,${primary},${accent})` }}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={STEPS[step-1].icon} />
             </svg>
           </div>
           <div>
-            <p className="text-xs text-slate-400 font-semibold uppercase tracking-widest">Step {step} of {STEPS.length}</p>
+            <p className="text-xs text-slate-400 font-semibold font-medium">Step {step} of {STEPS.length}</p>
             <h2 className="text-xl font-black text-slate-900">{STEPS[step-1].label}</h2>
           </div>
         </div>
@@ -289,8 +289,8 @@ export default function ApplicationFormPage() {
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 space-y-5">
               {/* Pre-filled from CSSPS */}
-              <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-3">
-                <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Pre-filled from CSSPS Placement</p>
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+                <p className="text-xs font-bold font-medium text-slate-400">Pre-filled from CSSPS Placement</p>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-xs text-slate-400">Index Number</p>
@@ -316,7 +316,7 @@ export default function ApplicationFormPage() {
                   <label className={labelCls}>Residential Status *</label>
                   <div className="grid grid-cols-2 gap-3 mt-1">
                     {['Boarding','Day'].map(opt => (
-                      <label key={opt} className={`flex items-center gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all ${form.residential_status === opt ? 'border-current bg-opacity-5' : 'border-slate-200 hover:border-slate-300'}`}
+                      <label key={opt} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${form.residential_status === opt ? 'border-current bg-opacity-5' : 'border-slate-200 hover:border-slate-300'}`}
                         style={form.residential_status === opt ? { borderColor: primary, backgroundColor: `${primary}0D` } : {}}>
                         <input type="radio" name="residential_status" value={opt} checked={form.residential_status === opt} onChange={f('residential_status')} className="sr-only" />
                         <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${form.residential_status === opt ? 'border-current' : 'border-slate-300'}`} style={form.residential_status === opt ? { borderColor: primary } : {}}>
@@ -381,7 +381,7 @@ export default function ApplicationFormPage() {
                 </div>
               </div>
               <div className="flex items-start gap-5">
-                <div className="w-28 h-28 rounded-2xl bg-slate-100 border-2 border-dashed border-slate-300 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                <div className="w-28 h-28 rounded-xl bg-slate-100 border-2 border-dashed border-slate-300 overflow-hidden flex-shrink-0 flex items-center justify-center">
                   {picPreview || app.picture_url ? (
                     <img src={picPreview || app.picture_url!} alt="Photo" className="w-full h-full object-cover" />
                   ) : (
@@ -391,7 +391,7 @@ export default function ApplicationFormPage() {
                   )}
                 </div>
                 <div className="flex-1">
-                  <label className="block w-full py-3 px-4 rounded-2xl border-2 border-dashed border-slate-200 text-center cursor-pointer hover:border-current transition-colors text-sm font-semibold text-slate-600" style={{ '--tw-border-opacity': 1 } as React.CSSProperties}
+                  <label className="block w-full py-3 px-4 rounded-xl border-2 border-dashed border-slate-200 text-center cursor-pointer hover:border-current transition-colors text-sm font-semibold text-slate-600" style={{ '--tw-border-opacity': 1 } as React.CSSProperties}
                     onMouseEnter={e => (e.currentTarget.style.borderColor = primary)}
                     onMouseLeave={e => (e.currentTarget.style.borderColor = '')}>
                     {picB64 ? '✓ Photo selected — change?' : 'Choose Photo'}
@@ -402,7 +402,7 @@ export default function ApplicationFormPage() {
                       }} />
                   </label>
                   {picB64 && <p className="mt-2 text-xs font-semibold" style={{ color: primary }}>New photo selected — will upload when you continue.</p>}
-                  {app.picture_url && !picB64 && <p className="mt-2 text-xs text-green-600 font-semibold">Photo already uploaded.</p>}
+                  {app.picture_url && !picB64 && <p className="mt-2 text-xs text-[#145C44] font-semibold">Photo already uploaded.</p>}
                 </div>
               </div>
             </div>
@@ -421,15 +421,15 @@ export default function ApplicationFormPage() {
                 </div>
               </div>
               {app.bece_results_url && !beceB64 && (
-                <div className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-green-50 border border-green-200">
-                  <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-[#E8F4EE] border border-[#B8D9C8]">
+                  <svg className="w-4 h-4 text-[#145C44] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                   </svg>
-                  <p className="text-xs text-green-700 font-semibold">Document already uploaded</p>
-                  <a href={app.bece_results_url} target="_blank" className="text-xs text-green-600 underline ml-auto">View</a>
+                  <p className="text-xs text-[#145C44] font-semibold">Document already uploaded</p>
+                  <a href={app.bece_results_url} target="_blank" className="text-xs text-[#145C44] underline ml-auto">View</a>
                 </div>
               )}
-              <label className="block w-full py-3 px-4 rounded-2xl border-2 border-dashed border-slate-200 text-center cursor-pointer text-sm font-semibold text-slate-600 transition-colors"
+              <label className="block w-full py-3 px-4 rounded-xl border-2 border-dashed border-slate-200 text-center cursor-pointer text-sm font-semibold text-slate-600 transition-colors"
                 onMouseEnter={e => (e.currentTarget.style.borderColor = primary)}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = '')}>
                 {beceB64 ? '✓ File selected — change?' : (app.bece_results_url ? 'Replace Document' : 'Choose File')}
@@ -448,8 +448,8 @@ export default function ApplicationFormPage() {
               {/* Photo header */}
               <div className="p-6 flex items-center gap-4 border-b border-slate-100">
                 {app.picture_url
-                  ? <img src={app.picture_url} alt="Photo" className="w-20 h-20 rounded-2xl object-cover border-2 border-slate-100 shadow-sm flex-shrink-0" />
-                  : <div className="w-20 h-20 rounded-2xl bg-slate-100 flex items-center justify-center flex-shrink-0">
+                  ? <img src={app.picture_url} alt="Photo" className="w-20 h-20 rounded-xl object-cover border-2 border-slate-100 shadow-sm flex-shrink-0" />
+                  : <div className="w-20 h-20 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
                       <svg className="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                     </div>
                 }
@@ -474,7 +474,7 @@ export default function ApplicationFormPage() {
                   ['BECE Results',     app.bece_results_url ? 'Uploaded' : null],
                 ].filter(([,v]) => v).map(([label, val]) => (
                   <div key={String(label)}>
-                    <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold">{label}</p>
+                    <p className="text-xs text-slate-400 font-medium font-semibold">{label}</p>
                     <p className="mt-0.5 font-semibold text-slate-800 text-sm">{val}</p>
                   </div>
                 ))}
@@ -482,7 +482,7 @@ export default function ApplicationFormPage() {
             </div>
 
             {!app.picture_url && (
-              <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-50 border border-red-200">
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
                 <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -493,7 +493,7 @@ export default function ApplicationFormPage() {
               </div>
             )}
 
-            <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200">
+            <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
               <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -503,7 +503,7 @@ export default function ApplicationFormPage() {
         )}
 
         {error && (
-          <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-50 border border-red-200">
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
             <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -515,7 +515,7 @@ export default function ApplicationFormPage() {
         <div className="flex items-center justify-between pt-2 pb-8">
           <button
             onClick={() => { if (step > 1) { setStep(step - 1); window.scrollTo({ top:0, behavior:'smooth' }); } else router.push(`/admissions/${slug}`); }}
-            className="flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-bold text-slate-600 bg-white border-2 border-slate-200 hover:border-slate-300 transition-colors">
+            className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-slate-600 bg-white border-2 border-slate-200 hover:border-slate-300 transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
             </svg>
@@ -524,21 +524,21 @@ export default function ApplicationFormPage() {
 
           {step < 4 && (
             <button onClick={saveAndNext} disabled={saving}
-              className="flex items-center gap-2 px-7 py-3 rounded-2xl text-sm font-bold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0"
+              className="flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-bold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50 disabled:translate-y-0"
               style={{ background: `linear-gradient(135deg,${primary},${accent})` }}>
               {saving ? <><div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> Saving…</> : <>Save & Continue <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg></>}
             </button>
           )}
           {step === 4 && (
             <button onClick={uploadDocs} disabled={uploading}
-              className="flex items-center gap-2 px-7 py-3 rounded-2xl text-sm font-bold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50"
+              className="flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-bold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50"
               style={{ background: `linear-gradient(135deg,${primary},${accent})` }}>
               {uploading ? <><div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> Uploading…</> : <>{(picB64 || beceB64) ? 'Upload & Continue' : 'Continue'} <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg></>}
             </button>
           )}
           {step === 5 && (
             <button onClick={submit} disabled={saving || !app.picture_url}
-              className="flex items-center gap-2 px-7 py-3 rounded-2xl text-sm font-bold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50"
+              className="flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-bold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 disabled:opacity-50"
               style={{ background: `linear-gradient(135deg,${primary},${accent})` }}>
               {saving ? <><div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> Submitting…</> : <>Submit Application <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg></>}
             </button>

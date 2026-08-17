@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { getTeacherColors } from '@/lib/teacher-auth';
@@ -35,7 +35,7 @@ interface PlcTodayData {
 type ActiveTab = 'meetings' | 'plc';
 
 const TYPE_BADGE: Record<string, { bg: string; color: string }> = {
-  'PLC':              { bg: '#DCFCE7', color: '#15803D' },
+  'PLC':              { bg: '#DCFCE7', color: '#145C44' },
   'Morning Briefing': { bg: '#DBEAFE', color: '#1D4ED8' },
   'Staff Meeting':    { bg: '#F3E8FF', color: '#7E22CE' },
   'PTA':              { bg: '#FEF3C7', color: '#B45309' },
@@ -380,15 +380,15 @@ export default function TeacherMeetingsPage() {
 
   function renderQrScanner() {
     return qrVerified ? (
-      <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-3 py-3">
-        <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-green-600 shrink-0">
+      <div className="flex items-center gap-3 bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-3">
+        <svg viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-[#145C44] shrink-0">
           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414L8.414 15l-4.121-4.121a1 1 0 011.414-1.414L8.414 12.172l6.879-6.879a1 1 0 011.414 0z" clipRule="evenodd" />
         </svg>
         <div className="flex-1">
-          <p className="text-sm font-bold text-green-800">Venue Verified</p>
-          <p className="text-xs text-green-600">{qrLocation}</p>
+          <p className="text-sm font-bold text-[#0B3D2E]">Venue Verified</p>
+          <p className="text-xs text-[#145C44]">{qrLocation}</p>
         </div>
-        <button onClick={() => { setQrVerified(false); setQrLocation(''); }} className="text-xs font-bold text-green-700">
+        <button onClick={() => { setQrVerified(false); setQrLocation(''); }} className="text-xs font-bold text-[#145C44]">
           Rescan
         </button>
       </div>
@@ -402,14 +402,14 @@ export default function TeacherMeetingsPage() {
               <div className="w-40 h-40 border-2 border-white rounded-xl" />
             </div>
             {qrError && (
-              <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-3 py-2 text-center">
+              <div className="absolute bottom-0 left-0 right-0 bg-[#0B3D2E]/70 px-3 py-2 text-center">
                 <p className="text-xs text-red-300">{qrError}</p>
               </div>
             )}
             <button
               type="button"
               onClick={stopQrScanner}
-              className="absolute top-2 right-2 bg-black/60 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
+              className="absolute top-2 right-2 bg-[#0B3D2E]/65 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
             >
               Cancel
             </button>
@@ -496,13 +496,13 @@ export default function TeacherMeetingsPage() {
       {activeTab === 'meetings' && (
         <div className="px-4 space-y-3">
           {meetings.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-[#E2D9CC] p-10 text-center">
-              <p className="text-4xl mb-3">📅</p>
+            <div className="bg-white rounded-xl border border-[#E2D9CC] p-10 text-center">
+              
               <p className="text-base font-bold text-[#2C2218]">No meetings today</p>
               <p className="text-sm text-[#8C7E6E] mt-1">Check back when a meeting is scheduled.</p>
             </div>
           ) : meetings.map(m => (
-            <div key={m.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm overflow-hidden">
+            <div key={m.id} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm overflow-hidden">
               <div className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -515,11 +515,11 @@ export default function TeacherMeetingsPage() {
                     </p>
                   </div>
                   {m.submitted ? (
-                    <div className="shrink-0 flex items-center gap-1.5 bg-green-50 border border-green-200 px-3 py-1.5 rounded-xl">
-                      <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-green-600">
+                    <div className="shrink-0 flex items-center gap-1.5 bg-[#E8F4EE] border border-[#B8D9C8] px-3 py-1.5 rounded-xl">
+                      <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-[#145C44]">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414L8.414 15l-4.121-4.121a1 1 0 011.414-1.414L8.414 12.172l6.879-6.879a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-xs font-bold text-green-700">Submitted</span>
+                      <span className="text-xs font-bold text-[#145C44]">Submitted</span>
                     </div>
                   ) : (
                     <button
@@ -532,7 +532,7 @@ export default function TeacherMeetingsPage() {
                   )}
                 </div>
                 {m.submitted && (
-                  <p className="text-xs text-green-600 mt-2">
+                  <p className="text-xs text-[#145C44] mt-2">
                     Submitted at {new Date(m.submitted.submitted_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 )}
@@ -542,11 +542,11 @@ export default function TeacherMeetingsPage() {
               {activeMeetingId === m.id && !m.submitted && (
                 <div className="border-t border-[#E2D9CC] p-4 space-y-4 bg-[#FAFAF8]">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-2">GPS Location</p>
+                    <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-2">GPS Location</p>
                     {renderGps()}
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-2">
+                    <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-2">
                       Notes <span className="font-normal normal-case">(optional)</span>
                     </p>
                     <textarea
@@ -559,11 +559,11 @@ export default function TeacherMeetingsPage() {
                     />
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-2">Photo *</p>
+                    <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-2">Photo *</p>
                     {renderPhotoInput('photo')}
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-2">Venue QR Code *</p>
+                    <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-2">Venue QR Code *</p>
                     {renderQrScanner()}
                   </div>
                   {submitError && (
@@ -588,8 +588,8 @@ export default function TeacherMeetingsPage() {
       {activeTab === 'plc' && (
         <div className="px-4">
           {!plcData ? (
-            <div className="bg-white rounded-2xl border border-[#E2D9CC] p-10 text-center">
-              <p className="text-4xl mb-3">👥</p>
+            <div className="bg-white rounded-xl border border-[#E2D9CC] p-10 text-center">
+              
               <p className="text-base font-bold text-[#2C2218]">No PLC Session Today</p>
               <p className="text-sm text-[#8C7E6E] mt-1 max-w-xs mx-auto">
                 There is no PLC session scheduled for today. Check back on your next scheduled day.
@@ -597,9 +597,9 @@ export default function TeacherMeetingsPage() {
             </div>
           ) : plcData.submitted ? (
             <div className="space-y-3">
-              <div className="bg-white rounded-2xl border border-[#A7D7B8] shadow-sm p-5" style={{ background: '#F0FAF4' }}>
+              <div className="bg-white rounded-xl border border-[#A7D7B8] shadow-sm p-5" style={{ background: '#F0FAF4' }}>
                 <div className="flex items-center gap-3 mb-3">
-                  <span className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-xl font-bold shrink-0">✓</span>
+                  <span className="w-10 h-10 rounded-full bg-[#D1EAD9] flex items-center justify-center text-[#145C44] text-xl font-bold shrink-0">✓</span>
                   <div>
                     <p className="text-sm font-bold text-[#1A4D2E]">Attendance Submitted</p>
                     <p className="text-xs text-[#2D7A4F]">
@@ -618,8 +618,8 @@ export default function TeacherMeetingsPage() {
           ) : (
             <form onSubmit={handlePlcSubmit} className="space-y-4">
               {/* Session card */}
-              <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-2">Today's Session</p>
+              <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
+                <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-2">Today's Session</p>
                 <p className="text-base font-bold text-[#2C2218]">{plcData.session.title}</p>
                 <p className="text-sm text-[#8C7E6E] mt-0.5">
                   {plcData.session.start_time.slice(0, 5)} – {plcData.session.end_time.slice(0, 5)}
@@ -633,23 +633,23 @@ export default function TeacherMeetingsPage() {
               </div>
 
               {/* QR scan */}
-              <div className="bg-white rounded-2xl border shadow-sm p-4"
+              <div className="bg-white rounded-xl border shadow-sm p-4"
                 style={{ borderColor: qrVerified ? '#86EFAC' : plcErrors.qr ? '#FCA5A5' : '#E2D9CC' }}>
-                <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-3">PLC Venue QR *</p>
+                <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">PLC Venue QR *</p>
                 {renderQrScanner()}
                 {plcErrors.qr && !qrVerified && <p className="text-xs text-[#B83232] mt-1">{plcErrors.qr}</p>}
               </div>
 
               {/* GPS */}
-              <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-2">GPS Coordinates *</p>
+              <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
+                <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-2">GPS Coordinates *</p>
                 {renderGps()}
                 {plcErrors.gps && <p className="text-xs text-[#B83232] mt-1">{plcErrors.gps}</p>}
               </div>
 
               {/* Agenda */}
-              <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
-                <label className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] block mb-2">
+              <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
+                <label className="text-xs font-bold font-medium text-[#8C7E6E] block mb-2">
                   Agenda <span className="font-normal normal-case">(optional)</span>
                 </label>
                 <input
@@ -661,8 +661,8 @@ export default function TeacherMeetingsPage() {
               </div>
 
               {/* Photo */}
-              <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-3">Venue Photo *</p>
+              <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
+                <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">Venue Photo *</p>
                 {renderPhotoInput('photo')}
                 {plcErrors.photo && <p className="text-xs text-[#B83232] mt-1">{plcErrors.photo}</p>}
               </div>

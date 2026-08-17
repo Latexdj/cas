@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
@@ -33,7 +33,7 @@ const fmt = (n: number) =>
   'GH₵ ' + n.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function RateBar({ pct, dark }: { pct: number; dark: boolean }) {
-  const color = pct >= 80 ? '#10B981' : pct >= 50 ? '#F59E0B' : '#EF4444';
+  const color = pct >= 80 ? '#145C44' : pct >= 50 ? '#F59E0B' : '#EF4444';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <div style={{ flex: 1, height: 6, borderRadius: 99, background: dark ? '#1E293B' : '#E2E8F0', overflow: 'hidden' }}>
@@ -76,14 +76,14 @@ export default function PrincipalFeesPage() {
 
   const dark = mounted && theme === 'dark';
   const c = {
-    bg:      dark ? '#0F172A' : '#F1F5F9',
+    bg:      dark ? '#1C1208' : '#F1F5F9',
     card:    dark ? '#1E293B' : '#FFFFFF',
     border:  dark ? '#334155' : '#E2E8F0',
-    text:    dark ? '#F1F5F9' : '#0F172A',
+    text:    dark ? '#F1F5F9' : '#1C1208',
     sub:     dark ? '#64748B' : '#94A3B8',
     row:     dark ? '#1E293B' : '#FFFFFF',
-    rowAlt:  dark ? '#162032' : '#F8FAFC',
-    thead:   dark ? '#0F172A' : '#F8FAFC',
+    rowAlt:  dark ? '#162032' : '#F5F0E8',
+    thead:   dark ? '#1C1208' : '#F5F0E8',
   };
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } = useTableControls(classes);
@@ -109,14 +109,14 @@ export default function PrincipalFeesPage() {
 
   if (!summary) return null;
 
-  const netColor  = summary.net_position >= 0 ? '#10B981' : '#EF4444';
+  const netColor  = summary.net_position >= 0 ? '#145C44' : '#EF4444';
   const netLabel  = summary.net_position >= 0 ? 'Surplus' : 'Deficit';
 
   const summaryCards = [
     { label: 'Total Billed',      value: fmt(summary.total_billed),      color: dark ? '#38BDF8' : '#0EA5E9',   bg: dark ? '#0C1E36' : '#EFF6FF' },
-    { label: 'Fees Collected',    value: fmt(summary.total_collected),   color: '#10B981',                      bg: dark ? '#052E16' : '#F0FDF4' },
-    { label: 'Collection Rate',   value: `${summary.collection_rate}%`,  color: summary.collection_rate >= 80 ? '#10B981' : summary.collection_rate >= 50 ? '#F59E0B' : '#EF4444', bg: dark ? '#1C1507' : '#FFFBEB' },
-    { label: 'Outstanding Fees',  value: fmt(summary.outstanding),       color: summary.outstanding > 0 ? '#F59E0B' : '#10B981', bg: dark ? '#1C0F07' : '#FFFBEB' },
+    { label: 'Fees Collected',    value: fmt(summary.total_collected),   color: '#145C44',                      bg: dark ? '#052E16' : '#F0FDF4' },
+    { label: 'Collection Rate',   value: `${summary.collection_rate}%`,  color: summary.collection_rate >= 80 ? '#145C44' : summary.collection_rate >= 50 ? '#F59E0B' : '#EF4444', bg: dark ? '#1C1507' : '#FFFBEB' },
+    { label: 'Outstanding Fees',  value: fmt(summary.outstanding),       color: summary.outstanding > 0 ? '#F59E0B' : '#145C44', bg: dark ? '#1C0F07' : '#FFFBEB' },
     { label: 'Total Expenditure', value: fmt(summary.total_expenses),    color: '#EF4444',                      bg: dark ? '#2C0A0A' : '#FEF2F2' },
     { label: netLabel,            value: fmt(Math.abs(summary.net_position)), color: netColor,                  bg: dark ? (summary.net_position >= 0 ? '#052E16' : '#2C0A0A') : (summary.net_position >= 0 ? '#F0FDF4' : '#FEF2F2') },
   ];
@@ -162,8 +162,8 @@ export default function PrincipalFeesPage() {
                     <td style={{ padding: '10px 14px', fontWeight: 700, color: c.text }}>{row.class_name}</td>
                     <td style={{ padding: '10px 14px', color: c.sub }}>{row.students_billed}</td>
                     <td style={{ padding: '10px 14px', color: c.text }}>{fmt(row.total_billed)}</td>
-                    <td style={{ padding: '10px 14px', color: '#10B981', fontWeight: 600 }}>{fmt(row.total_collected)}</td>
-                    <td style={{ padding: '10px 14px', color: row.outstanding > 0 ? '#F59E0B' : '#10B981', fontWeight: 600 }}>{fmt(row.outstanding)}</td>
+                    <td style={{ padding: '10px 14px', color: '#145C44', fontWeight: 600 }}>{fmt(row.total_collected)}</td>
+                    <td style={{ padding: '10px 14px', color: row.outstanding > 0 ? '#F59E0B' : '#145C44', fontWeight: 600 }}>{fmt(row.outstanding)}</td>
                     <td style={{ padding: '10px 14px', minWidth: 160 }}>
                       <RateBar pct={row.collection_rate} dark={dark} />
                     </td>
@@ -175,8 +175,8 @@ export default function PrincipalFeesPage() {
                   <td style={{ padding: '10px 14px', fontWeight: 700, color: c.text }}>Total</td>
                   <td style={{ padding: '10px 14px', fontWeight: 700, color: c.text }}>{summary.students_with_bills}</td>
                   <td style={{ padding: '10px 14px', fontWeight: 700, color: c.text }}>{fmt(summary.total_billed)}</td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#10B981' }}>{fmt(summary.total_collected)}</td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, color: summary.outstanding > 0 ? '#F59E0B' : '#10B981' }}>{fmt(summary.outstanding)}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#145C44' }}>{fmt(summary.total_collected)}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, color: summary.outstanding > 0 ? '#F59E0B' : '#145C44' }}>{fmt(summary.outstanding)}</td>
                   <td style={{ padding: '10px 14px' }}><RateBar pct={summary.collection_rate} dark={dark} /></td>
                 </tr>
               </tfoot>
@@ -196,7 +196,7 @@ export default function PrincipalFeesPage() {
             {/* Bar comparison */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
               {[
-                { label: 'Total Income (Fees Collected)', value: ive.income, color: '#10B981' },
+                { label: 'Total Income (Fees Collected)', value: ive.income, color: '#145C44' },
                 { label: 'Total Expenditure', value: ive.expenditure, color: '#EF4444' },
               ].map(item => {
                 const maxVal = Math.max(ive.income, ive.expenditure, 1);
@@ -218,7 +218,7 @@ export default function PrincipalFeesPage() {
             {/* Net */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 10, background: ive.net >= 0 ? (dark ? '#052E16' : '#F0FDF4') : (dark ? '#2C0A0A' : '#FEF2F2'), marginBottom: ive.by_category.length > 0 ? 16 : 0 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: c.text }}>{ive.net >= 0 ? 'Surplus' : 'Deficit'}</span>
-              <span style={{ fontSize: 16, fontWeight: 800, color: ive.net >= 0 ? '#10B981' : '#EF4444' }}>{fmt(Math.abs(ive.net))}</span>
+              <span style={{ fontSize: 16, fontWeight: 800, color: ive.net >= 0 ? '#145C44' : '#EF4444' }}>{fmt(Math.abs(ive.net))}</span>
             </div>
 
             {/* Expense breakdown */}

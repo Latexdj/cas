@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { api } from '@/lib/api';
 
@@ -96,7 +96,7 @@ const fmt = (d: string) =>
 const fmtTime = (t: string) => t.slice(0, 5);
 
 const inputCls = 'w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 border-slate-200 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white';
-const labelCls = 'block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1';
+const labelCls = 'block text-xs font-semibold font-medium text-slate-500 dark:text-slate-400 mb-1';
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
@@ -110,7 +110,7 @@ export default function ExamsPage() {
       onClick={() => setTab(t)}
       className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
         tab === t
-          ? 'bg-green-700 text-white'
+          ? 'bg-[#145C44] text-white'
           : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
       }`}
     >
@@ -338,7 +338,7 @@ function SessionsTab() {
         <button
           onClick={() => { adding ? setAdding(false) : openAdd(); setMergeMode(false); setMergeIds([]); }}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
-          style={{ backgroundColor: adding ? '#64748B' : '#15803D' }}>
+          style={{ backgroundColor: adding ? '#64748B' : '#145C44' }}>
           {adding ? 'Cancel' : '+ Add Sessions'}
         </button>
       </div>
@@ -387,7 +387,7 @@ function SessionsTab() {
                     Group selected
                   </button>
                 )}
-                <button onClick={() => toggleAll(true)}  className="text-xs font-semibold text-green-700 dark:text-green-400 hover:underline">All</button>
+                <button onClick={() => toggleAll(true)}  className="text-xs font-semibold text-[#145C44] dark:text-[#2ab289] hover:underline">All</button>
                 <button onClick={() => toggleAll(false)} className="text-xs font-semibold text-slate-400 hover:underline">None</button>
               </div>
             </div>
@@ -396,9 +396,9 @@ function SessionsTab() {
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-200 dark:border-slate-600">
                     <th className="w-10 px-3 py-2.5" />
-                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Class</th>
-                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Hall / Venue</th>
-                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Invigilators</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500 font-medium">Class</th>
+                    <th className="text-left px-3 py-2.5 text-xs font-semibold text-slate-500 font-medium">Hall / Venue</th>
+                    <th className="text-center px-3 py-2.5 text-xs font-semibold text-slate-500 font-medium">Invigilators</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -406,11 +406,11 @@ function SessionsTab() {
                     <tr><td colSpan={4} className="px-4 py-6 text-center text-xs text-slate-400">No classes found — add classes first in Setup</td></tr>
                   )}
                   {classRows.map((row, idx) => (
-                    <tr key={idx} className={`transition-colors ${row.checked ? 'bg-green-50/50 dark:bg-green-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/20'}`}>
+                    <tr key={idx} className={`transition-colors ${row.checked ? 'bg-[#E8F4EE]/50 dark:bg-green-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/20'}`}>
                       <td className="px-3 py-2 text-center">
                         <input type="checkbox" checked={row.checked}
                           onChange={e => updateRow(idx, { checked: e.target.checked })}
-                          className="rounded border-slate-300 text-green-600" />
+                          className="rounded border-slate-300 text-[#145C44]" />
                       </td>
                       <td className="px-3 py-2">
                         {row.members ? (
@@ -463,7 +463,7 @@ function SessionsTab() {
             </p>
             <button onClick={save} disabled={saving || !selectedCount}
               className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
-              style={{ backgroundColor: '#15803D' }}>
+              style={{ backgroundColor: '#145C44' }}>
               {saving ? 'Saving…' : `Create ${selectedCount || ''} Session${selectedCount !== 1 ? 's' : ''}`}
             </button>
           </div>
@@ -482,18 +482,18 @@ function SessionsTab() {
         <div className="space-y-5">
           {dates.map(date => (
             <div key={date}>
-              <p className="text-xs font-bold uppercase tracking-widest mb-2 px-1 text-slate-400">{fmt(date)}</p>
+              <p className="text-xs font-bold font-medium mb-2 px-1 text-slate-400">{fmt(date)}</p>
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700">
                       {mergeMode && <th className="w-10 px-3 py-2.5" />}
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Time</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Subject</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Class</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Hall</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Assigned</th>
-                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Attendance</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 font-medium">Time</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 font-medium">Subject</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 font-medium">Class</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 font-medium">Hall</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 font-medium">Assigned</th>
+                      <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 font-medium">Attendance</th>
                       {!mergeMode && <th className="px-4 py-2.5" />}
                     </tr>
                   </thead>
@@ -566,7 +566,7 @@ function SessionsTab() {
                                   </button>
                                   <button onClick={saveEdit} disabled={editSaving}
                                     className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
-                                    style={{ backgroundColor: '#15803D' }}>
+                                    style={{ backgroundColor: '#145C44' }}>
                                     {editSaving ? 'Saving…' : 'Save'}
                                   </button>
                                 </div>
@@ -608,8 +608,8 @@ function SessionsTab() {
                                   }}
                                   className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors ${
                                     checkInsId === s.id
-                                      ? 'bg-green-700 text-white'
-                                      : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-700 dark:hover:text-green-400'
+                                      ? 'bg-[#145C44] text-white'
+                                      : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-[#E8F4EE] dark:hover:bg-green-900/20 hover:text-[#145C44] dark:hover:text-[#2ab289]'
                                   }`}>
                                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -632,7 +632,7 @@ function SessionsTab() {
                         )}
                         {checkInsId === s.id && !mergeMode && editingId !== s.id && (
                           <tr>
-                            <td colSpan={7} className="px-4 pb-3 pt-0 bg-green-50/40 dark:bg-green-900/10">
+                            <td colSpan={7} className="px-4 pb-3 pt-0 bg-[#E8F4EE]/40 dark:bg-green-900/10">
                               <CheckInPanel
                                 session={s}
                                 onClose={() => setCheckInsId(null)}
@@ -808,7 +808,7 @@ function ReportTab() {
         <div className="flex items-center gap-3 flex-wrap">
           <button onClick={generate} disabled={loading}
             className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
-            style={{ backgroundColor: '#15803D' }}>
+            style={{ backgroundColor: '#145C44' }}>
             {loading ? 'Generating…' : 'Generate Report'}
           </button>
           {generated && rows.length > 0 && (
@@ -861,7 +861,7 @@ function ReportTab() {
               { label: 'Registers Submitted',   value: `${sessionsWithReg}/${sessionGroups.length}` },
             ].map(c => (
               <div key={c.label} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{c.label}</p>
+                <p className="text-xs font-semibold font-medium text-slate-400">{c.label}</p>
                 <p className={`text-3xl font-bold mt-1 tabular-nums ${c.warn ? 'text-red-600' : 'text-slate-800 dark:text-white'}`}>{c.value}</p>
               </div>
             ))}
@@ -875,7 +875,7 @@ function ReportTab() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700 text-xs font-semibold text-slate-500 font-medium">
                     <th className="text-left px-4 py-2.5">Teacher</th>
                     <th className="text-center px-4 py-2.5">Duties</th>
                     <th className="text-center px-4 py-2.5">Checked In</th>
@@ -893,10 +893,10 @@ function ReportTab() {
                       <tr key={ts.name} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
                         <td className="px-4 py-2.5 font-semibold text-slate-800 dark:text-white">{ts.name}</td>
                         <td className="px-4 py-2.5 text-center tabular-nums text-slate-600 dark:text-slate-300">{ts.duties}</td>
-                        <td className="px-4 py-2.5 text-center tabular-nums font-semibold text-green-600 dark:text-green-400">{ts.ci}</td>
+                        <td className="px-4 py-2.5 text-center tabular-nums font-semibold text-[#145C44] dark:text-[#2ab289]">{ts.ci}</td>
                         <td className="px-4 py-2.5 text-center">
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                            r === 100 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            r === 100 ? 'bg-[#D1EAD9] text-[#145C44] dark:bg-green-900/30 dark:text-[#2ab289]'
                             : r >= 60 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
                             : 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
                           }`}>{r}%</span>
@@ -924,7 +924,7 @@ function ReportTab() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  <tr className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700 text-xs font-semibold text-slate-500 font-medium">
                     <th className="text-left px-4 py-2.5">Date</th>
                     <th className="text-left px-4 py-2.5">Time</th>
                     <th className="text-left px-4 py-2.5">Subject</th>
@@ -968,7 +968,7 @@ function ReportTab() {
                         </td>
                         <td className="px-4 py-2 text-center text-lg leading-none">
                           {t.checked_in
-                            ? <span className="text-green-500 font-bold">✓</span>
+                            ? <span className="text-[#2D7A4F] font-bold">✓</span>
                             : <span className="text-red-400 font-bold">✗</span>}
                         </td>
                         <td className="px-4 py-2 text-xs text-slate-500 whitespace-nowrap">
@@ -981,21 +981,21 @@ function ReportTab() {
                             <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${
                               t.is_manual
                                 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                : 'bg-[#D1EAD9] text-[#145C44] dark:bg-green-900/30 dark:text-[#2ab289]'
                             }`}>{t.is_manual ? 'Admin' : 'Self'}</span>
                           )}
                         </td>
                         <td className="px-4 py-2 text-center text-xs">
                           {t.checked_in
                             ? t.location_verified
-                              ? <span className="font-bold text-green-600 dark:text-green-400">✓</span>
+                              ? <span className="font-bold text-[#145C44] dark:text-[#2ab289]">✓</span>
                               : <span className="text-slate-300 dark:text-slate-600">—</span>
                             : null}
                         </td>
                         {/* Register stats — same for all teachers in session; show via rowSpan */}
                         {ti === 0 && (
                           <>
-                            <td className="px-4 py-2 text-center font-semibold tabular-nums align-top text-green-600 dark:text-green-400" rowSpan={teachers.length}>
+                            <td className="px-4 py-2 text-center font-semibold tabular-nums align-top text-[#145C44] dark:text-[#2ab289]" rowSpan={teachers.length}>
                               {Number(info.students_present) + Number(info.students_absent) > 0
                                 ? info.students_present
                                 : <span className="text-slate-300 dark:text-slate-600 font-normal text-xs">—</span>}
@@ -1069,9 +1069,9 @@ function CheckInPanel({
     new Date(iso).toLocaleTimeString('default', { hour: '2-digit', minute: '2-digit' });
 
   return (
-    <div className="mt-2 rounded-xl border border-green-200 dark:border-green-800 bg-white dark:bg-slate-800 p-4 space-y-3">
+    <div className="mt-2 rounded-xl border border-[#B8D9C8] dark:border-green-800 bg-white dark:bg-slate-800 p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide">
+        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 font-medium">
           Check-in — {session.subject} · {session.hall_name}
         </p>
         <button onClick={onClose} className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">✕ Close</button>
@@ -1088,8 +1088,8 @@ function CheckInPanel({
             const rec = checkIns.find(c => c.teacher_id === d.teacher_id)!;
             return (
               <div key={d.id} className="flex items-center gap-3 py-1.5">
-                <span className="w-5 h-5 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-3 h-3 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <span className="w-5 h-5 rounded-full bg-[#D1EAD9] dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-3 h-3 text-[#145C44] dark:text-[#2ab289]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                 </span>
@@ -1104,7 +1104,7 @@ function CheckInPanel({
                 <span className="text-xs text-slate-400 whitespace-nowrap">
                   {rec.is_manual ? '(manual) ' : ''}{fmtTime12(rec.submitted_at)}
                   {rec.location_verified && (
-                    <span className="ml-1 text-green-600 dark:text-green-400">· GPS ✓</span>
+                    <span className="ml-1 text-[#145C44] dark:text-[#2ab289]">· GPS ✓</span>
                   )}
                 </span>
               </div>
@@ -1128,7 +1128,7 @@ function CheckInPanel({
               </div>
               <div className="flex items-center gap-2 pl-8">
                 <input
-                  className="flex-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-green-500 placeholder:text-slate-400"
+                  className="flex-1 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#145C44] placeholder:text-slate-400"
                   placeholder="Reason / note (optional)"
                   value={notesMap[d.teacher_id] ?? ''}
                   onChange={e => setNotesMap(m => ({ ...m, [d.teacher_id]: e.target.value }))}
@@ -1137,7 +1137,7 @@ function CheckInPanel({
                   onClick={() => markPresent(d.teacher_id)}
                   disabled={markingId === d.teacher_id}
                   className="px-3 py-1 rounded-lg text-xs font-semibold text-white disabled:opacity-50 whitespace-nowrap"
-                  style={{ backgroundColor: '#15803D' }}>
+                  style={{ backgroundColor: '#145C44' }}>
                   {markingId === d.teacher_id ? '…' : 'Mark Present'}
                 </button>
               </div>
@@ -1211,7 +1211,7 @@ function PoolTab() {
       <div className="flex items-center gap-3 flex-wrap">
         <input className={inputCls + ' max-w-xs'} placeholder="Search teachers…" value={search} onChange={e => setSearch(e.target.value)} />
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          <span className="font-semibold text-green-700 dark:text-green-400">{inPool.length}</span> eligible ·{' '}
+          <span className="font-semibold text-[#145C44] dark:text-[#2ab289]">{inPool.length}</span> eligible ·{' '}
           <span className="font-semibold text-red-600">{excluded.length}</span> excluded
         </p>
       </div>
@@ -1262,7 +1262,7 @@ function PoolTab() {
                     <button
                       onClick={() => toggle(t, false)}
                       disabled={saving === t.id}
-                      className="text-xs font-semibold text-green-700 dark:text-green-400 hover:underline disabled:opacity-40 whitespace-nowrap"
+                      className="text-xs font-semibold text-[#145C44] dark:text-[#2ab289] hover:underline disabled:opacity-40 whitespace-nowrap"
                     >
                       {saving === t.id ? '…' : 'Restore'}
                     </button>
@@ -1414,7 +1414,7 @@ function RosterTab() {
     <div className="space-y-6">
       {msg && (
         <div className={`rounded-xl px-4 py-3 text-sm font-medium ${msg.type === 'ok'
-          ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800'
+          ? 'bg-[#E8F4EE] dark:bg-green-900/20 text-[#145C44] dark:text-[#2ab289] border border-[#B8D9C8] dark:border-green-800'
           : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800'
         }`}>{msg.text}</div>
       )}
@@ -1427,18 +1427,18 @@ function RosterTab() {
             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-slate-700">
               <h2 className="text-sm font-bold text-slate-800 dark:text-white">Select Sessions</h2>
               <div className="flex gap-2">
-                <button onClick={selectAll}  className="text-xs text-green-700 dark:text-green-400 font-semibold hover:underline">All</button>
+                <button onClick={selectAll}  className="text-xs text-[#145C44] dark:text-[#2ab289] font-semibold hover:underline">All</button>
                 <button onClick={selectNone} className="text-xs text-slate-400 hover:text-slate-600 font-semibold">None</button>
               </div>
             </div>
             <div className="divide-y divide-slate-50 dark:divide-slate-700 max-h-80 overflow-y-auto">
               {dates.map(date => (
                 <div key={date}>
-                  <p className="px-5 py-1.5 text-xs font-bold text-slate-400 uppercase tracking-wide bg-slate-50 dark:bg-slate-700/40">{fmt(date)}</p>
+                  <p className="px-5 py-1.5 text-xs font-bold text-slate-400 font-medium bg-slate-50 dark:bg-slate-700/40">{fmt(date)}</p>
                   {byDate[date].map(s => (
                     <label key={s.id} className="flex items-center gap-3 px-5 py-2 hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer">
                       <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggleSelect(s.id)}
-                        className="rounded border-slate-300 text-green-600" />
+                        className="rounded border-slate-300 text-[#145C44]" />
                       <div className="min-w-0">
                         <p className="text-xs font-semibold text-slate-800 dark:text-white truncate">{s.subject} — {s.hall_name}</p>
                         <p className="text-xs text-slate-400">{fmtTime(s.start_time)}–{fmtTime(s.end_time)} · {s.class_name}</p>
@@ -1459,7 +1459,7 @@ function RosterTab() {
             </div>
             <label className="flex items-center gap-2.5 cursor-pointer">
               <input type="checkbox" checked={exclSubj} onChange={e => setExclSubj(e.target.checked)}
-                className="rounded border-slate-300 text-green-600" />
+                className="rounded border-slate-300 text-[#145C44]" />
               <span className="text-sm text-slate-700 dark:text-slate-300">Exclude subject teachers</span>
             </label>
             <p className="text-xs text-slate-400">
@@ -1469,7 +1469,7 @@ function RosterTab() {
               onClick={generate}
               disabled={generating || !selected.size}
               className="w-full py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-colors"
-              style={{ backgroundColor: '#15803D' }}>
+              style={{ backgroundColor: '#145C44' }}>
               {generating ? 'Generating…' : `Generate Roster (${selected.size} session${selected.size !== 1 ? 's' : ''})`}
             </button>
           </div>
@@ -1485,7 +1485,7 @@ function RosterTab() {
             <>
               {preview.warnings.length > 0 && (
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 space-y-1">
-                  <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Warnings</p>
+                  <p className="text-xs font-bold text-amber-700 dark:text-amber-400 font-medium">Warnings</p>
                   {preview.warnings.map((w, i) => (
                     <p key={i} className="text-xs text-amber-700 dark:text-amber-400">{w}</p>
                   ))}
@@ -1499,7 +1499,7 @@ function RosterTab() {
                     onClick={confirm}
                     disabled={confirming}
                     className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                    style={{ backgroundColor: '#15803D' }}>
+                    style={{ backgroundColor: '#145C44' }}>
                     {confirming ? 'Saving…' : 'Confirm & Save'}
                   </button>
                 </div>
@@ -1517,7 +1517,7 @@ function RosterTab() {
                         <div key={sessionId} className="px-5 py-3">
                           <div className="flex items-start gap-3">
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium">
                                 {fmt(a0.session_date)} · {fmtTime(a0.session_start)}–{fmtTime(a0.session_end)}
                               </p>
                               <p className="text-sm font-bold text-slate-800 dark:text-white mt-0.5">
@@ -1534,7 +1534,7 @@ function RosterTab() {
                                   {a.role === 'chief' ? 'Chief' : 'Assistant'}
                                 </span>
                                 <select
-                                  className="flex-1 border rounded-lg px-2 py-1 text-sm bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500"
+                                  className="flex-1 border rounded-lg px-2 py-1 text-sm bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-[#145C44]"
                                   value={a.teacher_id}
                                   onChange={e => swapTeacher(sessionId, idx, e.target.value)}
                                 >
@@ -1562,7 +1562,7 @@ function RosterTab() {
                         <div key={d.teacher_id} className="flex items-center gap-3">
                           <span className="text-xs text-slate-600 dark:text-slate-300 w-36 truncate shrink-0">{d.teacher_name}</span>
                           <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-full h-2">
-                            <div className="bg-green-500 h-2 rounded-full transition-all"
+                            <div className="bg-[#145C44] h-2 rounded-full transition-all"
                               style={{ width: `${(d.count / max) * 100}%` }} />
                           </div>
                           <span className="text-xs font-semibold tabular-nums text-slate-500 dark:text-slate-400 w-8 text-right">{d.count}</span>
@@ -1582,7 +1582,7 @@ function RosterTab() {
                   onClick={confirm}
                   disabled={confirming}
                   className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                  style={{ backgroundColor: '#15803D' }}>
+                  style={{ backgroundColor: '#145C44' }}>
                   {confirming ? 'Saving…' : 'Confirm & Save Roster'}
                 </button>
               </div>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -44,7 +44,7 @@ export default function StaffLoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4 py-10 bg-slate-50 dark:bg-slate-900">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: '#1a5c38' }}>
+          <div className="w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-4" style={{ background: '#1a5c38' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
               <path d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
             </svg>
@@ -53,28 +53,28 @@ export default function StaffLoginPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Sign in to manage clearance and library</p>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 block mb-1.5">School Code</label>
+              <label className="text-xs font-bold font-medium text-slate-500 dark:text-slate-400 block mb-1.5">School Code</label>
               <input type="text" value={schoolCode}
                 onChange={e => { setSchoolCode(e.target.value.toUpperCase()); setError(''); }}
                 placeholder="e.g. ABC123" maxLength={20} autoCapitalize="characters"
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-3 text-sm font-mono uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-3 text-sm font-mono font-medium focus:outline-none focus:ring-2 focus:ring-[#145C44] bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 block mb-1.5">Email</label>
+              <label className="text-xs font-bold font-medium text-slate-500 dark:text-slate-400 block mb-1.5">Email</label>
               <input type="email" value={email}
                 onChange={e => { setEmail(e.target.value); setError(''); }}
                 placeholder="your@email.com"
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44] bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 block mb-1.5">Password</label>
+              <label className="text-xs font-bold font-medium text-slate-500 dark:text-slate-400 block mb-1.5">Password</label>
               <input type="password" value={password}
                 onChange={e => { setPassword(e.target.value); setError(''); }}
                 placeholder="Your password"
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44] bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
             </div>
             {error && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">{error}</p>}
             <button type="submit" disabled={loading}

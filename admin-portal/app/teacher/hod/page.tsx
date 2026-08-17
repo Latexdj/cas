@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -116,8 +116,8 @@ function fmt(iso: string) {
 
 function StatCard({ label, value, sub, accent }: { label: string; value: string | number; sub?: string; accent?: string }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-4 text-center">
-      <p className="text-2xl font-bold" style={{ color: accent ?? '#0F172A' }}>{value}</p>
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 text-center">
+      <p className="text-2xl font-bold" style={{ color: accent ?? '#1C1208' }}>{value}</p>
       <p className="text-xs font-semibold text-slate-500 mt-0.5">{label}</p>
       {sub && <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>}
     </div>
@@ -135,7 +135,7 @@ function Badge({ label, color, bg }: { label: string; color: string; bg: string 
 const ABSENCE_STATUS_STYLE: Record<string, { color: string; bg: string }> = {
   'Absent':             { color: '#B91C1C', bg: '#FEF2F2' },
   'Remedial Scheduled': { color: '#92400E', bg: '#FEF9C3' },
-  'Made Up':            { color: '#15803D', bg: '#F0FDF4' },
+  'Made Up':            { color: '#145C44', bg: '#F0FDF4' },
   'Cleared':            { color: '#1D4ED8', bg: '#EFF6FF' },
   'Verified':           { color: '#1D4ED8', bg: '#DBEAFE' },
   'Excused':            { color: '#6D28D9', bg: '#F5F3FF' },
@@ -264,7 +264,7 @@ export default function HodPage() {
       setHodResults(data);
     } catch (err: unknown) {
       const msg = (err as {response?:{data?:{error?:string}}})?.response?.data?.error;
-      setResultsError(msg ?? 'Failed to load results.');
+      setResultsError(msg ?? 'Could not load results.');
     } finally { setResultsLoading(false); }
   }
 
@@ -433,7 +433,7 @@ export default function HodPage() {
 
       {/* Tabs */}
       <div className="px-4 mb-4">
-        <div className="flex gap-1 bg-white rounded-2xl p-1 border border-[#E2D9CC]">
+        <div className="flex gap-1 bg-white rounded-xl p-1 border border-[#E2D9CC]">
           {TABS.map(t => (
             <button
               key={t.key}
@@ -450,7 +450,7 @@ export default function HodPage() {
       </div>
 
       {error && (
-        <div className="mx-4 mb-4 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-700">
+        <div className="mx-4 mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -475,7 +475,7 @@ export default function HodPage() {
 
               {/* Assessment progress bar */}
               {overview.assessments_total > 0 && (
-                <div className="bg-white rounded-2xl border border-[#E2D9CC] p-4">
+                <div className="bg-white rounded-xl border border-[#E2D9CC] p-4">
                   <div className="flex justify-between text-xs font-semibold text-[#4A3F32] mb-2">
                     <span>Scores recorded</span>
                     <span>{overview.assessments_scored}/{overview.assessments_total}</span>
@@ -500,10 +500,10 @@ export default function HodPage() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Pending Review</h3>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1C1208' }}>Pending Review</h3>
                 <p style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>Results submitted by teachers awaiting your approval.</p>
               </div>
-              <button onClick={loadQueue} style={{ fontSize: 12, color: '#15803D', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Refresh</button>
+              <button onClick={loadQueue} style={{ fontSize: 12, color: '#145C44', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Refresh</button>
             </div>
 
             {queueLoading ? (
@@ -516,7 +516,7 @@ export default function HodPage() {
                   <div key={item.id} style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                       <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{item.subject}</p>
+                        <p style={{ fontSize: 14, fontWeight: 700, color: '#1C1208' }}>{item.subject}</p>
                         <p style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{item.class_name} · {item.academic_year} Sem {item.semester} · {item.teacher_name}</p>
                         <p style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
                           {item.scored_count} of {item.student_count} students scored · Submitted {new Date(item.submitted_at).toLocaleDateString()}
@@ -525,7 +525,7 @@ export default function HodPage() {
                       <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                         <button
                           onClick={() => openReview(item)}
-                          style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                          style={{ background: '#145C44', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
                         >
                           Review
                         </button>
@@ -545,7 +545,7 @@ export default function HodPage() {
                 onClick={() => setReviewTarget(null)}>
                 <div style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
                   onClick={e => e.stopPropagation()}>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>Review Submission</h3>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1C1208', marginBottom: 4 }}>Review Submission</h3>
                   <p style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>{reviewTarget.subject} · {reviewTarget.class_name} · {reviewTarget.teacher_name}</p>
 
                   {/* Results preview */}
@@ -563,7 +563,7 @@ export default function HodPage() {
                       return (
                         <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 8 }}>
                           <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-                            <thead style={{ position: 'sticky', top: 0, background: '#F8FAFC' }}>
+                            <thead style={{ position: 'sticky', top: 0, background: '#F5F0E8' }}>
                               <tr style={{ borderBottom: '1px solid #E2E8F0' }}>
                                 {['Student', 'CA', 'Exam', 'Total', 'Grade'].map(h => (
                                   <th key={h} style={{ padding: '6px 10px', textAlign: h === 'Student' ? 'left' : 'center', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>{h}</th>
@@ -575,11 +575,11 @@ export default function HodPage() {
                                 const sub = student.subjects.find(s => s.subject.toLowerCase() === subject.toLowerCase());
                                 return (
                                   <tr key={student.student_id} style={{ borderTop: '1px solid #F1F5F9', background: idx % 2 === 0 ? '#fff' : '#FAFAFA' }}>
-                                    <td style={{ padding: '6px 10px', fontWeight: 500, color: '#0F172A' }}>{student.name}</td>
+                                    <td style={{ padding: '6px 10px', fontWeight: 500, color: '#1C1208' }}>{student.name}</td>
                                     <td style={{ padding: '6px 10px', textAlign: 'center', color: '#374151' }}>{sub?.ca_score != null ? sub.ca_score.toFixed(1) : '—'}</td>
                                     <td style={{ padding: '6px 10px', textAlign: 'center', color: '#374151' }}>{sub?.exam_score != null ? sub.exam_score.toFixed(1) : '—'}</td>
-                                    <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#0F172A' }}>{sub?.total != null ? sub.total : '—'}</td>
-                                    <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700, color: sub?.grade?.startsWith('F') || sub?.grade === 'E8' ? '#DC2626' : '#15803D' }}>{sub?.grade ?? '—'}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#1C1208' }}>{sub?.total != null ? sub.total : '—'}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700, color: sub?.grade?.startsWith('F') || sub?.grade === 'E8' ? '#DC2626' : '#145C44' }}>{sub?.grade ?? '—'}</td>
                                   </tr>
                                 );
                               })}
@@ -598,7 +598,7 @@ export default function HodPage() {
                         style={{
                           flex: 1, padding: '8px 0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
                           border: reviewAction === a ? 'none' : '1px solid #E2E8F0',
-                          background: reviewAction === a ? (a === 'approve' ? '#15803D' : '#DC2626') : '#F8FAFC',
+                          background: reviewAction === a ? (a === 'approve' ? '#145C44' : '#DC2626') : '#F5F0E8',
                           color: reviewAction === a ? '#fff' : '#64748B',
                         }}>
                         {a === 'approve' ? 'Approve' : 'Reject'}
@@ -625,7 +625,7 @@ export default function HodPage() {
                     </button>
                     <button onClick={submitReview} disabled={reviewing}
                       style={{ flex: 1, padding: '9px 0', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                        background: reviewAction === 'approve' ? '#15803D' : '#DC2626', color: '#fff', opacity: reviewing ? 0.7 : 1 }}>
+                        background: reviewAction === 'approve' ? '#145C44' : '#DC2626', color: '#fff', opacity: reviewing ? 0.7 : 1 }}>
                       {reviewing ? 'Submitting…' : (reviewAction === 'approve' ? 'Approve' : 'Reject & Return')}
                     </button>
                   </div>
@@ -639,7 +639,7 @@ export default function HodPage() {
         {tab === 'results' && (
           <div>
             <style dangerouslySetInnerHTML={{ __html: `@media print { aside, nav, .no-print { display: none !important; } [class*="ml-60"] { margin-left: 0 !important; } }` }} />
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>Class Results</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1C1208', marginBottom: 4 }}>Class Results</h3>
             <p style={{ fontSize: 12, color: '#64748B', marginBottom: 16 }}>View academic results for classes in your department or programme.</p>
 
             {/* Filters */}
@@ -669,7 +669,7 @@ export default function HodPage() {
                 </select>
               </div>
               <button onClick={loadHodResults} disabled={resultsLoading || !resultsClass || !resultsYear}
-                style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (resultsLoading || !resultsClass || !resultsYear) ? 0.5 : 1 }}>
+                style={{ background: '#145C44', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (resultsLoading || !resultsClass || !resultsYear) ? 0.5 : 1 }}>
                 {resultsLoading ? 'Loading…' : 'View Results'}
               </button>
               {hodResults.length > 0 && (
@@ -690,7 +690,7 @@ export default function HodPage() {
             {hodResults.length > 0 && (
               <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
                 {/* Summary stats */}
-                <div style={{ padding: '12px 16px', background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                <div style={{ padding: '12px 16px', background: '#F5F0E8', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                   {(() => {
                     const withAvg = hodResults.filter(r => r.average !== null);
                     const avg = withAvg.length ? (withAvg.reduce((s,r) => s+(r.average??0),0)/withAvg.length).toFixed(1) : '—';
@@ -699,7 +699,7 @@ export default function HodPage() {
                       <>
                         <span style={{ fontSize: 12, color: '#374151' }}><strong>{hodResults.length}</strong> students</span>
                         <span style={{ fontSize: 12, color: '#374151' }}>Class avg: <strong>{avg}%</strong></span>
-                        <span style={{ fontSize: 12, color: '#374151' }}>Passing: <strong style={{ color: '#15803D' }}>{passing}</strong></span>
+                        <span style={{ fontSize: 12, color: '#374151' }}>Passing: <strong style={{ color: '#145C44' }}>{passing}</strong></span>
                         <span style={{ fontSize: 12, color: '#374151' }}>At risk: <strong style={{ color: '#DC2626' }}>{withAvg.filter(r=>(r.average??0)<40).length}</strong></span>
                       </>
                     );
@@ -710,7 +710,7 @@ export default function HodPage() {
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                     <thead>
-                      <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                      <tr style={{ background: '#F5F0E8', borderBottom: '1px solid #E2E8F0' }}>
                         <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11, textTransform: 'uppercase' }}>Pos</th>
                         <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11, textTransform: 'uppercase' }}>Student</th>
                         <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: '#64748B', fontSize: 11, textTransform: 'uppercase' }}>Average</th>
@@ -726,10 +726,10 @@ export default function HodPage() {
                             style={{ borderBottom: '1px solid #F1F5F9', background: idx % 2 === 0 ? '#fff' : '#FAFAFA' }}>
                             <td style={{ padding: '10px 12px', fontWeight: 700, color: '#374151' }}>{student.class_position ?? '—'}</td>
                             <td style={{ padding: '10px 12px' }}>
-                              <p style={{ fontWeight: 600, color: '#0F172A', margin: 0 }}>{student.name}</p>
+                              <p style={{ fontWeight: 600, color: '#1C1208', margin: 0 }}>{student.name}</p>
                               <p style={{ fontSize: 11, color: '#64748B', margin: 0 }}>{student.student_code}</p>
                             </td>
-                            <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: student.average !== null && student.average >= 40 ? '#15803D' : '#DC2626' }}>
+                            <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: student.average !== null && student.average >= 40 ? '#145C44' : '#DC2626' }}>
                               {student.average !== null ? student.average + '%' : '—'}
                             </td>
                             <td style={{ padding: '10px 12px', textAlign: 'center', color: '#374151' }}>{student.subjects.length}</td>
@@ -737,7 +737,7 @@ export default function HodPage() {
                               {student.average !== null && student.average < 40 ? (
                                 <span style={{ background: '#FEE2E2', color: '#DC2626', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>AT RISK</span>
                               ) : student.average !== null ? (
-                                <span style={{ background: '#DCFCE7', color: '#15803D', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>PASSING</span>
+                                <span style={{ background: '#DCFCE7', color: '#145C44', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>PASSING</span>
                               ) : null}
                             </td>
                             <td style={{ padding: '10px 12px', textAlign: 'center' }}>
@@ -749,7 +749,7 @@ export default function HodPage() {
                           </tr>
                           {expandedStudent === student.student_id && (
                             <tr key={student.student_id + '_detail'}>
-                              <td colSpan={6} style={{ padding: '0 12px 12px 28px', background: '#F8FAFC' }}>
+                              <td colSpan={6} style={{ padding: '0 12px 12px 28px', background: '#F5F0E8' }}>
                                 <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                                   <thead>
                                     <tr style={{ color: '#64748B' }}>
@@ -766,8 +766,8 @@ export default function HodPage() {
                                         <td style={{ padding: '5px 8px', color: '#374151' }}>{sub.subject}</td>
                                         <td style={{ padding: '5px 8px', textAlign: 'center', color: '#64748B' }}>{sub.ca_score != null ? sub.ca_score.toFixed(1) : '—'}</td>
                                         <td style={{ padding: '5px 8px', textAlign: 'center', color: '#64748B' }}>{sub.exam_score != null ? sub.exam_score.toFixed(1) : '—'}</td>
-                                        <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 600, color: '#0F172A' }}>{sub.total != null ? sub.total : '—'}</td>
-                                        <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 700, color: sub.grade?.startsWith('F') || sub.grade==='E8' ? '#DC2626' : '#15803D' }}>{sub.grade ?? '—'}</td>
+                                        <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 600, color: '#1C1208' }}>{sub.total != null ? sub.total : '—'}</td>
+                                        <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 700, color: sub.grade?.startsWith('F') || sub.grade==='E8' ? '#DC2626' : '#145C44' }}>{sub.grade ?? '—'}</td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -791,7 +791,7 @@ export default function HodPage() {
         {/* ── Classes ── */}
         {tab === 'classes' && (
           loadingCl ? <Spinner /> : classes.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-[#E2D9CC] p-8 text-center">
+            <div className="bg-white rounded-xl border border-[#E2D9CC] p-8 text-center">
               <p className="text-sm text-[#8C7E6E]">
                 {overview?.hod_type === 'subject'
                   ? 'No timetable entries found for this subject.'
@@ -816,14 +816,14 @@ export default function HodPage() {
                 const missingLabel  = isSubject ? 'No teacher on timetable' : 'Unassigned';
 
                 return (
-                  <div key={cls.class_name} className="bg-white rounded-2xl border border-[#E2D9CC] p-4">
+                  <div key={cls.class_name} className="bg-white rounded-xl border border-[#E2D9CC] p-4">
                     <div className="flex items-start justify-between">
                       <div>
                         <p className="text-sm font-bold text-[#2C2218]">{cls.class_name}</p>
                         <p className="text-xs text-[#8C7E6E] mt-0.5">{cls.student_count} student{cls.student_count !== 1 ? 's' : ''}</p>
                       </div>
                       {teacherName ? (
-                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ml-2" style={{ background: '#F0FDF4', color: '#15803D' }}>
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ml-2" style={{ background: '#F0FDF4', color: '#145C44' }}>
                           {assignedLabel}
                         </span>
                       ) : (
@@ -834,7 +834,7 @@ export default function HodPage() {
                     </div>
                     {teacherName ? (
                       <div className="mt-3 pt-3 border-t border-[#F4EFE6]">
-                        <p className="text-xs font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">{roleLabel}</p>
+                        <p className="text-xs font-semibold text-[#8C7E6E] font-medium mb-1">{roleLabel}</p>
                         <p className="text-sm font-semibold text-[#2C2218]">{teacherName}</p>
                         <div className="flex gap-4 mt-1">
                           {teacherPhone && (
@@ -868,14 +868,14 @@ export default function HodPage() {
         {/* ── Teachers ── */}
         {tab === 'teachers' && (
           loadingTe ? <Spinner /> : teachers.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-[#E2D9CC] p-8 text-center">
+            <div className="bg-white rounded-xl border border-[#E2D9CC] p-8 text-center">
               <p className="text-sm text-[#8C7E6E]">No teachers found in this department.</p>
             </div>
           ) : (
             <>
             <div className="space-y-3">
               {(teacherRows as typeof teachers).map(t => (
-                <div key={t.id} className="bg-white rounded-2xl border border-[#E2D9CC] p-4 space-y-3">
+                <div key={t.id} className="bg-white rounded-xl border border-[#E2D9CC] p-4 space-y-3">
                   {/* Name row */}
                   <div className="flex items-start justify-between">
                     <div>
@@ -892,16 +892,16 @@ export default function HodPage() {
 
                   {/* Stats grid */}
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-xl px-3 py-2.5" style={{ background: t.outstanding_absences > 0 ? '#FEF2F2' : '#F8FAFC' }}>
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E6E]">Absences</p>
-                      <p className="text-lg font-bold mt-0.5" style={{ color: t.outstanding_absences > 0 ? '#B91C1C' : '#0F172A' }}>
+                    <div className="rounded-xl px-3 py-2.5" style={{ background: t.outstanding_absences > 0 ? '#FEF2F2' : '#F5F0E8' }}>
+                      <p className="text-[10px] font-bold font-medium text-[#8C7E6E]">Absences</p>
+                      <p className="text-lg font-bold mt-0.5" style={{ color: t.outstanding_absences > 0 ? '#B91C1C' : '#1C1208' }}>
                         {t.outstanding_absences}
                       </p>
                       <p className="text-[10px] text-[#94A3B8]">outstanding</p>
                     </div>
-                    <div className="rounded-xl px-3 py-2.5" style={{ background: t.pending_remedials > 0 ? '#FEF9C3' : '#F8FAFC' }}>
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E6E]">Remedials</p>
-                      <p className="text-lg font-bold mt-0.5" style={{ color: t.pending_remedials > 0 ? '#92400E' : '#0F172A' }}>
+                    <div className="rounded-xl px-3 py-2.5" style={{ background: t.pending_remedials > 0 ? '#FEF9C3' : '#F5F0E8' }}>
+                      <p className="text-[10px] font-bold font-medium text-[#8C7E6E]">Remedials</p>
+                      <p className="text-lg font-bold mt-0.5" style={{ color: t.pending_remedials > 0 ? '#92400E' : '#1C1208' }}>
                         {t.pending_remedials}
                       </p>
                       <p className="text-[10px] text-[#94A3B8]">pending</p>
@@ -909,10 +909,10 @@ export default function HodPage() {
                   </div>
 
                   {/* Assessments */}
-                  <div className="rounded-xl px-3 py-2.5 bg-[#F8FAFC]">
+                  <div className="rounded-xl px-3 py-2.5 bg-[#F0EBE1]">
                     <div className="flex items-center justify-between mb-1.5">
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E6E]">Assessments this term</p>
-                      <span className="text-xs font-bold text-[#0F172A]">
+                      <p className="text-[10px] font-bold font-medium text-[#8C7E6E]">Assessments this term</p>
+                      <span className="text-xs font-bold text-[#1C1208]">
                         {t.assessments_with_scores}/{t.assessments_total} scored
                       </span>
                     </div>
@@ -976,7 +976,7 @@ export default function HodPage() {
             </div>
 
             {loadingAb ? <Spinner /> : absences.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-[#E2D9CC] p-8 text-center">
+              <div className="bg-white rounded-xl border border-[#E2D9CC] p-8 text-center">
                 <p className="text-sm text-[#8C7E6E]">No absences found.</p>
               </div>
             ) : (
@@ -984,7 +984,7 @@ export default function HodPage() {
                 {(absRows as typeof absences).map(ab => {
                   const style = ABSENCE_STATUS_STYLE[ab.status] ?? { color: '#64748B', bg: '#F1F5F9' };
                   return (
-                    <div key={ab.id} className="bg-white rounded-2xl border border-[#E2D9CC] p-4">
+                    <div key={ab.id} className="bg-white rounded-xl border border-[#E2D9CC] p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-[#2C2218]">{ab.teacher_name}</p>

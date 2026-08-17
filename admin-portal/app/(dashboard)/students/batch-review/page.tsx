@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
@@ -105,7 +105,7 @@ export default function BatchYearReviewPage() {
     setSaving(null);
   }
 
-  const iCls = 'border rounded-lg px-3 py-1.5 text-sm w-28 text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-green-500 border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white';
+  const iCls = 'border rounded-lg px-3 py-1.5 text-sm w-28 text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-[#145C44] border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white';
 
   return (
     <div className="space-y-6">
@@ -127,7 +127,7 @@ export default function BatchYearReviewPage() {
       {/* Status message */}
       {msg && (
         <div className={`rounded-xl px-4 py-3 text-sm font-medium ${msg.type === 'ok'
-          ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800'
+          ? 'bg-[#E8F4EE] dark:bg-green-900/20 text-[#145C44] dark:text-[#2ab289] border border-[#B8D9C8] dark:border-green-800'
           : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800'
         }`}>
           {msg.text}
@@ -172,9 +172,9 @@ export default function BatchYearReviewPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-700/40">
-                    <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Class</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Students</th>
-                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Year Assigned</th>
+                    <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium">Class</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium">Students</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium">Year Assigned</th>
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -207,7 +207,7 @@ export default function BatchYearReviewPage() {
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-[#D1EAD9] dark:bg-green-900/40 text-[#145C44] dark:text-[#2ab289]">
                                 {g.dominantYear}
                               </span>
                               {multiYear && (
@@ -231,7 +231,7 @@ export default function BatchYearReviewPage() {
                               <button
                                 onClick={() => assignClass(g)}
                                 disabled={isSaving}
-                                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#145C44] text-white hover:bg-[#145C44] disabled:opacity-50 transition-colors"
                               >
                                 {isSaving ? 'Saving…' : 'Save'}
                               </button>

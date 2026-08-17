@@ -364,21 +364,21 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         // Desktop: static, always visible, original width
         'md:relative md:w-56 md:translate-x-0 md:z-auto',
       ].join(' ')}
-      style={{ backgroundColor: '#0F172A' }}
+      style={{ backgroundColor: '#0B3D2E' }}
     >
       {/* Logo */}
-      <div className="h-16 flex items-center px-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+      <div className="h-16 flex items-center px-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
         <div className="flex items-center gap-3">
           {logoUrl ? (
             <img src={logoUrl} alt="School logo" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
           ) : (
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#15803D' }}>
-              <span className="text-white text-sm font-bold">C</span>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#C8973A' }}>
+              <span className="text-sm font-bold" style={{ color: '#0B3D2E' }}>C</span>
             </div>
           )}
           <div>
             <p className="text-white text-sm font-bold leading-tight">CAS Admin</p>
-            <p className="text-xs leading-tight" style={{ color: '#64748B' }}>Portal</p>
+            <p className="text-xs leading-tight" style={{ color: 'rgba(200,151,58,0.65)' }}>Portal</p>
           </div>
         </div>
       </div>
@@ -387,8 +387,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       <nav className="flex-1 overflow-y-auto no-scrollbar py-4 px-3">
         {visibleSections.map((section, si) => (
           <div key={section.label} className={si > 0 ? 'mt-5' : ''}>
-            <p className="px-3 text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: '#334155' }}>
-              {section.label}
+            <p className="px-3 text-[10px] font-bold mb-1.5" style={{ color: 'rgba(200,151,58,0.5)', letterSpacing: '0.06em' }}>
+              {section.label.toUpperCase()}
             </p>
             {section.items.map(({ href, label, icon }) => {
               const allHrefs = visibleSections.flatMap(s => s.items.map(i => i.href));
@@ -401,15 +401,17 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                   onClick={onClose}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium mb-0.5 transition-all"
                   style={{
-                    backgroundColor: active ? 'rgba(21,128,61,0.15)' : 'transparent',
-                    color: active ? '#4ADE80' : '#94A3B8',
+                    backgroundColor: active ? 'rgba(200,151,58,0.15)' : 'transparent',
+                    color: active ? '#C8973A' : 'rgba(255,255,255,0.55)',
                   }}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-[17px] h-[17px] flex-shrink-0">
                     {icon}
                   </svg>
                   <span className="truncate">{label}</span>
-                  {active && <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0 bg-green-400" />}
+                  {active && (
+                    <span className="ml-auto w-1 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#C8973A' }} />
+                  )}
                 </Link>
               );
             })}
@@ -418,16 +420,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-        <p className="text-[10px] text-center font-medium tracking-wide" style={{ color: '#475569' }}>
+      <div className="px-4 py-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+        <p className="text-[10px] text-center font-medium" style={{ color: 'rgba(255,255,255,0.3)' }}>
           Classroom Attendance System
         </p>
-        <div className="mt-2.5 pt-2.5 border-t text-center" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
-          <p className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: '#334155' }}>
-            Designed by
-          </p>
-          <p className="text-[11px] font-bold mt-0.5" style={{ color: '#4ADE80' }}>LatexTech</p>
-          <p className="text-[9px] mt-0.5" style={{ color: '#475569' }}>+233 24 8234 649</p>
+        <div className="mt-2.5 pt-2.5 border-t text-center" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+          <p className="text-[9px] font-semibold" style={{ color: 'rgba(200,151,58,0.5)', letterSpacing: '0.08em' }}>DESIGNED BY</p>
+          <p className="text-[11px] font-bold mt-0.5" style={{ color: '#C8973A' }}>LatexTech</p>
+          <p className="text-[9px] mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>+233 24 8234 649</p>
         </div>
       </div>
     </aside>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { studentApi } from '@/lib/student-api';
@@ -171,7 +171,7 @@ export default function StudentLibraryPage() {
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${b.available_copies > 0 ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400'}`}>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${b.available_copies > 0 ? 'bg-[#E8F4EE] dark:bg-green-900/30 text-[#145C44] dark:text-[#2ab289]' : 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400'}`}>
                       {b.available_copies > 0 ? `${b.available_copies} available` : 'All out'}
                     </span>
                     <p className="text-xs text-slate-400 mt-1">{b.total_copies} total</p>
@@ -191,7 +191,7 @@ export default function StudentLibraryPage() {
       {tab === 'my-loans' && (
         <div className="space-y-4">
           {renewMsg && (
-            <div className={`rounded-xl border px-4 py-3 text-sm font-semibold flex justify-between ${renewMsg.startsWith('Loan renewed') ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
+            <div className={`rounded-xl border px-4 py-3 text-sm font-semibold flex justify-between ${renewMsg.startsWith('Loan renewed') ? 'border-[#B8D9C8] bg-[#E8F4EE] text-[#0B3D2E]' : 'border-red-200 bg-red-50 text-red-700'}`}>
               {renewMsg}
               <button onClick={() => setRenewMsg('')} className="opacity-50 hover:opacity-100">×</button>
             </div>
@@ -202,7 +202,7 @@ export default function StudentLibraryPage() {
             <>
               {activeLoans.length > 0 && (
                 <div>
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Active Loans</h2>
+                  <h2 className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400 mb-2">Active Loans</h2>
                   <div className="space-y-3">
                     {(activeRows as typeof activeLoans).map(l => (
                       <div key={l.id} className={`bg-white dark:bg-slate-800 rounded-xl border p-4 ${l.is_overdue ? 'border-red-200 dark:border-red-900' : 'border-slate-100 dark:border-slate-700'}`}>
@@ -234,7 +234,7 @@ export default function StudentLibraryPage() {
                           </div>
                         </div>
                         {l.fine_amount > 0 && (
-                          <p className={`text-xs font-semibold mt-2 ${l.fine_waived ? 'text-green-600 dark:text-green-400' : l.fine_paid ? 'text-slate-500 dark:text-slate-400' : 'text-red-600 dark:text-red-400'}`}>
+                          <p className={`text-xs font-semibold mt-2 ${l.fine_waived ? 'text-[#145C44] dark:text-[#2ab289]' : l.fine_paid ? 'text-slate-500 dark:text-slate-400' : 'text-red-600 dark:text-red-400'}`}>
                             Fine: GH₵ {l.fine_amount.toFixed(2)} {l.fine_waived ? '(waived)' : l.fine_paid ? '(paid)' : '(unpaid — please visit the library)'}
                           </p>
                         )}
@@ -247,7 +247,7 @@ export default function StudentLibraryPage() {
 
               {returnedLoans.length > 0 && (
                 <div>
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Return History</h2>
+                  <h2 className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400 mb-2">Return History</h2>
                   <div className="space-y-2">
                     {(retRows as typeof returnedLoans).map(l => (
                       <div key={l.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-3 flex justify-between items-center gap-2">

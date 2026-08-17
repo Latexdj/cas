@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -43,7 +43,6 @@ export default function AbsencesPage() {
 
   const cards = [
     {
-      icon: '⚠️',
       title: 'Class Absences',
       count: classCount,
       subtitle: classCount === 1 ? 'unresolved absence' : 'unresolved absences',
@@ -51,7 +50,6 @@ export default function AbsencesPage() {
       href: '/teacher/absences/list',
     },
     {
-      icon: '🤝',
       title: 'Meeting Absences',
       count: meetingCount,
       subtitle: meetingCount === 1 ? 'recorded absence' : 'recorded absences',
@@ -59,7 +57,6 @@ export default function AbsencesPage() {
       href: '/teacher/absences/meetings',
     },
     {
-      icon: '👥',
       title: 'PLC Absences',
       count: plcCount,
       subtitle: plcCount === 1 ? 'recorded absence' : 'recorded absences',
@@ -67,7 +64,6 @@ export default function AbsencesPage() {
       href: '/teacher/absences/plc',
     },
     {
-      icon: '📅',
       title: 'Remedial Lessons',
       count: remedialCount,
       subtitle: remedialCount === 1 ? 'lesson scheduled' : 'lessons scheduled',
@@ -86,15 +82,15 @@ export default function AbsencesPage() {
       {loading ? (
         <div className="space-y-4">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="bg-white rounded-2xl h-32 animate-pulse border border-[#E2D9CC]" />
+            <div key={i} className="bg-white rounded-xl h-32 animate-pulse border border-[#E2D9CC]" />
           ))}
         </div>
       ) : (
         <div className="space-y-4">
           {cards.map(card => (
-            <div key={card.title} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-5">
+            <div key={card.title} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-5">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E]">{card.title}</p>
+                <p className="text-xs font-bold font-medium text-[#8C7E6E]">{card.title}</p>
                 <span className="text-xl">{card.icon}</span>
               </div>
               <div className="flex items-end gap-3 mb-4">

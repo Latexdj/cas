@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -87,7 +87,7 @@ function ScoresContent() {
         } catch { /* non-fatal */ }
       }
     } catch {
-      setError('Failed to load scores.');
+      setError('Could not load scores.');
     } finally {
       setLoading(false);
     }
@@ -228,7 +228,7 @@ function ScoresContent() {
           <p className="text-xs text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-2">{error}</p>
         )}
         {saved && (
-          <p className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2 mb-2">✓ Scores saved.</p>
+          <p className="text-xs font-semibold text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-2 mb-2">Scores saved.</p>
         )}
         {subLocked && (
           <div style={{ background: '#DBEAFE', border: '1px solid #93C5FD', borderRadius: 10, padding: '10px 14px', marginBottom: 8, fontSize: 13, color: '#1E40AF', fontWeight: 500 }}>
@@ -241,7 +241,7 @@ function ScoresContent() {
       <div className="px-4 space-y-2" style={subLocked ? { opacity: 0.6, pointerEvents: 'none' } : undefined}>
         {loading ? (
           <>
-            {[1, 2, 3, 4, 5].map(i => <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-14 animate-pulse" />)}
+            {[1, 2, 3, 4, 5].map(i => <div key={i} className="bg-white rounded-xl border border-[#E2D9CC] h-14 animate-pulse" />)}
           </>
         ) : rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -253,7 +253,7 @@ function ScoresContent() {
             return (
               <div
                 key={row.student_id}
-                className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm flex items-center px-3 py-2.5 gap-3"
+                className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm flex items-center px-3 py-2.5 gap-3"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-[#2C2218] truncate">{row.name}</p>
@@ -312,7 +312,7 @@ function ScoresContent() {
           <button
             onClick={save}
             disabled={subLocked || saving}
-            className="w-full max-w-sm px-6 py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-60 transition-opacity shadow-sm"
+            className="w-full max-w-sm px-6 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-60 transition-opacity shadow-sm"
             style={{ background: primary }}
           >
             {saving ? 'Saving…' : rows.some(r => r.score_id !== null) ? 'Save Changes' : 'Save Scores'}
@@ -323,8 +323,8 @@ function ScoresContent() {
 
       {/* Upload result modal */}
       {uploadResult && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 px-4 pb-6">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-5">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0B3D2E]/35 px-4 pb-6">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold text-[#2C2218]">Upload Results</h2>
               <button
@@ -338,11 +338,11 @@ function ScoresContent() {
             </div>
 
             <div className="space-y-2 mb-3">
-              <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2">
-                <span className="text-green-700 font-bold text-sm">{uploadResult.saved} score{uploadResult.saved !== 1 ? 's' : ''} saved</span>
+              <div className="bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-2">
+                <span className="text-[#145C44] font-bold text-sm">{uploadResult.saved} score{uploadResult.saved !== 1 ? 's' : ''} saved</span>
               </div>
               {uploadResult.skipped > 0 && (
-                <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                <div className="bg-[#F5F0E8] border border-gray-200 rounded-xl px-3 py-2">
                   <span className="text-gray-600 text-sm">{uploadResult.skipped} row{uploadResult.skipped !== 1 ? 's' : ''} skipped (empty)</span>
                 </div>
               )}

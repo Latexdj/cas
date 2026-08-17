@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -17,7 +17,7 @@ function fmtDate(d: string | null) {
 
 const inputCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900'
   + ' focus:outline-none focus:ring-2 focus:ring-green-600 dark:border-slate-600 dark:bg-slate-700 dark:text-white';
-const labelCls = 'block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1';
+const labelCls = 'block text-xs font-semibold font-medium text-slate-500 mb-1';
 
 const SEM_NAMES: Record<number, string> = { 1: 'First Semester', 2: 'Second Semester' };
 
@@ -103,11 +103,11 @@ export default function AcademicYearsPage() {
             <thead className="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-100 dark:border-slate-700">
               <tr>
                 <Th label="Year" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
-                  className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Start</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">End</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Semester</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                  className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium" />
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">Start</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">End</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">Semester</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">Status</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -189,7 +189,7 @@ function YearRows({ year, expanded, onToggleExpand, onEdit, onDelete, onRefresh 
         <td className="px-4 py-3 text-gray-600 dark:text-slate-400">Semester {year.current_semester ?? '—'}</td>
         <td className="px-4 py-3">
           {year.is_current
-            ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">Current</span>
+            ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#D1EAD9] text-[#145C44]">Current</span>
             : null}
         </td>
         <td className="px-4 py-3">
@@ -276,10 +276,10 @@ function SemesterPanel({ yearId, onRefresh: _onRefresh }: { yearId: string; onRe
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Semesters</p>
+        <p className="text-xs font-bold font-medium text-slate-400">Semesters</p>
         {!adding && (
           <button onClick={startAdd}
-            className="text-xs font-semibold text-green-600 hover:text-green-800 px-2 py-1 rounded hover:bg-green-50 dark:hover:bg-green-900/20">
+            className="text-xs font-semibold text-[#145C44] hover:text-[#0B3D2E] px-2 py-1 rounded hover:bg-[#E8F4EE] dark:hover:bg-green-900/20">
             + Add Semester
           </button>
         )}
@@ -323,7 +323,7 @@ function SemesterPanel({ yearId, onRefresh: _onRefresh }: { yearId: string; onRe
             </button>
             <button onClick={save} disabled={saving}
               className="text-xs font-semibold text-white px-3 py-1.5 rounded disabled:opacity-60"
-              style={{ backgroundColor: '#15803D' }}>
+              style={{ backgroundColor: '#145C44' }}>
               {saving ? 'Saving…' : editId ? 'Update' : 'Add Semester'}
             </button>
           </div>

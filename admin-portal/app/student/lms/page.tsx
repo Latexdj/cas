@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -113,7 +113,7 @@ export default function LMSCoursesPage() {
                   <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ color: '#8B5CF6', background: '#8B5CF618' }}>
                     {course.assignment_count} Assignments
                   </span>
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ color: '#10B981', background: '#10B98118' }}>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ color: '#145C44', background: '#145C4418' }}>
                     {course.quiz_count} Quizzes
                   </span>
                 </div>

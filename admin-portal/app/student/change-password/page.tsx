@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -44,10 +44,10 @@ export default function StudentChangePasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-10 bg-slate-50">
+    <div className="min-h-screen flex items-center justify-center px-4 py-10 bg-[#F5F0E8]">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: primary }}>
+          <div className="w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-4" style={{ background: primary }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0110 0v4" />
@@ -57,10 +57,10 @@ export default function StudentChangePasswordPage() {
           <p className="text-sm text-slate-500 mt-1">You must change your password before continuing.</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5">Current Password</label>
+              <label className="text-xs font-bold font-medium text-slate-500 block mb-1.5">Current Password</label>
               <input
                 type="password" value={current}
                 onChange={e => { setCurrent(e.target.value); setError(''); }}
@@ -70,7 +70,7 @@ export default function StudentChangePasswordPage() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5">New Password</label>
+              <label className="text-xs font-bold font-medium text-slate-500 block mb-1.5">New Password</label>
               <input
                 type="password" value={next}
                 onChange={e => { setNext(e.target.value); setError(''); }}
@@ -79,7 +79,7 @@ export default function StudentChangePasswordPage() {
               />
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5">Confirm New Password</label>
+              <label className="text-xs font-bold font-medium text-slate-500 block mb-1.5">Confirm New Password</label>
               <input
                 type="password" value={confirm}
                 onChange={e => { setConfirm(e.target.value); setError(''); }}

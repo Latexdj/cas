@@ -97,8 +97,8 @@ function SessionFormModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-5 border-b border-slate-100">
           <h3 className="text-lg font-bold text-slate-800">{initial?.id ? 'Edit PLC Session' : 'New PLC Session'}</h3>
         </div>
@@ -106,7 +106,7 @@ function SessionFormModal({
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">Session Title</label>
             <input
-              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]"
               placeholder="e.g. Weekly PLC Meeting"
               value={title} onChange={e => setTitle(e.target.value)}
             />
@@ -115,7 +115,7 @@ function SessionFormModal({
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Day of Week</label>
               <select
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]"
                 value={dayOfWeek} onChange={e => setDayOfWeek(Number(e.target.value))}
               >
                 {DAYS.slice(1).map((d, i) => <option key={i + 1} value={i + 1}>{d}</option>)}
@@ -124,7 +124,7 @@ function SessionFormModal({
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Location / Venue</label>
               <select
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]"
                 value={locationId} onChange={e => setLocationId(e.target.value)}
               >
                 <option value="">Select location…</option>
@@ -135,23 +135,23 @@ function SessionFormModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Start Time</label>
-              <input type="time" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={startTime} onChange={e => setStartTime(e.target.value)} />
+              <input type="time" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]" value={startTime} onChange={e => setStartTime(e.target.value)} />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">End Time</label>
-              <input type="time" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={endTime} onChange={e => setEndTime(e.target.value)} />
+              <input type="time" className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]" value={endTime} onChange={e => setEndTime(e.target.value)} />
             </div>
           </div>
           {initial?.id && (
             <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-              <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="w-4 h-4 accent-green-600" />
+              <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} className="w-4 h-4 accent-[#145C44]" />
               Active (visible to teachers)
             </label>
           )}
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
           <div className="flex gap-3 pt-1">
             <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
-            <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60" style={{ backgroundColor: '#15803D' }}>
+            <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60" style={{ backgroundColor: '#145C44' }}>
               {saving ? 'Saving…' : 'Save Session'}
             </button>
           </div>
@@ -164,8 +164,8 @@ function SessionFormModal({
 function PhotoModal({ record, onClose }: { record: PlcAttendanceRecord; onClose: () => void }) {
   const mapsUrl = record.gps_coordinates ? `https://www.google.com/maps?q=${record.gps_coordinates}` : null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden" onClick={e => e.stopPropagation()}>
         {record.photo_url
           ? <img src={record.photo_url} alt="PLC photo" className="w-full max-h-80 object-cover" />
           : <div className="w-full h-48 bg-slate-100 flex items-center justify-center text-slate-400">No photo</div>}
@@ -176,19 +176,19 @@ function PhotoModal({ record, onClose }: { record: PlcAttendanceRecord; onClose:
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Teacher</p>
+              <p className="text-xs font-semibold font-medium text-slate-400 mb-1">Teacher</p>
               <p className="text-slate-800 font-medium">{record.teacher_name}</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Date</p>
+              <p className="text-xs font-semibold font-medium text-slate-400 mb-1">Date</p>
               <p className="text-slate-800 font-medium">{record.date}</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Venue</p>
+              <p className="text-xs font-semibold font-medium text-slate-400 mb-1">Venue</p>
               <p className="text-slate-800 font-medium">{record.location_name}</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">GPS</p>
+              <p className="text-xs font-semibold font-medium text-slate-400 mb-1">GPS</p>
               {mapsUrl
                 ? <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium break-all">{record.gps_coordinates}</a>
                 : <span className="text-slate-400">—</span>}
@@ -333,7 +333,7 @@ export default function PlcPage() {
 
   const tabClass = (t: Tab) =>
     `px-5 py-2.5 text-sm font-semibold rounded-xl transition-all ${tab === t ? 'text-white shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`;
-  const tabStyle = (t: Tab) => tab === t ? { backgroundColor: '#15803D' } : {};
+  const tabStyle = (t: Tab) => tab === t ? { backgroundColor: '#145C44' } : {};
 
   return (
     <div className="space-y-6">
@@ -347,7 +347,7 @@ export default function PlcPage() {
           <button
             onClick={() => setEditSession({})}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm"
-            style={{ backgroundColor: '#15803D' }}
+            style={{ backgroundColor: '#145C44' }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             New Session
@@ -356,7 +356,7 @@ export default function PlcPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 bg-slate-50 rounded-2xl p-1.5 w-fit">
+      <div className="flex gap-2 bg-slate-50 rounded-xl p-1.5 w-fit">
         {(['sessions', 'attendance', 'absences'] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)} className={tabClass(t)} style={tabStyle(t)}>
             {t === 'sessions' ? 'Sessions' : t === 'attendance' ? 'Attendance' : 'Absences'}
@@ -368,34 +368,34 @@ export default function PlcPage() {
       {tab !== 'sessions' && (
         <form onSubmit={search} className="flex flex-wrap gap-3 items-end">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">From</label>
-            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+            <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">From</label>
+            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">To</label>
-            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+            <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">To</label>
+            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]" value={dateTo} onChange={e => setDateTo(e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Teacher</label>
-            <select className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={teacherId} onChange={e => setTeacherId(e.target.value)}>
+            <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">Teacher</label>
+            <select className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]" value={teacherId} onChange={e => setTeacherId(e.target.value)}>
               <option value="">All teachers</option>
               {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
-          <button type="submit" className="px-5 py-2 rounded-xl text-sm font-semibold text-white" style={{ backgroundColor: '#15803D' }}>Search</button>
+          <button type="submit" className="px-5 py-2 rounded-xl text-sm font-semibold text-white" style={{ backgroundColor: '#145C44' }}>Search</button>
           <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setTeacherId(''); }} className="px-5 py-2 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">Reset</button>
         </form>
       )}
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : (
         <>
           {/* ── Sessions ── */}
           {tab === 'sessions' && (
-            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
               {sessions.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 text-sm">No PLC sessions configured. Click <strong>New Session</strong> to create one.</div>
               ) : (
@@ -403,13 +403,13 @@ export default function PlcPage() {
                 <table className="min-w-[750px] w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100">
-                      <Th label="Title" sortKey="title" currentKey={seSortKey} currentDir={seSortDir} onSort={seHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Day</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Time</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Venue</th>
-                      <Th label="Status" sortKey="is_active" currentKey={seSortKey} currentDir={seSortDir} onSort={seHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">QR</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400"></th>
+                      <Th label="Title" sortKey="title" currentKey={seSortKey} currentDir={seSortDir} onSort={seHandleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Day</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Time</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Venue</th>
+                      <Th label="Status" sortKey="is_active" currentKey={seSortKey} currentDir={seSortDir} onSort={seHandleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">QR</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -420,15 +420,15 @@ export default function PlcPage() {
                         <td className="px-4 py-3 text-slate-600">{s.start_time?.slice(0,5)} – {s.end_time?.slice(0,5)}</td>
                         <td className="px-4 py-3 text-slate-600">
                           {s.location_name}
-                          {s.has_coordinates && <span className="ml-2 text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded">GPS</span>}
+                          {s.has_coordinates && <span className="ml-2 text-[10px] font-bold text-[#145C44] bg-[#D1EAD9] px-1.5 py-0.5 rounded">GPS</span>}
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${s.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${s.is_active ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-slate-100 text-slate-500'}`}>
                             {s.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <button onClick={() => openQr(s)} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                          <button onClick={() => openQr(s)} className="text-xs font-semibold text-[#145C44] hover:text-[#1E3A8A] flex items-center gap-1">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-3.5 h-3.5"><rect x="3" y="3" width="5" height="5" rx="1" strokeWidth={1.8} /><rect x="16" y="3" width="5" height="5" rx="1" strokeWidth={1.8} /><rect x="3" y="16" width="5" height="5" rx="1" strokeWidth={1.8} /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 10h5M16 14h3M21 14v5M10 3v5M10 16v5M3 10h5M10 10h.01" /></svg>
                             QR Code
                           </button>
@@ -454,7 +454,7 @@ export default function PlcPage() {
 
           {/* ── Attendance ── */}
           {tab === 'attendance' && (
-            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
               <div className="px-5 py-3 border-b border-slate-50 flex items-center justify-between">
                 <p className="text-sm font-semibold text-slate-600">{plcAttTotal} record{plcAttTotal !== 1 ? 's' : ''}</p>
               </div>
@@ -465,14 +465,14 @@ export default function PlcPage() {
                 <table className="min-w-[900px] w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100">
-                      <Th label="Date" sortKey="date" currentKey={plcAttSortKey} currentDir={plcAttSortDir} onSort={plcAttHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-                      <Th label="Teacher" sortKey="teacher_name" currentKey={plcAttSortKey} currentDir={plcAttSortDir} onSort={plcAttHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Session</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Venue</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">GPS</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Agenda</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Photo</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400"></th>
+                      <Th label="Date" sortKey="date" currentKey={plcAttSortKey} currentDir={plcAttSortDir} onSort={plcAttHandleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+                      <Th label="Teacher" sortKey="teacher_name" currentKey={plcAttSortKey} currentDir={plcAttSortDir} onSort={plcAttHandleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Session</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Venue</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">GPS</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Agenda</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Photo</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -483,7 +483,7 @@ export default function PlcPage() {
                         <td className="px-4 py-3 text-slate-600">{r.session_title}</td>
                         <td className="px-4 py-3 text-slate-600">
                           {r.location_name}
-                          {r.location_verified && <span className="ml-1.5 text-[10px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded">✓</span>}
+                          {r.location_verified && <span className="ml-1.5 text-[10px] font-bold text-[#145C44] bg-[#D1EAD9] px-1.5 py-0.5 rounded">✓</span>}
                         </td>
                         <td className="px-4 py-3">
                           {r.gps_coordinates
@@ -493,7 +493,7 @@ export default function PlcPage() {
                         <td className="px-4 py-3 text-slate-600 max-w-[160px] truncate">{r.agenda || <span className="text-slate-300">—</span>}</td>
                         <td className="px-4 py-3">
                           {r.photo_url
-                            ? <button onClick={() => setPhotoRecord(r)} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800">View</button>
+                            ? <button onClick={() => setPhotoRecord(r)} className="text-xs font-semibold text-[#145C44] hover:text-[#1E3A8A]">View</button>
                             : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-4 py-3">
@@ -514,7 +514,7 @@ export default function PlcPage() {
 
           {/* ── Absences ── */}
           {tab === 'absences' && (
-            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
               <div className="px-5 py-3 border-b border-slate-50">
                 <p className="text-sm font-semibold text-slate-600">{plcAbsTotal} absence{plcAbsTotal !== 1 ? 's' : ''}</p>
               </div>
@@ -525,12 +525,12 @@ export default function PlcPage() {
                 <table className="min-w-[700px] w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100">
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Date</th>
-                      <Th label="Teacher" sortKey="teacher_name" currentKey={plcAbsSortKey} currentDir={plcAbsSortDir} onSort={plcAbsHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Session</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Time</th>
-                      <Th label="Status" sortKey="status" currentKey={plcAbsSortKey} currentDir={plcAbsSortDir} onSort={plcAbsHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400"></th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Date</th>
+                      <Th label="Teacher" sortKey="teacher_name" currentKey={plcAbsSortKey} currentDir={plcAbsSortDir} onSort={plcAbsHandleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Session</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Time</th>
+                      <Th label="Status" sortKey="status" currentKey={plcAbsSortKey} currentDir={plcAbsSortDir} onSort={plcAbsHandleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -575,8 +575,8 @@ export default function PlcPage() {
 
       {/* QR modal */}
       {qrSession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => { setQrSession(null); setQrDataUrl(null); }}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4" onClick={() => { setQrSession(null); setQrDataUrl(null); }}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-800">PLC Venue QR Code</h3>
               <p className="text-sm text-slate-500 mt-0.5">{qrSession.title} — {qrSession.location_name}</p>
@@ -584,7 +584,7 @@ export default function PlcPage() {
             <div className="p-6 flex flex-col items-center gap-4">
               {qrLoading ? (
                 <div className="w-60 h-60 flex items-center justify-center">
-                  <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                  <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
                 </div>
               ) : qrDataUrl ? (
                 <img src={qrDataUrl} alt="PLC QR code" className="w-60 h-60 rounded-xl border border-slate-100" />
@@ -597,7 +597,7 @@ export default function PlcPage() {
                   href={qrDataUrl}
                   download={`plc-qr-${qrSession.location_name}.png`}
                   className="w-full text-center py-2.5 rounded-xl text-sm font-semibold text-white"
-                  style={{ backgroundColor: '#15803D' }}
+                  style={{ backgroundColor: '#145C44' }}
                 >
                   Download PNG
                 </a>

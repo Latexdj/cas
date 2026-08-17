@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import Image from 'next/image';
 import { api } from '@/lib/api';
@@ -260,7 +260,7 @@ export default function DepartmentsPage() {
       ) : departments.length === 0 ? (
         <div className="text-center py-16 rounded-xl border border-dashed border-slate-200 bg-white">
           <p className="text-slate-400 text-sm">No departments yet.</p>
-          <button onClick={openCreate} className="mt-3 text-sm text-green-700 font-semibold hover:underline">Add your first department</button>
+          <button onClick={openCreate} className="mt-3 text-sm text-[#145C44] font-semibold hover:underline">Add your first department</button>
         </div>
       ) : (<>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -269,8 +269,8 @@ export default function DepartmentsPage() {
               {/* Header */}
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#15803D" strokeWidth={2} className="w-5 h-5">
+                  <div className="w-9 h-9 rounded-lg bg-[#D1EAD9] flex items-center justify-center shrink-0">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#145C44" strokeWidth={2} className="w-5 h-5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" />
                     </svg>
                   </div>
@@ -300,7 +300,7 @@ export default function DepartmentsPage() {
 
               {/* HOD section */}
               <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2.5">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Head of Department</p>
+                <p className="text-xs font-semibold text-slate-500 font-medium mb-2">Head of Department</p>
                 {dept.head_teacher_id ? (
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
@@ -315,10 +315,10 @@ export default function DepartmentsPage() {
                         <p className="text-xs text-slate-400 font-mono">{dept.head_code}</p>
                       </div>
                     </div>
-                    <button onClick={() => openAssignHead(dept)} className="text-xs text-green-700 font-semibold hover:underline shrink-0">Change</button>
+                    <button onClick={() => openAssignHead(dept)} className="text-xs text-[#145C44] font-semibold hover:underline shrink-0">Change</button>
                   </div>
                 ) : (
-                  <button onClick={() => openAssignHead(dept)} className="text-sm text-green-700 font-semibold hover:underline">
+                  <button onClick={() => openAssignHead(dept)} className="text-sm text-[#145C44] font-semibold hover:underline">
                     + Assign HOD
                   </button>
                 )}
@@ -491,7 +491,7 @@ export default function DepartmentsPage() {
                       <p className="text-sm font-medium text-slate-800 truncate flex items-center gap-1.5">
                         {t.name}
                         {t.is_head && (
-                          <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">HOD</span>
+                          <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-[#D1EAD9] text-[#145C44]">HOD</span>
                         )}
                       </p>
                       <p className="text-xs text-slate-400 font-mono">{t.teacher_code}</p>
@@ -550,10 +550,10 @@ export default function DepartmentsPage() {
                   {/* Subjects in this department */}
                   {mySubjects.length > 0 && (
                     <div>
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Assigned to {modal.dept.name}</p>
-                      <div className="rounded-xl border border-green-200 divide-y divide-green-50 overflow-hidden">
+                      <p className="text-xs font-semibold text-slate-500 font-medium mb-1.5">Assigned to {modal.dept.name}</p>
+                      <div className="rounded-xl border border-[#B8D9C8] divide-y divide-green-50 overflow-hidden">
                         {mySubjects.map(s => (
-                          <div key={s.subject} className="flex items-center justify-between px-3 py-2 bg-green-50">
+                          <div key={s.subject} className="flex items-center justify-between px-3 py-2 bg-[#E8F4EE]">
                             <span className="text-sm font-medium text-slate-800">{s.subject}</span>
                             <button
                               onClick={() => handleRemoveSubject(s.subject, modal.dept.id)}
@@ -570,7 +570,7 @@ export default function DepartmentsPage() {
                   {/* Other timetable subjects */}
                   {otherSubjects.length > 0 && (
                     <div>
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Other Timetable Subjects</p>
+                      <p className="text-xs font-semibold text-slate-500 font-medium mb-1.5">Other Timetable Subjects</p>
                       <div className="rounded-xl border border-slate-200 divide-y divide-slate-50 overflow-hidden">
                         {otherSubjects.map(s => (
                           <div key={s.subject} className="flex items-center justify-between px-3 py-2 hover:bg-slate-50">
@@ -585,7 +585,7 @@ export default function DepartmentsPage() {
                                 if (s.department_name && !confirm(`Move "${s.subject}" from ${s.department_name} to ${modal.dept.name}?`)) return;
                                 await handleAssignSubject(s.subject, modal.dept.id);
                               }}
-                              className="text-xs text-green-700 hover:text-green-900 font-semibold shrink-0 ml-2"
+                              className="text-xs text-[#145C44] hover:text-green-900 font-semibold shrink-0 ml-2"
                             >
                               {s.department_name ? 'Move here' : 'Assign here'}
                             </button>

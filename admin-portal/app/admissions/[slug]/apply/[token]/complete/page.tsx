@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { publicApi } from '@/lib/api';
@@ -184,7 +184,7 @@ export default function CompletePage() {
   );
 
   const primary = app.school.portal_primary_color || '#16A34A';
-  const accent  = app.school.portal_accent_color  || '#15803D';
+  const accent  = app.school.portal_accent_color  || '#145C44';
   const { r, g, b } = hexToRgb(primary);
   const statusLabel = { completed: 'Submitted', reported: 'Reported to school', migrated: 'Enrolled' }[app.status] ?? app.status;
 
@@ -210,13 +210,13 @@ export default function CompletePage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <p className="text-white/70 text-sm font-bold uppercase tracking-widest mb-2">Application {statusLabel}</p>
+          <p className="text-white/70 text-sm font-bold font-medium mb-2">Application {statusLabel}</p>
           <h1 className="text-3xl md:text-4xl font-black text-white">Congratulations, {app.full_name.split(' ')[0]}!</h1>
           <p className="mt-3 text-white/75 text-base max-w-md mx-auto">Your application has been received. Please save your admission number and download your documents below.</p>
 
           {/* Admission number badge */}
           <div className="mt-8 inline-flex flex-col items-center gap-1 px-8 py-4 rounded-3xl bg-white/15 backdrop-blur-sm border border-white/25 shadow-2xl">
-            <p className="text-white/60 text-xs font-bold uppercase tracking-widest">Your Admission Number</p>
+            <p className="text-white/60 text-xs font-bold font-medium">Your Admission Number</p>
             <p className="text-3xl font-black font-mono text-white tracking-widest">{app.admission_number}</p>
             <button onClick={() => navigator.clipboard.writeText(app.admission_number)} className="text-white/50 text-xs hover:text-white/80 transition-colors mt-1 flex items-center gap-1">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
@@ -232,8 +232,8 @@ export default function CompletePage() {
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="flex items-center gap-4 p-6 border-b border-slate-100">
             {app.picture_url
-              ? <img src={app.picture_url} alt="Photo" className="w-20 h-20 rounded-2xl object-cover border border-slate-200 shadow-sm flex-shrink-0" />
-              : <div className="w-20 h-20 rounded-2xl bg-slate-100 flex items-center justify-center flex-shrink-0 text-2xl font-black text-slate-300">{app.full_name[0]}</div>
+              ? <img src={app.picture_url} alt="Photo" className="w-20 h-20 rounded-xl object-cover border border-slate-200 shadow-sm flex-shrink-0" />
+              : <div className="w-20 h-20 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0 text-2xl font-black text-slate-300">{app.full_name[0]}</div>
             }
             <div className="min-w-0">
               <p className="font-black text-xl text-slate-900">{app.full_name}</p>
@@ -255,7 +255,7 @@ export default function CompletePage() {
               ['Guardian Mobile',  app.guardian_mobile],
             ].filter(([,v]) => v).map(([label, val]) => (
               <div key={String(label)}>
-                <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold">{label}</p>
+                <p className="text-xs text-slate-400 font-medium font-semibold">{label}</p>
                 <p className="font-bold text-slate-800 mt-0.5 text-sm">{val}</p>
               </div>
             ))}
@@ -267,7 +267,7 @@ export default function CompletePage() {
           <button onClick={generateAdmissionLetter} disabled={downloading}
             className="flex items-center gap-3 p-4 rounded-3xl text-white font-bold shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-70"
             style={{ background: `linear-gradient(135deg,${primary},${accent})` }}>
-            <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
@@ -281,7 +281,7 @@ export default function CompletePage() {
           {prospectusUrl ? (
             <a href={prospectusUrl} target="_blank"
               className="flex items-center gap-3 p-4 rounded-3xl font-bold bg-white border-2 border-slate-200 hover:border-slate-300 shadow-sm transition-all duration-200 hover:-translate-y-0.5">
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
                 <svg className="w-5 h-5" style={{ color: primary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
@@ -293,7 +293,7 @@ export default function CompletePage() {
             </a>
           ) : (
             <div className="flex items-center gap-3 p-4 rounded-3xl bg-slate-50 border border-slate-200">
-              <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
                 <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
@@ -328,7 +328,7 @@ export default function CompletePage() {
 
         {/* Important notice */}
         <div className="flex items-start gap-3 p-5 rounded-3xl bg-amber-50 border border-amber-200">
-          <div className="w-9 h-9 rounded-2xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
             <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>

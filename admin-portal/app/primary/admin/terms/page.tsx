@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -35,7 +35,7 @@ export default function PrimaryTermsPage() {
     try {
       const { data } = await api.get<Term[]>(`/api/primary/terms?academic_year_id=${yearId}`);
       setTerms(data);
-    } catch { setError('Failed to load terms.'); }
+    } catch { setError('Could not load terms.'); }
     finally { setLoading(false); }
   }, [yearId]);
 
@@ -87,7 +87,7 @@ export default function PrimaryTermsPage() {
           <h1 className="text-xl font-bold text-slate-900">Terms</h1>
           <p className="text-sm text-slate-500 mt-0.5">Manage the three terms per academic year.</p>
         </div>
-        <button onClick={openAdd} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#15803D' }}>
+        <button onClick={openAdd} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#145C44' }}>
           + Add Term
         </button>
       </div>
@@ -104,7 +104,7 @@ export default function PrimaryTermsPage() {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : (
         <div className="grid sm:grid-cols-3 gap-4">
@@ -116,7 +116,7 @@ export default function PrimaryTermsPage() {
                   <p className="text-xs text-slate-400 mt-0.5">{t.academic_year_name}</p>
                 </div>
                 {t.is_current && (
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full text-green-700 bg-green-50">Current</span>
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full text-[#145C44] bg-[#E8F4EE]">Current</span>
                 )}
               </div>
               <div className="text-xs text-slate-500 space-y-0.5">
@@ -125,11 +125,11 @@ export default function PrimaryTermsPage() {
               </div>
               <div className="flex gap-2 pt-1">
                 {!t.is_current && (
-                  <button onClick={() => setCurrent(t.id)} className="text-xs px-2.5 py-1 rounded-md border border-green-200 text-green-700 hover:bg-green-50 transition-colors">
+                  <button onClick={() => setCurrent(t.id)} className="text-xs px-2.5 py-1 rounded-md border border-[#B8D9C8] text-[#145C44] hover:bg-[#E8F4EE] transition-colors">
                     Set Current
                   </button>
                 )}
-                <button onClick={() => openEdit(t)} className="text-xs px-2.5 py-1 rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors">
+                <button onClick={() => openEdit(t)} className="text-xs px-2.5 py-1 rounded-md border border-slate-200 text-slate-700 hover:bg-[#F5F0E8] transition-colors">
                   Edit
                 </button>
                 <button onClick={() => del(t.id)} className="text-xs px-2.5 py-1 rounded-md border border-red-200 text-red-600 hover:bg-red-50 transition-colors">
@@ -145,8 +145,8 @@ export default function PrimaryTermsPage() {
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
             <h2 className="font-bold text-slate-900">{editing ? 'Edit Term' : 'Add Term'}</h2>
             {!editing && (
               <div>
@@ -177,8 +177,8 @@ export default function PrimaryTermsPage() {
               </div>
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50">Cancel</button>
-              <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+              <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-[#F5F0E8]">Cancel</button>
+              <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#145C44' }}>
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </div>

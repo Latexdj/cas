@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -75,11 +75,11 @@ export default function MeetingAbsencesPage() {
 
       {loading ? (
         <div className="space-y-3">
-          {[1, 2, 3].map(i => <div key={i} className="bg-white rounded-2xl h-24 animate-pulse border border-[#E2D9CC]" />)}
+          {[1, 2, 3].map(i => <div key={i} className="bg-white rounded-xl h-24 animate-pulse border border-[#E2D9CC]" />)}
         </div>
       ) : absences.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] p-8 text-center">
-          <p className="text-3xl mb-2">🎉</p>
+        <div className="bg-white rounded-xl border border-[#E2D9CC] p-8 text-center">
+          
           <p className="text-sm font-semibold text-[#2C2218]">No meeting absences</p>
           <p className="text-xs text-[#8C7E6E] mt-1">You have attended all recorded meetings</p>
         </div>
@@ -88,7 +88,7 @@ export default function MeetingAbsencesPage() {
           {(displayRows as typeof absences).map(ab => {
             const s = ab.status ? statusStyle(ab.status) : null;
             return (
-              <div key={ab.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
+              <div key={ab.id} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0 pr-3">
                     <p className="text-sm font-semibold text-[#2C2218]">{ab.meeting_title}</p>

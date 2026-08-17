@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -54,7 +54,7 @@ export default function ManagementUsersPage() {
       ]);
       setUsers(mgmt.data);
       setTeachers(staff.data);
-    } catch { setError('Failed to load data.'); }
+    } catch { setError('Could not load data.'); }
     finally  { setLoading(false); }
   };
 

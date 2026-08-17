@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
@@ -33,11 +33,11 @@ const GREEN = '#1a5c38';
 const LGREEN = '#f0faf5';
 
 function gradeColor(g: string) {
-  return ['A1','B2','B3','A','B+','B-'].includes(g) ? '#15803D'
+  return ['A1','B2','B3','A','B+','B-'].includes(g) ? '#145C44'
        : ['F9','F','E8'].includes(g) ? '#DC2626' : '#D97706';
 }
 function scoreColor(t: number | null) {
-  return t == null ? '#6b7280' : t >= 70 ? '#15803D' : t >= 50 ? '#D97706' : '#DC2626';
+  return t == null ? '#6b7280' : t >= 70 ? '#145C44' : t >= 50 ? '#D97706' : '#DC2626';
 }
 
 // ── Printed A4 Transcript Document ───────────────────────────────────────────
@@ -62,7 +62,7 @@ function TranscriptDocument({ transcript, school, issueDate, cumulativeAvg, tota
 
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: `3px double ${GREEN}`, paddingBottom: '8px', marginBottom: '8px' }}>
-        <div style={{ width: '58px', height: '58px', flexShrink: 0, border: `1px solid #e5e7eb`, borderRadius: '6px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb' }}>
+        <div style={{ width: '58px', height: '58px', flexShrink: 0, border: `1px solid #e5e7eb`, borderRadius: '6px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F5F0E8' }}>
           {school.logo_url
             ? <img src={school.logo_url} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             : <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '34px', height: '34px' }}>
@@ -215,11 +215,11 @@ function TranscriptDocument({ transcript, school, issueDate, cumulativeAvg, tota
 // ── Score + Grade badges (screen) ─────────────────────────────────────────────
 function ScorePill({ value }: { value: number | null }) {
   if (value == null) return <span className="text-slate-300 text-xs">—</span>;
-  const color = value >= 70 ? 'text-green-700 bg-green-50' : value >= 50 ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50';
+  const color = value >= 70 ? 'text-[#145C44] bg-[#E8F4EE]' : value >= 50 ? 'text-amber-700 bg-amber-50' : 'text-red-700 bg-red-50';
   return <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full ${color}`}>{value}</span>;
 }
 function GradePill({ grade }: { grade: string }) {
-  const color = ['A1','B2','B3','A','B+','B-'].includes(grade) ? 'text-green-700 bg-green-50'
+  const color = ['A1','B2','B3','A','B+','B-'].includes(grade) ? 'text-[#145C44] bg-[#E8F4EE]'
               : ['F9','F','E8'].includes(grade)                  ? 'text-red-700 bg-red-50'
               :                                                    'text-amber-700 bg-amber-50';
   return <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full ${color}`}>{grade || '—'}</span>;
@@ -361,7 +361,7 @@ export default function TranscriptPage() {
 
         {/* ── Search ── */}
         <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 block">Search Student</label>
+          <label className="text-xs font-semibold text-slate-500 font-medium mb-2 block">Search Student</label>
           <div className="relative" ref={dropRef}>
             <div className="relative">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -372,7 +372,7 @@ export default function TranscriptPage() {
                 onChange={e => { setQuery(e.target.value); setShowDrop(true); if (!e.target.value) { setSelected(null); setTranscript(null); } }}
                 onFocus={() => setShowDrop(true)}
                 placeholder="Type student name or ID…"
-                className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44] focus:border-transparent"
               />
               {query && (
                 <button onClick={() => { setQuery(''); setSelected(null); setTranscript(null); setShowDrop(false); }}
@@ -387,11 +387,11 @@ export default function TranscriptPage() {
               <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
                 {filtered.map(s => (
                   <button key={s.id} onMouseDown={() => selectStudent(s)}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-green-50 text-left transition-colors border-b border-slate-50 last:border-0">
+                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#E8F4EE] text-left transition-colors border-b border-slate-50 last:border-0">
                     <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-slate-200">
                       {s.picture_url
                         ? <img src={s.picture_url} alt={s.name} className="w-full h-full object-cover" />
-                        : <div className="w-full h-full bg-green-100 flex items-center justify-center text-xs font-bold text-green-700">{s.name[0]}</div>
+                        : <div className="w-full h-full bg-[#D1EAD9] flex items-center justify-center text-xs font-bold text-[#145C44]">{s.name[0]}</div>
                       }
                     </div>
                     <div className="flex-1 min-w-0">
@@ -414,7 +414,7 @@ export default function TranscriptPage() {
         {/* ── Loading ── */}
         {loading && (
           <div className="flex items-center justify-center py-16">
-            <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+            <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
           </div>
         )}
 
@@ -449,7 +449,7 @@ export default function TranscriptPage() {
                 </p>
               </div>
               <button onClick={triggerPrint}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 flex-shrink-0">
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-[#145C44] text-white hover:bg-[#145C44] flex-shrink-0">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
                   <polyline points="6 9 6 2 18 2 18 9" />
                   <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
@@ -462,14 +462,14 @@ export default function TranscriptPage() {
             {/* ── Cumulative stats ── */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label: 'Cumulative Average', value: stats?.cumulativeAvg != null ? String(stats.cumulativeAvg) : '—', color: 'text-green-700' },
+                { label: 'Cumulative Average', value: stats?.cumulativeAvg != null ? String(stats.cumulativeAvg) : '—', color: 'text-[#145C44]' },
                 { label: 'Total Semesters',    value: String(transcript.semesters.length), color: 'text-slate-700' },
                 { label: 'Subjects Sat',       value: String(stats?.totalSubjects ?? 0), color: 'text-slate-700' },
-                { label: 'Pass Rate',          value: stats?.passRate != null ? `${stats.passRate}%` : '—', color: stats?.passRate != null && stats.passRate >= 70 ? 'text-green-700' : 'text-amber-700' },
+                { label: 'Pass Rate',          value: stats?.passRate != null ? `${stats.passRate}%` : '—', color: stats?.passRate != null && stats.passRate >= 70 ? 'text-[#145C44]' : 'text-amber-700' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="bg-white rounded-xl border border-slate-200 p-4 text-center">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">{label}</p>
-                  <p className={`text-2xl font-black ${color}`}>{value}</p>
+                  <p className="text-xs font-semibold text-slate-400 font-medium mb-1">{label}</p>
+                  <p className={`text-2xl font-bold ${color}`}>{value}</p>
                 </div>
               ))}
             </div>
@@ -478,9 +478,9 @@ export default function TranscriptPage() {
             {transcript.semesters.some(s => s.average != null) && (
               <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <div className="flex items-center justify-between mb-4">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Performance Trend</p>
+                  <p className="text-xs font-semibold text-slate-500 font-medium">Performance Trend</p>
                   <div className="flex items-center gap-3 text-xs text-slate-400">
-                    <span><span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1" />≥70</span>
+                    <span><span className="inline-block w-2 h-2 rounded-full bg-[#145C44] mr-1" />≥70</span>
                     <span><span className="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1" />50–69</span>
                     <span><span className="inline-block w-2 h-2 rounded-full bg-red-400 mr-1" />&lt;50</span>
                   </div>
@@ -488,7 +488,7 @@ export default function TranscriptPage() {
                 <div className="space-y-2">
                   {transcript.semesters.map(sem => {
                     const avg = sem.average ?? 0;
-                    const barCls = avg >= 70 ? 'bg-green-500' : avg >= 50 ? 'bg-amber-400' : 'bg-red-400';
+                    const barCls = avg >= 70 ? 'bg-[#145C44]' : avg >= 50 ? 'bg-amber-400' : 'bg-red-400';
                     const label = `${sem.academic_year} Sem ${sem.semester}`;
                     return (
                       <div key={`${sem.year_id}:${sem.semester}`} className="flex items-center gap-3 text-sm">
@@ -516,8 +516,8 @@ export default function TranscriptPage() {
 
             {/* ── Semester cards ── */}
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Academic Record — {transcript.semesters.length} Semester{transcript.semesters.length !== 1 ? 's' : ''}</p>
-              <button onClick={toggleAll} className="text-xs font-semibold text-green-700 hover:text-green-900">
+              <p className="text-xs font-semibold text-slate-500 font-medium">Academic Record — {transcript.semesters.length} Semester{transcript.semesters.length !== 1 ? 's' : ''}</p>
+              <button onClick={toggleAll} className="text-xs font-semibold text-[#145C44] hover:text-green-900">
                 {transcript.semesters.every(s => expanded[`${s.year_id}:${s.semester}`]) ? 'Collapse all' : 'Expand all'}
               </button>
             </div>
@@ -533,7 +533,7 @@ export default function TranscriptPage() {
                     {/* Semester header — always visible */}
                     <button onClick={() => toggleSem(key)}
                       className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left">
-                      <div className="w-2 h-10 rounded-full flex-shrink-0" style={{ background: sem.average != null ? (sem.average >= 70 ? '#15803D' : sem.average >= 50 ? '#D97706' : '#DC2626') : '#e5e7eb' }} />
+                      <div className="w-2 h-10 rounded-full flex-shrink-0" style={{ background: sem.average != null ? (sem.average >= 70 ? '#145C44' : sem.average >= 50 ? '#D97706' : '#DC2626') : '#e5e7eb' }} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-slate-800">
                           {sem.academic_year} — Semester {sem.semester}
@@ -548,7 +548,7 @@ export default function TranscriptPage() {
                         {sem.average != null && (
                           <div className="text-right">
                             <p className="text-xs text-slate-400 leading-none mb-0.5">Average</p>
-                            <p className="text-lg font-black" style={{ color: sem.average >= 70 ? '#15803D' : sem.average >= 50 ? '#D97706' : '#DC2626' }}>{sem.average}</p>
+                            <p className="text-lg font-bold" style={{ color: sem.average >= 70 ? '#145C44' : sem.average >= 50 ? '#D97706' : '#DC2626' }}>{sem.average}</p>
                           </div>
                         )}
                         {sem.class_position && (
@@ -571,7 +571,7 @@ export default function TranscriptPage() {
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead>
-                              <tr className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide border-b border-slate-100">
+                              <tr className="bg-slate-50 text-xs font-semibold text-slate-500 font-medium border-b border-slate-100">
                                 <th className="px-4 py-2.5 text-left">Subject</th>
                                 <th className="px-4 py-2.5 text-center">{caLabel}</th>
                                 <th className="px-4 py-2.5 text-center">{exLabel}</th>
@@ -594,11 +594,11 @@ export default function TranscriptPage() {
                             </tbody>
                             {/* Semester summary row */}
                             <tfoot>
-                              <tr className="bg-green-50 border-t-2 border-green-100">
-                                <td className="px-4 py-2 text-xs font-bold text-green-800 uppercase tracking-wide">Semester Summary</td>
+                              <tr className="bg-[#E8F4EE] border-t-2 border-[#D1EAD9]">
+                                <td className="px-4 py-2 text-xs font-bold text-[#0B3D2E] font-medium">Semester Summary</td>
                                 <td colSpan={2} className="px-4 py-2" />
                                 <td className="px-4 py-2 text-center">
-                                  <span className="text-sm font-black" style={{ color: sem.average != null ? (sem.average >= 70 ? '#15803D' : sem.average >= 50 ? '#D97706' : '#DC2626') : '#6b7280' }}>
+                                  <span className="text-sm font-bold" style={{ color: sem.average != null ? (sem.average >= 70 ? '#145C44' : sem.average >= 50 ? '#D97706' : '#DC2626') : '#6b7280' }}>
                                     {sem.average ?? '—'}
                                   </span>
                                 </td>
@@ -619,17 +619,17 @@ export default function TranscriptPage() {
 
             {/* ── Best semester callout ── */}
             {stats?.best && (
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0">
+              <div className="bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-[#145C44] flex items-center justify-center flex-shrink-0">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5 text-white">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
                   </svg>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Best Academic Performance</p>
+                  <p className="text-xs font-semibold text-[#145C44] font-medium">Best Academic Performance</p>
                   <p className="text-sm font-bold text-green-900 mt-0.5">
                     {stats.best.academic_year} — Semester {stats.best.semester}
-                    <span className="ml-2 font-normal text-green-700">Average: {stats.best.average} · Grade: {stats.best.overall_grade}</span>
+                    <span className="ml-2 font-normal text-[#145C44]">Average: {stats.best.average} · Grade: {stats.best.overall_grade}</span>
                   </p>
                 </div>
               </div>

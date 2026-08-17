@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -90,17 +90,17 @@ export default function ProspectusPage() {
 
       {/* Upload form */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Upload New Prospectus</h2>
+        <h2 className="text-sm font-semibold font-medium text-slate-500">Upload New Prospectus</h2>
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Program</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Program</label>
             <select value={form.program_id} onChange={e => setForm(f => ({ ...f, program_id: e.target.value }))} className={inputCls}>
               <option value="">All Programs</option>
               {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Gender</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Gender</label>
             <select value={form.gender} onChange={e => setForm(f => ({ ...f, gender: e.target.value }))} className={inputCls}>
               <option value="All">All</option>
               <option value="Male">Male</option>
@@ -108,7 +108,7 @@ export default function ProspectusPage() {
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Residential Status</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Residential Status</label>
             <select value={form.residential_status} onChange={e => setForm(f => ({ ...f, residential_status: e.target.value }))} className={inputCls}>
               <option value="All">All</option>
               <option value="Boarding">Boarding</option>
@@ -117,7 +117,7 @@ export default function ProspectusPage() {
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">PDF File</label>
+          <label className="text-xs font-semibold font-medium text-slate-500">PDF File</label>
           <input ref={fileRef} type="file" accept=".pdf" className="mt-1 text-xs text-slate-600 w-full"
             onChange={async e => {
               const f = e.target.files?.[0];
@@ -135,7 +135,7 @@ export default function ProspectusPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>{['Applies To','File Name','Uploaded',''].map(h =>
-              <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
+              <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">{h}</th>
             )}</tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -149,7 +149,7 @@ export default function ProspectusPage() {
               <tr key={r.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3 font-medium text-slate-800">{fmtLabel(r)}</td>
                 <td className="px-4 py-3 text-slate-600 text-xs font-mono">
-                  <a href={r.file_url} target="_blank" className="text-green-700 underline">{r.file_name}</a>
+                  <a href={r.file_url} target="_blank" className="text-[#145C44] underline">{r.file_name}</a>
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-400">
                   {new Date(r.uploaded_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}

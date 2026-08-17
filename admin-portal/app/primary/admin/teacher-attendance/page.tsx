@@ -29,7 +29,7 @@ function fmt(ts: string | null) {
 }
 function statusChip(status: string, isAuto: boolean) {
   const base = 'text-xs font-semibold px-2 py-0.5 rounded-full';
-  if (status === 'present')  return <span className={`${base} bg-green-100 text-green-700`}>Present</span>;
+  if (status === 'present')  return <span className={`${base} bg-[#D1EAD9] text-[#145C44]`}>Present</span>;
   if (status === 'excused')  return <span className={`${base} bg-blue-100 text-blue-600`}>Excused</span>;
   if (status === 'absent')   return <span className={`${base} ${isAuto ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>{isAuto ? 'Auto-Absent' : 'Absent'}</span>;
   return <span className={`${base} bg-gray-100 text-gray-600`}>{status}</span>;
@@ -66,7 +66,7 @@ export default function PrimaryTeacherAttendancePage() {
     try {
       const { data } = await api.get<AttRecord[]>(`/api/primary/admin/self-attendance?date=${date}`);
       setRecords(data);
-    } catch { setError('Failed to load attendance records.'); }
+    } catch { setError('Could not load attendance records.'); }
     finally { setLoading(false); }
   }, [date]);
 
@@ -76,7 +76,7 @@ export default function PrimaryTeacherAttendancePage() {
       const q = termId ? `?term_id=${termId}` : '';
       const { data } = await api.get<ReportRow[]>(`/api/primary/admin/self-attendance/report${q}`);
       setReport(data);
-    } catch { setError('Failed to load report.'); }
+    } catch { setError('Could not load report.'); }
     finally { setReportLoad(false); }
   }, [termId]);
 
@@ -111,7 +111,7 @@ export default function PrimaryTeacherAttendancePage() {
 
   const attPctColor = (pct: number | null) => {
     if (pct === null) return 'text-slate-400';
-    if (pct >= 90) return 'text-green-600';
+    if (pct >= 90) return 'text-[#145C44]';
     if (pct >= 75) return 'text-amber-600';
     return 'text-red-600';
   };
@@ -135,7 +135,7 @@ export default function PrimaryTeacherAttendancePage() {
         </div>
         <button onClick={() => setManualModal(true)}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm"
-          style={{ backgroundColor: '#15803D' }}>
+          style={{ backgroundColor: '#145C44' }}>
           + Manual Entry
         </button>
       </div>
@@ -158,32 +158,32 @@ export default function PrimaryTeacherAttendancePage() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex gap-3 items-center">
             <input type="date" value={date} onChange={e => setDate(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
-            <button onClick={loadLog} className="text-xs font-semibold text-green-700 hover:text-green-800">Refresh</button>
+            <button onClick={loadLog} className="text-xs font-semibold text-[#145C44] hover:text-[#0B3D2E]">Refresh</button>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
+                <thead className="bg-[#F5F0E8] border-b border-gray-100">
                   <tr>
-                    <Th label="Teacher" sortKey="teacher_name" currentKey={logSortKey} currentDir={logSortDir} onSort={handleLogSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                    <Th label="Status" sortKey="status" currentKey={logSortKey} currentDir={logSortDir} onSort={handleLogSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Clock In</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Clock Out</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">GPS In</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Photos</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
+                    <Th label="Teacher" sortKey="teacher_name" currentKey={logSortKey} currentDir={logSortDir} onSort={handleLogSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
+                    <Th label="Status" sortKey="status" currentKey={logSortKey} currentDir={logSortDir} onSort={handleLogSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Clock In</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Clock Out</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">GPS In</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Photos</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {loading ? (
                     <tr><td colSpan={7} className="text-center py-12">
-                      <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                      <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
                     </td></tr>
                   ) : records.length === 0 ? (
                     <tr><td colSpan={7} className="text-center py-12 text-slate-400 text-sm">No records for this date.</td></tr>
                   ) : (logDisplayRows as AttRecord[]).map(r => (
-                    <tr key={r.id} className="hover:bg-gray-50">
+                    <tr key={r.id} className="hover:bg-[#F5F0E8]">
                       <td className="px-3 py-2.5">
                         <p className="font-medium text-slate-900">{r.teacher_name}</p>
                         <span className="font-mono text-xs text-slate-400">{r.teacher_code}</span>
@@ -202,7 +202,7 @@ export default function PrimaryTeacherAttendancePage() {
                       <td className="px-3 py-2.5">
                         {r.clock_in_gps ? (
                           <a href={`https://www.google.com/maps?q=${r.clock_in_gps}`} target="_blank" rel="noreferrer"
-                            className={`text-xs font-semibold ${r.clock_in_location_verified ? 'text-green-600' : 'text-red-500'}`}>
+                            className={`text-xs font-semibold ${r.clock_in_location_verified ? 'text-[#145C44]' : 'text-red-500'}`}>
                             {r.clock_in_location_verified ? '✓ Verified' : '✗ Out of range'}
                           </a>
                         ) : <span className="text-xs text-slate-300">—</span>}
@@ -247,31 +247,31 @@ export default function PrimaryTeacherAttendancePage() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
+                <thead className="bg-[#F5F0E8] border-b border-gray-100">
                   <tr>
-                    <Th label="Teacher" sortKey="teacher_name" currentKey={repSortKey} currentDir={repSortDir} onSort={handleRepSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Present</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Absent</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Excused</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Incomplete</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Days Marked</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Attendance %</th>
+                    <Th label="Teacher" sortKey="teacher_name" currentKey={repSortKey} currentDir={repSortDir} onSort={handleRepSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Present</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Absent</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Excused</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Incomplete</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Days Marked</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Attendance %</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {reportLoad ? (
                     <tr><td colSpan={7} className="text-center py-12">
-                      <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                      <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
                     </td></tr>
                   ) : report.length === 0 ? (
                     <tr><td colSpan={7} className="text-center py-12 text-slate-400 text-sm">No records.</td></tr>
                   ) : (repDisplayRows as ReportRow[]).map(r => (
-                    <tr key={r.teacher_id} className="hover:bg-gray-50">
+                    <tr key={r.teacher_id} className="hover:bg-[#F5F0E8]">
                       <td className="px-3 py-2.5">
                         <p className="font-medium text-slate-900">{r.teacher_name}</p>
                         <span className="font-mono text-xs text-slate-400">{r.teacher_code}</span>
                       </td>
-                      <td className="px-3 py-2.5 font-semibold text-green-700">{r.days_present}</td>
+                      <td className="px-3 py-2.5 font-semibold text-[#145C44]">{r.days_present}</td>
                       <td className="px-3 py-2.5 font-semibold text-red-600">{r.days_absent}</td>
                       <td className="px-3 py-2.5 font-semibold text-blue-600">{r.days_excused}</td>
                       <td className="px-3 py-2.5 font-semibold text-amber-600">{r.days_incomplete}</td>
@@ -279,7 +279,7 @@ export default function PrimaryTeacherAttendancePage() {
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2">
                           <div className="w-20 bg-gray-100 rounded-full h-2 overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${r.attendance_pct ?? 0}%`, backgroundColor: '#15803D' }} />
+                            <div className="h-full rounded-full" style={{ width: `${r.attendance_pct ?? 0}%`, backgroundColor: '#145C44' }} />
                           </div>
                           <span className={`text-xs font-bold tabular-nums ${attPctColor(r.attendance_pct)}`}>
                             {r.attendance_pct !== null ? `${r.attendance_pct}%` : 'No data'}
@@ -298,8 +298,8 @@ export default function PrimaryTeacherAttendancePage() {
 
       {/* Photo Modal */}
       {photoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setPhotoModal(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4" onClick={() => setPhotoModal(null)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
               <p className="font-bold text-slate-800">{photoModal.label} Photo</p>
               <button onClick={() => setPhotoModal(null)} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
@@ -319,8 +319,8 @@ export default function PrimaryTeacherAttendancePage() {
 
       {/* Manual Entry Modal */}
       {manualModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-900">Manual Entry</h2>
               <button onClick={() => setManualModal(false)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
@@ -351,7 +351,7 @@ export default function PrimaryTeacherAttendancePage() {
               <button onClick={() => setManualModal(false)} className="flex-1 py-2 rounded-lg text-sm font-semibold border border-gray-200 text-slate-600">Cancel</button>
               <button onClick={submitManual} disabled={manSaving || !manTeacher}
                 className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                style={{ backgroundColor: '#15803D' }}>
+                style={{ backgroundColor: '#145C44' }}>
                 {manSaving ? 'Saving…' : 'Save Entry'}
               </button>
             </div>

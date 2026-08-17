@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { studentApi } from '@/lib/student-api';
@@ -7,7 +7,7 @@ import { getStudentColors } from '@/lib/student-auth';
 interface CalEvent { id: string; date: string; name: string; type: string; notes: string | null; }
 
 const TYPE_STYLE: Record<string, { bg: string; text: string; dot: string }> = {
-  'Holiday':     { bg: 'bg-green-50',  text: 'text-green-700',  dot: '#16a34a' },
+  'Holiday':     { bg: 'bg-[#E8F4EE]',  text: 'text-[#145C44]',  dot: '#16a34a' },
   'School Event':{ bg: 'bg-blue-50',   text: 'text-blue-700',   dot: '#2563eb' },
   'Closed Day':  { bg: 'bg-red-50',    text: 'text-red-600',    dot: '#dc2626' },
 };
@@ -75,8 +75,8 @@ export default function StudentCalendarPage() {
           const d = new Date(month + '-01T00:00:00');
           return (
             <div key={month} className="bg-white rounded-xl border border-slate-100 overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-slate-50 bg-slate-50">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+              <div className="px-4 py-2.5 border-b border-slate-50 bg-[#F5F0E8]">
+                <p className="text-xs font-bold text-slate-500 font-medium">
                   {d.toLocaleDateString('en', { month: 'long', year: 'numeric' })}
                 </p>
               </div>
@@ -85,12 +85,12 @@ export default function StudentCalendarPage() {
                   const evDate = new Date(ev.date + 'T00:00:00');
                   const isToday = ev.date === today;
                   const isPast  = ev.date < today;
-                  const style   = TYPE_STYLE[ev.type] ?? { bg: 'bg-slate-50', text: 'text-slate-600', dot: '#94a3b8' };
+                  const style   = TYPE_STYLE[ev.type] ?? { bg: 'bg-[#F5F0E8]', text: 'text-slate-600', dot: '#94a3b8' };
                   return (
                     <div key={ev.id} className={`flex items-start gap-3 px-4 py-3 ${isPast ? 'opacity-50' : ''}`}>
                       <div className="text-center w-10 shrink-0">
                         <p className="text-[10px] text-slate-400 font-medium">{evDate.toLocaleDateString('en', { weekday: 'short' })}</p>
-                        <p className={`text-lg font-black leading-tight ${isToday ? '' : 'text-slate-700'}`}
+                        <p className={`text-lg font-bold leading-tight ${isToday ? '' : 'text-slate-700'}`}
                           style={isToday ? { color: primary } : undefined}>{evDate.getDate()}</p>
                         {isToday && <p className="text-[8px] font-bold" style={{ color: primary }}>TODAY</p>}
                       </div>

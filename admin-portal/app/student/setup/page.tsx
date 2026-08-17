@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -34,10 +34,10 @@ export default function StudentSetupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-10 bg-slate-50">
+    <div className="min-h-screen flex items-center justify-center px-4 py-10 bg-[#F5F0E8]">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-blue-600 flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 rounded-xl bg-blue-600 flex items-center justify-center mx-auto mb-4">
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
               <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
               <path d="M6 12v5c3 3 9 3 12 0v-5" />
@@ -47,15 +47,15 @@ export default function StudentSetupPage() {
           <p className="text-sm text-slate-500 mt-1">Enter your school code to get started</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <form onSubmit={handleLookup} className="space-y-4">
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5">School Code</label>
+              <label className="text-xs font-bold font-medium text-slate-500 block mb-1.5">School Code</label>
               <input
                 type="text" value={code}
                 onChange={e => { setCode(e.target.value.toUpperCase()); setError(''); setSchool(null); }}
                 placeholder="e.g. ABC123" maxLength={20} autoComplete="off" autoCapitalize="characters"
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-800"
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-800"
               />
             </div>
             {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
@@ -73,7 +73,7 @@ export default function StudentSetupPage() {
           {school && (
             <div className="mt-5 pt-5 border-t border-slate-100">
               <div className="rounded-xl bg-blue-50 p-4 mb-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-blue-400 mb-1">Found</p>
+                <p className="text-xs font-bold font-medium text-blue-400 mb-1">Found</p>
                 <p className="text-lg font-bold text-slate-800">{school.name}</p>
                 <p className="text-sm text-slate-500 font-mono">{school.code}</p>
               </div>

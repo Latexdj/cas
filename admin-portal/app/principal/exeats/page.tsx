@@ -87,7 +87,7 @@ export default function ExeatsPage() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
         <div style={{ flex: 1 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A' }}>Exeat Management</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208' }}>Exeat Management</h2>
           {overLimit > 0 && (
             <p style={{ fontSize: 13, color: '#EF4444', marginTop: 2 }}>
               {overLimit} student{overLimit !== 1 ? 's' : ''} at/over quota
@@ -97,7 +97,7 @@ export default function ExeatsPage() {
         {data && (
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{ fontSize: 13, color: dark ? '#94A3B8' : '#64748B' }}>
-              School quota: <strong style={{ color: dark ? '#F1F5F9' : '#0F172A' }}>
+              School quota: <strong style={{ color: dark ? '#F1F5F9' : '#1C1208' }}>
                 {data.internal_quota} internal / {data.external_quota} external
               </strong>
             </div>
@@ -123,7 +123,7 @@ export default function ExeatsPage() {
           onChange={e => setSearch(e.target.value)}
           style={{
             flex: 1, minWidth: 180, border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#0F172A',
+            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#1C1208',
             borderRadius: 8, padding: '7px 12px', fontSize: 13,
           }}
         />
@@ -132,7 +132,7 @@ export default function ExeatsPage() {
           onChange={e => setCls(e.target.value)}
           style={{
             border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#0F172A',
+            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#1C1208',
             borderRadius: 8, padding: '7px 12px', fontSize: 13,
           }}
         >
@@ -152,7 +152,7 @@ export default function ExeatsPage() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr style={{ background: dark ? '#0F172A' : '#F8FAFC', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
+                <tr style={{ background: dark ? '#1C1208' : '#F5F0E8', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
                   <Th label="Student" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
                   <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
                   <Th label="Internal Exeats" sortKey="internal_used" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase' }} />
@@ -165,7 +165,7 @@ export default function ExeatsPage() {
                 ) : (displayRows as Student[]).map((s, i) => (
                   <tr key={s.id} style={{ borderBottom: i < displayRows.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F1F5F9'}` : 'none' }}>
                     <td style={{ padding: '10px 14px' }}>
-                      <div style={{ fontWeight: 600, color: dark ? '#F1F5F9' : '#0F172A' }}>{s.name}</div>
+                      <div style={{ fontWeight: 600, color: dark ? '#F1F5F9' : '#1C1208' }}>{s.name}</div>
                       <div style={{ fontSize: 11, fontFamily: 'monospace', color: dark ? '#64748B' : '#94A3B8' }}>{s.student_code}</div>
                     </td>
                     <td style={{ padding: '10px 14px', color: dark ? '#CBD5E1' : '#374151' }}>{s.class_name}</td>
@@ -173,7 +173,7 @@ export default function ExeatsPage() {
                       <QuotaBar used={s.internal_used} quota={data?.internal_quota ?? 5} color="#6366F1" />
                     </td>
                     <td style={{ padding: '10px 14px', minWidth: 140 }}>
-                      <QuotaBar used={s.external_used} quota={data?.external_quota ?? 2} color="#10B981" />
+                      <QuotaBar used={s.external_used} quota={data?.external_quota ?? 2} color="#145C44" />
                     </td>
                   </tr>
                 ))}
@@ -193,7 +193,7 @@ export default function ExeatsPage() {
           <div style={{
             background: dark ? '#1E293B' : '#FFFFFF', borderRadius: 16, padding: 28, width: '100%', maxWidth: 380,
           }}>
-            <h3 style={{ fontSize: 17, fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A', marginBottom: 4 }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208', marginBottom: 4 }}>
               Override School Exeat Quota
             </h3>
             <p style={{ fontSize: 13, color: dark ? '#64748B' : '#94A3B8', marginBottom: 20 }}>
@@ -212,7 +212,7 @@ export default function ExeatsPage() {
                   style={{
                     width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: 8, fontSize: 14,
                     border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-                    background: dark ? '#0F172A' : '#F8FAFC', color: dark ? '#F1F5F9' : '#0F172A',
+                    background: dark ? '#1C1208' : '#F5F0E8', color: dark ? '#F1F5F9' : '#1C1208',
                   }}
                 />
               </div>
@@ -227,7 +227,7 @@ export default function ExeatsPage() {
                   style={{
                     width: '100%', boxSizing: 'border-box', padding: '8px 12px', borderRadius: 8, fontSize: 14,
                     border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-                    background: dark ? '#0F172A' : '#F8FAFC', color: dark ? '#F1F5F9' : '#0F172A',
+                    background: dark ? '#1C1208' : '#F5F0E8', color: dark ? '#F1F5F9' : '#1C1208',
                   }}
                 />
               </div>
@@ -250,7 +250,7 @@ export default function ExeatsPage() {
                 disabled={saving}
                 style={{
                   flex: 1, padding: 10, borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  background: '#10B981', color: '#FFFFFF', border: 'none',
+                  background: '#145C44', color: '#FFFFFF', border: 'none',
                   cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
                 }}
               >

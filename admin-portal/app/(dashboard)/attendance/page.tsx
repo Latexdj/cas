@@ -28,11 +28,11 @@ function PhotoModal({ record, onClose }: { record: AttendanceRecord; onClose: ()
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden"
+        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {record.photo_url ? (
@@ -49,19 +49,19 @@ function PhotoModal({ record, onClose }: { record: AttendanceRecord; onClose: ()
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Time Taken</p>
+              <p className="text-xs font-semibold font-medium text-slate-400 mb-1">Time Taken</p>
               <p className="text-slate-800 font-medium">{submittedAt}</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">File Size</p>
+              <p className="text-xs font-semibold font-medium text-slate-400 mb-1">File Size</p>
               <p className="text-slate-800 font-medium">{record.photo_size_kb != null ? `${record.photo_size_kb} KB` : '—'}</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Location</p>
+              <p className="text-xs font-semibold font-medium text-slate-400 mb-1">Location</p>
               <p className="text-slate-800 font-medium">{record.location_name || '—'}</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">GPS Coordinates</p>
+              <p className="text-xs font-semibold font-medium text-slate-400 mb-1">GPS Coordinates</p>
               {mapsUrl ? (
                 <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium break-all">
                   {record.gps_coordinates}
@@ -156,7 +156,7 @@ export default function AttendancePage() {
           <Input label="From" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="w-40" />
           <Input label="To"   type="date" value={dateTo}   onChange={e => setDateTo(e.target.value)}   className="w-40" />
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Teacher</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Teacher</label>
             <select value={teacherId} onChange={e => setTeacherId(e.target.value)}
               className="mt-1 w-48 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600">
               <option value="">All</option>
@@ -179,16 +179,16 @@ export default function AttendancePage() {
             <table className="min-w-[1100px] w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  <Th label="Date" sortKey="date" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                  <Th label="Teacher" sortKey="teacher_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                  <Th label="Subject" sortKey="subject" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                  <Th label="Class" sortKey="class_names" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Periods</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Topic</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Location</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Photo</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Week</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide sticky right-0 bg-gray-50">Actions</th>
+                  <Th label="Date" sortKey="date" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-gray-500 font-medium" />
+                  <Th label="Teacher" sortKey="teacher_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-gray-500 font-medium" />
+                  <Th label="Subject" sortKey="subject" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-gray-500 font-medium" />
+                  <Th label="Class" sortKey="class_names" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-gray-500 font-medium" />
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">Periods</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">Topic</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">Location</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">Photo</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">Week</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium sticky right-0 bg-gray-50">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -202,7 +202,7 @@ export default function AttendancePage() {
                     <td className="px-4 py-3 text-gray-600 max-w-48 truncate">{r.topic ?? '—'}</td>
                     <td className="px-4 py-3">
                       {r.location_name
-                        ? <span className={`text-xs font-medium ${r.location_verified ? 'text-green-600' : 'text-yellow-600'}`}>
+                        ? <span className={`text-xs font-medium ${r.location_verified ? 'text-[#145C44]' : 'text-yellow-600'}`}>
                             {r.location_name} {r.location_verified ? '✓' : '~'}
                           </span>
                         : <span className="text-gray-400 text-xs">—</span>}
@@ -272,7 +272,7 @@ export default function AttendancePage() {
             </div>
 
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>
+              <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>
                 Reason for revocation *
               </label>
               <textarea
@@ -280,7 +280,7 @@ export default function AttendancePage() {
                 onChange={e => { setRevokeReason(e.target.value); setRevokeError(''); }}
                 rows={3}
                 className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-                style={{ borderColor: revokeError ? '#FCA5A5' : '#E2D9CC', color: '#0F172A' }}
+                style={{ borderColor: revokeError ? '#FCA5A5' : '#E2D9CC', color: '#1C1208' }}
                 placeholder="e.g. GPS coordinates inconsistent with classroom location; photo shows different room…"
               />
               {revokeError && <p className="text-xs text-red-600 mt-1">{revokeError}</p>}

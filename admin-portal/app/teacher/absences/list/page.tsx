@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -50,7 +50,7 @@ export default function AbsenceListPage() {
       setAbsences(Array.isArray(res.data) ? res.data : []);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setLoadError(msg ?? 'Failed to load absences. Please try again.');
+      setLoadError(msg ?? 'Could not load absences. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -96,7 +96,7 @@ export default function AbsenceListPage() {
       </div>
 
       {loadError && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-4">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
           <p className="text-sm text-[#B83232]">{loadError}</p>
           <button onClick={loadData} className="mt-2 text-xs font-semibold text-[#B83232] underline">Retry</button>
         </div>
@@ -105,19 +105,23 @@ export default function AbsenceListPage() {
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map(i => (
-            <div key={i} className="bg-white rounded-2xl h-24 animate-pulse border border-[#E2D9CC]" />
+            <div key={i} className="bg-white rounded-xl h-24 animate-pulse border border-[#E2D9CC]" />
           ))}
         </div>
       ) : loadError ? null : absences.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] p-8 text-center">
-          <p className="text-3xl mb-2">🎉</p>
+        <div className="bg-white rounded-xl border border-[#E2D9CC] p-8 text-center">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: '#E4F4EB' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#2D7A4F" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
           <p className="text-sm font-semibold text-[#2C2218]">No outstanding absences</p>
           <p className="text-xs text-[#8C7E6E] mt-1">Your attendance record is clear</p>
         </div>
       ) : (
         <div className="space-y-3">
           {(displayRows as typeof absences).map(ab => (
-            <div key={ab.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
+            <div key={ab.id} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-semibold text-[#2C2218]">{ab.subject} — {ab.class_name}</p>
                 {ab.is_combined && (

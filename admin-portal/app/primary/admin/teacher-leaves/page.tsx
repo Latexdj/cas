@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -16,7 +16,7 @@ const STATUS_FILTER = ['All', 'Pending', 'Approved', 'Rejected'];
 
 function chip(status: string) {
   const map: Record<string, string> = {
-    Approved: 'bg-green-100 text-green-700',
+    Approved: 'bg-[#D1EAD9] text-[#145C44]',
     Rejected: 'bg-red-100 text-red-600',
     Pending:  'bg-amber-100 text-amber-700',
   };
@@ -41,7 +41,7 @@ export default function TeacherLeavesAdminPage() {
   useEffect(() => {
     api.get<Excuse[]>('/api/primary/excuses')
       .then(r => setExcuses(r.data))
-      .catch(() => setError('Failed to load leave requests.'))
+      .catch(() => setError('Could not load leave requests.'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -103,7 +103,7 @@ export default function TeacherLeavesAdminPage() {
 
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : displayed.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm py-16 text-center text-slate-400 text-sm">
@@ -113,16 +113,16 @@ export default function TeacherLeavesAdminPage() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
+              <thead className="bg-[#F5F0E8] border-b border-gray-100">
                 <tr>
                   {['Teacher', 'Type', 'From', 'To', 'Reason', 'Status', 'Reviewed By', 'Actions'].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {(displayRows as typeof displayed).map(e => (
-                  <tr key={e.id} className="hover:bg-gray-50">
+                  <tr key={e.id} className="hover:bg-[#F5F0E8]">
                     <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">{e.teacher_name}</td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{e.excuse_type}</td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{fmt(e.date_from)}</td>
@@ -141,7 +141,7 @@ export default function TeacherLeavesAdminPage() {
                       {e.status === 'Pending' ? (
                         <div className="flex items-center gap-2">
                           <button onClick={() => approve(e.id)} disabled={saving}
-                            className="text-xs font-semibold text-green-600 hover:text-green-800 disabled:opacity-40">
+                            className="text-xs font-semibold text-[#145C44] hover:text-[#0B3D2E] disabled:opacity-40">
                             Approve
                           </button>
                           <span className="text-gray-300">|</span>
@@ -169,8 +169,8 @@ export default function TeacherLeavesAdminPage() {
 
       {/* Reject modal */}
       {rejectId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 space-y-4">
             <h2 className="text-lg font-bold text-slate-900">Reject Leave Request</h2>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Reason for rejection <span className="text-red-500">*</span></label>

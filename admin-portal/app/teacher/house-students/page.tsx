@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { teacherApi } from '@/lib/teacher-api';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -46,13 +46,13 @@ interface Student {
 type Role = 'loading' | 'none' | 'housemaster' | 'senior_housemaster';
 type Tab  = 'overview' | 'rooms' | 'students' | 'exeat';
 
-const ACCENT = '#15803d';
+const ACCENT = '#145C44';
 
 // ── Small shared components ───────────────────────────────────────────────────
 
 function StatCard({ label, value, sub, color }: { label: string; value: number | string; sub?: string; color?: string }) {
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-4 flex flex-col items-center justify-center text-center">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 flex flex-col items-center justify-center text-center">
       <p className="text-2xl font-bold" style={{ color: color ?? undefined }}
          {...(!color && { className: 'text-2xl font-bold text-slate-900 dark:text-white' })}>{value}</p>
       <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
@@ -136,8 +136,8 @@ function AssignModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-0 sm:px-4">
-      <div className="bg-white dark:bg-slate-800 w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/45 px-0 sm:px-4">
+      <div className="bg-white dark:bg-slate-800 w-full sm:max-w-md rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col max-h-[85vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <p className="font-bold text-slate-900 dark:text-white">Assign Students</p>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>
@@ -146,18 +146,18 @@ function AssignModal({
           <input
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search by name or ID…"
-            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
           />
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
           {loading ? (
-            <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-green-500 border-t-transparent animate-spin" /></div>
+            <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
           ) : filtered.length === 0 ? (
             <p className="text-center text-sm text-slate-500 py-8">{search ? 'No matches' : 'All students are assigned to rooms'}</p>
           ) : filtered.map(s => (
-            <label key={s.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50">
+            <label key={s.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-[#F5F0E8] dark:hover:bg-slate-700/50">
               <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)}
-                className="w-4 h-4 accent-green-600 rounded flex-shrink-0" />
+                className="w-4 h-4 accent-[#145C44] rounded flex-shrink-0" />
               <div className="min-w-0">
                 <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{s.name}</p>
                 <p className="text-xs text-slate-500">{s.student_code} · {s.class_name}</p>
@@ -250,7 +250,7 @@ function RoomDetail({
         )}
 
         {loading ? (
-          <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-green-500 border-t-transparent animate-spin" /></div>
+          <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
         ) : students.length === 0 ? (
           <div className="text-center py-10 text-sm text-slate-500">No students assigned to this room.</div>
         ) : (
@@ -263,7 +263,7 @@ function RoomDetail({
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {s.residential_status && (
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.residential_status.toLowerCase() === 'boarding' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.residential_status.toLowerCase() === 'boarding' ? 'bg-blue-50 text-[#1D4ED8] dark:bg-blue-900/30 dark:text-[#93C5FD]' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
                       {s.residential_status}
                     </span>
                   )}
@@ -386,7 +386,7 @@ function RoomsTab({
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-green-500 border-t-transparent animate-spin" /></div>
+        <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
       ) : rooms.length === 0 ? (
         <div className="text-center py-10 text-sm text-slate-500">No rooms yet. Add a room to get started.</div>
       ) : (
@@ -399,7 +399,7 @@ function RoomsTab({
                   {r.notes && <p className="text-xs text-slate-400 mt-0.5">{r.notes}</p>}
                 </div>
                 <div className="flex gap-3 flex-shrink-0">
-                  <button onClick={() => setSelectedRoom(r)} className="text-xs font-semibold text-green-700 dark:text-green-400 hover:underline">Manage</button>
+                  <button onClick={() => setSelectedRoom(r)} className="text-xs font-semibold text-[#145C44] dark:text-[#2ab289] hover:underline">Manage</button>
                   <button onClick={() => openEdit(r)}         className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Edit</button>
                   <button onClick={() => deleteRoom(r)}       className="text-xs text-red-500 hover:underline">Delete</button>
                 </div>
@@ -412,27 +412,27 @@ function RoomsTab({
 
       {/* Add/Edit Room bottom sheet */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-0 sm:px-4">
-          <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/45 px-0 sm:px-4">
+          <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl shadow-2xl p-5 space-y-4">
             <div className="flex items-center justify-between">
               <p className="font-bold text-slate-900 dark:text-white">{editRoom ? 'Edit Room' : 'Add Room'}</p>
               <button onClick={() => setShowForm(false)} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Room Name *</label>
+                <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Room Name *</label>
                 <input value={formName} onChange={e => setFormName(e.target.value)} placeholder="e.g. Room 1A"
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
               </div>
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Capacity (optional)</label>
+                <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Capacity (optional)</label>
                 <input type="number" min="1" value={formCap} onChange={e => setFormCap(e.target.value)} placeholder="Max students"
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
               </div>
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Notes (optional)</label>
+                <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Notes (optional)</label>
                 <input value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="e.g. Ground floor"
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
               </div>
               {formError && <p className="text-xs text-red-500">{formError}</p>}
             </div>
@@ -455,7 +455,7 @@ function HouseOverviewCard({ h, accent }: { h: HouseStats; accent: string }) {
   const maxClass = Math.max(...h.by_class.map(c => c.count), 1);
   const rs = h.room_stats;
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-4 space-y-4">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-slate-900 dark:text-white">{h.house_name}</h3>
         <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">{h.total} students</span>
@@ -464,17 +464,17 @@ function HouseOverviewCard({ h, accent }: { h: HouseStats; accent: string }) {
         {([
           { label: 'Male',     value: h.male,     color: 'text-blue-600 dark:text-blue-400' },
           { label: 'Female',   value: h.female,   color: 'text-pink-600 dark:text-pink-400' },
-          { label: 'Boarding', value: h.boarding, color: 'text-indigo-600 dark:text-indigo-400' },
+          { label: 'Boarding', value: h.boarding, color: 'text-[#1D4ED8] dark:text-[#60A5FA]' },
           { label: 'Day',      value: h.day,      color: 'text-amber-600 dark:text-amber-400' },
         ] as const).map(({ label, value, color }) => (
-          <div key={label} className="bg-slate-50 dark:bg-slate-700/50 rounded-xl py-2">
+          <div key={label} className="bg-[#F5F0E8] dark:bg-slate-700/50 rounded-xl py-2">
             <p className={`text-lg font-bold ${color}`}>{value}</p>
             <p className="text-[10px] text-slate-500 mt-0.5">{label}</p>
           </div>
         ))}
       </div>
       {rs.total_rooms > 0 && (
-        <div className="flex gap-3 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-700/40 rounded-xl px-3 py-2">
+        <div className="flex gap-3 text-xs text-slate-600 dark:text-slate-400 bg-[#F5F0E8] dark:bg-slate-700/40 rounded-xl px-3 py-2">
           <span><strong className="text-slate-900 dark:text-white">{rs.total_rooms}</strong> rooms</span>
           <span><strong className="text-slate-900 dark:text-white">{rs.assigned_students}</strong> assigned</span>
           <span><strong className="text-slate-900 dark:text-white">{h.total - rs.assigned_students}</strong> unassigned</span>
@@ -482,7 +482,7 @@ function HouseOverviewCard({ h, accent }: { h: HouseStats; accent: string }) {
       )}
       {h.by_class.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">By Class</p>
+          <p className="text-[10px] font-bold font-medium text-slate-400">By Class</p>
           {h.by_class.map(c => (
             <div key={c.class_name} className="flex items-center gap-2">
               <span className="text-xs text-slate-500 w-16 shrink-0 truncate">{c.class_name || '—'}</span>
@@ -516,7 +516,7 @@ const STATUS_META: Record<string, { label: string; dot: string; badge: string }>
   pending:  { label: 'Pending',  dot: 'bg-amber-400',  badge: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
   active:   { label: 'Out',      dot: 'bg-blue-500',   badge: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
   overdue:  { label: 'Overdue',  dot: 'bg-red-500',    badge: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
-  returned: { label: 'Returned', dot: 'bg-green-500',  badge: 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300' },
+  returned: { label: 'Returned', dot: 'bg-[#145C44]',  badge: 'bg-[#E8F4EE] text-[#145C44] dark:bg-green-900/30 dark:text-[#5DAA82]' },
   rejected: { label: 'Rejected', dot: 'bg-slate-400',  badge: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300' },
 };
 
@@ -596,8 +596,8 @@ function CreateExeatModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-0 sm:px-4">
-      <div className="bg-white dark:bg-slate-800 w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/45 px-0 sm:px-4">
+      <div className="bg-white dark:bg-slate-800 w-full sm:max-w-lg rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <div>
             <p className="font-bold text-slate-900 dark:text-white">New {exeatType === 'internal' ? 'Internal' : 'External'} Exeat</p>
@@ -608,9 +608,9 @@ function CreateExeatModal({
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {/* Student selector */}
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Student *</label>
+            <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Student *</label>
             {selectedStu ? (
-              <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl px-3 py-2.5">
+              <div className="flex items-center justify-between bg-[#E8F4EE] dark:bg-green-900/20 border border-[#B8D9C8] dark:border-green-700 rounded-xl px-3 py-2.5">
                 <div>
                   <p className="text-sm font-semibold text-slate-900 dark:text-white">{selectedStu.name}</p>
                   <p className="text-xs text-slate-500">{selectedStu.student_code} · {selectedStu.class_name}{houseOptions.length > 1 ? ` · ${selectedStu.house}` : ''}</p>
@@ -620,16 +620,16 @@ function CreateExeatModal({
             ) : (
               <div className="space-y-2">
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or ID…"
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                 {stuLoading ? (
-                  <div className="flex justify-center py-4"><div className="w-5 h-5 rounded-full border-2 border-green-500 border-t-transparent animate-spin" /></div>
+                  <div className="flex justify-center py-4"><div className="w-5 h-5 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
                 ) : search.trim() ? (
                   <div className="border border-slate-200 dark:border-slate-600 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
                     {filtered.length === 0 ? (
                       <p className="text-sm text-slate-500 text-center py-4">No matches</p>
                     ) : filtered.slice(0, 20).map(s => (
                       <button key={s.id} onClick={() => pickStudent(s)}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-left border-b border-slate-100 dark:border-slate-700 last:border-0">
+                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-[#F5F0E8] dark:hover:bg-slate-700/50 text-left border-b border-slate-100 dark:border-slate-700 last:border-0">
                         <div>
                           <p className="text-sm font-medium text-slate-900 dark:text-white">{s.name}</p>
                           <p className="text-xs text-slate-400">{s.student_code} · {s.class_name}</p>
@@ -644,49 +644,49 @@ function CreateExeatModal({
 
           <div className="grid grid-cols-1 gap-3">
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Destination *</label>
+              <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Destination *</label>
               <input value={destination} onChange={e => setDestination(e.target.value)} placeholder="e.g. Kumasi — family home"
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Reason *</label>
+              <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Reason *</label>
               <input value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Medical appointment"
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Parent Contact (SMS)</label>
+              <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Parent Contact (SMS)</label>
               <input value={contact} onChange={e => setContact(e.target.value)} placeholder="e.g. 0244123456"
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
               <p className="text-[11px] text-slate-400 mt-1">Pre-filled from student record. Edit to override.</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Departure Date *</label>
+              <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Departure Date *</label>
               <input type="date" value={depDate} onChange={e => setDepDate(e.target.value)}
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Departure Time *</label>
+              <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Departure Time *</label>
               <input type="time" value={depTime} onChange={e => setDepTime(e.target.value)}
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Expected Return *</label>
+              <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Expected Return *</label>
               <input type="date" value={retDate} onChange={e => setRetDate(e.target.value)}
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Return Time *</label>
+              <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Return Time *</label>
               <input type="time" value={retTime} onChange={e => setRetTime(e.target.value)}
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
             </div>
           </div>
 
           <label className="flex items-center gap-3 cursor-pointer">
             <input type="checkbox" checked={grantNow} onChange={e => setGrantNow(e.target.checked)}
-              className="w-4 h-4 accent-green-600 rounded" />
+              className="w-4 h-4 accent-[#145C44] rounded" />
             <span className="text-sm text-slate-700 dark:text-slate-300">Grant immediately (mark as active now)</span>
           </label>
 
@@ -730,8 +730,8 @@ function ReturnModal({ exeat, onClose, onReturned }: { exeat: Exeat; onClose: ()
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-0 sm:px-4">
-      <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/45 px-0 sm:px-4">
+      <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl shadow-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
           <p className="font-bold text-slate-900 dark:text-white">Mark Returned</p>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>
@@ -739,14 +739,14 @@ function ReturnModal({ exeat, onClose, onReturned }: { exeat: Exeat; onClose: ()
         <p className="text-sm text-slate-600 dark:text-slate-300">Confirm return for <strong>{exeat.student_name}</strong></p>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Return Date</label>
+            <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Return Date</label>
             <input type="date" value={retDate} onChange={e => setRetDate(e.target.value)}
-              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Return Time</label>
+            <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Return Time</label>
             <input type="time" value={retTime} onChange={e => setRetTime(e.target.value)}
-              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
           </div>
         </div>
         {error && <p className="text-xs text-red-500">{error}</p>}
@@ -833,7 +833,7 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-semibold text-slate-900 dark:text-white text-sm">{e.student_name}</p>
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${e.exeat_type === 'external' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'}`}>
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full font-medium ${e.exeat_type === 'external' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'}`}>
                 {e.exeat_type}
               </span>
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${meta.badge}`}>
@@ -854,7 +854,7 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
             <span>{fmtDate(e.expected_return_date)} {fmtTime(e.expected_return_time)}</span>
           </div>
           {e.actual_return_date && (
-            <div><span className="text-slate-400">Returned: </span><span className="text-green-700 dark:text-green-400 font-medium">{fmtDate(e.actual_return_date)} {fmtTime(e.actual_return_time ?? '')}</span></div>
+            <div><span className="text-slate-400">Returned: </span><span className="text-[#145C44] dark:text-[#2ab289] font-medium">{fmtDate(e.actual_return_date)} {fmtTime(e.actual_return_time ?? '')}</span></div>
           )}
           {e.granted_by_name && <div><span className="text-slate-400">Granted by: </span><span className="text-slate-700 dark:text-slate-300">{e.granted_by_name}</span></div>}
         </div>
@@ -944,12 +944,12 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
           value={historySearch}
           onChange={e => setHistorySearch(e.target.value)}
           placeholder="Search by student name, ID or destination…"
-          className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
         />
       )}
 
       {loading ? (
-        <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-green-500 border-t-transparent animate-spin" /></div>
+        <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
       ) : displayList.length === 0 ? (
         <div className="text-center py-10 text-sm text-slate-500">
           {subTab === 'pending' ? 'No pending exeat requests.' : subTab === 'out' ? 'No students currently on exeat.' : 'No exeat history.'}
@@ -962,16 +962,16 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
 
       {/* Reject modal */}
       {rejectId && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-0 sm:px-4">
-          <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-2xl p-5 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/45 px-0 sm:px-4">
+          <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl shadow-2xl p-5 space-y-4">
             <div className="flex items-center justify-between">
               <p className="font-bold text-slate-900 dark:text-white">Reject Exeat</p>
               <button onClick={() => setRejectId(null)} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Reason (optional)</label>
+              <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Reason (optional)</label>
               <input value={rejectNote} onChange={e => setRejectNote(e.target.value)} placeholder="e.g. Insufficient reason provided"
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
             </div>
             <div className="flex gap-3">
               <button onClick={() => setRejectId(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-sm font-semibold text-slate-600 dark:text-slate-300">Cancel</button>
@@ -1067,7 +1067,7 @@ export default function HouseStudentsPage() {
   const { displayRows: stuRows, total: stuTotal, page: stuPage, setPage: setStuPage, pageSize: stuPageSize, setPageSize: setStuPageSize } = useTableControls(students);
 
   if (role === 'loading') {
-    return <div className="flex items-center justify-center min-h-64"><div className="w-8 h-8 rounded-full border-2 border-green-500 border-t-transparent animate-spin" /></div>;
+    return <div className="flex items-center justify-center min-h-64"><div className="w-8 h-8 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>;
   }
 
   if (role === 'none') {
@@ -1102,7 +1102,7 @@ export default function HouseStudentsPage() {
       <div className="space-y-0.5">
         <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">{displayName}</h1>
-          {isSenior && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">Senior Housemaster</span>}
+          {isSenior && <span className="text-[10px] font-bold font-medium px-2 py-0.5 rounded-full bg-[#D1EAD9] dark:bg-green-900/30 text-[#145C44] dark:text-[#2ab289]">Senior Housemaster</span>}
         </div>
         <p className="text-sm text-slate-500 dark:text-slate-400">
           {headerTotal} active student{headerTotal !== 1 ? 's' : ''}
@@ -1140,7 +1140,7 @@ export default function HouseStudentsPage() {
                   <StatCard label="Unassigned" value={seniorTotals!.total - seniorTotals!.assigned} />
                 </div>
               )}
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400 pt-1">Per House</p>
+              <p className="text-xs font-bold font-medium text-slate-400 pt-1">Per House</p>
               <div className="space-y-4">
                 {allHouses.map(h => <HouseOverviewCard key={h.house_name} h={h} accent={ACCENT} />)}
               </div>
@@ -1164,8 +1164,8 @@ export default function HouseStudentsPage() {
                 </div>
               )}
               {rs && rs.total_rooms > 0 && rs.rooms.length > 0 && (
-                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-4 space-y-3">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Room Occupancy</p>
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 space-y-3">
+                  <p className="text-xs font-bold font-medium text-slate-400">Room Occupancy</p>
                   {rs.rooms.map(r => (
                     <div key={r.id} className="space-y-1">
                       <div className="flex justify-between text-xs font-medium text-slate-700 dark:text-slate-300">
@@ -1177,14 +1177,14 @@ export default function HouseStudentsPage() {
                   ))}
                 </div>
               )}
-              <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-4 space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Gender Distribution</p>
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 space-y-3">
+                <p className="text-xs font-bold font-medium text-slate-400">Gender Distribution</p>
                 <DistBar label="Male"   count={d!.male}   total={d!.total} color="#3b82f6" />
                 <DistBar label="Female" count={d!.female} total={d!.total} color="#ec4899" />
                 {d!.total - d!.male - d!.female > 0 && <DistBar label="Not specified" count={d!.total - d!.male - d!.female} total={d!.total} color="#94a3b8" />}
               </div>
-              <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-4 space-y-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Residential Status</p>
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 space-y-3">
+                <p className="text-xs font-bold font-medium text-slate-400">Residential Status</p>
                 <DistBar label="Boarding" count={d!.boarding} total={d!.total} color="#6366f1" />
                 <DistBar label="Day"      count={d!.day}      total={d!.total} color="#f59e0b" />
                 {d!.total - d!.boarding - d!.day > 0 && <DistBar label="Not specified" count={d!.total - d!.boarding - d!.day} total={d!.total} color="#94a3b8" />}
@@ -1192,8 +1192,8 @@ export default function HouseStudentsPage() {
               {d!.by_class.length > 0 && (() => {
                 const max = Math.max(...d!.by_class.map(c => c.count), 1);
                 return (
-                  <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-4 space-y-3">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">By Class / Form</p>
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 space-y-3">
+                    <p className="text-xs font-bold font-medium text-slate-400">By Class / Form</p>
                     {d!.by_class.map(c => (
                       <div key={c.class_name} className="space-y-1">
                         <div className="flex justify-between text-xs font-medium text-slate-700 dark:text-slate-300">
@@ -1217,7 +1217,7 @@ export default function HouseStudentsPage() {
         <div className="space-y-3">
           {isSenior && houseOptions.length > 1 && (
             <select value={roomHouse} onChange={e => setRoomHouse(e.target.value)}
-              className="text-sm border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500 w-full sm:w-auto">
+              className="text-sm border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#145C44] w-full sm:w-auto">
               {houseOptions.map(h => <option key={h} value={h}>{h}</option>)}
             </select>
           )}
@@ -1238,31 +1238,31 @@ export default function HouseStudentsPage() {
           <div className="flex flex-wrap gap-2">
             {isSenior && (
               <select value={filterHouse} onChange={e => { setFilterHouse(e.target.value); setFilterClass(''); }}
-                className="text-sm border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500">
+                className="text-sm border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#145C44]">
                 <option value="">All Houses</option>
                 {houseOptions.map(h => <option key={h} value={h}>{h}</option>)}
               </select>
             )}
             <select value={filterClass} onChange={e => setFilterClass(e.target.value)}
-              className="text-sm border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500">
+              className="text-sm border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#145C44]">
               <option value="">All Classes</option>
               {classOptions.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             <select value={filterRes} onChange={e => setFilterRes(e.target.value)}
-              className="text-sm border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500">
+              className="text-sm border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#145C44]">
               <option value="">All Residential</option>
               <option value="Boarding">Boarding</option>
               <option value="Day">Day</option>
             </select>
             <select value={filterGender} onChange={e => setFilterGender(e.target.value)}
-              className="text-sm border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500">
+              className="text-sm border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#145C44]">
               <option value="">All Genders</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </select>
           </div>
           {stuLoading ? (
-            <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-green-500 border-t-transparent animate-spin" /></div>
+            <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
           ) : students.length === 0 ? (
             <div className="text-center py-10 text-sm text-slate-500">No students found.</div>
           ) : (
@@ -1280,7 +1280,7 @@ export default function HouseStudentsPage() {
                     <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
                       {s.class_name && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">{s.class_name}</span>}
                       {s.residential_status && (
-                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.residential_status.toLowerCase() === 'boarding' ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.residential_status.toLowerCase() === 'boarding' ? 'bg-blue-50 text-[#1D4ED8] dark:bg-blue-900/30 dark:text-[#93C5FD]' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
                           {s.residential_status}
                         </span>
                       )}

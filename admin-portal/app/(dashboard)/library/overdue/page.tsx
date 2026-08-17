@@ -39,12 +39,12 @@ export default function OverduePage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                <Th label="Student" sortKey="student_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <Th label="Book" sortKey="book_title" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Copy</th>
-                <Th label="Due Date" sortKey="due_date" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <Th label="Days Overdue" sortKey="days_overdue" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <Th label="Fine" sortKey="fine_amount" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <Th label="Student" sortKey="student_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap" />
+                <Th label="Book" sortKey="book_title" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap" />
+                <th className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap">Copy</th>
+                <Th label="Due Date" sortKey="due_date" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap" />
+                <Th label="Days Overdue" sortKey="days_overdue" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap" />
+                <Th label="Fine" sortKey="fine_amount" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs whitespace-nowrap" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">

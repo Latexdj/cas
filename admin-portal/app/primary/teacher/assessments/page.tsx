@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -88,7 +88,7 @@ export default function TeacherAssessmentsPage() {
         `/api/primary/assessments/${a.id}/scores`
       );
       setRows(data.students.map(s => ({ ...s, score: s.score ?? null, absent: s.absent ?? false })));
-    } catch { setScError('Failed to load students.'); }
+    } catch { setScError('Could not load students.'); }
     finally { setScLoading(false); }
   }
 
@@ -213,7 +213,7 @@ export default function TeacherAssessmentsPage() {
               </div>
             ) : (
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">New Assessment</p>
+                <p className="text-xs font-bold text-slate-500 font-medium">New Assessment</p>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Mode</label>
                   <select value={createForm.mode_id} onChange={e => setCreateForm(f => ({ ...f, mode_id: e.target.value }))}
@@ -262,7 +262,7 @@ export default function TeacherAssessmentsPage() {
                 <button onClick={createAssessment}
                   disabled={creating || !createForm.mode_id || !createForm.title.trim() || !createForm.max_score}
                   className="w-full py-2 rounded-lg text-sm font-bold text-white disabled:opacity-40"
-                  style={{ backgroundColor: '#15803D' }}>
+                  style={{ backgroundColor: '#145C44' }}>
                   {creating ? 'Creating…' : 'Create & Enter Scores ▶'}
                 </button>
               </div>
@@ -271,7 +271,7 @@ export default function TeacherAssessmentsPage() {
             {/* Assessment list grouped by mode */}
             {listLoading ? (
               <div className="flex justify-center py-8">
-                <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
               </div>
             ) : assessments.length === 0 ? (
               <p className="text-sm text-center text-slate-400 py-6">No assessments yet for this term and subject.</p>
@@ -281,21 +281,21 @@ export default function TeacherAssessmentsPage() {
                   const modeInfo = modes.find(m => m.name === modeName);
                   return (
                     <div key={modeName} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                      <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+                      <div className="px-4 py-2.5 bg-[#F5F0E8] border-b border-gray-100 flex items-center gap-2">
                         <span className="text-xs font-bold text-slate-700">{modeName}</span>
                         {modeInfo && chip(`${modeInfo.ca_weight}%`, modeInfo.is_terminal_exam)}
                       </div>
                       <div className="divide-y divide-gray-50">
                         {items.map(a => (
                           <div key={a.id}
-                            className={`px-4 py-2.5 flex items-center gap-3 cursor-pointer transition-colors ${activeAssessment?.id === a.id ? 'bg-green-50' : 'hover:bg-gray-50'}`}
+                            className={`px-4 py-2.5 flex items-center gap-3 cursor-pointer transition-colors ${activeAssessment?.id === a.id ? 'bg-[#E8F4EE]' : 'hover:bg-[#F5F0E8]'}`}
                             onClick={() => openAssessment(a)}>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-slate-800 truncate">{a.title}</p>
                               <p className="text-xs text-slate-400">Max {a.max_score} · {a.score_count} scores entered</p>
                             </div>
                             {activeAssessment?.id === a.id
-                              ? <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                              ? <span className="w-2 h-2 rounded-full bg-[#145C44] flex-shrink-0" />
                               : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-slate-300 flex-shrink-0"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>}
                             <button onClick={e => { e.stopPropagation(); deleteAssessment(a.id); }}
                               className="text-xs text-red-400 hover:text-red-600 flex-shrink-0 ml-1">×</button>
@@ -313,7 +313,7 @@ export default function TeacherAssessmentsPage() {
           <div className="lg:col-span-3">
             {!activeAssessment ? (
               <div className="bg-white rounded-xl border border-gray-100 shadow-sm py-20 text-center text-slate-400 text-sm">
-                <p className="text-4xl mb-3">📝</p>
+                
                 <p>Create a new assessment or select one from the list to enter scores.</p>
               </div>
             ) : (
@@ -348,7 +348,7 @@ export default function TeacherAssessmentsPage() {
                   {rows.length > 0 && (
                     <div className="flex items-center gap-3 mt-3">
                       <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                        <div className="h-full rounded-full" style={{ width: `${filled / rows.length * 100}%`, backgroundColor: '#15803D' }} />
+                        <div className="h-full rounded-full" style={{ width: `${filled / rows.length * 100}%`, backgroundColor: '#145C44' }} />
                       </div>
                       <span className="text-xs text-slate-500 whitespace-nowrap">{filled}/{rows.length} entered</span>
                     </div>
@@ -358,30 +358,30 @@ export default function TeacherAssessmentsPage() {
                 {/* Score table */}
                 {scLoading ? (
                   <div className="flex justify-center py-12">
-                    <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                    <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
                   </div>
                 ) : (
                   <>
                     {scError && <p className="mx-5 mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{scError}</p>}
-                    {saved   && <p className="mx-5 mt-3 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">✓ Scores saved — class scores recalculated.</p>}
+                    {saved   && <p className="mx-5 mt-3 text-sm text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded-lg px-4 py-2">✓ Scores saved — class scores recalculated.</p>}
 
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-100">
+                        <thead className="bg-[#F5F0E8] border-b border-gray-100">
                           <tr>
-                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-8">#</th>
-                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Student</th>
-                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium w-8">#</th>
+                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium">Student</th>
+                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium">
                               Score /{activeAssessment.max_score}
                             </th>
-                            <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Absent</th>
+                            <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 font-medium">Absent</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                           {rows.map((r, i) => {
                             const outOfRange = !r.absent && r.score !== null && (r.score < 0 || r.score > activeAssessment.max_score);
                             return (
-                              <tr key={r.student_id} className={r.absent ? 'bg-red-50' : outOfRange ? 'bg-amber-50' : 'hover:bg-gray-50'}>
+                              <tr key={r.student_id} className={r.absent ? 'bg-red-50' : outOfRange ? 'bg-amber-50' : 'hover:bg-[#F5F0E8]'}>
                                 <td className="px-4 py-2 text-xs text-slate-400 tabular-nums">{i + 1}</td>
                                 <td className="px-4 py-2">
                                   <p className="font-medium text-slate-900 leading-tight">{r.name}</p>
@@ -431,7 +431,7 @@ export default function TeacherAssessmentsPage() {
                         </p>
                         <button onClick={saveScores} disabled={saving || rows.some(r => !r.absent && r.score !== null && (r.score < 0 || r.score > activeAssessment.max_score))}
                           className="px-5 py-2 rounded-lg text-sm font-bold text-white shadow-sm disabled:opacity-40 flex-shrink-0"
-                          style={{ backgroundColor: '#15803D' }}>
+                          style={{ backgroundColor: '#145C44' }}>
                           {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Scores'}
                         </button>
                       </div>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
@@ -176,7 +176,7 @@ export default function InvigilationPage() {
       setAttendance(map);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setRegError(msg ?? 'Failed to load students.');
+      setRegError(msg ?? 'Could not load students.');
     } finally { setLoadingStudents(false); }
   }
 
@@ -213,7 +213,7 @@ export default function InvigilationPage() {
   if (registerDutyId !== null) {
     const duty = duties.find(d => d.id === registerDutyId);
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+      <div className="min-h-screen bg-[#F5F0E8] dark:bg-slate-900">
         <div className="sticky top-0 z-10 px-4 py-3 flex items-center gap-3 shadow-sm"
           style={{ backgroundColor: primary }}>
           <button onClick={() => setRegisterDutyId(null)} className="text-white/80 hover:text-white">
@@ -229,9 +229,9 @@ export default function InvigilationPage() {
 
         <div className="p-4 space-y-4">
           {regSubmitted && (
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 text-center">
-              <p className="text-green-700 dark:text-green-400 font-semibold text-sm">Register submitted successfully</p>
-              <p className="text-xs text-green-600 dark:text-green-500 mt-1">
+            <div className="bg-[#E8F4EE] dark:bg-green-900/20 border border-[#B8D9C8] dark:border-green-800 rounded-xl p-4 text-center">
+              <p className="text-[#145C44] dark:text-[#2ab289] font-semibold text-sm">Register submitted successfully</p>
+              <p className="text-xs text-[#145C44] dark:text-[#2D7A4F] mt-1">
                 {presentCount} present · {absentCount} absent
               </p>
             </div>
@@ -241,7 +241,7 @@ export default function InvigilationPage() {
           <div className="bg-white dark:bg-slate-800 rounded-xl px-4 py-3 flex justify-between items-center shadow-sm">
             <span className="text-xs text-slate-500">{students.length} students</span>
             <div className="flex gap-4 text-xs font-semibold">
-              <span className="text-green-600">{presentCount} Present</span>
+              <span className="text-[#145C44]">{presentCount} Present</span>
               <span className="text-red-500">{absentCount} Absent</span>
             </div>
           </div>
@@ -265,7 +265,7 @@ export default function InvigilationPage() {
                         : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
                     }`}>
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                      isPresent ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                      isPresent ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-red-100 text-red-600'
                     }`}>
                       {isPresent ? '✓' : '✗'}
                     </div>
@@ -274,7 +274,7 @@ export default function InvigilationPage() {
                       <p className="text-xs text-slate-400">{s.student_code} · {s.class_name}</p>
                     </div>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                      isPresent ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                      isPresent ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-red-100 text-red-600'
                     }`}>{status}</span>
                   </button>
                 );
@@ -309,7 +309,7 @@ export default function InvigilationPage() {
   if (checkingIn !== null) {
     const duty = duties.find(d => d.id === checkingIn);
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+      <div className="min-h-screen bg-[#F5F0E8] dark:bg-slate-900">
         <div className="sticky top-0 z-10 px-4 py-3 flex items-center gap-3 shadow-sm"
           style={{ backgroundColor: primary }}>
           <button onClick={() => setCheckingIn(null)} className="text-white/80 hover:text-white">
@@ -326,7 +326,7 @@ export default function InvigilationPage() {
         <div className="p-4 space-y-4">
           {/* GPS */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-4 space-y-2">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Your Location</p>
+            <p className="text-xs font-bold font-medium text-slate-400">Your Location</p>
             {gpsAcquiring ? (
               <p className="text-sm text-slate-500 flex items-center gap-2">
                 <span className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin inline-block" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
@@ -347,7 +347,7 @@ export default function InvigilationPage() {
 
           {/* Photo */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-4 space-y-3">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Selfie Photo</p>
+            <p className="text-xs font-bold font-medium text-slate-400">Selfie Photo</p>
             {photoDataUrl ? (
               <div className="space-y-2">
                 <img src={photoDataUrl} alt="selfie" className="w-32 h-32 rounded-xl object-cover" />
@@ -365,10 +365,10 @@ export default function InvigilationPage() {
 
           {/* Notes */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-4 space-y-2">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Notes (optional)</p>
+            <p className="text-xs font-bold font-medium text-slate-400">Notes (optional)</p>
             <textarea rows={2} value={checkInNotes} onChange={e => setCheckInNotes(e.target.value)}
               placeholder="Any notes about your attendance…"
-              className="w-full text-sm rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full text-sm rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
           </div>
 
           {checkInError && (
@@ -387,7 +387,7 @@ export default function InvigilationPage() {
 
   // Main duties list
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="min-h-screen bg-[#F5F0E8] dark:bg-slate-900">
       <div className="px-4 py-5">
         <h1 className="text-xl font-bold text-slate-800 dark:text-white">Invigilation Duties</h1>
         <p className="text-sm text-slate-400 mt-0.5">Your assigned exam sessions</p>
@@ -405,7 +405,7 @@ export default function InvigilationPage() {
         <div className="px-4 space-y-6">
           {todayDuties.length > 0 && (
             <section>
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Today</p>
+              <p className="text-xs font-bold font-medium text-slate-400 mb-3">Today</p>
               <div className="space-y-3">
                 {todayDuties.map(d => <DutyCard key={d.id} duty={d} isToday primary={primary}
                   onCheckIn={() => openCheckIn(d.id)}
@@ -415,7 +415,7 @@ export default function InvigilationPage() {
           )}
           {upcomingDuties.length > 0 && (
             <section>
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Upcoming</p>
+              <p className="text-xs font-bold font-medium text-slate-400 mb-3">Upcoming</p>
               <div className="space-y-3">
                 {upcomingDuties.map(d => <DutyCard key={d.id} duty={d} isToday={false} primary={primary}
                   onCheckIn={() => {}} onRegister={() => {}} />)}
@@ -424,7 +424,7 @@ export default function InvigilationPage() {
           )}
           {pastDuties.length > 0 && (
             <section>
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Past (last 30 days)</p>
+              <p className="text-xs font-bold font-medium text-slate-400 mb-3">Past (last 30 days)</p>
               <div className="space-y-3">
                 {pastDuties.map(d => <DutyCard key={d.id} duty={d} isToday={false} isPast primary={primary}
                   onCheckIn={() => {}} onRegister={() => {}} />)}
@@ -495,15 +495,15 @@ function DutyCard({ duty, isToday, isPast = false, primary, onCheckIn, onRegiste
                 Check In
               </button>
             ) : (
-              <div className="flex-1 flex items-center gap-1.5 text-xs font-semibold text-green-600">
-                <span className="w-4 h-4 bg-green-100 rounded-full flex items-center justify-center">✓</span>
+              <div className="flex-1 flex items-center gap-1.5 text-xs font-semibold text-[#145C44]">
+                <span className="w-4 h-4 bg-[#D1EAD9] rounded-full flex items-center justify-center">✓</span>
                 Checked in
               </div>
             )}
             <button onClick={onRegister} disabled={!canRegister}
               className={`flex-1 py-2.5 rounded-lg text-sm font-semibold border transition-colors ${
                 canRegister
-                  ? 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
+                  ? 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-[#F5F0E8] dark:hover:bg-slate-700'
                   : 'border-slate-100 dark:border-slate-700 text-slate-300 dark:text-slate-600 cursor-not-allowed'
               }`}>
               {registerDone ? 'Edit Register' : 'Take Register'}
@@ -528,7 +528,7 @@ function StatusPill({ done, label, doneLabel, manual = false }: {
       done
         ? manual
           ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-          : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+          : 'bg-[#D1EAD9] text-[#145C44] dark:bg-green-900/30 dark:text-[#5DAA82]'
         : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500'
     }`}>
       {done ? '✓' : '○'} {done ? doneLabel : label}

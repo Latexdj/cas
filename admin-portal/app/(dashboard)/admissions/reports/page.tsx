@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 
@@ -76,9 +76,9 @@ export default function AdmissionReportsPage() {
             { label: 'Registered', val: stats.total_registered, color: '#0284C7' },
             { label: 'Pending',    val: stats.pending,          color: '#94A3B8' },
             { label: 'Completed',  val: stats.completed,        color: '#1D4ED8' },
-            { label: 'Reported',   val: stats.reported,         color: '#15803D' },
+            { label: 'Reported',   val: stats.reported,         color: '#145C44' },
             { label: 'Migrated',   val: stats.migrated,         color: '#7C3AED' },
-            { label: 'Total',      val: stats.total,            color: '#0F172A' },
+            { label: 'Total',      val: stats.total,            color: '#1C1208' },
           ].map(s => (
             <div key={s.label} className="bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3 text-center">
               <p className="text-3xl font-bold" style={{ color: s.color }}>{s.val}</p>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -42,8 +42,8 @@ function ColorSwatch({ color, label }: { color: string; label: string }) {
     <div className="flex items-center gap-3">
       <div className="w-10 h-10 rounded-lg border border-white/20 shadow-sm flex-shrink-0" style={{ backgroundColor: color }} />
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>{label}</p>
-        <p className="text-sm font-mono font-semibold" style={{ color: '#0F172A' }}>{color}</p>
+        <p className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>{label}</p>
+        <p className="text-sm font-mono font-semibold" style={{ color: '#1C1208' }}>{color}</p>
       </div>
     </div>
   );
@@ -52,7 +52,7 @@ function ColorSwatch({ color, label }: { color: string; label: string }) {
 function AppPreview({ primary, accent }: { primary: string; accent: string }) {
   const textOnPrimary = '#ffffff';
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #E2E8F0', boxShadow: '0 4px 20px rgba(15,23,42,0.12)', width: 200, fontFamily: 'system-ui' }}>
+    <div className="rounded-xl overflow-hidden" style={{ border: '1px solid #E2E8F0', boxShadow: '0 4px 20px rgba(15,23,42,0.12)', width: 200, fontFamily: 'system-ui' }}>
       {/* Header */}
       <div className="px-4 pt-4 pb-5" style={{ backgroundColor: primary }}>
         <div className="flex justify-between items-center">
@@ -68,7 +68,7 @@ function AppPreview({ primary, accent }: { primary: string; accent: string }) {
         <div className="flex justify-around">
           {[['4', 'Lessons'], ['2', 'Done'], ['2', 'Pending']].map(([n, l]) => (
             <div key={l} className="text-center">
-              <p className="text-base font-bold" style={{ color: '#0F172A' }}>{n}</p>
+              <p className="text-base font-bold" style={{ color: '#1C1208' }}>{n}</p>
               <p className="text-xs" style={{ color: '#94A3B8' }}>{l}</p>
             </div>
           ))}
@@ -79,7 +79,7 @@ function AppPreview({ primary, accent }: { primary: string; accent: string }) {
         <div className="w-1" style={{ backgroundColor: accent }} />
         <div className="p-3 flex-1">
           <p className="text-xs" style={{ color: '#94A3B8' }}>08:00 – 09:00</p>
-          <p className="text-sm font-bold" style={{ color: '#0F172A' }}>Mathematics</p>
+          <p className="text-sm font-bold" style={{ color: '#1C1208' }}>Mathematics</p>
           <p className="text-xs" style={{ color: '#64748B' }}>Form 2A</p>
         </div>
         <div className="pr-3 flex items-center">
@@ -164,7 +164,7 @@ function GradeBoundariesCard() {
 
   return (
     <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
-      <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>Grade Boundaries</h2>
+      <h2 className="text-sm font-semibold font-medium mb-1" style={{ color: '#64748B' }}>Grade Boundaries</h2>
       <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
         Set the percentage ranges and labels for each grade under WAEC and CTVET. Used to compute grades on report cards.
       </p>
@@ -174,7 +174,7 @@ function GradeBoundariesCard() {
         {(['WAEC', 'CTVET'] as GBExamBody[]).map(b => (
           <button key={b} onClick={() => setActiveBody(b)}
             className="px-5 py-1.5 rounded-lg text-sm font-semibold transition-all"
-            style={{ backgroundColor: activeBody === b ? '#FFFFFF' : 'transparent', color: activeBody === b ? '#0F172A' : '#64748B', boxShadow: activeBody === b ? '0 1px 3px rgba(15,23,42,0.08)' : 'none' }}>
+            style={{ backgroundColor: activeBody === b ? '#FFFFFF' : 'transparent', color: activeBody === b ? '#1C1208' : '#64748B', boxShadow: activeBody === b ? '0 1px 3px rgba(15,23,42,0.08)' : 'none' }}>
             {b}
           </button>
         ))}
@@ -188,18 +188,18 @@ function GradeBoundariesCard() {
         <div className="space-y-3">
           <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid #F1F5F9' }}>
             <table className="min-w-[520px] w-full text-sm">
-              <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+              <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
                 <tr>
                   {['Grade', 'Min %', 'Max %', 'Remark', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {shown.map((b, i) => (
                   <tr key={b.id} className="hover:bg-slate-50"
-                    style={{ borderBottom: i < shown.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
-                    <td className="px-4 py-2.5 font-bold" style={{ color: '#0F172A' }}>{b.grade}</td>
+                    style={{ borderBottom: i < shown.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
+                    <td className="px-4 py-2.5 font-bold" style={{ color: '#1C1208' }}>{b.grade}</td>
                     <td className="px-4 py-2.5 text-xs" style={{ color: '#64748B' }}>{b.min_pct}%</td>
                     <td className="px-4 py-2.5 text-xs" style={{ color: '#64748B' }}>{b.max_pct}%</td>
                     <td className="px-4 py-2.5 text-xs" style={{ color: '#94A3B8' }}>{b.remark ?? '—'}</td>
@@ -230,27 +230,27 @@ function GradeBoundariesCard() {
         title={modal === 'add' ? `Add ${activeBody} Grade` : 'Edit Grade'} maxWidth="max-w-sm">
         <div className="space-y-3">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Grade Label *</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Grade Label *</label>
             <input className={inputCls} value={form.grade} onChange={e => setForm(f => ({ ...f, grade: e.target.value }))} placeholder="e.g. A1, B+, C" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Min % *</label>
+              <label className="text-xs font-semibold font-medium text-slate-500">Min % *</label>
               <input className={inputCls} type="number" min="0" max="100" step="0.5"
                 value={form.min_pct} onChange={e => setForm(f => ({ ...f, min_pct: e.target.value }))} placeholder="e.g. 80" />
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Max % *</label>
+              <label className="text-xs font-semibold font-medium text-slate-500">Max % *</label>
               <input className={inputCls} type="number" min="0" max="100" step="0.5"
                 value={form.max_pct} onChange={e => setForm(f => ({ ...f, max_pct: e.target.value }))} placeholder="e.g. 100" />
             </div>
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Remark</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Remark</label>
             <input className={inputCls} value={form.remark} onChange={e => setForm(f => ({ ...f, remark: e.target.value }))} placeholder="e.g. Excellent, Credit, Pass, Fail" />
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sort Order</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Sort Order</label>
             <input className={inputCls} type="number" value={form.sort_order} onChange={e => setForm(f => ({ ...f, sort_order: e.target.value }))} placeholder="Higher = shown first (e.g. 9 for A1)" />
           </div>
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
@@ -417,7 +417,7 @@ export default function SettingsPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+      <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
     </div>
   );
 
@@ -425,22 +425,22 @@ export default function SettingsPage() {
     <div className="max-w-3xl space-y-6">
       {/* School info */}
       <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-4" style={{ color: '#64748B' }}>School Information</h2>
+        <h2 className="text-sm font-semibold font-medium mb-4" style={{ color: '#64748B' }}>School Information</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#94A3B8' }}>School Name</p>
-            <p className="text-sm font-semibold" style={{ color: '#0F172A' }}>{settings?.name}</p>
+            <p className="text-xs font-semibold font-medium mb-1" style={{ color: '#94A3B8' }}>School Name</p>
+            <p className="text-sm font-semibold" style={{ color: '#1C1208' }}>{settings?.name}</p>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#94A3B8' }}>School Code</p>
-            <p className="text-sm font-mono font-bold px-2 py-0.5 rounded inline-block" style={{ backgroundColor: '#F0FDF4', color: '#15803D' }}>{settings?.code}</p>
+            <p className="text-xs font-semibold font-medium mb-1" style={{ color: '#94A3B8' }}>School Code</p>
+            <p className="text-sm font-mono font-bold px-2 py-0.5 rounded inline-block" style={{ backgroundColor: '#F0FDF4', color: '#145C44' }}>{settings?.code}</p>
           </div>
         </div>
       </div>
 
       {/* School Logo */}
       <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>School Logo</h2>
+        <h2 className="text-sm font-semibold font-medium mb-1" style={{ color: '#64748B' }}>School Logo</h2>
         <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
           Displayed in the teacher portal sidebar. Recommended: square image, at least 200×200 px.
         </p>
@@ -448,7 +448,7 @@ export default function SettingsPage() {
         <div className="flex items-center gap-5">
           {/* Current logo preview */}
           <div className="w-20 h-20 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
-            style={{ border: '2px dashed #E2E8F0', background: '#F8FAFC' }}>
+            style={{ border: '2px dashed #E2E8F0', background: '#F5F0E8' }}>
             {logoUrl ? (
               <img src={logoUrl} alt="School logo" className="w-full h-full object-cover" />
             ) : (
@@ -464,7 +464,7 @@ export default function SettingsPage() {
               onClick={() => logoFileRef.current?.click()}
               disabled={logoSaving}
               className="px-4 py-2 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-40"
-              style={{ borderColor: '#15803D', color: '#15803D', background: '#F0FDF4' }}
+              style={{ borderColor: '#145C44', color: '#145C44', background: '#F0FDF4' }}
             >
               {logoSaving ? (
                 <span className="flex items-center gap-2">
@@ -473,7 +473,7 @@ export default function SettingsPage() {
                 </span>
               ) : logoUrl ? 'Replace Logo' : 'Upload Logo'}
             </button>
-            {logoSaved  && <p className="text-xs mt-2" style={{ color: '#15803D' }}>✓ Logo updated successfully.</p>}
+            {logoSaved  && <p className="text-xs mt-2" style={{ color: '#145C44' }}>✓ Logo updated successfully.</p>}
             {logoError  && <p className="text-xs mt-2" style={{ color: '#DC2626' }}>{logoError}</p>}
             {!logoUrl   && !logoSaved && <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>No logo uploaded yet.</p>}
           </div>
@@ -482,7 +482,7 @@ export default function SettingsPage() {
 
       {/* Headmaster / Principal Signature */}
       <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>Headmaster / Principal Signature</h2>
+        <h2 className="text-sm font-semibold font-medium mb-1" style={{ color: '#64748B' }}>Headmaster / Principal Signature</h2>
         <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
           Uploaded signature will be printed automatically on student report cards. Use a clear image on a white or transparent background.
         </p>
@@ -490,7 +490,7 @@ export default function SettingsPage() {
         <div className="flex items-center gap-5">
           {/* Signature preview */}
           <div className="rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
-            style={{ width: '160px', height: '64px', border: '2px dashed #E2E8F0', background: '#F8FAFC' }}>
+            style={{ width: '160px', height: '64px', border: '2px dashed #E2E8F0', background: '#F5F0E8' }}>
             {sigUrl ? (
               <img src={sigUrl} alt="Headmaster signature" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
             ) : (
@@ -505,7 +505,7 @@ export default function SettingsPage() {
               onClick={() => sigFileRef.current?.click()}
               disabled={sigSaving}
               className="px-4 py-2 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-40"
-              style={{ borderColor: '#15803D', color: '#15803D', background: '#F0FDF4' }}
+              style={{ borderColor: '#145C44', color: '#145C44', background: '#F0FDF4' }}
             >
               {sigSaving ? (
                 <span className="flex items-center gap-2">
@@ -514,7 +514,7 @@ export default function SettingsPage() {
                 </span>
               ) : sigUrl ? 'Replace Signature' : 'Upload Signature'}
             </button>
-            {sigSaved && <p className="text-xs mt-2" style={{ color: '#15803D' }}>✓ Signature updated successfully.</p>}
+            {sigSaved && <p className="text-xs mt-2" style={{ color: '#145C44' }}>✓ Signature updated successfully.</p>}
             {sigError && <p className="text-xs mt-2" style={{ color: '#DC2626' }}>{sigError}</p>}
             {!sigUrl  && !sigSaved && <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>No signature uploaded yet.</p>}
           </div>
@@ -523,38 +523,38 @@ export default function SettingsPage() {
 
       {/* School Identity */}
       <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>School Identity</h2>
+        <h2 className="text-sm font-semibold font-medium mb-1" style={{ color: '#64748B' }}>School Identity</h2>
         <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
           Used in report cards, certificates, and the admission portal. Provide your school&apos;s vision, mission, and core values.
         </p>
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#475569' }}>Vision Statement</label>
+            <label className="block text-xs font-semibold font-medium mb-1" style={{ color: '#475569' }}>Vision Statement</label>
             <textarea rows={3} value={vision} onChange={e => setVision(e.target.value)}
               placeholder="e.g. To be a centre of excellence in holistic education…"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 resize-y focus:outline-none focus:ring-2 focus:ring-green-600" />
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#475569' }}>Mission Statement</label>
+            <label className="block text-xs font-semibold font-medium mb-1" style={{ color: '#475569' }}>Mission Statement</label>
             <textarea rows={3} value={mission} onChange={e => setMission(e.target.value)}
               placeholder="e.g. To nurture confident, creative and responsible learners…"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 resize-y focus:outline-none focus:ring-2 focus:ring-green-600" />
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: '#475569' }}>Core Values</label>
+            <label className="block text-xs font-semibold font-medium mb-1" style={{ color: '#475569' }}>Core Values</label>
             <textarea rows={2} value={coreValues} onChange={e => setCoreValues(e.target.value)}
               placeholder="e.g. Integrity, Excellence, Discipline, Respect, Innovation"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 resize-y focus:outline-none focus:ring-2 focus:ring-green-600" />
           </div>
           {identityError && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>{identityError}</p>}
-          {identitySaved && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#F0FDF4', color: '#15803D' }}>✓ School identity saved.</p>}
+          {identitySaved && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#F0FDF4', color: '#145C44' }}>✓ School identity saved.</p>}
           <Button onClick={saveIdentity} loading={identitySaving}>Save Identity</Button>
         </div>
       </div>
 
       {/* Period Duration */}
       <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>Scheduling</h2>
+        <h2 className="text-sm font-semibold font-medium mb-1" style={{ color: '#64748B' }}>Scheduling</h2>
         <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
           Set how many minutes make up one period at your school. This is used to calculate periods
           from timetable start and end times, with break times automatically deducted.
@@ -562,7 +562,7 @@ export default function SettingsPage() {
 
         <div className="max-w-xs space-y-4">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#475569' }}>
+            <label className="block text-xs font-semibold font-medium mb-2" style={{ color: '#475569' }}>
               Minutes per Period
             </label>
             <div className="flex items-center gap-3">
@@ -572,7 +572,7 @@ export default function SettingsPage() {
                 max={480}
                 value={periodMins}
                 onChange={e => { setPeriodMins(parseInt(e.target.value, 10) || 0); setPeriodError(''); }}
-                className="w-28 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-28 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-[#145C44]"
               />
               <span className="text-sm text-slate-500">minutes</span>
             </div>
@@ -593,7 +593,7 @@ export default function SettingsPage() {
             <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>{periodError}</p>
           )}
           {periodSaved && (
-            <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#F0FDF4', color: '#15803D' }}>✓ Period duration saved.</p>
+            <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#F0FDF4', color: '#145C44' }}>✓ Period duration saved.</p>
           )}
 
           <Button onClick={savePeriodDuration} loading={periodSaving}>
@@ -604,19 +604,19 @@ export default function SettingsPage() {
 
       {/* Assessment CA % */}
       <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>Assessment Scoring</h2>
+        <h2 className="text-sm font-semibold font-medium mb-1" style={{ color: '#64748B' }}>Assessment Scoring</h2>
         <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
           Set the percentage of the total score that comes from Continuous Assessment (CA). The remainder is for the End-of-Semester Exam.
         </p>
         <div className="max-w-xs space-y-4">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#475569' }}>
+            <label className="block text-xs font-semibold font-medium mb-2" style={{ color: '#475569' }}>
               CA Percentage
             </label>
             <div className="flex items-center gap-3">
               <input type="number" min={1} max={99} value={caPct}
                 onChange={e => { setCaPct(parseInt(e.target.value, 10) || 0); setCaError(''); }}
-                className="w-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-[#145C44]"
               />
               <span className="text-sm text-slate-500">%</span>
             </div>
@@ -627,7 +627,7 @@ export default function SettingsPage() {
             )}
           </div>
           {caError && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>{caError}</p>}
-          {caSaved && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#F0FDF4', color: '#15803D' }}>✓ CA percentage saved.</p>}
+          {caSaved && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#F0FDF4', color: '#145C44' }}>✓ CA percentage saved.</p>}
           <Button onClick={saveCaPercentage} loading={caSaving}>Save CA %</Button>
         </div>
       </div>
@@ -637,7 +637,7 @@ export default function SettingsPage() {
 
       {/* Theme colors */}
       <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
-        <h2 className="text-sm font-semibold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>App Theme Colors</h2>
+        <h2 className="text-sm font-semibold font-medium mb-1" style={{ color: '#64748B' }}>App Theme Colors</h2>
         <p className="text-xs mb-6" style={{ color: '#94A3B8' }}>
           Choose your school colors. The teacher app will update automatically after teachers log out and back in.
         </p>
@@ -646,7 +646,7 @@ export default function SettingsPage() {
           {/* Pickers */}
           <div className="flex-1 space-y-6">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: '#475569' }}>Primary Color</label>
+              <label className="block text-xs font-semibold font-medium mb-3" style={{ color: '#475569' }}>Primary Color</label>
               <div className="flex items-center gap-4">
                 <div className="relative">
                   <input
@@ -665,7 +665,7 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: '#475569' }}>Accent Color</label>
+              <label className="block text-xs font-semibold font-medium mb-3" style={{ color: '#475569' }}>Accent Color</label>
               <div className="flex items-center gap-4">
                 <div className="relative">
                   <input
@@ -687,7 +687,7 @@ export default function SettingsPage() {
               <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>{error}</p>
             )}
             {saved && (
-              <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#F0FDF4', color: '#15803D' }}>✓ Colors saved — teachers will see the new theme on next login.</p>
+              <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#F0FDF4', color: '#145C44' }}>✓ Colors saved — teachers will see the new theme on next login.</p>
             )}
 
             <Button onClick={save} loading={saving} size="lg">
@@ -697,7 +697,7 @@ export default function SettingsPage() {
 
           {/* Live preview */}
           <div className="flex flex-col items-center gap-3">
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Live Preview</p>
+            <p className="text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Live Preview</p>
             <AppPreview primary={primary} accent={accent} />
           </div>
         </div>

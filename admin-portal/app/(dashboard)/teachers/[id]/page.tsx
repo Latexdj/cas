@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -21,7 +21,7 @@ const RELIGIONS      = ['Christianity', 'Islam', 'Traditional', 'Other'];
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
       <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
         <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">{title}</h3>
       </div>
@@ -42,7 +42,7 @@ function Field({ label, value, isPhone }: { label: string; value?: string | numb
               href={`tel:${value}`}
               title={`Call ${value}`}
               className="inline-flex items-center justify-center w-7 h-7 rounded-full flex-shrink-0"
-              style={{ background: '#DCFCE7', color: '#15803D', border: '1.5px solid #15803D55', textDecoration: 'none' }}
+              style={{ background: '#DCFCE7', color: '#145C44', border: '1.5px solid #145C4455', textDecoration: 'none' }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
                 strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
@@ -132,7 +132,7 @@ export default function TeacherProfilePage() {
       setForm(toForm(data));
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setLoadErr(msg ?? 'Failed to load teacher profile.');
+      setLoadErr(msg ?? 'Could not load teacher profile.');
     } finally { setLoading(false); }
   }, [id]);
 
@@ -224,7 +224,7 @@ export default function TeacherProfilePage() {
     return (
       <div className="p-6 max-w-5xl mx-auto">
         <div className="h-8 w-48 bg-gray-100 rounded animate-pulse mb-6" />
-        {[1,2,3].map(i => <div key={i} className="h-40 bg-gray-100 rounded-2xl animate-pulse mb-5" />)}
+        {[1,2,3].map(i => <div key={i} className="h-40 bg-gray-100 rounded-xl animate-pulse mb-5" />)}
       </div>
     );
   }
@@ -279,9 +279,9 @@ export default function TeacherProfilePage() {
       )}
 
       {/* Photo + quick info */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-5 flex items-start gap-5">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-5 flex items-start gap-5">
         <div className="relative shrink-0">
-          <div className="w-24 h-24 rounded-2xl bg-gray-100 overflow-hidden border border-gray-200">
+          <div className="w-24 h-24 rounded-xl bg-gray-100 overflow-hidden border border-gray-200">
             {profile.photo_url
               ? <Image src={profile.photo_url} alt={profile.name} width={96} height={96} className="w-full h-full object-cover" />
               : (
@@ -315,7 +315,7 @@ export default function TeacherProfilePage() {
 
       {/* Personal Information */}
       {editing ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Personal Information</h3>
           </div>
@@ -348,7 +348,7 @@ export default function TeacherProfilePage() {
 
       {/* Professional Information */}
       {editing ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Professional Information</h3>
           </div>
@@ -398,7 +398,7 @@ export default function TeacherProfilePage() {
 
       {/* Banking */}
       {editing ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Banking Details</h3>
           </div>
@@ -418,7 +418,7 @@ export default function TeacherProfilePage() {
 
       {/* Emergency Contact */}
       {editing ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Emergency Contact</h3>
           </div>
@@ -436,7 +436,7 @@ export default function TeacherProfilePage() {
 
       {/* Notes */}
       {editing && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Notes</h3>
           </div>
@@ -448,7 +448,7 @@ export default function TeacherProfilePage() {
       )}
 
       {/* Documents */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
         <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
           <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Documents</h3>
         </div>
@@ -458,7 +458,7 @@ export default function TeacherProfilePage() {
             <p className="text-xs font-semibold text-gray-500 mb-2">Academic Certificate</p>
             {profile.certificate_url ? (
               <div className="flex items-center gap-2 mb-2">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5 text-green-600 shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5 text-[#145C44] shrink-0">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
                 </svg>
                 <a href={profile.certificate_url} target="_blank" rel="noopener noreferrer"

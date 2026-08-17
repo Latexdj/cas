@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
@@ -93,7 +93,7 @@ export default function PrincipalDashboard() {
   return (
     <div>
       <div style={{ marginBottom: 28 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A', marginBottom: 4 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208', marginBottom: 4 }}>
           Good {getGreeting()}, {user?.name?.split(' ')[0] ?? ''}
         </h2>
         <p style={{ fontSize: 13, color: dark ? '#64748B' : '#94A3B8' }}>{today}</p>
@@ -116,7 +116,7 @@ export default function PrincipalDashboard() {
               value={snap.teacherAttendanceRate != null ? `${snap.teacherAttendanceRate}%` : 'N/A'}
               sub={`${snap.teachersSubmittedToday} of ${snap.teachersScheduledToday} submitted`}
               color={snap.teacherAttendanceRate == null ? (dark ? '#64748B' : '#94A3B8') :
-                snap.teacherAttendanceRate >= 80 ? '#10B981' :
+                snap.teacherAttendanceRate >= 80 ? '#145C44' :
                 snap.teacherAttendanceRate >= 60 ? '#F59E0B' : '#EF4444'}
               href="/principal/attendance"
               dark={dark}
@@ -125,7 +125,7 @@ export default function PrincipalDashboard() {
               label="Unexcused Absences Today"
               value={snap.autoAbsencesToday}
               sub="auto-flagged, unresolved"
-              color={snap.autoAbsencesToday === 0 ? '#10B981' : snap.autoAbsencesToday > 5 ? '#EF4444' : '#F59E0B'}
+              color={snap.autoAbsencesToday === 0 ? '#145C44' : snap.autoAbsencesToday > 5 ? '#EF4444' : '#F59E0B'}
               href="/principal/attendance"
               dark={dark}
             />
@@ -133,7 +133,7 @@ export default function PrincipalDashboard() {
               label="Pending Leave Requests"
               value={snap.pendingLeaves}
               sub="awaiting approval"
-              color={snap.pendingLeaves === 0 ? '#10B981' : '#F59E0B'}
+              color={snap.pendingLeaves === 0 ? '#145C44' : '#F59E0B'}
               href="/principal/leaves"
               dark={dark}
             />
@@ -157,7 +157,7 @@ export default function PrincipalDashboard() {
                 label="Fee Collection Rate"
                 value={`${finance.collection_rate}%`}
                 sub={`GH₵ ${finance.total_collected.toLocaleString('en-GH', { maximumFractionDigits: 0 })} collected`}
-                color={finance.collection_rate >= 80 ? '#10B981' : finance.collection_rate >= 50 ? '#F59E0B' : '#EF4444'}
+                color={finance.collection_rate >= 80 ? '#145C44' : finance.collection_rate >= 50 ? '#F59E0B' : '#EF4444'}
                 href="/principal/fees"
                 dark={dark}
               />
@@ -166,7 +166,7 @@ export default function PrincipalDashboard() {
 
           {/* Academic Results Pipeline */}
           <div style={{ marginTop: 24, marginBottom: 32 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A', marginBottom: 12 }}>Academic Results Pipeline</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208', marginBottom: 12 }}>Academic Results Pipeline</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
               {[
                 { label: 'Awaiting HOD Review', value: pipelineCounts['submitted'] ?? '—', color: '#1E40AF', bg: dark ? '#0A1628' : '#DBEAFE' },
@@ -197,7 +197,7 @@ export default function PrincipalDashboard() {
                 icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />,
               },
               {
-                href: '/principal/clearance', label: 'Check Clearance', color: '#10B981',
+                href: '/principal/clearance', label: 'Check Clearance', color: '#145C44',
                 icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.745 3.745 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />,
               },
               {
@@ -209,7 +209,7 @@ export default function PrincipalDashboard() {
                 icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />,
               },
               ...(finance ? [{
-                href: '/principal/fees', label: 'Financial Overview', color: '#10B981',
+                href: '/principal/fees', label: 'Financial Overview', color: '#145C44',
                 icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />,
               }] : []),
             ].map(item => (
@@ -236,7 +236,7 @@ export default function PrincipalDashboard() {
           </div>
         </>
       ) : (
-        <div style={{ color: '#EF4444', textAlign: 'center', padding: 40 }}>Failed to load dashboard.</div>
+        <div style={{ color: '#EF4444', textAlign: 'center', padding: 40 }}>Could not load dashboard.</div>
       )}
     </div>
   );

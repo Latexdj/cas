@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -26,7 +26,7 @@ interface InvStudent {
 }
 
 function condColor(c: string) {
-  if (c === 'Good')    return { color: '#15803D', bg: '#F0FDF4' };
+  if (c === 'Good')    return { color: '#145C44', bg: '#F0FDF4' };
   if (c === 'Damaged') return { color: '#92400E', bg: '#FEF9C3' };
   return { color: '#B91C1C', bg: '#FEF2F2' };
 }
@@ -207,7 +207,7 @@ export default function HodInventoryPage() {
       <div className="px-4 space-y-4">
 
         {/* Sub-tab bar */}
-        <div className="flex gap-1 bg-white rounded-2xl p-1 border border-[#E2D9CC]">
+        <div className="flex gap-1 bg-white rounded-xl p-1 border border-[#E2D9CC]">
           {(['items', 'issue', 'return'] as InvSubTab[]).map(st => (
             <button key={st}
               onClick={() => {
@@ -235,7 +235,7 @@ export default function HodInventoryPage() {
             </div>
 
             {invLoading ? <Spinner /> : invItems.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-[#E2D9CC] p-8 text-center">
+              <div className="bg-white rounded-xl border border-[#E2D9CC] p-8 text-center">
                 <p className="text-sm text-[#8C7E6E]">No inventory items assigned to your department.</p>
                 <p className="text-xs text-[#C0B5A5] mt-1">Contact admin to assign departmental items.</p>
               </div>
@@ -244,7 +244,7 @@ export default function HodInventoryPage() {
                 {invItems.map(item => {
                   const cc = condColor(item.condition);
                   return (
-                    <div key={item.id} className="bg-white rounded-2xl border border-[#E2D9CC] p-4">
+                    <div key={item.id} className="bg-white rounded-xl border border-[#E2D9CC] p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-bold text-[#2C2218]">{item.name}</p>
@@ -269,18 +269,18 @@ export default function HodInventoryPage() {
                       </div>
                       <div className="mt-2 pt-2 border-t border-[#F4EFE6] flex gap-6">
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E6E]">Available</p>
+                          <p className="text-[10px] font-bold font-medium text-[#8C7E6E]">Available</p>
                           <p className="text-base font-bold"
-                            style={{ color: item.quantity_available > 0 ? '#15803D' : '#B91C1C' }}>
+                            style={{ color: item.quantity_available > 0 ? '#145C44' : '#B91C1C' }}>
                             {item.quantity_available}
                           </p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E6E]">Total</p>
+                          <p className="text-[10px] font-bold font-medium text-[#8C7E6E]">Total</p>
                           <p className="text-base font-bold text-[#2C2218]">{item.quantity_total}</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-[#8C7E6E]">Issued</p>
+                          <p className="text-[10px] font-bold font-medium text-[#8C7E6E]">Issued</p>
                           <p className="text-base font-bold text-[#92400E]">
                             {item.quantity_total - item.quantity_available}
                           </p>
@@ -296,9 +296,9 @@ export default function HodInventoryPage() {
 
         {/* ── Issue form ── */}
         {subTab === 'issue' && (
-          <div className="bg-white rounded-2xl border border-[#E2D9CC] p-4 space-y-4">
+          <div className="bg-white rounded-xl border border-[#E2D9CC] p-4 space-y-4">
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1">Item</label>
+              <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Item</label>
               <select value={issueItemId} onChange={e => setIssueItemId(e.target.value)}
                 className="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm bg-white text-[#2C2218] focus:outline-none">
                 <option value="">Select item…</option>
@@ -314,7 +314,7 @@ export default function HodInventoryPage() {
             </div>
 
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1">Issue to</label>
+              <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Issue to</label>
               <div className="flex gap-1 bg-[#F4EFE6] rounded-xl p-1">
                 {(['staff', 'student', 'department'] as const).map(t => (
                   <button key={t}
@@ -335,7 +335,7 @@ export default function HodInventoryPage() {
 
             {issueToType === 'student' ? (
               <div>
-                <label className="text-[11px] font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1">Student Code</label>
+                <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Student Code</label>
                 <div className="flex gap-2">
                   <input value={issueStudentCode}
                     onChange={e => setIssueStudentCode(e.target.value)}
@@ -350,8 +350,8 @@ export default function HodInventoryPage() {
                 </div>
                 {issueStudentError && <p className="text-xs text-red-600 mt-1">{issueStudentError}</p>}
                 {issueStudent && (
-                  <div className="mt-2 bg-[#F0FDF4] border border-green-200 rounded-xl px-3 py-2">
-                    <p className="text-sm font-semibold text-[#15803D]">{issueStudent.name}</p>
+                  <div className="mt-2 bg-[#F0FDF4] border border-[#B8D9C8] rounded-xl px-3 py-2">
+                    <p className="text-sm font-semibold text-[#145C44]">{issueStudent.name}</p>
                     <p className="text-xs text-[#8C7E6E]">
                       {issueStudent.student_code}{issueStudent.class_name ? ` · ${issueStudent.class_name}` : ''}
                     </p>
@@ -360,7 +360,7 @@ export default function HodInventoryPage() {
               </div>
             ) : issueToType === 'department' ? (
               <div>
-                <label className="text-[11px] font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1">Department / Section</label>
+                <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Department / Section</label>
                 <input value={issueName} onChange={e => setIssueName(e.target.value)}
                   placeholder="e.g. Science Lab"
                   className="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none" />
@@ -368,13 +368,13 @@ export default function HodInventoryPage() {
             ) : (
               <div className="space-y-3">
                 <div>
-                  <label className="text-[11px] font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1">Staff Name</label>
+                  <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Staff Name</label>
                   <input value={issueName} onChange={e => setIssueName(e.target.value)}
                     placeholder="Full name"
                     className="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none" />
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1">Role / Title (optional)</label>
+                  <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Role / Title (optional)</label>
                   <input value={issueRole} onChange={e => setIssueRole(e.target.value)}
                     placeholder="e.g. Lab Technician"
                     className="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none" />
@@ -383,21 +383,21 @@ export default function HodInventoryPage() {
             )}
 
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1">Quantity</label>
+              <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Quantity</label>
               <input type="number" min={1} value={issueQty}
                 onChange={e => setIssueQty(Math.max(1, parseInt(e.target.value) || 1))}
                 className="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none" />
             </div>
 
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1">Notes (optional)</label>
+              <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Notes (optional)</label>
               <textarea value={issueNotes} onChange={e => setIssueNotes(e.target.value)}
                 rows={2} placeholder="Purpose of issue, expected return date, etc."
                 className="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none resize-none" />
             </div>
 
             {issueError   && <p className="text-sm text-red-600">{issueError}</p>}
-            {issueSuccess && <p className="text-sm font-semibold text-green-700">{issueSuccess}</p>}
+            {issueSuccess && <p className="text-sm font-semibold text-[#145C44]">{issueSuccess}</p>}
 
             <button onClick={submitIssue} disabled={issuing}
               className="w-full py-2.5 rounded-xl text-sm font-semibold text-white"
@@ -409,9 +409,9 @@ export default function HodInventoryPage() {
 
         {/* ── Return form ── */}
         {subTab === 'return' && (
-          <div className="bg-white rounded-2xl border border-[#E2D9CC] p-4 space-y-4">
+          <div className="bg-white rounded-xl border border-[#E2D9CC] p-4 space-y-4">
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1">Item Being Returned</label>
+              <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Item Being Returned</label>
               <select value={returnItemId} onChange={e => setReturnItemId(e.target.value)}
                 className="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm bg-white text-[#2C2218] focus:outline-none">
                 <option value="">Select item…</option>
@@ -427,20 +427,20 @@ export default function HodInventoryPage() {
             </div>
 
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1">Quantity Returned</label>
+              <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Quantity Returned</label>
               <input type="number" min={1} value={returnQty}
                 onChange={e => setReturnQty(Math.max(1, parseInt(e.target.value) || 1))}
                 className="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none" />
             </div>
 
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1">Condition on Return</label>
+              <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Condition on Return</label>
               <div className="flex gap-1 bg-[#F4EFE6] rounded-xl p-1">
                 {(['Good', 'Damaged'] as const).map(c => (
                   <button key={c} onClick={() => setReturnCondition(c)}
                     className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors"
                     style={returnCondition === c
-                      ? { background: '#fff', color: c === 'Good' ? '#15803D' : '#92400E', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }
+                      ? { background: '#fff', color: c === 'Good' ? '#145C44' : '#92400E', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }
                       : { color: '#8C7E6E' }}>
                     {c}
                   </button>
@@ -449,14 +449,14 @@ export default function HodInventoryPage() {
             </div>
 
             <div>
-              <label className="text-[11px] font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1">Notes (optional)</label>
+              <label className="text-[11px] font-bold font-medium text-[#8C7E6E] block mb-1">Notes (optional)</label>
               <textarea value={returnNotes} onChange={e => setReturnNotes(e.target.value)}
                 rows={2} placeholder="Any remarks on the item's condition…"
                 className="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none resize-none" />
             </div>
 
             {returnError   && <p className="text-sm text-red-600">{returnError}</p>}
-            {returnSuccess && <p className="text-sm font-semibold text-green-700">{returnSuccess}</p>}
+            {returnSuccess && <p className="text-sm font-semibold text-[#145C44]">{returnSuccess}</p>}
 
             <button onClick={submitReturn} disabled={returning}
               className="w-full py-2.5 rounded-xl text-sm font-semibold text-white"

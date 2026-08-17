@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 
@@ -121,20 +121,20 @@ export default function InventoryCategoriesPage() {
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-sm">
+        <div className="fixed inset-0 z-50 bg-[#0B3D2E]/45 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm">
             <div className="p-6">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
                 {editCat ? 'Edit Category' : 'New Category'}
               </h2>
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Name *</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Name *</label>
                   <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Electronics"
                     className="mt-1 w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Description</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Description</label>
                   <input value={description} onChange={e => setDescription(e.target.value)}
                     className="mt-1 w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white" />
                 </div>

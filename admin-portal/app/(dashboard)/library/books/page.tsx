@@ -162,15 +162,15 @@ export default function BookCatalogPage() {
           {loading ? (
             <p className="p-5 text-sm text-slate-500">Loading…</p>
           ) : filtered.length === 0 ? (
-            <p className="p-5 text-sm text-slate-500">No books found.</p>
+            <p className="p-5 text-sm text-slate-500">No books found. Try a different search or add a new book using the button above.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                  <Th label="Title" sortKey="title" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide" />
-                  <Th label="Subject" sortKey="subject" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide hidden md:table-cell" />
-                  <Th label="Copies" sortKey="total_copies" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-center font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide" />
-                  <Th label="Avail." sortKey="available_copies" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-center font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide" />
+                  <Th label="Title" sortKey="title" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs" />
+                  <Th label="Subject" sortKey="subject" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-[#4A3F32] text-xs hidden md:table-cell" />
+                  <Th label="Copies" sortKey="total_copies" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-center font-semibold text-[#4A3F32] text-xs" />
+                  <Th label="Avail." sortKey="available_copies" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-center font-semibold text-[#4A3F32] text-xs" />
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -179,7 +179,7 @@ export default function BookCatalogPage() {
                   <tr
                     key={b.id}
                     onClick={() => loadCopies(b)}
-                    className={`cursor-pointer transition-colors ${selectedBook?.id === b.id ? 'bg-green-50 dark:bg-green-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
+                    className={`cursor-pointer transition-colors ${selectedBook?.id === b.id ? 'bg-[#E8F4EE] dark:bg-green-900/20' : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'}`}
                   >
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-900 dark:text-white">{b.title}</p>
@@ -188,7 +188,7 @@ export default function BookCatalogPage() {
                     <td className="px-4 py-3 text-slate-600 dark:text-slate-400 hidden md:table-cell">{b.subject ?? '—'}</td>
                     <td className="px-4 py-3 text-center font-medium text-slate-700 dark:text-slate-300">{b.total_copies}</td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${b.available_copies > 0 ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${b.available_copies > 0 ? 'bg-[#E8F4EE] text-[#145C44] dark:bg-green-900/30 dark:text-[#2ab289]' : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
                         {b.available_copies}
                       </span>
                     </td>
@@ -217,7 +217,9 @@ export default function BookCatalogPage() {
                 <p className="font-semibold text-slate-900 dark:text-white text-sm">{selectedBook.title}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">{selectedBook.total_copies} copies</p>
               </div>
-              <button onClick={() => setSelectedBook(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl leading-none">&times;</button>
+              <button onClick={() => setSelectedBook(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
             </div>
 
             {copiesLoading ? <p className="text-sm text-slate-500">Loading…</p> : (
@@ -229,7 +231,7 @@ export default function BookCatalogPage() {
                     c.status === 'damaged'   ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
                     c.status === 'withdrawn' ? 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400' :
                     c.status === 'on_loan'   ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                                              'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+                                              'bg-[#D1EAD9] text-[#145C44] dark:bg-green-900/30 dark:text-[#2ab289]';
                   return (
                     <div key={c.id} className="flex items-start justify-between bg-slate-50 dark:bg-slate-700 rounded-lg px-3 py-2">
                       <div>
@@ -244,7 +246,9 @@ export default function BookCatalogPage() {
                           {c.status === 'available' ? 'In' : c.status === 'on_loan' ? 'Out' : c.status.charAt(0).toUpperCase() + c.status.slice(1)}
                         </span>
                         {(c.status === 'available' || c.status === 'lost' || c.status === 'damaged' || c.status === 'withdrawn') && (
-                          <button onClick={() => deleteCopy(c.id)} className="text-xs text-red-500 hover:text-red-700">&times;</button>
+                          <button onClick={() => deleteCopy(c.id)} className="text-red-500 hover:text-red-700">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -254,7 +258,7 @@ export default function BookCatalogPage() {
             )}
 
             <div className="pt-2 border-t border-slate-100 dark:border-slate-700 space-y-2">
-              <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Add Copy</p>
+              <p className="text-xs font-semibold text-[#4A3F32]">Add Copy</p>
               <div className="flex gap-2">
                 <input
                   className="flex-1 rounded-lg px-2 py-1.5 text-xs border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
@@ -301,7 +305,7 @@ export default function BookCatalogPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Category</label>
+              <label className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400">Category</label>
               <select
                 className="w-full rounded-lg px-3 py-2.5 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                 value={form.category}
@@ -311,7 +315,7 @@ export default function BookCatalogPage() {
               </select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Language</label>
+              <label className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400">Language</label>
               <select
                 className="w-full rounded-lg px-3 py-2.5 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                 value={form.language as string}

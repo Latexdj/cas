@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -47,18 +47,18 @@ function RosterList({ students, selectedIds, setSelectedIds, loading }: {
         </span>
         <div className="flex gap-3 text-xs">
           <button onClick={() => setSelectedIds(new Set(students.map(s => s.id)))}
-            className="text-green-700 font-semibold hover:underline">Select all</button>
+            className="text-[#145C44] font-semibold hover:underline">Select all</button>
           <button onClick={() => setSelectedIds(new Set())}
             className="text-slate-500 font-semibold hover:underline">Deselect all</button>
         </div>
       </div>
       <div className="max-h-52 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
         {students.map(s => (
-          <label key={s.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer select-none">
+          <label key={s.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-[#F5F0E8] cursor-pointer select-none">
             <input
               type="checkbox"
               checked={selectedIds.has(s.id)}
-              className="rounded border-slate-300 text-green-600 focus:ring-green-500"
+              className="rounded border-slate-300 text-[#145C44] focus:ring-[#145C44]"
               onChange={e => {
                 const next = new Set(selectedIds);
                 e.target.checked ? next.add(s.id) : next.delete(s.id);
@@ -261,7 +261,7 @@ export default function PrimaryPromotionsPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">From Class</label>
+            <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">From Class</label>
             <select className={inputCls} value={fromClass}
               onChange={e => { setFromClass(e.target.value); setPromoteResult(''); }}>
               <option value="">Select class…</option>
@@ -275,7 +275,7 @@ export default function PrimaryPromotionsPage() {
 
           {fromClass && (
             <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Students</label>
+              <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">Students</label>
               <RosterList
                 students={roster}
                 selectedIds={selectedIds}
@@ -286,7 +286,7 @@ export default function PrimaryPromotionsPage() {
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">To Class</label>
+            <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">To Class</label>
             <select className={inputCls} value={toClass} onChange={e => setToClass(e.target.value)}>
               <option value="">Select target class…</option>
               {classes.filter(c => c.class_name !== fromClass).map(c => (
@@ -296,7 +296,7 @@ export default function PrimaryPromotionsPage() {
           </div>
 
           {promoteResult && (
-            <p className={`text-sm rounded-lg px-3 py-2 ${promoteResult.startsWith('✓') ? 'text-green-700 bg-green-50' : 'text-red-600 bg-red-50'}`}>
+            <p className={`text-sm rounded-lg px-3 py-2 ${promoteResult.startsWith('✓') ? 'text-[#145C44] bg-[#E8F4EE]' : 'text-red-600 bg-red-50'}`}>
               {promoteResult}
             </p>
           )}
@@ -306,7 +306,7 @@ export default function PrimaryPromotionsPage() {
               onClick={handlePromote}
               disabled={promoting || !fromClass || !toClass || selectedIds.size === 0}
               className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 transition-opacity"
-              style={{ backgroundColor: '#15803D' }}>
+              style={{ backgroundColor: '#145C44' }}>
               {promoting ? 'Promoting…' : `Promote${selectedIds.size > 0 ? ` (${selectedIds.size} students)` : ''}`}
             </button>
           </div>
@@ -324,7 +324,7 @@ export default function PrimaryPromotionsPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Class to Graduate</label>
+            <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">Class to Graduate</label>
             <select className={inputCls} value={gradClass}
               onChange={e => { setGradClass(e.target.value); setGradResult(''); }}>
               <option value="">Select class…</option>
@@ -338,7 +338,7 @@ export default function PrimaryPromotionsPage() {
 
           {gradClass && (
             <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Students</label>
+              <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">Students</label>
               <RosterList
                 students={gradRoster}
                 selectedIds={gradSelected}
@@ -349,7 +349,7 @@ export default function PrimaryPromotionsPage() {
           )}
 
           {gradResult && (
-            <p className={`text-sm rounded-lg px-3 py-2 ${gradResult.startsWith('✓') ? 'text-green-700 bg-green-50' : 'text-red-600 bg-red-50'}`}>
+            <p className={`text-sm rounded-lg px-3 py-2 ${gradResult.startsWith('✓') ? 'text-[#145C44] bg-[#E8F4EE]' : 'text-red-600 bg-red-50'}`}>
               {gradResult}
             </p>
           )}
@@ -380,7 +380,7 @@ export default function PrimaryPromotionsPage() {
           {loadingClasses ? (
             <div className="flex justify-center py-8">
               <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin"
-                style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
             </div>
           ) : wizardRows.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-8">
@@ -389,12 +389,12 @@ export default function PrimaryPromotionsPage() {
           ) : (
             <div className="overflow-x-auto rounded-lg border border-slate-200">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
+                <thead className="bg-[#F5F0E8] border-b border-slate-200">
                   <tr>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Class</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Students</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Action</th>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Target Class</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Class</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Students</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Action</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Target Class</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -410,7 +410,7 @@ export default function PrimaryPromotionsPage() {
                             next[i] = { ...row, action: e.target.value as WizardRow['action'] };
                             setWizardRows(next);
                           }}
-                          className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                          className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-[#145C44]">
                           <option value="promote">Promote →</option>
                           <option value="graduate">Graduate</option>
                           <option value="skip">Skip</option>
@@ -425,7 +425,7 @@ export default function PrimaryPromotionsPage() {
                               next[i] = { ...row, target_class: e.target.value };
                               setWizardRows(next);
                             }}
-                            className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                            className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-[#145C44]">
                             <option value="">Select…</option>
                             {classes.filter(c => c.class_name !== row.class_name).map(c => (
                               <option key={c.class_name} value={c.class_name}>{c.class_name}</option>
@@ -447,8 +447,8 @@ export default function PrimaryPromotionsPage() {
           )}
 
           {wizardLog && (
-            <div className="bg-slate-50 rounded-lg px-4 py-3 border border-slate-200">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Result</p>
+            <div className="bg-[#F5F0E8] rounded-lg px-4 py-3 border border-slate-200">
+              <p className="text-xs font-semibold text-slate-500 font-medium mb-1.5">Result</p>
               <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans">{wizardLog}</pre>
             </div>
           )}
@@ -458,7 +458,7 @@ export default function PrimaryPromotionsPage() {
               onClick={runWizard}
               disabled={wizardRunning || wizardRows.every(r => r.action === 'skip')}
               className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 transition-opacity"
-              style={{ backgroundColor: '#15803D' }}>
+              style={{ backgroundColor: '#145C44' }}>
               {wizardRunning ? 'Running…' : 'Run End-of-Year Promotion'}
             </button>
           </div>

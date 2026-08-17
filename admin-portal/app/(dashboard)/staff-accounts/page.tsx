@@ -15,7 +15,7 @@ interface Staff {
 const ROLE_LABELS: Record<string, string> = { clearance: 'Clearance', library: 'Library', inventory: 'Inventory' };
 const ROLE_COLORS: Record<string, string> = {
   clearance: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  library:   'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  library:   'bg-[#E8F4EE] text-[#145C44] dark:bg-green-900/30 dark:text-[#2ab289]',
   inventory: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
 };
 
@@ -116,12 +116,12 @@ export default function SupportStaffPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <Th label="Email" sortKey="email" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Roles</th>
-                <Th label="Status" sortKey="is_active" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <Th label="Created" sortKey="created_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap"></th>
+                <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap" />
+                <Th label="Email" sortKey="email" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap" />
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap">Roles</th>
+                <Th label="Status" sortKey="is_active" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap" />
+                <Th label="Created" sortKey="created_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap" />
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -140,7 +140,7 @@ export default function SupportStaffPage() {
                   </td>
                   <td className="px-4 py-3">
                     <button onClick={() => toggleActive(s)}
-                      className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.is_active ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                      className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.is_active ? 'bg-[#E8F4EE] text-[#145C44] dark:bg-green-900/30 dark:text-[#2ab289]' : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
                       {s.is_active ? 'Active' : 'Inactive'}
                     </button>
                   </td>
@@ -148,7 +148,7 @@ export default function SupportStaffPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <button onClick={() => openEdit(s)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Edit</button>
-                      <button onClick={() => resendCredentials(s.id, s.name)} className="text-xs text-green-700 dark:text-green-400 hover:underline whitespace-nowrap">Send Login</button>
+                      <button onClick={() => resendCredentials(s.id, s.name)} className="text-xs text-[#145C44] dark:text-[#2ab289] hover:underline whitespace-nowrap">Send Login</button>
                       <button onClick={() => deleteStaff(s.id)} className="text-xs text-red-600 dark:text-red-400 hover:underline">Delete</button>
                     </div>
                   </td>
@@ -171,13 +171,13 @@ export default function SupportStaffPage() {
             onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
           />
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 block mb-2">Roles *</label>
+            <label className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400 block mb-2">Roles *</label>
             <div className="flex gap-3 flex-wrap">
               {(['clearance', 'library', 'inventory'] as const).map(role => (
                 <label key={role} className="flex items-center gap-2 cursor-pointer select-none">
                   <input type="checkbox" checked={form.roles.includes(role)}
                     onChange={() => toggleRole(role)}
-                    className="w-4 h-4 accent-green-600 rounded" />
+                    className="w-4 h-4 accent-[#145C44] rounded" />
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{ROLE_LABELS[role]}</span>
                 </label>
               ))}

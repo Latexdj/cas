@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -95,15 +95,15 @@ export default function PrimaryAdminShell({ children }: { children: React.ReactN
   }
 
   const SidebarContent = (
-    <div className="flex flex-col h-full overflow-hidden" style={{ backgroundColor: '#0F172A' }}>
+    <div className="flex flex-col h-full overflow-hidden" style={{ backgroundColor: '#0B3D2E' }}>
       {/* Logo */}
-      <div className="h-14 flex items-center gap-3 px-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#15803D' }}>
-          <span className="text-white font-black text-xs">P</span>
+      <div className="h-14 flex items-center gap-3 px-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#145C44' }}>
+          <span className="text-white font-bold text-xs">P</span>
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-bold truncate" style={{ color: '#F1F5F9' }}>Primary Portal</p>
-          <p className="text-[10px] truncate" style={{ color: '#475569' }}>Admin Dashboard</p>
+          <p className="text-sm font-bold truncate" style={{ color: '#FDFAF5' }}>Primary Portal</p>
+          <p className="text-[10px] truncate" style={{ color: 'rgba(200,151,58,0.6)' }}>Admin Dashboard</p>
         </div>
       </div>
 
@@ -111,7 +111,7 @@ export default function PrimaryAdminShell({ children }: { children: React.ReactN
       <div ref={scrollRef} className="flex-1 overflow-y-auto py-3 px-2">
         {SECTIONS.map(section => (
           <div key={section.title} className="mb-4">
-            <p className="px-3 mb-1.5 text-[10px] font-semibold tracking-widest uppercase" style={{ color: '#334155' }}>
+            <p className="px-3 mb-1.5 text-[10px]" style={{ color: 'rgba(200,151,58,0.5)' }}>
               {section.title}
             </p>
             {section.items.map(item => {
@@ -120,12 +120,12 @@ export default function PrimaryAdminShell({ children }: { children: React.ReactN
                 <Link key={item.href} href={item.href} onClick={() => setOpen(false)}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium mb-0.5 transition-colors"
                   style={active
-                    ? { backgroundColor: 'rgba(21,128,61,0.15)', color: '#4ADE80' }
-                    : { color: '#94A3B8' }
+                    ? { backgroundColor: 'rgba(200,151,58,0.15)', color: '#C8973A' }
+                    : { color: 'rgba(255,255,255,0.6)' }
                   }>
                   <NavIcon d={item.d} />
                   <span className="truncate">{item.label}</span>
-                  {active && <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#4ADE80' }} />}
+                  {active && <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#C8973A' }} />}
                 </Link>
               );
             })}
@@ -134,11 +134,11 @@ export default function PrimaryAdminShell({ children }: { children: React.ReactN
       </div>
 
       {/* Footer */}
-      <div className="flex-shrink-0 px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <p className="text-xs font-semibold truncate mb-0.5" style={{ color: '#94A3B8' }}>{userName}</p>
-        <button onClick={logout} className="text-xs transition-colors" style={{ color: '#475569' }}
+      <div className="flex-shrink-0 px-4 py-3" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <p className="text-xs font-semibold truncate mb-0.5" style={{ color: 'rgba(255,255,255,0.7)' }}>{userName}</p>
+        <button onClick={logout} className="text-xs transition-colors" style={{ color: 'rgba(255,255,255,0.4)' }}
           onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#475569')}>
+          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
           Sign out
         </button>
       </div>
@@ -146,7 +146,7 @@ export default function PrimaryAdminShell({ children }: { children: React.ReactN
   );
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#F8FAFC' }}>
+    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: '#F5F0E8' }}>
       {/* Desktop sidebar */}
       <aside className="hidden md:flex md:w-56 flex-col flex-shrink-0 h-full">
         {SidebarContent}
@@ -155,7 +155,7 @@ export default function PrimaryAdminShell({ children }: { children: React.ReactN
       {/* Mobile overlay */}
       {open && (
         <div className="fixed inset-0 z-40 md:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
+          <div className="absolute inset-0" style={{ background: 'rgba(11,61,46,0.55)' }} onClick={() => setOpen(false)} />
           <aside className="absolute left-0 top-0 bottom-0 w-56 flex flex-col z-50">
             {SidebarContent}
           </aside>
@@ -165,20 +165,20 @@ export default function PrimaryAdminShell({ children }: { children: React.ReactN
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top bar */}
-        <header className="h-14 flex items-center gap-3 px-4 bg-white flex-shrink-0"
-          style={{ borderBottom: '1px solid #E2E8F0' }}>
-          <button onClick={() => setOpen(o => !o)} className="md:hidden text-slate-500 hover:text-slate-700 p-1">
+        <header className="h-14 flex items-center gap-3 px-4 flex-shrink-0"
+          style={{ backgroundColor: '#FDFAF5', borderBottom: '1px solid #E8E0D4' }}>
+          <button onClick={() => setOpen(o => !o)} className="md:hidden p-1" style={{ color: '#8C7E6E' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-slate-700">
+            <p className="text-sm font-semibold" style={{ color: '#2C2218' }}>
               {SECTIONS.flatMap(s => s.items).find(i => pathname === i.href || pathname.startsWith(i.href + '/'))?.label ?? 'Primary Portal'}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: '#15803D' }}>
+            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style={{ backgroundColor: '#C8973A', color: '#0B3D2E' }}>
               {userName.charAt(0).toUpperCase()}
             </div>
           </div>

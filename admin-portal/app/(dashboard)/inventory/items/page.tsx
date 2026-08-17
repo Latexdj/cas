@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 
@@ -15,7 +15,7 @@ interface Item {
 
 const TYPE_LABELS: Record<string, string> = { equipment: 'Equipment', book: 'Book', asset: 'Asset' };
 const CONDITION_COLORS: Record<string, string> = {
-  'Good':        'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  'Good':        'bg-[#D1EAD9] text-[#145C44] dark:bg-green-900/30 dark:text-[#2ab289]',
   'Damaged':     'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   'Written Off': 'bg-red-100   text-red-700   dark:bg-red-900/30   dark:text-red-400',
 };
@@ -325,7 +325,7 @@ export default function InventoryItemsPage() {
                         )}
                         {issued > 0 && (
                           <button onClick={() => { setReturnItem(item); setReturnQty('1'); setReturnCond('Good'); setReturnNotes(''); setReturnError(''); }}
-                            className="px-2.5 py-1 rounded-md text-xs font-semibold bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100">Return</button>
+                            className="px-2.5 py-1 rounded-md text-xs font-semibold bg-[#E8F4EE] dark:bg-green-900/20 text-[#145C44] dark:text-[#2ab289] hover:bg-[#D1EAD9]">Return</button>
                         )}
                         <button onClick={() => { setCondItem(item); setNewCond(item.condition === 'Written Off' ? 'Good' : item.condition); setCondNotes(''); setCondError(''); }}
                           className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200">Condition</button>
@@ -345,18 +345,18 @@ export default function InventoryItemsPage() {
 
       {/* ── Add/Edit Modal ── */}
       {showForm && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-[#0B3D2E]/45 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">{editItem ? 'Edit Item' : 'Add Item'}</h2>
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Name *</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Name *</label>
                   <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Type</label>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Type</label>
                     <select value={form.item_type} onChange={e => setForm(f => ({ ...f, item_type: e.target.value }))} className={inputCls}>
                       <option value="equipment">Equipment</option>
                       <option value="book">Book</option>
@@ -364,7 +364,7 @@ export default function InventoryItemsPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Category</label>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Category</label>
                     <select value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))} className={inputCls}>
                       <option value="">No category</option>
                       {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -373,45 +373,45 @@ export default function InventoryItemsPage() {
                 </div>
                 {/* Ownership */}
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Ownership / Department</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Ownership / Department</label>
                   <select value={form.ownership_value} onChange={e => setForm(f => ({ ...f, ownership_value: e.target.value }))} className={inputCls}>
                     <option value="general">General (store officer manages)</option>
                     {departments.map(d => <option key={d.id} value={d.id}>{d.name} Department (HOD)</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Description</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Description</label>
                   <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2}
                     className={`${inputCls} resize-none`} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Serial Number</label>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Serial Number</label>
                     <input value={form.serial_number} onChange={e => setForm(f => ({ ...f, serial_number: e.target.value }))} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Asset Tag <span className="normal-case font-normal text-slate-400">(auto if blank)</span></label>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Asset Tag <span className="normal-case font-normal text-slate-400">(auto if blank)</span></label>
                     <input value={form.asset_tag} onChange={e => setForm(f => ({ ...f, asset_tag: e.target.value }))} placeholder="AST-0001" className={inputCls} />
                   </div>
                 </div>
                 {!editItem && (
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Quantity</label>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Quantity</label>
                     <input type="number" min="1" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} className={inputCls} />
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Location</label>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Location</label>
                     <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Acquired Date</label>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Acquired Date</label>
                     <input type="date" value={form.acquired_date} onChange={e => setForm(f => ({ ...f, acquired_date: e.target.value }))} className={inputCls} />
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Notes</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Notes</label>
                   <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
                     className={`${inputCls} resize-none`} />
                 </div>
@@ -430,14 +430,14 @@ export default function InventoryItemsPage() {
 
       {/* ── Issue Modal ── */}
       {issueItem && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md">
+        <div className="fixed inset-0 z-50 bg-[#0B3D2E]/45 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md">
             <div className="p-6">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Issue Item</h2>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{issueItem.name} — {issueItem.quantity_available} available</p>
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Issuing To</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Issuing To</label>
                   <div className="grid grid-cols-3 gap-1 mt-1">
                     {ISSUE_TYPES.map(t => (
                       <button key={t.value} type="button"
@@ -451,7 +451,7 @@ export default function InventoryItemsPage() {
 
                 {issueToType === 'student' ? (
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Student ID</label>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Student ID</label>
                     <div className="flex gap-2 mt-1">
                       <input value={issueStudentCode} onChange={e => { setIssueStudentCode(e.target.value.toUpperCase()); setIssueStudent(null); setIssueStudentErr(''); }}
                         onKeyDown={e => e.key === 'Enter' && lookupIssueStudent()}
@@ -463,7 +463,7 @@ export default function InventoryItemsPage() {
                     </div>
                     {issueStudentErr && <p className="text-xs text-red-500 mt-1">{issueStudentErr}</p>}
                     {issueStudent && (
-                      <div className="mt-2 flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
+                      <div className="mt-2 flex items-center gap-2 bg-[#E8F4EE] dark:bg-green-900/20 border border-[#B8D9C8] dark:border-green-800 rounded-lg px-3 py-2">
                         <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-500 overflow-hidden shrink-0">
                           {issueStudent.picture_url ? <img src={issueStudent.picture_url} alt="" className="w-full h-full object-cover" /> : issueStudent.name[0]}
                         </div>
@@ -477,7 +477,7 @@ export default function InventoryItemsPage() {
                 ) : (
                   <>
                     <div>
-                      <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                      <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">
                         {issueToType === 'department' ? 'Department Name *' : 'Recipient Name *'}
                       </label>
                       <input value={issueTo} onChange={e => setIssueTo(e.target.value)}
@@ -486,7 +486,7 @@ export default function InventoryItemsPage() {
                     </div>
                     {issueToType === 'staff' && (
                       <div>
-                        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Role / Position</label>
+                        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Role / Position</label>
                         <input value={issueRole} onChange={e => setIssueRole(e.target.value)} placeholder="e.g. Teacher, Head of Dept"
                           className={inputCls} />
                       </div>
@@ -495,12 +495,12 @@ export default function InventoryItemsPage() {
                 )}
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Quantity</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Quantity</label>
                   <input type="number" min="1" max={issueItem.quantity_available} value={issueQty}
                     onChange={e => setIssueQty(e.target.value)} className={inputCls} />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Notes</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Notes</label>
                   <input value={issueNotes} onChange={e => setIssueNotes(e.target.value)} className={inputCls} />
                 </div>
               </div>
@@ -518,8 +518,8 @@ export default function InventoryItemsPage() {
 
       {/* ── Return Modal ── */}
       {returnItem && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md">
+        <div className="fixed inset-0 z-50 bg-[#0B3D2E]/45 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md">
             <div className="p-6">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Process Return</h2>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
@@ -527,26 +527,26 @@ export default function InventoryItemsPage() {
               </p>
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Quantity Returned</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Quantity Returned</label>
                   <input type="number" min="1" max={returnItem.quantity_total - returnItem.quantity_available} value={returnQty}
                     onChange={e => setReturnQty(e.target.value)} className={inputCls} />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Returned Condition</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Returned Condition</label>
                   <select value={returnCond} onChange={e => setReturnCond(e.target.value)} className={inputCls}>
                     <option value="Good">Good</option>
                     <option value="Damaged">Damaged</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Notes</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Notes</label>
                   <input value={returnNotes} onChange={e => setReturnNotes(e.target.value)} className={inputCls} />
                 </div>
               </div>
               {returnError && <p className="mt-3 text-sm text-red-500">{returnError}</p>}
               <div className="flex gap-2 mt-5">
                 <button onClick={() => setReturnItem(null)} className="flex-1 py-2 rounded-lg text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">Cancel</button>
-                <button onClick={submitReturn} disabled={returnSaving} className="flex-1 py-2 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-40">
+                <button onClick={submitReturn} disabled={returnSaving} className="flex-1 py-2 rounded-lg text-sm font-semibold bg-[#145C44] text-white hover:bg-[#145C44] disabled:opacity-40">
                   {returnSaving ? 'Processing…' : 'Confirm Return'}
                 </button>
               </div>
@@ -557,14 +557,14 @@ export default function InventoryItemsPage() {
 
       {/* ── Condition Modal ── */}
       {condItem && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md">
+        <div className="fixed inset-0 z-50 bg-[#0B3D2E]/45 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md">
             <div className="p-6">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Update Condition</h2>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{condItem.name} — currently: {condItem.condition}</p>
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">New Condition</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">New Condition</label>
                   <select value={newCond} onChange={e => setNewCond(e.target.value)} className={inputCls}>
                     <option value="Good">Good / Working</option>
                     <option value="Damaged">Damaged / Under Repair</option>
@@ -575,7 +575,7 @@ export default function InventoryItemsPage() {
                   )}
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">Notes</label>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium">Notes</label>
                   <input value={condNotes} onChange={e => setCondNotes(e.target.value)} placeholder="Reason for condition change" className={inputCls} />
                 </div>
               </div>

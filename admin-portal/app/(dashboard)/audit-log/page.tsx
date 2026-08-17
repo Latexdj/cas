@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { Input } from '@/components/ui/Input';
@@ -123,16 +123,16 @@ export default function AuditLogPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: '#0F172A' }}>Audit Log</h1>
+        <h1 className="text-2xl font-bold" style={{ color: '#1C1208' }}>Audit Log</h1>
         <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>Complete record of all administrative actions in the system</p>
       </div>
 
       {/* Filters */}
       <form onSubmit={e => { e.preventDefault(); setOffset(0); load(); }} className="flex items-end gap-3 flex-wrap">
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748B' }}>Action</label>
+          <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Action</label>
           <select value={action} onChange={e => setAction(e.target.value)}
-            className="mt-1 w-52 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}>
+            className="mt-1 w-52 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}>
             <option value="">All Actions</option>
             {ALL_ACTIONS.map(a => (
               <option key={a} value={a}>{ACTION_META[a].label}</option>
@@ -149,31 +149,31 @@ export default function AuditLogPage() {
 
       {loading ? (
         <div className="flex justify-center h-32 items-center">
-          <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : (
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
           <div className="overflow-x-auto">
             <table className="min-w-[650px] w-full text-sm">
               <thead>
-                <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
-                  <Th label="Timestamp" sortKey="created_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
-                  <Th label="Action" sortKey="action" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Performed By</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Details</th>
+                <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
+                  <Th label="Timestamp" sortKey="created_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
+                  <Th label="Action" sortKey="action" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Performed By</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Details</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedLogs.map((log, i) => (
                   <tr key={log.id} className="hover:bg-slate-50 transition-colors"
-                    style={{ borderBottom: i < logs.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                    style={{ borderBottom: i < logs.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
                     <td className="px-4 py-3 text-xs font-mono whitespace-nowrap" style={{ color: '#475569' }}>
                       {formatTime(log.created_at)}
                     </td>
                     <td className="px-4 py-3">
                       <ActionBadge action={log.action} />
                     </td>
-                    <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>
+                    <td className="px-4 py-3 font-semibold" style={{ color: '#1C1208' }}>
                       {log.actor_name ?? <span style={{ color: '#CBD5E1' }}>System</span>}
                     </td>
                     <td className="px-4 py-3">

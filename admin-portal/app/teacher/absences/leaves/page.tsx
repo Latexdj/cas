@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -142,8 +142,8 @@ function LeavesContent() {
 
       {/* Leave form */}
       {showLeave && (
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 mb-5">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-4">New Leave Request</p>
+        <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 mb-5">
+          <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-4">New Leave Request</p>
           <form onSubmit={handleLeaveSubmit} className="space-y-3">
             <div>
               <p className="text-xs text-[#8C7E6E] mb-2">Type</p>
@@ -214,12 +214,16 @@ function LeavesContent() {
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map(i => (
-            <div key={i} className="bg-white rounded-2xl h-24 animate-pulse border border-[#E2D9CC]" />
+            <div key={i} className="bg-white rounded-xl h-24 animate-pulse border border-[#E2D9CC]" />
           ))}
         </div>
       ) : leaves.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] p-8 text-center">
-          <p className="text-3xl mb-2">📋</p>
+        <div className="bg-white rounded-xl border border-[#E2D9CC] p-8 text-center">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: '#E4F4EB' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#2D7A4F" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+          </div>
           <p className="text-sm font-semibold text-[#2C2218]">No leave requests yet</p>
           <p className="text-xs text-[#8C7E6E] mt-1">Tap Request to submit one</p>
         </div>
@@ -231,7 +235,7 @@ function LeavesContent() {
               ? fmt(lv.date_from)
               : `${fmt(lv.date_from)} – ${fmt(lv.date_to)}`;
             return (
-              <div key={lv.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
+              <div key={lv.id} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0 pr-3">
                     <p className="text-sm font-semibold text-[#2C2218]">{lv.type}</p>

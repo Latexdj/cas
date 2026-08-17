@@ -59,8 +59,8 @@ function DetailsModal({ row, onClose }: { row: MonitorRow; onClose: () => void }
   const pct   = denom === 0 ? 0 : Math.round((numer / denom) * 100);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between">
           <div>
@@ -78,7 +78,7 @@ function DetailsModal({ row, onClose }: { row: MonitorRow; onClose: () => void }
         <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-4">
           <div className="flex-1 h-2 rounded-full bg-slate-200 overflow-hidden">
             <div className="h-2 rounded-full transition-all"
-              style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#15803D' : pct > 50 ? '#D97706' : '#DC2626' }} />
+              style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#145C44' : pct > 50 ? '#D97706' : '#DC2626' }} />
           </div>
           <span className="text-sm font-bold text-slate-700 whitespace-nowrap">{numer} / {denom} complete · {pct}%</span>
         </div>
@@ -89,7 +89,7 @@ function DetailsModal({ row, onClose }: { row: MonitorRow; onClose: () => void }
             <thead className="bg-slate-50 sticky top-0">
               <tr>
                 {['Mode', 'Created', 'Scored', 'Status'].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</th>
+                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-400 font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -98,7 +98,7 @@ function DetailsModal({ row, onClose }: { row: MonitorRow; onClose: () => void }
                 const done    = m.assessments_created >= 1 && total > 0 && m.students_scored >= total;
                 const started = m.assessments_created >= 1 || m.students_scored > 0;
                 const statusLabel = done ? '✓ Done' : started ? '⚠ Incomplete' : '✗ Not Started';
-                const statusColor = done ? '#15803D' : started ? '#D97706' : '#DC2626';
+                const statusColor = done ? '#145C44' : started ? '#D97706' : '#DC2626';
                 return (
                   <tr key={m.mode_id} className="hover:bg-slate-50">
                     <td className="px-4 py-2.5 font-medium text-slate-800">{m.mode_name}</td>
@@ -126,7 +126,7 @@ function DetailsModal({ row, onClose }: { row: MonitorRow; onClose: () => void }
                   <span className="text-slate-400"> / {total}</span>
                 </td>
                 <td className="px-4 py-2.5">
-                  <span className="text-xs font-semibold" style={{ color: row.exam_complete ? '#15803D' : row.exam_students_scored > 0 ? '#D97706' : '#DC2626' }}>
+                  <span className="text-xs font-semibold" style={{ color: row.exam_complete ? '#145C44' : row.exam_students_scored > 0 ? '#D97706' : '#DC2626' }}>
                     {row.exam_complete ? '✓ Done' : row.exam_students_scored > 0 ? '⚠ Incomplete' : '✗ Not Started'}
                   </span>
                 </td>
@@ -196,7 +196,7 @@ export default function AssessmentTrackerPage() {
       const { data: res } = await api.get<MonitorData>(`/api/assessment-monitoring?${params}`);
       setData(res);
     } catch {
-      setError('Failed to load monitoring data.');
+      setError('Could not load monitoring data.');
     } finally { setLoading(false); }
   }, [yearId, semester, filterDept, filterTch]);
 
@@ -308,7 +308,7 @@ export default function AssessmentTrackerPage() {
         </select>
         <button onClick={() => load()} disabled={!yearId || loading}
           className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-colors"
-          style={{ backgroundColor: '#15803D' }}>
+          style={{ backgroundColor: '#145C44' }}>
           {loading ? 'Loading…' : 'Refresh'}
         </button>
         <button onClick={handlePrint} disabled={!data}
@@ -329,7 +329,7 @@ export default function AssessmentTrackerPage() {
       {s && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { label: 'Total Assignments', value: s.total,            color: '#475569', bg: '#F8FAFC' },
+            { label: 'Total Assignments', value: s.total,            color: '#475569', bg: '#F5F0E8' },
             { label: 'Not Started',       value: s.not_started,      color: '#DC2626', bg: '#FEF2F2' },
             { label: 'In Progress',       value: s.in_progress,      color: '#D97706', bg: '#FFFBEB' },
             { label: 'Scores Complete',   value: s.scores_complete,  color: '#0369A1', bg: '#EFF6FF' },
@@ -338,7 +338,7 @@ export default function AssessmentTrackerPage() {
           ].map(kpi => (
             <div key={kpi.label} className="rounded-xl border p-4 text-center"
               style={{ backgroundColor: kpi.bg, borderColor: kpi.color + '30' }}>
-              <p className="text-2xl font-black" style={{ color: kpi.color }}>{kpi.value}</p>
+              <p className="text-2xl font-bold" style={{ color: kpi.color }}>{kpi.value}</p>
               <p className="text-xs font-medium text-slate-500 mt-1">{kpi.label}</p>
             </div>
           ))}
@@ -349,7 +349,7 @@ export default function AssessmentTrackerPage() {
       {loading ? (
         <div className="flex justify-center py-16">
           <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin"
-            style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+            style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : !data ? (
         <div className="text-center py-16 text-slate-400 text-sm">Select a year and semester above to load data.</div>
@@ -381,7 +381,7 @@ export default function AssessmentTrackerPage() {
                   <div className="hidden sm:flex items-center gap-2 w-40 flex-shrink-0">
                     <div className="flex-1 h-1.5 rounded-full bg-slate-100">
                       <div className="h-1.5 rounded-full transition-all"
-                        style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#15803D' : pct > 50 ? '#D97706' : '#DC2626' }} />
+                        style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#145C44' : pct > 50 ? '#D97706' : '#DC2626' }} />
                     </div>
                     <span className="text-xs text-slate-500 w-8 text-right">{pct}%</span>
                   </div>
@@ -412,14 +412,14 @@ export default function AssessmentTrackerPage() {
                       <thead className="bg-slate-50">
                         <tr>
                           {['Subject', 'Class', 'Students', 'CA Modes', 'Exam Scores', 'Completion', 'Status', ''].map(h => (
-                            <th key={h} className="px-4 py-2 text-left font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                            <th key={h} className="px-4 py-2 text-left font-semibold text-slate-400 font-medium whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
                         {teacher.rows.map((r, i) => {
                           const rcfg = STATUS_CFG[r.status] ?? STATUS_CFG.not_started;
-                          const rowPctColor = r.completion_pct === 100 ? '#15803D'
+                          const rowPctColor = r.completion_pct === 100 ? '#145C44'
                             : r.completion_pct > 50 ? '#D97706' : '#DC2626';
                           return (
                             <tr key={i} className="hover:bg-slate-50">
@@ -429,7 +429,7 @@ export default function AssessmentTrackerPage() {
                               {/* CA Modes */}
                               <td className="px-4 py-2.5 text-center">
                                 <span className="font-semibold tabular-nums"
-                                  style={{ color: r.complete_modes === r.total_modes ? '#15803D' : r.complete_modes > 0 ? '#D97706' : '#DC2626' }}>
+                                  style={{ color: r.complete_modes === r.total_modes ? '#145C44' : r.complete_modes > 0 ? '#D97706' : '#DC2626' }}>
                                   {r.complete_modes}
                                 </span>
                                 <span className="text-slate-300"> / {r.total_modes}</span>
@@ -437,7 +437,7 @@ export default function AssessmentTrackerPage() {
                               {/* Exam */}
                               <td className="px-4 py-2.5 text-center">
                                 <span className="font-semibold tabular-nums"
-                                  style={{ color: r.exam_complete ? '#15803D' : r.exam_students_scored > 0 ? '#D97706' : '#DC2626' }}>
+                                  style={{ color: r.exam_complete ? '#145C44' : r.exam_students_scored > 0 ? '#D97706' : '#DC2626' }}>
                                   {r.exam_students_scored}
                                 </span>
                                 <span className="text-slate-300"> / {r.total_students}</span>
@@ -547,13 +547,13 @@ export default function AssessmentTrackerPage() {
 
               {/* ── Outstanding teachers ── */}
               {incomplete.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '24px', border: '2px solid #15803D', borderRadius: '6px', color: '#15803D', fontWeight: 700, fontSize: '11pt' }}>
+                <div style={{ textAlign: 'center', padding: '24px', border: '2px solid #145C44', borderRadius: '6px', color: '#145C44', fontWeight: 700, fontSize: '11pt' }}>
                   ✓ All teachers have completed their score entries for this semester.
                 </div>
               ) : (
                 incomplete.map((teacher, ti) => {
                   const incRows = teacher.rows.filter(r => r.completion_pct < 100);
-                  const pctColor = teacher.pct >= 80 ? '#15803D' : teacher.pct >= 50 ? '#B45309' : '#DC2626';
+                  const pctColor = teacher.pct >= 80 ? '#145C44' : teacher.pct >= 50 ? '#B45309' : '#DC2626';
                   return (
                     <div key={teacher.teacher_id} className="pr-teacher-block"
                       style={{ marginBottom: '18px', border: '1px solid #c9e0d4', borderRadius: '4px', overflow: 'hidden' }}>
@@ -601,16 +601,16 @@ export default function AssessmentTrackerPage() {
                               : r.exam_students_scored > 0
                                 ? `${r.exam_students_scored} / ${r.total_students} students entered`
                                 : 'Not started';
-                            const examColor   = r.exam_complete ? '#15803D' : r.exam_students_scored > 0 ? '#B45309' : '#DC2626';
+                            const examColor   = r.exam_complete ? '#145C44' : r.exam_students_scored > 0 ? '#B45309' : '#DC2626';
                             const rowBg       = ri % 2 === 0 ? '#fff' : '#f7fbf8';
                             const pct         = r.completion_pct;
-                            const cellPctColor = pct >= 80 ? '#15803D' : pct >= 50 ? '#B45309' : '#DC2626';
+                            const cellPctColor = pct >= 80 ? '#145C44' : pct >= 50 ? '#B45309' : '#DC2626';
                             return (
                               <tr key={ri} style={{ background: rowBg }}>
                                 <td style={{ ...tdBase, fontWeight: 600, color: '#0f2d1c' }}>{r.subject}</td>
                                 <td style={{ ...tdBase, textAlign: 'center', color: '#334' }}>{r.class_name}</td>
                                 <td style={{ ...tdBase, textAlign: 'center', color: '#556' }}>{r.total_students}</td>
-                                <td style={{ ...tdBase, color: caComplete ? '#15803D' : '#92400E' }}>{outstanding}</td>
+                                <td style={{ ...tdBase, color: caComplete ? '#145C44' : '#92400E' }}>{outstanding}</td>
                                 <td style={{ ...tdBase, color: examColor }}>{examLabel}</td>
                                 <td style={{ ...tdBase, textAlign: 'right', fontWeight: 800, fontSize: '9pt', color: cellPctColor, fontVariantNumeric: 'tabular-nums' }}>{pct}%</td>
                               </tr>

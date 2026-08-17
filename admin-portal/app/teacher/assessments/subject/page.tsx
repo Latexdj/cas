@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -53,11 +53,17 @@ interface ReadinessCheck {
 function CheckRow({ ok, label, blocking }: { ok: boolean; label: string; blocking: boolean }) {
   const bg     = ok ? '#F0FDF4' : blocking ? '#FEF2F2' : '#FFFBEB';
   const border = ok ? '#86EFAC' : blocking ? '#FCA5A5' : '#FDE68A';
-  const color  = ok ? '#15803D' : blocking ? '#DC2626' : '#92400E';
-  const icon   = ok ? '✅' : blocking ? '❌' : '⚠️';
+  const color  = ok ? '#145C44' : blocking ? '#DC2626' : '#92400E';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: bg, border: `1px solid ${border}` }}>
-      <span style={{ fontSize: 15, flexShrink: 0 }}>{icon}</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15, flexShrink: 0 }}>
+        {ok
+          ? <path d="M20 6L9 17l-5-5" />
+          : blocking
+            ? <><path d="M18 6L6 18M6 6l12 12" /></>
+            : <><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></>
+        }
+      </svg>
       <span style={{ fontSize: 13, color }}>{label}</span>
     </div>
   );
@@ -155,7 +161,7 @@ function SubjectContent() {
         setReadiness(readinessRes.value.data);
       }
     } catch {
-      setError('Failed to load assessments.');
+      setError('Could not load assessments.');
     } finally {
       setLoading(false);
     }
@@ -263,7 +269,7 @@ function SubjectContent() {
       });
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setReadinessError(msg ?? 'Failed to load submission check. Please try again.');
+      setReadinessError(msg ?? 'Could not load submission check. Please try again.');
     } finally {
       setReadinessLoading(false);
     }
@@ -402,7 +408,7 @@ function SubjectContent() {
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold text-[#2C2218] truncate">{subject}</h1>
-          <p className="text-xs text-[#8C7E6E]">{class_name} · {year_name} · Semester {semester}</p>
+          <p className="text-xs text-[#8C7E6E]">{class_name} Â· {year_name} Â· Semester {semester}</p>
         </div>
 
         {/* Bulk CA offline buttons */}
@@ -460,9 +466,9 @@ function SubjectContent() {
                 <button
                   onClick={submitForReview}
                   disabled={submitting}
-                  style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 18px', fontSize: 13, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}
+                  style={{ background: '#145C44', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 18px', fontSize: 13, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}
                 >
-                  {submitting ? 'Submitting…' : 'Submit for Review'}
+                  {submitting ? 'Submittingâ€¦' : 'Submit for Review'}
                 </button>
               ) : null}
             </div>
@@ -481,12 +487,12 @@ function SubjectContent() {
         );
       })()}
 
-      {/* Exam scores link — shows whether scores have been entered */}
+      {/* Exam scores link â€” shows whether scores have been entered */}
       <button
         onClick={() => router.push(
           `/teacher/assessments/exam?subject=${encodeURIComponent(subject)}&class_name=${encodeURIComponent(class_name)}&year_id=${year_id}&semester=${semester}&year_name=${encodeURIComponent(year_name)}`
         )}
-        className="w-full flex items-center gap-2.5 bg-white rounded-2xl px-4 py-3 mb-3 text-sm font-semibold transition-colors text-left"
+        className="w-full flex items-center gap-2.5 bg-white rounded-xl px-4 py-3 mb-3 text-sm font-semibold transition-colors text-left"
         style={{
           border: `2px ${readiness ? 'solid' : 'dashed'} ${readiness?.examComplete ? '#86EFAC' : readiness ? '#FCA5A5' : '#E2D9CC'}`,
           color: primary,
@@ -500,26 +506,26 @@ function SubjectContent() {
         </svg>
         <span className="flex-1">End-of-Semester Exam Scores</span>
         {readiness && (
-          <span className="text-xs font-bold shrink-0" style={{ color: readiness.examComplete ? '#15803D' : '#DC2626' }}>
+          <span className="text-xs font-bold shrink-0" style={{ color: readiness.examComplete ? '#145C44' : '#DC2626' }}>
             {readiness.examComplete
-              ? `✓ ${readiness.examScoredCount}/${readiness.totalStudents}`
-              : `✗ ${readiness.examScoredCount}/${readiness.totalStudents}`}
+              ? `âœ“ ${readiness.examScoredCount}/${readiness.totalStudents}`
+              : `âœ— ${readiness.examScoredCount}/${readiness.totalStudents}`}
           </span>
         )}
       </button>
 
       {/* CA mode completion badges (Layer 4) */}
       {activeModes.length > 0 && (
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] px-4 py-3 mb-4">
-          <p className="text-[10px] font-bold text-[#8C7E6E] uppercase tracking-wide mb-2">CA Modes</p>
+        <div className="bg-white rounded-xl border border-[#E2D9CC] px-4 py-3 mb-4">
+          <p className="text-[10px] font-bold text-[#8C7E6E] font-medium mb-2">CA Modes</p>
           <div className="flex flex-wrap gap-2">
             {activeModes.map(m => {
               const count = modeUsage[m.id] ?? 0;
               const done  = count > 0;
               return (
                 <span key={m.id} className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
-                  style={{ background: done ? '#DCFCE7' : '#FEE2E2', color: done ? '#15803D' : '#DC2626' }}>
-                  {done ? '✓' : '✗'} {m.name} ({count})
+                  style={{ background: done ? '#DCFCE7' : '#FEE2E2', color: done ? '#145C44' : '#DC2626' }}>
+                  {done ? 'âœ“' : 'âœ—'} {m.name} ({count})
                 </span>
               );
             })}
@@ -529,11 +535,11 @@ function SubjectContent() {
 
       {loading ? (
         <div className="space-y-3">
-          {[1, 2, 3].map(i => <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-20 animate-pulse" />)}
+          {[1, 2, 3].map(i => <div key={i} className="bg-white rounded-xl border border-[#E2D9CC] h-20 animate-pulse" />)}
         </div>
       ) : assessments.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-white border border-[#E2D9CC] flex items-center justify-center mb-3">
+          <div className="w-14 h-14 rounded-xl bg-white border border-[#E2D9CC] flex items-center justify-center mb-3">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-7 h-7 text-[#C8BFB5]">
               <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
               <rect x="9" y="3" width="6" height="4" rx="1" />
@@ -550,7 +556,7 @@ function SubjectContent() {
               ? new Date(item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
               : null;
             return (
-              <div key={item.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm flex overflow-hidden">
+              <div key={item.id} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm flex overflow-hidden">
                 <button
                   className="flex-1 p-4 text-left hover:bg-[#F9F6F2] transition-colors"
                   onClick={() => router.push(
@@ -568,9 +574,9 @@ function SubjectContent() {
                   </div>
                   <p className="text-sm font-bold text-[#2C2218]">{label}</p>
                   <p className="text-xs mt-0.5" style={{
-                    color: item.total_students > 0 && item.score_count >= item.total_students ? '#15803D' : '#8C7E6E'
+                    color: item.total_students > 0 && item.score_count >= item.total_students ? '#145C44' : '#8C7E6E'
                   }}>
-                    Max: {item.max_score} · {item.score_count}/{item.total_students} students scored/absent
+                    Max: {item.max_score} Â· {item.score_count}/{item.total_students} students scored/absent
                   </p>
                 </button>
                 <button
@@ -609,7 +615,7 @@ function SubjectContent() {
       {/* FAB */}
       <button
         onClick={() => setShowModal(true)}
-        className="fixed bottom-24 right-5 md:bottom-8 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl z-10 transition-transform hover:scale-105"
+        className="fixed bottom-24 right-5 md:bottom-8 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl z-10 transition-transform "
         style={{ background: primary }}
       >
         +
@@ -623,11 +629,11 @@ function SubjectContent() {
           ? 'scores have already been entered'
           : 'the assessment is more than 48 hours old';
         return (
-          <div className="fixed inset-0 bg-black/40 z-40 flex items-end md:items-center justify-center" onClick={() => setEditTarget(null)}>
-            <div className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-3xl p-6 pb-8 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 bg-[#0B3D2E]/45 z-40 flex items-end md:items-center justify-center" onClick={() => setEditTarget(null)}>
+            <div className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-xl p-6 pb-8 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-bold text-[#2C2218]">Edit Assessment</h2>
-                <button onClick={() => setEditTarget(null)} className="w-7 h-7 rounded-full bg-[#F4EFE6] flex items-center justify-center text-[#8C7E6E] text-xs font-bold">✕</button>
+                <button onClick={() => setEditTarget(null)} className="w-7 h-7 rounded-full bg-[#F4EFE6] flex items-center justify-center text-[#8C7E6E]"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-3.5 h-3.5"><path d="M18 6L6 18M6 6l12 12" /></svg></button>
               </div>
 
               {structuralLocked && (
@@ -635,11 +641,11 @@ function SubjectContent() {
                   <svg className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                   </svg>
-                  <p className="text-xs text-amber-800"><strong>Semester &amp; Year are locked</strong> — {lockReason}. You can still edit the mode, title, date, and max score.</p>
+                  <p className="text-xs text-amber-800"><strong>Semester &amp; Year are locked</strong> â€” {lockReason}. You can still edit the mode, title, date, and max score.</p>
                 </div>
               )}
 
-              <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Academic Year</p>
+              <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium mb-1">Academic Year</p>
               <div className="relative mb-3">
                 <select
                   className={`${inputCls} appearance-none ${structuralLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -657,7 +663,7 @@ function SubjectContent() {
                 </svg>
               </div>
 
-              <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Semester</p>
+              <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium mb-1">Semester</p>
               <div className="relative mb-4">
                 <select
                   className={`${inputCls} appearance-none ${structuralLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -673,7 +679,7 @@ function SubjectContent() {
                 </svg>
               </div>
 
-              <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-2">Mode *</p>
+              <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium mb-2">Mode *</p>
               <div className="flex flex-wrap gap-2 mb-4">
                 {modes.map(m => (
                   <button key={m.id} onClick={() => setEditModeId(m.id)}
@@ -687,13 +693,13 @@ function SubjectContent() {
                 ))}
               </div>
 
-              <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Title (optional)</p>
+              <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium mb-1">Title (optional)</p>
               <input className={`${inputCls} mb-3`} value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="e.g. Week 3 Test" />
 
-              <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Date</p>
+              <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium mb-1">Date</p>
               <input type="date" className={`${inputCls} mb-3`} value={editDate} onChange={e => setEditDate(e.target.value)} />
 
-              <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Max Score</p>
+              <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium mb-1">Max Score</p>
               <input type="number" className={`${inputCls} mb-4`} value={editMaxScore} onChange={e => setEditMaxScore(e.target.value)} placeholder="100" />
 
               {editErr && <p className="text-xs text-[#B83232] mb-3">{editErr}</p>}
@@ -706,7 +712,7 @@ function SubjectContent() {
                 <button onClick={saveEdit} disabled={editSaving}
                   className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-60"
                   style={{ background: primary }}>
-                  {editSaving ? 'Saving…' : 'Save Changes'}
+                  {editSaving ? 'Savingâ€¦' : 'Save Changes'}
                 </button>
               </div>
             </div>
@@ -716,8 +722,8 @@ function SubjectContent() {
 
       {/* Bulk CA upload result modal */}
       {bulkUploadResult && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 px-4 pb-6">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-5">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0B3D2E]/35 px-4 pb-6">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold text-[#2C2218]">Upload Results</h2>
               <button
@@ -730,11 +736,11 @@ function SubjectContent() {
               </button>
             </div>
             <div className="space-y-2 mb-3">
-              <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2">
-                <span className="text-green-700 font-bold text-sm">{bulkUploadResult.saved} score{bulkUploadResult.saved !== 1 ? 's' : ''} saved</span>
+              <div className="bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-2">
+                <span className="text-[#145C44] font-bold text-sm">{bulkUploadResult.saved} score{bulkUploadResult.saved !== 1 ? 's' : ''} saved</span>
               </div>
               {bulkUploadResult.skipped > 0 && (
-                <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                <div className="bg-[#F5F0E8] border border-gray-200 rounded-xl px-3 py-2">
                   <span className="text-gray-600 text-sm">{bulkUploadResult.skipped} row{bulkUploadResult.skipped !== 1 ? 's' : ''} skipped (empty)</span>
                 </div>
               )}
@@ -757,17 +763,17 @@ function SubjectContent() {
 
       {/* Create modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 z-40 flex items-end md:items-center justify-center" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 bg-[#0B3D2E]/45 z-40 flex items-end md:items-center justify-center" onClick={() => setShowModal(false)}>
           <div
-            className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-3xl p-6 pb-8 shadow-2xl"
+            className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-xl p-6 pb-8 shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-base font-bold text-[#2C2218]">New Assessment</h2>
-              <button onClick={() => setShowModal(false)} className="w-7 h-7 rounded-full bg-[#F4EFE6] flex items-center justify-center text-[#8C7E6E] text-xs font-bold">✕</button>
+              <button onClick={() => setShowModal(false)} className="w-7 h-7 rounded-full bg-[#F4EFE6] flex items-center justify-center text-[#8C7E6E]"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-3.5 h-3.5"><path d="M18 6L6 18M6 6l12 12" /></svg></button>
             </div>
 
-            <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-2">Mode *</p>
+            <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium mb-2">Mode *</p>
             <div className="flex flex-wrap gap-2 mb-4">
               {modes.map(m => {
                 const used = assessments.filter(a => a.mode_id === m.id).length;
@@ -793,13 +799,13 @@ function SubjectContent() {
               })}
             </div>
 
-            <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Title (optional)</p>
+            <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium mb-1">Title (optional)</p>
             <input className={`${inputCls} mb-3`} value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Week 3 Test" />
 
-            <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Date (optional)</p>
+            <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium mb-1">Date (optional)</p>
             <input type="date" className={`${inputCls} mb-3`} value={date} onChange={e => setDate(e.target.value)} />
 
-            <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Max Score</p>
+            <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium mb-1">Max Score</p>
             <input className={`${inputCls} mb-4`} value={maxScore} onChange={e => setMaxScore(e.target.value)} placeholder="e.g. 50" type="number" min={1} required />
 
             {createErr && <p className="text-xs text-[#B83232] mb-3">{createErr}</p>}
@@ -817,7 +823,7 @@ function SubjectContent() {
                 className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-60"
                 style={{ background: primary }}
               >
-                {creating ? 'Creating…' : 'Create'}
+                {creating ? 'Creatingâ€¦' : 'Create'}
               </button>
             </div>
           </div>
@@ -825,15 +831,15 @@ function SubjectContent() {
       )}
       {/* Submit confirmation modal (Layer 2) */}
       {showConfirmModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end md:items-center justify-center" onClick={() => { if (!submitting) setShowConfirmModal(false); }}>
-          <div className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-3xl p-6 pb-8 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-[#0B3D2E]/45 z-50 flex items-end md:items-center justify-center" onClick={() => { if (!submitting) setShowConfirmModal(false); }}>
+          <div className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-xl p-6 pb-8 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-base font-bold text-[#2C2218]">Submit for HOD Review</h2>
               {!submitting && (
-                <button onClick={() => setShowConfirmModal(false)} className="w-7 h-7 rounded-full bg-[#F4EFE6] flex items-center justify-center text-[#8C7E6E] text-xs font-bold">✕</button>
+                <button onClick={() => setShowConfirmModal(false)} className="w-7 h-7 rounded-full bg-[#F4EFE6] flex items-center justify-center text-[#8C7E6E]"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-3.5 h-3.5"><path d="M18 6L6 18M6 6l12 12" /></svg></button>
               )}
             </div>
-            <p className="text-xs text-[#8C7E6E] mb-4">{subject} · {class_name} · Semester {semester}</p>
+            <p className="text-xs text-[#8C7E6E] mb-4">{subject} Â· {class_name} Â· Semester {semester}</p>
 
             {readinessLoading ? (
               <div className="flex justify-center py-6 mb-5">
@@ -849,34 +855,34 @@ function SubjectContent() {
                 {/* Exam scores completeness */}
                 <CheckRow
                   ok={readiness.examComplete}
-                  label={`End-of-semester exam — ${readiness.examScoredCount}/${readiness.totalStudents} students scored`}
+                  label={`End-of-semester exam â€” ${readiness.examScoredCount}/${readiness.totalStudents} students scored`}
                   blocking={true}
                 />
                 {/* CA modes that have no assessment at all */}
                 {readiness.missingModes.map(name => (
-                  <CheckRow key={name} ok={false} label={`${name} — no assessment created yet`} blocking={true} />
+                  <CheckRow key={name} ok={false} label={`${name} â€” no assessment created yet`} blocking={true} />
                 ))}
                 {/* Assessments where not all students are acted on */}
                 {readiness.incompleteAssessments.map(a => (
                   <CheckRow
                     key={a.id}
                     ok={false}
-                    label={`${a.label} (${a.modeName}) — ${a.actedOn}/${readiness.totalStudents} students scored/absent`}
+                    label={`${a.label} (${a.modeName}) â€” ${a.actedOn}/${readiness.totalStudents} students scored/absent`}
                     blocking={true}
                   />
                 ))}
-                {/* Modes with assessments but all complete — show ✓ */}
+                {/* Modes with assessments but all complete â€” show âœ“ */}
                 {activeModes
                   .filter(m => (modeUsage[m.id] ?? 0) > 0)
                   .filter(m => !readiness.incompleteAssessments.some(a => a.modeName === m.name))
                   .map(m => (
-                    <CheckRow key={m.id} ok={true} label={`${m.name} — all students scored/absent`} blocking={true} />
+                    <CheckRow key={m.id} ok={true} label={`${m.name} â€” all students scored/absent`} blocking={true} />
                   ))
                 }
                 {readiness.canSubmit && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: '#F0FDF4', border: '1px solid #86EFAC' }}>
-                    <span style={{ fontSize: 15 }}>✅</span>
-                    <span style={{ fontSize: 13, color: '#15803D', fontWeight: 600 }}>All checks passed. Ready to submit.</span>
+                    <span style={{ fontSize: 15 }}>âœ…</span>
+                    <span style={{ fontSize: 13, color: '#145C44', fontWeight: 600 }}>All checks passed. Ready to submit.</span>
                   </div>
                 )}
               </div>
@@ -886,7 +892,7 @@ function SubjectContent() {
 
             {readiness && !readiness.canSubmit && !readinessLoading && (
               <p className="text-xs text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] rounded-xl px-3 py-2 mb-3">
-                Fix the issues marked ❌ above before submitting. Scores are incomplete.
+                Fix the issues marked âŒ above before submitting. Scores are incomplete.
               </p>
             )}
 
@@ -899,8 +905,8 @@ function SubjectContent() {
                 onClick={confirmSubmit}
                 disabled={submitting || readinessLoading || !!readinessError || !readiness?.canSubmit}
                 className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-50"
-                style={{ background: '#15803D' }}>
-                {submitting ? 'Submitting…' : readinessLoading ? 'Checking…' : readiness?.canSubmit ? 'Confirm & Submit' : 'Cannot Submit Yet'}
+                style={{ background: '#145C44' }}>
+                {submitting ? 'Submittingâ€¦' : readinessLoading ? 'Checkingâ€¦' : readiness?.canSubmit ? 'Confirm & Submit' : 'Cannot Submit Yet'}
               </button>
             </div>
           </div>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { ReactNode, useEffect, useState, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -273,21 +273,21 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const isDark = mounted && resolvedTheme === 'dark';
 
   const dk = {
-    pageBg:        isDark ? '#0F172A' : '#F4EFE6',
-    sidebarBg:     isDark ? '#0F172A' : '#ffffff',
-    border:        isDark ? 'rgba(255,255,255,0.07)' : '#E2D9CC',
-    navText:       isDark ? '#94A3B8' : '#8C7E6E',
-    navActiveBg:   isDark ? 'rgba(21,128,61,0.15)' : `${primary}18`,
-    navActiveText: isDark ? '#4ADE80' : primary,
-    sheetBg:       isDark ? '#0F172A' : '#ffffff',
-    closeBtnBg:    isDark ? '#1E293B' : '#F4EFE6',
-    closeBtnText:  isDark ? '#94A3B8' : '#8C7E6E',
-    moreTitle:     isDark ? '#F1F5F9' : '#2C2218',
-    moreItemText:  isDark ? '#CBD5E1' : '#5C4F42',
-    tabBarBg:      isDark ? '#0F172A' : '#ffffff',
-    footerText:    isDark ? '#475569' : '#8C7E6E',
-    brandText:     isDark ? '#4ADE80' : primary,
-    sectionLabel:  isDark ? '#334155' : '#94A3B8',
+    pageBg:        isDark ? '#0E1A0C' : '#F5F0E8',
+    sidebarBg:     isDark ? '#0B3D2E' : '#FDFAF5',
+    border:        isDark ? 'rgba(255,255,255,0.08)' : '#E2D9CC',
+    navText:       isDark ? 'rgba(255,255,255,0.6)' : '#8C7E6E',
+    navActiveBg:   isDark ? 'rgba(200,151,58,0.15)' : `${primary}18`,
+    navActiveText: isDark ? '#C8973A' : primary,
+    sheetBg:       isDark ? '#152210' : '#FDFAF5',
+    closeBtnBg:    isDark ? '#1F3020' : '#F0EBE1',
+    closeBtnText:  isDark ? 'rgba(255,255,255,0.5)' : '#8C7E6E',
+    moreTitle:     isDark ? '#FDFAF5' : '#2C2218',
+    moreItemText:  isDark ? 'rgba(255,255,255,0.75)' : '#5C4F42',
+    tabBarBg:      isDark ? '#0B3D2E' : '#FDFAF5',
+    footerText:    isDark ? 'rgba(255,255,255,0.35)' : '#8C7E6E',
+    brandText:     isDark ? '#C8973A' : primary,
+    sectionLabel:  isDark ? 'rgba(200,151,58,0.5)' : '#8C7E6E',
   };
 
   const fetchUnread = useCallback(async () => {
@@ -351,7 +351,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: dk.pageBg }}>
-        <div className="w-8 h-8 rounded-full border-2 border-[#2ab289] border-t-transparent animate-spin" />
+        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
       </div>
     );
   }
@@ -415,7 +415,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
                 <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowNotifs(false)} />
                 <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 300, background: isDark ? '#1E293B' : '#fff', border: `1px solid ${dk.border}`, borderRadius: 14, boxShadow: '0 10px 40px rgba(0,0,0,0.15)', zIndex: 50, maxHeight: 380, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ padding: '10px 14px', borderBottom: `1px solid ${dk.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: isDark ? '#F1F5F9' : '#0F172A' }}>Notifications</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: isDark ? '#F1F5F9' : '#1C1208' }}>Notifications</span>
                     <button onClick={markAllRead} style={{ fontSize: 11, color: primary, background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Mark all read</button>
                   </div>
                   <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -425,9 +425,9 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
                       <div
                         key={n.id}
                         onClick={() => { if (n.link && typeof window !== 'undefined') window.location.href = n.link; setShowNotifs(false); }}
-                        style={{ padding: '9px 14px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : '#F8FAFC'}`, cursor: n.link ? 'pointer' : 'default', background: n.is_read ? 'transparent' : (isDark ? 'rgba(21,128,61,0.08)' : '#F0FDF4') }}
+                        style={{ padding: '9px 14px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.04)' : '#F5F0E8'}`, cursor: n.link ? 'pointer' : 'default', background: n.is_read ? 'transparent' : (isDark ? 'rgba(200,151,58,0.08)' : '#FFFBF0') }}
                       >
-                        <p style={{ fontSize: 12, color: isDark ? '#E2E8F0' : '#0F172A', margin: 0, lineHeight: 1.4 }}>{n.message}</p>
+                        <p style={{ fontSize: 12, color: isDark ? '#E2E8F0' : '#1C1208', margin: 0, lineHeight: 1.4 }}>{n.message}</p>
                         <p style={{ fontSize: 10, color: '#94A3B8', margin: '2px 0 0' }}>
                           {new Date(n.created_at).toLocaleDateString()} {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </p>
@@ -474,7 +474,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
             <a
               href="/principal"
               className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold w-full transition-colors"
-              style={{ background: isDark ? 'rgba(16,185,129,0.12)' : '#ECFDF5', color: '#059669' }}
+              style={{ background: isDark ? 'rgba(200,151,58,0.12)' : 'rgba(200,151,58,0.08)', color: isDark ? '#C8973A' : '#145C44' }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 shrink-0">
                 <path d="M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18" />
@@ -487,7 +487,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
           <div className="flex justify-center mb-2">
             <ThemeToggle />
           </div>
-          <p className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: dk.footerText }}>Designed by</p>
+          <p className="text-[9px]" style={{ color: dk.footerText }}>Designed by</p>
           <p className="text-[11px] font-bold mt-0.5" style={{ color: dk.brandText }}>LatexTech</p>
           <p className="text-[9px] mt-0.5" style={{ color: dk.footerText }}>+233 24 8234 649</p>
         </div>
@@ -501,14 +501,15 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
       {/* ── Mobile: More bottom-sheet backdrop ── */}
       {moreOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-black/20 z-30"
+          className="md:hidden fixed inset-0 z-30"
+          style={{ background: 'rgba(11,61,46,0.25)' }}
           onClick={() => setMoreOpen(false)}
         />
       )}
 
       {/* ── Mobile: More bottom-sheet panel ── */}
       {moreOpen && (
-        <div className="md:hidden fixed bottom-[60px] left-0 right-0 rounded-t-2xl shadow-2xl z-40 px-4 pt-4 pb-5"
+        <div className="md:hidden fixed bottom-[60px] left-0 right-0 rounded-t-xl shadow-2xl z-40 px-4 pt-4 pb-5"
           style={{ backgroundColor: dk.sheetBg, borderTop: `1px solid ${dk.border}` }}>
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-bold" style={{ color: dk.moreTitle }}>More</p>
@@ -516,10 +517,12 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
               <ThemeToggle />
               <button
                 onClick={() => setMoreOpen(false)}
-                className="w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold"
+                className="w-7 h-7 flex items-center justify-center rounded-full"
                 style={{ backgroundColor: dk.closeBtnBg, color: dk.closeBtnText }}
               >
-                ✕
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             </div>
           </div>
@@ -528,7 +531,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
               <a
                 href="/principal"
                 className="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold transition-colors"
-                style={{ background: isDark ? 'rgba(16,185,129,0.12)' : '#ECFDF5', color: '#059669' }}
+                style={{ background: isDark ? 'rgba(200,151,58,0.12)' : 'rgba(200,151,58,0.08)', color: isDark ? '#C8973A' : '#145C44' }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 shrink-0">
                   <path d="M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18" />

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -24,7 +24,7 @@ interface Student {
 function Spinner() {
   return (
     <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin mx-auto"
-      style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+      style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
   );
 }
 
@@ -35,14 +35,14 @@ function Btn({ onClick, disabled, variant = 'primary', small, children }: {
   const base = `font-semibold rounded-lg transition-colors ${small ? 'text-xs px-2.5 py-1' : 'text-sm px-4 py-2'}`;
   const styles: Record<string, string> = {
     primary:   'text-white disabled:opacity-50',
-    secondary: 'bg-white border border-gray-200 text-slate-700 hover:bg-gray-50',
+    secondary: 'bg-white border border-gray-200 text-slate-700 hover:bg-[#F5F0E8]',
     danger:    'bg-red-50 border border-red-200 text-red-600 hover:bg-red-100',
     ghost:     'bg-transparent text-slate-500 hover:text-slate-700 hover:bg-gray-100',
   };
   return (
     <button onClick={onClick} disabled={disabled}
       className={`${base} ${styles[variant]}`}
-      style={variant === 'primary' ? { backgroundColor: '#15803D' } : {}}>
+      style={variant === 'primary' ? { backgroundColor: '#145C44' } : {}}>
       {children}
     </button>
   );
@@ -75,19 +75,19 @@ function ClassModal({ editing, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
         <h2 className="font-bold text-slate-900">{editing ? 'Rename Class' : 'New Class'}</h2>
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1">Class Name *</label>
           <input value={name} onChange={e => setName(e.target.value)} autoFocus
             placeholder="e.g. Basic 1, KG 2, JHS 1"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
         </div>
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1">Sort Order</label>
           <input type="number" value={order} onChange={e => setOrder(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
           <p className="text-xs text-slate-400 mt-1">Lower numbers appear first in the list.</p>
         </div>
         {err && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
@@ -143,8 +143,8 @@ function AddStudentsModal({ targetClass, allStudents, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" style={{ maxHeight: '85vh' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col" style={{ maxHeight: '85vh' }}>
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="font-bold text-slate-900">Add Students to {targetClass}</h2>
@@ -156,12 +156,12 @@ function AddStudentsModal({ targetClass, allStudents, onClose, onSaved }: {
         <div className="px-4 py-3 border-b border-gray-100 space-y-2 flex-shrink-0">
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search by name or admission number…"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
           <div className="flex gap-1.5">
             {(['other','all'] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}
                 className={`text-xs px-3 py-1 rounded-md font-semibold transition-colors ${filter === f ? 'text-white' : 'bg-gray-100 text-slate-600 hover:bg-gray-200'}`}
-                style={filter === f ? { backgroundColor: '#15803D' } : {}}>
+                style={filter === f ? { backgroundColor: '#145C44' } : {}}>
                 {f === 'other' ? 'From other classes' : 'All students'}
               </button>
             ))}
@@ -174,7 +174,7 @@ function AddStudentsModal({ targetClass, allStudents, onClose, onSaved }: {
             <p className="text-center text-slate-400 text-sm py-10">No students found.</p>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100 sticky top-0">
+              <thead className="bg-[#F5F0E8] border-b border-gray-100 sticky top-0">
                 <tr>
                   <th className="px-4 py-2.5 w-10">
                     <input type="checkbox" checked={sel.size === candidates.length && candidates.length > 0}
@@ -187,7 +187,7 @@ function AddStudentsModal({ targetClass, allStudents, onClose, onSaved }: {
               <tbody className="divide-y divide-gray-50">
                 {candidates.map(s => (
                   <tr key={s.id} onClick={() => toggle(s.id)}
-                    className={`cursor-pointer transition-colors ${sel.has(s.id) ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
+                    className={`cursor-pointer transition-colors ${sel.has(s.id) ? 'bg-[#E8F4EE]' : 'hover:bg-[#F5F0E8]'}`}>
                     <td className="px-4 py-2.5">
                       <input type="checkbox" checked={sel.has(s.id)} onChange={() => toggle(s.id)} className="rounded" onClick={e => e.stopPropagation()} />
                     </td>
@@ -241,8 +241,8 @@ function MoveStudentModal({ student, classes, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
         <h2 className="font-bold text-slate-900">Move Student</h2>
         <p className="text-sm text-slate-600">
           Move <strong>{student.surname}{student.other_names ? ` ${student.other_names}` : ''}</strong> to a different class.
@@ -250,7 +250,7 @@ function MoveStudentModal({ student, classes, onClose, onSaved }: {
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1">Destination Class *</label>
           <select value={dest} onChange={e => setDest(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]">
             <option value="">Select class…</option>
             {classes.filter(c => c.class_name.toLowerCase() !== student.class_name.toLowerCase()).map(c => (
               <option key={c.id} value={c.class_name}>{c.class_name} ({c.student_count} students)</option>
@@ -299,13 +299,13 @@ function AssignTeacherModal({ cls, yearId, teachers, onClose, onSaved }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
         <h2 className="font-bold text-slate-900">Assign Class Teacher — {cls.class_name}</h2>
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1">Teacher *</label>
           <select value={teacherId} onChange={e => setTeacherId(e.target.value)}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]">
             <option value="">Select teacher…</option>
             {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
@@ -371,7 +371,7 @@ export default function PrimaryClassesPage() {
         const updated = data.find(c => c.id === selected.id);
         setSelected(updated ?? null);
       }
-    } catch { setError('Failed to load classes.'); }
+    } catch { setError('Could not load classes.'); }
     finally { setLoading(false); }
   }, [yearId, selected]);
 
@@ -439,7 +439,7 @@ export default function PrimaryClassesPage() {
           </div>
           <button onClick={() => setClassModal('create')}
             className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-lg leading-none hover:opacity-90"
-            style={{ backgroundColor: '#15803D' }} title="New Class">+</button>
+            style={{ backgroundColor: '#145C44' }} title="New Class">+</button>
         </div>
 
         {/* Year filter */}
@@ -459,7 +459,7 @@ export default function PrimaryClassesPage() {
           ) : classes.length === 0 ? (
             <div className="text-center py-10 px-4">
               <p className="text-xs text-slate-400">No classes yet.</p>
-              <button onClick={() => setClassModal('create')} className="text-xs font-semibold mt-2 hover:underline" style={{ color: '#15803D' }}>
+              <button onClick={() => setClassModal('create')} className="text-xs font-semibold mt-2 hover:underline" style={{ color: '#145C44' }}>
                 + Create first class
               </button>
             </div>
@@ -468,9 +468,9 @@ export default function PrimaryClassesPage() {
               const active = selected?.id === cls.id;
               return (
                 <div key={cls.id} onClick={() => selectClass(cls)}
-                  className={`group px-3 py-2.5 cursor-pointer border-l-2 transition-all ${active ? 'border-green-500 bg-green-50' : 'border-transparent hover:bg-gray-50'}`}>
+                  className={`group px-3 py-2.5 cursor-pointer border-l-2 transition-all ${active ? 'border-[#145C44] bg-[#E8F4EE]' : 'border-transparent hover:bg-[#F5F0E8]'}`}>
                   <div className="flex items-center justify-between gap-1">
-                    <p className={`text-sm font-semibold truncate ${active ? 'text-green-700' : 'text-slate-800'}`}>{cls.class_name}</p>
+                    <p className={`text-sm font-semibold truncate ${active ? 'text-[#145C44]' : 'text-slate-800'}`}>{cls.class_name}</p>
                     {/* Visible on mobile; hover-reveal on desktop */}
                     <div className="flex gap-0.5 flex-shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button onClick={e => { e.stopPropagation(); setSelected(cls); setClassModal('edit'); }}
@@ -490,7 +490,7 @@ export default function PrimaryClassesPage() {
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-xs text-slate-400">{cls.student_count} student{cls.student_count !== 1 ? 's' : ''}</span>
                     {cls.teacher_name && (
-                      <span className="text-xs truncate" style={{ color: '#15803D' }}>· {cls.teacher_name.split(' ')[0]}</span>
+                      <span className="text-xs truncate" style={{ color: '#145C44' }}>· {cls.teacher_name.split(' ')[0]}</span>
                     )}
                   </div>
                 </div>
@@ -502,12 +502,12 @@ export default function PrimaryClassesPage() {
       </aside>
 
       {/* ── Right: Class detail ── */}
-      <main className={`${mobileDetail ? 'flex' : 'hidden'} md:flex flex-col flex-1 overflow-y-auto bg-gray-50/50 min-w-0`}>
+      <main className={`${mobileDetail ? 'flex' : 'hidden'} md:flex flex-col flex-1 overflow-y-auto bg-[#F5F0E8]/50 min-w-0`}>
         {/* Back button — mobile only */}
         {mobileDetail && (
           <div className="md:hidden px-4 py-2.5 border-b border-gray-100 bg-white flex-shrink-0">
             <button onClick={() => { setMobileDetail(false); setSelected(null); }}
-              className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: '#15803D' }}>
+              className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: '#145C44' }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
                 <path d="M15 19l-7-7 7-7" />
               </svg>
@@ -517,8 +517,8 @@ export default function PrimaryClassesPage() {
         )}
         {!selected ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-6 py-20">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ backgroundColor: '#F0FDF4' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="#15803D" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
+            <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-4" style={{ backgroundColor: '#F0FDF4' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#145C44" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
                 <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
             </div>
@@ -527,7 +527,7 @@ export default function PrimaryClassesPage() {
             {classes.length === 0 && (
               <button onClick={() => setClassModal('create')}
                 className="mt-4 px-4 py-2 rounded-lg text-sm font-semibold text-white"
-                style={{ backgroundColor: '#15803D' }}>
+                style={{ backgroundColor: '#145C44' }}>
                 + Create First Class
               </button>
             )}
@@ -557,7 +557,7 @@ export default function PrimaryClassesPage() {
               {selected.teacher_name ? (
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-                    style={{ backgroundColor: '#15803D' }}>
+                    style={{ backgroundColor: '#145C44' }}>
                     {selected.teacher_name.charAt(0).toUpperCase()}
                   </div>
                   <div>
@@ -579,7 +579,7 @@ export default function PrimaryClassesPage() {
                 </h3>
                 <input value={rosterSearch} onChange={e => setRosterSearch(e.target.value)}
                   placeholder="Search…"
-                  className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs w-full sm:w-36 focus:outline-none focus:ring-1 focus:ring-green-500" />
+                  className="border border-gray-200 rounded-lg px-2.5 py-1 text-xs w-full sm:w-36 focus:outline-none focus:ring-1 focus:ring-[#145C44]" />
                 <Btn small onClick={() => setAddStudModal(true)}>+ Add Students</Btn>
               </div>
 
@@ -589,7 +589,7 @@ export default function PrimaryClassesPage() {
                 <div className="text-center py-10">
                   <p className="text-sm text-slate-400">{rosterSearch ? 'No students match your search.' : 'No students in this class yet.'}</p>
                   {!rosterSearch && (
-                    <button onClick={() => setAddStudModal(true)} className="text-xs font-semibold mt-2 hover:underline" style={{ color: '#15803D' }}>
+                    <button onClick={() => setAddStudModal(true)} className="text-xs font-semibold mt-2 hover:underline" style={{ color: '#145C44' }}>
                       + Add Students
                     </button>
                   )}
@@ -597,7 +597,7 @@ export default function PrimaryClassesPage() {
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-100">
+                    <thead className="bg-[#F5F0E8] border-b border-gray-100">
                       <tr>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-10">#</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Student</th>
@@ -607,7 +607,7 @@ export default function PrimaryClassesPage() {
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                       {filteredRoster.map((s, i) => (
-                        <tr key={s.id} className="hover:bg-gray-50">
+                        <tr key={s.id} className="hover:bg-[#F5F0E8]">
                           <td className="px-3 py-2.5 text-xs text-slate-400">{i + 1}</td>
                           <td className="px-3 py-2.5">
                             <p className="font-medium text-slate-900">{s.surname}{s.other_names ? ` ${s.other_names}` : ''}</p>

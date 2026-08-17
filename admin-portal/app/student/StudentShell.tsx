@@ -166,7 +166,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
 
   if (!ready) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: isDark ? '#0E1A0C' : '#F5F0E8' }}>
         <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: PRIMARY, borderTopColor: 'transparent' }} />
       </div>
     );
@@ -182,15 +182,18 @@ export default function StudentShell({ children }: { children: ReactNode }) {
   const isMoreActive    = mobileMoreItems.some(item => isActive(item.href));
   const student         = getStudent();
 
-  const navTextColor    = isDark ? '#94A3B8' : '#64748B';
-  const navIconColor    = isDark ? '#94A3B8' : '#94A3B8';
+  const navTextColor    = isDark ? 'rgba(255,255,255,0.6)' : '#8C7E6E';
+  const navIconColor    = isDark ? 'rgba(255,255,255,0.6)' : '#8C7E6E';
+  const sidebarBg       = isDark ? '#0B3D2E' : '#FDFAF5';
+  const sidebarBorder   = isDark ? 'rgba(255,255,255,0.08)' : '#E2D9CC';
 
   return (
-    <div className={`min-h-screen flex ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
+    <div className="min-h-screen flex" style={{ background: isDark ? '#0E1A0C' : '#F5F0E8' }}>
 
       {/* ── Desktop sidebar ── */}
-      <aside className={`hidden md:flex flex-col w-60 shrink-0 fixed top-0 left-0 h-full z-20 shadow-sm ${isDark ? 'bg-slate-800 border-r border-slate-700' : 'bg-white border-r border-slate-200'}`}>
-        <div className={`px-5 py-4 flex items-center gap-3 ${isDark ? 'border-b border-slate-700' : 'border-b border-slate-100'}`}>
+      <aside className="hidden md:flex flex-col w-60 shrink-0 fixed top-0 left-0 h-full z-20 shadow-sm"
+        style={{ backgroundColor: sidebarBg, borderRight: `1px solid ${sidebarBorder}` }}>
+        <div className="px-5 py-4 flex items-center gap-3" style={{ borderBottom: `1px solid ${sidebarBorder}` }}>
           {logoUrl ? (
             <img src={logoUrl} alt="School logo" className="w-9 h-9 rounded-lg object-cover shrink-0" />
           ) : (
@@ -201,9 +204,9 @@ export default function StudentShell({ children }: { children: ReactNode }) {
         </div>
 
         {/* Student identity chip */}
-        <div className={`px-4 py-3 ${isDark ? 'border-b border-slate-700' : 'border-b border-slate-100'}`}>
-          <p className={`text-xs font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Signed in as</p>
-          <p className={`text-sm font-semibold truncate ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{student?.name}</p>
+        <div className="px-4 py-3" style={{ borderBottom: `1px solid ${sidebarBorder}` }}>
+          <p className="text-xs font-medium" style={{ color: isDark ? 'rgba(255,255,255,0.35)' : '#8C7E6E' }}>Signed in as</p>
+          <p className="text-sm font-semibold truncate" style={{ color: isDark ? 'rgba(255,255,255,0.85)' : '#2C2218' }}>{student?.name}</p>
         </div>
 
         <nav className="flex-1 py-4 space-y-1 px-3 overflow-y-auto">
@@ -220,9 +223,9 @@ export default function StudentShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className={`px-4 py-3 ${isDark ? 'border-t border-slate-700' : 'border-t border-slate-100'}`}>
+        <div className="px-4 py-3" style={{ borderTop: `1px solid ${sidebarBorder}` }}>
           <button onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors">
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
             </svg>
@@ -234,7 +237,8 @@ export default function StudentShell({ children }: { children: ReactNode }) {
       {/* ── Main content ── */}
       <div className="flex-1 flex flex-col md:ml-60 min-h-screen">
         {/* Mobile header */}
-        <header className={`md:hidden sticky top-0 z-10 px-4 py-3 flex items-center gap-3 ${isDark ? 'bg-slate-800 border-b border-slate-700' : 'bg-white border-b border-slate-100'}`}>
+        <header className="md:hidden sticky top-0 z-10 px-4 py-3 flex items-center gap-3"
+          style={{ backgroundColor: isDark ? '#152210' : '#FDFAF5', borderBottom: `1px solid ${sidebarBorder}` }}>
           {logoUrl ? (
             <img src={logoUrl} alt="" className="w-7 h-7 rounded-lg object-cover" />
           ) : (
@@ -253,7 +257,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
 
       {/* ── Mobile More backdrop ── */}
       {moreOpen && (
-        <div className="md:hidden fixed inset-0 bg-black/20 z-30" onClick={() => setMoreOpen(false)} />
+        <div className="md:hidden fixed inset-0 z-30" style={{ backgroundColor: 'rgba(11,61,46,0.2)' }} onClick={() => setMoreOpen(false)} />
       )}
 
       {/* ── Mobile More bottom-sheet ── */}

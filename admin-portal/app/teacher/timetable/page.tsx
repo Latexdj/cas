@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -37,7 +37,7 @@ export default function TimetablePage() {
       const res = await teacherApi.get<TimetableSlot[]>(`/api/timetable/teacher/${teacher.id}`);
       setSlots(res.data ?? []);
     } catch {
-      setError('Failed to load timetable.');
+      setError('Could not load timetable.');
     } finally {
       setLoading(false);
     }
@@ -89,7 +89,7 @@ export default function TimetablePage() {
       {loading ? (
         <div className="space-y-4">
           {[1, 2, 3].map(i => (
-            <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-32 animate-pulse" />
+            <div key={i} className="bg-white rounded-xl border border-[#E2D9CC] h-32 animate-pulse" />
           ))}
         </div>
       ) : (
@@ -103,7 +103,7 @@ export default function TimetablePage() {
                 {/* Day header */}
                 <div className="flex items-center gap-2 mb-2">
                   <p
-                    className="text-xs font-bold uppercase tracking-wide"
+                    className="text-xs font-bold font-medium"
                     style={{ color: isToday ? primary : '#8C7E6E' }}
                   >
                     {dayName}

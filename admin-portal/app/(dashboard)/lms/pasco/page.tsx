@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 
 const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy:   'bg-green-100 text-green-700',
+  Easy:   'bg-[#D1EAD9] text-[#145C44]',
   Medium: 'bg-yellow-100 text-yellow-700',
   Hard:   'bg-red-100 text-red-700',
 };
@@ -181,7 +181,7 @@ export default function PascoPage() {
         <button
           onClick={openAdd}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
-          style={{ backgroundColor: '#15803D' }}
+          style={{ backgroundColor: '#145C44' }}
         >
           + Add Question
         </button>
@@ -232,7 +232,7 @@ export default function PascoPage() {
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   {['Subject', 'Year', 'Source', 'Topic', 'Difficulty', 'Question', 'Actions'].map(h => (
-                    <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-4 py-3 text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -261,7 +261,7 @@ export default function PascoPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <button onClick={() => openEdit(q)} className="text-xs font-medium text-green-700 hover:text-green-900">
+                        <button onClick={() => openEdit(q)} className="text-xs font-medium text-[#145C44] hover:text-green-900">
                           Edit
                         </button>
                         <button onClick={() => setConfirmDelete(q.id)} className="text-xs font-medium text-red-600 hover:text-red-800">
@@ -278,8 +278,8 @@ export default function PascoPage() {
       </div>
 
       {confirmDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
             <h2 className="text-base font-semibold text-slate-900 mb-2">Delete Question?</h2>
             <p className="text-sm text-slate-500 mb-5">This action cannot be undone.</p>
             <div className="flex justify-end gap-3">
@@ -298,11 +298,11 @@ export default function PascoPage() {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
               <h2 className="text-base font-semibold text-slate-900">{editId ? 'Edit Question' : 'Add Question'}</h2>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 text-xl leading-none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </div>
             <form onSubmit={handleSave} className="p-5 space-y-4 overflow-y-auto flex-1">
               <div className="grid grid-cols-2 gap-3">
@@ -418,7 +418,7 @@ export default function PascoPage() {
                   type="submit"
                   disabled={saving}
                   className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60"
-                  style={{ backgroundColor: '#15803D' }}
+                  style={{ backgroundColor: '#145C44' }}
                 >
                   {saving ? 'Saving…' : editId ? 'Save Changes' : 'Add Question'}
                 </button>

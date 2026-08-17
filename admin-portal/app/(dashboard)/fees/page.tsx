@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -72,7 +72,7 @@ function Pill({ ok, label }: { ok: boolean; label: string }) {
       display: 'inline-block', padding: '2px 8px', borderRadius: 99,
       fontSize: 11, fontWeight: 600,
       background: ok ? '#dcfce7' : '#fee2e2',
-      color: ok ? '#15803d' : '#dc2626',
+      color: ok ? '#145C44' : '#dc2626',
     }}>{label}</span>
   );
 }
@@ -103,7 +103,7 @@ const inputStyle: React.CSSProperties = {
 };
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 4 };
 const btnPrimary: React.CSSProperties = {
-  padding: '8px 20px', background: '#15803d', color: '#fff',
+  padding: '8px 20px', background: '#145C44', color: '#fff',
   border: 'none', borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: 'pointer',
 };
 const btnSecondary: React.CSSProperties = {
@@ -160,7 +160,7 @@ function ItemsTab({ items, loading, onRefresh }: { items: FeeItem[]; loading: bo
       {loading ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: 32 }}>Loading…</p> : (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
-            <tr style={{ background: '#f8fafc' }}>
+            <tr style={{ background: '#F5F0E8' }}>
               {['Name', 'Description', 'Status', ''].map(h => (
                 <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
               ))}
@@ -292,7 +292,7 @@ function SchedulesTab({
       {loading ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: 32 }}>Loading…</p> : (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
-            <tr style={{ background: '#f8fafc' }}>
+            <tr style={{ background: '#F5F0E8' }}>
               {['Fee Item', 'Class', 'Year / Term', 'Amount', 'Due Date', ''].map(h => (
                 <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
               ))}
@@ -309,7 +309,7 @@ function SchedulesTab({
                 <td style={{ padding: '10px 12px', color: '#64748b' }}>
                   {[s.academic_year_name, s.semester ? `Term ${s.semester}` : null].filter(Boolean).join(' / ') || '—'}
                 </td>
-                <td style={{ padding: '10px 12px', fontWeight: 600, color: '#15803d' }}>{fmt(s.amount)}</td>
+                <td style={{ padding: '10px 12px', fontWeight: 600, color: '#145C44' }}>{fmt(s.amount)}</td>
                 <td style={{ padding: '10px 12px', color: '#64748b' }}>{s.due_date ?? '—'}</td>
                 <td style={{ padding: '10px 12px' }}>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -414,7 +414,7 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
     try {
       const r = await api.get(`/api/fees/student/${id}/summary`);
       setSelected(r.data);
-    } catch { alert('Failed to load student data.'); }
+    } catch { alert('Could not load student data.'); }
     finally { setLoadingSummary(false); }
   }
 
@@ -488,14 +488,14 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
         <div>
           {/* Student header + balance */}
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 20 }}>
-            <div style={{ flex: 1, minWidth: 200, background: '#f8fafc', borderRadius: 12, padding: '14px 18px', border: '1px solid #e2e8f0' }}>
+            <div style={{ flex: 1, minWidth: 200, background: '#F5F0E8', borderRadius: 12, padding: '14px 18px', border: '1px solid #e2e8f0' }}>
               <p style={{ fontWeight: 700, fontSize: 16 }}>{selected.student.name}</p>
               <p style={{ color: '#64748b', fontSize: 13 }}>{selected.student.student_code} · {selected.student.class_name}</p>
             </div>
             {[
               { label: 'Total Billed', value: fmt(selected.total_billed), color: '#1e40af' },
-              { label: 'Total Paid', value: fmt(selected.total_paid), color: '#15803d' },
-              { label: 'Outstanding', value: fmt(selected.outstanding), color: selected.outstanding > 0 ? '#dc2626' : '#15803d' },
+              { label: 'Total Paid', value: fmt(selected.total_paid), color: '#145C44' },
+              { label: 'Outstanding', value: fmt(selected.outstanding), color: selected.outstanding > 0 ? '#dc2626' : '#145C44' },
             ].map(card => (
               <div key={card.label} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 18px', minWidth: 130 }}>
                 <p style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{card.label}</p>
@@ -513,7 +513,7 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
           <h3 style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Bills</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 24 }}>
             <thead>
-              <tr style={{ background: '#f8fafc' }}>
+              <tr style={{ background: '#F5F0E8' }}>
                 {['Description', 'Amount', 'Paid', 'Outstanding', 'Due', ''].map(h => (
                   <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
                 ))}
@@ -528,8 +528,8 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
                   <tr key={b.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '8px 10px' }}>{b.description}</td>
                     <td style={{ padding: '8px 10px', fontWeight: 600 }}>{fmt(b.amount)}</td>
-                    <td style={{ padding: '8px 10px', color: '#15803d' }}>{fmt(paid)}</td>
-                    <td style={{ padding: '8px 10px', color: owed > 0 ? '#dc2626' : '#15803d', fontWeight: 600 }}>{fmt(owed)}</td>
+                    <td style={{ padding: '8px 10px', color: '#145C44' }}>{fmt(paid)}</td>
+                    <td style={{ padding: '8px 10px', color: owed > 0 ? '#dc2626' : '#145C44', fontWeight: 600 }}>{fmt(owed)}</td>
                     <td style={{ padding: '8px 10px', color: '#64748b' }}>{b.due_date ?? '—'}</td>
                     <td style={{ padding: '8px 10px' }}>
                       <button style={btnDanger} onClick={() => deleteBill(b.id)}>Delete</button>
@@ -544,7 +544,7 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
           <h3 style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Payment History</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: '#f8fafc' }}>
+              <tr style={{ background: '#F5F0E8' }}>
                 {['Date', 'Amount', 'Method', 'Receipt No.', 'Reference', 'Recorded By', ''].map(h => (
                   <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
                 ))}
@@ -555,7 +555,7 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
               {selected.payments.map(p => (
                 <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '8px 10px' }}>{p.payment_date}</td>
-                  <td style={{ padding: '8px 10px', fontWeight: 600, color: '#15803d' }}>{fmt(p.amount)}</td>
+                  <td style={{ padding: '8px 10px', fontWeight: 600, color: '#145C44' }}>{fmt(p.amount)}</td>
                   <td style={{ padding: '8px 10px' }}>{p.payment_method}</td>
                   <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontSize: 12 }}>{p.receipt_no ?? '—'}</td>
                   <td style={{ padding: '8px 10px', color: '#64748b' }}>{p.reference ?? '—'}</td>
@@ -718,7 +718,7 @@ function ArrearTab({ years, classes }: { years: AcademicYear[]; classes: string[
                           <td style={{ padding: '8px 10px', fontWeight: 600 }}>{s.student_name}</td>
                           <td style={{ padding: '8px 10px', color: '#64748b' }}>{s.student_code}</td>
                           <td style={{ padding: '8px 10px' }}>{fmt(s.total_billed)}</td>
-                          <td style={{ padding: '8px 10px', color: '#15803d' }}>{fmt(s.total_paid)}</td>
+                          <td style={{ padding: '8px 10px', color: '#145C44' }}>{fmt(s.total_paid)}</td>
                           <td style={{ padding: '8px 10px', fontWeight: 700, color: '#dc2626' }}>{fmt(s.outstanding)}</td>
                         </tr>
                       ))}
@@ -801,7 +801,7 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
         params: { from: filters.from || undefined, to: filters.to || undefined },
       });
       setSummary(r.data); setShowSummary(true);
-    } catch { alert('Failed to load summary.'); }
+    } catch { alert('Could not load summary.'); }
     finally { setLoadingSummary(false); }
   }
 
@@ -829,7 +829,7 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button style={btnPrimary} onClick={() => { setShowSummary(false); load(); }}>Filter</button>
-          <button style={{ ...btnSecondary, background: '#f0fdf4', color: '#15803d' }} onClick={loadSummary} disabled={loadingSummary}>
+          <button style={{ ...btnSecondary, background: '#f0fdf4', color: '#145C44' }} onClick={loadSummary} disabled={loadingSummary}>
             {loadingSummary ? 'Loading…' : '📊 Income vs. Expenditure'}
           </button>
           <button style={btnPrimary} onClick={openNew}>+ Add Expense</button>
@@ -838,17 +838,17 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
 
       {/* Income vs. Expenditure summary */}
       {showSummary && summary && (
-        <div style={{ marginBottom: 20, padding: '16px 20px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12 }}>
+        <div style={{ marginBottom: 20, padding: '16px 20px', background: '#F5F0E8', border: '1px solid #e2e8f0', borderRadius: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h3 style={{ fontWeight: 700, fontSize: 15 }}>Income vs. Expenditure Summary</h3>
             <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 18 }} onClick={() => setShowSummary(false)}>×</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 16 }}>
             {[
-              { label: 'Total Income', value: fmt(summary.income), color: '#15803d', bg: '#f0fdf4' },
+              { label: 'Total Income', value: fmt(summary.income), color: '#145C44', bg: '#f0fdf4' },
               { label: 'Total Expenditure', value: fmt(summary.expenditure), color: '#dc2626', bg: '#fef2f2' },
               { label: summary.net >= 0 ? 'Surplus' : 'Deficit', value: fmt(Math.abs(summary.net)),
-                color: summary.net >= 0 ? '#15803d' : '#dc2626',
+                color: summary.net >= 0 ? '#145C44' : '#dc2626',
                 bg: summary.net >= 0 ? '#f0fdf4' : '#fef2f2' },
             ].map(c => (
               <div key={c.label} style={{ background: c.bg, borderRadius: 10, padding: '12px 16px' }}>
@@ -878,7 +878,7 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
         <>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
-              <tr style={{ background: '#f8fafc' }}>
+              <tr style={{ background: '#F5F0E8' }}>
                 {['Date', 'Category', 'Description', 'Paid To', 'Method', 'Amount', ''].map(h => (
                   <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 12, fontWeight: 700, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
                 ))}
@@ -909,7 +909,7 @@ function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
             </tbody>
             {expenses.length > 0 && (
               <tfoot>
-                <tr style={{ background: '#f8fafc', borderTop: '2px solid #e2e8f0' }}>
+                <tr style={{ background: '#F5F0E8', borderTop: '2px solid #e2e8f0' }}>
                   <td colSpan={5} style={{ padding: '10px 12px', fontWeight: 700, fontSize: 13, color: '#374151' }}>Total</td>
                   <td style={{ padding: '10px 12px', fontWeight: 800, color: '#dc2626', fontSize: 15 }}>{fmt(totalShown)}</td>
                   <td />
@@ -1025,7 +1025,7 @@ export default function FeesPage() {
     <div style={{ padding: '24px 28px', maxWidth: 1100 }}>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontWeight: 800, fontSize: 22, color: '#0f172a' }}>Accounts & Fees</h1>
+        <h1 style={{ fontWeight: 800, fontSize: 22, color: '#1C1208' }}>Accounts & Fees</h1>
         <p style={{ color: '#64748b', fontSize: 14, marginTop: 2 }}>Manage fee schedules, record payments, and track outstanding balances.</p>
       </div>
 
@@ -1033,13 +1033,13 @@ export default function FeesPage() {
       {stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(160px,1fr))', gap: 12, marginBottom: 24 }}>
           {[
-            { label: 'Fees Collected', value: fmt(stats.total_collected), color: '#15803d', bg: '#f0fdf4' },
+            { label: 'Fees Collected', value: fmt(stats.total_collected), color: '#145C44', bg: '#f0fdf4' },
             { label: 'Total Expenses', value: fmt(stats.total_expenses), color: '#dc2626', bg: '#fef2f2' },
             { label: stats.net_position >= 0 ? 'Surplus' : 'Deficit',
               value: fmt(Math.abs(stats.net_position)),
-              color: stats.net_position >= 0 ? '#15803d' : '#dc2626',
+              color: stats.net_position >= 0 ? '#145C44' : '#dc2626',
               bg: stats.net_position >= 0 ? '#f0fdf4' : '#fef2f2' },
-            { label: 'Fees Outstanding', value: fmt(stats.outstanding), color: stats.outstanding > 0 ? '#f59e0b' : '#15803d', bg: stats.outstanding > 0 ? '#fffbeb' : '#f0fdf4' },
+            { label: 'Fees Outstanding', value: fmt(stats.outstanding), color: stats.outstanding > 0 ? '#f59e0b' : '#145C44', bg: stats.outstanding > 0 ? '#fffbeb' : '#f0fdf4' },
             { label: 'Students Billed', value: stats.students_with_bills.toLocaleString(), color: '#7c3aed', bg: '#f5f3ff' },
           ].map(c => (
             <div key={c.label} style={{ background: c.bg, borderRadius: 12, padding: '14px 18px', border: `1px solid ${c.color}22` }}>
@@ -1055,8 +1055,8 @@ export default function FeesPage() {
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             padding: '8px 18px', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14,
-            background: 'none', borderBottom: tab === t.id ? '2px solid #15803d' : '2px solid transparent',
-            color: tab === t.id ? '#15803d' : '#64748b', marginBottom: -2,
+            background: 'none', borderBottom: tab === t.id ? '2px solid #145C44' : '2px solid transparent',
+            color: tab === t.id ? '#145C44' : '#64748b', marginBottom: -2,
             transition: 'color .15s',
           }}>{t.label}</button>
         ))}

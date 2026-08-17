@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -102,7 +102,7 @@ function ContentIcon({ type }: { type: string }) {
 function LessonDetail({ lesson }: { lesson: Lesson }) {
   if (lesson.content_type === 'text') {
     return (
-      <div className="mt-3 p-4 bg-slate-50 rounded-lg text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+      <div className="mt-3 p-4 bg-[#F5F0E8] rounded-lg text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
         {lesson.body_text || 'No content.'}
       </div>
     );
@@ -232,7 +232,7 @@ function AssignmentCard({
               <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Submitted</span>
             )}
             {sub?.status === 'graded' && (
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#D1EAD9] text-[#145C44]">
                 Graded: {sub.score}/{assignment.max_score}
               </span>
             )}
@@ -240,8 +240,8 @@ function AssignmentCard({
         </div>
 
         {sub?.status === 'graded' && (
-          <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-100">
-            <p className="text-xs font-bold text-green-700 mb-1">Score: {sub.score} / {assignment.max_score}</p>
+          <div className="mt-3 p-3 bg-[#E8F4EE] rounded-lg border border-[#D1EAD9]">
+            <p className="text-xs font-bold text-[#145C44] mb-1">Score: {sub.score} / {assignment.max_score}</p>
             {sub.feedback && <p className="text-sm text-slate-600 mt-1">{sub.feedback}</p>}
           </div>
         )}
@@ -276,7 +276,7 @@ function AssignmentCard({
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="text-xs font-semibold px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+              className="text-xs font-semibold px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-[#F5F0E8] transition-colors flex items-center gap-1.5"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -447,7 +447,7 @@ export default function CourseViewPage() {
               <div key={lesson.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <button
                   onClick={() => setExpandedLesson(expandedLesson === lesson.id ? null : lesson.id)}
-                  className="w-full flex items-center gap-3 p-4 text-left hover:bg-slate-50 transition-colors"
+                  className="w-full flex items-center gap-3 p-4 text-left hover:bg-[#F5F0E8] transition-colors"
                 >
                   <ContentIcon type={lesson.content_type} />
                   <span className="flex-1 text-sm font-semibold text-slate-700">{lesson.title}</span>

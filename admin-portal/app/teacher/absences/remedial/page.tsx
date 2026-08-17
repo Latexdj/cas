@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -167,8 +167,8 @@ export default function RemedialPage() {
 
       {/* Absence info card */}
       {(subject || date) && (
-        <div className="rounded-2xl px-4 py-4 border mb-5" style={{ background: '#FEF3C7', borderColor: '#FCD34D' }}>
-          <p className="text-xs font-bold uppercase tracking-wide text-[#92400E] mb-1">Absence to make up</p>
+        <div className="rounded-xl px-4 py-4 border mb-5" style={{ background: '#FEF3C7', borderColor: '#FCD34D' }}>
+          <p className="text-xs font-bold font-medium text-[#92400E] mb-1">Absence to make up</p>
           {subject && <p className="text-sm font-semibold text-[#78350F]">{subject} — {className}</p>}
           {date && <p className="text-xs text-[#92400E] mt-0.5">{formatDate(date)}</p>}
           {absenceGroupId && (
@@ -180,8 +180,8 @@ export default function RemedialPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
 
         {/* Periods Outstanding — read-only */}
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
-          <label className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] block mb-2">
+        <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
+          <label className="text-xs font-bold font-medium text-[#8C7E6E] block mb-2">
             Periods Outstanding
           </label>
           <div className="flex items-center gap-3">
@@ -194,8 +194,8 @@ export default function RemedialPage() {
         </div>
 
         {/* Remedial Date */}
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
-          <label className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] block mb-2">Remedial Date</label>
+        <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
+          <label className="text-xs font-bold font-medium text-[#8C7E6E] block mb-2">Remedial Date</label>
           <input
             type="date"
             value={remedialDate}
@@ -206,8 +206,8 @@ export default function RemedialPage() {
         </div>
 
         {/* Start + End Time */}
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
-          <label className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] block mb-3">
+        <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
+          <label className="text-xs font-bold font-medium text-[#8C7E6E] block mb-3">
             Remedial Time
           </label>
           <div className="grid grid-cols-2 gap-3">
@@ -239,7 +239,7 @@ export default function RemedialPage() {
               className="mt-3 rounded-xl px-3 py-2.5 text-xs font-medium"
               style={
                 banner.kind === 'ok'
-                  ? { background: '#DCFCE7', color: '#15803D' }
+                  ? { background: '#DCFCE7', color: '#145C44' }
                   : banner.kind === 'warn'
                   ? { background: '#FEF3C7', color: '#92400E' }
                   : { background: '#FEE2E2', color: '#B91C1C' }
@@ -254,8 +254,8 @@ export default function RemedialPage() {
         </div>
 
         {/* Topic */}
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
-          <label className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] block mb-2">Topic</label>
+        <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
+          <label className="text-xs font-bold font-medium text-[#8C7E6E] block mb-2">Topic</label>
           <input
             type="text"
             value={topic}
@@ -267,8 +267,8 @@ export default function RemedialPage() {
         </div>
 
         {/* Location */}
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
-          <label className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] block mb-2">Location</label>
+        <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
+          <label className="text-xs font-bold font-medium text-[#8C7E6E] block mb-2">Location</label>
           <select
             value={locationId}
             onChange={e => setLocationId(e.target.value)}
@@ -283,8 +283,8 @@ export default function RemedialPage() {
         </div>
 
         {/* Notes */}
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
-          <label className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] block mb-2">
+        <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
+          <label className="text-xs font-bold font-medium text-[#8C7E6E] block mb-2">
             Notes <span className="text-[#C0B5A5] font-normal">(optional)</span>
           </label>
           <textarea

@@ -67,8 +67,8 @@ export default function PlacementPage() {
       </div>
 
       {result && (
-        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 space-y-1">
-          <p className="text-sm text-green-800 font-semibold">{result.inserted} record{result.inserted !== 1 ? 's' : ''} uploaded.</p>
+        <div className="rounded-xl border border-[#B8D9C8] bg-[#E8F4EE] px-4 py-3 space-y-1">
+          <p className="text-sm text-[#0B3D2E] font-semibold">{result.inserted} record{result.inserted !== 1 ? 's' : ''} uploaded.</p>
           {result.skipped > 0 && <p className="text-xs text-amber-700">{result.skipped} row{result.skipped !== 1 ? 's' : ''} skipped.</p>}
           {result.errors.map((e, i) => <p key={i} className="text-xs text-red-600">Row {e.row}: {e.message}</p>)}
         </div>
@@ -85,14 +85,14 @@ export default function PlacementPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Index No.</th>
-              <Th label="Name" sortKey="full_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Gender</th>
-              <Th label="Aggregate" sortKey="aggregate" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-              <Th label="Programme" sortKey="programme" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Residential</th>
-              <Th label="Status" sortKey="is_registered" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400"></th>
+              <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Index No.</th>
+              <Th label="Name" sortKey="full_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+              <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Gender</th>
+              <Th label="Aggregate" sortKey="aggregate" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+              <Th label="Programme" sortKey="programme" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+              <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Residential</th>
+              <Th label="Status" sortKey="is_registered" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+              <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -111,7 +111,7 @@ export default function PlacementPage() {
                 <td className="px-4 py-3 text-slate-600">{r.programme || '—'}</td>
                 <td className="px-4 py-3 text-slate-600">{r.residential_status || '—'}</td>
                 <td className="px-4 py-3">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${r.is_registered ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${r.is_registered ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-slate-100 text-slate-500'}`}>
                     {r.is_registered ? 'Registered' : 'Pending'}
                   </span>
                 </td>

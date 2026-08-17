@@ -57,39 +57,41 @@ export default function StudentLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-10 bg-slate-50">
+    <div className="min-h-screen flex items-center justify-center px-4 py-10" style={{ backgroundColor: '#F5F0E8' }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+          <div className="w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-4"
             style={{ background: colors.primary }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
               <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
               <path d="M6 12v5c3 3 9 3 12 0v-5" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800">Student Login</h1>
-          <p className="text-sm text-slate-500 mt-1">Sign in to your student account</p>
+          <h1 className="text-2xl font-bold" style={{ color: '#1C1208' }}>Student Login</h1>
+          <p className="text-sm mt-1" style={{ color: '#8C7E6E' }}>Sign in to your student account</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="bg-white rounded-xl border p-6" style={{ borderColor: '#E2D9CC', boxShadow: '0 2px 12px rgba(11,61,46,0.06)' }}>
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5">Student ID</label>
+              <label className="text-xs font-semibold block mb-1.5" style={{ color: '#8C7E6E' }}>Student ID</label>
               <input
                 type="text" value={studentId}
                 onChange={e => { setStudentId(e.target.value.toUpperCase()); setError(''); }}
                 placeholder="Your student ID" autoComplete="username"
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-800"
+                className="w-full border rounded-xl px-4 py-3 text-sm font-mono uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[#145C44] bg-white text-slate-800"
+                style={{ borderColor: '#E2D9CC' }}
               />
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-slate-500 block mb-1.5">Password</label>
+              <label className="text-xs font-semibold block mb-1.5" style={{ color: '#8C7E6E' }}>Password</label>
               <div className="relative">
                 <input
                   type={showPass ? 'text' : 'password'} value={password}
                   onChange={e => { setPassword(e.target.value); setError(''); }}
                   placeholder="Your password" autoComplete="current-password"
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-800"
+                  className="w-full border rounded-xl px-4 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44] bg-white text-slate-800"
+                  style={{ borderColor: '#E2D9CC' }}
                 />
                 <button type="button" onClick={() => setShowPass(v => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
@@ -121,12 +123,12 @@ export default function StudentLoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-sm text-slate-500 mt-4">
+        <p className="text-center text-sm mt-4" style={{ color: '#8C7E6E' }}>
           Wrong school?{' '}
-          <Link href="/student/setup" className="font-semibold text-blue-600">Change it</Link>
+          <Link href="/student/setup" className="font-semibold" style={{ color: '#145C44' }}>Change it</Link>
         </p>
-        <p className="text-center text-xs text-slate-400 mt-2">
-          Default password is <span className="font-semibold text-slate-500">Student123</span> — change it after first login.
+        <p className="text-center text-xs mt-2" style={{ color: '#B0A090' }}>
+          Default password is <span className="font-semibold" style={{ color: '#8C7E6E' }}>Student123</span>. Change it after first login.
         </p>
       </div>
     </div>

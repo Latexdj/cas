@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -73,7 +73,7 @@ interface SessionDetail {
 }
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  Present: { bg: '#DCFCE7', color: '#15803D' },
+  Present: { bg: '#DCFCE7', color: '#145C44' },
   Absent:  { bg: '#FEF2F2', color: '#DC2626' },
   Late:    { bg: '#FFFBEB', color: '#D97706' },
 };
@@ -177,13 +177,13 @@ export default function SubmitPage() {
   const isDark = mounted && resolvedTheme === 'dark';
 
   const dk = {
-    pageBg:          isDark ? '#0F172A' : '#F4EFE6',
+    pageBg:          isDark ? '#1C1208' : '#F4EFE6',
     cardBg:          isDark ? '#1E293B' : '#FFFFFF',
-    cardBgAlt:       isDark ? '#0F172A' : '#F8FAFC',
+    cardBgAlt:       isDark ? '#1C1208' : '#F5F0E8',
     border:          isDark ? 'rgba(255,255,255,0.08)' : '#E2D9CC',
     text:            isDark ? '#F1F5F9' : '#2C2218',
     muted:           isDark ? '#94A3B8' : '#8C7E6E',
-    inputBg:         isDark ? '#0F172A' : '#FFFFFF',
+    inputBg:         isDark ? '#1C1208' : '#FFFFFF',
     inputText:       isDark ? '#F1F5F9' : '#2C2218',
     absentSlotBg:    isDark ? '#2D0A0A' : '#FFF8F8',
     pendingChipBg:   isDark ? '#334155' : '#F0EDE8',
@@ -191,7 +191,7 @@ export default function SubmitPage() {
     skeletonBg:      isDark ? '#334155' : '#F1F5F9',
     presentCountBg:  isDark ? '#14532D' : '#E4F4EB',
     absentCountBg:   isDark ? '#450A0A' : '#FEF2F2',
-    totalCountBg:    isDark ? '#1E293B' : '#F8FAFC',
+    totalCountBg:    isDark ? '#1E293B' : '#F5F0E8',
     presentCountText:isDark ? '#86EFAC' : '#2D7A4F',
     absentCountText: isDark ? '#FCA5A5' : '#DC2626',
     totalCountText:  isDark ? '#94A3B8' : '#64748B',
@@ -563,7 +563,7 @@ export default function SubmitPage() {
 
       {/* Resume banner — shown when Step 1 completed but Step 2 was never finished */}
       {resumePending && step === 1 && (
-        <div className="rounded-2xl p-4 mb-2" style={{ background: '#FEF3C7', border: '1px solid #FDE68A' }}>
+        <div className="rounded-xl p-4 mb-2" style={{ background: '#FEF3C7', border: '1px solid #FDE68A' }}>
           <p className="text-sm font-bold" style={{ color: '#92400E' }}>Incomplete Attendance Detected</p>
           <p className="text-xs mt-1" style={{ color: '#92400E' }}>
             Your teacher attendance for <strong>{resumePending.subject}</strong> was saved but student attendance was not completed.
@@ -588,8 +588,8 @@ export default function SubmitPage() {
       {step === 1 && (
         <form onSubmit={handleStep1} className="space-y-4">
           {/* Slot picker */}
-          <div className="rounded-2xl shadow-sm p-4" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
-            <p className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: dk.muted }}>Select Lesson *</p>
+          <div className="rounded-xl shadow-sm p-4" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
+            <p className="text-xs font-bold font-medium mb-3" style={{ color: dk.muted }}>Select Lesson *</p>
             {slots.length === 0
               ? <p className="text-sm" style={{ color: dk.muted }}>No timetable slots for today.</p>
               : slots.map(slot => {
@@ -656,13 +656,13 @@ export default function SubmitPage() {
 
           {/* QR scan */}
           {selectedId && (
-            <div className="rounded-2xl shadow-sm p-4"
+            <div className="rounded-xl shadow-sm p-4"
               style={{ background: dk.cardBg, border: `1px solid ${qrVerified ? '#86EFAC' : errors.qr ? '#FCA5A5' : dk.border}` }}>
-              <p className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: dk.muted }}>Classroom QR *</p>
+              <p className="text-xs font-bold font-medium mb-3" style={{ color: dk.muted }}>Classroom QR *</p>
 
               {qrVerified ? (
                 <div className="flex items-center gap-3 py-1">
-                  <span className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold text-lg shrink-0">✓</span>
+                  <span className="w-8 h-8 rounded-full bg-[#D1EAD9] flex items-center justify-center text-[#145C44] font-bold text-lg shrink-0">✓</span>
                   <div>
                     <p className="text-sm font-semibold" style={{ color: dk.text }}>Verified — {qrClassName}</p>
                     <button type="button" onClick={() => { setQrVerified(false); setQrClassName(''); }}
@@ -706,8 +706,8 @@ export default function SubmitPage() {
           )}
 
           {/* Topic */}
-          <div className="rounded-2xl shadow-sm p-4" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
-            <label className="text-xs font-bold uppercase tracking-wide block mb-2" style={{ color: dk.muted }}>Topic *</label>
+          <div className="rounded-xl shadow-sm p-4" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
+            <label className="text-xs font-bold font-medium block mb-2" style={{ color: dk.muted }}>Topic *</label>
             <input value={topic} onChange={e => setTopic(e.target.value)} placeholder="What was covered in this lesson?"
               className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none"
               style={{ background: dk.inputBg, border: `1px solid ${dk.border}`, color: dk.inputText }} />
@@ -715,8 +715,8 @@ export default function SubmitPage() {
           </div>
 
           {/* Location */}
-          <div className="rounded-2xl shadow-sm p-4" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
-            <label className="text-xs font-bold uppercase tracking-wide block mb-2" style={{ color: dk.muted }}>Location *</label>
+          <div className="rounded-xl shadow-sm p-4" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
+            <label className="text-xs font-bold font-medium block mb-2" style={{ color: dk.muted }}>Location *</label>
             <select value={locName} onChange={e => setLocName(e.target.value)}
               className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none"
               style={{ background: dk.inputBg, border: `1px solid ${dk.border}`, color: dk.inputText }}>
@@ -727,8 +727,8 @@ export default function SubmitPage() {
           </div>
 
           {/* GPS */}
-          <div className="rounded-2xl shadow-sm p-4" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
-            <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: dk.muted }}>GPS Coordinates *</p>
+          <div className="rounded-xl shadow-sm p-4" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
+            <p className="text-xs font-bold font-medium mb-2" style={{ color: dk.muted }}>GPS Coordinates *</p>
             <div className="flex items-center justify-between">
               {gpsLoading
                 ? <p className="text-sm italic" style={{ color: dk.muted }}>Acquiring location…</p>
@@ -745,8 +745,8 @@ export default function SubmitPage() {
           </div>
 
           {/* Photo */}
-          <div className="rounded-2xl shadow-sm p-4" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
-            <p className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: dk.muted }}>Classroom Photo *</p>
+          <div className="rounded-xl shadow-sm p-4" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
+            <p className="text-xs font-bold font-medium mb-3" style={{ color: dk.muted }}>Classroom Photo *</p>
             <input ref={fileRef} type="file" accept="image/*" capture="environment"
               onChange={handlePhoto} className="hidden" />
             {photoUrl ? (
@@ -783,8 +783,8 @@ export default function SubmitPage() {
         <div className="space-y-4">
           {/* Lesson summary */}
           {selectedSlot && (
-            <div className="rounded-2xl shadow-sm p-4" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
-              <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: dk.muted }}>Lesson</p>
+            <div className="rounded-xl shadow-sm p-4" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
+              <p className="text-xs font-bold font-medium mb-2" style={{ color: dk.muted }}>Lesson</p>
               <p className="text-sm font-semibold" style={{ color: dk.text }}>
                 {selectedSlot.subject} — {classQueue[classQueueIdx] ?? selectedSlot.class_names.split(',')[0].trim()}
               </p>
@@ -820,14 +820,14 @@ export default function SubmitPage() {
               ...(exeatCount > 0 ? [{ label: 'On Exeat', count: exeatCount, color: isDark ? '#FCD34D' : '#92400E', bg: isDark ? '#44403C' : '#FEF3C7' }] : []),
               { label: 'Total',    count: students.length, color: dk.totalCountText,   bg: dk.totalCountBg   },
             ].map(({ label, count, color, bg }) => (
-              <div key={label} className="rounded-2xl p-3 text-center" style={{ background: bg }}>
+              <div key={label} className="rounded-xl p-3 text-center" style={{ background: bg }}>
                 <p className="text-2xl font-bold" style={{ color }}>{count}</p>
                 <p className="text-xs font-semibold mt-0.5" style={{ color }}>{label}</p>
               </div>
             ))}
           </div>
 
-          <p className="text-xs font-bold uppercase tracking-wide" style={{ color: dk.muted }}>
+          <p className="text-xs font-bold font-medium" style={{ color: dk.muted }}>
             Tap a student to mark absent
           </p>
 
@@ -838,7 +838,7 @@ export default function SubmitPage() {
               ))}
             </div>
           ) : students.length === 0 ? (
-            <div className="rounded-2xl p-5 text-center" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
+            <div className="rounded-xl p-5 text-center" style={{ background: dk.cardBg, border: `1px solid ${dk.border}` }}>
               <p className="text-sm" style={{ color: dk.muted }}>No students found for this class.</p>
             </div>
           ) : (
@@ -970,7 +970,7 @@ export default function SubmitPage() {
               </div>
               {editDetail && (
                 <div className="flex gap-3 text-xs font-bold mr-3">
-                  <span style={{ color: '#15803D' }}>{editDetail.records.filter(r => r.status === 'Present').length} Present</span>
+                  <span style={{ color: '#145C44' }}>{editDetail.records.filter(r => r.status === 'Present').length} Present</span>
                   <span style={{ color: '#DC2626' }}>{editDetail.records.filter(r => r.status === 'Absent').length} Absent</span>
                   {editDetail.records.filter(r => r.status === 'Late').length > 0 && (
                     <span style={{ color: '#D97706' }}>{editDetail.records.filter(r => r.status === 'Late').length} Late</span>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
@@ -110,7 +110,7 @@ export default function CashBookPage() {
       setCashbooks(cbRes.data);
       setYears(yrRes.data);
       if (cbRes.data.length > 0) setSelectedId(id => id || cbRes.data[0].id);
-    } catch { setPageError('Failed to load data.'); }
+    } catch { setPageError('Could not load data.'); }
     finally { setLoading(false); }
   }, []);
 
@@ -127,7 +127,7 @@ export default function CashBookPage() {
         { params }
       );
       setEntries(data);
-    } catch { setPageError('Failed to load entries.'); }
+    } catch { setPageError('Could not load entries.'); }
     finally { setLoadingEntries(false); }
   }, [selectedId, filterMonth]);
 
@@ -268,7 +268,7 @@ export default function CashBookPage() {
         <div className="flex items-center gap-2">
           {selectedId && (
             <button onClick={() => window.print()}
-              className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50 flex items-center gap-1.5">
+              className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-[#F5F0E8] flex items-center gap-1.5">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="w-4 h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
@@ -278,7 +278,7 @@ export default function CashBookPage() {
           <button
             onClick={() => { setCBError(''); setNewCBForm({ academic_year_id: '', fund_source: 'Capitation Grant', opening_balance: '0', notes: '' }); setShowNewCB(true); }}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-1.5"
-            style={{ backgroundColor: '#15803D' }}>
+            style={{ backgroundColor: '#145C44' }}>
             + New Cashbook
           </button>
         </div>
@@ -292,13 +292,13 @@ export default function CashBookPage() {
       {loading ? (
         <div className="flex justify-center py-16">
           <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin"
-            style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+            style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : cashbooks.length === 0 ? (
         /* Empty state */
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-16 text-center">
-          <div className="w-14 h-14 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-7 h-7 text-green-600">
+          <div className="w-14 h-14 rounded-full bg-[#E8F4EE] flex items-center justify-center mx-auto mb-4">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-7 h-7 text-[#145C44]">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
             </svg>
           </div>
@@ -307,7 +307,7 @@ export default function CashBookPage() {
           <button
             onClick={() => { setCBError(''); setShowNewCB(true); }}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
-            style={{ backgroundColor: '#15803D' }}>
+            style={{ backgroundColor: '#145C44' }}>
             Create Cashbook
           </button>
         </div>
@@ -353,12 +353,12 @@ export default function CashBookPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { label: 'Opening Balance', value: opening, cls: 'text-slate-800' },
-              { label: 'Total Receipts',  value: totalReceipts, cls: 'text-green-700' },
+              { label: 'Total Receipts',  value: totalReceipts, cls: 'text-[#145C44]' },
               { label: 'Total Payments',  value: totalPayments, cls: 'text-red-600' },
-              { label: 'Closing Balance', value: closingBalance, cls: closingBalance >= 0 ? 'text-green-700' : 'text-red-600' },
+              { label: 'Closing Balance', value: closingBalance, cls: closingBalance >= 0 ? 'text-[#145C44]' : 'text-red-600' },
             ].map(card => (
               <div key={card.label} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{card.label}</p>
+                <p className="text-[11px] font-semibold text-slate-400 font-medium">{card.label}</p>
                 <p className={`text-lg font-bold mt-1 font-mono ${card.cls}`}>
                   GH¢ {fmt(card.value)}
                 </p>
@@ -376,7 +376,7 @@ export default function CashBookPage() {
               </p>
               <button onClick={openAdd}
                 className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white"
-                style={{ backgroundColor: '#15803D' }}>
+                style={{ backgroundColor: '#145C44' }}>
                 + Add Entry
               </button>
             </div>
@@ -384,26 +384,26 @@ export default function CashBookPage() {
             {loadingEntries ? (
               <div className="flex justify-center py-10">
                 <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin"
-                  style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                  style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm print-table">
-                  <thead className="bg-slate-50 border-b border-slate-200">
+                  <thead className="bg-[#F5F0E8] border-b border-slate-200">
                     <tr>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Date</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Particulars</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Voucher Ref</th>
-                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Expenditure Head</th>
-                      <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Receipts (GH¢)</th>
-                      <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Payments (GH¢)</th>
-                      <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Balance (GH¢)</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Date</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Particulars</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Voucher Ref</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Expenditure Head</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Receipts (GH¢)</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Payments (GH¢)</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Balance (GH¢)</th>
                       <th className="px-3 py-2.5 no-print" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {/* Opening balance row */}
-                    <tr className="bg-slate-50/70">
+                    <tr className="bg-[#F5F0E8]/70">
                       <td className="px-3 py-2 text-xs text-slate-400">—</td>
                       <td className="px-3 py-2 text-xs font-semibold text-slate-600" colSpan={5}>
                         Opening Balance b/f
@@ -421,7 +421,7 @@ export default function CashBookPage() {
                     )}
 
                     {(pageEntries as typeof displayEntries).map(e => (
-                      <tr key={e.id} className="hover:bg-slate-50/60 transition-colors">
+                      <tr key={e.id} className="hover:bg-[#F5F0E8]/60 transition-colors">
                         <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap text-xs">{fmtDate(e.entry_date)}</td>
                         <td className="px-3 py-2.5 text-slate-800 max-w-xs">
                           <div className="truncate">{e.particulars}</div>
@@ -433,12 +433,12 @@ export default function CashBookPage() {
                               {e.expenditure_head}
                             </span>
                           ) : e.entry_type === 'receipt' ? (
-                            <span className="text-xs bg-green-50 text-green-700 border border-green-100 px-2 py-0.5 rounded-full font-medium">
+                            <span className="text-xs bg-[#E8F4EE] text-[#145C44] border border-[#D1EAD9] px-2 py-0.5 rounded-full font-medium">
                               Receipt
                             </span>
                           ) : '—'}
                         </td>
-                        <td className="px-3 py-2.5 text-right font-mono font-semibold text-green-700">
+                        <td className="px-3 py-2.5 text-right font-mono font-semibold text-[#145C44]">
                           {e.entry_type === 'receipt' ? fmt(parseFloat(e.amount)) : ''}
                         </td>
                         <td className="px-3 py-2.5 text-right font-mono font-semibold text-red-600">
@@ -468,11 +468,11 @@ export default function CashBookPage() {
 
                     {/* Closing balance row */}
                     {entries.length > 0 && (
-                      <tr className="bg-slate-50 border-t-2 border-slate-300">
+                      <tr className="bg-[#F5F0E8] border-t-2 border-slate-300">
                         <td className="px-3 py-2 text-xs text-slate-400">—</td>
                         <td className="px-3 py-2 text-xs font-bold text-slate-700">Closing Balance c/f</td>
                         <td colSpan={2} />
-                        <td className="px-3 py-2 text-right font-mono font-bold text-green-700 text-sm">
+                        <td className="px-3 py-2 text-right font-mono font-bold text-[#145C44] text-sm">
                           {fmt(opening + totalReceipts)}
                         </td>
                         <td className="px-3 py-2 text-right font-mono font-bold text-red-600 text-sm">
@@ -511,7 +511,7 @@ export default function CashBookPage() {
                       </div>
                       <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                         <div className="h-full rounded-full transition-all"
-                          style={{ width: `${pct}%`, backgroundColor: '#15803D' }} />
+                          style={{ width: `${pct}%`, backgroundColor: '#145C44' }} />
                       </div>
                     </div>
                   );
@@ -527,8 +527,8 @@ export default function CashBookPage() {
 
       {/* ── New Cashbook Modal ─────────────────────────────────────────────────── */}
       {showNewCB && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 no-print">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4 no-print">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h2 className="font-bold text-slate-900">New Cashbook</h2>
               <button onClick={() => setShowNewCB(false)} className="text-slate-400 hover:text-slate-600">
@@ -574,12 +574,12 @@ export default function CashBookPage() {
             </div>
             <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
               <button onClick={() => setShowNewCB(false)}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50">
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-[#F5F0E8]">
                 Cancel
               </button>
               <button onClick={createCashbook} disabled={savingCB}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                style={{ backgroundColor: '#15803D' }}>
+                style={{ backgroundColor: '#145C44' }}>
                 {savingCB ? 'Creating…' : 'Create Cashbook'}
               </button>
             </div>
@@ -589,8 +589,8 @@ export default function CashBookPage() {
 
       {/* ── Add / Edit Entry Modal ─────────────────────────────────────────────── */}
       {showEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 no-print">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4 no-print">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
               <h2 className="font-bold text-slate-900">{editingEntry ? 'Edit Entry' : 'Add Entry'}</h2>
               <button onClick={() => setShowEntry(false)} className="text-slate-400 hover:text-slate-600">
@@ -607,7 +607,7 @@ export default function CashBookPage() {
                     onClick={() => setEntryForm(f => ({ ...f, entry_type: t, expenditure_head: '' }))}
                     className="flex-1 py-2.5 text-sm font-semibold transition-colors capitalize"
                     style={{
-                      backgroundColor: entryForm.entry_type === t ? (t === 'receipt' ? '#15803D' : '#DC2626') : '#F8FAFC',
+                      backgroundColor: entryForm.entry_type === t ? (t === 'receipt' ? '#145C44' : '#DC2626') : '#F5F0E8',
                       color: entryForm.entry_type === t ? '#fff' : '#64748B',
                     }}>
                     {t === 'receipt' ? '+ Receipt' : '− Payment'}
@@ -671,7 +671,7 @@ export default function CashBookPage() {
                   }} />
                 <div className="flex items-center gap-2">
                   <button onClick={() => receiptRef.current?.click()}
-                    className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50">
+                    className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-700 hover:bg-[#F5F0E8]">
                     {entryForm.receipt_data ? '✓ Image selected' : 'Upload Receipt Image'}
                   </button>
                   {entryForm.receipt_data && (
@@ -692,12 +692,12 @@ export default function CashBookPage() {
             </div>
             <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 sticky bottom-0 bg-white">
               <button onClick={() => setShowEntry(false)}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50">
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-[#F5F0E8]">
                 Cancel
               </button>
               <button onClick={saveEntry} disabled={savingEntry}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                style={{ backgroundColor: entryForm.entry_type === 'receipt' ? '#15803D' : '#DC2626' }}>
+                style={{ backgroundColor: entryForm.entry_type === 'receipt' ? '#145C44' : '#DC2626' }}>
                 {savingEntry ? 'Saving…' : editingEntry ? 'Update Entry' : 'Add Entry'}
               </button>
             </div>

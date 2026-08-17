@@ -100,7 +100,7 @@ function ExportButton({ label, color, loading, disabled, onClick }: {
 
 /* ─── Constants ─── */
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  Present: { bg: '#DCFCE7', color: '#15803D' },
+  Present: { bg: '#DCFCE7', color: '#145C44' },
   Absent:  { bg: '#FEF2F2', color: '#DC2626' },
   Late:    { bg: '#FFFBEB', color: '#D97706' },
 };
@@ -109,7 +109,7 @@ const today = new Date().toISOString().slice(0, 10);
 
 function pctColor(pct: number | null) {
   if (pct === null) return '#94A3B8';
-  if (pct >= 90) return '#15803D';
+  if (pct >= 90) return '#145C44';
   if (pct >= 75) return '#2563EB';
   if (pct >= 60) return '#D97706';
   return '#DC2626';
@@ -272,7 +272,7 @@ export default function StudentAttendancePage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: '#0F172A' }}>Student Attendance</h1>
+        <h1 className="text-2xl font-bold" style={{ color: '#1C1208' }}>Student Attendance</h1>
         <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>Session records and per-student attendance reports</p>
       </div>
 
@@ -282,7 +282,7 @@ export default function StudentAttendancePage() {
           <button key={t} onClick={() => setTab(t)}
             className="px-5 py-2 rounded-lg text-sm font-semibold transition-all"
             style={tab === t
-              ? { background: '#fff', color: '#0F172A', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }
+              ? { background: '#fff', color: '#1C1208', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }
               : { color: '#64748B' }}>
             {t === 'sessions' ? 'Sessions' : 'Student Report'}
           </button>
@@ -297,21 +297,21 @@ export default function StudentAttendancePage() {
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold" style={{ color: '#64748B' }}>From</label>
               <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }} />
+                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#1C1208' }} />
             </div>
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold" style={{ color: '#64748B' }}>To</label>
               <input type="date" value={to} onChange={e => setTo(e.target.value)}
-                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }} />
+                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#1C1208' }} />
             </div>
             <select value={filterClass} onChange={e => setFilterClass(e.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }}>
+              className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#1C1208' }}>
               <option value="">All Classes</option>
               {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             {academicYears.length > 0 && (
               <select value={sessYear} onChange={e => setSessYear(e.target.value)}
-                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }}>
+                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#1C1208' }}>
                 <option value="">All Years</option>
                 {academicYears.map(y => (
                   <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>
@@ -319,14 +319,14 @@ export default function StudentAttendancePage() {
               </select>
             )}
             <select value={sessSem} onChange={e => setSessSem(e.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }}>
+              className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#1C1208' }}>
               <option value="">All Semesters</option>
               <option value="1">Semester 1</option>
               <option value="2">Semester 2</option>
             </select>
             <div className="flex gap-2 ml-auto">
               <ExportButton label="Excel" loading={exporting === 'sess-xlsx'} disabled={sessions.length === 0}
-                color="#15803D" onClick={() => doExport('sess-xlsx')} />
+                color="#145C44" onClick={() => doExport('sess-xlsx')} />
               <ExportButton label="PDF" loading={exporting === 'sess-pdf'} disabled={sessions.length === 0}
                 color="#2563EB" onClick={() => doExport('sess-pdf')} />
             </div>
@@ -336,7 +336,7 @@ export default function StudentAttendancePage() {
           <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
             {loading ? (
               <div className="flex justify-center py-16">
-                <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
               </div>
             ) : sessions.length === 0 ? (
               <div className="text-center py-16 text-sm" style={{ color: '#94A3B8' }}>No sessions found for this period.</div>
@@ -344,22 +344,22 @@ export default function StudentAttendancePage() {
               <div className="overflow-x-auto">
                 <table className="min-w-[1000px] w-full text-sm">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+                    <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
                       {['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Total', ''].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {sessions.map((s, i) => (
                       <tr key={s.id} className="hover:bg-slate-50 transition-colors cursor-pointer"
-                        style={{ borderBottom: i < sessions.length - 1 ? '1px solid #F8FAFC' : 'none' }}
+                        style={{ borderBottom: i < sessions.length - 1 ? '1px solid #F0EBE1' : 'none' }}
                         onClick={() => openDetail(s.id)}>
                         <td className="px-4 py-3 font-mono text-xs" style={{ color: '#475569' }}>{fmtDate(s.date)}</td>
-                        <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{s.class_name}</td>
+                        <td className="px-4 py-3 font-semibold" style={{ color: '#1C1208' }}>{s.class_name}</td>
                         <td className="px-4 py-3" style={{ color: '#475569' }}>{s.subject}</td>
                         <td className="px-4 py-3" style={{ color: '#475569' }}>{s.teacher_name}</td>
-                        <td className="px-4 py-3 font-mono font-bold" style={{ color: '#15803D' }}>{s.present}</td>
+                        <td className="px-4 py-3 font-mono font-bold" style={{ color: '#145C44' }}>{s.present}</td>
                         <td className="px-4 py-3 font-mono font-bold" style={{ color: s.absent > 0 ? '#DC2626' : '#94A3B8' }}>{s.absent}</td>
                         <td className="px-4 py-3 font-mono font-bold" style={{ color: s.late > 0 ? '#D97706' : '#94A3B8' }}>{s.late}</td>
                         <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{s.total}</td>
@@ -383,24 +383,24 @@ export default function StudentAttendancePage() {
               <label className="text-xs font-semibold" style={{ color: '#64748B' }}>From</label>
               <input type="date" value={reportFrom}
                 onChange={e => { setReportFrom(e.target.value); loadReport(e.target.value, reportTo, reportClass, repYear, repSem); }}
-                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }} />
+                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#1C1208' }} />
             </div>
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold" style={{ color: '#64748B' }}>To</label>
               <input type="date" value={reportTo}
                 onChange={e => { setReportTo(e.target.value); loadReport(reportFrom, e.target.value, reportClass, repYear, repSem); }}
-                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }} />
+                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#1C1208' }} />
             </div>
             <select value={reportClass}
               onChange={e => { setReportClass(e.target.value); loadReport(reportFrom, reportTo, e.target.value, repYear, repSem); }}
-              className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }}>
+              className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#1C1208' }}>
               <option value="">All Classes</option>
               {reportClasses.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
             {academicYears.length > 0 && (
               <select value={repYear}
                 onChange={e => { setRepYear(e.target.value); loadReport(reportFrom, reportTo, reportClass, e.target.value, repSem); }}
-                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }}>
+                className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#1C1208' }}>
                 <option value="">All Years</option>
                 {academicYears.map(y => (
                   <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>
@@ -409,14 +409,14 @@ export default function StudentAttendancePage() {
             )}
             <select value={repSem}
               onChange={e => { setRepSem(e.target.value); loadReport(reportFrom, reportTo, reportClass, repYear, e.target.value); }}
-              className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#0F172A' }}>
+              className="border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2E8F0', color: '#1C1208' }}>
               <option value="">All Semesters</option>
               <option value="1">Semester 1</option>
               <option value="2">Semester 2</option>
             </select>
             <div className="flex gap-2 ml-auto">
               <ExportButton label="Excel" loading={exporting === 'rep-xlsx'} disabled={report.length === 0}
-                color="#15803D" onClick={() => doExport('rep-xlsx')} />
+                color="#145C44" onClick={() => doExport('rep-xlsx')} />
               <ExportButton label="PDF" loading={exporting === 'rep-pdf'} disabled={report.length === 0}
                 color="#2563EB" onClick={() => doExport('rep-pdf')} />
             </div>
@@ -425,7 +425,7 @@ export default function StudentAttendancePage() {
           {/* Summary badges */}
           {!reportLoading && report.length > 0 && (
             <div className="flex gap-3">
-              <div className="rounded-lg px-4 py-2.5 text-sm font-semibold" style={{ background: '#F0FDF4', color: '#15803D' }}>
+              <div className="rounded-lg px-4 py-2.5 text-sm font-semibold" style={{ background: '#F0FDF4', color: '#145C44' }}>
                 {report.length} students tracked
               </div>
               {lowAttendance > 0 && (
@@ -440,7 +440,7 @@ export default function StudentAttendancePage() {
           <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
             {reportLoading ? (
               <div className="flex justify-center py-16">
-                <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
               </div>
             ) : report.length === 0 ? (
               <div className="text-center py-16 text-sm" style={{ color: '#94A3B8' }}>No student data for this period.</div>
@@ -448,9 +448,9 @@ export default function StudentAttendancePage() {
               <div className="overflow-x-auto">
                 <table className="min-w-[850px] w-full text-sm">
                   <thead>
-                    <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
+                    <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
                       {['ID', 'Name', 'Class', 'Sessions', 'Present', 'Absent', 'Late', 'Attendance %'].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -458,14 +458,14 @@ export default function StudentAttendancePage() {
                     {report.map((r, i) => (
                       <tr key={r.id}
                         style={{
-                          borderBottom: i < report.length - 1 ? '1px solid #F8FAFC' : 'none',
+                          borderBottom: i < report.length - 1 ? '1px solid #F0EBE1' : 'none',
                           backgroundColor: r.present_pct !== null && r.present_pct < LOW_THRESHOLD ? '#FFF8F8' : 'transparent',
                         }}>
                         <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{r.student_code}</td>
-                        <td className="px-4 py-3 font-semibold" style={{ color: '#0F172A' }}>{r.name}</td>
+                        <td className="px-4 py-3 font-semibold" style={{ color: '#1C1208' }}>{r.name}</td>
                         <td className="px-4 py-3 text-xs" style={{ color: '#475569' }}>{r.class_name}</td>
                         <td className="px-4 py-3 font-mono text-xs text-center" style={{ color: '#64748B' }}>{r.total_sessions}</td>
-                        <td className="px-4 py-3 font-mono font-bold text-center" style={{ color: '#15803D' }}>{r.present}</td>
+                        <td className="px-4 py-3 font-mono font-bold text-center" style={{ color: '#145C44' }}>{r.present}</td>
                         <td className="px-4 py-3 font-mono font-bold text-center" style={{ color: r.absent > 0 ? '#DC2626' : '#94A3B8' }}>{r.absent}</td>
                         <td className="px-4 py-3 font-mono font-bold text-center" style={{ color: r.late > 0 ? '#D97706' : '#94A3B8' }}>{r.late}</td>
                         <td className="px-4 py-3">
@@ -494,17 +494,17 @@ export default function StudentAttendancePage() {
       {/* ══ SESSION DETAIL MODAL ══ */}
       {(detail || loadingDtl) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
             <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: '#F1F5F9' }}>
               <div>
-                <h2 className="text-base font-bold" style={{ color: '#0F172A' }}>
+                <h2 className="text-base font-bold" style={{ color: '#1C1208' }}>
                   {detail ? `${detail.session.class_name} — ${detail.session.subject}` : 'Loading…'}
                 </h2>
                 {detail && <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>{fmtDate(detail.session.date)} · {detail.session.teacher_name}</p>}
               </div>
               {detail && (
                 <div className="flex gap-4 text-sm">
-                  <span className="font-bold" style={{ color: '#15803D' }}>{detail.records.filter(r => r.status === 'Present').length} Present</span>
+                  <span className="font-bold" style={{ color: '#145C44' }}>{detail.records.filter(r => r.status === 'Present').length} Present</span>
                   <span className="font-bold" style={{ color: '#DC2626' }}>{detail.records.filter(r => r.status === 'Absent').length} Absent</span>
                   {detail.records.filter(r => r.status === 'Late').length > 0 && (
                     <span className="font-bold" style={{ color: '#D97706' }}>{detail.records.filter(r => r.status === 'Late').length} Late</span>
@@ -517,7 +517,7 @@ export default function StudentAttendancePage() {
             <div className="overflow-y-auto flex-1 px-6 py-4">
               {loadingDtl && !detail && (
                 <div className="flex justify-center py-8">
-                  <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                  <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
                 </div>
               )}
               {editError && <p className="text-sm mb-3 p-2 rounded" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>{editError}</p>}
@@ -526,7 +526,7 @@ export default function StudentAttendancePage() {
                   <thead>
                     <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
                       {['ID', 'Name', 'Status', ''].map(h => (
-                        <th key={h} className="py-2 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>{h}</th>
+                        <th key={h} className="py-2 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -535,9 +535,9 @@ export default function StudentAttendancePage() {
                       const sc = STATUS_COLORS[r.status];
                       const isEditing = editingId === r.id;
                       return (
-                        <tr key={r.id} style={{ borderBottom: i < detail.records.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                        <tr key={r.id} style={{ borderBottom: i < detail.records.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
                           <td className="py-2.5 font-mono text-xs" style={{ color: '#64748B' }}>{r.student_code}</td>
-                          <td className="py-2.5 font-semibold" style={{ color: '#0F172A' }}>{r.name}</td>
+                          <td className="py-2.5 font-semibold" style={{ color: '#1C1208' }}>{r.name}</td>
                           <td className="py-2.5">
                             {isEditing ? (
                               <div className="flex gap-2 items-center">

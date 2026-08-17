@@ -42,39 +42,39 @@ function SettingsModal({ onClose, onSaved }: { onClose: () => void; onSaved: (s:
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl shadow-2xl p-6 space-y-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
+      <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-xl shadow-2xl p-6 space-y-5">
         <div className="flex items-center justify-between">
           <p className="font-bold text-slate-900 dark:text-white">Exeat Quota Settings</p>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>
         </div>
         {loading ? (
-          <div className="flex justify-center py-6"><div className="w-6 h-6 rounded-full border-2 border-green-500 border-t-transparent animate-spin" /></div>
+          <div className="flex justify-center py-6"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
         ) : (
           <div className="space-y-4">
             <p className="text-xs text-slate-500 dark:text-slate-400">Set the maximum number of each exeat type a student may take per semester. Leave at 0 to block all self-requests for that type.</p>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Semester Start Date *</label>
+              <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Semester Start Date *</label>
               <input type="date" value={semStart} onChange={e => setSemStart(e.target.value)}
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
               <p className="text-[11px] text-slate-400 mt-1">Exeat counts reset from this date each semester.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Max Internal</label>
+                <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Max Internal</label>
                 <input type="number" min="0" max="99" value={maxInt} onChange={e => setMaxInt(e.target.value)}
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
               </div>
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Max External</label>
+                <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Max External</label>
                 <input type="number" min="0" max="99" value={maxExt} onChange={e => setMaxExt(e.target.value)}
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
               </div>
             </div>
             {error && <p className="text-xs text-red-500">{error}</p>}
             <div className="flex gap-3 pt-1">
               <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-sm font-semibold text-slate-600 dark:text-slate-300">Cancel</button>
-              <button onClick={save} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-green-700 text-white text-sm font-semibold disabled:opacity-40">
+              <button onClick={save} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-[#145C44] text-white text-sm font-semibold disabled:opacity-40">
                 {saving ? 'Saving…' : 'Save Settings'}
               </button>
             </div>
@@ -100,7 +100,7 @@ const STATUS_META: Record<string, { label: string; badge: string }> = {
   pending:  { label: 'Pending',  badge: 'bg-amber-100 text-amber-700' },
   active:   { label: 'Out',      badge: 'bg-blue-100 text-blue-700'   },
   overdue:  { label: 'Overdue',  badge: 'bg-red-100 text-red-700'     },
-  returned: { label: 'Returned', badge: 'bg-green-100 text-green-700' },
+  returned: { label: 'Returned', badge: 'bg-[#D1EAD9] text-[#145C44]' },
   rejected: { label: 'Rejected', badge: 'bg-slate-100 text-slate-600' },
 };
 
@@ -206,9 +206,9 @@ export default function AdminExeatPage() {
           { label: 'Out',      value: counts.out,      color: 'text-blue-600'                    },
           { label: 'Overdue',  value: counts.overdue,  color: 'text-red-600'                     },
           { label: 'Pending',  value: counts.pending,  color: 'text-amber-600'                   },
-          { label: 'Returned', value: counts.returned, color: 'text-green-600'                   },
+          { label: 'Returned', value: counts.returned, color: 'text-[#145C44]'                   },
         ].map(c => (
-          <div key={c.label} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 text-center">
+          <div key={c.label} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 text-center">
             <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>
             <p className="text-xs text-slate-500 mt-0.5 font-medium">{c.label}</p>
           </div>
@@ -216,12 +216,12 @@ export default function AdminExeatPage() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
         <div className="flex flex-wrap gap-2 items-end">
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search student, destination, house…"
-            className="flex-1 min-w-[180px] border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+            className="flex-1 min-w-[180px] border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
           <select value={fStatus} onChange={e => setFStatus(e.target.value)}
-            className="border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500">
+            className="border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#145C44]">
             <option value="">All Statuses</option>
             <option value="pending">Pending</option>
             <option value="active">Out</option>
@@ -230,22 +230,22 @@ export default function AdminExeatPage() {
             <option value="rejected">Rejected</option>
           </select>
           <select value={fType} onChange={e => setFType(e.target.value)}
-            className="border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500">
+            className="border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#145C44]">
             <option value="">All Types</option>
             <option value="internal">Internal</option>
             <option value="external">External</option>
           </select>
           <select value={fHouse} onChange={e => setFHouse(e.target.value)}
-            className="border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500">
+            className="border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#145C44]">
             <option value="">All Houses</option>
             {houses.map(h => <option key={h} value={h}>{h}</option>)}
           </select>
           <input type="date" value={fFrom} onChange={e => setFFrom(e.target.value)}
-            className="border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500" />
+            className="border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
           <span className="text-xs text-slate-400">to</span>
           <input type="date" value={fTo} onChange={e => setFTo(e.target.value)}
-            className="border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500" />
-          <button onClick={load} className="px-4 py-2 rounded-xl bg-green-700 text-white text-sm font-semibold hover:bg-green-800">
+            className="border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+          <button onClick={load} className="px-4 py-2 rounded-xl bg-[#145C44] text-white text-sm font-semibold hover:bg-green-800">
             Apply
           </button>
         </div>
@@ -253,16 +253,16 @@ export default function AdminExeatPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
         {loading ? (
-          <div className="flex justify-center py-16"><div className="w-8 h-8 rounded-full border-2 border-green-500 border-t-transparent animate-spin" /></div>
+          <div className="flex justify-center py-16"><div className="w-8 h-8 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-sm text-slate-500">No exeat records found.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-700 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                <tr className="border-b border-slate-100 dark:border-slate-700 text-xs font-semibold text-slate-500 font-medium">
                   <Th label="Student" sortKey="student_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left" />
                   <th className="px-4 py-3 text-left">House</th>
                   <Th label="Type" sortKey="exeat_type" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left" />
@@ -304,7 +304,7 @@ export default function AdminExeatPage() {
                         <td className="px-4 py-3 text-xs text-slate-500">{e.granted_by_name ?? '—'}</td>
                         <td className="px-4 py-3">
                           <button onClick={() => setExpanded(isOpen ? null : e.id)}
-                            className="text-xs text-green-700 dark:text-green-400 font-semibold hover:underline">
+                            className="text-xs text-[#145C44] dark:text-[#2ab289] font-semibold hover:underline">
                             {isOpen ? 'Less' : 'More'}
                           </button>
                         </td>
@@ -316,7 +316,7 @@ export default function AdminExeatPage() {
                               <div><span className="text-slate-400">Destination: </span><span className="text-slate-700 dark:text-slate-300">{e.destination || '—'}</span></div>
                               <div><span className="text-slate-400">Reason: </span><span className="text-slate-700 dark:text-slate-300">{e.reason || '—'}</span></div>
                               <div><span className="text-slate-400">Parent Contact: </span><span className="text-slate-700 dark:text-slate-300">{e.parent_contact || '—'}</span></div>
-                              <div><span className="text-slate-400">SMS Sent: </span><span className={e.sms_sent ? 'text-green-600' : 'text-slate-500'}>{e.sms_sent ? 'Yes' : 'No'}</span></div>
+                              <div><span className="text-slate-400">SMS Sent: </span><span className={e.sms_sent ? 'text-[#145C44]' : 'text-slate-500'}>{e.sms_sent ? 'Yes' : 'No'}</span></div>
                               {e.notes && <div className="col-span-2"><span className="text-slate-400">Notes: </span><span className="text-slate-700 dark:text-slate-300">{e.notes}</span></div>}
                             </div>
                           </td>

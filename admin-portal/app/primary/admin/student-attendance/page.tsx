@@ -20,7 +20,7 @@ const STATUSES = ['present','absent','late','excused'] as const;
 type Status = typeof STATUSES[number];
 
 const STATUS_STYLE: Record<Status, string> = {
-  present: 'bg-green-600 text-white border-transparent',
+  present: 'bg-[#145C44] text-white border-transparent',
   absent:  'bg-red-600 text-white border-transparent',
   late:    'bg-amber-500 text-white border-transparent',
   excused: 'bg-blue-600 text-white border-transparent',
@@ -66,7 +66,7 @@ export default function PrimaryStudentAttendancePage() {
       const d: Record<string, Status> = {};
       data.forEach(r => { d[r.student_id] = r.status; });
       setDraft(d);
-    } catch { setError('Failed to load attendance.'); }
+    } catch { setError('Could not load attendance.'); }
     finally { setLoading(false); }
   }, [className, date]);
 
@@ -76,7 +76,7 @@ export default function PrimaryStudentAttendancePage() {
     try {
       const { data } = await api.get<SummaryRow[]>(`/api/primary/attendance/summary?class_name=${encodeURIComponent(className)}&term_id=${termId}`);
       setSummary(data);
-    } catch { setError('Failed to load summary.'); }
+    } catch { setError('Could not load summary.'); }
     finally { setSumLoad(false); }
   }, [className, termId]);
 
@@ -126,7 +126,7 @@ export default function PrimaryStudentAttendancePage() {
         {tab === 'daily' && (
           <button onClick={save} disabled={saving || loading || !className}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 shadow-sm"
-            style={{ backgroundColor: '#15803D' }}>
+            style={{ backgroundColor: '#145C44' }}>
             {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Attendance'}
           </button>
         )}
@@ -189,7 +189,7 @@ export default function PrimaryStudentAttendancePage() {
           <div className="grid grid-cols-4 gap-3">
             {STATUSES.map(s => (
               <div key={s} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 text-center">
-                <p className="text-2xl font-black text-slate-900">{counts[s] ?? 0}</p>
+                <p className="text-2xl font-bold text-slate-900">{counts[s] ?? 0}</p>
                 <p className="text-xs text-slate-500 capitalize mt-0.5">{s}</p>
               </div>
             ))}
@@ -197,20 +197,20 @@ export default function PrimaryStudentAttendancePage() {
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
+                <thead className="bg-[#F5F0E8] border-b border-gray-100">
                   <tr>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-10">#</th>
-                    <Th label="Student" sortKey="surname" currentKey={dailySortKey} currentDir={dailySortDir} onSort={handleDailySort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                    <Th label="Status" sortKey="status" currentKey={dailySortKey} currentDir={dailySortDir} onSort={handleDailySort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium w-10">#</th>
+                    <Th label="Student" sortKey="surname" currentKey={dailySortKey} currentDir={dailySortDir} onSort={handleDailySort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
+                    <Th label="Status" sortKey="status" currentKey={dailySortKey} currentDir={dailySortDir} onSort={handleDailySort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {loading ? (
                     <tr><td colSpan={3} className="text-center py-12">
-                      <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                      <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
                     </td></tr>
                   ) : (dailyDisplayRows as AttRow[]).map((r, i) => (
-                    <tr key={r.student_id} className={draft[r.student_id] === 'absent' ? 'bg-red-50/40' : 'hover:bg-gray-50'}>
+                    <tr key={r.student_id} className={draft[r.student_id] === 'absent' ? 'bg-red-50/40' : 'hover:bg-[#F5F0E8]'}>
                       <td className="px-3 py-2 text-xs text-slate-400">{i + 1}</td>
                       <td className="px-3 py-2">
                         <p className="font-medium text-slate-900">{r.surname}{r.other_names ? ` ${r.other_names}` : ''}</p>
@@ -244,29 +244,29 @@ export default function PrimaryStudentAttendancePage() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
+              <thead className="bg-[#F5F0E8] border-b border-gray-100">
                 <tr>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">#</th>
-                  <Th label="Student" sortKey="surname" currentKey={sumSortKey} currentDir={sumSortDir} onSort={handleSumSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                  <Th label="Adm. No." sortKey="admission_number" currentKey={sumSortKey} currentDir={sumSortDir} onSort={handleSumSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Present</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Absent</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Late</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Excused</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Total Days</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">#</th>
+                  <Th label="Student" sortKey="surname" currentKey={sumSortKey} currentDir={sumSortDir} onSort={handleSumSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
+                  <Th label="Adm. No." sortKey="admission_number" currentKey={sumSortKey} currentDir={sumSortDir} onSort={handleSumSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Present</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Absent</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Late</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Excused</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Total Days</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {sumLoad ? (
                   <tr><td colSpan={8} className="text-center py-12">
-                    <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                    <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
                   </td></tr>
                 ) : (sumDisplayRows as SummaryRow[]).map((r, i) => (
-                  <tr key={r.student_id} className="hover:bg-gray-50">
+                  <tr key={r.student_id} className="hover:bg-[#F5F0E8]">
                     <td className="px-3 py-2.5 text-xs text-slate-400">{i + 1}</td>
                     <td className="px-3 py-2.5 font-medium text-slate-900">{r.surname}{r.other_names ? ` ${r.other_names}` : ''}</td>
                     <td className="px-3 py-2.5 text-xs text-slate-500 font-mono">{r.admission_number}</td>
-                    <td className="px-3 py-2.5 font-semibold text-green-700">{r.present_days}</td>
+                    <td className="px-3 py-2.5 font-semibold text-[#145C44]">{r.present_days}</td>
                     <td className="px-3 py-2.5 font-semibold text-red-600">{r.absent_days}</td>
                     <td className="px-3 py-2.5 font-semibold text-amber-600">{r.late_days}</td>
                     <td className="px-3 py-2.5 font-semibold text-blue-600">{r.excused_days}</td>

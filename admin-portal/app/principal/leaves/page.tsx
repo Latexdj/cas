@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
@@ -16,7 +16,7 @@ interface Leave {
 
 const STATUS_STYLES: Record<string, { bg: string; bgD: string; text: string }> = {
   Pending:  { bg: '#FEF3C7', bgD: '#78350F33', text: '#D97706' },
-  Approved: { bg: '#DCFCE7', bgD: '#14532D33', text: '#15803D' },
+  Approved: { bg: '#DCFCE7', bgD: '#14532D33', text: '#145C44' },
   Rejected: { bg: '#FEE2E2', bgD: '#7F1D1D33', text: '#DC2626' },
 };
 
@@ -86,7 +86,7 @@ export default function LeavesPage() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
         <div style={{ flex: 1 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A' }}>Leave Requests</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208' }}>Leave Requests</h2>
           {pending > 0 && (
             <p style={{ fontSize: 13, color: '#D97706', marginTop: 2 }}>{pending} pending request{pending !== 1 ? 's' : ''}</p>
           )}
@@ -96,7 +96,7 @@ export default function LeavesPage() {
           onChange={e => setStatus(e.target.value)}
           style={{
             border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#0F172A',
+            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#1C1208',
             borderRadius: 8, padding: '7px 12px', fontSize: 13,
           }}
         >
@@ -123,7 +123,7 @@ export default function LeavesPage() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: dark ? '#F1F5F9' : '#0F172A', marginBottom: 2 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: dark ? '#F1F5F9' : '#1C1208', marginBottom: 2 }}>
                       {l.teacher_name}
                     </div>
                     <div style={{ fontSize: 12, color: dark ? '#64748B' : '#94A3B8' }}>
@@ -201,7 +201,7 @@ export default function LeavesPage() {
                       onClick={() => openAction(l.id, 'approve')}
                       style={{
                         padding: '7px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                        background: '#10B981', color: '#FFFFFF', border: 'none', cursor: 'pointer',
+                        background: '#145C44', color: '#FFFFFF', border: 'none', cursor: 'pointer',
                       }}
                     >
                       Approve
@@ -234,7 +234,7 @@ export default function LeavesPage() {
             background: dark ? '#1E293B' : '#FFFFFF', borderRadius: 16, padding: 28, width: '100%', maxWidth: 420,
             boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
           }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A', marginBottom: 12 }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208', marginBottom: 12 }}>
               {action === 'approve' ? 'Approve Leave Request' : 'Reject Leave Request'}
             </h3>
 
@@ -255,7 +255,7 @@ export default function LeavesPage() {
                   rows={3}
                   style={{
                     width: '100%', boxSizing: 'border-box', border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-                    background: dark ? '#0F172A' : '#F8FAFC', color: dark ? '#F1F5F9' : '#0F172A',
+                    background: dark ? '#1C1208' : '#F5F0E8', color: dark ? '#F1F5F9' : '#1C1208',
                     borderRadius: 8, padding: '8px 12px', fontSize: 13, resize: 'vertical',
                   }}
                   placeholder="Explain why the request is being rejected…"
@@ -282,7 +282,7 @@ export default function LeavesPage() {
                 disabled={saving}
                 style={{
                   flex: 1, padding: 10, borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  background: action === 'approve' ? '#10B981' : '#DC2626',
+                  background: action === 'approve' ? '#145C44' : '#DC2626',
                   color: '#FFFFFF', border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
                   opacity: saving ? 0.7 : 1,
                 }}
@@ -323,7 +323,7 @@ export default function LeavesPage() {
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
                 </svg>
-                <span style={{ fontWeight: 600, fontSize: 14, color: dark ? '#F1F5F9' : '#0F172A' }}>
+                <span style={{ fontWeight: 600, fontSize: 14, color: dark ? '#F1F5F9' : '#1C1208' }}>
                   {docModal.filename}
                 </span>
               </div>
@@ -333,7 +333,7 @@ export default function LeavesPage() {
                   download
                   style={{
                     fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 7,
-                    background: dark ? '#0F172A' : '#F1F5F9', color: dark ? '#94A3B8' : '#475569',
+                    background: dark ? '#1C1208' : '#F1F5F9', color: dark ? '#94A3B8' : '#475569',
                     border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`, textDecoration: 'none',
                   }}
                 >

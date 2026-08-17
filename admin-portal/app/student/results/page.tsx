@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
@@ -38,7 +38,7 @@ const GRADE_COLORS: Record<string, string> = {
 function gradeColor(g: string) { return GRADE_COLORS[g?.[0]?.toUpperCase()] ?? '#64748b'; }
 function scoreColor(t: number | null) {
   if (t === null) return 'text-slate-400';
-  if (t >= 70) return 'text-green-700'; if (t >= 50) return 'text-amber-600'; return 'text-red-600';
+  if (t >= 70) return 'text-[#145C44]'; if (t >= 50) return 'text-amber-600'; return 'text-red-600';
 }
 
 function ordinal(n: number): string {
@@ -63,11 +63,11 @@ function ReportCard({ result, yearName, semester, schoolName, schoolAddress, sch
   const LGREEN = '#f0faf5';
 
   const gradeCol = (g: string) =>
-    ['A1','B2','B3','A','B+','B-'].includes(g) ? '#15803D' :
+    ['A1','B2','B3','A','B+','B-'].includes(g) ? '#145C44' :
     ['F9','F','E8'].includes(g) ? '#DC2626' : '#D97706';
 
   const barColor = (t: number | null) =>
-    t == null ? '#e5e7eb' : t >= 70 ? '#15803D' : t >= 50 ? '#D97706' : '#DC2626';
+    t == null ? '#e5e7eb' : t >= 70 ? '#145C44' : t >= 50 ? '#D97706' : '#DC2626';
 
   const page: React.CSSProperties = {
     width: '210mm', minHeight: '297mm', padding: '12mm 13mm 10mm',
@@ -86,7 +86,7 @@ function ReportCard({ result, yearName, semester, schoolName, schoolAddress, sch
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: `3px solid ${GREEN}`, paddingBottom: '8px' }}>
-        <div style={{ width: '60px', height: '60px', flexShrink: 0, border: `1px solid #e5e7eb`, borderRadius: '6px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb' }}>
+        <div style={{ width: '60px', height: '60px', flexShrink: 0, border: `1px solid #e5e7eb`, borderRadius: '6px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F5F0E8' }}>
           {schoolLogo
             ? <img src={schoolLogo} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             : <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '36px', height: '36px' }}>
@@ -160,7 +160,7 @@ function ReportCard({ result, yearName, semester, schoolName, schoolAddress, sch
         <div style={{ background: LGREEN, border: `1px solid #c6e8d8`, borderRadius: '5px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '7.5pt', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: GREEN, marginRight: '4px' }}>Attendance</span>
           {[
-            { label: 'Periods Present', value: result.attendance.present, color: '#15803D' },
+            { label: 'Periods Present', value: result.attendance.present, color: '#145C44' },
             { label: 'Late',            value: result.attendance.late,    color: '#D97706' },
             { label: 'Absent',          value: result.attendance.absent,  color: '#DC2626' },
             { label: 'Total Periods',   value: result.attendance.total,   color: '#333'    },
@@ -214,7 +214,7 @@ function ReportCard({ result, yearName, semester, schoolName, schoolAddress, sch
             Performance Overview
             <div style={{ flex: 1, height: '1px', background: '#c6e8d8' }} />
             <span style={{ fontSize: '7pt', fontWeight: 400, color: '#888', textTransform: 'none' }}>
-              <span style={{ color: '#15803D' }}>■</span> ≥70 &nbsp;
+              <span style={{ color: '#145C44' }}>■</span> ≥70 &nbsp;
               <span style={{ color: '#D97706' }}>■</span> 50–69 &nbsp;
               <span style={{ color: '#DC2626' }}>■</span> &lt;50
             </span>
@@ -381,7 +381,7 @@ export default function StudentResultsPage() {
         {/* Filter bar */}
         <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-wrap gap-3 items-end">
           <div>
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-1">Academic Year</label>
+            <label className="text-xs font-bold text-slate-400 font-medium block mb-1">Academic Year</label>
             <select value={yearId} onChange={e => setYearId(e.target.value)} disabled={!yearsReady}
               className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
               {!yearsReady && <option value="">Loading…</option>}
@@ -390,7 +390,7 @@ export default function StudentResultsPage() {
             </select>
           </div>
           <div>
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wide block mb-1">Semester</label>
+            <label className="text-xs font-bold text-slate-400 font-medium block mb-1">Semester</label>
             <select value={semester} onChange={e => setSemester(e.target.value)}
               className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="1">Semester 1</option>
@@ -416,8 +416,8 @@ export default function StudentResultsPage() {
               { label: 'Subjects', value: result.subjects.filter(s => s.total !== null).length, sub: `${result.subjects.filter(s => s.total !== null && s.total >= 50).length} passed` },
             ].map(({ label, value, sub }) => (
               <div key={label} className="bg-white rounded-xl border border-slate-100 p-3 text-center">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{label}</p>
-                <p className="text-xl font-black text-slate-800">{value}</p>
+                <p className="text-[10px] font-semibold text-slate-400 font-medium mb-1">{label}</p>
+                <p className="text-xl font-bold text-slate-800">{value}</p>
                 {sub && <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>}
               </div>
             ))}
@@ -429,7 +429,7 @@ export default function StudentResultsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, color: '#64748B' }}>Class average: <strong>{classAvg}%</strong></span>
             {result.average > classAvg ? (
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#15803D', background: '#DCFCE7', padding: '1px 8px', borderRadius: 20 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#145C44', background: '#DCFCE7', padding: '1px 8px', borderRadius: 20 }}>
                 ↑ {(result.average - classAvg).toFixed(1)}% above
               </span>
             ) : result.average < classAvg ? (
@@ -469,7 +469,7 @@ export default function StudentResultsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-xs font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+                  <tr className="bg-[#F5F0E8] text-xs font-semibold text-slate-400 font-medium border-b border-slate-100">
                     <th className="px-4 py-3 text-left">Subject</th>
                     <th className="px-3 py-3 text-center">CA</th>
                     <th className="px-3 py-3 text-center">Exam</th>
@@ -480,7 +480,7 @@ export default function StudentResultsPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {result.subjects.map(s => (
-                    <tr key={s.subject} className="hover:bg-slate-50">
+                    <tr key={s.subject} className="hover:bg-[#F5F0E8]">
                       <td className="px-4 py-3 font-medium text-slate-700">{s.subject}</td>
                       <td className="px-3 py-3 text-center text-xs text-slate-500">{s.ca_score ?? '—'}</td>
                       <td className="px-3 py-3 text-center text-xs text-slate-500">{s.exam_score ?? '—'}</td>
@@ -509,10 +509,10 @@ export default function StudentResultsPage() {
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-slate-50 font-bold border-t border-slate-200">
+                  <tr className="bg-[#F5F0E8] font-bold border-t border-slate-200">
                     <td className="px-4 py-3 text-sm text-slate-700">Average</td>
                     <td colSpan={2} />
-                    <td className={`px-3 py-3 text-center font-black ${scoreColor(result.average)}`}>{result.average ?? '—'}</td>
+                    <td className={`px-3 py-3 text-center font-bold ${scoreColor(result.average)}`}>{result.average ?? '—'}</td>
                     <td className="px-3 py-3 text-center">
                       <span className="text-xs font-bold px-2 py-0.5 rounded-full"
                         style={{ color: gradeColor(result.overall_grade), background: `${gradeColor(result.overall_grade)}18` }}>{result.overall_grade}</span>
@@ -527,25 +527,25 @@ export default function StudentResultsPage() {
 
             {/* Form Teacher's Remarks */}
             {displayRemarks && (displayRemarks.attitude || displayRemarks.conduct || displayRemarks.general_remarks) && (
-              <div style={{ marginTop: 16, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px', margin: '16px' }}>
+              <div style={{ marginTop: 16, background: '#F5F0E8', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px', margin: '16px' }}>
                 <p style={{ fontSize: 12, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Form Teacher&apos;s Remarks</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {displayRemarks.attitude && (
                     <div style={{ display: 'flex', gap: 8 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', width: 80, flexShrink: 0 }}>Attitude:</span>
-                      <span style={{ fontSize: 13, color: '#0F172A' }}>{displayRemarks.attitude}</span>
+                      <span style={{ fontSize: 13, color: '#1C1208' }}>{displayRemarks.attitude}</span>
                     </div>
                   )}
                   {displayRemarks.conduct && (
                     <div style={{ display: 'flex', gap: 8 }}>
                       <span style={{ fontSize: 12, fontWeight: 600, color: '#374151', width: 80, flexShrink: 0 }}>Conduct:</span>
-                      <span style={{ fontSize: 13, color: '#0F172A' }}>{displayRemarks.conduct}</span>
+                      <span style={{ fontSize: 13, color: '#1C1208' }}>{displayRemarks.conduct}</span>
                     </div>
                   )}
                   {displayRemarks.general_remarks && (
                     <div style={{ marginTop: 4 }}>
                       <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>General Remarks:</p>
-                      <p style={{ fontSize: 13, color: '#0F172A', lineHeight: 1.6 }}>{displayRemarks.general_remarks}</p>
+                      <p style={{ fontSize: 13, color: '#1C1208', lineHeight: 1.6 }}>{displayRemarks.general_remarks}</p>
                     </div>
                   )}
                 </div>
@@ -560,7 +560,7 @@ export default function StudentResultsPage() {
 
         {/* Grade legend */}
         <div className="bg-white rounded-xl border border-slate-100 p-4">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Grade Legend</p>
+          <p className="text-xs font-bold text-slate-400 font-medium mb-3">Grade Legend</p>
           <div className="flex flex-wrap gap-2">
             {Object.entries(GRADE_COLORS).map(([g, c]) => (
               <span key={g} className="text-xs font-bold px-2.5 py-1 rounded-full"
@@ -593,12 +593,12 @@ export default function StudentResultsPage() {
               ))}
             </div>
 
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mt-5 mb-3">Subjects Sat Per Semester</p>
+            <p className="text-xs font-bold text-slate-400 font-medium mt-5 mb-3">Subjects Sat Per Semester</p>
             <div className="flex flex-wrap gap-2">
               {history.map(h => (
-                <div key={h.label} className="text-center px-3 py-2 rounded-lg bg-slate-50 border border-slate-100">
+                <div key={h.label} className="text-center px-3 py-2 rounded-lg bg-[#F5F0E8] border border-slate-100">
                   <p className="text-xs text-slate-400">{h.label}</p>
-                  <p className="text-lg font-black text-slate-700">{h.subject_count}</p>
+                  <p className="text-lg font-bold text-slate-700">{h.subject_count}</p>
                 </div>
               ))}
             </div>

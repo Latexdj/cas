@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -59,7 +59,7 @@ interface QuizResult {
 type Phase = 'start' | 'quiz' | 'review' | 'results';
 
 function gradeBadge(pct: number): { label: string; color: string; bg: string } {
-  if (pct >= 80) return { label: 'Excellent', color: '#15803D', bg: '#DCFCE7' };
+  if (pct >= 80) return { label: 'Excellent', color: '#145C44', bg: '#DCFCE7' };
   if (pct >= 60) return { label: 'Good', color: '#1D4ED8', bg: '#DBEAFE' };
   if (pct >= 40) return { label: 'Pass', color: '#D97706', bg: '#FEF3C7' };
   return { label: 'Fail', color: '#DC2626', bg: '#FEE2E2' };
@@ -184,7 +184,7 @@ export default function QuizRoomPage() {
   if (phase === 'start') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+        <div className="w-full max-w-lg bg-white rounded-xl border border-slate-200 shadow-sm p-8">
           {previewLoading ? (
             <div className="flex justify-center py-8">
               <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
@@ -204,18 +204,18 @@ export default function QuizRoomPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-6">
-                <div className="bg-slate-50 rounded-xl p-3 text-center">
-                  <p className="text-2xl font-black text-slate-800">{previewQuiz?.question_count ?? '—'}</p>
+                <div className="bg-[#F5F0E8] rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-slate-800">{previewQuiz?.question_count ?? '—'}</p>
                   <p className="text-xs text-slate-400 mt-0.5">Questions</p>
                 </div>
-                <div className="bg-slate-50 rounded-xl p-3 text-center">
-                  <p className="text-2xl font-black text-slate-800">
+                <div className="bg-[#F5F0E8] rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-slate-800">
                     {previewQuiz?.time_limit_mins ? `${previewQuiz.time_limit_mins}m` : '∞'}
                   </p>
                   <p className="text-xs text-slate-400 mt-0.5">Time Limit</p>
                 </div>
-                <div className="bg-slate-50 rounded-xl p-3 text-center col-span-2">
-                  <p className="text-2xl font-black text-slate-800">{previewQuiz?.total_marks ?? '—'}</p>
+                <div className="bg-[#F5F0E8] rounded-xl p-3 text-center col-span-2">
+                  <p className="text-2xl font-bold text-slate-800">{previewQuiz?.total_marks ?? '—'}</p>
                   <p className="text-xs text-slate-400 mt-0.5">Total Marks</p>
                 </div>
               </div>
@@ -252,7 +252,7 @@ export default function QuizRoomPage() {
   if (phase === 'review') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div className="w-full max-w-lg bg-white rounded-xl border border-slate-200 shadow-sm p-6">
           <h2 className="text-lg font-bold text-slate-800 mb-1">Review Answers</h2>
           <p className="text-sm text-slate-400 mb-5">
             {answeredCount} of {questions.length} questions answered. Unanswered questions will be scored zero.
@@ -263,7 +263,7 @@ export default function QuizRoomPage() {
               const answered = a && (a.selected_option || (a.answer_text && a.answer_text.trim()));
               return (
                 <div key={q.id}
-                  className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-slate-50 transition-colors"
+                  className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-[#F5F0E8] transition-colors"
                   style={{ borderColor: answered ? '#BBF7D0' : '#FED7AA', background: answered ? '#F0FDF4' : '#FFF7ED' }}
                   onClick={() => { setCurrentIndex(i); setPhase('quiz'); }}
                 >
@@ -306,9 +306,9 @@ export default function QuizRoomPage() {
 
     return (
       <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-5">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 text-center">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Quiz Complete</p>
-          <div className="text-5xl font-black mb-2" style={{ color: primary }}>
+          <div className="text-5xl font-bold mb-2" style={{ color: primary }}>
             {result.score}<span className="text-2xl text-slate-400">/{result.total_marks}</span>
           </div>
           <p className="text-slate-500 text-sm mb-4">{pct}% score</p>
@@ -326,20 +326,20 @@ export default function QuizRoomPage() {
               return (
                 <div key={rq.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                   <div className="flex items-start gap-3">
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${correct ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${correct ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-red-100 text-red-600'}`}>
                       {correct ? '✓' : '✗'}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-700 mb-2">Q{i + 1}. {rq.question_text}</p>
                       <div className="space-y-1 text-xs">
                         {rq.your_answer && (
-                          <p className={correct ? 'text-green-700' : 'text-red-600'}>
+                          <p className={correct ? 'text-[#145C44]' : 'text-red-600'}>
                             Your answer: <span className="font-semibold">{rq.your_answer.toUpperCase()}</span>
                           </p>
                         )}
                         {!rq.your_answer && <p className="text-slate-400">Not answered</p>}
                         {showAnswers && rq.correct_answer && (
-                          <p className="text-green-700">
+                          <p className="text-[#145C44]">
                             Correct: <span className="font-semibold">{rq.correct_answer.toUpperCase()}</span>
                           </p>
                         )}
@@ -401,7 +401,7 @@ export default function QuizRoomPage() {
 
           {/* Question */}
           <div className="flex-1">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 mb-4">
               <div className="flex items-start gap-3 mb-4">
                 <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0 text-white"
                   style={{ background: primary }}>
@@ -458,7 +458,7 @@ export default function QuizRoomPage() {
             <button
               onClick={() => setCurrentIndex(i => Math.max(0, i - 1))}
               disabled={currentIndex === 0}
-              className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-sm font-semibold text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition-colors"
+              className="flex-1 py-3 rounded-xl border-2 border-slate-200 text-sm font-semibold text-slate-600 disabled:opacity-40 hover:bg-[#F5F0E8] transition-colors"
             >
               Previous
             </button>
@@ -494,7 +494,7 @@ export default function QuizRoomPage() {
                   style={i === currentIndex
                     ? { background: primary, color: '#fff' }
                     : answered
-                    ? { background: '#BBF7D0', color: '#15803D' }
+                    ? { background: '#BBF7D0', color: '#145C44' }
                     : { background: '#E2E8F0', color: '#94A3B8' }}
                 >
                   {i + 1}

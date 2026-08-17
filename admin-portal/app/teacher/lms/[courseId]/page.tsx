@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -154,7 +154,7 @@ function LessonsTab({ courseId, primary }: { courseId: string; primary: string }
     try {
       const { data } = await teacherApi.get<Lesson[]>(`/api/lms/courses/${courseId}/lessons`);
       setLessons(data ?? []);
-    } catch { setError('Failed to load lessons.'); }
+    } catch { setError('Could not load lessons.'); }
     finally { setLoading(false); }
   }, [courseId]);
 
@@ -203,7 +203,7 @@ function LessonsTab({ courseId, primary }: { courseId: string; primary: string }
               <ContentTypeBadge type={lesson.content_type} />
               <button
                 onClick={() => togglePublish(lesson)}
-                className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${lesson.is_published ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}
+                className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${lesson.is_published ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-slate-100 text-slate-500'}`}
               >
                 {lesson.is_published ? 'Published' : 'Draft'}
               </button>
@@ -283,8 +283,8 @@ function LessonModal({
   const types: Lesson['content_type'][] = ['text', 'file', 'youtube', 'link'];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-900">{lesson ? 'Edit Lesson' : 'Add Lesson'}</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm font-bold hover:bg-slate-200">✕</button>
@@ -303,7 +303,7 @@ function LessonModal({
                   key={t}
                   type="button"
                   onClick={() => setContentType(t)}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors ${contentType === t ? 'border-green-600 text-green-700 bg-green-50' : 'border-slate-200 text-slate-500 bg-white'}`}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-colors ${contentType === t ? 'border-green-600 text-[#145C44] bg-[#E8F4EE]' : 'border-slate-200 text-slate-500 bg-white'}`}
                 >
                   {t.charAt(0).toUpperCase() + t.slice(1)}
                 </button>
@@ -325,8 +325,8 @@ function LessonModal({
           {contentType === 'file' && (
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1">File (image or PDF)</label>
-              <input ref={fileRef} type="file" accept="image/*,application/pdf" className="w-full text-sm text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-green-50 file:text-green-700 hover:file:bg-green-100" onChange={handleFile} />
-              {fileData && <p className="text-xs text-green-600 mt-1">File ready to upload.</p>}
+              <input ref={fileRef} type="file" accept="image/*,application/pdf" className="w-full text-sm text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#E8F4EE] file:text-[#145C44] hover:file:bg-[#D1EAD9]" onChange={handleFile} />
+              {fileData && <p className="text-xs text-[#145C44] mt-1">File ready to upload.</p>}
             </div>
           )}
           <div className="flex gap-3">
@@ -336,13 +336,13 @@ function LessonModal({
             </div>
             <div className="flex items-end pb-0.5">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={isPublished} onChange={e => setIsPublished(e.target.checked)} className="w-4 h-4 rounded accent-green-600" />
+                <input type="checkbox" checked={isPublished} onChange={e => setIsPublished(e.target.checked)} className="w-4 h-4 rounded accent-[#145C44]" />
                 <span className="text-sm font-semibold text-slate-700">Published</span>
               </label>
             </div>
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-[#F5F0E8]">Cancel</button>
             <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50" style={{ background: primary }}>
               {saving ? 'Saving…' : 'Save Lesson'}
             </button>
@@ -367,7 +367,7 @@ function AssignmentsTab({ courseId, primary }: { courseId: string; primary: stri
     try {
       const { data } = await teacherApi.get<Assignment[]>(`/api/lms/courses/${courseId}/assignments`);
       setAssignments(data ?? []);
-    } catch { setError('Failed to load assignments.'); }
+    } catch { setError('Could not load assignments.'); }
     finally { setLoading(false); }
   }, [courseId]);
 
@@ -426,7 +426,7 @@ function AssignmentsTab({ courseId, primary }: { courseId: string; primary: stri
                   <p className="text-[10px] text-emerald-600 mt-0.5">Synced {new Date(a.ca_synced_at).toLocaleString()}</p>
                 )}
               </div>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${a.is_published ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${a.is_published ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-slate-100 text-slate-500'}`}>
                 {a.is_published ? 'Published' : 'Draft'}
               </span>
               {a.assessment_mode_id && (
@@ -507,8 +507,8 @@ function AssignmentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-900">{assignment ? 'Edit Assignment' : 'Add Assignment'}</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm font-bold hover:bg-slate-200">✕</button>
@@ -545,16 +545,16 @@ function AssignmentModal({
           </div>
           <div className="flex gap-5">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={allowLate} onChange={e => setAllowLate(e.target.checked)} className="w-4 h-4 rounded accent-green-600" />
+              <input type="checkbox" checked={allowLate} onChange={e => setAllowLate(e.target.checked)} className="w-4 h-4 rounded accent-[#145C44]" />
               <span className="text-sm font-semibold text-slate-700">Allow Late</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={isPublished} onChange={e => setIsPublished(e.target.checked)} className="w-4 h-4 rounded accent-green-600" />
+              <input type="checkbox" checked={isPublished} onChange={e => setIsPublished(e.target.checked)} className="w-4 h-4 rounded accent-[#145C44]" />
               <span className="text-sm font-semibold text-slate-700">Published</span>
             </label>
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-[#F5F0E8]">Cancel</button>
             <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50" style={{ background: primary }}>
               {saving ? 'Saving…' : 'Save Assignment'}
             </button>
@@ -580,7 +580,7 @@ function QuizzesTab({ courseId, primary }: { courseId: string; primary: string }
     try {
       const { data } = await teacherApi.get<Quiz[]>(`/api/lms/courses/${courseId}/quizzes`);
       setQuizzes(data ?? []);
-    } catch { setError('Failed to load quizzes.'); }
+    } catch { setError('Could not load quizzes.'); }
     finally { setLoading(false); }
   }, [courseId]);
 
@@ -657,7 +657,7 @@ function QuizzesTab({ courseId, primary }: { courseId: string; primary: string }
               </div>
               <button
                 onClick={() => togglePublish(q)}
-                className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${q.is_published ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}
+                className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${q.is_published ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-slate-100 text-slate-500'}`}
               >
                 {q.is_published ? 'Published' : 'Draft'}
               </button>
@@ -740,8 +740,8 @@ function QuizMetaModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-900">{quiz ? 'Edit Quiz' : 'New Quiz'}</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm font-bold hover:bg-slate-200">✕</button>
@@ -778,16 +778,16 @@ function QuizMetaModal({
           </div>
           <div className="flex gap-5">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={showAnswers} onChange={e => setShowAnswers(e.target.checked)} className="w-4 h-4 rounded accent-green-600" />
+              <input type="checkbox" checked={showAnswers} onChange={e => setShowAnswers(e.target.checked)} className="w-4 h-4 rounded accent-[#145C44]" />
               <span className="text-sm font-semibold text-slate-700">Show Answers After Submit</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={isPublished} onChange={e => setIsPublished(e.target.checked)} className="w-4 h-4 rounded accent-green-600" />
+              <input type="checkbox" checked={isPublished} onChange={e => setIsPublished(e.target.checked)} className="w-4 h-4 rounded accent-[#145C44]" />
               <span className="text-sm font-semibold text-slate-700">Published</span>
             </label>
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-[#F5F0E8]">Cancel</button>
             <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50" style={{ background: primary }}>
               {saving ? 'Saving…' : quiz ? 'Save Changes' : 'Next: Add Questions →'}
             </button>
@@ -839,7 +839,7 @@ function QuizBuilder({ quizId, primary, onDone }: { quizId: string; primary: str
           <p className="text-xs text-slate-500 mt-0.5">{questions.length} question{questions.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={onDone} className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">← Back</button>
+          <button onClick={onDone} className="px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-[#F5F0E8]">← Back</button>
           <button onClick={save} disabled={saving} className="px-4 py-2 rounded-xl text-sm font-bold text-white disabled:opacity-50" style={{ background: primary }}>
             {saving ? 'Saving…' : 'Save Questions'}
           </button>
@@ -848,7 +848,7 @@ function QuizBuilder({ quizId, primary, onDone }: { quizId: string; primary: str
       {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
       <div className="space-y-4">
         {questions.map((q, idx) => (
-          <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+          <div key={idx} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
             <div className="flex items-start justify-between gap-2">
               <span className="text-xs font-bold text-slate-400 mt-1">Q{idx + 1}</span>
               <div className="flex-1">
@@ -886,7 +886,7 @@ function QuizBuilder({ quizId, primary, onDone }: { quizId: string; primary: str
                         name={`correct_${idx}`}
                         checked={q.correct_option === opt}
                         onChange={() => updateQ(idx, { correct_option: opt })}
-                        className="w-4 h-4 accent-green-600"
+                        className="w-4 h-4 accent-[#145C44]"
                       />
                       <span className="text-xs font-bold text-slate-500 w-4">{opt.toUpperCase()}</span>
                       <input
@@ -909,7 +909,7 @@ function QuizBuilder({ quizId, primary, onDone }: { quizId: string; primary: str
       </div>
       <button
         onClick={() => setQuestions(prev => [...prev, blankQuestion()])}
-        className="mt-4 w-full py-2.5 rounded-xl border-2 border-dashed border-slate-200 text-sm font-semibold text-slate-400 hover:border-green-400 hover:text-green-600 transition-colors"
+        className="mt-4 w-full py-2.5 rounded-xl border-2 border-dashed border-slate-200 text-sm font-semibold text-slate-400 hover:border-[#2D7A4F] hover:text-[#145C44] transition-colors"
       >
         + Add Question
       </button>
@@ -1003,7 +1003,7 @@ function SubmissionsTab({ courseId, primary }: { courseId: string; primary: stri
               <div key={a.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                 <button
                   onClick={() => expandAssignment(a.id)}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-[#F5F0E8] transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-800">{a.title}</p>
@@ -1024,7 +1024,7 @@ function SubmissionsTab({ courseId, primary }: { courseId: string; primary: stri
                         {subs.map(sub => {
                           const edit = gradeEdits[sub.id] ?? { score: sub.score?.toString() ?? '', feedback: sub.feedback ?? '' };
                           return (
-                            <div key={sub.id} className="flex flex-col gap-2 p-3 bg-slate-50 rounded-xl">
+                            <div key={sub.id} className="flex flex-col gap-2 p-3 bg-[#F5F0E8] rounded-xl">
                               <div className="flex items-center gap-2">
                                 <div className="flex-1">
                                   <p className="text-sm font-semibold text-slate-800">{sub.student_name}</p>
@@ -1181,8 +1181,8 @@ function AnnouncementModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-900">New Announcement</h2>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm font-bold hover:bg-slate-200">✕</button>
@@ -1198,11 +1198,11 @@ function AnnouncementModal({
             <textarea className={INPUT} rows={5} value={body} onChange={e => setBody(e.target.value)} placeholder="Announcement content…" />
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={isPinned} onChange={e => setIsPinned(e.target.checked)} className="w-4 h-4 rounded accent-green-600" />
+            <input type="checkbox" checked={isPinned} onChange={e => setIsPinned(e.target.checked)} className="w-4 h-4 rounded accent-[#145C44]" />
             <span className="text-sm font-semibold text-slate-700">Pin this announcement</span>
           </label>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-[#F5F0E8]">Cancel</button>
             <button type="submit" disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50" style={{ background: primary }}>
               {saving ? 'Posting…' : 'Post Announcement'}
             </button>
@@ -1240,7 +1240,7 @@ function CourseStudioContent() {
     teacherApi.get<Course>(`/api/lms/courses/${courseId}`).then(({ data }) => {
       setCourse(data);
     }).catch(() => {
-      setError('Failed to load course.');
+      setError('Could not load course.');
     }).finally(() => setLoading(false));
   }, [courseId]);
 
@@ -1270,7 +1270,7 @@ function CourseStudioContent() {
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className="text-xs font-semibold text-[#8C7E6E]">{course.class_name}</span>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                course.status === 'published' ? 'bg-green-100 text-green-700' :
+                course.status === 'published' ? 'bg-[#D1EAD9] text-[#145C44]' :
                 course.status === 'archived' ? 'bg-orange-100 text-orange-700' :
                 'bg-slate-100 text-slate-600'
               }`}>{course.status}</span>
@@ -1282,12 +1282,12 @@ function CourseStudioContent() {
 
       {/* Tabs */}
       <div className="px-4">
-        <div className="flex gap-1 bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-1 mb-5 overflow-x-auto no-scrollbar">
+        <div className="flex gap-1 bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-1 mb-5 overflow-x-auto no-scrollbar">
           {TABS.map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${activeTab === tab.key ? 'text-white' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
+              className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${activeTab === tab.key ? 'text-white' : 'text-slate-500 hover:text-slate-700 hover:bg-[#F5F0E8]'}`}
               style={activeTab === tab.key ? { background: primary } : {}}
             >
               {tab.label}
@@ -1296,7 +1296,7 @@ function CourseStudioContent() {
         </div>
 
         {/* Tab Content */}
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-5">
+        <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-5">
           {activeTab === 'lessons' && <LessonsTab courseId={courseId} primary={primary} />}
           {activeTab === 'assignments' && <AssignmentsTab courseId={courseId} primary={primary} />}
           {activeTab === 'quizzes' && <QuizzesTab courseId={courseId} primary={primary} />}

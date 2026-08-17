@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
@@ -164,28 +164,28 @@ export default function MyAttendancePage() {
 
         {today === undefined && (
           <div className="flex justify-center py-4">
-            <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+            <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
           </div>
         )}
 
         {today !== undefined && (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <div className={`rounded-xl p-4 ${today?.clock_in_time ? 'bg-green-50' : 'bg-gray-50'}`}>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Clock In</p>
-                <p className={`text-2xl font-black tabular-nums ${today?.clock_in_time ? 'text-green-700' : 'text-slate-300'}`}>
+              <div className={`rounded-xl p-4 ${today?.clock_in_time ? 'bg-[#E8F4EE]' : 'bg-[#F5F0E8]'}`}>
+                <p className="text-xs font-bold text-slate-500 font-medium mb-1">Clock In</p>
+                <p className={`text-2xl font-bold tabular-nums ${today?.clock_in_time ? 'text-[#145C44]' : 'text-slate-300'}`}>
                   {fmtTime(today?.clock_in_time ?? null)}
                 </p>
                 {today?.clock_in_location_verified && (
-                  <p className="text-xs text-green-600 font-semibold mt-0.5">✓ GPS verified</p>
+                  <p className="text-xs text-[#145C44] font-semibold mt-0.5">✓ GPS verified</p>
                 )}
                 {today?.manual_entry_by && (
                   <p className="text-xs text-slate-400 mt-0.5">Manual entry</p>
                 )}
               </div>
-              <div className={`rounded-xl p-4 ${today?.clock_out_time ? 'bg-purple-50' : 'bg-gray-50'}`}>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Clock Out</p>
-                <p className={`text-2xl font-black tabular-nums ${today?.clock_out_time ? 'text-purple-700' : 'text-slate-300'}`}>
+              <div className={`rounded-xl p-4 ${today?.clock_out_time ? 'bg-purple-50' : 'bg-[#F5F0E8]'}`}>
+                <p className="text-xs font-bold text-slate-500 font-medium mb-1">Clock Out</p>
+                <p className={`text-2xl font-bold tabular-nums ${today?.clock_out_time ? 'text-purple-700' : 'text-slate-300'}`}>
                   {fmtTime(today?.clock_out_time ?? null)}
                 </p>
                 {today?.clock_out_location_verified && (
@@ -200,7 +200,7 @@ export default function MyAttendancePage() {
                 {!today?.clock_in_time && (
                   <button onClick={() => startClock('in')}
                     className="flex-1 py-2.5 rounded-lg text-sm font-bold text-white shadow-sm"
-                    style={{ backgroundColor: '#15803D' }}>
+                    style={{ backgroundColor: '#145C44' }}>
                     Clock In
                   </button>
                 )}
@@ -211,7 +211,7 @@ export default function MyAttendancePage() {
                   </button>
                 )}
                 {today?.clock_in_time && today?.clock_out_time && (
-                  <p className="text-sm text-green-700 font-semibold flex-1 text-center py-2.5">
+                  <p className="text-sm text-[#145C44] font-semibold flex-1 text-center py-2.5">
                     ✓ All done for today
                   </p>
                 )}
@@ -228,7 +228,7 @@ export default function MyAttendancePage() {
                 {gps && (
                   <button onClick={submitClock}
                     className="w-full py-2.5 rounded-lg text-sm font-bold text-white"
-                    style={{ backgroundColor: '#15803D' }}>
+                    style={{ backgroundColor: '#145C44' }}>
                     Submit Clock {action === 'in' ? 'In' : 'Out'}
                   </button>
                 )}
@@ -237,7 +237,7 @@ export default function MyAttendancePage() {
 
             {step === 'submitting' && (
               <div className="flex items-center justify-center py-4 gap-3">
-                <div className="w-5 h-5 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                <div className="w-5 h-5 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
                 <p className="text-sm text-slate-600">Submitting…</p>
               </div>
             )}
@@ -255,16 +255,16 @@ export default function MyAttendancePage() {
           </select>
         </div>
         <div className="grid grid-cols-3 gap-3 text-center">
-          <div className="rounded-xl bg-green-50 py-3">
-            <p className="text-2xl font-black text-green-700">{stats.present}</p>
+          <div className="rounded-xl bg-[#E8F4EE] py-3">
+            <p className="text-2xl font-bold text-[#145C44]">{stats.present}</p>
             <p className="text-xs text-slate-500 mt-0.5">Present</p>
           </div>
           <div className="rounded-xl bg-red-50 py-3">
-            <p className="text-2xl font-black text-red-600">{stats.absent}</p>
+            <p className="text-2xl font-bold text-red-600">{stats.absent}</p>
             <p className="text-xs text-slate-500 mt-0.5">Absent</p>
           </div>
           <div className="rounded-xl bg-blue-50 py-3">
-            <p className="text-2xl font-black text-blue-600">{stats.excused}</p>
+            <p className="text-2xl font-bold text-blue-600">{stats.excused}</p>
             <p className="text-xs text-slate-500 mt-0.5">Excused</p>
           </div>
         </div>
@@ -274,7 +274,7 @@ export default function MyAttendancePage() {
               <span>Attendance</span><span>{pct}%</span>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
-              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: pct >= 90 ? '#15803D' : pct >= 75 ? '#D97706' : '#DC2626' }} />
+              <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: pct >= 90 ? '#145C44' : pct >= 75 ? '#D97706' : '#DC2626' }} />
             </div>
           </div>
         )}
@@ -283,7 +283,7 @@ export default function MyAttendancePage() {
       {/* History list */}
       {histLoad ? (
         <div className="flex justify-center py-6">
-          <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : history.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -298,7 +298,7 @@ export default function MyAttendancePage() {
                   <p className="text-xs text-slate-400">{fmtTime(r.clock_in_time)} → {fmtTime(r.clock_out_time)}</p>
                 </div>
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                  r.status === 'present' ? 'bg-green-100 text-green-700' :
+                  r.status === 'present' ? 'bg-[#D1EAD9] text-[#145C44]' :
                   r.status === 'excused' ? 'bg-blue-100 text-blue-600' :
                   'bg-red-100 text-red-600'
                 }`}>

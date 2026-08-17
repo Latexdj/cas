@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -13,7 +13,7 @@ const STATUSES = ['present','absent','late','excused'] as const;
 type Status = typeof STATUSES[number];
 
 const STATUS_COLOR: Record<Status, string> = {
-  present: 'bg-green-500 text-white',
+  present: 'bg-[#145C44] text-white',
   absent:  'bg-red-500 text-white',
   late:    'bg-yellow-400 text-white',
   excused: 'bg-blue-400 text-white',
@@ -52,7 +52,7 @@ export default function PrimaryAttendancePage() {
       attRes.data.forEach(r => { if (r.status) map[r.student_id] = r.status as Status; });
       stuRes.data.forEach(s => { if (!map[s.id]) map[s.id] = 'present'; });
       setAttend(map);
-    } catch { setError('Failed to load attendance.'); }
+    } catch { setError('Could not load attendance.'); }
     finally { setLoading(false); }
   }, [date]);
 
@@ -110,7 +110,7 @@ export default function PrimaryAttendancePage() {
         {!isLocked && !isFutureDate && (
           <button onClick={save} disabled={saving || loading}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-            style={{ backgroundColor: '#15803D' }}>
+            style={{ backgroundColor: '#145C44' }}>
             {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Attendance'}
           </button>
         )}
@@ -124,7 +124,7 @@ export default function PrimaryAttendancePage() {
 
       {/* Submission status banners */}
       {alreadySubmitted && isLocked && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-green-800 text-sm">
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#E8F4EE] border border-[#B8D9C8] text-[#0B3D2E] text-sm">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5 flex-shrink-0">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -142,7 +142,7 @@ export default function PrimaryAttendancePage() {
         </div>
       )}
       {isFutureDate && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-sm">
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#F5F0E8] border border-slate-200 text-slate-600 text-sm">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5 flex-shrink-0">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -172,7 +172,7 @@ export default function PrimaryAttendancePage() {
       <div className="grid grid-cols-4 gap-3">
         {STATUSES.map(s => (
           <div key={s} className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 text-center">
-            <p className="text-2xl font-black text-slate-900">{counts[s] ?? 0}</p>
+            <p className="text-2xl font-bold text-slate-900">{counts[s] ?? 0}</p>
             <p className="text-xs text-slate-500 capitalize">{s}</p>
           </div>
         ))}
@@ -182,24 +182,24 @@ export default function PrimaryAttendancePage() {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-[#F5F0E8] border-b border-slate-200">
                 <tr>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide w-8">#</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Student</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium w-8">#</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Student</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {students.map((s, i) => {
                   const status = attend[s.id] ?? 'present';
                   return (
-                    <tr key={s.id} className={status === 'absent' ? 'bg-red-50/50' : 'hover:bg-slate-50'}>
+                    <tr key={s.id} className={status === 'absent' ? 'bg-red-50/50' : 'hover:bg-[#F5F0E8]'}>
                       <td className="px-3 py-2 text-xs text-slate-400">{i + 1}</td>
                       <td className="px-3 py-2">
                         <p className="font-medium text-slate-900">{s.surname}{s.other_names ? ` ${s.other_names}` : ''}</p>

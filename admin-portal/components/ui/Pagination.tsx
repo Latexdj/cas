@@ -80,7 +80,7 @@ function NavBtn({ children, onClick, disabled, active }: {
       className={`min-w-[32px] px-2.5 py-1 rounded text-sm font-medium transition-colors
         disabled:opacity-40 disabled:cursor-not-allowed
         ${active
-          ? 'bg-green-700 text-white border border-green-700'
+          ? 'bg-[#145C44] text-white border border-green-700'
           : 'text-slate-600 border border-slate-200 hover:bg-slate-50 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-700'
         }`}
     >
@@ -114,11 +114,11 @@ export function Th({ label, sortKey, currentKey, currentDir, onSort, className =
         {label}
         <span className="inline-flex flex-col gap-px ml-0.5" aria-hidden>
           <svg viewBox="0 0 6 4" width="7" height="4"
-            fill={active && currentDir === 'asc' ? '#15803D' : '#CBD5E1'}>
+            fill={active && currentDir === 'asc' ? '#145C44' : '#CBD5E1'}>
             <path d="M3 0 L6 4 L0 4 Z" />
           </svg>
           <svg viewBox="0 0 6 4" width="7" height="4"
-            fill={active && currentDir === 'desc' ? '#15803D' : '#CBD5E1'}>
+            fill={active && currentDir === 'desc' ? '#145C44' : '#CBD5E1'}>
             <path d="M3 4 L6 0 L0 0 Z" />
           </svg>
         </span>

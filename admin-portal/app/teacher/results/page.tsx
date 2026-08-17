@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -51,7 +51,7 @@ function ResultsContent() {
           setRejections((sRes.data ?? []).filter(s => s.status === 'rejected'));
         }).catch(() => {});
       }
-    }).catch(() => setError('Failed to load filters.')).finally(() => setLoadingMeta(false));
+    }).catch(() => setError('Could not load filters.')).finally(() => setLoadingMeta(false));
   }, []);
 
   const load = useCallback(async () => {
@@ -62,7 +62,7 @@ function ResultsContent() {
         params: { academic_year_id: yearId, semester, class_name: className },
       });
       setResults(data ?? []);
-    } catch { setError('Failed to load results.'); }
+    } catch { setError('Could not load results.'); }
     finally { setLoading(false); }
   }, [yearId, semester, className]);
 
@@ -86,7 +86,7 @@ function ResultsContent() {
       </div>
 
       {/* Filters */}
-      <div className="mx-4 bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 mb-4 space-y-3">
+      <div className="mx-4 bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 mb-4 space-y-3">
         <div className="flex gap-3">
           <div className="flex-1 relative">
             <select value={yearId} onChange={e => setYearId(e.target.value)} className={selCls} disabled={loadingMeta}>
@@ -114,7 +114,7 @@ function ResultsContent() {
       {error && <p className="mx-4 text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{error}</p>}
 
       {rejections.length > 0 && (
-        <div className="mx-4 mb-4 bg-red-50 border border-red-200 rounded-2xl p-4">
+        <div className="mx-4 mb-4 bg-red-50 border border-red-200 rounded-xl p-4">
           <p className="text-sm font-bold text-red-700 mb-2">Results Returned for Editing</p>
           <div className="space-y-2">
             {rejections.map(r => (
@@ -131,7 +131,7 @@ function ResultsContent() {
       )}
 
       {!className ? (
-        <div className="mx-4 bg-white rounded-2xl border border-[#E2D9CC] p-12 text-center">
+        <div className="mx-4 bg-white rounded-xl border border-[#E2D9CC] p-12 text-center">
           <p className="text-sm text-[#8C7E6E]">Select a class to view results</p>
         </div>
       ) : loading ? (
@@ -139,12 +139,12 @@ function ResultsContent() {
           <div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
         </div>
       ) : results.length === 0 ? (
-        <div className="mx-4 bg-white rounded-2xl border border-[#E2D9CC] p-10 text-center">
+        <div className="mx-4 bg-white rounded-xl border border-[#E2D9CC] p-10 text-center">
           <p className="text-sm text-[#8C7E6E]">No results found for {className}</p>
           <p className="text-xs text-[#C8BFB5] mt-1">Ensure assessments and exam scores have been entered.</p>
         </div>
       ) : (
-        <div className="mx-4 bg-white rounded-2xl border border-[#E2D9CC] shadow-sm overflow-hidden">
+        <div className="mx-4 bg-white rounded-xl border border-[#E2D9CC] shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b border-[#E2D9CC]">
             <p className="text-sm font-bold text-[#2C2218]">{className}</p>
             <p className="text-xs text-[#8C7E6E]">{yearName} · Semester {semester} · {results.length} students</p>
@@ -179,8 +179,8 @@ function ResultsContent() {
 
       {/* Report card slide-in */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/40" onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}>
-          <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-3xl md:rounded-3xl shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-[#0B3D2E]/45" onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}>
+          <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-3xl md:rounded-xl shadow-2xl">
             {/* Card header */}
             <div className="sticky top-0 bg-white px-5 pt-5 pb-4 border-b border-[#E2D9CC]">
               <div className="flex items-start gap-3">
@@ -200,7 +200,7 @@ function ResultsContent() {
                   { label: 'Grade', value: selected.overall_grade },
                 ].map(({ label, value, highlight }) => (
                   <div key={label} className="bg-[#F4EFE6] rounded-xl p-3 text-center">
-                    <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide">{label}</p>
+                    <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium">{label}</p>
                     <p className="text-lg font-bold mt-0.5" style={{ color: highlight ? primary : '#2C2218' }}>{value}</p>
                   </div>
                 ))}
@@ -210,16 +210,16 @@ function ResultsContent() {
             {/* Attendance */}
             {selected.attendance && (
               <div className="px-5 pt-4 pb-0">
-                <p className="text-xs font-semibold text-[#8C7E6E] uppercase tracking-wide mb-2">Attendance</p>
+                <p className="text-xs font-semibold text-[#8C7E6E] font-medium mb-2">Attendance</p>
                 <div className="grid grid-cols-4 gap-2">
                   {[
-                    { label: 'Present',       value: selected.attendance.present, color: '#15803D' },
+                    { label: 'Present',       value: selected.attendance.present, color: '#145C44' },
                     { label: 'Late',          value: selected.attendance.late,    color: '#D97706' },
                     { label: 'Absent',        value: selected.attendance.absent,  color: '#DC2626' },
                     { label: 'Total Periods', value: selected.attendance.total,   color: '#2C2218' },
                   ].map(({ label, value, color }) => (
                     <div key={label} className="bg-[#F4EFE6] rounded-xl p-2.5 text-center">
-                      <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide">{label}</p>
+                      <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium">{label}</p>
                       <p className="text-lg font-bold mt-0.5" style={{ color }}>{value}</p>
                     </div>
                   ))}
@@ -229,11 +229,11 @@ function ResultsContent() {
 
             {/* Subject table */}
             <div className="px-5 py-4">
-              <p className="text-xs font-semibold text-[#8C7E6E] uppercase tracking-wide mb-3">Subject Breakdown</p>
+              <p className="text-xs font-semibold text-[#8C7E6E] font-medium mb-3">Subject Breakdown</p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide border-b border-[#E2D9CC]">
+                    <tr className="text-[10px] font-semibold text-[#8C7E6E] font-medium border-b border-[#E2D9CC]">
                       <th className="pb-2 text-left">Subject</th>
                       <th className="pb-2 text-center">{caLabel}</th>
                       <th className="pb-2 text-center">{exLabel}</th>

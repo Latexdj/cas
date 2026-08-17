@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
@@ -79,7 +79,7 @@ export default function PrimarySettingsPage() {
       setLogoUrl(s.data.logo_url ?? null);
       setModes(m.data);
     })
-      .catch(() => setError('Failed to load school settings.'))
+      .catch(() => setError('Could not load school settings.'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -149,7 +149,7 @@ export default function PrimarySettingsPage() {
     const pc = form.primary_color ?? '';
     const ac = form.accent_color ?? '';
     if (!hexRe.test(pc) || !hexRe.test(ac)) {
-      setBrandError('Colors must be valid hex codes (e.g. #15803D).');
+      setBrandError('Colors must be valid hex codes (e.g. #145C44).');
       return;
     }
     setBrandSaving(true); setBrandError(''); setBrandSaved(false);
@@ -186,13 +186,13 @@ export default function PrimarySettingsPage() {
       <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
       {opts ? (
         <select value={String(form[key] ?? '')} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#145C44]">
           <option value="">Select…</option>
           {opts.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       ) : (
         <input type={type} value={String(form[key] ?? '')} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500" />
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
       )}
     </div>
   );
@@ -203,13 +203,13 @@ export default function PrimarySettingsPage() {
       <textarea rows={3} value={String(form[key] ?? '')}
         onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
         placeholder={placeholder}
-        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 resize-y focus:outline-none focus:ring-2 focus:ring-green-500" />
+        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 resize-y focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
     </div>
   );
 
   if (loading) return (
     <div className="flex justify-center py-20">
-      <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+      <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
     </div>
   );
 
@@ -222,7 +222,7 @@ export default function PrimarySettingsPage() {
         </div>
         <button onClick={save} disabled={saving}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 shadow-sm"
-          style={{ backgroundColor: '#15803D' }}>
+          style={{ backgroundColor: '#145C44' }}>
           {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Changes'}
         </button>
       </div>
@@ -231,7 +231,7 @@ export default function PrimarySettingsPage() {
 
       {/* School Info */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
-        <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide border-b border-gray-100 pb-2">School Information</h2>
+        <h2 className="text-sm font-bold text-slate-700 font-medium border-b border-gray-100 pb-2">School Information</h2>
         <div className="grid grid-cols-2 gap-4">
           {F('School Name', 'name')}
           {F('School Code', 'code')}
@@ -249,7 +249,7 @@ export default function PrimarySettingsPage() {
       {/* School Identity */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
         <div className="border-b border-gray-100 pb-2">
-          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">School Identity</h2>
+          <h2 className="text-sm font-bold text-slate-700 font-medium">School Identity</h2>
           <p className="text-xs text-slate-400 mt-0.5">Used in report cards, certificates, the admission portal, and other official documents.</p>
         </div>
         <div className="space-y-4">
@@ -262,7 +262,7 @@ export default function PrimarySettingsPage() {
       {/* Student Admission Numbers */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
         <div className="border-b border-gray-100 pb-2">
-          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Student Admission Numbers</h2>
+          <h2 className="text-sm font-bold text-slate-700 font-medium">Student Admission Numbers</h2>
           <p className="text-xs text-slate-400 mt-0.5">Used to auto-generate IDs when importing students via Excel</p>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -270,13 +270,13 @@ export default function PrimarySettingsPage() {
             <label className="block text-xs font-semibold text-slate-600 mb-1">Admission Prefix</label>
             <input value={form.admission_prefix ?? ''} onChange={e => setForm(f => ({ ...f, admission_prefix: e.target.value.toUpperCase() }))}
               placeholder="e.g. SASHTS"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Admission Year (2 digits)</label>
             <input value={form.admission_year ?? ''} onChange={e => setForm(f => ({ ...f, admission_year: e.target.value }))}
               placeholder={`e.g. ${String(new Date().getFullYear()).slice(2)}`} maxLength={4}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 font-mono focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
           </div>
         </div>
         {(form.admission_prefix || form.admission_year) && (
@@ -289,7 +289,7 @@ export default function PrimarySettingsPage() {
       {/* School GPS Location */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
         <div className="border-b border-gray-100 pb-2">
-          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">School GPS Location</h2>
+          <h2 className="text-sm font-bold text-slate-700 font-medium">School GPS Location</h2>
           <p className="text-xs text-slate-400 mt-0.5">Required for teacher clock-in/out verification. Teachers must be within the radius to clock in.</p>
         </div>
         <div className="grid grid-cols-3 gap-4">
@@ -298,20 +298,20 @@ export default function PrimarySettingsPage() {
             <input type="number" step="any" value={form.school_latitude ?? ''}
               onChange={e => setForm(f => ({ ...f, school_latitude: e.target.value || null }))}
               placeholder="e.g. 5.614582"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Longitude</label>
             <input type="number" step="any" value={form.school_longitude ?? ''}
               onChange={e => setForm(f => ({ ...f, school_longitude: e.target.value || null }))}
               placeholder="e.g. -0.205874"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Radius (metres)</label>
             <input type="number" min={10} max={500} value={form.school_gps_radius ?? 100}
               onChange={e => setForm(f => ({ ...f, school_gps_radius: parseInt(e.target.value) || 100 }))}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
           </div>
         </div>
         <button type="button"
@@ -322,7 +322,7 @@ export default function PrimarySettingsPage() {
               () => alert('Could not get your location. Please enter coordinates manually.')
             );
           }}
-          className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 transition-colors">
+          className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border border-[#B8D9C8] text-[#145C44] bg-[#E8F4EE] hover:bg-[#D1EAD9] transition-colors">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
             <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" />
             <line x1="12" y1="2" x2="12" y2="5" /><line x1="12" y1="19" x2="12" y2="22" />
@@ -342,12 +342,12 @@ export default function PrimarySettingsPage() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Assessment Modes</h2>
+            <h2 className="text-sm font-bold text-slate-700 font-medium">Assessment Modes</h2>
             <p className="text-xs text-slate-400 mt-0.5">Define how scores are weighted (e.g. Class Test 10%, End of Term Exam 70%)</p>
           </div>
           <button onClick={() => { setModeForm(BLANK_MODE); setEditMode(null); setModeError(''); setModeModal(true); }}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
-            style={{ backgroundColor: '#15803D' }}>
+            style={{ backgroundColor: '#145C44' }}>
             + Add Mode
           </button>
         </div>
@@ -358,16 +358,16 @@ export default function PrimarySettingsPage() {
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
+                <thead className="bg-[#F5F0E8] border-b border-gray-100">
                   <tr>
                     {['Mode Name', 'Weight (%)', 'Terminal Exam', 'Max Instances', ''].map(h => (
-                      <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                      <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {modes.map(m => (
-                    <tr key={m.id} className="hover:bg-gray-50">
+                    <tr key={m.id} className="hover:bg-[#F5F0E8]">
                       <td className="px-4 py-2.5 font-medium text-slate-800">{m.name}</td>
                       <td className="px-4 py-2.5 tabular-nums font-semibold text-slate-700">{m.ca_weight}%</td>
                       <td className="px-4 py-2.5">
@@ -394,7 +394,7 @@ export default function PrimarySettingsPage() {
             {(() => {
               const total = modes.reduce((s, m) => s + parseFloat(String(m.ca_weight)), 0);
               return (
-                <div className={`px-5 py-2.5 border-t border-gray-100 flex items-center gap-2 text-xs ${Math.abs(total - 100) < 0.01 ? 'text-green-700' : 'text-amber-600'}`}>
+                <div className={`px-5 py-2.5 border-t border-gray-100 flex items-center gap-2 text-xs ${Math.abs(total - 100) < 0.01 ? 'text-[#145C44]' : 'text-amber-600'}`}>
                   <span className="font-bold">Total weight: {total}%</span>
                   {Math.abs(total - 100) > 0.01 && <span>— weights will be auto-rescaled to 100% during calculation</span>}
                   {Math.abs(total - 100) < 0.01 && <span>✓ Perfect</span>}
@@ -407,8 +407,8 @@ export default function PrimarySettingsPage() {
 
       {/* Mode modal */}
       {modeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-900">{editMode ? 'Edit Mode' : 'New Assessment Mode'}</h2>
               <button onClick={() => setModeModal(false)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
@@ -456,7 +456,7 @@ export default function PrimarySettingsPage() {
               <button onClick={() => setModeModal(false)} className="flex-1 py-2 rounded-lg text-sm font-semibold border border-gray-200 text-slate-600">Cancel</button>
               <button onClick={saveMode} disabled={modeSaving}
                 className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                style={{ backgroundColor: '#15803D' }}>
+                style={{ backgroundColor: '#145C44' }}>
                 {modeSaving ? 'Saving…' : editMode ? 'Save Changes' : 'Add Mode'}
               </button>
             </div>
@@ -467,12 +467,12 @@ export default function PrimarySettingsPage() {
       {/* School Logo */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
         <div className="border-b border-gray-100 pb-2">
-          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">School Logo</h2>
+          <h2 className="text-sm font-bold text-slate-700 font-medium">School Logo</h2>
           <p className="text-xs text-slate-400 mt-0.5">Displayed in reports, certificates, and the portal. Recommended: square image, at least 200×200 px.</p>
         </div>
         <input ref={logoFileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
         <div className="flex items-center gap-5">
-          <div className="w-20 h-20 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden border-2 border-dashed border-gray-200 bg-gray-50">
+          <div className="w-20 h-20 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden border-2 border-dashed border-gray-200 bg-[#F5F0E8]">
             {logoUrl ? (
               <img src={logoUrl} alt="School logo" className="w-full h-full object-cover" />
             ) : (
@@ -485,7 +485,7 @@ export default function PrimarySettingsPage() {
           </div>
           <div>
             <button onClick={() => logoFileRef.current?.click()} disabled={logoSaving}
-              className="px-4 py-2 rounded-lg text-sm font-semibold border border-green-200 text-green-700 bg-green-50 hover:bg-green-100 transition-colors disabled:opacity-40">
+              className="px-4 py-2 rounded-lg text-sm font-semibold border border-[#B8D9C8] text-[#145C44] bg-[#E8F4EE] hover:bg-[#D1EAD9] transition-colors disabled:opacity-40">
               {logoSaving ? (
                 <span className="flex items-center gap-2">
                   <span className="w-3.5 h-3.5 rounded-full border-2 border-green-700 border-t-transparent animate-spin" />
@@ -493,7 +493,7 @@ export default function PrimarySettingsPage() {
                 </span>
               ) : logoUrl ? 'Replace Logo' : 'Upload Logo'}
             </button>
-            {logoSaved  && <p className="text-xs mt-2 text-green-700">✓ Logo updated successfully.</p>}
+            {logoSaved  && <p className="text-xs mt-2 text-[#145C44]">✓ Logo updated successfully.</p>}
             {logoError  && <p className="text-xs mt-2 text-red-600">{logoError}</p>}
             {!logoUrl && !logoSaved && <p className="text-xs mt-2 text-slate-400">No logo uploaded yet.</p>}
           </div>
@@ -503,18 +503,18 @@ export default function PrimarySettingsPage() {
       {/* Branding Colors */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
         <div className="border-b border-gray-100 pb-2">
-          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Branding Colors</h2>
+          <h2 className="text-sm font-bold text-slate-700 font-medium">Branding Colors</h2>
           <p className="text-xs text-slate-400 mt-0.5">Teachers will see the updated theme on their next login.</p>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Primary Color</label>
             <div className="flex items-center gap-3">
-              <input type="color" value={form.primary_color ?? '#15803D'}
+              <input type="color" value={form.primary_color ?? '#145C44'}
                 onChange={e => setForm(f => ({ ...f, primary_color: e.target.value }))}
                 className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5" />
               <input value={form.primary_color ?? ''} onChange={e => setForm(f => ({ ...f, primary_color: e.target.value }))}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono" placeholder="#15803D" />
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono" placeholder="#145C44" />
             </div>
           </div>
           <div>
@@ -529,16 +529,16 @@ export default function PrimarySettingsPage() {
           </div>
         </div>
         {brandError && <p className="text-xs text-red-600">{brandError}</p>}
-        {brandSaved && <p className="text-xs text-green-700">✓ Colors saved.</p>}
+        {brandSaved && <p className="text-xs text-[#145C44]">✓ Colors saved.</p>}
         <button onClick={saveBranding} disabled={brandSaving}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-          style={{ backgroundColor: '#15803D' }}>
+          style={{ backgroundColor: '#145C44' }}>
           {brandSaving ? 'Saving…' : 'Save Colors'}
         </button>
       </div>
 
       {/* Read-only info */}
-      <div className="bg-gray-50 rounded-xl border border-gray-100 px-5 py-4 text-xs text-slate-500 space-y-1">
+      <div className="bg-[#F5F0E8] rounded-xl border border-gray-100 px-5 py-4 text-xs text-slate-500 space-y-1">
         <p>School ID: <span className="font-mono text-slate-700">{data?.id}</span></p>
         <p>School Code: <span className="font-mono font-bold text-slate-700">{data?.code}</span></p>
         <p className="text-slate-400 pt-1">Contact your system administrator to change the school code or subscription details.</p>

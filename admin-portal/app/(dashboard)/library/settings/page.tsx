@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -41,7 +41,7 @@ export default function LibrarySettingsPage() {
       <Card>
         <div className="space-y-5">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 block mb-1.5">
+            <label className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400 block mb-1.5">
               Loan Period (days)
             </label>
             <input
@@ -54,7 +54,7 @@ export default function LibrarySettingsPage() {
           </div>
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 block mb-1.5">
+            <label className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400 block mb-1.5">
               Fine Per Day (GHS)
             </label>
             <input
@@ -67,7 +67,7 @@ export default function LibrarySettingsPage() {
           </div>
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 block mb-1.5">
+            <label className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400 block mb-1.5">
               Max Active Loans per Student
             </label>
             <input
@@ -80,7 +80,7 @@ export default function LibrarySettingsPage() {
           </div>
 
           {error && <p className="text-xs text-red-500">{error}</p>}
-          {saved && <p className="text-xs text-green-600 dark:text-green-400">Settings saved successfully.</p>}
+          {saved && <p className="text-xs text-[#145C44] dark:text-[#2ab289]">Settings saved successfully.</p>}
 
           <Button loading={saving} onClick={save}>Save Settings</Button>
         </div>

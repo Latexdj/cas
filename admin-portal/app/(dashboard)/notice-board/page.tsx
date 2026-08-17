@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 
@@ -58,7 +58,7 @@ function NoticeForm({
   }
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm mb-6">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm mb-6">
       <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-4">
         {initial.title ? 'Edit Notice' : 'New Notice'}
       </h3>
@@ -69,7 +69,7 @@ function NoticeForm({
             value={form.title}
             onChange={e => set('title', e.target.value)}
             placeholder="Notice title…"
-            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
           />
         </div>
         <div>
@@ -79,7 +79,7 @@ function NoticeForm({
             onChange={e => set('body', e.target.value)}
             placeholder="Full notice text…"
             rows={4}
-            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 resize-y"
+            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44] resize-y"
           />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -88,7 +88,7 @@ function NoticeForm({
             <select
               value={form.priority}
               onChange={e => set('priority', e.target.value)}
-              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
             >
               <option value="normal">Normal</option>
               <option value="important">Important</option>
@@ -101,7 +101,7 @@ function NoticeForm({
               type="date"
               value={form.expires_at}
               onChange={e => set('expires_at', e.target.value)}
-              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
             />
           </div>
           <div className="flex items-end pb-2">
@@ -110,9 +110,14 @@ function NoticeForm({
                 type="checkbox"
                 checked={form.is_pinned}
                 onChange={e => set('is_pinned', e.target.checked)}
-                className="w-4 h-4 accent-green-600 rounded"
+                className="w-4 h-4 accent-[#145C44] rounded"
               />
-              <span className="text-sm text-slate-700 dark:text-slate-300">📌 Pin this notice</span>
+              <span className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0">
+                  <line x1="12" y1="17" x2="12" y2="22" /><path d="M5 17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6h1a2 2 0 000-4H8a2 2 0 000 4h1v4.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24z" />
+                </svg>
+                Pin this notice
+              </span>
             </label>
           </div>
         </div>
@@ -121,7 +126,7 @@ function NoticeForm({
             onClick={() => onSave(form)}
             disabled={saving || !form.title.trim() || !form.body.trim()}
             className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40 transition-opacity"
-            style={{ backgroundColor: '#15803D' }}
+            style={{ backgroundColor: '#145C44' }}
           >
             {saving ? (
               <><div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />Saving…</>
@@ -154,7 +159,7 @@ export default function NoticeBoardPage() {
     setLoading(true); setError('');
     api.get<Notice[]>('/api/notices/all')
       .then(r => setNotices(r.data))
-      .catch(() => setError('Failed to load notices.'))
+      .catch(() => setError('Could not load notices.'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -224,7 +229,7 @@ export default function NoticeBoardPage() {
           <button
             onClick={() => setCreating(true)}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white"
-            style={{ backgroundColor: '#15803D' }}
+            style={{ backgroundColor: '#145C44' }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
               strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
@@ -255,11 +260,11 @@ export default function NoticeBoardPage() {
       {loading ? (
         <div className="flex justify-center py-16">
           <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin"
-            style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+            style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : notices.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-4xl mb-3">📋</p>
+          
           <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No notices yet</p>
           <p className="text-xs text-slate-400 mt-1">Create your first notice to broadcast information to all staff.</p>
         </div>
@@ -287,9 +292,9 @@ export default function NoticeBoardPage() {
                   />
                 ) : (
                   <div
-                    className="rounded-2xl p-5"
+                    className="rounded-xl p-5"
                     style={{
-                      backgroundColor: expired ? '#F8FAFC' : s.bg,
+                      backgroundColor: expired ? '#F5F0E8' : s.bg,
                       border: `1px solid ${expired ? '#E2E8F0' : s.border}`,
                       borderLeft: `4px solid ${expired ? '#CBD5E1' : s.badge}`,
                       opacity: expired ? 0.65 : 1,
@@ -298,15 +303,19 @@ export default function NoticeBoardPage() {
                     <div className="flex items-start gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          {notice.is_pinned && <span className="text-sm">📌</span>}
+                          {notice.is_pinned && (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="#C8973A" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0">
+                              <line x1="12" y1="17" x2="12" y2="22" /><path d="M5 17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6h1a2 2 0 000-4H8a2 2 0 000 4h1v4.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24z" />
+                            </svg>
+                          )}
                           <span
-                            className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
+                            className="text-[10px] font-bold font-medium px-2 py-0.5 rounded-full"
                             style={{ backgroundColor: `${s.badge}18`, color: s.badge }}
                           >
                             {notice.priority}
                           </span>
                           {expired && (
-                            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400">
+                            <span className="text-[10px] font-bold font-medium px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400">
                               Expired
                             </span>
                           )}

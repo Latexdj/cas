@@ -20,7 +20,7 @@ export function Header({ title, onMenuClick }: Props) {
   }
 
   return (
-    <header className="h-16 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between px-4 md:px-6 flex-shrink-0 shadow-sm">
+    <header className="h-16 flex items-center justify-between px-4 md:px-6 flex-shrink-0" style={{ backgroundColor: '#FDFAF5', borderBottom: '1px solid #E8E0D4' }}>
       <div className="flex items-center gap-3">
         <button
           onClick={onMenuClick}
@@ -50,8 +50,8 @@ export function Header({ title, onMenuClick }: Props) {
               <p className="text-xs capitalize text-slate-400 dark:text-slate-500">{user.role}</p>
             </div>
             <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-              style={{ backgroundColor: '#15803D' }}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+              style={{ backgroundColor: '#C8973A', color: '#0B3D2E' }}
             >
               {initials}
             </div>

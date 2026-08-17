@@ -32,7 +32,7 @@ const STUDENT_EMPTY: StudentForm = {
 };
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  Active:    { bg: '#DCFCE7', color: '#15803D' },
+  Active:    { bg: '#DCFCE7', color: '#145C44' },
   Graduated: { bg: '#E0F2FE', color: '#0369A1' },
   Inactive:  { bg: '#F1F5F9', color: '#64748B' },
 };
@@ -333,7 +333,7 @@ export default function StudentsPage() {
     if (search) activeFilters.push(`Search: "${search}"`);
     const filterLine = activeFilters.length ? activeFilters.join(' · ') : 'All students';
     const rows = filtered.map((s, i) => `
-      <tr style="${i % 2 === 1 ? 'background:#f8fafc' : ''}">
+      <tr style="${i % 2 === 1 ? 'background:#F0EBE1' : ''}">
         <td>${s.student_code}</td>
         <td>${s.name}</td>
         <td>${s.class_name}</td>
@@ -372,7 +372,7 @@ export default function StudentsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: '#0F172A' }}>Students</h1>
+          <h1 className="text-2xl font-bold" style={{ color: '#1C1208' }}>Students</h1>
           <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>{filtered.length} student{filtered.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex gap-2">
@@ -439,7 +439,7 @@ export default function StudentsPage() {
       {/* Table */}
       <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
         {loading ? (
-          <div className="flex justify-center py-16"><div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} /></div>
+          <div className="flex justify-center py-16"><div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} /></div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-sm" style={{ color: '#94A3B8' }}>No students found.</div>
 
@@ -447,20 +447,20 @@ export default function StudentsPage() {
           <div className="overflow-x-auto">
             <table className="min-w-[800px] w-full text-sm">
               <thead>
-                <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F8FAFC' }}>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}></th>
+                <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
+                  <th className="px-5 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}></th>
                   <Th label="ID" sortKey="student_code" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
-                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                      className="px-5 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
                   <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
-                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                      className="px-5 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
                   <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
-                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                      className="px-5 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
                   <Th label="Program" sortKey="program_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
-                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
+                      className="px-5 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
                   <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
-                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }} />
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}>Notes</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: '#94A3B8' }}></th>
+                      className="px-5 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }} />
+                  <th className="px-5 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>Notes</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -468,7 +468,7 @@ export default function StudentsPage() {
                   const sc = STATUS_COLORS[s.status] || STATUS_COLORS.Inactive;
                   return (
                     <tr key={s.id} className="hover:bg-slate-50 transition-colors"
-                      style={{ borderBottom: i < displayRows.length - 1 ? '1px solid #F8FAFC' : 'none' }}>
+                      style={{ borderBottom: i < displayRows.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
                       <td className="px-3 py-2">
                         <div className="w-8 h-8 rounded-full overflow-hidden border shrink-0" style={{ backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' }}>
                           {s.picture_url
@@ -480,7 +480,7 @@ export default function StudentsPage() {
                       <td className="px-5 py-3">
                         <span className="font-mono text-xs font-bold px-2 py-0.5 rounded" style={{ backgroundColor: '#E0F2FE', color: '#0369A1' }}>{s.student_code}</span>
                       </td>
-                      <td className="px-5 py-3 font-semibold" style={{ color: '#0F172A' }}>{s.name}</td>
+                      <td className="px-5 py-3 font-semibold" style={{ color: '#1C1208' }}>{s.name}</td>
                       <td className="px-5 py-3" style={{ color: '#475569' }}>{s.class_name}</td>
                       <td className="px-5 py-3">
                         {s.program_name
@@ -522,8 +522,8 @@ export default function StudentsPage() {
       {/* Add / Edit modal */}
       {(modal === 'add' || modal === 'edit') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
-            <h2 className="text-lg font-bold mb-4" style={{ color: '#0F172A' }}>{modal === 'add' ? 'Add Student' : 'Edit Student'}</h2>
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+            <h2 className="text-lg font-bold mb-4" style={{ color: '#1C1208' }}>{modal === 'add' ? 'Add Student' : 'Edit Student'}</h2>
             <div className="max-h-[72vh] overflow-y-auto pr-1 space-y-5">
 
               {/* Basic */}
@@ -537,20 +537,20 @@ export default function StudentsPage() {
                     </div>
                     <div className="col-span-2">
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Name *</label>
-                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.name} onChange={sf('name')} placeholder="Full name" />
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.name} onChange={sf('name')} placeholder="Full name" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Class *</label>
-                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: form.class_name ? '#0F172A' : '#94A3B8' }} value={form.class_name} onChange={sf('class_name')}>
+                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: form.class_name ? '#1C1208' : '#94A3B8' }} value={form.class_name} onChange={sf('class_name')}>
                         <option value="">Select class…</option>
                         {allClasses.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Status</label>
-                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.status} onChange={sf('status')}>
+                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.status} onChange={sf('status')}>
                         <option>Active</option><option>Graduated</option><option>Inactive</option>
                       </select>
                     </div>
@@ -559,7 +559,7 @@ export default function StudentsPage() {
                     {programs.length > 0 && (
                       <div>
                         <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Program</label>
-                        <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.program_id} onChange={sf('program_id')}>
+                        <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.program_id} onChange={sf('program_id')}>
                           <option value="">No program assigned</option>
                           {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
@@ -567,7 +567,7 @@ export default function StudentsPage() {
                     )}
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Residential Status</label>
-                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.residential_status} onChange={sf('residential_status')}>
+                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.residential_status} onChange={sf('residential_status')}>
                         <option value="">Select…</option>
                         <option value="Day">Day</option>
                         <option value="Boarding">Boarding</option>
@@ -577,22 +577,22 @@ export default function StudentsPage() {
                   <div className="grid grid-cols-4 gap-3">
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>House</label>
-                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.house} onChange={sf('house')}>
+                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.house} onChange={sf('house')}>
                         <option value="">Select house…</option>
                         {houses.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Aggregate</label>
-                      <input type="number" min={6} max={36} className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.aggregate} onChange={sf('aggregate')} placeholder="6–36" />
+                      <input type="number" min={6} max={36} className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.aggregate} onChange={sf('aggregate')} placeholder="6–36" />
                     </div>
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>JHS Index No.</label>
-                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.jhs_index_number} onChange={sf('jhs_index_number')} />
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.jhs_index_number} onChange={sf('jhs_index_number')} />
                     </div>
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Year of Admission</label>
-                      <input type="number" min={2000} max={2100} className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.year_of_admission} onChange={sf('year_of_admission')} placeholder="e.g. 2024" />
+                      <input type="number" min={2000} max={2100} className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.year_of_admission} onChange={sf('year_of_admission')} placeholder="e.g. 2024" />
                     </div>
                   </div>
                 </div>
@@ -607,7 +607,7 @@ export default function StudentsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Gender</label>
-                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.gender} onChange={sf('gender')}>
+                      <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.gender} onChange={sf('gender')}>
                         <option value="">Select…</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
@@ -615,34 +615,34 @@ export default function StudentsPage() {
                     </div>
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Date of Birth</label>
-                      <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.date_of_birth} onChange={sf('date_of_birth')} />
+                      <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.date_of_birth} onChange={sf('date_of_birth')} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Mobile No.</label>
-                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: fieldErrors.mobile_number ? '#F87171' : '#E2D9CC', color: '#0F172A' }} value={form.mobile_number} onChange={sf('mobile_number')} placeholder="0XXXXXXXXX" />
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: fieldErrors.mobile_number ? '#F87171' : '#E2D9CC', color: '#1C1208' }} value={form.mobile_number} onChange={sf('mobile_number')} placeholder="0XXXXXXXXX" />
                       {fieldErrors.mobile_number && <p className="text-xs mt-0.5" style={{ color: '#DC2626' }}>{fieldErrors.mobile_number}</p>}
                     </div>
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Ghana Card No.</label>
-                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: fieldErrors.ghana_card_number ? '#F87171' : '#E2D9CC', color: '#0F172A' }} value={form.ghana_card_number} onChange={sf('ghana_card_number')} placeholder="GHA-XXXXXXXXX-X" />
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: fieldErrors.ghana_card_number ? '#F87171' : '#E2D9CC', color: '#1C1208' }} value={form.ghana_card_number} onChange={sf('ghana_card_number')} placeholder="GHA-XXXXXXXXX-X" />
                       {fieldErrors.ghana_card_number && <p className="text-xs mt-0.5" style={{ color: '#DC2626' }}>{fieldErrors.ghana_card_number}</p>}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>NHIA No.</label>
-                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.nhia_number} onChange={sf('nhia_number')} />
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.nhia_number} onChange={sf('nhia_number')} />
                     </div>
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Hometown</label>
-                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.hometown} onChange={sf('hometown')} />
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.hometown} onChange={sf('hometown')} />
                     </div>
                   </div>
                   <div>
                     <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Residential Address</label>
-                    <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.residential_address} onChange={sf('residential_address')} />
+                    <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.residential_address} onChange={sf('residential_address')} />
                   </div>
                 </div>
               </div>
@@ -655,11 +655,11 @@ export default function StudentsPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Religion</label>
-                    <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.religion} onChange={sf('religion')} />
+                    <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.religion} onChange={sf('religion')} />
                   </div>
                   <div>
                     <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Religious Denomination</label>
-                    <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.religious_denomination} onChange={sf('religious_denomination')} />
+                    <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.religious_denomination} onChange={sf('religious_denomination')} />
                   </div>
                 </div>
               </div>
@@ -673,16 +673,16 @@ export default function StudentsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Guardian Name</label>
-                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.guardian_name} onChange={sf('guardian_name')} />
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.guardian_name} onChange={sf('guardian_name')} />
                     </div>
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Occupation</label>
-                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.guardian_occupation} onChange={sf('guardian_occupation')} />
+                      <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.guardian_occupation} onChange={sf('guardian_occupation')} />
                     </div>
                   </div>
                   <div>
                     <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Guardian Mobile</label>
-                    <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: fieldErrors.guardian_mobile ? '#F87171' : '#E2D9CC', color: '#0F172A' }} value={form.guardian_mobile} onChange={sf('guardian_mobile')} placeholder="0XXXXXXXXX" />
+                    <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: fieldErrors.guardian_mobile ? '#F87171' : '#E2D9CC', color: '#1C1208' }} value={form.guardian_mobile} onChange={sf('guardian_mobile')} placeholder="0XXXXXXXXX" />
                     {fieldErrors.guardian_mobile && <p className="text-xs mt-0.5" style={{ color: '#DC2626' }}>{fieldErrors.guardian_mobile}</p>}
                   </div>
                 </div>
@@ -693,16 +693,16 @@ export default function StudentsPage() {
               {/* Notes */}
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Notes</label>
-                <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }} value={form.notes} onChange={sf('notes')} placeholder="Optional" />
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.notes} onChange={sf('notes')} placeholder="Optional" />
               </div>
 
             </div>
             {/* Student Portal PIN — edit mode only */}
             {modal === 'edit' && (
               <div className="mt-4 pt-4 border-t border-slate-100">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-500 mb-2">Student Portal Access</p>
+                <p className="text-xs font-bold font-medium text-slate-500 mb-2">Student Portal Access</p>
                 <div className="flex items-center gap-3">
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${hasPin ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-600'}`}>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${hasPin ? 'bg-[#E8F4EE] text-[#145C44]' : 'bg-amber-50 text-amber-600'}`}>
                     {hasPin ? 'PIN set' : 'No PIN'}
                   </span>
                   <input
@@ -717,7 +717,7 @@ export default function StudentsPage() {
                   </Button>
                 </div>
                 {pinMsg && (
-                  <p className={`text-xs mt-1.5 ${pinMsg.includes('successfully') ? 'text-green-600' : 'text-red-500'}`}>{pinMsg}</p>
+                  <p className={`text-xs mt-1.5 ${pinMsg.includes('successfully') ? 'text-[#145C44]' : 'text-red-500'}`}>{pinMsg}</p>
                 )}
               </div>
             )}
@@ -734,10 +734,10 @@ export default function StudentsPage() {
       {/* Upload modal */}
       {modal === 'upload' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
-            <h2 className="text-lg font-bold mb-4" style={{ color: '#0F172A' }}>Upload Students (Excel / CSV)</h2>
-            <div className="rounded-lg p-4 mb-4 text-sm" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2D9CC' }}>
-              <p className="font-semibold mb-2" style={{ color: '#0F172A' }}>Column format:</p>
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+            <h2 className="text-lg font-bold mb-4" style={{ color: '#1C1208' }}>Upload Students (Excel / CSV)</h2>
+            <div className="rounded-lg p-4 mb-4 text-sm" style={{ backgroundColor: '#F5F0E8', border: '1px solid #E2D9CC' }}>
+              <p className="font-semibold mb-2" style={{ color: '#1C1208' }}>Column format:</p>
               <p style={{ color: '#475569' }}>A: Student ID (blank = auto-generate) &nbsp;·&nbsp; B: Name &nbsp;·&nbsp; C: Class &nbsp;·&nbsp; D: Program &nbsp;·&nbsp; E: Status &nbsp;·&nbsp; F: Notes</p>
               <p className="mt-1 text-xs" style={{ color: '#94A3B8' }}>Program and Status are optional. See the Reference sheet in the template for valid values.</p>
               <button className="mt-2 text-xs font-semibold underline" style={{ color: '#2563EB' }} onClick={openTemplateModal}>Download template (.xlsx)</button>
@@ -749,9 +749,9 @@ export default function StudentsPage() {
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
                 className="w-full flex items-center justify-center gap-2 border-2 border-dashed rounded-xl px-4 py-4 text-sm font-semibold transition-colors disabled:opacity-50"
-                style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#F9FAFB' }}
+                style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#F5F0E8' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#2563EB'; (e.currentTarget as HTMLButtonElement).style.color = '#2563EB'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#EFF6FF'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB'; (e.currentTarget as HTMLButtonElement).style.color = '#374151'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#F9FAFB'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB'; (e.currentTarget as HTMLButtonElement).style.color = '#374151'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#F5F0E8'; }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
@@ -762,7 +762,7 @@ export default function StudentsPage() {
             {uploading && <p className="text-sm text-center mb-3" style={{ color: '#64748B' }}>Uploading…</p>}
             {uploadResult && (
               <div className="rounded-lg p-3 text-sm mb-4" style={{ backgroundColor: uploadResult.errors.length ? '#FEF9F0' : '#F0FDF4', border: `1px solid ${uploadResult.errors.length ? '#FCD34D' : '#BBF7D0'}` }}>
-                <p className="font-semibold mb-1" style={{ color: '#0F172A' }}>✓ {uploadResult.inserted} student(s) imported</p>
+                <p className="font-semibold mb-1" style={{ color: '#1C1208' }}>✓ {uploadResult.inserted} student(s) imported</p>
                 {uploadResult.errors.map((e, i) => <p key={i} className="text-xs" style={{ color: '#DC2626' }}>Row {e.row}: {e.message}</p>)}
               </div>
             )}
@@ -774,11 +774,11 @@ export default function StudentsPage() {
       {/* Update Records modal */}
       {modal === 'update' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
-            <h2 className="text-lg font-bold mb-1" style={{ color: '#0F172A' }}>Update Student Records</h2>
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+            <h2 className="text-lg font-bold mb-1" style={{ color: '#1C1208' }}>Update Student Records</h2>
             <p className="text-sm mb-4" style={{ color: '#64748B' }}>Upload a file where column A is the Student ID. Only non-blank fields will be updated — blank cells are skipped.</p>
-            <div className="rounded-lg p-4 mb-4 text-sm" style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2D9CC' }}>
-              <p className="font-semibold mb-1" style={{ color: '#0F172A' }}>Same column format as the import template:</p>
+            <div className="rounded-lg p-4 mb-4 text-sm" style={{ backgroundColor: '#F5F0E8', border: '1px solid #E2D9CC' }}>
+              <p className="font-semibold mb-1" style={{ color: '#1C1208' }}>Same column format as the import template:</p>
               <p style={{ color: '#475569' }}>A: Student ID (required) &nbsp;·&nbsp; B: Name &nbsp;·&nbsp; C: Class &nbsp;·&nbsp; D: Program &nbsp;·&nbsp; E: Status &nbsp;·&nbsp; F–V: Profile fields</p>
               <p className="mt-1 text-xs" style={{ color: '#94A3B8' }}>Leave any column blank to keep the existing value unchanged.</p>
               <button className="mt-2 text-xs font-semibold underline" style={{ color: '#2563EB' }} onClick={openTemplateModal}>Download template (.xlsx)</button>
@@ -790,9 +790,9 @@ export default function StudentsPage() {
                 onClick={() => updateFileRef.current?.click()}
                 disabled={updating}
                 className="w-full flex items-center justify-center gap-2 border-2 border-dashed rounded-xl px-4 py-4 text-sm font-semibold transition-colors disabled:opacity-50"
-                style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#F9FAFB' }}
+                style={{ borderColor: '#D1D5DB', color: '#374151', backgroundColor: '#F5F0E8' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#2563EB'; (e.currentTarget as HTMLButtonElement).style.color = '#2563EB'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#EFF6FF'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB'; (e.currentTarget as HTMLButtonElement).style.color = '#374151'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#F9FAFB'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#D1D5DB'; (e.currentTarget as HTMLButtonElement).style.color = '#374151'; (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#F5F0E8'; }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
@@ -803,7 +803,7 @@ export default function StudentsPage() {
             {updating && <p className="text-sm text-center mb-3" style={{ color: '#64748B' }}>Processing…</p>}
             {updateResult && (
               <div className="rounded-lg p-3 text-sm mb-4 space-y-1" style={{ backgroundColor: updateResult.errors.length || updateResult.notFound.length ? '#FEF9F0' : '#F0FDF4', border: `1px solid ${updateResult.errors.length || updateResult.notFound.length ? '#FCD34D' : '#BBF7D0'}` }}>
-                <p className="font-semibold" style={{ color: '#0F172A' }}>✓ {updateResult.updated} student(s) updated</p>
+                <p className="font-semibold" style={{ color: '#1C1208' }}>✓ {updateResult.updated} student(s) updated</p>
                 {updateResult.notFound.map((e, i) => (
                   <p key={i} className="text-xs" style={{ color: '#B45309' }}>Row {e.row}: Student ID "{e.code}" not found</p>
                 ))}
@@ -820,13 +820,13 @@ export default function StudentsPage() {
       {/* Promote modal */}
       {modal === 'promote' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
-            <h2 className="text-lg font-bold mb-1" style={{ color: '#0F172A' }}>Promote Class</h2>
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+            <h2 className="text-lg font-bold mb-1" style={{ color: '#1C1208' }}>Promote Class</h2>
             <p className="text-sm mb-4" style={{ color: '#64748B' }}>Uncheck students who should repeat the year — only checked students will be moved.</p>
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>From Class</label>
-                <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}
+                <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}
                   value={fromClass} onChange={e => { setFromClass(e.target.value); setActionResult(''); }}>
                   <option value="">Select class…</option>
                   {classes.map(c => <option key={c} value={c}>{c}</option>)}
@@ -839,7 +839,7 @@ export default function StudentsPage() {
                       Students ({rosterSelected.size} of {rosterStudents.length} selected)
                     </label>
                     <div className="flex gap-3 text-xs">
-                      <button onClick={() => setRosterSelected(new Set(rosterStudents.map(s => s.id)))} style={{ color: '#15803D' }} className="font-semibold hover:underline">All</button>
+                      <button onClick={() => setRosterSelected(new Set(rosterStudents.map(s => s.id)))} style={{ color: '#145C44' }} className="font-semibold hover:underline">All</button>
                       <button onClick={() => setRosterSelected(new Set())} style={{ color: '#64748B' }} className="font-semibold hover:underline">None</button>
                     </div>
                   </div>
@@ -857,7 +857,7 @@ export default function StudentsPage() {
                                 e.target.checked ? next.add(s.id) : next.delete(s.id);
                                 setRosterSelected(next);
                               }} />
-                            <span className="text-sm flex-1" style={{ color: '#0F172A' }}>{s.name}</span>
+                            <span className="text-sm flex-1" style={{ color: '#1C1208' }}>{s.name}</span>
                             <span className="text-xs font-mono" style={{ color: '#94A3B8' }}>{s.student_code}</span>
                           </label>
                         ))}
@@ -867,12 +867,12 @@ export default function StudentsPage() {
               )}
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>To Class</label>
-                <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}
                   value={toClass} onChange={e => setToClass(e.target.value)} placeholder="e.g. Form 2A" list="class-list-to" />
                 <datalist id="class-list-to">{classes.map(c => <option key={c} value={c} />)}</datalist>
               </div>
             </div>
-            {actionResult && <p className="text-sm mt-3 font-medium" style={{ color: actionResult.startsWith('✓') ? '#15803D' : '#DC2626' }}>{actionResult}</p>}
+            {actionResult && <p className="text-sm mt-3 font-medium" style={{ color: actionResult.startsWith('✓') ? '#145C44' : '#DC2626' }}>{actionResult}</p>}
             <div className="flex gap-3 mt-6">
               <Button variant="secondary" className="flex-1" onClick={() => setModal(null)}>Close</Button>
               <Button className="flex-1" loading={saving} onClick={handlePromote} disabled={rosterSelected.size === 0}>
@@ -886,13 +886,13 @@ export default function StudentsPage() {
       {/* Graduate modal */}
       {modal === 'graduate' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
-            <h2 className="text-lg font-bold mb-1" style={{ color: '#0F172A' }}>Graduate Class</h2>
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+            <h2 className="text-lg font-bold mb-1" style={{ color: '#1C1208' }}>Graduate Class</h2>
             <p className="text-sm mb-4" style={{ color: '#64748B' }}>Uncheck students who should not graduate yet. Historical attendance is preserved.</p>
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Class to Graduate</label>
-                <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}
+                <select className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}
                   value={fromClass} onChange={e => { setFromClass(e.target.value); setActionResult(''); }}>
                   <option value="">Select class…</option>
                   {classes.map(c => <option key={c} value={c}>{c}</option>)}
@@ -905,7 +905,7 @@ export default function StudentsPage() {
                       Students ({rosterSelected.size} of {rosterStudents.length} selected)
                     </label>
                     <div className="flex gap-3 text-xs">
-                      <button onClick={() => setRosterSelected(new Set(rosterStudents.map(s => s.id)))} style={{ color: '#15803D' }} className="font-semibold hover:underline">All</button>
+                      <button onClick={() => setRosterSelected(new Set(rosterStudents.map(s => s.id)))} style={{ color: '#145C44' }} className="font-semibold hover:underline">All</button>
                       <button onClick={() => setRosterSelected(new Set())} style={{ color: '#64748B' }} className="font-semibold hover:underline">None</button>
                     </div>
                   </div>
@@ -923,7 +923,7 @@ export default function StudentsPage() {
                                 e.target.checked ? next.add(s.id) : next.delete(s.id);
                                 setRosterSelected(next);
                               }} />
-                            <span className="text-sm flex-1" style={{ color: '#0F172A' }}>{s.name}</span>
+                            <span className="text-sm flex-1" style={{ color: '#1C1208' }}>{s.name}</span>
                             <span className="text-xs font-mono" style={{ color: '#94A3B8' }}>{s.student_code}</span>
                           </label>
                         ))}
@@ -932,7 +932,7 @@ export default function StudentsPage() {
                 </div>
               )}
             </div>
-            {actionResult && <p className="text-sm mt-3 font-medium" style={{ color: actionResult.startsWith('✓') ? '#15803D' : '#DC2626' }}>{actionResult}</p>}
+            {actionResult && <p className="text-sm mt-3 font-medium" style={{ color: actionResult.startsWith('✓') ? '#145C44' : '#DC2626' }}>{actionResult}</p>}
             <div className="flex gap-3 mt-6">
               <Button variant="secondary" className="flex-1" onClick={() => setModal(null)}>Close</Button>
               <Button className="flex-1" loading={saving} onClick={handleGraduate}
@@ -947,15 +947,15 @@ export default function StudentsPage() {
       {/* Template download modal */}
       {tmplOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
-            <h2 className="text-lg font-bold mb-1" style={{ color: '#0F172A' }}>Download Template</h2>
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+            <h2 className="text-lg font-bold mb-1" style={{ color: '#1C1208' }}>Download Template</h2>
             <p className="text-sm mb-5" style={{ color: '#64748B' }}>Download a blank template or one pre-filled with existing students for editing and re-upload.</p>
 
             <div className="flex rounded-xl overflow-hidden border border-slate-200 mb-5 text-sm">
               {(['empty', 'populated'] as const).map(m => (
                 <button key={m} onClick={() => setTmplMode(m)}
                   className="flex-1 py-2.5 font-semibold transition-colors"
-                  style={{ backgroundColor: tmplMode === m ? '#15803D' : '#F8FAFC', color: tmplMode === m ? '#FFFFFF' : '#64748B' }}>
+                  style={{ backgroundColor: tmplMode === m ? '#145C44' : '#F5F0E8', color: tmplMode === m ? '#FFFFFF' : '#64748B' }}>
                   {m === 'empty' ? 'Empty template' : 'Pre-filled with students'}
                 </button>
               ))}
@@ -966,7 +966,7 @@ export default function StudentsPage() {
                 <div>
                   <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Class (optional)</label>
                   <select value={tmplClass} onChange={e => setTmplClass(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}>
+                    className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}>
                     <option value="">All classes</option>
                     {allClasses.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
@@ -974,7 +974,7 @@ export default function StudentsPage() {
                 <div>
                   <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Status</label>
                   <select value={tmplStatus} onChange={e => setTmplStatus(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}>
+                    className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}>
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
                     <option value="Graduated">Graduated</option>
@@ -987,7 +987,7 @@ export default function StudentsPage() {
             <div className="flex gap-3">
               <Button variant="secondary" className="flex-1" onClick={() => setTmplOpen(false)}>Cancel</Button>
               <Button className="flex-1" loading={tmplLoading} onClick={doTemplateDownload}
-                style={{ backgroundColor: '#15803D' }}>
+                style={{ backgroundColor: '#145C44' }}>
                 Download
               </Button>
             </div>

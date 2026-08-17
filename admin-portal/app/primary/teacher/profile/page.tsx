@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
@@ -16,7 +16,7 @@ interface Profile {
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
-      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
+      <p className="text-xs font-semibold text-slate-400 font-medium">{label}</p>
       <p className="text-sm text-slate-800 mt-0.5">{value || <span className="italic text-slate-300">Not set</span>}</p>
     </div>
   );
@@ -52,7 +52,7 @@ export default function TeacherProfilePage() {
           emergency_contact_phone: r.data.emergency_contact_phone ?? '',
         });
       })
-      .catch(() => setError('Failed to load profile.'))
+      .catch(() => setError('Could not load profile.'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -89,7 +89,7 @@ export default function TeacherProfilePage() {
 
   if (loading) return (
     <div className="flex justify-center py-20">
-      <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+      <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
     </div>
   );
 
@@ -100,7 +100,7 @@ export default function TeacherProfilePage() {
       <h1 className="text-xl font-bold text-slate-900">My Profile</h1>
 
       {error   && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>}
-      {success && <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">{success}</p>}
+      {success && <p className="text-sm text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded-lg px-4 py-2">{success}</p>}
 
       {/* Photo + identity */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-center gap-5">
@@ -109,7 +109,7 @@ export default function TeacherProfilePage() {
             {profile.photo_url ? (
               <img src={profile.photo_url} alt={profile.name} className="w-full h-full object-cover" />
             ) : (
-              <span className="text-3xl font-black text-gray-300">{profile.name.charAt(0).toUpperCase()}</span>
+              <span className="text-3xl font-bold text-gray-300">{profile.name.charAt(0).toUpperCase()}</span>
             )}
           </div>
           <button onClick={() => photoRef.current?.click()}
@@ -130,7 +130,7 @@ export default function TeacherProfilePage() {
 
       {/* Read-only fields */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 space-y-4">
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">School Details</p>
+        <p className="text-xs font-bold text-slate-400 font-medium">School Details</p>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Email"    value={profile.email} />
           <Field label="Status"   value={profile.department ?? undefined} />
@@ -145,7 +145,7 @@ export default function TeacherProfilePage() {
           <p className="text-sm font-bold text-slate-700">Personal Information</p>
           {!editing && (
             <button onClick={() => setEditing(true)}
-              className="text-xs font-semibold hover:underline" style={{ color: '#15803D' }}>
+              className="text-xs font-semibold hover:underline" style={{ color: '#145C44' }}>
               Edit
             </button>
           )}
@@ -211,7 +211,7 @@ export default function TeacherProfilePage() {
                 <button onClick={() => setEditing(false)} className="flex-1 py-2 rounded-lg text-sm font-semibold border border-gray-200 text-slate-600">Cancel</button>
                 <button onClick={save} disabled={saving}
                   className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                  style={{ backgroundColor: '#15803D' }}>
+                  style={{ backgroundColor: '#145C44' }}>
                   {saving ? 'Saving…' : 'Save Changes'}
                 </button>
               </div>

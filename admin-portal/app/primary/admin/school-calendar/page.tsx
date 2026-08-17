@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -33,7 +33,7 @@ export default function PrimarySchoolCalendarPage() {
     try {
       const { data } = await api.get<CalEvent[]>(`/api/school-calendar?year=${year}&month=${month}`);
       setEvents(data);
-    } catch { setError('Failed to load calendar.'); }
+    } catch { setError('Could not load calendar.'); }
     finally { setLoading(false); }
   }, [year, month]);
 
@@ -101,7 +101,7 @@ export default function PrimarySchoolCalendarPage() {
         </div>
         <button onClick={() => { setForm(f => ({ ...f, date: `${year}-${String(month).padStart(2,'0')}-01` })); setModal(true); }}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm"
-          style={{ backgroundColor: '#15803D' }}>
+          style={{ backgroundColor: '#145C44' }}>
           + Add Event
         </button>
       </div>
@@ -118,9 +118,9 @@ export default function PrimarySchoolCalendarPage() {
       {/* Month nav + calendar */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-          <button onClick={prevMonth} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-slate-500 hover:bg-gray-50 text-lg">‹</button>
+          <button onClick={prevMonth} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-slate-500 hover:bg-[#F5F0E8] text-lg">‹</button>
           <h2 className="text-sm font-bold text-slate-800">{monthName}</h2>
-          <button onClick={nextMonth} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-slate-500 hover:bg-gray-50 text-lg">›</button>
+          <button onClick={nextMonth} className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-slate-500 hover:bg-[#F5F0E8] text-lg">›</button>
         </div>
         <div className="grid grid-cols-7 border-b border-gray-100">
           {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
@@ -129,7 +129,7 @@ export default function PrimarySchoolCalendarPage() {
         </div>
         {loading ? (
           <div className="flex justify-center py-16">
-            <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+            <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
           </div>
         ) : (
           <div className="grid grid-cols-7">
@@ -139,8 +139,8 @@ export default function PrimarySchoolCalendarPage() {
               const dayEvents = eventsByDate.get(key) ?? [];
               const isToday = key === new Date().toISOString().slice(0, 10);
               return (
-                <div key={i} className={`min-h-16 border-b border-r border-gray-50 p-1.5 ${isToday ? 'bg-green-50' : ''}`}>
-                  <span className={`text-xs font-bold ${isToday ? 'text-green-700' : 'text-slate-600'}`}>{day}</span>
+                <div key={i} className={`min-h-16 border-b border-r border-gray-50 p-1.5 ${isToday ? 'bg-[#E8F4EE]' : ''}`}>
+                  <span className={`text-xs font-bold ${isToday ? 'text-[#145C44]' : 'text-slate-600'}`}>{day}</span>
                   {dayEvents.map(ev => (
                     <div key={ev.id} className={`mt-0.5 text-[10px] font-medium px-1 py-0.5 rounded truncate cursor-pointer ${TYPE_COLOR[ev.type] ?? 'bg-gray-100 text-gray-600'}`}
                       title={ev.name}>
@@ -186,8 +186,8 @@ export default function PrimarySchoolCalendarPage() {
 
       {/* Add Event Modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-900">Add Calendar Event</h2>
               <button onClick={() => setModal(false)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
@@ -239,7 +239,7 @@ export default function PrimarySchoolCalendarPage() {
               <button onClick={() => setModal(false)} className="flex-1 py-2 rounded-lg text-sm font-semibold border border-gray-200 text-slate-600">Cancel</button>
               <button onClick={saveEvent} disabled={saving || !form.date || !form.name}
                 className="flex-1 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                style={{ backgroundColor: '#15803D' }}>
+                style={{ backgroundColor: '#145C44' }}>
                 {saving ? 'Saving…' : 'Save Event'}
               </button>
             </div>

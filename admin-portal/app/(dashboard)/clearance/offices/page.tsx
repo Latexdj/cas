@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -153,7 +153,7 @@ export default function OfficesPage() {
 
   const { displayRows: officeRows, total: officeTotal, page: officePage, setPage: setOfficePage, pageSize: officePageSize, setPageSize: setOfficePageSize } = useTableControls(offices);
 
-  const sel = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500';
+  const sel = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]';
   const inp = `${sel} w-full`;
 
   const assignable = {
@@ -182,7 +182,7 @@ export default function OfficesPage() {
             + Add Staff Account
           </button>
           <button onClick={() => setOfficeForm({ _mode: 'add', office_type: 'general', sort_order: offices.length })}
-            className="px-4 py-2 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700">
+            className="px-4 py-2 rounded-xl text-sm font-semibold bg-[#145C44] text-white hover:bg-[#145C44]">
             + New Office
           </button>
         </div>
@@ -191,16 +191,16 @@ export default function OfficesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Offices list */}
         <div className="space-y-3">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Clearance Offices</p>
+          <p className="text-xs font-bold text-slate-400 font-medium">Clearance Offices</p>
           {offices.length === 0 && <p className="text-sm text-slate-400 py-4 text-center">No offices yet. Create one to get started.</p>}
           {(officeRows as typeof offices).map(o => (
-            <div key={o.id} className={`bg-white rounded-xl border p-4 cursor-pointer transition-colors ${selectedOffice?.id === o.id ? 'border-green-400 ring-1 ring-green-400' : 'border-slate-200 hover:border-slate-300'}`}
+            <div key={o.id} className={`bg-white rounded-xl border p-4 cursor-pointer transition-colors ${selectedOffice?.id === o.id ? 'border-[#2D7A4F] ring-1 ring-green-400' : 'border-slate-200 hover:border-slate-300'}`}
               onClick={() => loadOfficeStaff(o)}>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-slate-800 truncate">{o.name}</p>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${o.is_active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${o.is_active ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-slate-100 text-slate-500'}`}>
                       {o.is_active ? 'Active' : 'Inactive'}
                     </span>
                     <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{TYPE_LABELS[o.office_type] ?? o.office_type}</span>
@@ -230,9 +230,9 @@ export default function OfficesPage() {
             <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
               <p className="font-bold text-slate-800">{officeForm._mode === 'add' ? 'New Office' : 'Edit Office'}</p>
               {ofError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{ofError}</p>}
-              <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Office Name <span className="text-red-500">*</span></label>
+              <div><label className="text-xs font-semibold text-slate-500 font-medium block mb-1">Office Name <span className="text-red-500">*</span></label>
                 <input value={officeForm.name ?? ''} onChange={e => setOfficeForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Library, Accounts Office" className={inp} /></div>
-              <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Type</label>
+              <div><label className="text-xs font-semibold text-slate-500 font-medium block mb-1">Type</label>
                 <select value={officeForm.office_type ?? 'general'} onChange={e => setOfficeForm(p => ({ ...p, office_type: e.target.value, linked_programme_id: null, linked_house: null }))} className={inp}>
                   <option value="general">General (applies to all students)</option>
                   <option value="hod">HOD (applies by programme)</option>
@@ -241,7 +241,7 @@ export default function OfficesPage() {
                 </select>
               </div>
               {officeForm.office_type === 'hod' && (
-                <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Link to Programme (optional)</label>
+                <div><label className="text-xs font-semibold text-slate-500 font-medium block mb-1">Link to Programme (optional)</label>
                   <select value={officeForm.linked_programme_id ?? ''} onChange={e => setOfficeForm(p => ({ ...p, linked_programme_id: e.target.value || null }))} className={inp}>
                     <option value="">All programmes</option>
                     {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -249,24 +249,24 @@ export default function OfficesPage() {
                 </div>
               )}
               {officeForm.office_type === 'housemaster' && (
-                <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Link to House (optional)</label>
+                <div><label className="text-xs font-semibold text-slate-500 font-medium block mb-1">Link to House (optional)</label>
                   <select value={officeForm.linked_house ?? ''} onChange={e => setOfficeForm(p => ({ ...p, linked_house: e.target.value || null }))} className={inp}>
                     <option value="">All houses</option>
                     {houses.map(h => <option key={h.id} value={h.name}>{h.name}</option>)}
                   </select>
                 </div>
               )}
-              <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Sort Order</label>
+              <div><label className="text-xs font-semibold text-slate-500 font-medium block mb-1">Sort Order</label>
                 <input type="number" value={officeForm.sort_order ?? 0} onChange={e => setOfficeForm(p => ({ ...p, sort_order: parseInt(e.target.value) }))} className={inp} /></div>
               {officeForm._mode === 'edit' && (
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={officeForm.is_active ?? true} onChange={e => setOfficeForm(p => ({ ...p, is_active: e.target.checked }))} className="w-4 h-4 accent-green-600" />
+                  <input type="checkbox" checked={officeForm.is_active ?? true} onChange={e => setOfficeForm(p => ({ ...p, is_active: e.target.checked }))} className="w-4 h-4 accent-[#145C44]" />
                   <span className="text-sm text-slate-700">Active</span>
                 </label>
               )}
               <div className="flex gap-3 pt-1">
                 <button onClick={() => setOfficeForm({ _mode: 'none' })} className="flex-1 py-2 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</button>
-                <button onClick={saveOffice} disabled={ofSaving} className="flex-1 py-2 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">
+                <button onClick={saveOffice} disabled={ofSaving} className="flex-1 py-2 rounded-xl text-sm font-semibold bg-[#145C44] text-white hover:bg-[#145C44] disabled:opacity-50">
                   {ofSaving ? 'Saving…' : 'Save Office'}
                 </button>
               </div>
@@ -286,9 +286,9 @@ export default function OfficesPage() {
                   {/* Assigned staff */}
                   {officeStaff.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Assigned</p>
+                      <p className="text-xs font-bold text-slate-400 font-medium">Assigned</p>
                       {officeStaff.map(s => (
-                        <div key={s.id} className="flex items-center justify-between gap-2 bg-green-50 rounded-lg px-3 py-2.5">
+                        <div key={s.id} className="flex items-center justify-between gap-2 bg-[#E8F4EE] rounded-lg px-3 py-2.5">
                           <div>
                             <p className="text-sm font-semibold text-slate-800">{s.teacher_name ?? s.school_staff_name}</p>
                             <p className="text-xs text-slate-400">{s.teacher_code ?? s.school_staff_email} · {s.teacher_id ? 'Teacher' : 'Staff'}</p>
@@ -300,7 +300,7 @@ export default function OfficesPage() {
                   )}
                   {/* Add staff */}
                   <div className="space-y-2">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Add Staff</p>
+                    <p className="text-xs font-bold text-slate-400 font-medium">Add Staff</p>
                     <input value={assignQuery} onChange={e => setAssignQuery(e.target.value)} placeholder="Search teachers or clearance staff…" className={inp} />
                     <div className="space-y-1 max-h-48 overflow-y-auto">
                       {assignable.teachers.slice(0, 10).map(t => (
@@ -327,7 +327,7 @@ export default function OfficesPage() {
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-slate-200 p-5">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-4">Non-Teaching Clearance Staff</p>
+              <p className="text-xs font-bold text-slate-400 font-medium mb-4">Non-Teaching Clearance Staff</p>
               {staff.length === 0 ? (
                 <p className="text-sm text-slate-400 text-center py-4">No clearance staff accounts yet.</p>
               ) : (
@@ -357,8 +357,8 @@ export default function OfficesPage() {
 
       {/* Staff Account Modal */}
       {showStaffModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <p className="font-bold text-slate-800">{staffForm.id ? 'Edit' : 'New'} Staff Account</p>
               <button onClick={() => setShowStaffModal(false)} className="text-slate-400 hover:text-slate-600">
@@ -367,15 +367,15 @@ export default function OfficesPage() {
             </div>
             <div className="px-5 py-4 space-y-4">
               {sfError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{sfError}</p>}
-              <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Full Name *</label>
+              <div><label className="text-xs font-semibold text-slate-500 font-medium block mb-1">Full Name *</label>
                 <input value={staffForm.name} onChange={e => setStaffForm(p => ({ ...p, name: e.target.value }))} className={inp} /></div>
-              <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Email *</label>
+              <div><label className="text-xs font-semibold text-slate-500 font-medium block mb-1">Email *</label>
                 <input type="email" value={staffForm.email} onChange={e => setStaffForm(p => ({ ...p, email: e.target.value }))} className={inp} /></div>
-              <div><label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Password {staffForm.id ? '(leave blank to keep current)' : '*'}</label>
+              <div><label className="text-xs font-semibold text-slate-500 font-medium block mb-1">Password {staffForm.id ? '(leave blank to keep current)' : '*'}</label>
                 <input type="password" value={staffForm.password} onChange={e => setStaffForm(p => ({ ...p, password: e.target.value }))} placeholder="Min 6 characters" className={inp} /></div>
               <div className="flex gap-3 pt-1">
                 <button onClick={() => setShowStaffModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</button>
-                <button onClick={saveStaffAccount} disabled={sfSaving} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">
+                <button onClick={saveStaffAccount} disabled={sfSaving} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-[#145C44] text-white hover:bg-[#145C44] disabled:opacity-50">
                   {sfSaving ? 'Saving…' : 'Save Account'}
                 </button>
               </div>

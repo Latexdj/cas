@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import type { Teacher, Location } from '@/types/api';
@@ -201,7 +201,7 @@ export default function ManualEntryPage() {
     }
   }
 
-  const inputCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500';
+  const inputCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]';
   const labelCls = 'block text-sm font-medium text-slate-700 mb-1';
 
   const presentCount  = students.length - absentIds.size;
@@ -234,7 +234,7 @@ export default function ManualEntryPage() {
               return (
                 <span key={cls} className="text-xs font-semibold px-2.5 py-1 rounded-full"
                   style={{
-                    background: isDone ? '#DCFCE7' : isCurrent ? '#15803D' : '#F1F5F9',
+                    background: isDone ? '#DCFCE7' : isCurrent ? '#145C44' : '#F1F5F9',
                     color:      isDone ? '#166534' : isCurrent ? '#fff'    : '#64748B',
                   }}>
                   {isDone ? `✓ ${cls}` : cls}
@@ -247,9 +247,9 @@ export default function ManualEntryPage() {
         {/* Counts */}
         <div className="grid grid-cols-3 gap-3 mb-5">
           {[
-            { label: 'Present', value: presentCount,    bg: '#F0FDF4', color: '#15803D' },
+            { label: 'Present', value: presentCount,    bg: '#F0FDF4', color: '#145C44' },
             { label: 'Absent',  value: absentIds.size,  bg: '#FEF2F2', color: '#DC2626' },
-            { label: 'Total',   value: students.length, bg: '#F8FAFC', color: '#64748B' },
+            { label: 'Total',   value: students.length, bg: '#F5F0E8', color: '#64748B' },
           ].map(({ label, value, bg, color }) => (
             <div key={label} className="rounded-xl p-3 text-center" style={{ background: bg }}>
               <p className="text-2xl font-bold" style={{ color }}>{value}</p>
@@ -258,7 +258,7 @@ export default function ManualEntryPage() {
           ))}
         </div>
 
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+        <p className="text-xs font-semibold font-medium text-slate-400 mb-3">
           Click a student to mark absent
         </p>
 
@@ -286,7 +286,7 @@ export default function ManualEntryPage() {
                   style={{ borderColor: absent ? '#FCA5A5' : '#E2E8F0', background: absent ? '#FEF2F2' : 'white' }}>
                   <div>
                     <p className="text-xs font-bold text-slate-400">{s.student_code}</p>
-                    <p className="text-sm font-semibold" style={{ color: absent ? '#DC2626' : '#0F172A' }}>{s.name}</p>
+                    <p className="text-sm font-semibold" style={{ color: absent ? '#DC2626' : '#1C1208' }}>{s.name}</p>
                   </div>
                   <span className="text-xs font-bold px-2.5 py-1 rounded-full"
                     style={{ background: absent ? '#FEE2E2' : '#DCFCE7', color: absent ? '#DC2626' : '#166534' }}>
@@ -306,7 +306,7 @@ export default function ManualEntryPage() {
 
         <button onClick={handleStep2} disabled={step2Saving || studLoading}
           className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity disabled:opacity-60"
-          style={{ backgroundColor: '#15803D' }}>
+          style={{ backgroundColor: '#145C44' }}>
           {step2Saving
             ? 'Saving…'
             : queueIdx < classQueue.length - 1
@@ -337,7 +337,7 @@ export default function ManualEntryPage() {
       </div>
 
       {doneMsg && (
-        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 font-medium">
+        <div className="mb-4 rounded-xl border border-[#B8D9C8] bg-[#E8F4EE] px-4 py-3 text-sm text-[#145C44] font-medium">
           ✓ {doneMsg}
         </div>
       )}
@@ -348,7 +348,7 @@ export default function ManualEntryPage() {
         </div>
       )}
 
-      <form onSubmit={handleStep1} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
+      <form onSubmit={handleStep1} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
 
         {/* Teacher */}
         <div>
@@ -396,7 +396,7 @@ export default function ManualEntryPage() {
                     <button key={slot.id} type="button" onClick={() => applySlot(slot)}
                       className="w-full text-left rounded-xl border px-4 py-3 transition-colors"
                       style={{
-                        borderColor: isSelected ? '#15803D' : '#E2E8F0',
+                        borderColor: isSelected ? '#145C44' : '#E2E8F0',
                         background:  isSelected ? '#F0FDF4' : 'white',
                       }}>
                       <div className="flex items-start justify-between gap-3">
@@ -417,8 +417,8 @@ export default function ManualEntryPage() {
                         <div className="flex-shrink-0 mt-0.5">
                           <span className="inline-flex w-5 h-5 rounded-full border-2 items-center justify-center text-xs"
                             style={{
-                              borderColor: isSelected ? '#15803D' : '#CBD5E1',
-                              background:  isSelected ? '#15803D' : 'transparent',
+                              borderColor: isSelected ? '#145C44' : '#CBD5E1',
+                              background:  isSelected ? '#145C44' : 'transparent',
                               color: 'white',
                             }}>
                             {isSelected ? '✓' : ''}
@@ -459,7 +459,7 @@ export default function ManualEntryPage() {
               <div>
                 <label className={labelCls}>
                   Class(es) *
-                  <span className="ml-2 text-green-600 font-normal text-xs">
+                  <span className="ml-2 text-[#145C44] font-normal text-xs">
                     ({Array.from(selCls).join(', ')})
                   </span>
                 </label>
@@ -470,7 +470,7 @@ export default function ManualEntryPage() {
                         onChange={() => setSelCls(prev => {
                           const n = new Set(prev); n.has(cls) ? n.delete(cls) : n.add(cls); return n;
                         })}
-                        className="w-4 h-4 accent-green-600" />
+                        className="w-4 h-4 accent-[#145C44]" />
                       <span className="text-sm text-slate-900 font-medium">{cls}</span>
                     </label>
                   ))}
@@ -500,7 +500,7 @@ export default function ManualEntryPage() {
 
         <button type="submit" disabled={saving || !selectedSlot || slots.length === 0}
           className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity disabled:opacity-60"
-          style={{ backgroundColor: '#15803D' }}>
+          style={{ backgroundColor: '#145C44' }}>
           {saving ? 'Recording…' : 'Next: Mark Student Attendance →'}
         </button>
       </form>

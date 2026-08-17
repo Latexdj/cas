@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
@@ -35,7 +35,7 @@ function CallBtn({ phone, color }: { phone: string | null; color: string }) {
 }
 
 const STATUS_META: Record<Slot['status'], { label: string; bg: string; bgDark: string; text: string }> = {
-  confirmed:     { label: 'Confirmed',      bg: '#DCFCE7', bgDark: '#14532D44', text: '#15803D' },
+  confirmed:     { label: 'Confirmed',      bg: '#DCFCE7', bgDark: '#14532D44', text: '#145C44' },
   absent:        { label: 'Absent',         bg: '#FEE2E2', bgDark: '#7F1D1D44', text: '#DC2626' },
   on_leave:      { label: 'On Leave',       bg: '#FAF5FF', bgDark: '#3B0764AA', text: '#9333EA' },
   ongoing:       { label: 'Ongoing',        bg: '#DBEAFE', bgDark: '#1E3A5F44', text: '#1D4ED8' },
@@ -64,7 +64,7 @@ export default function OccupancyPage() {
     setLoading(true); setError('');
     principalApi.get(`/api/principal/occupancy?date=${date}`)
       .then(r => setSlots(r.data.slots ?? []))
-      .catch(() => setError('Failed to load occupancy data.'))
+      .catch(() => setError('Could not load occupancy data.'))
       .finally(() => setLoading(false));
   }, [date]);
 
@@ -85,7 +85,7 @@ export default function OccupancyPage() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A', flex: 1 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208', flex: 1 }}>
           Classroom Occupancy
         </h2>
         <input
@@ -95,7 +95,7 @@ export default function OccupancyPage() {
           style={{
             border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
             background: dark ? '#1E293B' : '#FFFFFF',
-            color: dark ? '#F1F5F9' : '#0F172A',
+            color: dark ? '#F1F5F9' : '#1C1208',
             borderRadius: 8, padding: '6px 12px', fontSize: 13, cursor: 'pointer',
           }}
         />
@@ -156,7 +156,7 @@ export default function OccupancyPage() {
                       borderLeft: `4px solid ${meta.text}`,
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: dark ? '#F1F5F9' : '#0F172A' }}>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: dark ? '#F1F5F9' : '#1C1208' }}>
                           {slot.classNames}
                         </span>
                         <span style={{

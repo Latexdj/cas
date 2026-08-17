@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { teacherApi } from '@/lib/teacher-api';
@@ -15,7 +15,7 @@ function ordinal(n: number) {
 
 function AttPill({ pct }: { pct: number | null }) {
   if (pct == null) return <span className="text-xs text-slate-300">—</span>;
-  const cls = pct >= 80 ? 'bg-green-100 text-green-700' : pct >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
+  const cls = pct >= 80 ? 'bg-[#D1EAD9] text-[#145C44]' : pct >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
   return <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cls}`}>{pct}%</span>;
 }
 
@@ -45,7 +45,7 @@ function StudentDrawer({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/40" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-50 flex items-start justify-end bg-[#0B3D2E]/45" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="h-full w-full max-w-sm bg-white shadow-2xl overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3 z-10">
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
@@ -70,19 +70,19 @@ function StudentDrawer({
           </div>
           {/* Attendance */}
           {attRow && (
-            <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Attendance</p>
+            <div className="bg-[#F5F0E8] rounded-xl p-3">
+              <p className="text-xs font-semibold text-slate-500 font-medium mb-2">Attendance</p>
               <div className="grid grid-cols-4 gap-2 text-center">
-                {[['Present', attRow.present, 'text-green-700'], ['Absent', attRow.absent, 'text-red-600'], ['Late', attRow.late, 'text-amber-600'], ['Total', attRow.total, 'text-slate-700']].map(([label, val, color]) => (
+                {[['Present', attRow.present, 'text-[#145C44]'], ['Absent', attRow.absent, 'text-red-600'], ['Late', attRow.late, 'text-amber-600'], ['Total', attRow.total, 'text-slate-700']].map(([label, val, color]) => (
                   <div key={String(label)}>
-                    <p className={`text-lg font-black ${color}`}>{val}</p>
+                    <p className={`text-lg font-bold ${color}`}>{val}</p>
                     <p className="text-[10px] text-slate-400">{label}</p>
                   </div>
                 ))}
               </div>
               {attRow.pct != null && (
                 <div className="mt-2 bg-slate-200 rounded-full h-2 overflow-hidden">
-                  <div className={`h-full rounded-full ${attRow.pct >= 80 ? 'bg-green-500' : attRow.pct >= 60 ? 'bg-amber-400' : 'bg-red-400'}`}
+                  <div className={`h-full rounded-full ${attRow.pct >= 80 ? 'bg-[#145C44]' : attRow.pct >= 60 ? 'bg-amber-400' : 'bg-red-400'}`}
                     style={{ width: `${attRow.pct}%` }} />
                 </div>
               )}
@@ -90,21 +90,21 @@ function StudentDrawer({
           )}
           {/* Academic */}
           {resultsLoading ? (
-            <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Academic</p>
+            <div className="bg-[#F5F0E8] rounded-xl p-3">
+              <p className="text-xs font-semibold text-slate-500 font-medium mb-3">Academic</p>
               <div className="flex justify-center py-2">
                 <div className="w-5 h-5 rounded-full border-2 border-slate-300 border-t-slate-500 animate-spin" />
               </div>
             </div>
           ) : result ? (
-            <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Academic</p>
+            <div className="bg-[#F5F0E8] rounded-xl p-3">
+              <p className="text-xs font-semibold text-slate-500 font-medium mb-2">Academic</p>
               <div className="grid grid-cols-3 gap-2 text-center mb-3">
-                <div><p className="text-lg font-black text-green-700">{result.average ?? '—'}</p><p className="text-[10px] text-slate-400">Average</p></div>
-                <div><p className="text-lg font-black text-slate-700">{result.class_position ? ordinal(result.class_position) : '—'}</p><p className="text-[10px] text-slate-400">Position</p></div>
-                <div><p className="text-lg font-black text-slate-700">{result.overall_grade || '—'}</p><p className="text-[10px] text-slate-400">Grade</p></div>
+                <div><p className="text-lg font-bold text-[#145C44]">{result.average ?? '—'}</p><p className="text-[10px] text-slate-400">Average</p></div>
+                <div><p className="text-lg font-bold text-slate-700">{result.class_position ? ordinal(result.class_position) : '—'}</p><p className="text-[10px] text-slate-400">Position</p></div>
+                <div><p className="text-lg font-bold text-slate-700">{result.overall_grade || '—'}</p><p className="text-[10px] text-slate-400">Grade</p></div>
               </div>
-              <div className="flex items-center gap-1 text-[9px] font-semibold text-slate-400 uppercase tracking-wide pb-1 mb-0.5 border-b border-slate-100">
+              <div className="flex items-center gap-1 text-[9px] font-semibold text-slate-400 font-medium pb-1 mb-0.5 border-b border-slate-100">
                 <span className="flex-1">Subject</span>
                 <span className="w-8 text-center">CA</span>
                 <span className="w-8 text-center">Exam</span>
@@ -124,8 +124,8 @@ function StudentDrawer({
           ) : null}
           {/* Remarks */}
           {remark && (remark.attitude || remark.conduct || remark.general_remarks) && (
-            <div className="bg-green-50 border border-green-100 rounded-xl p-3">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Form Teacher Remarks</p>
+            <div className="bg-[#E8F4EE] border border-[#D1EAD9] rounded-xl p-3">
+              <p className="text-xs font-semibold text-slate-500 font-medium mb-2">Form Teacher Remarks</p>
               {remark.attitude && <p className="text-xs text-slate-700"><span className="font-semibold">Attitude:</span> {remark.attitude}</p>}
               {remark.conduct  && <p className="text-xs text-slate-700 mt-0.5"><span className="font-semibold">Conduct:</span> {remark.conduct}</p>}
               {remark.general_remarks && <p className="text-xs text-slate-600 mt-1 italic">{remark.general_remarks}</p>}
@@ -274,14 +274,14 @@ export default function FormClassPage() {
 
   const { displayRows: stuRows, total: stuTotal, page: stuPage, setPage: setStuPage, pageSize: stuPageSize, setPageSize: setStuPageSize } = useTableControls(students);
 
-  const selectCls = 'border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500';
+  const selectCls = 'border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]';
 
   // ── No assignment state ───────────────────────────────────────────────────
   if (assignment === null) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-8 text-center" style={{ background: '#F4EFE6' }}>
         <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ background: '#e8f5ee' }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="#15803D" strokeWidth={1.5} className="w-8 h-8">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#145C44" strokeWidth={1.5} className="w-8 h-8">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
           </svg>
         </div>
@@ -314,8 +314,8 @@ export default function FormClassPage() {
       <div className="bg-white border-b border-[#E2D9CC] px-4 py-4 sticky top-0 z-10">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Form Class</p>
-            <p className="text-xl font-black text-slate-800">{assignment.class_name}</p>
+            <p className="text-xs font-semibold text-slate-400 font-medium">Form Class</p>
+            <p className="text-xl font-bold text-slate-800">{assignment.class_name}</p>
             <p className="text-xs text-slate-500 mt-0.5">{assignment.academic_year}</p>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -334,10 +334,10 @@ export default function FormClassPage() {
       <div className="bg-white border-b border-[#E2D9CC] px-4 flex gap-0 overflow-x-auto no-scrollbar">
         {(['overview', 'remarks', 'attendance', 'results'] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-3 text-sm font-semibold capitalize whitespace-nowrap border-b-2 transition-colors ${tab === t ? 'border-green-600 text-green-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            className={`px-4 py-3 text-sm font-semibold capitalize whitespace-nowrap border-b-2 transition-colors ${tab === t ? 'border-green-600 text-[#145C44]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
             {t === 'overview' ? 'Overview' : t === 'remarks' ? 'Remarks' : t === 'attendance' ? 'Attendance' : 'Results'}
             {t === 'remarks' && stats && (
-              <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${stats.remarksEntered === stats.total ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+              <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${stats.remarksEntered === stats.total ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-amber-100 text-amber-700'}`}>
                 {stats.remarksEntered}/{stats.total}
               </span>
             )}
@@ -354,12 +354,12 @@ export default function FormClassPage() {
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: 'Total Students',  value: students.length, color: 'text-slate-700' },
-                { label: 'Avg Attendance',  value: stats?.avgAtt != null ? `${stats.avgAtt}%` : '—', color: stats?.avgAtt != null ? (stats.avgAtt >= 80 ? 'text-green-700' : stats.avgAtt >= 60 ? 'text-amber-600' : 'text-red-600') : 'text-slate-400' },
+                { label: 'Avg Attendance',  value: stats?.avgAtt != null ? `${stats.avgAtt}%` : '—', color: stats?.avgAtt != null ? (stats.avgAtt >= 80 ? 'text-[#145C44]' : stats.avgAtt >= 60 ? 'text-amber-600' : 'text-red-600') : 'text-slate-400' },
                 { label: 'Remarks Entered', value: stats ? `${stats.remarksEntered}/${stats.total}` : '—', color: 'text-slate-700' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="bg-white rounded-xl border border-[#E2D9CC] p-4 text-center">
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{label}</p>
-                  <p className={`text-2xl font-black ${color}`}>{value}</p>
+                  <p className="text-[10px] font-semibold text-slate-400 font-medium mb-1">{label}</p>
+                  <p className={`text-2xl font-bold ${color}`}>{value}</p>
                 </div>
               ))}
             </div>
@@ -372,7 +372,7 @@ export default function FormClassPage() {
               <div className="space-y-2">
                 {(stuRows as typeof students).map(s => (
                   <button key={s.id} onClick={() => setDrawerStudent(s)}
-                    className="w-full bg-white rounded-xl border border-[#E2D9CC] p-3 flex items-center gap-3 hover:border-green-300 transition-colors text-left">
+                    className="w-full bg-white rounded-xl border border-[#E2D9CC] p-3 flex items-center gap-3 hover:border-[#8FC4A4] transition-colors text-left">
                     <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 flex-shrink-0">
                       <Avatar url={s.picture_url} name={s.name} gender={s.gender} />
                     </div>
@@ -388,7 +388,7 @@ export default function FormClassPage() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <AttPill pct={s.attendance.pct} />
                       {s.has_remarks && (
-                        <span className="w-2 h-2 rounded-full bg-green-500" title="Remarks saved" />
+                        <span className="w-2 h-2 rounded-full bg-[#145C44]" title="Remarks saved" />
                       )}
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-slate-300">
                         <polyline points="9 18 15 12 9 6" />
@@ -419,7 +419,7 @@ export default function FormClassPage() {
                   <p className="text-xs text-slate-400 mt-0.5">Attitude · Conduct · General remarks for report cards</p>
                 </div>
                 <button onClick={saveRemarks} disabled={saving}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-green-600 text-white hover:bg-green-700 disabled:opacity-60">
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#145C44] text-white hover:bg-[#145C44] disabled:opacity-60">
                   {saving ? (
                     <><div className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Saving…</>
                   ) : savedMsg ? (
@@ -439,7 +439,7 @@ export default function FormClassPage() {
                     const sResult = resultsData.find(r => r.student_id === s.id) ?? null;
                     const att = s.attendance;
                     return (
-                      <div key={s.id} className={`p-4 ${i % 2 === 0 ? '' : 'bg-slate-50/40'}`}>
+                      <div key={s.id} className={`p-4 ${i % 2 === 0 ? '' : 'bg-[#F5F0E8]/40'}`}>
                         {/* Name row with quick-access buttons */}
                         <div className="flex items-center gap-2 mb-1.5">
                           <div className="w-7 h-7 rounded-full overflow-hidden border border-slate-200 flex-shrink-0">
@@ -449,7 +449,7 @@ export default function FormClassPage() {
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="text-sm font-semibold text-slate-800 truncate">{s.name}</p>
                               <span className="text-xs text-slate-400">{s.student_code}</span>
-                              {remarksMap[s.id] && <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">Saved</span>}
+                              {remarksMap[s.id] && <span className="text-[10px] font-bold text-[#145C44] bg-[#E8F4EE] px-1.5 py-0.5 rounded-full">Saved</span>}
                             </div>
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
@@ -458,7 +458,7 @@ export default function FormClassPage() {
                               Attendance
                             </button>
                             <button type="button" onClick={() => setDrawerStudent(s)}
-                              className="text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-200 text-slate-500 hover:border-green-300 hover:text-green-600 transition-colors whitespace-nowrap">
+                              className="text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-200 text-slate-500 hover:border-[#8FC4A4] hover:text-[#145C44] transition-colors whitespace-nowrap">
                               Results
                             </button>
                           </div>
@@ -466,7 +466,7 @@ export default function FormClassPage() {
                         {/* Compact stat strip */}
                         <div className="flex items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 mb-2.5 flex-wrap">
                           <span>
-                            Att: <span className={`font-bold ${att.pct != null ? (att.pct >= 80 ? 'text-green-600' : att.pct >= 60 ? 'text-amber-600' : 'text-red-500') : 'text-slate-400'}`}>{att.pct != null ? `${att.pct}%` : '—'}</span>
+                            Att: <span className={`font-bold ${att.pct != null ? (att.pct >= 80 ? 'text-[#145C44]' : att.pct >= 60 ? 'text-amber-600' : 'text-red-500') : 'text-slate-400'}`}>{att.pct != null ? `${att.pct}%` : '—'}</span>
                             <span className="text-slate-400 ml-1">({att.present}P · {att.absent}A{att.late > 0 ? ` · ${att.late}L` : ''})</span>
                           </span>
                           {sResult ? (
@@ -474,7 +474,7 @@ export default function FormClassPage() {
                               <span className="text-slate-300">·</span>
                               <span>Pos: <span className="font-bold text-slate-700">{sResult.class_position ? ordinal(sResult.class_position) : '—'}</span></span>
                               <span className="text-slate-300">·</span>
-                              <span>Avg: <span className={`font-bold ${sResult.average != null ? (sResult.average >= 70 ? 'text-green-600' : sResult.average >= 50 ? 'text-amber-600' : 'text-red-500') : 'text-slate-400'}`}>{sResult.average != null ? `${sResult.average}%` : '—'}</span></span>
+                              <span>Avg: <span className={`font-bold ${sResult.average != null ? (sResult.average >= 70 ? 'text-[#145C44]' : sResult.average >= 50 ? 'text-amber-600' : 'text-red-500') : 'text-slate-400'}`}>{sResult.average != null ? `${sResult.average}%` : '—'}</span></span>
                               <span className="text-slate-300">·</span>
                               <span>Grade: <span className="font-bold text-slate-700">{sResult.overall_grade || '—'}</span></span>
                             </>
@@ -484,27 +484,27 @@ export default function FormClassPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-2 mb-2">
                           <div>
-                            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">Attitude</label>
+                            <label className="text-[10px] font-semibold text-slate-400 font-medium mb-1 block">Attitude</label>
                             <select value={d.attitude ?? ''} onChange={e => updateDraft(s.id, 'attitude', e.target.value)}
-                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#145C44]">
                               <option value="">— Select —</option>
                               {RATING_OPTS.map(o => <option key={o} value={o}>{o}</option>)}
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">Conduct</label>
+                            <label className="text-[10px] font-semibold text-slate-400 font-medium mb-1 block">Conduct</label>
                             <select value={d.conduct ?? ''} onChange={e => updateDraft(s.id, 'conduct', e.target.value)}
-                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-green-500">
+                              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#145C44]">
                               <option value="">— Select —</option>
                               {RATING_OPTS.map(o => <option key={o} value={o}>{o}</option>)}
                             </select>
                           </div>
                         </div>
                         <div>
-                          <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1 block">General Remarks</label>
+                          <label className="text-[10px] font-semibold text-slate-400 font-medium mb-1 block">General Remarks</label>
                           <input value={d.general_remarks ?? ''} onChange={e => updateDraft(s.id, 'general_remarks', e.target.value)}
                             placeholder="e.g. A diligent student who shows great potential…"
-                            className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-green-500" />
+                            className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                         </div>
                       </div>
                     );
@@ -533,7 +533,7 @@ export default function FormClassPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide border-b border-slate-100">
+                    <tr className="bg-[#F5F0E8] text-xs font-semibold text-slate-500 font-medium border-b border-slate-100">
                       <th className="px-4 py-2.5 text-left">Student</th>
                       <th className="px-4 py-2.5 text-center">Present</th>
                       <th className="px-4 py-2.5 text-center">Absent</th>
@@ -551,7 +551,7 @@ export default function FormClassPage() {
                         .map(([id, row]) => {
                           const s = students.find(s => s.id === id);
                           return (
-                            <tr key={id} className="hover:bg-slate-50">
+                            <tr key={id} className="hover:bg-[#F5F0E8]">
                               <td className="px-4 py-2.5">
                                 <div className="flex items-center gap-2">
                                   <div className="w-7 h-7 rounded-full overflow-hidden border border-slate-200 flex-shrink-0">
@@ -563,7 +563,7 @@ export default function FormClassPage() {
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-4 py-2.5 text-center text-green-700 font-semibold text-xs">{row.present}</td>
+                              <td className="px-4 py-2.5 text-center text-[#145C44] font-semibold text-xs">{row.present}</td>
                               <td className="px-4 py-2.5 text-center text-red-600 font-semibold text-xs">{row.absent}</td>
                               <td className="px-4 py-2.5 text-center text-amber-600 font-semibold text-xs">{row.late}</td>
                               <td className="px-4 py-2.5 text-center text-slate-600 text-xs">{row.total}</td>
@@ -601,7 +601,7 @@ export default function FormClassPage() {
                       const s = students.find(s => s.id === r.student_id);
                       if (s) setDrawerStudent(s);
                     }}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors text-left">
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#F5F0E8] transition-colors text-left">
                       <div className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-bold"
                         style={{ background: r.class_position && r.class_position <= 3 ? '#fef3c7' : '#f1f5f9', color: r.class_position && r.class_position <= 3 ? '#d97706' : '#64748b' }}>
                         {r.class_position ?? '—'}
@@ -612,11 +612,11 @@ export default function FormClassPage() {
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <div className="text-right">
-                          <p className="text-sm font-black" style={{ color: r.average != null ? (r.average >= 70 ? '#15803D' : r.average >= 50 ? '#D97706' : '#DC2626') : '#94a3b8' }}>
+                          <p className="text-sm font-bold" style={{ color: r.average != null ? (r.average >= 70 ? '#145C44' : r.average >= 50 ? '#D97706' : '#DC2626') : '#94a3b8' }}>
                             {r.average ?? '—'}
                           </p>
                         </div>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${['A1','B2','B3','A','B+','B-'].includes(r.overall_grade) ? 'bg-green-100 text-green-700' : ['F9','F','E8'].includes(r.overall_grade) ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${['A1','B2','B3','A','B+','B-'].includes(r.overall_grade) ? 'bg-[#D1EAD9] text-[#145C44]' : ['F9','F','E8'].includes(r.overall_grade) ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
                           {r.overall_grade || '—'}
                         </span>
                       </div>

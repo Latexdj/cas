@@ -46,63 +46,55 @@ export default function LoginPage() {
       {/* Left brand panel */}
       <div
         className="hidden lg:flex lg:w-5/12 xl:w-1/2 flex-col justify-between p-12 relative overflow-hidden"
-        style={{ backgroundColor: '#0F172A' }}
+        style={{ backgroundColor: '#0B3D2E' }}
       >
-        {/* Background grid pattern */}
-        <div className="absolute inset-0 opacity-5" style={{
-          backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-        }} />
-
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-16">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#15803D' }}>
-              <span className="text-white font-bold text-lg">C</span>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#C8973A' }}>
+              <span className="font-bold text-lg" style={{ color: '#0B3D2E' }}>C</span>
             </div>
             <span className="text-white font-bold text-lg tracking-tight">CAS Admin Portal</span>
           </div>
 
-          <h2 className="text-4xl font-bold leading-tight mb-5" style={{ color: '#F8FAFC' }}>
-            Everything your school needs, in one place
+          <h2 className="text-4xl font-bold leading-tight mb-5" style={{ color: '#F5F0E8' }}>
+            School management that works the way you do
           </h2>
-          <p className="text-base leading-relaxed" style={{ color: '#94A3B8' }}>
-            From teacher and student attendance to timetables, curriculum, remedials, and school calendars — a complete school management system.
+          <p className="text-base leading-relaxed" style={{ color: 'rgba(245,240,232,0.65)' }}>
+            Teacher and student attendance, timetables, curriculum, remedials, library, clearance and more — built for Ghanaian schools.
           </p>
         </div>
 
-        <div className="relative z-10 space-y-4">
+        <div className="relative z-10 space-y-3">
           {[
-            { label: 'Teacher & student attendance',      icon: '✓' },
-            { label: 'Timetable & curriculum management', icon: '✓' },
-            { label: 'Absences, remedials & reporting',   icon: '✓' },
-          ].map(f => (
-            <div key={f.label} className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white" style={{ backgroundColor: '#15803D' }}>
-                {f.icon}
-              </div>
-              <span className="text-sm" style={{ color: '#CBD5E1' }}>{f.label}</span>
+            'Teacher and student attendance',
+            'Timetable and curriculum management',
+            'Absences, remedials and reporting',
+          ].map(label => (
+            <div key={label} className="flex items-center gap-3">
+              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#C8973A' }} />
+              <span className="text-sm" style={{ color: 'rgba(245,240,232,0.75)' }}>{label}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Right form panel */}
-      <div className="flex-1 flex items-center justify-center p-8" style={{ backgroundColor: '#F8FAFC' }}>
+      <div className="flex-1 flex items-center justify-center p-8" style={{ backgroundColor: '#F5F0E8' }}>
         <div className="w-full max-w-md">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-10">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#15803D' }}>
-              <span className="text-white font-bold">C</span>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#C8973A' }}>
+              <span className="font-bold" style={{ color: '#0B3D2E' }}>C</span>
             </div>
-            <span className="font-bold text-lg" style={{ color: '#0F172A' }}>CAS Admin</span>
+            <span className="font-bold text-lg" style={{ color: '#1C1208' }}>CAS Admin</span>
           </div>
 
           <div className="mb-8">
-            <h1 className="text-2xl font-bold mb-1" style={{ color: '#0F172A' }}>Welcome back</h1>
-            <p className="text-sm" style={{ color: '#94A3B8' }}>Sign in with your Teacher ID and password</p>
+            <h1 className="text-2xl font-bold mb-1" style={{ color: '#1C1208' }}>Admin Portal</h1>
+            <p className="text-sm" style={{ color: '#8C7E6E' }}>Sign in with your Teacher ID and password</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-8" style={{ border: '1px solid #E2E8F0', boxShadow: '0 4px 24px rgba(15,23,42,0.08)' }}>
+          <div className="bg-white rounded-xl p-8" style={{ border: '1px solid #E2D9CC', boxShadow: '0 4px 24px rgba(11,61,46,0.08)' }}>
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">
               <Input
                 label="School Code"
@@ -145,8 +137,8 @@ export default function LoginPage() {
             </form>
           </div>
 
-          <p className="text-center text-xs mt-6" style={{ color: '#CBD5E1' }}>
-            Classroom Attendance System — Admin Portal
+          <p className="text-center text-xs mt-6" style={{ color: '#8C7E6E' }}>
+            CAS Admin Portal
           </p>
         </div>
       </div>

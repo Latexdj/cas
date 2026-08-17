@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { publicApi } from '@/lib/api';
@@ -62,7 +62,7 @@ export default function AdmissionsLanding() {
   );
 
   const primary = info.portal_primary_color || '#16A34A';
-  const accent  = info.portal_accent_color  || '#15803D';
+  const accent  = info.portal_accent_color  || '#145C44';
   const { r, g, b } = hexToRgb(primary);
 
   const steps = [
@@ -88,7 +88,7 @@ export default function AdmissionsLanding() {
           {info.is_portal_open && (
             <button
               onClick={() => router.push(`/admissions/${slug}/check`)}
-              className="px-5 py-2 rounded-full text-sm font-bold text-white shadow-lg transition-transform hover:scale-105"
+              className="px-5 py-2 rounded-full text-sm font-bold text-white shadow-lg transition-transform"
               style={{ background: `linear-gradient(135deg, ${primary}, ${accent})` }}>
               Apply Now
             </button>
@@ -109,11 +109,11 @@ export default function AdmissionsLanding() {
 
         <div className="relative z-10 text-center px-6 max-w-3xl mx-auto pt-20">
           {info.portal_logo_url && (
-            <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-white/15 backdrop-blur-sm border border-white/20 mb-8 shadow-2xl">
+            <div className="inline-flex items-center justify-center w-24 h-24 rounded-xl bg-white/15 backdrop-blur-sm border border-white/20 mb-8 shadow-2xl">
               <img src={info.portal_logo_url} alt="Logo" className="w-16 h-16 object-contain" />
             </div>
           )}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 text-white/90 text-xs font-semibold uppercase tracking-widest mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 text-white/90 text-xs font-semibold font-medium mb-6">
             <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse" />
             {info.is_portal_open ? 'Applications Open' : 'Portal Closed'}
           </div>
@@ -136,19 +136,19 @@ export default function AdmissionsLanding() {
               <>
                 <button
                   onClick={() => router.push(`/admissions/${slug}/check`)}
-                  className="px-8 py-4 rounded-2xl text-base font-bold text-white shadow-2xl transition-all duration-200 hover:scale-105 hover:shadow-green-900/30"
+                  className="px-8 py-4 rounded-xl text-base font-bold text-white shadow-2xl transition-all duration-200 hover:shadow-green-900/30"
                   style={{ background: 'linear-gradient(135deg,rgba(255,255,255,0.25),rgba(255,255,255,0.10))', border: '1.5px solid rgba(255,255,255,0.35)' }}>
                   Check Placement & Apply
                   <svg className="inline-block w-5 h-5 ml-2 -mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                   </svg>
                 </button>
-                <a href="#how-it-works" className="px-8 py-4 rounded-2xl text-base font-semibold text-white/80 bg-white/10 border border-white/20 hover:bg-white/20 transition-colors">
+                <a href="#how-it-works" className="px-8 py-4 rounded-xl text-base font-semibold text-white/80 bg-white/10 border border-white/20 hover:bg-white/20 transition-colors">
                   Learn More
                 </a>
               </>
             ) : (
-              <div className="px-8 py-4 rounded-2xl text-base font-bold text-white/60 bg-white/10 border border-white/20">
+              <div className="px-8 py-4 rounded-xl text-base font-bold text-white/60 bg-white/10 border border-white/20">
                 Portal currently closed — check back later
               </div>
             )}
@@ -182,7 +182,7 @@ export default function AdmissionsLanding() {
       {info.welcome_text && info.is_portal_open && (
         <section className="bg-white py-16">
           <div className="max-w-3xl mx-auto px-6 text-center">
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-3">A Message From Us</p>
+            <p className="text-slate-400 text-xs font-bold font-medium mb-3">A Message From Us</p>
             <p className="text-slate-700 text-lg leading-relaxed whitespace-pre-wrap">{info.welcome_text}</p>
           </div>
         </section>
@@ -193,14 +193,14 @@ export default function AdmissionsLanding() {
         <section id="how-it-works" className="py-20 px-6">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-14">
-              <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: primary }}>The Process</p>
+              <p className="text-xs font-bold font-medium mb-2" style={{ color: primary }}>The Process</p>
               <h2 className="text-3xl font-black text-slate-900">How to Apply</h2>
               <p className="text-slate-500 mt-3 max-w-md mx-auto">Complete your admission in four simple steps — the entire process takes less than 10 minutes.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {steps.map((s, i) => (
                 <div key={s.num} className="relative bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-lg mb-4 shadow-lg" style={{ background: `linear-gradient(135deg, ${primary}, ${accent})` }}>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-lg mb-4 shadow-lg" style={{ background: `linear-gradient(135deg, ${primary}, ${accent})` }}>
                     {s.num}
                   </div>
                   {i < steps.length - 1 && (
@@ -214,7 +214,7 @@ export default function AdmissionsLanding() {
             <div className="text-center mt-10">
               <button
                 onClick={() => router.push(`/admissions/${slug}/check`)}
-                className="inline-flex items-center gap-2 px-8 py-4 rounded-2xl text-white font-bold text-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5"
+                className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-white font-bold text-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5"
                 style={{ background: `linear-gradient(135deg, ${primary}, ${accent})` }}>
                 Get Started Now
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -231,12 +231,12 @@ export default function AdmissionsLanding() {
         <section className="bg-white py-16 px-6">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-10">
-              <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: primary }}>What We Offer</p>
+              <p className="text-xs font-bold font-medium mb-2" style={{ color: primary }}>What We Offer</p>
               <h2 className="text-3xl font-black text-slate-900">Available Programmes</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {info.programs.map((p, i) => (
-                <div key={p.id} className="group flex items-center gap-4 p-5 rounded-2xl border border-slate-100 hover:border-transparent hover:shadow-lg transition-all duration-200 cursor-default"
+                <div key={p.id} className="group flex items-center gap-4 p-5 rounded-xl border border-slate-100 hover:border-transparent hover:shadow-lg transition-all duration-200 cursor-default"
                   style={{ '--hover-bg': `rgba(${r},${g},${b},0.05)` } as React.CSSProperties}
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = `rgba(${r},${g},${b},0.05)`)}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
@@ -256,46 +256,46 @@ export default function AdmissionsLanding() {
         <section className="py-16 px-6">
           <div className="max-w-3xl mx-auto">
             <div className="text-center mb-10">
-              <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: primary }}>Get In Touch</p>
+              <p className="text-xs font-bold font-medium mb-2" style={{ color: primary }}>Get In Touch</p>
               <h2 className="text-3xl font-black text-slate-900">Contact Us</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               {info.contact_phone && (
                 <a href={`tel:${info.contact_phone}`} className="flex flex-col items-center gap-3 p-6 bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow text-center">
-                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
                     <svg className="w-6 h-6" style={{ color: primary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold">Phone</p>
+                    <p className="text-xs text-slate-400 font-medium font-semibold">Phone</p>
                     <p className="font-bold text-slate-800 mt-0.5">{info.contact_phone}</p>
                   </div>
                 </a>
               )}
               {info.contact_email && (
                 <a href={`mailto:${info.contact_email}`} className="flex flex-col items-center gap-3 p-6 bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow text-center">
-                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
                     <svg className="w-6 h-6" style={{ color: primary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold">Email</p>
+                    <p className="text-xs text-slate-400 font-medium font-semibold">Email</p>
                     <p className="font-bold text-slate-800 mt-0.5 text-sm break-all">{info.contact_email}</p>
                   </div>
                 </a>
               )}
               {info.contact_address && (
                 <div className="flex flex-col items-center gap-3 p-6 bg-white rounded-3xl border border-slate-100 shadow-sm text-center">
-                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
                     <svg className="w-6 h-6" style={{ color: primary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-400 uppercase tracking-wide font-semibold">Address</p>
+                    <p className="text-xs text-slate-400 font-medium font-semibold">Address</p>
                     <p className="font-semibold text-slate-800 mt-0.5 text-sm">{info.contact_address}</p>
                   </div>
                 </div>

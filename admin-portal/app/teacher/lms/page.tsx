@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -37,11 +37,11 @@ const INPUT = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus
 function StatusBadge({ status }: { status: Course['status'] }) {
   const map = {
     draft: 'bg-slate-100 text-slate-600',
-    published: 'bg-green-100 text-green-700',
+    published: 'bg-[#D1EAD9] text-[#145C44]',
     archived: 'bg-orange-100 text-orange-700',
   };
   return (
-    <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${map[status]}`}>
+    <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full font-medium ${map[status]}`}>
       {status}
     </span>
   );
@@ -104,9 +104,9 @@ function NewCourseModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
@@ -153,7 +153,7 @@ function NewCourseModal({
             <textarea className={INPUT} rows={3} value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief course description…" />
           </div>
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-[#F5F0E8]">Cancel</button>
             <button
               type="submit"
               disabled={saving || loadingAssignments || subjects.length === 0}
@@ -190,7 +190,7 @@ function CoursesContent() {
       const { data } = await teacherApi.get<Course[]>('/api/lms/my-courses', { params });
       setCourses(data ?? []);
     } catch {
-      setError('Failed to load courses.');
+      setError('Could not load courses.');
     } finally {
       setLoading(false);
     }
@@ -205,7 +205,7 @@ function CoursesContent() {
       if (!current) { setLoading(false); return; }
       setYearId(current.id);
       loadCourses(current.id, '');
-    }).catch(() => { setError('Failed to load academic years.'); setLoading(false); });
+    }).catch(() => { setError('Could not load academic years.'); setLoading(false); });
   }, [loadCourses]);
 
   async function toggleStatus(course: Course) {
@@ -253,9 +253,9 @@ function CoursesContent() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 mb-5 flex gap-3">
+      <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 mb-5 flex gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-semibold text-[#8C7E6E] mb-1.5 uppercase tracking-wide">Academic Year</p>
+          <p className="text-[10px] font-semibold text-[#8C7E6E] mb-1.5 font-medium">Academic Year</p>
           <div className="relative">
             <select
               value={yearId}
@@ -270,7 +270,7 @@ function CoursesContent() {
           </div>
         </div>
         <div className="w-40 shrink-0">
-          <p className="text-[10px] font-semibold text-[#8C7E6E] mb-1.5 uppercase tracking-wide">Semester</p>
+          <p className="text-[10px] font-semibold text-[#8C7E6E] mb-1.5 font-medium">Semester</p>
           <div className="relative">
             <select
               value={semester}
@@ -292,11 +292,11 @@ function CoursesContent() {
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map(i => <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-48 animate-pulse" />)}
+          {[1, 2, 3].map(i => <div key={i} className="bg-white rounded-xl border border-[#E2D9CC] h-48 animate-pulse" />)}
         </div>
       ) : courses.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-white border border-[#E2D9CC] flex items-center justify-center mb-4">
+          <div className="w-16 h-16 rounded-xl bg-white border border-[#E2D9CC] flex items-center justify-center mb-4">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-8 h-8 text-[#C8BFB5]">
               <path d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0118 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
             </svg>
@@ -314,7 +314,7 @@ function CoursesContent() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {courses.map(course => (
-            <div key={course.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm flex flex-col overflow-hidden">
+            <div key={course.id} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm flex flex-col overflow-hidden">
               <div className="h-1.5 w-full" style={{ background: primary }} />
               <div className="p-4 flex-1 flex flex-col gap-2">
                 <div className="flex items-start justify-between gap-2">
@@ -354,7 +354,7 @@ function CoursesContent() {
                 <button
                   onClick={() => toggleStatus(course)}
                   disabled={togglingId === course.id}
-                  className="px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  className="px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-[#F5F0E8] disabled:opacity-50"
                 >
                   {togglingId === course.id ? '…' : course.status === 'published' ? 'Unpublish' : 'Publish'}
                 </button>

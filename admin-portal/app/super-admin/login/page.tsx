@@ -44,22 +44,22 @@ export default function SuperAdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: '#0F172A' }}>
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: '#0E1A0C' }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center mx-auto mb-4">
-            <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} className="w-7 h-7">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: '#C8973A' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#0B3D2E" strokeWidth={2} className="w-6 h-6">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-white">Super Admin</h1>
-          <p className="text-sm text-slate-400 mt-1">CAS Platform Control</p>
+          <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>CAS Platform Control</p>
         </div>
 
-        <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 shadow-xl">
+        <div className="rounded-xl border p-6 shadow-xl" style={{ backgroundColor: '#152210', borderColor: '#2A3D28' }}>
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-400 block mb-1.5">
+              <label className="text-xs font-semibold block mb-1.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
                 Username
               </label>
               <input
@@ -68,11 +68,12 @@ export default function SuperAdminLoginPage() {
                 onChange={e => { setUsername(e.target.value); setError(''); }}
                 placeholder="admin"
                 autoComplete="username"
-                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-slate-500"
+                className="w-full rounded-xl px-4 py-3 text-sm text-white focus:outline-none placeholder-slate-500"
+                style={{ backgroundColor: '#0E1A0C', border: '1px solid #2A3D28' }}
               />
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-400 block mb-1.5">
+              <label className="text-xs font-semibold block mb-1.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
                 Password
               </label>
               <input
@@ -81,18 +82,20 @@ export default function SuperAdminLoginPage() {
                 onChange={e => { setPassword(e.target.value); setError(''); }}
                 placeholder="••••••••"
                 autoComplete="current-password"
-                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-slate-500"
+                className="w-full rounded-xl px-4 py-3 text-sm text-white focus:outline-none placeholder-slate-500"
+                style={{ backgroundColor: '#0E1A0C', border: '1px solid #2A3D28' }}
               />
             </div>
 
             {error && (
-              <p className="text-xs text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-3 py-2">{error}</p>
+              <p className="text-xs text-red-400 rounded-lg px-3 py-2" style={{ backgroundColor: 'rgba(127,29,29,0.25)', border: '1px solid rgba(185,28,28,0.4)' }}>{error}</p>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-colors disabled:opacity-40"
+              className="w-full py-3 rounded-xl text-white font-semibold text-sm transition-colors disabled:opacity-40"
+              style={{ backgroundColor: '#145C44' }}
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">

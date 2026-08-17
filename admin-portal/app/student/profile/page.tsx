@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { studentApi } from '@/lib/student-api';
@@ -74,19 +74,19 @@ export default function StudentProfilePage() {
     <div className="p-4 md:p-6 space-y-4 max-w-xl mx-auto">
 
       {/* Identity card */}
-      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-        <div className="h-20 w-full" style={{ background: `linear-gradient(135deg, ${primary}, ${primary}cc)` }} />
+      <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
+        <div className="h-20 w-full" style={{ backgroundColor: primary }} />
         <div className="px-5 pb-5">
           <div className="flex items-end gap-4 -mt-10 mb-4">
             {profile.picture_url ? (
               <img src={profile.picture_url} alt=""
-                className="w-20 h-20 rounded-2xl object-cover border-4 border-white shadow-sm" />
+                className="w-20 h-20 rounded-xl object-cover border-4 border-white shadow-sm" />
             ) : (
-              <div className="w-20 h-20 rounded-2xl border-4 border-white shadow-sm flex items-center justify-center text-3xl font-black text-white"
+              <div className="w-20 h-20 rounded-xl border-4 border-white shadow-sm flex items-center justify-center text-3xl font-bold text-white"
                 style={{ background: primary }}>{profile.name[0]}</div>
             )}
             <div className="pb-1 flex-1 min-w-0">
-              <p className="text-lg font-black text-slate-800 leading-tight truncate">{profile.name}</p>
+              <p className="text-lg font-bold text-slate-800 leading-tight truncate">{profile.name}</p>
               <p className="text-sm text-slate-400 font-mono">{profile.student_code}</p>
             </div>
           </div>
@@ -101,7 +101,7 @@ export default function StudentProfilePage() {
 
       {/* Personal info */}
       <div className="bg-white rounded-xl border border-slate-100 px-5 py-3">
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide py-2">Personal Information</p>
+        <p className="text-xs font-bold text-slate-400 font-medium py-2">Personal Information</p>
         <Row label="Gender"        value={profile.gender} />
         <Row label="Date of Birth" value={profile.date_of_birth ? `${profile.date_of_birth}${profile.age ? ` (${profile.age} yrs)` : ''}` : null} />
         <Row label="Hometown"      value={profile.hometown} />
@@ -116,7 +116,7 @@ export default function StudentProfilePage() {
       {/* Guardian */}
       {(profile.guardian_name || profile.guardian_mobile) && (
         <div className="bg-white rounded-xl border border-slate-100 px-5 py-3">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wide py-2">Guardian / Parent</p>
+          <p className="text-xs font-bold text-slate-400 font-medium py-2">Guardian / Parent</p>
           <Row label="Name"       value={profile.guardian_name} />
           <Row label="Occupation" value={profile.guardian_occupation} />
           <Row label="Mobile"     value={profile.guardian_mobile} />
@@ -126,7 +126,7 @@ export default function StudentProfilePage() {
       {/* Form teacher */}
       {profile.form_teacher && (
         <div className="bg-white rounded-xl border border-slate-100 px-5 py-3">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wide py-2">Form Teacher</p>
+          <p className="text-xs font-bold text-slate-400 font-medium py-2">Form Teacher</p>
           <Row label="Name"    value={profile.form_teacher.teacher_name} />
           <Row label="Contact" value={profile.form_teacher.teacher_phone} />
         </div>
@@ -160,7 +160,7 @@ export default function StudentProfilePage() {
                 className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             {pwdMsg && (
-              <p className={`text-xs ${pwdMsg.includes('success') ? 'text-green-600' : 'text-red-500'}`}>{pwdMsg}</p>
+              <p className={`text-xs ${pwdMsg.includes('success') ? 'text-[#145C44]' : 'text-red-500'}`}>{pwdMsg}</p>
             )}
             <button type="submit" disabled={pwdLoading}
               className="w-full py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40"

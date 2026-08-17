@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useRef } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -113,7 +113,7 @@ export default function ResourcesPage() {
           <button
             key={value}
             onClick={() => { setFilterType(value); setPage(1); }}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${filterType === value ? 'bg-green-700 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${filterType === value ? 'bg-[#145C44] text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
           >
             {label}
           </button>
@@ -129,13 +129,13 @@ export default function ResourcesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                <Th label="Title" sortKey="title" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <Th label="Type" sortKey="resource_type" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
-                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Subject</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Year</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Level</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap">Size</th>
-                <Th label="Downloads" sortKey="download_count" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide whitespace-nowrap" />
+                <Th label="Title" sortKey="title" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap" />
+                <Th label="Type" sortKey="resource_type" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap" />
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap">Subject</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap">Year</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap">Level</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap">Size</th>
+                <Th label="Downloads" sortKey="download_count" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-semibold text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap" />
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -174,7 +174,7 @@ export default function ResourcesPage() {
           <div className="grid grid-cols-2 gap-4">
             <Input label="Subject" value={form.subject} onChange={e => setForm(p => ({ ...p, subject: e.target.value }))} />
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Type</label>
+              <label className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400">Type</label>
               <select
                 className="w-full rounded-lg px-3 py-2.5 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                 value={form.resource_type}
@@ -190,7 +190,7 @@ export default function ResourcesPage() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">File (PDF)</label>
+            <label className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400">File (PDF)</label>
             <input ref={fileRef} type="file" accept=".pdf" onChange={handleFile} className="text-sm text-slate-700 dark:text-slate-300" />
             {fileName && <p className="text-xs text-slate-500">{fileName} ({formatSize(fileSizeKb)})</p>}
           </div>

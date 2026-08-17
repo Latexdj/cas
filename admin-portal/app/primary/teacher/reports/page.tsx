@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -43,7 +43,7 @@ const AFFECTIVE = ['Punctuality','Neatness','Attentiveness','Participation','Con
 const STATUS_BADGE: Record<string, string> = {
   draft:     'text-slate-600 bg-slate-100',
   submitted: 'text-blue-700 bg-blue-50',
-  approved:  'text-green-700 bg-green-50',
+  approved:  'text-[#145C44] bg-[#E8F4EE]',
   rejected:  'text-red-700 bg-red-50',
 };
 
@@ -85,7 +85,7 @@ export default function PrimaryTeacherReportsPage() {
       } else {
         setStudents(sts.data.map(s => ({ student_id: s.id, student_name: `${s.surname}${s.other_names ? ' '+s.other_names : ''}`, admission_number: s.admission_number, status: 'draft', report_id: null })));
       }
-    } catch { setError('Failed to load reports.'); }
+    } catch { setError('Could not load reports.'); }
     finally { setLoading(false); }
   }, [termId]);
 
@@ -98,7 +98,7 @@ export default function PrimaryTeacherReportsPage() {
       setFullReport(data);
       setRatings(data.remarks.affective_ratings ?? {});
       setRemarks(data.remarks.class_teacher_remarks ?? '');
-    } catch { setError('Failed to load student report.'); }
+    } catch { setError('Could not load student report.'); }
     finally { setPanelLoading(false); }
   }
 
@@ -156,7 +156,7 @@ export default function PrimaryTeacherReportsPage() {
       <div className="flex gap-3">
         <select value={termId} onChange={e => setTermId(e.target.value)}
           className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white">
-          <option value="">Select term…</option>
+          <option value="">Select termâ€¦</option>
           {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
       </div>
@@ -172,13 +172,13 @@ export default function PrimaryTeacherReportsPage() {
             </div>
             {loading ? (
               <div className="flex justify-center py-10">
-                <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
               </div>
             ) : (
               <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
                 {students.map(r => (
                   <button key={r.student_id} onClick={() => openStudent(r)}
-                    className={`w-full text-left flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors ${selStudent?.student_id === r.student_id ? 'bg-green-50 border-l-2 border-green-600' : ''}`}>
+                    className={`w-full text-left flex items-center justify-between px-4 py-3 hover:bg-[#F5F0E8] transition-colors ${selStudent?.student_id === r.student_id ? 'bg-[#E8F4EE] border-l-2 border-green-600' : ''}`}>
                     <div>
                       <p className="text-sm font-medium text-slate-900">{r.student_name}</p>
                       <p className="text-xs text-slate-400">{r.admission_number}</p>
@@ -204,7 +204,7 @@ export default function PrimaryTeacherReportsPage() {
             </div>
           ) : panelLoading ? (
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex items-center justify-center h-64">
-              <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+              <div className="w-6 h-6 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
             </div>
           ) : fullReport ? (
             <div className="space-y-4">
@@ -212,7 +212,7 @@ export default function PrimaryTeacherReportsPage() {
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4 flex items-center justify-between">
                 <div>
                   <p className="font-bold text-slate-900">{fullReport.student.surname}{fullReport.student.other_names ? ` ${fullReport.student.other_names}` : ''}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{fullReport.student.class_name} · {fullReport.term.name}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{fullReport.student.class_name} Â· {fullReport.term.name}</p>
                 </div>
                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_BADGE[selStudent.status] ?? STATUS_BADGE.draft}`}>
                   {selStudent.status}
@@ -221,10 +221,10 @@ export default function PrimaryTeacherReportsPage() {
 
               {/* Scores summary */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wide">Academic Performance</div>
+                <div className="px-4 py-2.5 border-b border-slate-100 text-xs font-semibold text-slate-500 font-medium">Academic Performance</div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-100">
+                    <thead className="bg-[#F5F0E8] border-b border-slate-100">
                       <tr>
                         {['Subject','Class','Exam','Total','Grade','Pos.'].map(h => (
                           <th key={h} className="px-3 py-2 text-left font-semibold text-slate-500">{h}</th>
@@ -233,13 +233,13 @@ export default function PrimaryTeacherReportsPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {fullReport.scores.map(s => (
-                        <tr key={s.subject_name} className="hover:bg-slate-50">
+                        <tr key={s.subject_name} className="hover:bg-[#F5F0E8]">
                           <td className="px-3 py-2 font-medium text-slate-800">{s.subject_name}</td>
-                          <td className="px-3 py-2 text-slate-600">{s.class_score ?? '—'}</td>
-                          <td className="px-3 py-2 text-slate-600">{s.exam_score ?? '—'}</td>
-                          <td className="px-3 py-2 font-semibold text-slate-900">{s.total ?? '—'}</td>
-                          <td className="px-3 py-2 font-bold text-green-700">{s.grade ?? '—'}</td>
-                          <td className="px-3 py-2 text-slate-600">{s.position ?? '—'}</td>
+                          <td className="px-3 py-2 text-slate-600">{s.class_score ?? 'â€”'}</td>
+                          <td className="px-3 py-2 text-slate-600">{s.exam_score ?? 'â€”'}</td>
+                          <td className="px-3 py-2 font-semibold text-slate-900">{s.total ?? 'â€”'}</td>
+                          <td className="px-3 py-2 font-bold text-[#145C44]">{s.grade ?? 'â€”'}</td>
+                          <td className="px-3 py-2 text-slate-600">{s.position ?? 'â€”'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -250,16 +250,16 @@ export default function PrimaryTeacherReportsPage() {
               {/* Attendance */}
               {fullReport.attendance && (
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Attendance</p>
+                  <p className="text-xs font-semibold text-slate-500 font-medium mb-3">Attendance</p>
                   <div className="grid grid-cols-4 gap-3 text-center">
                     {[
-                      { label: 'Present', val: fullReport.attendance.present, color: 'text-green-700' },
+                      { label: 'Present', val: fullReport.attendance.present, color: 'text-[#145C44]' },
                       { label: 'Absent',  val: fullReport.attendance.absent,  color: 'text-red-600' },
                       { label: 'Late',    val: fullReport.attendance.late,    color: 'text-yellow-600' },
                       { label: 'Excused', val: fullReport.attendance.excused, color: 'text-blue-600' },
                     ].map(a => (
-                      <div key={a.label} className="bg-slate-50 rounded-lg py-2">
-                        <p className={`text-xl font-black ${a.color}`}>{a.val}</p>
+                      <div key={a.label} className="bg-[#F5F0E8] rounded-lg py-2">
+                        <p className={`text-xl font-bold ${a.color}`}>{a.val}</p>
                         <p className="text-xs text-slate-400">{a.label}</p>
                       </div>
                     ))}
@@ -269,7 +269,7 @@ export default function PrimaryTeacherReportsPage() {
 
               {/* Affective ratings */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 space-y-3">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Affective Domain</p>
+                <p className="text-xs font-semibold text-slate-500 font-medium">Affective Domain</p>
                 <div className="grid grid-cols-2 gap-2">
                   {AFFECTIVE.map(trait => (
                     <div key={trait} className="flex items-center justify-between">
@@ -281,8 +281,8 @@ export default function PrimaryTeacherReportsPage() {
                               ratings[trait] >= n
                                 ? 'text-white shadow-sm'
                                 : 'bg-slate-100 text-slate-400'
-                            } ${!canEdit ? 'cursor-default' : 'hover:opacity-80'}`}
-                            style={ratings[trait] >= n ? { backgroundColor: '#15803D' } : {}}>
+                            } ${!canEdit ? 'cursor-default' : 'hover:opacity-90'}`}
+                            style={ratings[trait] >= n ? { backgroundColor: '#145C44' } : {}}>
                             {n}
                           </button>
                         ))}
@@ -294,11 +294,11 @@ export default function PrimaryTeacherReportsPage() {
 
               {/* Remarks */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 space-y-3">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Class Teacher Remarks</p>
+                <p className="text-xs font-semibold text-slate-500 font-medium">Class Teacher Remarks</p>
                 <textarea value={remarks} onChange={e => canEdit && setRemarks(e.target.value)}
                   disabled={!canEdit} rows={3}
-                  placeholder="Enter remarks for this student…"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none disabled:bg-slate-50 disabled:text-slate-500" />
+                  placeholder="Enter remarks for this studentâ€¦"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none disabled:bg-[#F5F0E8] disabled:text-slate-500" />
 
                 {selStudent.status === 'rejected' && (
                   <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">
@@ -309,14 +309,14 @@ export default function PrimaryTeacherReportsPage() {
                 <div className="flex justify-end gap-3">
                   {canEdit && (
                     <button onClick={saveRemarks} disabled={saving}
-                      className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50 disabled:opacity-50">
-                      {saving ? 'Saving…' : 'Save Draft'}
+                      className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-[#F5F0E8] disabled:opacity-50">
+                      {saving ? 'Savingâ€¦' : 'Save Draft'}
                     </button>
                   )}
                   {['draft','rejected'].includes(selStudent.status) && (
                     <button onClick={submit} disabled={submitting}
-                      className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
-                      {submitting ? 'Submitting…' : 'Submit for Approval'}
+                      className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#145C44' }}>
+                      {submitting ? 'Submittingâ€¦' : 'Submit for Approval'}
                     </button>
                   )}
                 </div>

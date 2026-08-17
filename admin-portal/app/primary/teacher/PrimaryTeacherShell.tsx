@@ -65,9 +65,9 @@ export default function PrimaryTeacherShell({ children }: { children: React.Reac
 
   const Sidebar = (
     <div className="flex flex-col h-full">
-      <div className="px-5 py-6 border-b border-white/10">
+      <div className="px-5 py-6" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <p className="text-white font-bold text-base">Primary Portal</p>
-        <p className="text-green-200 text-xs mt-0.5 truncate">{user.name}</p>
+        <p className="text-xs mt-0.5 truncate" style={{ color: 'rgba(200,151,58,0.7)' }}>{user.name}</p>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
@@ -76,9 +76,10 @@ export default function PrimaryTeacherShell({ children }: { children: React.Reac
           return (
             <Link key={item.href} href={item.href}
               onClick={() => setSideOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                active ? 'bg-white/20 text-white' : 'text-green-100 hover:bg-white/10 hover:text-white'
-              }`}>
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
+              style={active
+                ? { backgroundColor: 'rgba(200,151,58,0.15)', color: '#C8973A' }
+                : { color: 'rgba(255,255,255,0.6)' }}>
               {item.icon}
               {item.label}
             </Link>
@@ -86,9 +87,12 @@ export default function PrimaryTeacherShell({ children }: { children: React.Reac
         })}
       </nav>
 
-      <div className="px-3 py-4 border-t border-white/10">
+      <div className="px-3 py-4" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
         <button onClick={logout}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-green-100 hover:bg-white/10 hover:text-white transition-colors">
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
+          style={{ color: 'rgba(255,255,255,0.6)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#fff'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.6)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
@@ -99,17 +103,17 @@ export default function PrimaryTeacherShell({ children }: { children: React.Reac
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
+    <div className="min-h-screen flex" style={{ backgroundColor: '#F5F0E8' }}>
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-60 flex-col fixed inset-y-0 left-0 z-30 shadow-xl" style={{ backgroundColor: '#15803D' }}>
+      <aside className="hidden lg:flex w-60 flex-col fixed inset-y-0 left-0 z-30 shadow-xl" style={{ backgroundColor: '#0B3D2E' }}>
         {Sidebar}
       </aside>
 
       {/* Mobile overlay */}
       {sideOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setSideOpen(false)} />
-          <aside className="absolute left-0 top-0 bottom-0 w-64 flex flex-col shadow-2xl z-50" style={{ backgroundColor: '#15803D' }}>
+          <div className="absolute inset-0" style={{ background: 'rgba(11,61,46,0.55)' }} onClick={() => setSideOpen(false)} />
+          <aside className="absolute left-0 top-0 bottom-0 w-64 flex flex-col shadow-2xl z-50" style={{ backgroundColor: '#0B3D2E' }}>
             {Sidebar}
           </aside>
         </div>
@@ -118,13 +122,13 @@ export default function PrimaryTeacherShell({ children }: { children: React.Reac
       {/* Main */}
       <div className="flex-1 lg:ml-60 flex flex-col min-h-screen">
         {/* Mobile header */}
-        <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
-          <button onClick={() => setSideOpen(true)} className="p-1.5 rounded-lg text-slate-600">
+        <header className="lg:hidden flex items-center gap-3 px-4 py-3 sticky top-0 z-20 shadow-sm" style={{ backgroundColor: '#FDFAF5', borderBottom: '1px solid #E8E0D4' }}>
+          <button onClick={() => setSideOpen(true)} className="p-1.5 rounded-lg" style={{ color: '#8C7E6E' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="font-bold text-slate-900 text-sm">Primary Portal</span>
+          <span className="font-bold text-sm" style={{ color: '#2C2218' }}>Primary Portal</span>
         </header>
 
         <main className="flex-1 p-5 lg:p-7 max-w-5xl w-full mx-auto">

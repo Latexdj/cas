@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { studentApi } from '@/lib/student-api';
 import { getStudentColors } from '@/lib/student-auth';
@@ -24,7 +24,7 @@ const STATUS_META: Record<string, { label: string; badge: string }> = {
   pending:  { label: 'Pending Approval', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
   active:   { label: 'Approved — Out',   badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
   overdue:  { label: 'Overdue',          badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
-  returned: { label: 'Returned',         badge: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' },
+  returned: { label: 'Returned',         badge: 'bg-[#D1EAD9] text-[#145C44] dark:bg-green-900/30 dark:text-[#5DAA82]' },
   rejected: { label: 'Rejected',         badge: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300' },
 };
 
@@ -40,8 +40,8 @@ function QuotaBar({ label, used, max, color }: { label: string; used: number; ma
   if (max === null) {
     return (
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
-        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{label}</p>
-        <p className="text-2xl font-black mt-1" style={{ color }}>{used}</p>
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium">{label}</p>
+        <p className="text-2xl font-bold mt-1" style={{ color }}>{used}</p>
         <p className="text-xs text-slate-400 mt-0.5">No limit set</p>
       </div>
     );
@@ -51,9 +51,9 @@ function QuotaBar({ label, used, max, color }: { label: string; used: number; ma
   const barColor = pct >= 100 ? '#ef4444' : pct >= 75 ? '#f59e0b' : color;
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
-      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{label} Exeat</p>
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium">{label} Exeat</p>
       <div className="flex items-baseline gap-1.5 mt-1">
-        <p className="text-2xl font-black" style={{ color: barColor }}>{used}</p>
+        <p className="text-2xl font-bold" style={{ color: barColor }}>{used}</p>
         <p className="text-sm text-slate-400 font-medium">/ {max} used</p>
       </div>
       <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-700 mt-2 overflow-hidden">
@@ -117,8 +117,8 @@ function RequestModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-0 sm:px-4">
-      <div className="bg-white dark:bg-slate-800 w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/45 px-0 sm:px-4">
+      <div className="bg-white dark:bg-slate-800 w-full sm:max-w-md rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <p className="font-bold text-slate-900 dark:text-white">Request Exeat</p>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>
@@ -140,7 +140,7 @@ function RequestModal({
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
               {/* Type selector */}
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-2">Exeat Type *</label>
+                <label className="text-xs font-semibold font-medium text-slate-500 block mb-2">Exeat Type *</label>
                 <div className="grid grid-cols-2 gap-2">
                   {(['internal', 'external'] as const).map(t => {
                     const blocked = t === 'internal' ? blockedInternal : blockedExternal;
@@ -164,45 +164,45 @@ function RequestModal({
               ) : (
                 <>
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Destination *</label>
+                    <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Destination *</label>
                     <input value={dest} onChange={e => setDest(e.target.value)} placeholder="e.g. Kumasi — family home"
                       className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Reason *</label>
+                    <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Reason *</label>
                     <input value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Medical appointment"
                       className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Parent / Guardian Contact</label>
+                    <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Parent / Guardian Contact</label>
                     <input value={contact} onChange={e => setContact(e.target.value)} placeholder="e.g. 0244123456"
                       className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     <p className="text-[11px] text-slate-400 mt-1">Pre-filled from your record. Edit to override.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Departure Date *</label>
+                      <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Departure Date *</label>
                       <input type="date" value={depDate} min={today} onChange={e => setDepDate(e.target.value)}
                         className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div>
-                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Departure Time *</label>
+                      <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Departure Time *</label>
                       <input type="time" value={depTime} onChange={e => setDepTime(e.target.value)}
                         className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div>
-                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Expected Return *</label>
+                      <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Expected Return *</label>
                       <input type="date" value={retDate} min={depDate} onChange={e => setRetDate(e.target.value)}
                         className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div>
-                      <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Return Time *</label>
+                      <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Return Time *</label>
                       <input type="time" value={retTime} onChange={e => setRetTime(e.target.value)}
                         className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">Additional Notes</label>
+                    <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Additional Notes</label>
                     <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes for the housemaster"
                       className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
@@ -302,7 +302,7 @@ export default function StudentExeatPage() {
 
       {/* Requests list */}
       <div className="space-y-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+        <p className="text-xs font-bold font-medium text-slate-400">
           {exeats.length > 0 ? `${exeats.length} request${exeats.length !== 1 ? 's' : ''}` : 'No requests yet'}
         </p>
         {exeats.length === 0 ? (
@@ -323,7 +323,7 @@ export default function StudentExeatPage() {
               <div key={e.id} className={`bg-white dark:bg-slate-800 rounded-xl border ${isOverdue ? 'border-red-200 dark:border-red-700' : 'border-slate-100 dark:border-slate-700'} p-4 space-y-3`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${e.exeat_type === 'external' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-medium ${e.exeat_type === 'external' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'}`}>
                       {e.exeat_type}
                     </span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${meta.badge}`}>{meta.label}</span>
@@ -339,7 +339,7 @@ export default function StudentExeatPage() {
                     <span>{fmtDate(e.expected_return_date)} {fmtTime(e.expected_return_time)}</span>
                   </div>
                   {e.actual_return_date && (
-                    <div><span className="text-slate-400">Returned: </span><span className="text-green-700 dark:text-green-400 font-medium">{fmtDate(e.actual_return_date)} {fmtTime(e.actual_return_time ?? '')}</span></div>
+                    <div><span className="text-slate-400">Returned: </span><span className="text-[#145C44] dark:text-[#2ab289] font-medium">{fmtDate(e.actual_return_date)} {fmtTime(e.actual_return_time ?? '')}</span></div>
                   )}
                   {e.granted_by_name && <div><span className="text-slate-400">Approved by: </span><span className="text-slate-700 dark:text-slate-300">{e.granted_by_name}</span></div>}
                 </div>

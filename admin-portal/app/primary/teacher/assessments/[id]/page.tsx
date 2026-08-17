@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -35,7 +35,7 @@ export default function AssessmentScoresPage() {
           absent: s.absent ?? false,
         })));
       })
-      .catch(() => setError('Failed to load assessment scores.'))
+      .catch(() => setError('Could not load assessment scores.'))
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -79,7 +79,7 @@ export default function AssessmentScoresPage() {
 
   if (loading) return (
     <div className="flex justify-center py-20">
-      <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+      <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
     </div>
   );
 
@@ -113,18 +113,18 @@ export default function AssessmentScoresPage() {
         </div>
         <div className="text-right">
           <p className="text-xs text-slate-400">Max score</p>
-          <p className="text-xl font-black text-slate-800">{assessment.max_score}</p>
+          <p className="text-xl font-bold text-slate-800">{assessment.max_score}</p>
           <p className="text-xs text-slate-400 mt-0.5">→ scaled to {scaleTo} {scoreLabel} marks</p>
         </div>
       </div>
 
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>}
-      {saved  && <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-2">✓ Scores saved and class scores recalculated.</p>}
+      {saved  && <p className="text-sm text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded-lg px-4 py-2">✓ Scores saved and class scores recalculated.</p>}
 
       {/* Progress */}
       <div className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 shadow-sm px-5 py-3">
         <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
-          <div className="h-full rounded-full transition-all" style={{ width: `${rows.length ? (filled / rows.length * 100) : 0}%`, backgroundColor: '#15803D' }} />
+          <div className="h-full rounded-full transition-all" style={{ width: `${rows.length ? (filled / rows.length * 100) : 0}%`, backgroundColor: '#145C44' }} />
         </div>
         <span className="text-xs font-bold text-slate-600 whitespace-nowrap">{filled} / {rows.length} entered</span>
       </div>
@@ -133,20 +133,20 @@ export default function AssessmentScoresPage() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className="bg-[#F5F0E8] border-b border-gray-100">
               <tr>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">#</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Student</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Admission No.</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Score / {assessment.max_score}</th>
-                <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Absent</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium">#</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium">Student</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium">Admission No.</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium">Score / {assessment.max_score}</th>
+                <th className="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 font-medium">Absent</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {rows.map((r, i) => {
                 const outOfRange = !r.absent && r.score !== null && (r.score < 0 || r.score > assessment.max_score);
                 return (
-                  <tr key={r.student_id} className={r.absent ? 'bg-red-50' : outOfRange ? 'bg-amber-50' : 'hover:bg-gray-50'}>
+                  <tr key={r.student_id} className={r.absent ? 'bg-red-50' : outOfRange ? 'bg-amber-50' : 'hover:bg-[#F5F0E8]'}>
                     <td className="px-4 py-2.5 text-slate-400 text-xs tabular-nums">{i + 1}</td>
                     <td className="px-4 py-2.5 font-medium text-slate-900">{r.name}</td>
                     <td className="px-4 py-2.5 font-mono text-xs text-slate-500">{r.admission_number}</td>
@@ -190,7 +190,7 @@ export default function AssessmentScoresPage() {
         </p>
         <button onClick={save} disabled={saving || hasRangeError}
           className="px-6 py-2.5 rounded-lg text-sm font-bold text-white shadow-sm disabled:opacity-50 flex-shrink-0"
-          style={{ backgroundColor: '#15803D' }}>
+          style={{ backgroundColor: '#145C44' }}>
           {saving ? 'Saving…' : rows.some(r => r.score !== null) ? 'Save Changes' : 'Save Scores'}
         </button>
       </div>

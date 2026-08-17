@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { studentApi } from '@/lib/student-api';
@@ -80,7 +80,7 @@ export default function PascoPage() {
       setCorrectCount(0);
       setPhase('practice');
     } catch {
-      setFetchError('Failed to load questions. Please try again.');
+      setFetchError('Could not load questions. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -135,7 +135,7 @@ export default function PascoPage() {
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">Subject</label>
+            <label className="text-xs font-bold text-slate-500 font-medium block mb-1.5">Subject</label>
             {subjects.length === 0 ? (
               <p className="text-sm text-slate-400">No subjects configured. Ask your admin to add subjects.</p>
             ) : (
@@ -152,7 +152,7 @@ export default function PascoPage() {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">Difficulty</label>
+            <label className="text-xs font-bold text-slate-500 font-medium block mb-1.5">Difficulty</label>
             <div className="flex gap-2 flex-wrap">
               {DIFFICULTIES.map(d => (
                 <button
@@ -170,7 +170,7 @@ export default function PascoPage() {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide block mb-1.5">Year (optional)</label>
+            <label className="text-xs font-bold text-slate-500 font-medium block mb-1.5">Year (optional)</label>
             <input
               type="number"
               value={year}
@@ -199,15 +199,15 @@ export default function PascoPage() {
 
   if (phase === 'done') {
     const grade =
-      pct >= 80 ? { label: 'Excellent', color: '#15803D', bg: '#DCFCE7' } :
+      pct >= 80 ? { label: 'Excellent', color: '#145C44', bg: '#DCFCE7' } :
       pct >= 60 ? { label: 'Good', color: '#1D4ED8', bg: '#DBEAFE' } :
       pct >= 40 ? { label: 'Pass', color: '#D97706', bg: '#FEF3C7' } :
                   { label: 'Needs Work', color: '#DC2626', bg: '#FEE2E2' };
     return (
       <div className="p-4 md:p-6 max-w-md mx-auto">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8 text-center">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Session Complete</p>
-          <div className="text-5xl font-black mb-2" style={{ color: primary }}>
+          <div className="text-5xl font-bold mb-2" style={{ color: primary }}>
             {correctCount}<span className="text-2xl text-slate-400">/{questions.length}</span>
           </div>
           <p className="text-slate-500 text-sm mb-4">{pct}% correct</p>
@@ -226,7 +226,7 @@ export default function PascoPage() {
             </button>
             <button
               onClick={handleRestart}
-              className="w-full py-3 rounded-xl font-semibold text-slate-600 border-2 border-slate-200 hover:bg-slate-50 transition-colors"
+              className="w-full py-3 rounded-xl font-semibold text-slate-600 border-2 border-slate-200 hover:bg-[#F5F0E8] transition-colors"
             >
               Change Subject
             </button>
@@ -281,7 +281,7 @@ export default function PascoPage() {
         </div>
         <div className="text-right">
           <p className="text-xs text-slate-400">Score</p>
-          <p className="text-base font-black" style={{ color: primary }}>{correctCount}/{currentIndex + (revealed ? 1 : 0)}</p>
+          <p className="text-base font-bold" style={{ color: primary }}>{correctCount}/{currentIndex + (revealed ? 1 : 0)}</p>
         </div>
       </div>
 
@@ -294,7 +294,7 @@ export default function PascoPage() {
       </div>
 
       {/* Question card */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           {currentQ.year && (
             <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-500">{currentQ.year}</span>
@@ -328,7 +328,7 @@ export default function PascoPage() {
             </span>
             <span className="text-sm text-slate-700">{optTexts[opt]}</span>
             {revealed && opt === currentQ.correct_option && (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4 text-green-600 ml-auto shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4 text-[#145C44] ml-auto shrink-0">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
               </svg>
             )}
@@ -343,8 +343,8 @@ export default function PascoPage() {
 
       {/* Feedback */}
       {revealed && (
-        <div className={`rounded-xl p-4 border ${selected === currentQ.correct_option ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-          <p className={`text-sm font-bold mb-1 ${selected === currentQ.correct_option ? 'text-green-700' : 'text-red-700'}`}>
+        <div className={`rounded-xl p-4 border ${selected === currentQ.correct_option ? 'bg-[#E8F4EE] border-[#B8D9C8]' : 'bg-red-50 border-red-200'}`}>
+          <p className={`text-sm font-bold mb-1 ${selected === currentQ.correct_option ? 'text-[#145C44]' : 'text-red-700'}`}>
             {selected === currentQ.correct_option ? 'Correct!' : `Incorrect. The correct answer is ${OPTION_LABELS[currentQ.correct_option]}.`}
           </p>
           {currentQ.explanation && (

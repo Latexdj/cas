@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
@@ -54,11 +54,11 @@ function ReportCard({ result, className, yearName, semester, caLabel, exLabel, s
   const maxScore = 100;
 
   const gradeColor = (g: string) =>
-    ['A1','B2','B3','A','B+','B-'].includes(g) ? '#15803D' :
+    ['A1','B2','B3','A','B+','B-'].includes(g) ? '#145C44' :
     ['F9','F','E8'].includes(g) ? '#DC2626' : '#D97706';
 
   const barColor = (t: number | null) =>
-    t == null ? '#e5e7eb' : t >= 70 ? '#15803D' : t >= 50 ? '#D97706' : '#DC2626';
+    t == null ? '#e5e7eb' : t >= 70 ? '#145C44' : t >= 50 ? '#D97706' : '#DC2626';
 
   const page: React.CSSProperties = {
     width: '210mm', minHeight: '297mm', padding: '12mm 13mm 10mm',
@@ -80,7 +80,7 @@ function ReportCard({ result, className, yearName, semester, caLabel, exLabel, s
       {/* ── Header ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderBottom: `3px solid ${GREEN}`, paddingBottom: '8px' }}>
         {/* Logo */}
-        <div style={{ width: '60px', height: '60px', flexShrink: 0, border: `1px solid #e5e7eb`, borderRadius: '6px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb' }}>
+        <div style={{ width: '60px', height: '60px', flexShrink: 0, border: `1px solid #e5e7eb`, borderRadius: '6px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F5F0E8' }}>
           {schoolLogo
             ? <img src={schoolLogo} alt="logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             : <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '36px', height: '36px' }}>
@@ -155,7 +155,7 @@ function ReportCard({ result, className, yearName, semester, caLabel, exLabel, s
         <div style={{ background: LGREEN, border: `1px solid #c6e8d8`, borderRadius: '5px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '7.5pt', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: GREEN, marginRight: '4px' }}>Attendance</span>
           {[
-            { label: 'Periods Present', value: result.attendance.present, color: '#15803D' },
+            { label: 'Periods Present', value: result.attendance.present, color: '#145C44' },
             { label: 'Late',            value: result.attendance.late,    color: '#D97706' },
             { label: 'Absent',          value: result.attendance.absent,  color: '#DC2626' },
             { label: 'Total Periods',   value: result.attendance.total,   color: '#333'    },
@@ -214,7 +214,7 @@ function ReportCard({ result, className, yearName, semester, caLabel, exLabel, s
             Performance Overview
             <div style={{ flex: 1, height: '1px', background: '#c6e8d8' }} />
             <span style={{ fontSize: '7pt', fontWeight: 400, color: '#888', textTransform: 'none' }}>
-              <span style={{ color: '#15803D' }}>■</span> ≥70 &nbsp;
+              <span style={{ color: '#145C44' }}>■</span> ≥70 &nbsp;
               <span style={{ color: '#D97706' }}>■</span> 50–69 &nbsp;
               <span style={{ color: '#DC2626' }}>■</span> &lt;50
             </span>
@@ -330,11 +330,11 @@ function RemarksModal({
     finally { setSaving(false); }
   }
 
-  const sel = 'border border-[#E2D9CC] rounded-lg px-2 py-1.5 text-xs bg-[#F4EFE6] text-[#2C2218] focus:outline-none focus:ring-1 focus:ring-green-500 w-full';
+  const sel = 'border border-[#E2D9CC] rounded-lg px-2 py-1.5 text-xs bg-[#F4EFE6] text-[#2C2218] focus:outline-none focus:ring-1 focus:ring-[#145C44] w-full';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
           <div className="flex-1">
             <p className="font-bold text-slate-800">Form Teacher Remarks</p>
@@ -348,7 +348,7 @@ function RemarksModal({
         <div className="flex-1 overflow-y-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-white z-10 shadow-sm">
-              <tr className="text-xs font-semibold text-slate-500 uppercase tracking-wide border-b border-slate-100">
+              <tr className="text-xs font-semibold text-slate-500 font-medium border-b border-slate-100">
                 <th className="px-4 py-3 text-left">Student</th>
                 <th className="px-4 py-3 text-center w-36">Attitude</th>
                 <th className="px-4 py-3 text-center w-36">Conduct</th>
@@ -380,7 +380,7 @@ function RemarksModal({
                       value={draft[r.student_id]?.general_remarks ?? ''}
                       onChange={e => update(r.student_id, 'general_remarks', e.target.value)}
                       placeholder="Type remarks…"
-                      className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-full focus:outline-none focus:ring-1 focus:ring-green-500"
+                      className="border border-slate-200 rounded-lg px-2 py-1.5 text-xs w-full focus:outline-none focus:ring-1 focus:ring-[#145C44]"
                     />
                   </td>
                 </tr>
@@ -391,7 +391,7 @@ function RemarksModal({
 
         <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+          <button onClick={handleSave} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-semibold bg-[#145C44] text-white hover:bg-[#145C44] disabled:opacity-50 flex items-center gap-2">
             {saving && <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />}
             {saved ? 'Saved ✓' : saving ? 'Saving…' : 'Save Remarks'}
           </button>
@@ -468,8 +468,8 @@ function ImportModal({ onClose }: { onClose: () => void }) {
   const allRows = parseCsv(csvText);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
           <div className="flex-1"><p className="font-bold text-slate-800">Import Historical Results</p><p className="text-xs text-slate-500 mt-0.5">CSV from Google Sheets</p></div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
@@ -481,7 +481,7 @@ function ImportModal({ onClose }: { onClose: () => void }) {
           </div>
           {!result && <>
             <div>
-              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Upload CSV file</label>
+              <label className="text-xs font-semibold text-slate-500 font-medium block mb-1.5">Upload CSV file</label>
               <div className="flex gap-3 items-center">
                 <button onClick={() => fileRef.current?.click()} className="px-4 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">Choose file…</button>
                 <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFile} />
@@ -489,11 +489,11 @@ function ImportModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
             <textarea value={csvText} onChange={e => handleText(e.target.value)} rows={5} placeholder="Timestamp,Student ID,Student Name,Academic Year,Semester,Subject,…"
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" />
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#145C44] resize-none" />
           </>}
           {!result && preview.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Preview — {allRows.length} rows</p>
+              <p className="text-xs font-semibold text-slate-500 font-medium mb-2">Preview — {allRows.length} rows</p>
               <div className="overflow-x-auto border border-slate-200 rounded-xl">
                 <table className="w-full text-xs"><thead className="bg-slate-50"><tr className="text-[10px] font-semibold text-slate-500 uppercase"><th className="px-3 py-2 text-left">Student ID</th><th className="px-3 py-2">Year</th><th className="px-3 py-2">Sem</th><th className="px-3 py-2 text-left">Subject</th><th className="px-3 py-2">CA</th><th className="px-3 py-2">Exam</th><th className="px-3 py-2">Total</th><th className="px-3 py-2">Grade</th></tr></thead>
                   <tbody className="divide-y divide-slate-100">{preview.map((r, i) => (<tr key={i}><td className="px-3 py-1.5 font-mono">{r.student_code}</td><td className="px-3 py-1.5 text-center">{r.academic_year_name}</td><td className="px-3 py-1.5 text-center">{r.semester}</td><td className="px-3 py-1.5 max-w-[160px] truncate">{r.subject}</td><td className="px-3 py-1.5 text-center">{r.class_score}</td><td className="px-3 py-1.5 text-center">{r.exam_score}</td><td className="px-3 py-1.5 text-center font-bold">{r.total_score}</td><td className="px-3 py-1.5 text-center">{r.grade}</td></tr>))}</tbody>
@@ -505,25 +505,25 @@ function ImportModal({ onClose }: { onClose: () => void }) {
           {result && (
             <div className="space-y-4">
               <div className="grid grid-cols-4 gap-3">
-                {[{l:'Total',v:result.total,c:'text-slate-800'},{l:'Inserted',v:result.inserted,c:'text-green-700'},{l:'Updated',v:result.updated,c:'text-blue-700'},{l:'Skipped',v:result.skipped,c:'text-amber-700'}].map(({l,v,c})=>(
+                {[{l:'Total',v:result.total,c:'text-slate-800'},{l:'Inserted',v:result.inserted,c:'text-[#145C44]'},{l:'Updated',v:result.updated,c:'text-blue-700'},{l:'Skipped',v:result.skipped,c:'text-amber-700'}].map(({l,v,c})=>(
                   <div key={l} className="bg-slate-50 rounded-xl p-3 text-center"><p className="text-[10px] font-semibold text-slate-500 uppercase">{l}</p><p className={`text-2xl font-bold mt-0.5 ${c}`}>{v}</p></div>
                 ))}
               </div>
               {result.errors.length > 0 && <div className="border border-red-200 rounded-xl overflow-hidden"><table className="w-full text-xs"><thead className="bg-red-50"><tr><th className="px-3 py-2 text-left text-red-700">Row</th><th className="px-3 py-2 text-left text-red-700">ID</th><th className="px-3 py-2 text-left text-red-700">Error</th></tr></thead><tbody className="divide-y divide-red-100">{result.errors.map((e,i)=>(<tr key={i}><td className="px-3 py-1.5">{e.row}</td><td className="px-3 py-1.5 font-mono">{e.student_code}</td><td className="px-3 py-1.5 text-red-700">{e.error}</td></tr>))}</tbody></table></div>}
-              {result.skipped === 0 && result.errors.length === 0 && <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-center font-semibold">All rows imported successfully!</p>}
+              {result.skipped === 0 && result.errors.length === 0 && <p className="text-sm text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-4 py-3 text-center font-semibold">All rows imported successfully!</p>}
             </div>
           )}
         </div>
         {loading && progress.total > 1 && (
           <div className="px-6 pb-3">
             <div className="flex justify-between text-xs text-slate-500 mb-1"><span>Uploading…</span><span>{progress.done}/{progress.total}</span></div>
-            <div className="w-full bg-slate-100 rounded-full h-2"><div className="bg-green-500 h-2 rounded-full transition-all duration-300" style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} /></div>
+            <div className="w-full bg-slate-100 rounded-full h-2"><div className="bg-[#145C44] h-2 rounded-full transition-all duration-300" style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }} /></div>
           </div>
         )}
         <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
-          {result ? <button onClick={onClose} className="px-5 py-2 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700">Done</button>
+          {result ? <button onClick={onClose} className="px-5 py-2 rounded-xl text-sm font-semibold bg-[#145C44] text-white hover:bg-[#145C44]">Done</button>
             : <><button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</button>
-              <button onClick={handleImport} disabled={loading || allRows.length === 0} className="px-5 py-2 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+              <button onClick={handleImport} disabled={loading || allRows.length === 0} className="px-5 py-2 rounded-xl text-sm font-semibold bg-[#145C44] text-white hover:bg-[#145C44] disabled:opacity-50 flex items-center gap-2">
                 {loading && <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />}
                 {loading ? `Chunk ${progress.done}/${progress.total}…` : `Import ${allRows.length} rows`}
               </button></>}
@@ -536,14 +536,14 @@ function ImportModal({ onClose }: { onClose: () => void }) {
 // ── Badges (screen only) ──────────────────────────────────────────────────────
 function ScoreBadge({ value }: { value: number | null }) {
   if (value == null) return <span className="text-slate-400">—</span>;
-  const color = value >= 70 ? '#15803D' : value >= 50 ? '#D97706' : '#DC2626';
+  const color = value >= 70 ? '#145C44' : value >= 50 ? '#D97706' : '#DC2626';
   return <span style={{ color }} className="font-bold">{value}</span>;
 }
 function GradeBadge({ grade }: { grade: string }) {
   const isGood = ['A1','B2','B3','A','B+','B','B-'].includes(grade);
   const isFail = ['F9','F','E8','E'].includes(grade);
   const bg = isGood ? '#DCFCE7' : isFail ? '#FEE2E2' : '#FEF3C7';
-  const color = isGood ? '#15803D' : isFail ? '#DC2626' : '#D97706';
+  const color = isGood ? '#145C44' : isFail ? '#DC2626' : '#D97706';
   return <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold" style={{ background: bg, color }}>{grade}</span>;
 }
 
@@ -635,7 +635,7 @@ export default function ResultsPage() {
       if (current) { setYearId(current.id); setSemester(String(current.current_semester ?? 1)); }
       else if (yRes.data[0]) setYearId(yRes.data[0].id);
       setClasses(cRes.data);
-    }).catch(() => setError('Failed to load filters.')).finally(() => setLoadingMeta(false));
+    }).catch(() => setError('Could not load filters.')).finally(() => setLoadingMeta(false));
   }, []);
 
   const loadApprovalQueue = useCallback(async () => {
@@ -662,7 +662,7 @@ export default function ResultsPage() {
       const map: Record<string, ReportRemark> = {};
       for (const r of mkRes.data) map[r.student_id] = r;
       setRemarksMap(map);
-    } catch { setError('Failed to load results.'); }
+    } catch { setError('Could not load results.'); }
     finally { setLoading(false); }
   }, [yearId, semester, className]);
 
@@ -755,7 +755,7 @@ export default function ResultsPage() {
   const filteredQueue = queueStatusFilter === 'all' ? approvalQueue : approvalQueue.filter(q => q.status === queueStatusFilter);
   const { displayRows: queueRows, total: queueTotal, page: queuePage, setPage: setQueuePage, pageSize: queuePageSize, setPageSize: setQueuePageSize } = useTableControls(filteredQueue);
 
-  const selectStyle = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent';
+  const selectStyle = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#145C44] focus:border-transparent';
 
   function triggerPrint(target: 'all' | StudentResult) {
     flushSync(() => setPrintTarget(target));
@@ -810,20 +810,20 @@ export default function ResultsPage() {
         {/* Filters */}
         <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap gap-3 items-end">
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Academic Year</label>
+            <label className="text-xs font-semibold text-slate-500 font-medium">Academic Year</label>
             <select value={yearId} onChange={e => setYearId(e.target.value)} className={selectStyle} disabled={loadingMeta}>
               {years.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>)}
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Semester</label>
+            <label className="text-xs font-semibold text-slate-500 font-medium">Semester</label>
             <select value={semester} onChange={e => setSemester(e.target.value)} className={selectStyle}>
               <option value="1">Semester 1</option>
               <option value="2">Semester 2</option>
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Class</label>
+            <label className="text-xs font-semibold text-slate-500 font-medium">Class</label>
             <select value={className} onChange={e => setClassName(e.target.value)} className={selectStyle} disabled={loadingMeta}>
               <option value="">— Select class —</option>
               {classes.map(c => <option key={c} value={c}>{c}</option>)}
@@ -836,7 +836,7 @@ export default function ResultsPage() {
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                   Edit Remarks
                 </button>
-                <button onClick={() => triggerPrint('all')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700">
+                <button onClick={() => triggerPrint('all')} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-[#145C44] text-white hover:bg-[#145C44]">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
                   Print All ({results.length})
                 </button>
@@ -855,10 +855,10 @@ export default function ResultsPage() {
         <div style={{ border: '1px solid #E2E8F0', borderRadius: 14, overflow: 'hidden', background: '#fff' }}>
           <button
             onClick={() => { setShowApprovals(v => !v); if (!showApprovals) loadApprovalQueue(); }}
-            style={{ width: '100%', padding: '14px 20px', background: '#F8FAFC', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: showApprovals ? '1px solid #E2E8F0' : 'none' }}
+            style={{ width: '100%', padding: '14px 20px', background: '#F5F0E8', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: showApprovals ? '1px solid #E2E8F0' : 'none' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Result Approvals</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#1C1208' }}>Result Approvals</span>
               {approvalQueue.filter(q => q.status === 'hod_approved').length > 0 && (
                 <span style={{ background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 20 }}>
                   {approvalQueue.filter(q => q.status === 'hod_approved').length} pending
@@ -888,7 +888,7 @@ export default function ResultsPage() {
                         return (
                           <button key={key} onClick={() => { setQueueStatusFilter(key); setQueuePage(1); }}
                             style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: active ? 'none' : '1px solid #E2E8F0',
-                              background: active ? '#0F172A' : '#F8FAFC', color: active ? '#fff' : '#64748B' }}>
+                              background: active ? '#1C1208' : '#F5F0E8', color: active ? '#fff' : '#64748B' }}>
                             {label}
                             <span style={{ marginLeft: 5, background: active ? 'rgba(255,255,255,0.25)' : '#E2E8F0', color: active ? '#fff' : '#374151', borderRadius: 10, padding: '1px 6px', fontSize: 11 }}>{count}</span>
                           </button>
@@ -896,14 +896,14 @@ export default function ResultsPage() {
                       })}
                     </div>
                     <button onClick={publishAll}
-                      style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      style={{ background: '#145C44', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                       Publish All Final-Approved
                     </button>
                   </div>
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                       <thead>
-                        <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                        <tr style={{ background: '#F5F0E8', borderBottom: '1px solid #E2E8F0' }}>
                           {['Subject', 'Class', 'Teacher', 'HOD', 'Status', 'Actions'].map(h => (
                             <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
                           ))}
@@ -914,7 +914,7 @@ export default function ResultsPage() {
                           const sc = SUB_STATUS[item.status] ?? { label: item.status, color: '#64748B', bg: '#F1F5F9' };
                           return (
                             <tr key={item.id} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                              <td style={{ padding: '10px 12px', fontWeight: 500, color: '#0F172A' }}>{item.subject}</td>
+                              <td style={{ padding: '10px 12px', fontWeight: 500, color: '#1C1208' }}>{item.subject}</td>
                               <td style={{ padding: '10px 12px', color: '#374151' }}>{item.class_name}</td>
                               <td style={{ padding: '10px 12px', color: '#374151' }}>{item.teacher_name}</td>
                               <td style={{ padding: '10px 12px', color: '#374151' }}>{item.hod_name ?? '—'}</td>
@@ -926,7 +926,7 @@ export default function ResultsPage() {
                                   {item.status === 'hod_approved' && (
                                     <>
                                       <button onClick={() => openApprovalModal(item, 'approve')}
-                                        style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                                        style={{ background: '#145C44', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                                         Approve
                                       </button>
                                       <button onClick={() => openApprovalModal(item, 'reject')}
@@ -966,7 +966,7 @@ export default function ResultsPage() {
                   <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 560, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 48px)' }}
                     onClick={e => e.stopPropagation()}>
                     <div style={{ padding: '20px 24px 14px', borderBottom: '1px solid #F1F5F9', flexShrink: 0 }}>
-                      <h3 style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 4 }}>
+                      <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1C1208', marginBottom: 4 }}>
                         {approvalAction === 'approve' ? 'Final Approval' : approvalAction === 'publish' ? 'Publish Results' : approvalAction === 'unlock' ? 'Unlock Submission' : 'Reject & Return'}
                       </h3>
                       <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>
@@ -987,7 +987,7 @@ export default function ResultsPage() {
                           <p style={{ fontSize: 12, color: '#DC2626' }}>{readinessError}</p>
                         ) : readiness ? (() => {
                           const tick   = (ok: boolean) => ok
-                            ? <span style={{ color: '#15803D', fontWeight: 700, marginRight: 6 }}>✓</span>
+                            ? <span style={{ color: '#145C44', fontWeight: 700, marginRight: 6 }}>✓</span>
                             : <span style={{ color: '#DC2626', fontWeight: 700, marginRight: 6 }}>✗</span>;
                           const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 10px', fontSize: 12, borderBottom: '1px solid #F1F5F9' };
                           return (
@@ -998,7 +998,7 @@ export default function ResultsPage() {
                                   {tick(readiness.examComplete)}
                                   <span style={{ color: '#374151' }}>Exam scores</span>
                                 </span>
-                                <span style={{ fontWeight: 600, color: readiness.examComplete ? '#15803D' : '#DC2626' }}>
+                                <span style={{ fontWeight: 600, color: readiness.examComplete ? '#145C44' : '#DC2626' }}>
                                   {readiness.examScoredCount} / {readiness.totalStudents} students
                                 </span>
                               </div>
@@ -1019,13 +1019,13 @@ export default function ResultsPage() {
                                     {tick(a.complete)}
                                     <span style={{ color: '#374151' }}>{a.label} <span style={{ color: '#94A3B8', fontSize: 11 }}>({a.modeName})</span></span>
                                   </span>
-                                  <span style={{ fontWeight: 600, color: a.complete ? '#15803D' : '#DC2626' }}>
+                                  <span style={{ fontWeight: 600, color: a.complete ? '#145C44' : '#DC2626' }}>
                                     {a.actedOn} / {a.total} students
                                   </span>
                                 </div>
                               ))}
                               {/* Overall banner */}
-                              <div style={{ padding: '7px 10px', background: readiness.canApprove ? '#DCFCE7' : '#FEE2E2', fontSize: 12, fontWeight: 700, color: readiness.canApprove ? '#15803D' : '#DC2626' }}>
+                              <div style={{ padding: '7px 10px', background: readiness.canApprove ? '#DCFCE7' : '#FEE2E2', fontSize: 12, fontWeight: 700, color: readiness.canApprove ? '#145C44' : '#DC2626' }}>
                                 {readiness.canApprove
                                   ? '✓ All scores complete — safe to approve'
                                   : '✗ Scores incomplete — reject back to teacher to fix'}
@@ -1061,7 +1061,7 @@ export default function ResultsPage() {
                             <>
                               <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 12 }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                  <thead style={{ position: 'sticky', top: 0, background: '#F8FAFC', zIndex: 1 }}>
+                                  <thead style={{ position: 'sticky', top: 0, background: '#F5F0E8', zIndex: 1 }}>
                                     <tr style={{ borderBottom: '1px solid #E2E8F0' }}>
                                       {['Student', 'CA', 'Exam', 'Total', 'Grade'].map(h => (
                                         <th key={h} style={{ padding: '6px 10px', textAlign: h === 'Student' ? 'left' : 'center', fontWeight: 600, color: '#64748B', whiteSpace: 'nowrap' }}>{h}</th>
@@ -1073,11 +1073,11 @@ export default function ResultsPage() {
                                       const sub = student.subjects.find(s => s.subject.toLowerCase() === subject.toLowerCase());
                                       return (
                                         <tr key={student.student_id} style={{ borderTop: '1px solid #F1F5F9', background: idx % 2 === 0 ? '#fff' : '#FAFAFA' }}>
-                                          <td style={{ padding: '6px 10px', fontWeight: 500, color: '#0F172A' }}>{student.name}</td>
+                                          <td style={{ padding: '6px 10px', fontWeight: 500, color: '#1C1208' }}>{student.name}</td>
                                           <td style={{ padding: '6px 10px', textAlign: 'center', color: '#374151' }}>{sub?.ca_score != null ? sub.ca_score.toFixed(1) : '—'}</td>
                                           <td style={{ padding: '6px 10px', textAlign: 'center', color: '#374151' }}>{sub?.exam_score != null ? sub.exam_score.toFixed(1) : '—'}</td>
-                                          <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#0F172A' }}>{sub?.total != null ? sub.total : '—'}</td>
-                                          <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700, color: sub?.grade?.startsWith('F') || sub?.grade === 'E8' ? '#DC2626' : '#15803D' }}>{sub?.grade ?? '—'}</td>
+                                          <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#1C1208' }}>{sub?.total != null ? sub.total : '—'}</td>
+                                          <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700, color: sub?.grade?.startsWith('F') || sub?.grade === 'E8' ? '#DC2626' : '#145C44' }}>{sub?.grade ?? '—'}</td>
                                         </tr>
                                       );
                                     })}
@@ -1128,7 +1128,7 @@ export default function ResultsPage() {
                         style={{ flex: 1, padding: '9px 0', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600,
                           cursor: (approving || (approvalAction === 'approve' && readiness !== null && !readiness.canApprove)) ? 'not-allowed' : 'pointer',
                           opacity: (approving || (approvalAction === 'approve' && readiness !== null && !readiness.canApprove)) ? 0.45 : 1,
-                          background: approvalAction === 'reject' ? '#DC2626' : approvalAction === 'unlock' ? '#64748B' : approvalAction === 'publish' ? '#3730A3' : '#15803D',
+                          background: approvalAction === 'reject' ? '#DC2626' : approvalAction === 'unlock' ? '#64748B' : approvalAction === 'publish' ? '#3730A3' : '#145C44',
                           color: '#fff' }}>
                         {approving ? '…' : approvalAction === 'approve' ? 'Final Approve' : approvalAction === 'publish' ? 'Publish' : approvalAction === 'unlock' ? 'Unlock' : 'Reject & Return'}
                       </button>
@@ -1148,7 +1148,7 @@ export default function ResultsPage() {
           </div>
         ) : loading ? (
           <div className="bg-white rounded-xl border border-slate-200 p-12 flex items-center justify-center">
-            <div className="w-8 h-8 rounded-full border-4 border-green-500 border-t-transparent animate-spin" />
+            <div className="w-8 h-8 rounded-full border-4 border-[#145C44] border-t-transparent animate-spin" />
           </div>
         ) : results.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
@@ -1163,7 +1163,7 @@ export default function ResultsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  <tr className="bg-slate-50 text-xs font-semibold text-slate-500 font-medium">
                     <th className="px-4 py-3 text-left">Pos</th>
                     <th className="px-4 py-3 text-left">Student</th>
                     <th className="px-4 py-3 text-center">Subjects</th>
@@ -1186,12 +1186,12 @@ export default function ResultsPage() {
                       <td className="px-4 py-3 text-center"><GradeBadge grade={r.overall_grade} /></td>
                       <td className="px-4 py-3 text-center">
                         {remarksMap[r.student_id]?.attitude
-                          ? <span className="text-xs text-green-700 font-semibold">{remarksMap[r.student_id].attitude}</span>
+                          ? <span className="text-xs text-[#145C44] font-semibold">{remarksMap[r.student_id].attitude}</span>
                           : <span className="text-xs text-slate-300">—</span>}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <button onClick={() => setSelected(r)} className="text-xs font-semibold text-green-700 hover:text-green-900">View →</button>
+                          <button onClick={() => setSelected(r)} className="text-xs font-semibold text-[#145C44] hover:text-green-900">View →</button>
                           <button onClick={() => triggerPrint(r)} className="text-xs font-semibold text-slate-500 hover:text-slate-700 flex items-center gap-1">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
                             Print
@@ -1209,7 +1209,7 @@ export default function ResultsPage() {
 
         {/* Report card slide-in panel */}
         {selected && (
-          <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/40" onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}>
+          <div className="fixed inset-0 z-50 flex items-start justify-end bg-[#0B3D2E]/45" onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}>
             <div className="h-full w-full max-w-2xl bg-white shadow-2xl overflow-y-auto">
               <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center gap-3">
                 <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-600">
@@ -1219,21 +1219,21 @@ export default function ResultsPage() {
                   <p className="font-bold text-slate-800">{selected.name}</p>
                   <p className="text-xs text-slate-500">{selected.student_code} · {className} · {yearName} · Semester {semester}</p>
                 </div>
-                <button onClick={() => triggerPrint(selected)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-600 text-white hover:bg-green-700">
+                <button onClick={() => triggerPrint(selected)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#145C44] text-white hover:bg-[#145C44]">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
                   Print Card
                 </button>
               </div>
               <div className="px-6 py-4 grid grid-cols-3 gap-4 border-b border-slate-100">
-                <div className="text-center"><p className="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-1">Average</p><p className="text-2xl font-bold text-green-700">{selected.average ?? '—'}</p></div>
-                <div className="text-center border-x border-slate-100"><p className="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-1">Class Position</p><p className="text-2xl font-bold text-slate-800">{selected.class_position ? ordinal(selected.class_position) : '—'}{selected.class_total ? <span className="text-sm font-normal text-slate-400"> / {selected.class_total}</span> : null}</p></div>
-                <div className="text-center"><p className="text-xs text-slate-500 uppercase tracking-wide font-semibold mb-1">Overall Grade</p><div className="flex justify-center mt-1"><GradeBadge grade={selected.overall_grade} /></div></div>
+                <div className="text-center"><p className="text-xs text-slate-500 font-medium font-semibold mb-1">Average</p><p className="text-2xl font-bold text-[#145C44]">{selected.average ?? '—'}</p></div>
+                <div className="text-center border-x border-slate-100"><p className="text-xs text-slate-500 font-medium font-semibold mb-1">Class Position</p><p className="text-2xl font-bold text-slate-800">{selected.class_position ? ordinal(selected.class_position) : '—'}{selected.class_total ? <span className="text-sm font-normal text-slate-400"> / {selected.class_total}</span> : null}</p></div>
+                <div className="text-center"><p className="text-xs text-slate-500 font-medium font-semibold mb-1">Overall Grade</p><div className="flex justify-center mt-1"><GradeBadge grade={selected.overall_grade} /></div></div>
               </div>
               <div className="px-6 py-4">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Subject Breakdown</p>
+                <p className="text-xs font-semibold text-slate-500 font-medium mb-3">Subject Breakdown</p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm border border-slate-200 rounded-xl overflow-hidden">
-                    <thead><tr className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide"><th className="px-3 py-2.5 text-left">Subject</th><th className="px-3 py-2.5 text-center">{caLabel}</th><th className="px-3 py-2.5 text-center">{exLabel}</th><th className="px-3 py-2.5 text-center">Total</th><th className="px-3 py-2.5 text-center">Grade</th><th className="px-3 py-2.5 text-center">Position</th><th className="px-3 py-2.5 text-left">Remarks</th></tr></thead>
+                    <thead><tr className="bg-slate-50 text-xs font-semibold text-slate-500 font-medium"><th className="px-3 py-2.5 text-left">Subject</th><th className="px-3 py-2.5 text-center">{caLabel}</th><th className="px-3 py-2.5 text-center">{exLabel}</th><th className="px-3 py-2.5 text-center">Total</th><th className="px-3 py-2.5 text-center">Grade</th><th className="px-3 py-2.5 text-center">Position</th><th className="px-3 py-2.5 text-left">Remarks</th></tr></thead>
                     <tbody className="divide-y divide-slate-100">
                       {selected.subjects.map(s => (
                         <tr key={s.subject} className="hover:bg-slate-50">
@@ -1252,8 +1252,8 @@ export default function ResultsPage() {
               </div>
               {remarksMap[selected.student_id] && (
                 <div className="px-6 pb-6">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Form Teacher&apos;s Remarks</p>
-                  <div className="bg-green-50 rounded-xl border border-green-100 p-4 grid grid-cols-2 gap-3 text-sm">
+                  <p className="text-xs font-semibold text-slate-500 font-medium mb-3">Form Teacher&apos;s Remarks</p>
+                  <div className="bg-[#E8F4EE] rounded-xl border border-[#D1EAD9] p-4 grid grid-cols-2 gap-3 text-sm">
                     <div><span className="text-xs font-semibold text-slate-500 uppercase">Attitude</span><p className="font-semibold text-slate-800 mt-0.5">{remarksMap[selected.student_id].attitude ?? '—'}</p></div>
                     <div><span className="text-xs font-semibold text-slate-500 uppercase">Conduct</span><p className="font-semibold text-slate-800 mt-0.5">{remarksMap[selected.student_id].conduct ?? '—'}</p></div>
                     {remarksMap[selected.student_id].general_remarks && (

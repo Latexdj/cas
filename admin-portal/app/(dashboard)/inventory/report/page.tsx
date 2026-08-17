@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 
@@ -28,7 +28,7 @@ interface ReportData { summary: SummaryRow[]; totals: Totals; }
 function Stat({ label, value, sub }: { label: string; value: number; sub?: string }) {
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 shadow-sm">
-      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
+      <p className="text-xs font-semibold text-slate-400 font-medium">{label}</p>
       <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{value.toLocaleString()}</p>
       {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
     </div>
@@ -43,7 +43,7 @@ export default function InventoryReportPage() {
   useEffect(() => {
     api.get<ReportData>('/api/inventory/report')
       .then(r => setData(r.data))
-      .catch(e => setError(e.response?.data?.error ?? 'Failed to load report'))
+      .catch(e => setError(e.response?.data?.error ?? 'Could not load report'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -98,7 +98,7 @@ export default function InventoryReportPage() {
                         <td className="px-4 py-3 font-medium text-slate-800 dark:text-white">General</td>
                         <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300 tabular-nums">{row.item_count}</td>
                         <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300 tabular-nums">{row.total_units}</td>
-                        <td className="px-4 py-3 text-right text-green-700 dark:text-green-400 font-semibold tabular-nums">{row.available_units}</td>
+                        <td className="px-4 py-3 text-right text-[#145C44] dark:text-[#2ab289] font-semibold tabular-nums">{row.available_units}</td>
                         <td className="px-4 py-3 text-right text-amber-700 dark:text-amber-400 tabular-nums">{row.units_issued}</td>
                         <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-400 tabular-nums">{row.good_count}</td>
                         <td className="px-4 py-3 text-right text-amber-600 dark:text-amber-400 tabular-nums">{row.damaged_count}</td>
@@ -137,7 +137,7 @@ export default function InventoryReportPage() {
                         <td className="px-4 py-3 font-medium text-slate-800 dark:text-white">{row.department_name ?? 'Unassigned'}</td>
                         <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300 tabular-nums">{row.item_count}</td>
                         <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300 tabular-nums">{row.total_units}</td>
-                        <td className="px-4 py-3 text-right text-green-700 dark:text-green-400 font-semibold tabular-nums">{row.available_units}</td>
+                        <td className="px-4 py-3 text-right text-[#145C44] dark:text-[#2ab289] font-semibold tabular-nums">{row.available_units}</td>
                         <td className="px-4 py-3 text-right text-amber-700 dark:text-amber-400 tabular-nums">{row.units_issued}</td>
                         <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-400 tabular-nums">{row.good_count}</td>
                         <td className="px-4 py-3 text-right text-amber-600 dark:text-amber-400 tabular-nums">{row.damaged_count}</td>

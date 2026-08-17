@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 
@@ -27,7 +27,7 @@ interface OverdueLoan {
 function StatCard({ label, value, color }: { label: string; value: string | number; color: string }) {
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+      <p className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400">{label}</p>
       <p className="text-2xl font-bold mt-1" style={{ color }}>{value}</p>
     </div>
   );
@@ -103,18 +103,18 @@ export default function LibraryReportsPage() {
       {/* Date filter */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-4 flex flex-wrap items-end gap-4">
         <div>
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">From</label>
+          <label className="text-xs font-semibold text-slate-500 font-medium mb-1 block">From</label>
           <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-            className="border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+            className="border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">To</label>
+          <label className="text-xs font-semibold text-slate-500 font-medium mb-1 block">To</label>
           <input type="date" value={to} onChange={e => setTo(e.target.value)}
-            className="border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+            className="border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
         </div>
         <button onClick={loadReport} disabled={loading}
           className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-          style={{ background: '#15803D' }}>
+          style={{ background: '#145C44' }}>
           {loading ? 'Loading…' : 'Apply Filter'}
         </button>
         {(from || to) && (
@@ -128,14 +128,14 @@ export default function LibraryReportsPage() {
       {/* Summary stats */}
       {report && (
         <section className="space-y-4">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">Circulation Summary</h2>
+          <h2 className="text-sm font-bold font-medium text-slate-600 dark:text-slate-400">Circulation Summary</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <StatCard label="Total Issues"     value={report.summary.total_issues}      color="#3B82F6" />
-            <StatCard label="Total Returns"    value={report.summary.total_returns}     color="#10B981" />
+            <StatCard label="Total Returns"    value={report.summary.total_returns}     color="#145C44" />
             <StatCard label="Currently Out"    value={report.summary.currently_active}  color="#F59E0B" />
             <StatCard label="Currently Overdue" value={report.summary.currently_overdue} color="#EF4444" />
             <StatCard label="Fines Assessed"   value={`GH₵ ${totalFinesAssessed.toFixed(2)}`}     color="#8B5CF6" />
-            <StatCard label="Fines Collected"  value={`GH₵ ${totalFinesCollected.toFixed(2)}`}    color="#10B981" />
+            <StatCard label="Fines Collected"  value={`GH₵ ${totalFinesCollected.toFixed(2)}`}    color="#145C44" />
           </div>
           {totalFinesOutstanding > 0 && (
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3 text-sm font-semibold text-amber-700 dark:text-amber-400">
@@ -148,7 +148,7 @@ export default function LibraryReportsPage() {
       {/* Overdue aging */}
       {report && (
         <section className="space-y-4">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">Overdue Aging</h2>
+          <h2 className="text-sm font-bold font-medium text-slate-600 dark:text-slate-400">Overdue Aging</h2>
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-5">
             <AgingBar aging={report.overdue_aging} />
           </div>
@@ -158,17 +158,17 @@ export default function LibraryReportsPage() {
       {/* Popular titles */}
       {report && report.popular_titles.length > 0 && (
         <section className="space-y-4">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+          <h2 className="text-sm font-bold font-medium text-slate-600 dark:text-slate-400">
             Most Borrowed Titles{from || to ? ' (filtered period)' : ' (all time)'}
           </h2>
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700">
                 <tr>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide w-8">#</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Title</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Author</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Borrows</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium w-8">#</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Title</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium hidden sm:table-cell">Author</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 font-medium">Borrows</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -181,7 +181,7 @@ export default function LibraryReportsPage() {
                       <td className="px-4 py-3">
                         <p className="font-semibold text-slate-900 dark:text-white">{t.title}</p>
                         <div className="mt-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden w-full max-w-xs">
-                          <div className="h-full rounded-full bg-green-500" style={{ width: `${barWidth}%` }} />
+                          <div className="h-full rounded-full bg-[#145C44]" style={{ width: `${barWidth}%` }} />
                         </div>
                       </td>
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400 hidden sm:table-cell">{t.author ?? '—'}</td>
@@ -197,7 +197,7 @@ export default function LibraryReportsPage() {
 
       {/* Full overdue list */}
       <section className="space-y-4">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+        <h2 className="text-sm font-bold font-medium text-slate-600 dark:text-slate-400">
           Current Overdue Loans ({overdueLoad ? '…' : overdue.length})
         </h2>
         {overdueLoad ? (
@@ -212,11 +212,11 @@ export default function LibraryReportsPage() {
               <table className="w-full text-sm min-w-[640px]">
                 <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700">
                   <tr>
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Book</th>
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Student</th>
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Due Date</th>
-                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Days Overdue</th>
-                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Fine</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Book</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Student</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Due Date</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium">Days Overdue</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 font-medium">Fine</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -244,7 +244,7 @@ export default function LibraryReportsPage() {
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums">
                         {l.fine_amount > 0 ? (
-                          <span className={`text-xs font-semibold ${l.fine_waived ? 'text-green-600' : l.fine_paid ? 'text-slate-400' : 'text-red-600 dark:text-red-400'}`}>
+                          <span className={`text-xs font-semibold ${l.fine_waived ? 'text-[#145C44]' : l.fine_paid ? 'text-slate-400' : 'text-red-600 dark:text-red-400'}`}>
                             GH₵ {parseFloat(String(l.fine_amount)).toFixed(2)}
                             {l.fine_waived ? ' (waived)' : l.fine_paid ? ' (paid)' : ''}
                           </span>

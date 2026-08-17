@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -65,7 +65,7 @@ export default function TeacherSetupPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4"
             style={{ background: '#2ab289' }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
@@ -78,10 +78,10 @@ export default function TeacherSetupPage() {
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-6">
+        <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-6">
           <form onSubmit={handleLookup} className="space-y-4">
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1.5">
+              <label className="text-xs font-bold font-medium text-[#8C7E6E] block mb-1.5">
                 School Code
               </label>
               <input
@@ -94,7 +94,7 @@ export default function TeacherSetupPage() {
                 }}
                 placeholder="e.g. ABC123"
                 maxLength={20}
-                className="w-full border border-[#E2D9CC] rounded-xl px-4 py-3 text-sm font-mono uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-[#2ab289] bg-white text-[#2C2218]"
+                className="w-full border border-[#E2D9CC] rounded-xl px-4 py-3 text-sm font-mono font-medium focus:outline-none focus:ring-2 focus:ring-[#2ab289] bg-white text-[#2C2218]"
                 autoComplete="off"
                 autoCapitalize="characters"
               />
@@ -123,7 +123,7 @@ export default function TeacherSetupPage() {
           {school && (
             <div className="mt-5 pt-5 border-t border-[#E2D9CC]">
               <div className="rounded-xl p-4 mb-4" style={{ background: '#F4EFE6' }}>
-                <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-1">Found</p>
+                <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-1">Found</p>
                 <p className="text-lg font-bold text-[#2C2218]">{school.name}</p>
                 <p className="text-sm text-[#8C7E6E] font-mono">{school.code ?? code.trim().toUpperCase()}</p>
               </div>

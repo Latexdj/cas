@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -25,7 +25,7 @@ interface Stats {
 const STATUS_CFG: Record<string, { label: string; bg: string; color: string }> = {
   pending:   { label: 'Pending',   bg: '#F1F5F9', color: '#64748B' },
   completed: { label: 'Completed', bg: '#DBEAFE', color: '#1D4ED8' },
-  reported:  { label: 'Reported',  bg: '#DCFCE7', color: '#15803D' },
+  reported:  { label: 'Reported',  bg: '#DCFCE7', color: '#145C44' },
   migrated:  { label: 'Migrated',  bg: '#F3E8FF', color: '#7C3AED' },
 };
 
@@ -118,9 +118,9 @@ export default function ApplicationsPage() {
             { label: 'Registered',  val: stats.total_registered, color: '#0284C7' },
             { label: 'Pending',     val: stats.pending,          color: '#94A3B8' },
             { label: 'Completed',   val: stats.completed,        color: '#1D4ED8' },
-            { label: 'Reported',    val: stats.reported,         color: '#15803D' },
+            { label: 'Reported',    val: stats.reported,         color: '#145C44' },
             { label: 'Migrated',    val: stats.migrated,         color: '#7C3AED' },
-            { label: 'Total Apps',  val: stats.total,            color: '#0F172A' },
+            { label: 'Total Apps',  val: stats.total,            color: '#1C1208' },
           ].map(s => (
             <div key={s.label} className="bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3 text-center">
               <p className="text-2xl font-bold" style={{ color: s.color }}>{s.val}</p>
@@ -151,7 +151,7 @@ export default function ApplicationsPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>{['Admission No.','Name','Index No.','Program','House','Status','Date','Actions'].map(h =>
-              <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
+              <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">{h}</th>
             )}</tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -237,13 +237,13 @@ export default function ApplicationsPage() {
                 ['Applied', fmtDate(selected.created_at)],
               ].map(([label, val]) => val ? (
                 <div key={String(label)}>
-                  <p className="text-xs text-slate-400 uppercase tracking-wide">{label}</p>
+                  <p className="text-xs text-slate-400 font-medium">{label}</p>
                   <p className="font-medium text-slate-800">{val}</p>
                 </div>
               ) : null)}
             </div>
             {selected.bece_results_url && (
-              <a href={selected.bece_results_url} target="_blank" className="text-sm text-green-700 underline">View BECE Results Slip</a>
+              <a href={selected.bece_results_url} target="_blank" className="text-sm text-[#145C44] underline">View BECE Results Slip</a>
             )}
             <div className="flex gap-2 pt-2 flex-wrap">
               {selected.status === 'completed' && (
@@ -268,14 +268,14 @@ export default function ApplicationsPage() {
             <p className="text-sm text-slate-600">Migrate <strong>all {stats?.reported ?? 0} reported</strong> students to the main students table. Students will receive login credentials (default password: <span className="font-mono">Student123</span>).</p>
           )}
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Default Class Assignment</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Default Class Assignment</label>
             <input value={defClass} onChange={e => setDefClass(e.target.value)}
               placeholder="e.g. 1A or 1"
               className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600" />
             <p className="mt-1 text-xs text-slate-400">Students can be moved to specific classes in the Student roster afterwards.</p>
           </div>
           {migResult && (
-            <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+            <div className="rounded-lg bg-[#E8F4EE] border border-[#B8D9C8] px-4 py-3 text-sm text-[#0B3D2E]">
               <p className="font-semibold">{migResult.migrated} student{migResult.migrated !== 1 ? 's' : ''} migrated successfully.</p>
               {migResult.skipped > 0 && <p className="text-amber-700">{migResult.skipped} skipped.</p>}
               {migResult.errors.map((e, i) => <p key={i} className="text-xs text-red-600">{e.name}: {e.error}</p>)}

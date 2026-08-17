@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
@@ -52,8 +52,8 @@ function AssignModal({ className, yearId, teachers, existing, onSave, onDelete, 
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+    <div className="fixed inset-0 z-50 bg-[#0B3D2E]/45 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <div>
             <p className="font-bold text-slate-800">Assign Form Teacher</p>
@@ -67,30 +67,30 @@ function AssignModal({ className, yearId, teachers, existing, onSave, onDelete, 
         </div>
         <div className="p-6 space-y-4">
           {existing && (
-            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm">
-              <span className="text-green-700 font-medium">Currently assigned: </span>
+            <div className="bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-4 py-3 text-sm">
+              <span className="text-[#145C44] font-medium">Currently assigned: </span>
               <span className="text-green-900 font-bold">{existing.teacher_name}</span>
-              <span className="text-green-600"> ({existing.teacher_code})</span>
+              <span className="text-[#145C44]"> ({existing.teacher_code})</span>
             </div>
           )}
           <div>
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">
+            <label className="text-xs font-semibold text-slate-500 font-medium mb-1.5 block">
               {existing ? 'Change to' : 'Select Teacher'}
             </label>
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search by name or code…"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 mb-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 mb-2 focus:outline-none focus:ring-2 focus:ring-[#145C44]"
             />
             <div className="border border-slate-200 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
               {filtered.map(t => (
                 <button
                   key={t.id}
                   onClick={() => setTeacherId(t.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-green-50 transition-colors border-b border-slate-50 last:border-0 ${teacherId === t.id ? 'bg-green-50' : ''}`}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-[#E8F4EE] transition-colors border-b border-slate-50 last:border-0 ${teacherId === t.id ? 'bg-[#E8F4EE]' : ''}`}
                 >
-                  <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${teacherId === t.id ? 'border-green-600 bg-green-600' : 'border-slate-300'}`}>
+                  <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${teacherId === t.id ? 'border-green-600 bg-[#145C44]' : 'border-slate-300'}`}>
                     {teacherId === t.id && <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3} className="w-3 h-3"><polyline points="20 6 9 17 4 12" /></svg>}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -112,7 +112,7 @@ function AssignModal({ className, yearId, teachers, existing, onSave, onDelete, 
           )}
           <button onClick={onClose} className="ml-auto px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200">Cancel</button>
           <button onClick={handleSave} disabled={!teacherId || saving}
-            className="px-5 py-2 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">
+            className="px-5 py-2 rounded-lg text-sm font-semibold bg-[#145C44] text-white hover:bg-[#145C44] disabled:opacity-50">
             {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
@@ -173,14 +173,14 @@ export default function FormTeachersPage() {
       {/* Filter bar */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Academic Year</label>
+          <label className="text-xs font-semibold text-slate-500 font-medium">Academic Year</label>
           <select value={yearId} onChange={e => setYearId(e.target.value)}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500">
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]">
             {years.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>)}
           </select>
         </div>
         <div className="ml-auto text-sm text-slate-500">
-          <span className="font-semibold text-green-700">{assigned.length}</span> of{' '}
+          <span className="font-semibold text-[#145C44]">{assigned.length}</span> of{' '}
           <span className="font-semibold text-slate-700">{classes.length}</span> classes assigned
         </div>
       </div>
@@ -189,12 +189,12 @@ export default function FormTeachersPage() {
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: 'Total Classes', value: classes.length, color: 'text-slate-700' },
-          { label: 'Assigned',      value: assigned.length, color: 'text-green-700' },
+          { label: 'Assigned',      value: assigned.length, color: 'text-[#145C44]' },
           { label: 'Unassigned',    value: unassigned.length, color: unassigned.length > 0 ? 'text-amber-600' : 'text-slate-400' },
         ].map(({ label, value, color }) => (
           <div key={label} className="bg-white rounded-xl border border-slate-200 p-4 text-center">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">{label}</p>
-            <p className={`text-2xl font-black ${color}`}>{value}</p>
+            <p className="text-xs font-semibold text-slate-400 font-medium mb-1">{label}</p>
+            <p className={`text-2xl font-bold ${color}`}>{value}</p>
           </div>
         ))}
       </div>
@@ -202,7 +202,7 @@ export default function FormTeachersPage() {
       {/* Table */}
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -217,7 +217,7 @@ export default function FormTeachersPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide border-b border-slate-100">
+                <tr className="bg-slate-50 text-xs font-semibold text-slate-500 font-medium border-b border-slate-100">
                   <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-5 py-3 text-left" />
                   <th className="px-5 py-3 text-left">Form Teacher</th>
                   <th className="px-5 py-3 text-left">Teacher Code</th>
@@ -242,7 +242,7 @@ export default function FormTeachersPage() {
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <button onClick={() => setModal(cls)}
-                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${a ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-green-600 text-white hover:bg-green-700'}`}>
+                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${a ? 'bg-slate-100 text-slate-600 hover:bg-slate-200' : 'bg-[#145C44] text-white hover:bg-[#145C44]'}`}>
                           {a ? 'Change' : 'Assign'}
                         </button>
                       </td>

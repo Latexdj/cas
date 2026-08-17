@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -22,7 +22,7 @@ export default function PrimaryAcademicYearsPage() {
     try {
       const { data } = await api.get<AcademicYear[]>('/api/academic-years');
       setYears(data);
-    } catch { setError('Failed to load academic years.'); }
+    } catch { setError('Could not load academic years.'); }
     finally { setLoading(false); }
   }, []);
 
@@ -76,7 +76,7 @@ export default function PrimaryAcademicYearsPage() {
         </div>
         <button onClick={openCreate}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm hover:opacity-90"
-          style={{ backgroundColor: '#15803D' }}>
+          style={{ backgroundColor: '#145C44' }}>
           + New Year
         </button>
       </div>
@@ -85,17 +85,17 @@ export default function PrimaryAcademicYearsPage() {
 
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {years.map(y => (
-            <div key={y.id} className={`bg-white rounded-xl border shadow-sm p-5 space-y-4 transition-all ${y.is_current ? 'border-green-300 ring-1 ring-green-200' : 'border-gray-100 hover:border-gray-200'}`}>
+            <div key={y.id} className={`bg-white rounded-xl border shadow-sm p-5 space-y-4 transition-all ${y.is_current ? 'border-[#8FC4A4] ring-1 ring-green-200' : 'border-gray-100 hover:border-gray-200'}`}>
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-lg font-bold text-slate-900">{y.name}</p>
                   {y.is_current && (
-                    <span className="inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full text-green-700 bg-green-50 border border-green-200">Current Year</span>
+                    <span className="inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8]">Current Year</span>
                   )}
                 </div>
               </div>
@@ -112,12 +112,12 @@ export default function PrimaryAcademicYearsPage() {
               <div className="flex gap-2 pt-1">
                 {!y.is_current && (
                   <button onClick={() => setCurrent(y.id)}
-                    className="text-xs px-2.5 py-1 rounded-md border border-green-200 text-green-700 hover:bg-green-50 font-semibold transition-colors">
+                    className="text-xs px-2.5 py-1 rounded-md border border-[#B8D9C8] text-[#145C44] hover:bg-[#E8F4EE] font-semibold transition-colors">
                     Set Current
                   </button>
                 )}
                 <button onClick={() => openEdit(y)}
-                  className="text-xs px-2.5 py-1 rounded-md border border-gray-200 text-slate-700 hover:bg-gray-50 transition-colors">
+                  className="text-xs px-2.5 py-1 rounded-md border border-gray-200 text-slate-700 hover:bg-[#F5F0E8] transition-colors">
                   Edit
                 </button>
                 {!y.is_current && (
@@ -136,8 +136,8 @@ export default function PrimaryAcademicYearsPage() {
       )}
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
             <h2 className="font-bold text-slate-900">{editId ? 'Edit Academic Year' : 'New Academic Year'}</h2>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Year Name *</label>
@@ -160,10 +160,10 @@ export default function PrimaryAcademicYearsPage() {
             {error && <p className="text-sm text-red-600">{error}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={() => { setModal(null); setError(''); }}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-gray-200 hover:bg-gray-50">Cancel</button>
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-gray-200 hover:bg-[#F5F0E8]">Cancel</button>
               <button onClick={save} disabled={saving}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                style={{ backgroundColor: '#15803D' }}>
+                style={{ backgroundColor: '#145C44' }}>
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </div>

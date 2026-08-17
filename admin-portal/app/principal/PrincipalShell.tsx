@@ -145,15 +145,15 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
         sideOpen ? 'translate-x-0' : '-translate-x-full',
         'md:relative md:translate-x-0 md:z-auto',
       ].join(' ')}
-      style={{ backgroundColor: '#0F172A' }}
+      style={{ backgroundColor: '#0B3D2E' }}
     >
       {/* Logo */}
-      <div className="h-16 flex items-center px-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+      <div className="h-16 flex items-center px-5 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
         <div className="flex items-center gap-3">
           {user?.school?.logoUrl ? (
             <img src={user.school.logoUrl} alt="School logo" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
           ) : (
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg,#10B981,#059669)' }}>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#145C44' }}>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="white" className="w-4 h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z" />
               </svg>
@@ -161,7 +161,7 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
           )}
           <div>
             <p className="text-white text-sm font-bold leading-tight">{user?.school?.name ?? 'Management'}</p>
-            <p className="text-xs leading-tight" style={{ color: '#64748B' }}>{user ? getRoleLabel(user.role) : 'Portal'}</p>
+            <p className="text-xs leading-tight" style={{ color: 'rgba(200,151,58,0.6)' }}>{user ? getRoleLabel(user.role) : 'Portal'}</p>
           </div>
         </div>
       </div>
@@ -170,7 +170,7 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
       <nav className="flex-1 overflow-y-auto py-4 px-3" style={{ scrollbarWidth: 'none' }}>
         {sections.map((section, si) => (
           <div key={section.label} className={si > 0 ? 'mt-5' : ''}>
-            <p className="px-3 text-xs font-semibold uppercase tracking-widest mb-1.5" style={{ color: '#334155' }}>
+            <p className="px-3 text-[10px] mb-1.5" style={{ color: 'rgba(200,151,58,0.5)' }}>
               {section.label}
             </p>
             {section.items.map(({ href, label, icon }) => {
@@ -182,15 +182,15 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
                   onClick={() => setSideOpen(false)}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium mb-0.5 transition-all"
                   style={{
-                    backgroundColor: active ? 'rgba(16,185,129,0.12)' : 'transparent',
-                    color: active ? '#34D399' : '#94A3B8',
+                    backgroundColor: active ? 'rgba(200,151,58,0.15)' : 'transparent',
+                    color: active ? '#C8973A' : 'rgba(255,255,255,0.6)',
                   }}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-[17px] h-[17px] flex-shrink-0">
                     {icon}
                   </svg>
                   <span className="truncate">{label}</span>
-                  {active && <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0 bg-emerald-400" />}
+                  {active && <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#C8973A' }} />}
                 </Link>
               );
             })}
@@ -199,26 +199,26 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+      <div className="px-4 py-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
         {user && (
           <div className="mb-3">
             <p className="text-xs font-semibold text-white truncate">{user.name}</p>
-            <p className="text-[10px] mt-0.5" style={{ color: '#64748B' }}>{getRoleLabel(user.role)}</p>
+            <p className="text-[10px] mt-0.5" style={{ color: 'rgba(200,151,58,0.6)' }}>{getRoleLabel(user.role)}</p>
           </div>
         )}
         <button
           onClick={() => { clearPrincipal(); router.push('/principal/login'); }}
           className="text-xs font-medium transition-colors"
-          style={{ color: '#475569', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+          style={{ color: 'rgba(255,255,255,0.4)', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
           onMouseEnter={e => (e.currentTarget.style.color = '#EF4444')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}
         >
           Sign out
         </button>
         <div className="mt-3 pt-3 border-t text-center" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
-          <p className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: '#334155' }}>Designed by</p>
-          <p className="text-[11px] font-bold mt-0.5" style={{ color: '#34D399' }}>LatexTech</p>
-          <p className="text-[9px] mt-0.5" style={{ color: '#475569' }}>+233 24 8234 649</p>
+          <p className="text-[9px]" style={{ color: 'rgba(255,255,255,0.3)' }}>Designed by</p>
+          <p className="text-[11px] font-bold mt-0.5" style={{ color: '#C8973A' }}>LatexTech</p>
+          <p className="text-[9px] mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>+233 24 8234 649</p>
         </div>
       </div>
     </aside>
@@ -227,12 +227,12 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
   const currentLabel = sections.flatMap(s => s.items).find(i => isActive(i.href))?.label ?? 'Dashboard';
 
   return (
-    <div className="flex min-h-screen" style={{ background: dark ? '#0F172A' : '#F1F5F9' }}>
+    <div className="flex min-h-screen" style={{ background: dark ? '#0E1A0C' : '#F5F0E8' }}>
       {/* Mobile overlay */}
       {sideOpen && (
         <div
           className="fixed inset-0 z-40 md:hidden"
-          style={{ background: 'rgba(0,0,0,0.5)' }}
+          style={{ background: 'rgba(11,61,46,0.55)' }}
           onClick={() => setSideOpen(false)}
         />
       )}
@@ -245,8 +245,8 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
         <header
           className="sticky top-0 z-30 h-14 flex items-center gap-3 px-4 border-b"
           style={{
-            background: dark ? '#1E293B' : '#FFFFFF',
-            borderColor: dark ? '#1E293B' : '#E2E8F0',
+            background: dark ? '#152210' : '#FDFAF5',
+            borderColor: dark ? 'rgba(255,255,255,0.07)' : '#E8E0D4',
           }}
         >
           <button
@@ -257,7 +257,7 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
             <MenuIcon />
           </button>
 
-          <span className="flex-1 text-sm font-semibold truncate" style={{ color: dark ? '#F1F5F9' : '#0F172A' }}>
+          <span className="flex-1 text-sm font-semibold truncate" style={{ color: dark ? '#FDFAF5' : '#2C2218' }}>
             {currentLabel}
           </span>
 
@@ -265,8 +265,8 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             className="p-1.5 rounded-lg transition-colors"
             style={{
-              background: dark ? '#334155' : '#F1F5F9',
-              color: dark ? '#CBD5E1' : '#475569',
+              background: dark ? 'rgba(255,255,255,0.07)' : '#F0EBE1',
+              color: dark ? '#C8973A' : '#8C7E6E',
             }}
           >
             {dark ? <SunIcon /> : <MoonIcon />}

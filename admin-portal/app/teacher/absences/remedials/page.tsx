@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
@@ -89,7 +89,7 @@ function RemedialCountdown({ target, onExpired }: { target: Date; onExpired: () 
 }
 
 function statusColor(status: string, primary: string): { bg: string; color: string } {
-  if (status === 'Completed')  return { bg: '#DCFCE7', color: '#15803D' };
+  if (status === 'Completed')  return { bg: '#DCFCE7', color: '#145C44' };
   if (status === 'Verified')   return { bg: '#DBEAFE', color: '#1D4ED8' };
   if (status === 'Rejected')   return { bg: '#FEE2E2', color: '#DC2626' };
   if (status === 'Cancelled')  return { bg: '#F1F5F9', color: '#64748B' };
@@ -125,7 +125,7 @@ function RegisterModal({
         data.students.forEach(s => { init[s.id] = (s.status as 'Present' | 'Absent' | 'Late') || 'Present'; });
         setStatuses(init);
       } catch {
-        setError('Failed to load student list.');
+        setError('Could not load student list.');
       } finally {
         setLoading(false);
       }
@@ -169,7 +169,7 @@ function RegisterModal({
   const isMerged = new Set(students.map(s => s.class_name)).size > 1;
 
   function statusBadge(s: 'Present' | 'Absent' | 'Late') {
-    if (s === 'Present') return { bg: '#DCFCE7', color: '#15803D', label: 'P' };
+    if (s === 'Present') return { bg: '#DCFCE7', color: '#145C44', label: 'P' };
     if (s === 'Absent')  return { bg: '#FEE2E2', color: '#B91C1C', label: 'A' };
     return { bg: '#FEF9C3', color: '#92400E', label: 'L' };
   }
@@ -192,7 +192,7 @@ function RegisterModal({
       <div className="flex gap-2 px-4 py-2 bg-white dark:bg-slate-800 border-b border-[#E2D9CC] dark:border-slate-700">
         <button
           onClick={() => markAll('Present')}
-          className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-700"
+          className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-[#E8F4EE] dark:bg-green-900/30 text-[#145C44] dark:text-[#2ab289] border border-[#B8D9C8] dark:border-green-700"
         >
           All Present
         </button>
@@ -207,16 +207,16 @@ function RegisterModal({
       {/* Student list */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
         {loading ? (
-          [1,2,3,4,5].map(i => <div key={i} className="bg-white dark:bg-slate-800 rounded-2xl h-14 animate-pulse border border-[#E2D9CC] dark:border-slate-700" />)
+          [1,2,3,4,5].map(i => <div key={i} className="bg-white dark:bg-slate-800 rounded-xl h-14 animate-pulse border border-[#E2D9CC] dark:border-slate-700" />)
         ) : students.length === 0 ? (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 text-center border border-[#E2D9CC] dark:border-slate-700">
+          <div className="bg-white dark:bg-slate-800 rounded-xl p-6 text-center border border-[#E2D9CC] dark:border-slate-700">
             <p className="text-sm text-[#8C7E6E] dark:text-slate-400">No students found in {remedial.class_name}</p>
           </div>
         ) : students.map(s => {
           const st = statuses[s.id] || 'Present';
           const badge = statusBadge(st);
           return (
-            <div key={s.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-[#E2D9CC] dark:border-slate-700 flex items-center px-4 py-3 gap-3">
+            <div key={s.id} className="bg-white dark:bg-slate-800 rounded-xl border border-[#E2D9CC] dark:border-slate-700 flex items-center px-4 py-3 gap-3">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-[#2C2218] dark:text-white truncate">{s.name}</p>
                 <p className="text-xs text-[#C0B5A5] dark:text-slate-400">{s.student_code}{isMerged ? ` · ${s.class_name}` : ''}</p>
@@ -237,7 +237,7 @@ function RegisterModal({
       <div className="bg-white dark:bg-slate-800 border-t border-[#E2D9CC] dark:border-slate-700 px-4 py-3">
         {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
         <div className="flex gap-4 text-xs font-semibold mb-3">
-          <span className="text-green-700 dark:text-green-400">Present: {present}</span>
+          <span className="text-[#145C44] dark:text-[#2ab289]">Present: {present}</span>
           <span className="text-red-700 dark:text-red-400">Absent: {absent}</span>
           <span className="text-amber-700 dark:text-amber-400">Late: {late}</span>
         </div>
@@ -364,7 +364,7 @@ function SubmitProofModal({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
-      <div className="flex items-center justify-between px-4 py-3 bg-black/80">
+      <div className="flex items-center justify-between px-4 py-3 bg-[#0B3D2E]/75">
         <button onClick={onClose} className="text-white text-sm font-semibold py-1 px-3 rounded-lg bg-white/10">
           Cancel
         </button>
@@ -401,15 +401,15 @@ function SubmitProofModal({
         <div className="flex-1 overflow-y-auto bg-[#F4EFE6]">
           <img src={imageBase64} alt="Captured proof" className="w-full max-h-64 object-cover" />
           <div className="px-4 py-4 space-y-3">
-            <div className="bg-white rounded-2xl border border-[#E2D9CC] p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-1">Remedial</p>
+            <div className="bg-white rounded-xl border border-[#E2D9CC] p-4">
+              <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-1">Remedial</p>
               <p className="text-sm font-semibold text-[#2C2218]">{remedial.subject} — {remedial.class_name}</p>
               <p className="text-xs text-[#8C7E6E] mt-0.5">{fmt(remedial.remedial_date)} at {remedial.remedial_time?.slice(0, 5)}</p>
               {remedial.location_name && <p className="text-xs text-[#8C7E6E]">{remedial.location_name}</p>}
             </div>
 
-            <div className="bg-white rounded-2xl border border-[#E2D9CC] p-4">
-              <label className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] block mb-2">
+            <div className="bg-white rounded-xl border border-[#E2D9CC] p-4">
+              <label className="text-xs font-bold font-medium text-[#8C7E6E] block mb-2">
                 Topic covered <span className="text-[#C0B5A5] font-normal">(optional)</span>
               </label>
               <input
@@ -422,7 +422,7 @@ function SubmitProofModal({
             </div>
 
             {gps ? (
-              <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">GPS captured ✓</p>
+              <p className="text-xs text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-2">GPS captured ✓</p>
             ) : (
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
                 {gpsError || 'Acquiring GPS…'}
@@ -516,12 +516,12 @@ export default function RemedialsPage() {
       </div>
 
       {successId && (
-        <div className="mb-4 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 text-sm text-green-700 font-semibold">
+        <div className="mb-4 bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-4 py-3 text-sm text-[#145C44] font-semibold">
           Proof submitted successfully! The admin will review and verify it.
         </div>
       )}
       {regSuccessId && (
-        <div className="mb-4 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 text-sm text-green-700 font-semibold">
+        <div className="mb-4 bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-4 py-3 text-sm text-[#145C44] font-semibold">
           Register saved successfully!
         </div>
       )}
@@ -529,12 +529,12 @@ export default function RemedialsPage() {
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map(i => (
-            <div key={i} className="bg-white rounded-2xl h-24 animate-pulse border border-[#E2D9CC]" />
+            <div key={i} className="bg-white rounded-xl h-24 animate-pulse border border-[#E2D9CC]" />
           ))}
         </div>
       ) : remedials.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] p-8 text-center">
-          <p className="text-3xl mb-2">📅</p>
+        <div className="bg-white rounded-xl border border-[#E2D9CC] p-8 text-center">
+          
           <p className="text-sm font-semibold text-[#2C2218]">No remedial lessons</p>
           <p className="text-xs text-[#8C7E6E] mt-1">Schedule one from an outstanding absence</p>
         </div>
@@ -547,7 +547,7 @@ export default function RemedialsPage() {
               : true;
 
             return (
-              <div key={rem.id} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4">
+              <div key={rem.id} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0 pr-3">
                     <p className="text-sm font-semibold text-[#2C2218]">{rem.subject} — {rem.class_name}</p>
@@ -600,7 +600,7 @@ export default function RemedialsPage() {
                       disabled={!started}
                       onClick={() => started && setRegistering(rem)}
                       className={`py-2.5 rounded-xl text-sm font-semibold border disabled:cursor-not-allowed ${rem.has_register
-                        ? 'text-green-700 bg-green-50 border-green-200'
+                        ? 'text-[#145C44] bg-[#E8F4EE] border-[#B8D9C8]'
                         : 'text-[#8C7E6E] bg-[#F4EFE6] border-[#E2D9CC]'
                       } ${rem.status === 'Scheduled' ? 'flex-none px-4' : 'flex-1'}`}
                     >
@@ -610,7 +610,7 @@ export default function RemedialsPage() {
                 )}
 
                 {rem.status === 'Completed' && !rem.has_register && (
-                  <p className="mt-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                  <p className="mt-2 text-xs text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-2">
                     Proof submitted — awaiting admin verification.
                   </p>
                 )}

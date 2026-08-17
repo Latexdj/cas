@@ -61,7 +61,7 @@ interface Teacher {
 const MEETING_TYPES: MeetingType[] = ['PLC', 'Morning Briefing', 'Staff Meeting', 'PTA', 'Other'];
 
 const TYPE_BADGE: Record<MeetingType, { bg: string; color: string }> = {
-  'PLC':              { bg: '#DCFCE7', color: '#15803D' },
+  'PLC':              { bg: '#DCFCE7', color: '#145C44' },
   'Morning Briefing': { bg: '#DBEAFE', color: '#1D4ED8' },
   'Staff Meeting':    { bg: '#F3E8FF', color: '#7E22CE' },
   'PTA':              { bg: '#FEF3C7', color: '#B45309' },
@@ -69,9 +69,9 @@ const TYPE_BADGE: Record<MeetingType, { bg: string; color: string }> = {
 };
 
 const INPUT_CLS =
-  'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white text-slate-900';
+  'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44] bg-white text-slate-900';
 
-const GREEN = '#15803D';
+const GREEN = '#145C44';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -153,7 +153,7 @@ function TypeChips({ value, onChange }: { value: MeetingType | ''; onChange: (v:
             className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-all"
             style={
               active
-                ? { backgroundColor: s?.bg ?? '#0F172A', color: s?.color ?? '#fff', borderColor: s?.color ?? '#0F172A' }
+                ? { backgroundColor: s?.bg ?? '#1C1208', color: s?.color ?? '#fff', borderColor: s?.color ?? '#1C1208' }
                 : { backgroundColor: '#fff', color: '#64748B', borderColor: '#E2E8F0' }
             }
           >
@@ -221,8 +221,8 @@ function MeetingFormModal({ initial, locations, onSave, onClose }: MeetingFormPr
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-5 border-b border-slate-100 sticky top-0 bg-white rounded-t-2xl z-10">
           <h3 className="text-lg font-bold text-slate-800">
             {isEdit ? 'Edit Meeting' : 'New Meeting'}
@@ -284,7 +284,7 @@ function MeetingFormModal({ initial, locations, onSave, onClose }: MeetingFormPr
           {!isEdit && (
             <div className="space-y-3 pt-1">
               <div className="border-t border-slate-100" />
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Repeat</p>
+              <p className="text-xs font-semibold font-medium text-slate-400">Repeat</p>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -366,7 +366,7 @@ async function buildPrintSheet(
   ctx.fillRect(0, 0, W, MAX_H);
 
   // ── Green header ──
-  ctx.fillStyle = '#15803D';
+  ctx.fillStyle = '#145C44';
   ctx.fillRect(0, 0, W, 76);
 
   ctx.fillStyle = '#FFFFFF';
@@ -391,7 +391,7 @@ async function buildPrintSheet(
   let y = 76 + 22;
 
   // ── Meeting title ──
-  ctx.fillStyle = '#0F172A';
+  ctx.fillStyle = '#1C1208';
   ctx.font = 'bold 20px Arial, Helvetica, sans-serif';
   ctx.textAlign    = 'left';
   ctx.textBaseline = 'alphabetic';
@@ -418,7 +418,7 @@ async function buildPrintSheet(
   y += 22;
 
   // ── QR label + code ──
-  ctx.fillStyle = '#0F172A';
+  ctx.fillStyle = '#1C1208';
   ctx.font = 'bold 13px Arial, Helvetica, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('SCAN QR CODE TO REGISTER ATTENDANCE', W / 2, y);
@@ -434,7 +434,7 @@ async function buildPrintSheet(
   y += 22;
 
   // ── Steps header ──
-  ctx.fillStyle = '#15803D';
+  ctx.fillStyle = '#145C44';
   ctx.font = 'bold 12px Arial, Helvetica, sans-serif';
   ctx.textAlign = 'left';
   ctx.fillText('HOW TO REGISTER YOUR ATTENDANCE', 20, y);
@@ -449,7 +449,7 @@ async function buildPrintSheet(
   ];
 
   STEPS.forEach((step, i) => {
-    ctx.fillStyle = '#15803D';
+    ctx.fillStyle = '#145C44';
     ctx.beginPath();
     ctx.arc(31, y - 5, 10, 0, Math.PI * 2);
     ctx.fill();
@@ -534,8 +534,8 @@ function MinutesModal({ meeting, onClose, onSaved }: { meeting: Meeting; onClose
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-slate-100">
           <h3 className="text-base font-bold text-slate-800">Meeting Minutes</h3>
           <p className="text-sm text-slate-500 mt-0.5 truncate">{meeting.title} — {fmtDate(meeting.date)}</p>
@@ -543,19 +543,19 @@ function MinutesModal({ meeting, onClose, onSaved }: { meeting: Meeting; onClose
 
         <div className="px-6 py-5 space-y-4">
           {meeting.minutes_url && (
-            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5 text-green-700 shrink-0">
+            <div className="flex items-center gap-3 bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-4 py-3">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5 text-[#145C44] shrink-0">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
                 <polyline points="14 2 14 8 20 8" />
               </svg>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-green-800 truncate">{meeting.minutes_filename}</p>
-                <p className="text-xs text-green-600 mt-0.5">
+                <p className="text-sm font-semibold text-[#0B3D2E] truncate">{meeting.minutes_filename}</p>
+                <p className="text-xs text-[#145C44] mt-0.5">
                   Uploaded {meeting.minutes_uploaded_at ? fmtDate(meeting.minutes_uploaded_at) : ''}
                 </p>
               </div>
               <a href={meeting.minutes_url} target="_blank" rel="noopener noreferrer"
-                className="text-xs font-semibold text-green-700 hover:text-green-900 shrink-0">
+                className="text-xs font-semibold text-[#145C44] hover:text-green-900 shrink-0">
                 Download
               </a>
             </div>
@@ -638,11 +638,11 @@ function QrModal({ meeting, onClose }: { meeting: Meeting; onClose: () => void }
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
+        className="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-slate-100">
@@ -698,11 +698,11 @@ function PhotoModal({ record, onClose }: { record: AttendanceRecord; onClose: ()
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden"
+        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {record.photo_url
@@ -717,19 +717,19 @@ function PhotoModal({ record, onClose }: { record: AttendanceRecord; onClose: ()
 
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Teacher</p>
+              <p className="text-xs font-semibold font-medium text-slate-400 mb-1">Teacher</p>
               <p className="text-slate-800 font-medium">{record.teacher_name}</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Date</p>
+              <p className="text-xs font-semibold font-medium text-slate-400 mb-1">Date</p>
               <p className="text-slate-800 font-medium">{fmtDate(record.date)}</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Venue</p>
+              <p className="text-xs font-semibold font-medium text-slate-400 mb-1">Venue</p>
               <p className="text-slate-800 font-medium">{record.location_name}</p>
             </div>
             <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">GPS</p>
+              <p className="text-xs font-semibold font-medium text-slate-400 mb-1">GPS</p>
               {mapsUrl
                 ? <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium break-all text-xs">{record.gps_coordinates}</a>
                 : <span className="text-slate-400">—</span>}
@@ -810,11 +810,11 @@ function ManualAttendanceModal({
     } finally { setSaving(false); }
   }
 
-  const INPUT = 'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500';
+  const INPUT = 'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-5 border-b border-slate-100">
           <h3 className="text-base font-bold text-slate-800">Record Attendance Manually</h3>
           <p className="text-xs text-slate-500 mt-0.5">Use when a teacher attended but could not log in</p>
@@ -822,7 +822,7 @@ function ManualAttendanceModal({
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Meeting *</label>
+            <label className="block text-xs font-semibold font-medium text-slate-500 mb-1.5">Meeting *</label>
             <select className={INPUT} value={meetingId} onChange={e => setMeetingId(e.target.value)}>
               <option value="">Select a meeting…</option>
               {meetings.map(m => (
@@ -834,7 +834,7 @@ function ManualAttendanceModal({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Teacher *</label>
+            <label className="block text-xs font-semibold font-medium text-slate-500 mb-1.5">Teacher *</label>
             <select className={INPUT} value={teacherId} onChange={e => setTeacherId(e.target.value)}>
               <option value="">Select a teacher…</option>
               {teachers.map(t => (
@@ -844,12 +844,12 @@ function ManualAttendanceModal({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Date *</label>
+            <label className="block text-xs font-semibold font-medium text-slate-500 mb-1.5">Date *</label>
             <input type="date" className={INPUT} value={date} onChange={e => setDate(e.target.value)} />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">
+            <label className="block text-xs font-semibold font-medium text-slate-500 mb-1.5">
               Reason / Notes <span className="font-normal text-slate-400">(optional)</span>
             </label>
             <input
@@ -899,7 +899,7 @@ function GenerateAbsencesModal({
   const [error,   setError]   = useState('');
   const [result,  setResult]  = useState<{ inserted: number; skipped: number } | null>(null);
 
-  const INPUT = 'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500';
+  const INPUT = 'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
 
   async function generate() {
     if (!date) { setError('Date is required.'); return; }
@@ -916,8 +916,8 @@ function GenerateAbsencesModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-slate-100">
           <h3 className="text-base font-bold text-slate-800">Generate Absence Records</h3>
           <p className="text-xs text-slate-500 mt-0.5 truncate">{meeting.title}</p>
@@ -944,7 +944,7 @@ function GenerateAbsencesModal({
           ) : (
             <>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Date *</label>
+                <label className="block text-xs font-semibold font-medium text-slate-500 mb-1.5">Date *</label>
                 <input type="date" className={INPUT} value={date} onChange={e => setDate(e.target.value)} />
               </div>
 
@@ -1020,7 +1020,7 @@ function BulkAttendanceModal({
       setAlreadyIn(already);
       setChecked(new Set(data));
       setStep(2);
-    } catch { setError('Failed to load existing attendance. Please try again.'); }
+    } catch { setError('Could not load existing attendance. Please try again.'); }
     finally   { setLoadingStep2(false); }
   }
 
@@ -1058,11 +1058,11 @@ function BulkAttendanceModal({
     .sort((a, b) => a.name.localeCompare(b.name));
   const eligibleCount = [...checked].filter(id => !alreadyIn.has(id)).length;
   const selMeeting    = meetings.find(m => m.id === meetingId);
-  const INPUT         = 'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500';
+  const INPUT         = 'w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 shrink-0">
@@ -1083,7 +1083,7 @@ function BulkAttendanceModal({
           {result ? (
             <div className="text-center space-y-4 py-6">
               <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ backgroundColor: '#DCFCE7' }}>
-                <svg className="w-8 h-8" fill="none" stroke="#15803D" strokeWidth={2.5} viewBox="0 0 24 24">
+                <svg className="w-8 h-8" fill="none" stroke="#145C44" strokeWidth={2.5} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
@@ -1099,7 +1099,7 @@ function BulkAttendanceModal({
           ) : step === 1 ? (
             <>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Meeting *</label>
+                <label className="block text-xs font-semibold font-medium text-slate-500 mb-1.5">Meeting *</label>
                 <select className={INPUT} value={meetingId} onChange={e => setMeetingId(e.target.value)}>
                   <option value="">Select a meeting…</option>
                   {meetings.map(m => (
@@ -1108,7 +1108,7 @@ function BulkAttendanceModal({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Date *</label>
+                <label className="block text-xs font-semibold font-medium text-slate-500 mb-1.5">Date *</label>
                 <input type="date" className={INPUT} value={date} onChange={e => setDate(e.target.value)} />
                 <p className="text-xs text-slate-400 mt-1">Auto-filled from the meeting date; adjust if needed.</p>
               </div>
@@ -1129,7 +1129,7 @@ function BulkAttendanceModal({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <input
-                  className="w-full border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full border border-slate-200 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
                   placeholder="Search teachers or departments…"
                   value={search} onChange={e => setSearch(e.target.value)}
                 />
@@ -1137,7 +1137,7 @@ function BulkAttendanceModal({
 
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500">{eligibleCount} teacher{eligibleCount !== 1 ? 's' : ''} selected</p>
-                <button onClick={() => toggleAll(filtered)} className="text-xs font-semibold text-green-700 hover:text-green-900">
+                <button onClick={() => toggleAll(filtered)} className="text-xs font-semibold text-[#145C44] hover:text-green-900">
                   {filtered.filter(t => !alreadyIn.has(t.id)).every(t => checked.has(t.id)) ? 'Deselect All' : 'Select All'}
                 </button>
               </div>
@@ -1158,10 +1158,10 @@ function BulkAttendanceModal({
                             return next;
                           });
                         }}
-                        className="rounded border-slate-300 text-green-600 focus:ring-green-500"
+                        className="rounded border-slate-300 text-[#145C44] focus:ring-[#145C44]"
                       />
                       <span className="text-sm text-slate-700 flex-1">{t.name}</span>
-                      {isAlready && <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Already recorded</span>}
+                      {isAlready && <span className="text-xs font-semibold text-[#145C44] bg-[#E8F4EE] px-2 py-0.5 rounded-full">Already recorded</span>}
                     </label>
                   );
                 })}
@@ -1171,7 +1171,7 @@ function BulkAttendanceModal({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5">Notes <span className="font-normal text-slate-400">(optional)</span></label>
+                <label className="block text-xs font-semibold font-medium text-slate-500 mb-1.5">Notes <span className="font-normal text-slate-400">(optional)</span></label>
                 <input className={INPUT} value={notes} onChange={e => setNotes(e.target.value)}
                   placeholder="e.g. Network was down, recorded the next day…" />
               </div>
@@ -1376,7 +1376,7 @@ export default function MeetingsPage() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-2 bg-slate-50 rounded-2xl p-1.5 w-fit">
+      <div className="flex gap-2 bg-slate-50 rounded-xl p-1.5 w-fit">
         {TABS.map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)} className={tabClass(t)} style={tabStyle(t)}>
             {label}
@@ -1390,18 +1390,18 @@ export default function MeetingsPage() {
           <TypeChips value={typeFilter} onChange={setTypeFilter} />
           <div className="flex flex-wrap gap-3 items-end">
             <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">From</label>
+              <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">From</label>
               <input
                 type="date"
-                className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]"
                 value={mFrom} onChange={e => setMFrom(e.target.value)}
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">To</label>
+              <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">To</label>
               <input
                 type="date"
-                className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]"
                 value={mTo} onChange={e => setMTo(e.target.value)}
               />
             </div>
@@ -1421,18 +1421,18 @@ export default function MeetingsPage() {
       {tab !== 'meetings' && (
         <form onSubmit={searchAttendanceAbsences} className="flex flex-wrap gap-3 items-end">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">From</label>
-            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={aFrom} onChange={e => setAFrom(e.target.value)} />
+            <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">From</label>
+            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]" value={aFrom} onChange={e => setAFrom(e.target.value)} />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">To</label>
-            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500" value={aTo} onChange={e => setATo(e.target.value)} />
+            <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">To</label>
+            <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]" value={aTo} onChange={e => setATo(e.target.value)} />
           </div>
           {tab === 'attendance' && (
             <div>
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Type</label>
+              <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">Type</label>
               <select
-                className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44] bg-white"
                 value={aType}
                 onChange={e => setAType(e.target.value as MeetingType | '')}
               >
@@ -1463,7 +1463,7 @@ export default function MeetingsPage() {
         <>
           {/* ════ Meetings tab ════ */}
           {tab === 'meetings' && (
-            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
               {meetings.length === 0 ? (
                 <div className="py-16 text-center text-slate-400 text-sm">
                   No meetings found.{!typeFilter && !mFrom && !mTo && <> Click <strong>New Meeting</strong> to create one.</>}
@@ -1473,14 +1473,14 @@ export default function MeetingsPage() {
                   <table className="min-w-[850px] w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50">
-                        <Th label="Date" sortKey="date" currentKey={mSortKey} currentDir={mSortDir} onSort={mHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Day</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Type</th>
-                        <Th label="Title" sortKey="title" currentKey={mSortKey} currentDir={mSortDir} onSort={mHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Time</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Venue</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Minutes</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Actions</th>
+                        <Th label="Date" sortKey="date" currentKey={mSortKey} currentDir={mSortDir} onSort={mHandleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Day</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Type</th>
+                        <Th label="Title" sortKey="title" currentKey={mSortKey} currentDir={mSortDir} onSort={mHandleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Time</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Venue</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Minutes</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1497,7 +1497,7 @@ export default function MeetingsPage() {
                               <button
                                 onClick={() => setMinutesMeeting(m)}
                                 className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg"
-                                style={{ backgroundColor: '#DCFCE7', color: '#15803D' }}
+                                style={{ backgroundColor: '#DCFCE7', color: '#145C44' }}
                               >
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3 h-3">
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
@@ -1523,7 +1523,7 @@ export default function MeetingsPage() {
                               </button>
                               <button
                                 onClick={() => setQrMeeting(m)}
-                                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                                className="text-xs font-semibold text-[#145C44] hover:text-[#1E3A8A] flex items-center gap-1"
                               >
                                 <QrIcon />
                                 QR
@@ -1557,7 +1557,7 @@ export default function MeetingsPage() {
 
           {/* ════ Attendance tab ════ */}
           {tab === 'attendance' && (
-            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
               <div className="px-5 py-3 border-b border-slate-50 flex items-center justify-between">
                 <p className="text-sm font-semibold text-slate-600">
                   {attendance.length} record{attendance.length !== 1 ? 's' : ''}
@@ -1591,14 +1591,14 @@ export default function MeetingsPage() {
                   <table className="min-w-[950px] w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50">
-                        <Th label="Date" sortKey="date" currentKey={attSortKey} currentDir={attSortDir} onSort={attHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-                        <Th label="Teacher" sortKey="teacher_name" currentKey={attSortKey} currentDir={attSortDir} onSort={attHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Meeting</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Type</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Location</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">GPS</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Photo</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400"></th>
+                        <Th label="Date" sortKey="date" currentKey={attSortKey} currentDir={attSortDir} onSort={attHandleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+                        <Th label="Teacher" sortKey="teacher_name" currentKey={attSortKey} currentDir={attSortDir} onSort={attHandleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Meeting</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Type</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Location</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">GPS</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Photo</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1616,7 +1616,7 @@ export default function MeetingsPage() {
                           </td>
                           <td className="px-4 py-3">
                             {r.photo_url
-                              ? <button onClick={() => setPhotoRecord(r)} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800">View</button>
+                              ? <button onClick={() => setPhotoRecord(r)} className="text-xs font-semibold text-[#145C44] hover:text-[#1E3A8A]">View</button>
                               : <span className="text-slate-300">—</span>}
                           </td>
                           <td className="px-4 py-3">
@@ -1639,7 +1639,7 @@ export default function MeetingsPage() {
 
           {/* ════ Absences tab ════ */}
           {tab === 'absences' && (
-            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
               <div className="px-5 py-3 border-b border-slate-50">
                 <p className="text-sm font-semibold text-slate-600">
                   {absences.length} absence{absences.length !== 1 ? 's' : ''}
@@ -1652,11 +1652,11 @@ export default function MeetingsPage() {
                   <table className="min-w-[700px] w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50">
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Date</th>
-                        <Th label="Teacher" sortKey="teacher_name" currentKey={absSortKey} currentDir={absSortDir} onSort={absHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Meeting</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">Type</th>
-                        <Th label="Status" sortKey="status" currentKey={absSortKey} currentDir={absSortDir} onSort={absHandleSort} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400" />
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Date</th>
+                        <Th label="Teacher" sortKey="teacher_name" currentKey={absSortKey} currentDir={absSortDir} onSort={absHandleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Meeting</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Type</th>
+                        <Th label="Status" sortKey="status" currentKey={absSortKey} currentDir={absSortDir} onSort={absHandleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
                       </tr>
                     </thead>
                     <tbody>

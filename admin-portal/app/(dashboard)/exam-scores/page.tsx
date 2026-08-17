@@ -82,7 +82,7 @@ export default function AdminExamScoresPage() {
       const { data } = await api.get<ExamBatch[]>('/api/exam-scores/admin-list', { params });
       setRows(data);
     } catch {
-      setError('Failed to load exam scores.');
+      setError('Could not load exam scores.');
     } finally { setLoading(false); }
   }, [filterYear, filterSem, filterTch, filterSubj, filterClass]);
 
@@ -200,7 +200,7 @@ export default function AdminExamScoresPage() {
 
         <button onClick={load} disabled={loading}
           className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-colors"
-          style={{ backgroundColor: '#15803D' }}>
+          style={{ backgroundColor: '#145C44' }}>
           {loading ? 'Loading…' : 'Apply'}
         </button>
       </div>
@@ -213,7 +213,7 @@ export default function AdminExamScoresPage() {
       {loading ? (
         <div className="flex justify-center py-16">
           <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin"
-            style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+            style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : rows.length === 0 ? (
         <div className="text-center py-16 text-slate-400 text-sm">No exam scores found for the selected filters.</div>
@@ -226,14 +226,14 @@ export default function AdminExamScoresPage() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <Th label="Teacher" sortKey="teacher_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide" />
-                  <Th label="Subject" sortKey="subject" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide" />
-                  <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide" />
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Year / Sem</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Max</th>
-                  <Th label="Scores" sortKey="score_count" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide" center />
-                  <Th label="Last Saved" sortKey="submitted_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide" />
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
+                  <Th label="Teacher" sortKey="teacher_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium" />
+                  <Th label="Subject" sortKey="subject" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium" />
+                  <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium" />
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Year / Sem</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Max</th>
+                  <Th label="Scores" sortKey="score_count" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium" center />
+                  <Th label="Last Saved" sortKey="submitted_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium" />
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -245,7 +245,7 @@ export default function AdminExamScoresPage() {
                     <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{r.academic_year_name} · Sem {r.semester}</td>
                     <td className="px-3 py-2.5 text-slate-600 text-center">{r.max_score}</td>
                     <td className="px-3 py-2.5 text-center">
-                      <span className={`font-semibold tabular-nums ${r.score_count > 0 ? 'text-green-700' : 'text-slate-300'}`}>
+                      <span className={`font-semibold tabular-nums ${r.score_count > 0 ? 'text-[#145C44]' : 'text-slate-300'}`}>
                         {r.score_count} / {r.class_size}
                       </span>
                     </td>
@@ -276,8 +276,8 @@ export default function AdminExamScoresPage() {
 
       {/* Edit Modal */}
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h2 className="font-bold text-slate-900">Edit Exam Scores</h2>
@@ -361,7 +361,7 @@ export default function AdminExamScoresPage() {
               </button>
               <button onClick={saveEdit} disabled={saving}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition-colors"
-                style={{ backgroundColor: '#15803D' }}>
+                style={{ backgroundColor: '#145C44' }}>
                 {saving ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
@@ -371,8 +371,8 @@ export default function AdminExamScoresPage() {
 
       {/* Delete Confirm Modal */}
       {deleting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm">
             <div className="px-6 py-5 space-y-3">
               <h2 className="font-bold text-slate-900 text-base">Delete Exam Scores?</h2>
               <p className="text-sm text-slate-600">

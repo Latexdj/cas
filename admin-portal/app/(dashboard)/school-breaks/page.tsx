@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -120,7 +120,7 @@ export default function SchoolBreaksPage() {
 
   const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(breaks);
 
-  const inputCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500';
+  const inputCls = 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]';
   const labelCls = 'block text-sm font-medium text-slate-700 mb-1';
 
   return (
@@ -137,7 +137,7 @@ export default function SchoolBreaksPage() {
       </div>
 
       {/* Add / Edit form */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+      <div className="bg-white rounded-xl border border-slate-200 p-6">
         <h2 className="text-base font-bold text-slate-900 mb-4">
           {editId ? 'Edit Break' : 'Add Break'}
         </h2>
@@ -185,7 +185,7 @@ export default function SchoolBreaksPage() {
             )}
             <button type="submit" disabled={saving}
               className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
-              style={{ backgroundColor: '#15803D' }}>
+              style={{ backgroundColor: '#145C44' }}>
               {saving ? 'Saving…' : editId ? 'Save Changes' : 'Add Break'}
             </button>
           </div>
@@ -219,7 +219,7 @@ export default function SchoolBreaksPage() {
             {(displayRows as typeof breaks).map(b => (
               <div key={b.id}
                 className="bg-white rounded-xl border px-4 py-3 flex items-center gap-4"
-                style={{ borderColor: editId === b.id ? '#15803D' : '#E2E8F0' }}>
+                style={{ borderColor: editId === b.id ? '#145C44' : '#E2E8F0' }}>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-900">{b.name}</p>
                   <p className="text-xs text-slate-500 mt-0.5">

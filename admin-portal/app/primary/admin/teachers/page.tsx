@@ -23,7 +23,7 @@ type Form = typeof EMPTY_FORM;
 const GES_RANKS = ['Pupil Teacher','Teacher II','Teacher I','Senior Teacher II','Senior Teacher I','Assistant Superintendent II','Assistant Superintendent I','Superintendent','Senior Superintendent','Principal Superintendent','Assistant Director II','Assistant Director I','Deputy Director','Director'];
 
 const STATUS_COLORS: Record<string, string> = {
-  Active:  'text-green-700 bg-green-50 border-green-200',
+  Active:  'text-[#145C44] bg-[#E8F4EE] border-[#B8D9C8]',
   Inactive:'text-slate-500 bg-slate-100 border-slate-200',
 };
 
@@ -57,7 +57,7 @@ export default function PrimaryTeachersPage() {
       if (filter) params.status = filter;
       const { data } = await api.get<Teacher[]>('/api/teachers', { params });
       setTeachers(data);
-    } catch { setError('Failed to load teachers.'); }
+    } catch { setError('Could not load teachers.'); }
     finally { setLoading(false); }
   }, [search, filter]);
 
@@ -143,13 +143,13 @@ export default function PrimaryTeachersPage() {
       <label className="block text-xs font-semibold text-slate-600 mb-1">{label}</label>
       {opts ? (
         <select value={String(form[field])} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2" style={{ '--tw-ring-color': '#15803D' } as React.CSSProperties}>
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2" style={{ '--tw-ring-color': '#145C44' } as React.CSSProperties}>
           <option value="">Select…</option>
           {opts.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       ) : (
         <input type={type} value={String(form[field])} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2" style={{ '--tw-ring-color': '#15803D' } as React.CSSProperties} />
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2" style={{ '--tw-ring-color': '#145C44' } as React.CSSProperties} />
       )}
     </div>
   );
@@ -173,12 +173,12 @@ export default function PrimaryTeachersPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => { setImpResult(null); setImpFile(null); setImpModal('import'); }}
-            className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50">
+            className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-[#F5F0E8]">
             Import Teachers
           </button>
           <button onClick={openCreate}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
-            style={{ backgroundColor: '#15803D' }}>
+            style={{ backgroundColor: '#145C44' }}>
             + Add Teacher
           </button>
         </div>
@@ -188,14 +188,14 @@ export default function PrimaryTeachersPage() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 flex flex-wrap gap-3 items-center">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or ID…"
           onKeyDown={e => e.key === 'Enter' && load()}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2" style={{ '--tw-ring-color': '#15803D' } as React.CSSProperties} />
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2" style={{ '--tw-ring-color': '#145C44' } as React.CSSProperties} />
         <select value={filter} onChange={e => setFilter(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white text-slate-700">
           <option value="">All Status</option>
           <option value="Active">Active</option>
           <option value="Inactive">Inactive</option>
         </select>
-        <button onClick={load} className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#15803D' }}>Search</button>
+        <button onClick={load} className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#145C44' }}>Search</button>
       </div>
 
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>}
@@ -204,27 +204,27 @@ export default function PrimaryTeachersPage() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className="bg-[#F5F0E8] border-b border-gray-100">
               <tr>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Teacher ID</th>
-                <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                <Th label="Gender" sortKey="gender" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Phone</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Email</th>
-                <Th label="Role" sortKey="is_admin" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Teacher ID</th>
+                <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
+                <Th label="Gender" sortKey="gender" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Phone</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Email</th>
+                <Th label="Role" sortKey="is_admin" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
+                <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr><td colSpan={8} className="text-center py-12">
-                  <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+                  <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
                 </td></tr>
               ) : (displayRows as Teacher[]).map(t => (
-                <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={t.id} className="hover:bg-[#F5F0E8] transition-colors">
                   <td className="px-3 py-2.5">
-                    <span className="font-mono font-bold text-xs px-2 py-0.5 rounded border" style={{ color: '#15803D', backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }}>{t.teacher_code}</span>
+                    <span className="font-mono font-bold text-xs px-2 py-0.5 rounded border" style={{ color: '#145C44', backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }}>{t.teacher_code}</span>
                   </td>
                   <td className="px-3 py-2.5 font-medium text-slate-900">{t.name}</td>
                   <td className="px-3 py-2.5 text-slate-600">{t.gender ?? '—'}</td>
@@ -260,8 +260,8 @@ export default function PrimaryTeachersPage() {
 
       {/* Create/Edit Modal */}
       {(modal === 'create' || modal === 'edit') && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto py-6 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl my-auto">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-[#0B3D2E]/55 overflow-y-auto py-6 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl my-auto">
             <div className="sticky top-0 bg-white rounded-t-2xl px-6 py-4 border-b border-gray-100 flex items-center justify-between z-10">
               <h2 className="font-bold text-slate-900">{editId ? 'Edit Teacher' : 'Add Teacher'}</h2>
               <button onClick={() => setModal(null)} className="text-slate-400 hover:text-slate-600">
@@ -290,8 +290,8 @@ export default function PrimaryTeachersPage() {
             </div>
             {error && <p className="mx-6 mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
             <div className="sticky bottom-0 bg-white rounded-b-2xl px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-              <button onClick={() => setModal(null)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-gray-200 hover:bg-gray-50">Cancel</button>
-              <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+              <button onClick={() => setModal(null)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-gray-200 hover:bg-[#F5F0E8]">Cancel</button>
+              <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#145C44' }}>
                 {saving ? 'Saving…' : 'Save Teacher'}
               </button>
             </div>
@@ -301,8 +301,8 @@ export default function PrimaryTeachersPage() {
 
       {/* PIN Reset Modal */}
       {modal === 'pin' && pinTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 space-y-4">
             <h2 className="font-bold text-slate-900">Reset PIN — {pinTarget.name}</h2>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">New Password / PIN</label>
@@ -311,8 +311,8 @@ export default function PrimaryTeachersPage() {
             </div>
             {pinError && <p className="text-sm text-red-600">{pinError}</p>}
             <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => setModal(null)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-gray-200 hover:bg-gray-50">Cancel</button>
-              <button onClick={savePin} disabled={pinSaving} className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+              <button onClick={() => setModal(null)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-gray-200 hover:bg-[#F5F0E8]">Cancel</button>
+              <button onClick={savePin} disabled={pinSaving} className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#145C44' }}>
                 {pinSaving ? 'Resetting…' : 'Reset PIN'}
               </button>
             </div>
@@ -322,8 +322,8 @@ export default function PrimaryTeachersPage() {
 
       {/* Import Teachers Modal */}
       {impModal === 'import' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h2 className="font-bold text-slate-900">Import Teachers</h2>
               <button onClick={() => setImpModal(null)} className="text-slate-400 hover:text-slate-600">
@@ -331,12 +331,12 @@ export default function PrimaryTeachersPage() {
               </button>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <div className="bg-slate-50 rounded-lg px-4 py-3 text-sm text-slate-600 space-y-2">
+              <div className="bg-[#F5F0E8] rounded-lg px-4 py-3 text-sm text-slate-600 space-y-2">
                 <p className="font-semibold text-slate-700">Step 1 — Download the template</p>
-                <button onClick={() => downloadTeacherTemplate('empty')} className="text-green-700 font-semibold hover:underline text-sm block">
+                <button onClick={() => downloadTeacherTemplate('empty')} className="text-[#145C44] font-semibold hover:underline text-sm block">
                   Download blank template (.xlsx)
                 </button>
-                <button onClick={() => downloadTeacherTemplate('populated')} className="text-green-700 font-semibold hover:underline text-sm block">
+                <button onClick={() => downloadTeacherTemplate('populated')} className="text-[#145C44] font-semibold hover:underline text-sm block">
                   Download populated template (existing teachers)
                 </button>
                 <p className="text-xs text-slate-400">Fill in one teacher per row. Rows with a blank Teacher ID will be auto-assigned. Duplicate names/emails will be skipped.</p>
@@ -346,21 +346,21 @@ export default function PrimaryTeachersPage() {
                 <input ref={impFileRef} type="file" accept=".xlsx,.xls" className="hidden"
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setImpFile(e.target.files?.[0] ?? null)} />
                 <button onClick={() => impFileRef.current?.click()}
-                  className="w-full border-2 border-dashed border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-500 hover:border-green-400 hover:text-green-700 text-center transition-colors">
+                  className="w-full border-2 border-dashed border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-500 hover:border-[#2D7A4F] hover:text-[#145C44] text-center transition-colors">
                   {impFile ? impFile.name : 'Click to choose Excel file…'}
                 </button>
               </div>
               {impResult && (
-                <div className={`rounded-lg px-4 py-3 text-sm ${impResult.errors.length && !impResult.inserted ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}`}>
+                <div className={`rounded-lg px-4 py-3 text-sm ${impResult.errors.length && !impResult.inserted ? 'bg-red-50 text-red-700' : 'bg-[#E8F4EE] text-[#0B3D2E]'}`}>
                   {impResult.inserted != null && <p className="font-semibold">{impResult.inserted} teacher(s) imported.</p>}
                   {impResult.errors.map((e, i) => <p key={i} className="text-xs mt-0.5">Row {e.row}: {e.message}</p>)}
                 </div>
               )}
             </div>
             <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
-              <button onClick={() => setImpModal(null)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50">Close</button>
+              <button onClick={() => setImpModal(null)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-[#F5F0E8]">Close</button>
               <button onClick={submitTeacherUpload} disabled={!impFile || impLoading}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#145C44' }}>
                 {impLoading ? 'Importing…' : 'Import'}
               </button>
             </div>

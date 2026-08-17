@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
@@ -105,7 +105,7 @@ export default function ClassroomQrPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: '#0F172A' }}>Classroom QR Codes</h1>
+          <h1 className="text-2xl font-bold" style={{ color: '#1C1208' }}>Classroom QR Codes</h1>
           <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>
             Print and stick each code on the classroom wall. Teachers scan it before submitting attendance.
           </p>
@@ -126,7 +126,7 @@ export default function ClassroomQrPage() {
             onClick={() => window.print()}
             disabled={noneSelected}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: '#0F172A' }}
+            style={{ background: '#1C1208' }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
               <polyline points="6 9 6 2 18 2 18 9" />
@@ -156,7 +156,7 @@ export default function ClassroomQrPage() {
 
       {/* Success banner */}
       {justRotated && (
-        <div className="no-print rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 font-medium">
+        <div className="no-print rounded-xl border border-[#B8D9C8] bg-[#E8F4EE] px-4 py-3 text-sm text-[#0B3D2E] font-medium">
           ✓ New QR codes generated. Print this page and replace all classroom sheets before the next lesson.
         </div>
       )}
@@ -195,14 +195,14 @@ export default function ClassroomQrPage() {
                   onClick={() => toggleClass(className)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors"
                   style={active
-                    ? { background: '#0F172A', borderColor: '#0F172A', color: '#fff' }
+                    ? { background: '#1C1208', borderColor: '#1C1208', color: '#fff' }
                     : { background: 'white', borderColor: '#CBD5E1', color: '#64748B' }
                   }
                 >
                   <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 ${active ? 'bg-white border-white' : 'border-slate-400'}`}>
                     {active && (
                       <svg viewBox="0 0 10 10" fill="none" className="w-2.5 h-2.5">
-                        <path d="M2 5l2.5 2.5L8 3" stroke="#0F172A" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M2 5l2.5 2.5L8 3" stroke="#1C1208" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     )}
                   </span>
@@ -239,7 +239,7 @@ export default function ClassroomQrPage() {
                   onClick={() => toggleClass(className)}
                   className="no-print absolute top-2.5 right-2.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"
                   style={isPrinted
-                    ? { background: '#0F172A', borderColor: '#0F172A' }
+                    ? { background: '#1C1208', borderColor: '#1C1208' }
                     : { background: 'white', borderColor: '#CBD5E1' }
                   }
                 >
@@ -255,7 +255,7 @@ export default function ClassroomQrPage() {
                   : <div className="w-40 h-40 bg-slate-100 rounded flex items-center justify-center text-xs text-slate-400">Error</div>
                 }
                 <div>
-                  <p className="text-lg font-bold" style={{ color: '#0F172A' }}>{className}</p>
+                  <p className="text-lg font-bold" style={{ color: '#1C1208' }}>{className}</p>
                   <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>Scan before submitting attendance</p>
                 </div>
               </div>
@@ -267,7 +267,7 @@ export default function ClassroomQrPage() {
       {/* Rotate confirmation modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.4)' }}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
                 <svg viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth={2} className="w-5 h-5">

@@ -90,7 +90,7 @@ export default function PrimaryStudentsPage() {
       if (search)      params.search     = search;
       const { data } = await api.get<Student[]>('/api/primary/students', { params });
       setStudents(data);
-    } catch { setError('Failed to load students.'); }
+    } catch { setError('Could not load students.'); }
     finally { setLoading(false); }
   }, [filterClass, search]);
 
@@ -206,14 +206,14 @@ export default function PrimaryStudentsPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => { setImpResult(null); setImpFile(null); if (impFileRef.current) impFileRef.current.value = ''; setImportModal(true); }}
-            className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50">
+            className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-[#F5F0E8]">
             Import Students
           </button>
           <button onClick={() => { setImpResult(null); setUpdFile(null); setUpdateModal(true); }}
-            className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50">
+            className="px-3 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-700 hover:bg-[#F5F0E8]">
             Bulk Update
           </button>
-          <button onClick={openAdd} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#15803D' }}>
+          <button onClick={openAdd} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#145C44' }}>
             + Add Student
           </button>
         </div>
@@ -229,34 +229,34 @@ export default function PrimaryStudentsPage() {
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name / admission no…"
           onKeyDown={e => e.key === 'Enter' && load()}
           className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm w-52" />
-        <button onClick={load} className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#15803D' }}>Apply</button>
+        <button onClick={load} className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ backgroundColor: '#145C44' }}>Apply</button>
       </div>
 
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2">{error}</p>}
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#15803D', borderTopColor: 'transparent' }} />
+          <div className="w-7 h-7 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-[#F5F0E8] border-b border-slate-200">
                 <tr>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap" />
-                  <Th label="Adm. No." sortKey="admission_number" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide" />
-                  <Th label="Name" sortKey="surname" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide" />
-                  <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide" />
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Sex</th>
-                  <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide" />
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Contact</th>
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">Actions</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap" />
+                  <Th label="Adm. No." sortKey="admission_number" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium" />
+                  <Th label="Name" sortKey="surname" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium" />
+                  <Th label="Class" sortKey="class_name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium" />
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Sex</th>
+                  <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium" />
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Contact</th>
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-500 font-medium whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {(displayRows as Student[]).map(s => (
-                  <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={s.id} className="hover:bg-[#F5F0E8] transition-colors">
                     <td className="px-3 py-2.5">
                       <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 bg-slate-100 flex-shrink-0 flex items-center justify-center">
                         {s.picture_url
@@ -270,7 +270,7 @@ export default function PrimaryStudentsPage() {
                     <td className="px-3 py-2.5 text-slate-600 whitespace-nowrap">{s.class_name}</td>
                     <td className="px-3 py-2.5 text-slate-600">{s.sex ?? '—'}</td>
                     <td className="px-3 py-2.5">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.status === 'Active' ? 'text-green-700 bg-green-50' : 'text-slate-500 bg-slate-100'}`}>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.status === 'Active' ? 'text-[#145C44] bg-[#E8F4EE]' : 'text-slate-500 bg-slate-100'}`}>
                         {s.status}
                       </span>
                     </td>
@@ -295,8 +295,8 @@ export default function PrimaryStudentsPage() {
 
       {/* Student Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 overflow-y-auto py-6 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-auto">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-[#0B3D2E]/45 overflow-y-auto py-6 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg my-auto">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl z-10">
               <h2 className="font-bold text-slate-900">{editing ? 'Edit Student' : 'Add Student'}</h2>
               <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">
@@ -328,7 +328,7 @@ export default function PrimaryStudentsPage() {
                     }} />
                   <div className="flex gap-2">
                     <button onClick={() => photoRef.current?.click()}
-                      className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-700 hover:bg-slate-50">
+                      className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-700 hover:bg-[#F5F0E8]">
                       {photoSrc ? 'Change Photo' : 'Upload Photo'}
                     </button>
                     {photoSrc && (
@@ -344,7 +344,7 @@ export default function PrimaryStudentsPage() {
 
               {/* Personal Information */}
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Personal Information</p>
+                <p className="text-xs font-bold text-slate-400 font-medium mb-3">Personal Information</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
                     <label className={lbl}>Admission Number *</label>
@@ -374,7 +374,7 @@ export default function PrimaryStudentsPage() {
 
               {/* Admission */}
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Admission</p>
+                <p className="text-xs font-bold text-slate-400 font-medium mb-3">Admission</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={lbl}>Class *</label>
@@ -403,7 +403,7 @@ export default function PrimaryStudentsPage() {
 
               {/* Health */}
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Health</p>
+                <p className="text-xs font-bold text-slate-400 font-medium mb-3">Health</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={lbl}>NHIS Number</label>
@@ -421,7 +421,7 @@ export default function PrimaryStudentsPage() {
 
               {/* Parent / Guardian Contact */}
               <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Parent / Guardian Contact</p>
+                <p className="text-xs font-bold text-slate-400 font-medium mb-3">Parent / Guardian Contact</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={lbl}>Father&apos;s Name</label>
@@ -457,8 +457,8 @@ export default function PrimaryStudentsPage() {
             )}
 
             <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 sticky bottom-0 bg-white rounded-b-2xl">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50">Cancel</button>
-              <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+              <button onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-[#F5F0E8]">Cancel</button>
+              <button onClick={save} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#145C44' }}>
                 {saving ? 'Saving…' : 'Save Student'}
               </button>
             </div>
@@ -468,8 +468,8 @@ export default function PrimaryStudentsPage() {
 
       {/* Import Students Modal */}
       {importModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h2 className="font-bold text-slate-900">Import Students</h2>
               <button onClick={() => setImportModal(false)} className="text-slate-400 hover:text-slate-600">
@@ -477,9 +477,9 @@ export default function PrimaryStudentsPage() {
               </button>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <div className="bg-slate-50 rounded-lg px-4 py-3 text-sm text-slate-600 space-y-1">
+              <div className="bg-[#F5F0E8] rounded-lg px-4 py-3 text-sm text-slate-600 space-y-1">
                 <p className="font-semibold text-slate-700">Step 1 — Download the template</p>
-                <button onClick={() => downloadTemplate('empty')} className="text-green-700 font-semibold hover:underline text-sm">
+                <button onClick={() => downloadTemplate('empty')} className="text-[#145C44] font-semibold hover:underline text-sm">
                   Download blank template (.xlsx)
                 </button>
                 <p className="text-xs text-slate-400">Rows with a blank Admission No. will be auto-numbered using the prefix set in School Settings.</p>
@@ -489,21 +489,21 @@ export default function PrimaryStudentsPage() {
                 <input ref={impFileRef} type="file" accept=".xlsx,.xls" className="hidden"
                   onChange={e => setImpFile(e.target.files?.[0] ?? null)} />
                 <button onClick={() => impFileRef.current?.click()}
-                  className="w-full border-2 border-dashed border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-500 hover:border-green-400 hover:text-green-700 text-center transition-colors">
+                  className="w-full border-2 border-dashed border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-500 hover:border-[#2D7A4F] hover:text-[#145C44] text-center transition-colors">
                   {impFile ? impFile.name : 'Click to choose Excel file…'}
                 </button>
               </div>
               {impResult && (
-                <div className={`rounded-lg px-4 py-3 text-sm ${impResult.errors.length && !impResult.inserted ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}`}>
+                <div className={`rounded-lg px-4 py-3 text-sm ${impResult.errors.length && !impResult.inserted ? 'bg-red-50 text-red-700' : 'bg-[#E8F4EE] text-[#0B3D2E]'}`}>
                   {impResult.inserted != null && <p className="font-semibold">{impResult.inserted} student(s) imported.</p>}
                   {impResult.errors.map((e, i) => <p key={i} className="text-xs mt-0.5">{e}</p>)}
                 </div>
               )}
             </div>
             <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
-              <button onClick={() => setImportModal(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50">Close</button>
+              <button onClick={() => setImportModal(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-[#F5F0E8]">Close</button>
               <button onClick={submitImport} disabled={!impFile || impLoading}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#145C44' }}>
                 {impLoading ? 'Importing…' : 'Import'}
               </button>
             </div>
@@ -513,8 +513,8 @@ export default function PrimaryStudentsPage() {
 
       {/* Bulk Update Modal */}
       {updateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h2 className="font-bold text-slate-900">Bulk Update Students</h2>
               <button onClick={() => setUpdateModal(false)} className="text-slate-400 hover:text-slate-600">
@@ -522,9 +522,9 @@ export default function PrimaryStudentsPage() {
               </button>
             </div>
             <div className="px-6 py-5 space-y-4">
-              <div className="bg-slate-50 rounded-lg px-4 py-3 text-sm text-slate-600 space-y-1">
+              <div className="bg-[#F5F0E8] rounded-lg px-4 py-3 text-sm text-slate-600 space-y-1">
                 <p className="font-semibold text-slate-700">Step 1 — Download the current data</p>
-                <button onClick={() => downloadTemplate('populated')} className="text-green-700 font-semibold hover:underline text-sm">
+                <button onClick={() => downloadTemplate('populated')} className="text-[#145C44] font-semibold hover:underline text-sm">
                   Download populated template (.xlsx)
                 </button>
                 <p className="text-xs text-slate-400">Edit values in Excel (Admission No. is the key — do not change it). Leave cells blank to skip updating them.</p>
@@ -534,21 +534,21 @@ export default function PrimaryStudentsPage() {
                 <input ref={updFileRef} type="file" accept=".xlsx,.xls" className="hidden"
                   onChange={e => setUpdFile(e.target.files?.[0] ?? null)} />
                 <button onClick={() => updFileRef.current?.click()}
-                  className="w-full border-2 border-dashed border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-500 hover:border-green-400 hover:text-green-700 text-center transition-colors">
+                  className="w-full border-2 border-dashed border-slate-200 rounded-lg px-4 py-3 text-sm text-slate-500 hover:border-[#2D7A4F] hover:text-[#145C44] text-center transition-colors">
                   {updFile ? updFile.name : 'Click to choose Excel file…'}
                 </button>
               </div>
               {impResult && (
-                <div className={`rounded-lg px-4 py-3 text-sm ${impResult.errors.length && !impResult.updated ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-800'}`}>
+                <div className={`rounded-lg px-4 py-3 text-sm ${impResult.errors.length && !impResult.updated ? 'bg-red-50 text-red-700' : 'bg-[#E8F4EE] text-[#0B3D2E]'}`}>
                   {impResult.updated != null && <p className="font-semibold">{impResult.updated} student(s) updated.</p>}
                   {impResult.errors.map((e, i) => <p key={i} className="text-xs mt-0.5">{e}</p>)}
                 </div>
               )}
             </div>
             <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
-              <button onClick={() => setUpdateModal(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50">Close</button>
+              <button onClick={() => setUpdateModal(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-[#F5F0E8]">Close</button>
               <button onClick={submitUpdate} disabled={!updFile || impLoading}
-                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#15803D' }}>
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#145C44' }}>
                 {impLoading ? 'Updating…' : 'Update'}
               </button>
             </div>

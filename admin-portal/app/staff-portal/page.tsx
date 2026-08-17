@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
@@ -57,7 +57,7 @@ interface OverdueLoan {
 }
 
 const STATUS_STYLE = {
-  cleared:     { badge: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', label: 'Cleared'     },
+  cleared:     { badge: 'bg-[#D1EAD9] dark:bg-green-900/30 text-[#145C44] dark:text-[#2ab289]', label: 'Cleared'     },
   not_cleared: { badge: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',        label: 'Not Cleared' },
   pending:     { badge: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400', label: 'Pending'    },
 };
@@ -552,7 +552,7 @@ export default function StaffPortalPage() {
                 <input value={lookupCode}
                   onChange={e => { setLookupCode(e.target.value.toUpperCase()); setLookupError(''); setLookupResult(null); }}
                   placeholder="Enter Student ID…" maxLength={20}
-                  className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white font-mono uppercase tracking-widest bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white font-mono font-medium bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                 <button type="submit" disabled={lookupLoading || !lookupCode.trim()}
                   className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
                   {lookupLoading ? '…' : 'Search'}
@@ -657,7 +657,7 @@ export default function StaffPortalPage() {
                   ].map(({ label, value, color }) => (
                     <div key={label} className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
                       <div className="absolute top-0 left-0 w-1 h-full rounded-l-xl" style={{ backgroundColor: color }} />
-                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
+                      <p className="text-xs font-semibold text-slate-400 font-medium">{label}</p>
                       <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{value}</p>
                     </div>
                   ))}
@@ -673,7 +673,7 @@ export default function StaffPortalPage() {
                   onChange={e => { setIssueCode(e.target.value.toUpperCase()); setIssueError(''); setIssueStudent(null); }}
                   onKeyDown={e => e.key === 'Enter' && lookupIssue()}
                   placeholder="Enter Student ID…"
-                  className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono uppercase tracking-widest bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                 <button onClick={lookupIssue} disabled={issueLoading || !issueCode.trim()}
                   className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
                   {issueLoading ? '…' : 'Find'}
@@ -696,9 +696,9 @@ export default function StaffPortalPage() {
                   </div>
                   <div className="space-y-3">
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Select Book</label>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Select Book</label>
                       {booksLoading ? <p className="text-sm text-slate-500">Loading books…</p> : (
-                        <select className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                        <select className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
                           value={selectedBook} onChange={e => loadCopies(e.target.value)}>
                           <option value="">— Select a book —</option>
                           {books.map(b => <option key={b.id} value={b.id}>{b.title}{b.author ? ` — ${b.author}` : ''} ({b.available_copies} avail.)</option>)}
@@ -707,11 +707,11 @@ export default function StaffPortalPage() {
                     </div>
                     {selectedBook && (
                       <div>
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Select Copy</label>
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Select Copy</label>
                         {copiesLoading ? <p className="text-sm text-slate-500">Loading copies…</p> : copies.length === 0
                           ? <p className="text-sm text-red-500">No available copies.</p>
                           : (
-                            <select className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                            <select className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
                               value={selectedCopy} onChange={e => setSelectedCopy(e.target.value)}>
                               <option value="">— Select copy —</option>
                               {copies.map(c => <option key={c.id} value={c.id}>Copy #{c.copy_number} ({c.condition})</option>)}
@@ -722,9 +722,9 @@ export default function StaffPortalPage() {
                     )}
                     {selectedCopy && (
                       <div>
-                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Notes (optional)</label>
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Notes (optional)</label>
                         <input value={issueNote} onChange={e => setIssueNote(e.target.value)} placeholder="Any notes…"
-                          className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                          className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                       </div>
                     )}
                     <button onClick={issueBook} disabled={!selectedCopy || issuing}
@@ -740,14 +740,14 @@ export default function StaffPortalPage() {
           {libTab === 'return' && (
             <div className="space-y-4">
               {returnResult && (
-                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900 rounded-xl p-4">
-                  <p className="font-semibold text-green-800 dark:text-green-300">Book returned successfully!</p>
+                <div className="bg-[#E8F4EE] dark:bg-green-900/20 border border-[#B8D9C8] dark:border-green-900 rounded-xl p-4">
+                  <p className="font-semibold text-[#0B3D2E] dark:text-[#5DAA82]">Book returned successfully!</p>
                   {returnResult.fine_amount > 0 && (
-                    <p className="text-sm text-green-700 dark:text-green-400 mt-1">
+                    <p className="text-sm text-[#145C44] dark:text-[#2ab289] mt-1">
                       Fine charged: <strong>GHS {returnResult.fine_amount.toFixed(2)}</strong> ({returnResult.days_overdue} days overdue)
                     </p>
                   )}
-                  <button className="text-xs text-green-700 dark:text-green-400 underline mt-1" onClick={() => setReturnResult(null)}>Dismiss</button>
+                  <button className="text-xs text-[#145C44] dark:text-[#2ab289] underline mt-1" onClick={() => setReturnResult(null)}>Dismiss</button>
                 </div>
               )}
               <div className="flex gap-2">
@@ -755,7 +755,7 @@ export default function StaffPortalPage() {
                   onChange={e => { setReturnCode(e.target.value.toUpperCase()); setReturnError(''); setReturnStudent(null); setReturnResult(null); }}
                   onKeyDown={e => e.key === 'Enter' && lookupReturn()}
                   placeholder="Enter Student ID…"
-                  className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono uppercase tracking-widest bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                 <button onClick={lookupReturn} disabled={returnLoading || !returnCode.trim()}
                   className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
                   {returnLoading ? '…' : 'Find'}
@@ -860,7 +860,7 @@ export default function StaffPortalPage() {
                             <p className="text-sm font-bold text-slate-900 dark:text-white">{item.quantity_available} <span className="font-normal text-slate-400">/ {item.quantity_total}</span></p>
                             {issued > 0 && <p className="text-xs text-amber-600">{issued} out</p>}
                           </div>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${item.condition === 'Good' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : item.condition === 'Damaged' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${item.condition === 'Good' ? 'bg-[#D1EAD9] text-[#145C44] dark:bg-green-900/30 dark:text-[#2ab289]' : item.condition === 'Damaged' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
                             {item.condition}
                           </span>
                         </div>
@@ -879,7 +879,7 @@ export default function StaffPortalPage() {
                   onChange={e => { setInvIssueCode(e.target.value.toUpperCase()); setInvIssueStudent(null); setInvIssueStudErr(''); }}
                   onKeyDown={e => e.key === 'Enter' && lookupInvStudent()}
                   placeholder="Enter Student ID…"
-                  className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono uppercase tracking-widest bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="flex-1 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm font-mono font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                 <button onClick={lookupInvStudent} disabled={invIssueStudLoad || !invIssueCode.trim()}
                   className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
                   {invIssueStudLoad ? '…' : 'Find'}
@@ -899,7 +899,7 @@ export default function StaffPortalPage() {
                   </div>
                   <div className="space-y-3">
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Select Item</label>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Select Item</label>
                       <select className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
                         value={invIssueItem} onChange={e => { setInvIssueItem(e.target.value); setInvIssueQty('1'); }}>
                         <option value="">— Select item —</option>
@@ -911,14 +911,14 @@ export default function StaffPortalPage() {
                     {invIssueItem && (
                       <>
                         <div>
-                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Quantity</label>
+                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Quantity</label>
                           <input type="number" min="1"
                             max={invItems.find(i => i.id === invIssueItem)?.quantity_available ?? 1}
                             value={invIssueQty} onChange={e => setInvIssueQty(e.target.value)}
                             className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
                         </div>
                         <div>
-                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Notes (optional)</label>
+                          <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Notes (optional)</label>
                           <input value={invIssueNotes} onChange={e => setInvIssueNotes(e.target.value)}
                             className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
                         </div>
@@ -939,38 +939,38 @@ export default function StaffPortalPage() {
           {invTab === 'sign-list' && (
             <div className="space-y-4">
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Document Details</p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium">Document Details</p>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Title <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Title <span className="text-red-500">*</span></label>
                   <input value={slTitle} onChange={e => { setSlTitle(e.target.value); setSlError(''); }} placeholder="e.g. Exercise Books — Term 2"
-                    className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500" />
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Item / Reference</label>
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Item / Reference</label>
                     <input value={slItemName} onChange={e => setSlItemName(e.target.value)} placeholder="Item name"
                       className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Qty / Person</label>
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Qty / Person</label>
                     <input type="number" min="1" value={slQtyPerPerson} onChange={e => setSlQtyPerPerson(e.target.value)}
                       className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Issue Date</label>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Issue Date</label>
                   <input type="date" value={slIssueDate} onChange={e => setSlIssueDate(e.target.value)}
                     className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Notes (optional)</label>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Notes (optional)</label>
                   <input value={slNotes} onChange={e => setSlNotes(e.target.value)} placeholder="Printed at top of sheet"
                     className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
                 </div>
               </div>
 
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Recipients</p>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium">Recipients</p>
                 <div className="flex gap-2">
                   {(['students', 'teachers'] as const).map(t => (
                     <button key={t} onClick={() => { setSlRecipType(t); setTimeout(slRefreshCount, 0); }}
@@ -1055,14 +1055,14 @@ export default function StaffPortalPage() {
           {invTab === 'return' && (
             <div className="space-y-4">
               {invReturnOk && (
-                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900 rounded-xl p-4">
-                  <p className="font-semibold text-green-800 dark:text-green-300">Item returned successfully!</p>
-                  <button className="text-xs text-green-700 dark:text-green-400 underline mt-1" onClick={() => setInvReturnOk(false)}>Dismiss</button>
+                <div className="bg-[#E8F4EE] dark:bg-green-900/20 border border-[#B8D9C8] dark:border-green-900 rounded-xl p-4">
+                  <p className="font-semibold text-[#0B3D2E] dark:text-[#5DAA82]">Item returned successfully!</p>
+                  <button className="text-xs text-[#145C44] dark:text-[#2ab289] underline mt-1" onClick={() => setInvReturnOk(false)}>Dismiss</button>
                 </div>
               )}
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Select Item to Return</label>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Select Item to Return</label>
                   <select className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none"
                     value={invReturnItem} onChange={e => { setInvReturnItem(e.target.value); setInvReturnQty('1'); setInvReturnErr(''); }}>
                     <option value="">— Select item —</option>
@@ -1075,14 +1075,14 @@ export default function StaffPortalPage() {
                 {invReturnItem && (
                   <>
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Quantity Returned</label>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Quantity Returned</label>
                       <input type="number" min="1"
                         max={(() => { const it = invItems.find(i => i.id === invReturnItem); return it ? it.quantity_total - it.quantity_available : 1; })()}
                         value={invReturnQty} onChange={e => setInvReturnQty(e.target.value)}
                         className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Returned Condition</label>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Returned Condition</label>
                       <select value={invReturnCond} onChange={e => setInvReturnCond(e.target.value)}
                         className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none">
                         <option value="Good">Good</option>
@@ -1090,7 +1090,7 @@ export default function StaffPortalPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1.5">Notes (optional)</label>
+                      <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Notes (optional)</label>
                       <input value={invReturnNotes} onChange={e => setInvReturnNotes(e.target.value)}
                         className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none" />
                     </div>
@@ -1098,7 +1098,7 @@ export default function StaffPortalPage() {
                 )}
                 {invReturnErr && <p className="text-sm text-red-500">{invReturnErr}</p>}
                 <button onClick={submitInvReturn} disabled={!invReturnItem || invReturning}
-                  className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 bg-green-600">
+                  className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 bg-[#145C44]">
                   {invReturning ? 'Processing…' : 'Confirm Return'}
                 </button>
               </div>
@@ -1109,8 +1109,8 @@ export default function StaffPortalPage() {
 
       {/* ── Clearance Action Modal ─────────────────────────────────────────── */}
       {action && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
               <p className="font-bold text-slate-800 dark:text-white">Clearance Action</p>
               <button onClick={() => setAction(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
@@ -1120,10 +1120,10 @@ export default function StaffPortalPage() {
             <div className="px-5 py-4 space-y-4">
               <p className="text-sm text-slate-500 dark:text-slate-400">Office: <span className="font-semibold text-slate-700 dark:text-slate-200">{action.office_name}</span></p>
               <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-2">Decision</label>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-2">Decision</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => setAcStatus('cleared')}
-                    className={`py-2.5 rounded-xl text-sm font-bold border transition-colors ${acStatus === 'cleared' ? 'bg-green-600 text-white border-green-600' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600'}`}>
+                    className={`py-2.5 rounded-xl text-sm font-bold border transition-colors ${acStatus === 'cleared' ? 'bg-[#145C44] text-white border-green-600' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600'}`}>
                     Cleared
                   </button>
                   <button onClick={() => setAcStatus('not_cleared')}
@@ -1133,18 +1133,18 @@ export default function StaffPortalPage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide block mb-1">
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1">
                   Reason / Notes {acStatus === 'not_cleared' && <span className="text-red-500">*</span>}
                 </label>
                 <textarea value={acNotes} onChange={e => { setAcNotes(e.target.value); setAcError(''); }} rows={3}
                   placeholder={acStatus === 'not_cleared' ? 'Required — state the reason clearly…' : 'Optional notes…'}
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" />
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-[#145C44] resize-none" />
               </div>
               {acError && <p className="text-sm text-red-600">{acError}</p>}
               <div className="flex gap-3">
                 <button onClick={() => setAction(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300">Cancel</button>
                 <button onClick={submitAction} disabled={acSaving || (acStatus === 'not_cleared' && !acNotes.trim())}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 ${acStatus === 'not_cleared' ? 'bg-red-600' : 'bg-green-600'}`}>
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 ${acStatus === 'not_cleared' ? 'bg-red-600' : 'bg-[#145C44]'}`}>
                   {acSaving ? 'Saving…' : 'Confirm'}
                 </button>
               </div>

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -29,7 +29,7 @@ interface CoverageRow {
   status: 'covered' | 'unteachered' | 'unscheduled';
 }
 const COV_CFG = {
-  covered:     { label: 'OK',         color: '#15803D', bg: '#F0FDF4' },
+  covered:     { label: 'OK',         color: '#145C44', bg: '#F0FDF4' },
   unteachered: { label: 'No Teacher', color: '#B45309', bg: '#FFFBEB' },
   unscheduled: { label: 'Missing',    color: '#DC2626', bg: '#FEF2F2' },
 };
@@ -67,7 +67,7 @@ function CoverageModal({ open, onClose }: { open: boolean; onClose: () => void }
             {(['issues', 'all'] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}
                 className="px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
-                style={{ backgroundColor: filter === f ? '#FFFFFF' : 'transparent', color: filter === f ? '#0F172A' : '#64748B', boxShadow: filter === f ? '0 1px 3px rgba(15,23,42,0.08)' : 'none' }}>
+                style={{ backgroundColor: filter === f ? '#FFFFFF' : 'transparent', color: filter === f ? '#1C1208' : '#64748B', boxShadow: filter === f ? '0 1px 3px rgba(15,23,42,0.08)' : 'none' }}>
                 {f === 'issues' ? 'Issues only' : 'All subjects'}
               </button>
             ))}
@@ -85,7 +85,7 @@ function CoverageModal({ open, onClose }: { open: boolean; onClose: () => void }
               <thead className="bg-slate-50 border-b border-slate-100 sticky top-0">
                 <tr>
                   {['Class', 'Subject', 'Expected/wk', 'Scheduled', 'Has Teacher', 'Missing Teacher', 'Duration/wk', 'Status'].map(h => (
-                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold font-medium text-slate-400 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -99,7 +99,7 @@ function CoverageModal({ open, onClose }: { open: boolean; onClose: () => void }
                       <td className="px-3 py-2.5 text-slate-500 text-center">{r.expected_periods}</td>
                       <td className="px-3 py-2.5 text-slate-500 text-center">{r.periods_scheduled}</td>
                       <td className="px-3 py-2.5 text-center">
-                        <span className="text-green-700 font-medium">{r.periods_with_teacher}</span>
+                        <span className="text-[#145C44] font-medium">{r.periods_with_teacher}</span>
                       </td>
                       <td className="px-3 py-2.5 text-center">
                         {r.periods_without_teacher > 0
@@ -392,8 +392,8 @@ export default function TimetablePage() {
         </div>
       )}
       {coverage && coverage.total > 0 && coverage.unscheduled === 0 && coverage.unteachered === 0 && (
-        <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 text-sm text-green-800">
-          <span className="text-green-600 font-bold text-base">✓</span>
+        <div className="flex items-center gap-3 rounded-xl border border-[#B8D9C8] bg-[#E8F4EE] px-4 py-2.5 text-sm text-[#0B3D2E]">
+          <span className="text-[#145C44] font-bold text-base">✓</span>
           <span className="font-medium">All {coverage.total} allocated subjects have timetable slots and teachers assigned.</span>
         </div>
       )}
@@ -432,7 +432,7 @@ export default function TimetablePage() {
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 {['Day', 'Time', 'Subject', 'Class(es)', 'Teacher', ''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -480,23 +480,23 @@ export default function TimetablePage() {
               ))}
             </div>
             <ul className="text-xs text-slate-400 space-y-0.5 mt-1">
-              <li>• <strong className="text-slate-600">Column A</strong> accepts a Teacher ID like <code>T001</code> <span className="text-green-600">(recommended)</span> or a teacher name. <strong className="text-slate-600">Column B</strong> is for reference only and is ignored on import.</li>
+              <li>• <strong className="text-slate-600">Column A</strong> accepts a Teacher ID like <code>T001</code> <span className="text-[#145C44]">(recommended)</span> or a teacher name. <strong className="text-slate-600">Column B</strong> is for reference only and is ignored on import.</li>
               <li>• IDs are unambiguous even when two teachers share the same name — download the template to get a pre-filled list</li>
               <li>• Day: Monday/Tuesday… or 1–7 &nbsp;·&nbsp; Times: HH:MM or Excel time cells</li>
               <li>• Classes: comma-separated (e.g. <code>1A, 1B</code>). New classes are auto-created.</li>
             </ul>
           </div>
 
-          <button onClick={downloadTemplate} className="text-sm font-semibold text-green-700 hover:underline">
+          <button onClick={downloadTemplate} className="text-sm font-semibold text-[#145C44] hover:underline">
             ↓ Download template (pre-filled with your teachers&apos; IDs)
           </button>
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">
+            <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">
               Select file (.xlsx, .xls, .csv)
             </label>
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv"
-              className="w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-green-600 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-green-700 cursor-pointer" />
+              className="w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-[#145C44] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-[#145C44] cursor-pointer" />
           </div>
 
           <label className="flex items-start gap-3 cursor-pointer rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
@@ -514,9 +514,9 @@ export default function TimetablePage() {
 
           {uploadResult && (
             <div className="space-y-2">
-              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+              <div className="rounded-lg bg-[#E8F4EE] border border-[#B8D9C8] px-4 py-3 text-sm text-[#0B3D2E]">
                 <span className="font-semibold">{uploadResult.inserted}</span> row{uploadResult.inserted !== 1 ? 's' : ''} imported successfully
-                {replaceAll && <span className="ml-2 text-green-600">(previous timetable replaced)</span>}
+                {replaceAll && <span className="ml-2 text-[#145C44]">(previous timetable replaced)</span>}
               </div>
               {uploadResult.coverage && (uploadResult.coverage.unscheduled > 0 || uploadResult.coverage.unteachered > 0) && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
@@ -550,7 +550,7 @@ export default function TimetablePage() {
         <div className="space-y-3">
           {/* Teacher */}
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Teacher *</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Teacher *</label>
             <select value={form.teacher_id} onChange={f('teacher_id')} className={`mt-1 w-full ${selectCls}`}>
               <option value="">Select teacher…</option>
               {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -558,7 +558,7 @@ export default function TimetablePage() {
           </div>
           {/* Day */}
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Day *</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Day *</label>
             <select value={form.day_of_week} onChange={f('day_of_week')} className={`mt-1 w-full ${selectCls}`}>
               {DAYS.slice(1, 8).map((d, i) => <option key={d} value={i + 1}>{d}</option>)}
             </select>
@@ -566,17 +566,17 @@ export default function TimetablePage() {
           {/* Times */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Start Time *</label>
+              <label className="text-xs font-semibold font-medium text-slate-500">Start Time *</label>
               <input type="time" value={form.start_time} onChange={f('start_time')} className={`mt-1 w-full ${selectCls}`} />
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">End Time *</label>
+              <label className="text-xs font-semibold font-medium text-slate-500">End Time *</label>
               <input type="time" value={form.end_time} onChange={f('end_time')} className={`mt-1 w-full ${selectCls}`} />
             </div>
           </div>
           {/* Subject */}
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Subject *</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Subject *</label>
             {subjects.length > 0 ? (
               <select value={form.subject} onChange={f('subject')} className={`mt-1 w-full ${selectCls}`}>
                 <option value="">Select subject…</option>
@@ -590,15 +590,15 @@ export default function TimetablePage() {
           </div>
           {/* Classes multi-select */}
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">
-              Class(es) * {selCls.size > 0 && <span className="text-green-600 normal-case font-normal ml-1">({Array.from(selCls).join(', ')})</span>}
+            <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">
+              Class(es) * {selCls.size > 0 && <span className="text-[#145C44] normal-case font-normal ml-1">({Array.from(selCls).join(', ')})</span>}
             </label>
             {classes.length > 0 ? (
               <div className="border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto space-y-0.5">
                 {classes.map(c => (
                   <label key={c.id} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 rounded px-2 py-1.5">
                     <input type="checkbox" checked={selCls.has(c.name)} onChange={() => toggleClass(c.name)}
-                      className="w-4 h-4 accent-green-600" />
+                      className="w-4 h-4 accent-[#145C44]" />
                     <span className="text-sm text-slate-900 font-medium">{c.name}</span>
                   </label>
                 ))}
@@ -635,14 +635,14 @@ export default function TimetablePage() {
           <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-2 text-xs font-mono text-slate-500 overflow-x-auto whitespace-nowrap">
             A: Entry ID* · B: Teacher Code · C: Teacher Name (ref) · D: Day · E: Start Time · F: End Time · G: Subject · H: Classes
           </div>
-          <button onClick={downloadUpdateTemplate} className="text-sm font-semibold text-green-700 hover:underline">
+          <button onClick={downloadUpdateTemplate} className="text-sm font-semibold text-[#145C44] hover:underline">
             ↓ Download update template (.xlsx) — pre-filled with {selYearName ? `${selYearName} Sem ${selSemester}` : 'current'} timetable
           </button>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-2">Select file (.xlsx, .xls, .csv)</label>
+            <label className="text-xs font-semibold font-medium text-slate-500 block mb-2">Select file (.xlsx, .xls, .csv)</label>
             <div
               onClick={() => updateFileRef.current?.click()}
-              className="border-2 border-dashed border-slate-200 rounded-xl px-6 py-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50 transition-colors"
+              className="border-2 border-dashed border-slate-200 rounded-xl px-6 py-6 text-center cursor-pointer hover:border-[#2D7A4F] hover:bg-[#E8F4EE] transition-colors"
             >
               <p className="text-sm text-slate-500">
                 {updateFileRef.current?.files?.[0]?.name ?? 'Click to choose file or drag & drop'}
@@ -654,7 +654,7 @@ export default function TimetablePage() {
           {updateErr && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{updateErr}</p>}
           {updateResult && (
             <div className="space-y-2">
-              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+              <div className="rounded-lg bg-[#E8F4EE] border border-[#B8D9C8] px-4 py-3 text-sm text-[#0B3D2E]">
                 <span className="font-semibold">{updateResult.updated}</span> timetable slot{updateResult.updated !== 1 ? 's' : ''} updated successfully
               </div>
               {updateResult.notFound.length > 0 && (

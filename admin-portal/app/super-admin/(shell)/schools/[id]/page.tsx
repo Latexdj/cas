@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
@@ -78,7 +78,7 @@ function daysUntil(iso: string) {
 }
 
 function statusBadge(status: string) {
-  if (status === 'active') return 'bg-green-900/50 text-green-300 border-green-800';
+  if (status === 'active') return 'bg-green-900/50 text-[#5DAA82] border-green-800';
   if (status === 'trial')  return 'bg-yellow-900/40 text-yellow-300 border-yellow-800/50';
   return 'bg-red-900/40 text-red-300 border-red-800';
 }
@@ -327,7 +327,7 @@ export default function SchoolDetailPage() {
 
   if (loading) return (
     <div className="p-6 space-y-4">
-      {[1,2,3,4].map(i => <div key={i} className="h-32 bg-slate-800 rounded-2xl animate-pulse" />)}
+      {[1,2,3,4].map(i => <div key={i} className="h-32 bg-slate-800 rounded-xl animate-pulse" />)}
     </div>
   );
 
@@ -350,7 +350,7 @@ export default function SchoolDetailPage() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl font-bold text-white truncate">{school.name}</h1>
-            <span className="font-mono text-sm font-bold text-indigo-400 bg-indigo-900/40 px-2 py-0.5 rounded-lg">{school.code}</span>
+            <span className="font-mono text-sm font-bold text-[#C8973A] bg-[#0B3D2E]/40 px-2 py-0.5 rounded-lg">{school.code}</span>
             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${badge}`}>
               {school.subscription_status === 'active' ? 'Paid' : school.subscription_status === 'trial' ? 'Trial' : 'Expired'}
             </span>
@@ -362,7 +362,7 @@ export default function SchoolDetailPage() {
       {/* Usage metrics */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
-          <p className="text-lg font-bold text-indigo-400">
+          <p className="text-lg font-bold text-[#C8973A]">
             {school.active_teachers}
             <span className="text-sm font-normal text-slate-500">/{school.teacher_limit}</span>
           </p>
@@ -389,8 +389,8 @@ export default function SchoolDetailPage() {
       </div>
 
       {/* Edit info + notes */}
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-4">School Information</p>
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+        <p className="text-xs font-bold font-medium text-slate-400 mb-4">School Information</p>
         <form onSubmit={handleSaveInfo} className="space-y-3">
           {[
             { label: 'Name',    value: editName,    set: setEditName },
@@ -402,7 +402,7 @@ export default function SchoolDetailPage() {
               <label className="text-xs text-slate-400 block mb-1">{f.label}</label>
               <input type={f.type ?? 'text'} value={f.value}
                 onChange={e => { f.set(e.target.value); setSaveMsg(''); setSaveErr(''); }}
-                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B8D9C8]"
               />
             </div>
           ))}
@@ -412,14 +412,14 @@ export default function SchoolDetailPage() {
             <div>
               <label className="text-xs text-slate-400 block mb-1">School Type</label>
               <select value={editType} onChange={e => { setEditType(e.target.value); setSaveMsg(''); setSaveErr(''); }}
-                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B8D9C8]">
                 {SCHOOL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs text-slate-400 block mb-1">Category</label>
               <select value={editCategory} onChange={e => { setEditCategory(e.target.value); setSaveMsg(''); setSaveErr(''); }}
-                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500">
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B8D9C8]">
                 {SCHOOL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
@@ -430,13 +430,13 @@ export default function SchoolDetailPage() {
             <textarea value={editNotes} rows={3}
               onChange={e => { setEditNotes(e.target.value); setSaveMsg(''); setSaveErr(''); }}
               placeholder="Billing notes, contact info, anything internal..."
-              className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 resize-none"
+              className="w-full bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B8D9C8] resize-none"
             />
           </div>
-          {saveMsg && <p className="text-xs text-green-400 bg-green-900/30 border border-green-800 rounded-lg px-3 py-2">{saveMsg}</p>}
+          {saveMsg && <p className="text-xs text-[#2ab289] bg-green-900/30 border border-green-800 rounded-lg px-3 py-2">{saveMsg}</p>}
           {saveErr && <p className="text-xs text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-3 py-2">{saveErr}</p>}
           <button type="submit" disabled={saving}
-            className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-colors disabled:opacity-40">
+            className="w-full py-2.5 rounded-xl bg-[#145C44] hover:bg-[#145C44] text-white font-semibold text-sm transition-colors disabled:opacity-40">
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </form>
@@ -444,9 +444,9 @@ export default function SchoolDetailPage() {
 
       {/* Module Management */}
       {modules.length > 0 && (
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Module Management</p>
+            <p className="text-xs font-bold font-medium text-slate-400">Module Management</p>
             <button
               type="button"
               onClick={handleRestoreDefaults}
@@ -468,14 +468,14 @@ export default function SchoolDetailPage() {
                   m.core || m.comingSoon
                     ? 'opacity-60 cursor-not-allowed border-slate-700 bg-slate-900/40'
                     : m.enabled
-                      ? 'cursor-pointer border-indigo-700 bg-indigo-950/40 hover:border-indigo-600'
+                      ? 'cursor-pointer border-[#B8D9C8] bg-[#0B3D2E]/30 hover:border-[#B8D9C8]'
                       : 'cursor-pointer border-slate-700 bg-slate-900/40 hover:border-slate-600',
                 ].join(' ')}
               >
                 {/* Toggle indicator */}
                 <div className={[
                   'mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors',
-                  m.enabled ? 'bg-indigo-600 border-indigo-600' : 'bg-slate-800 border-slate-600',
+                  m.enabled ? 'bg-[#145C44] border-[#B8D9C8]' : 'bg-slate-800 border-slate-600',
                 ].join(' ')}>
                   {m.enabled && (
                     <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3} className="w-2.5 h-2.5">
@@ -487,12 +487,12 @@ export default function SchoolDetailPage() {
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-sm font-semibold text-white">{m.label}</span>
                     {m.core && (
-                      <span className="text-[9px] font-bold uppercase tracking-wide text-amber-400 bg-amber-900/40 px-1.5 py-0.5 rounded">
+                      <span className="text-[9px] font-bold font-medium text-amber-400 bg-amber-900/40 px-1.5 py-0.5 rounded">
                         Core
                       </span>
                     )}
                     {m.comingSoon && (
-                      <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400 bg-slate-700 px-1.5 py-0.5 rounded">
+                      <span className="text-[9px] font-bold font-medium text-slate-400 bg-slate-700 px-1.5 py-0.5 rounded">
                         Coming Soon
                       </span>
                     )}
@@ -502,13 +502,13 @@ export default function SchoolDetailPage() {
               </div>
             ))}
           </div>
-          {moduleMsg && <p className="text-xs text-green-400 bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-3">{moduleMsg}</p>}
+          {moduleMsg && <p className="text-xs text-[#2ab289] bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-3">{moduleMsg}</p>}
           {moduleErr && <p className="text-xs text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-3 py-2 mt-3">{moduleErr}</p>}
           <button
             type="button"
             onClick={handleSaveModules}
             disabled={moduleSaving}
-            className="w-full mt-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-colors disabled:opacity-40"
+            className="w-full mt-4 py-2.5 rounded-xl bg-[#145C44] hover:bg-[#145C44] text-white font-semibold text-sm transition-colors disabled:opacity-40"
           >
             {moduleSaving ? 'Saving...' : 'Save Module Settings'}
           </button>
@@ -516,8 +516,8 @@ export default function SchoolDetailPage() {
       )}
 
       {/* Subscription */}
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-4">Subscription</p>
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+        <p className="text-xs font-bold font-medium text-slate-400 mb-4">Subscription</p>
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-sm font-semibold text-white">{school.display_name ?? school.plan_name ?? 'No plan'}</p>
@@ -539,7 +539,7 @@ export default function SchoolDetailPage() {
         <div className="space-y-3">
           {/* ── Subscription period form (shown for ALL statuses) ── */}
           <div className="bg-slate-900/60 rounded-xl p-4 space-y-3 border border-slate-600">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+            <p className="text-[10px] font-bold font-medium text-slate-400">
               {school.subscription_status === 'active' ? 'Update Subscription Period' : 'Activate Paid Plan'}
             </p>
 
@@ -563,13 +563,13 @@ export default function SchoolDetailPage() {
                 <label className="text-[10px] text-slate-500 block mb-1">Start date</label>
                 <input type="date" value={activateStart}
                   onChange={e => { setActivateStart(e.target.value); setSubErr(''); }}
-                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-green-500" />
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#145C44]" />
               </div>
               <div>
                 <label className="text-[10px] text-slate-500 block mb-1">End date</label>
                 <input type="date" value={activateEnd}
                   onChange={e => { setActivateEnd(e.target.value); setSubErr(''); }}
-                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-green-500" />
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-[#145C44]" />
               </div>
             </div>
 
@@ -579,17 +579,17 @@ export default function SchoolDetailPage() {
               <input type="number" value={activateLimit}
                 onChange={e => { setActivateLimit(e.target.value); setSubErr(''); }}
                 min="10" placeholder={`Current: ${school.teacher_limit}`}
-                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-green-500" />
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#145C44]" />
             </div>
 
             {school.subscription_status === 'active' ? (
               <button onClick={handleUpdateSubscription} disabled={subLoading}
-                className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
+                className="w-full py-2 rounded-xl bg-[#145C44] hover:bg-[#145C44] text-white text-xs font-semibold disabled:opacity-40 transition-colors">
                 {subLoading ? 'Saving...' : 'Save Subscription Period'}
               </button>
             ) : (
               <button onClick={handleActivate} disabled={subLoading}
-                className="w-full py-2 rounded-xl bg-green-700 hover:bg-green-600 text-white text-xs font-semibold disabled:opacity-40 transition-colors">
+                className="w-full py-2 rounded-xl bg-[#145C44] hover:bg-[#0B3D2E] text-white text-xs font-semibold disabled:opacity-40 transition-colors">
                 {subLoading ? 'Activating...' : 'Activate Paid Plan'}
               </button>
             )}
@@ -617,13 +617,13 @@ export default function SchoolDetailPage() {
           )}
         </div>
 
-        {subMsg && <p className="text-xs text-green-400 bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-3">{subMsg}</p>}
+        {subMsg && <p className="text-xs text-[#2ab289] bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-3">{subMsg}</p>}
         {subErr && <p className="text-xs text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-3 py-2 mt-3">{subErr}</p>}
       </div>
 
       {/* Teacher Limit */}
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1">Teacher Limit</p>
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+        <p className="text-xs font-bold font-medium text-slate-400 mb-1">Teacher Limit</p>
         <p className="text-xs text-slate-500 mb-4">
           Current limit: <span className="font-semibold text-white">{school.teacher_limit} teachers</span>
           {' '}({school.active_teachers} currently active).
@@ -636,37 +636,37 @@ export default function SchoolDetailPage() {
             type="number" value={limitInput}
             onChange={e => { setLimitInput(e.target.value); setLimitErr(''); setLimitMsg(''); }}
             placeholder={`New limit (min 10, current ${school.teacher_limit})`} min="10"
-            className="flex-1 bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-slate-500"
+            className="flex-1 bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B8D9C8] placeholder-slate-500"
           />
           <button type="submit" disabled={limitLoading}
             className="px-4 py-2.5 rounded-xl bg-slate-600 hover:bg-slate-500 text-white text-sm font-semibold disabled:opacity-40 transition-colors">
             {limitLoading ? '...' : 'Update'}
           </button>
         </form>
-        {limitMsg && <p className="text-xs text-green-400 bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-2">{limitMsg}</p>}
+        {limitMsg && <p className="text-xs text-[#2ab289] bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-2">{limitMsg}</p>}
         {limitErr && <p className="text-xs text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-3 py-2 mt-2">{limitErr}</p>}
       </div>
 
       {/* Reset admin PIN */}
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
-        <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-4">Reset Admin PIN</p>
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+        <p className="text-xs font-bold font-medium text-slate-400 mb-4">Reset Admin PIN</p>
         <form onSubmit={handleResetPin} className="flex gap-2">
           <input type="text" value={newPin} onChange={e => { setNewPin(e.target.value); setPinErr(''); setPinMsg(''); }}
             placeholder="New PIN (4–8 digits)" maxLength={8}
-            className="flex-1 bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 placeholder-slate-500"
+            className="flex-1 bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B8D9C8] placeholder-slate-500"
           />
           <button type="submit" disabled={pinLoading}
             className="px-4 py-2.5 rounded-xl bg-slate-600 hover:bg-slate-500 text-white text-sm font-semibold disabled:opacity-40 transition-colors">
             {pinLoading ? '...' : 'Reset'}
           </button>
         </form>
-        {pinMsg && <p className="text-xs text-green-400 bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-2">{pinMsg}</p>}
+        {pinMsg && <p className="text-xs text-[#2ab289] bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-2">{pinMsg}</p>}
         {pinErr && <p className="text-xs text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-3 py-2 mt-2">{pinErr}</p>}
       </div>
 
       {/* Danger zone */}
-      <div className="bg-red-950/30 border border-red-900/60 rounded-2xl p-5">
-        <p className="text-xs font-bold uppercase tracking-wide text-red-500 mb-2">Danger Zone</p>
+      <div className="bg-red-950/30 border border-red-900/60 rounded-xl p-5">
+        <p className="text-xs font-bold font-medium text-red-500 mb-2">Danger Zone</p>
         <p className="text-xs text-slate-400 mb-4">
           Permanently deletes <span className="font-semibold text-red-300">{school.name}</span> and ALL its data — teachers, attendance, timetable, everything. This cannot be undone.
         </p>

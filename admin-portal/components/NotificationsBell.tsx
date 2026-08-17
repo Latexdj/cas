@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
@@ -63,8 +63,8 @@ export function NotificationsBell() {
           <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowNotifs(false)} />
           <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, width: 320, background: '#fff', border: '1px solid #E2E8F0', borderRadius: 14, boxShadow: '0 10px 40px rgba(0,0,0,0.15)', zIndex: 50, maxHeight: 400, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A' }}>Notifications</span>
-              <button onClick={markAllRead} style={{ fontSize: 11, color: '#15803D', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Mark all read</button>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#1C1208' }}>Notifications</span>
+              <button onClick={markAllRead} style={{ fontSize: 11, color: '#145C44', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Mark all read</button>
             </div>
             <div style={{ overflowY: 'auto', flex: 1 }}>
               {notifs.length === 0 ? (
@@ -73,9 +73,9 @@ export function NotificationsBell() {
                 <div
                   key={n.id}
                   onClick={() => { if (n.link && typeof window !== 'undefined') window.location.href = n.link; setShowNotifs(false); }}
-                  style={{ padding: '10px 16px', borderBottom: '1px solid #F8FAFC', cursor: n.link ? 'pointer' : 'default', background: n.is_read ? '#fff' : '#F0FDF4' }}
+                  style={{ padding: '10px 16px', borderBottom: '1px solid #F0EBE1', cursor: n.link ? 'pointer' : 'default', background: n.is_read ? '#fff' : '#F0FDF4' }}
                 >
-                  <p style={{ fontSize: 13, color: '#0F172A', margin: 0, lineHeight: 1.4 }}>{n.message}</p>
+                  <p style={{ fontSize: 13, color: '#1C1208', margin: 0, lineHeight: 1.4 }}>{n.message}</p>
                   <p style={{ fontSize: 11, color: '#94A3B8', margin: '3px 0 0' }}>
                     {new Date(n.created_at).toLocaleDateString()} {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>

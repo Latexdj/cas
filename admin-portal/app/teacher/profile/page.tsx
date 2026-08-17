@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -198,14 +198,14 @@ export default function ProfilePage() {
       </div>
 
       {/* Photo + identity card */}
-      <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-5 mb-4">
+      <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-5 mb-4">
         <div className="flex items-center gap-4 mb-4">
           <div className="relative shrink-0">
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
             {profile?.photo_url ? (
-              <img src={profile.photo_url} alt="Profile" className="w-16 h-16 rounded-2xl object-cover" />
+              <img src={profile.photo_url} alt="Profile" className="w-16 h-16 rounded-xl object-cover" />
             ) : (
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white text-xl font-bold"
+              <div className="w-16 h-16 rounded-xl flex items-center justify-center text-white text-xl font-bold"
                 style={{ background: primary }}>{initials}</div>
             )}
             <button onClick={() => fileRef.current?.click()} disabled={photoLoading}
@@ -235,8 +235,8 @@ export default function ProfilePage() {
       </div>
 
       {/* Personal Information */}
-      <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-3">Personal Information</p>
+      <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
+        <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">Personal Information</p>
         <InfoRow label="Email"       value={profile?.email} />
         <InfoRow label="Phone"       value={profile?.phone} />
         <InfoRow label="Gender"      value={profile?.gender} />
@@ -249,8 +249,8 @@ export default function ProfilePage() {
       </div>
 
       {/* Professional (read-only) */}
-      <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-3">Professional Information</p>
+      <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
+        <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">Professional Information</p>
         <InfoRow label="Department"          value={profile?.department} />
         <InfoRow label="GES Rank"            value={profile?.rank} />
         <InfoRow label="Gov Staff ID"        value={profile?.gov_staff_id} />
@@ -272,23 +272,23 @@ export default function ProfilePage() {
       </div>
 
       {/* Banking (read-only) */}
-      <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-3">Banking</p>
+      <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
+        <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">Banking</p>
         <InfoRow label="Bank"        value={profile?.bank} />
         <InfoRow label="Branch"      value={profile?.bank_branch} />
         <InfoRow label="Account No." value={profile?.account_number} />
       </div>
 
       {/* Emergency Contact */}
-      <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-3">Emergency Contact</p>
+      <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
+        <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">Emergency Contact</p>
         <InfoRow label="Name"  value={profile?.emergency_contact_name} />
         <InfoRow label="Phone" value={profile?.emergency_contact_phone} />
       </div>
 
       {/* Documents */}
-      <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-3">Documents</p>
+      <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
+        <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">Documents</p>
         <div className="flex items-center justify-between">
           <div className="flex-1 mr-3">
             <p className="text-xs text-[#8C7E6E] mb-1">Academic Certificate</p>
@@ -314,8 +314,8 @@ export default function ProfilePage() {
       </div>
 
       {/* Change Password */}
-      <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-5 mb-4">
-        <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-4">Change Password</p>
+      <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-5 mb-4">
+        <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-4">Change Password</p>
         <form onSubmit={handleChangePassword} className="space-y-3">
           {[
             { label: 'Current Password', value: currentPassword, set: setCurrentPassword, ac: 'current-password' },
@@ -329,7 +329,7 @@ export default function ProfilePage() {
             </div>
           ))}
           {pwError   && <p className="text-xs text-[#B83232] bg-red-50 border border-red-200 rounded-lg px-3 py-2">{pwError}</p>}
-          {pwSuccess && <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">{pwSuccess}</p>}
+          {pwSuccess && <p className="text-xs text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded-lg px-3 py-2">{pwSuccess}</p>}
           <button type="submit" disabled={pwLoading}
             className="w-full py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-40"
             style={{ background: primary }}>
@@ -339,7 +339,7 @@ export default function ProfilePage() {
       </div>
 
       <button onClick={handleLogout}
-        className="w-full py-3.5 rounded-2xl font-semibold text-sm border-2 mb-6"
+        className="w-full py-3.5 rounded-xl font-semibold text-sm border-2 mb-6"
         style={{ borderColor: '#B83232', color: '#B83232', background: 'white' }}>
         Sign Out
       </button>

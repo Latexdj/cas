@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -38,7 +38,7 @@ function AssessmentsContent() {
       });
       setSlots(data ?? []);
     } catch {
-      setError('Failed to load subjects.');
+      setError('Could not load subjects.');
     } finally {
       setLoading(false);
     }
@@ -61,7 +61,7 @@ function AssessmentsContent() {
       setYearName(activeYear.name);
       setSemester(sem);
       loadSlots(activeYear.id, sem);
-    }).catch(() => { setError('Failed to load years.'); setLoading(false); });
+    }).catch(() => { setError('Could not load years.'); setLoading(false); });
   }, [loadSlots]);
 
   function changeYear(y: AcademicYear) {
@@ -84,9 +84,9 @@ function AssessmentsContent() {
       </div>
 
       {/* Year + Semester selectors */}
-      <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 mb-5 flex gap-3">
+      <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 mb-5 flex gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-semibold text-[#8C7E6E] mb-1.5 uppercase tracking-wide">Academic Year</p>
+          <p className="text-[10px] font-semibold text-[#8C7E6E] mb-1.5 font-medium">Academic Year</p>
           <div className="relative">
             <select
               value={yearId}
@@ -106,7 +106,7 @@ function AssessmentsContent() {
           </div>
         </div>
         <div className="w-36 shrink-0">
-          <p className="text-[10px] font-semibold text-[#8C7E6E] mb-1.5 uppercase tracking-wide">Semester</p>
+          <p className="text-[10px] font-semibold text-[#8C7E6E] mb-1.5 font-medium">Semester</p>
           <div className="relative">
             <select
               value={semester}
@@ -130,12 +130,12 @@ function AssessmentsContent() {
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map(i => (
-            <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-16 animate-pulse" />
+            <div key={i} className="bg-white rounded-xl border border-[#E2D9CC] h-16 animate-pulse" />
           ))}
         </div>
       ) : slots.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-white border border-[#E2D9CC] flex items-center justify-center mb-3">
+          <div className="w-14 h-14 rounded-xl bg-white border border-[#E2D9CC] flex items-center justify-center mb-3">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-7 h-7 text-[#C8BFB5]">
               <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
               <rect x="9" y="3" width="6" height="4" rx="1" />
@@ -154,7 +154,7 @@ function AssessmentsContent() {
               onClick={() => router.push(
                 `/teacher/assessments/subject?subject=${encodeURIComponent(slot.subject)}&class_name=${encodeURIComponent(slot.class_name)}&year_id=${yearId}&semester=${semester}&year_name=${encodeURIComponent(yearName)}`
               )}
-              className="w-full bg-white rounded-2xl border border-[#E2D9CC] shadow-sm flex items-center overflow-hidden text-left hover:shadow-md transition-shadow"
+              className="w-full bg-white rounded-xl border border-[#E2D9CC] shadow-sm flex items-center overflow-hidden text-left hover:shadow-md transition-shadow"
             >
               <div className="w-1 self-stretch" style={{ background: primary }} />
               <div className="flex-1 px-4 py-3.5">

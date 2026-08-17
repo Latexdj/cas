@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -95,7 +95,7 @@ function ExamContent() {
         setSubjRemarks(rmks.map(r => ({ ...r, remarks: r.remarks ?? '' })));
       } catch { /* non-fatal */ }
     } catch {
-      setError('Failed to load exam scores.');
+      setError('Could not load exam scores.');
     } finally {
       setLoading(false);
     }
@@ -261,9 +261,9 @@ function ExamContent() {
         </div>
 
         {/* Year + Semester selectors */}
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] px-4 py-3 flex gap-3 mb-2">
+        <div className="bg-white rounded-xl border border-[#E2D9CC] px-4 py-3 flex gap-3 mb-2">
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Academic Year</p>
+            <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium mb-1">Academic Year</p>
             <div className="relative">
               <select
                 value={selectedYearId}
@@ -281,7 +281,7 @@ function ExamContent() {
             </div>
           </div>
           <div className="w-32 shrink-0">
-            <p className="text-[10px] font-semibold text-[#8C7E6E] uppercase tracking-wide mb-1">Semester</p>
+            <p className="text-[10px] font-semibold text-[#8C7E6E] font-medium mb-1">Semester</p>
             <div className="relative">
               <select
                 value={selectedSem}
@@ -299,7 +299,7 @@ function ExamContent() {
         </div>
 
         {/* Max score input */}
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] px-4 py-3 flex items-center gap-3 mb-2">
+        <div className="bg-white rounded-xl border border-[#E2D9CC] px-4 py-3 flex items-center gap-3 mb-2">
           <p className="text-xs font-semibold text-[#8C7E6E] flex-1">Max Score</p>
           <input
             type="number"
@@ -316,8 +316,8 @@ function ExamContent() {
           <p className="text-xs text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-2">{error}</p>
         )}
         {saved && (
-          <p className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2 mb-2">
-            ✓ Exam scores saved for {selectedYearName} · Semester {selectedSem}.
+          <p className="text-xs font-semibold text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-2 mb-2">
+            Exam scores saved for {selectedYearName} · Semester {selectedSem}.
           </p>
         )}
         {subLocked && (
@@ -331,7 +331,7 @@ function ExamContent() {
       <div className="px-4 space-y-2" style={subLocked ? { opacity: 0.6, pointerEvents: 'none' } : undefined}>
         {loading ? (
           <>
-            {[1, 2, 3, 4, 5].map(i => <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-14 animate-pulse" />)}
+            {[1, 2, 3, 4, 5].map(i => <div key={i} className="bg-white rounded-xl border border-[#E2D9CC] h-14 animate-pulse" />)}
           </>
         ) : rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -341,7 +341,7 @@ function ExamContent() {
           rows.map((row, index) => (
             <div
               key={row.student_id}
-              className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm flex items-center px-3 py-2.5 gap-3"
+              className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm flex items-center px-3 py-2.5 gap-3"
             >
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-[#2C2218] truncate">{row.name}</p>
@@ -373,7 +373,7 @@ function ExamContent() {
           <button
             onClick={save}
             disabled={subLocked || saving}
-            className="w-full max-w-sm px-6 py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-60 transition-opacity shadow-sm"
+            className="w-full max-w-sm px-6 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-60 transition-opacity shadow-sm"
             style={{ background: primary }}
           >
             {saving ? 'Saving…' : rows.some(r => r.score !== null) ? 'Save Changes' : 'Save Scores'}
@@ -384,8 +384,8 @@ function ExamContent() {
 
       {/* Upload result modal */}
       {uploadResult && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 px-4 pb-6">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-5">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0B3D2E]/35 px-4 pb-6">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold text-[#2C2218]">Upload Results</h2>
               <button
@@ -398,11 +398,11 @@ function ExamContent() {
               </button>
             </div>
             <div className="space-y-2 mb-3">
-              <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2">
-                <span className="text-green-700 font-bold text-sm">{uploadResult.saved} score{uploadResult.saved !== 1 ? 's' : ''} saved</span>
+              <div className="bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-2">
+                <span className="text-[#145C44] font-bold text-sm">{uploadResult.saved} score{uploadResult.saved !== 1 ? 's' : ''} saved</span>
               </div>
               {uploadResult.skipped > 0 && (
-                <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                <div className="bg-[#F5F0E8] border border-gray-200 rounded-xl px-3 py-2">
                   <span className="text-gray-600 text-sm">{uploadResult.skipped} row{uploadResult.skipped !== 1 ? 's' : ''} skipped (empty)</span>
                 </div>
               )}
@@ -428,7 +428,7 @@ function ExamContent() {
         <div style={{ marginTop: 24, border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', marginLeft: 16, marginRight: 16, marginBottom: 24 }}>
           <button
             onClick={() => setRemarksExpanded(v => !v)}
-            style={{ width: '100%', padding: '12px 16px', background: '#F8FAFC', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 14, fontWeight: 600, color: '#0F172A' }}
+            style={{ width: '100%', padding: '12px 16px', background: '#F5F0E8', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 14, fontWeight: 600, color: '#1C1208' }}
           >
             <span>Subject Remarks (optional)</span>
             <span style={{ fontSize: 12, color: '#64748B' }}>{remarksExpanded ? '▲ Hide' : '▼ Show'}</span>
@@ -451,7 +451,7 @@ function ExamContent() {
                       setRemarksDirty(true);
                     }}
                     placeholder="Enter remark…"
-                    style={{ flex: 1, border: '1px solid #E2E8F0', borderRadius: 8, padding: '6px 10px', fontSize: 13, outline: 'none', background: subLocked ? '#F8FAFC' : '#fff' }}
+                    style={{ flex: 1, border: '1px solid #E2E8F0', borderRadius: 8, padding: '6px 10px', fontSize: 13, outline: 'none', background: subLocked ? '#F5F0E8' : '#fff' }}
                   />
                 </div>
               ))}
@@ -460,7 +460,7 @@ function ExamContent() {
                   <button
                     onClick={saveRemarks}
                     disabled={remarksSaving || !remarksDirty}
-                    style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (remarksSaving || !remarksDirty) ? 0.5 : 1 }}
+                    style={{ background: '#145C44', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 20px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (remarksSaving || !remarksDirty) ? 0.5 : 1 }}
                   >
                     {remarksSaving ? 'Saving…' : 'Save Remarks'}
                   </button>

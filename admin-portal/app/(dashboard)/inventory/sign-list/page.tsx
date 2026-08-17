@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { buildSignListHtml, type SlRecipient, type SlSchool } from '@/lib/sign-list-print';
@@ -137,8 +137,8 @@ export default function SignListPage() {
     }
   }
 
-  const iCls = 'mt-1 w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500';
-  const lCls = 'block text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide';
+  const iCls = 'mt-1 w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]';
+  const lCls = 'block text-xs font-semibold text-slate-600 dark:text-slate-400 font-medium';
 
   return (
     <div className="space-y-6">
@@ -198,8 +198,8 @@ export default function SignListPage() {
                 <button key={t} onClick={() => setRecipientType(t)}
                   className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-colors ${
                     recipientType === t
-                      ? 'bg-green-600 border-green-600 text-white'
-                      : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-green-400 dark:hover:border-green-600'
+                      ? 'bg-[#145C44] border-green-600 text-white'
+                      : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-[#2D7A4F] dark:hover:border-green-600'
                   }`}>
                   {t === 'students' ? 'Students' : 'Teachers / Staff'}
                 </button>
@@ -278,7 +278,7 @@ export default function SignListPage() {
                 <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin mx-auto mb-2"
                   style={{ borderColor: '#16A34A', borderTopColor: 'transparent' }} />
               ) : (
-                <p className="text-4xl font-bold text-slate-900 dark:text-white tabular-nums">{count ?? '—'}</p>
+                
               )}
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                 {recipientType === 'students' ? 'students' : 'teachers'} match filters
@@ -303,7 +303,7 @@ export default function SignListPage() {
             )}
 
             <button onClick={handleGenerate} disabled={generating || countLoading}
-              className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+              className="w-full py-3 rounded-xl text-sm font-semibold text-white bg-[#145C44] hover:bg-[#145C44] disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
               {generating ? (
                 <>
                   <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">

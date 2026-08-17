@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -22,7 +22,7 @@ export default function InventoryOverviewPage() {
   useEffect(() => {
     api.get<Stats>('/api/inventory/stats')
       .then(r => setStats(r.data))
-      .catch(() => setError('Failed to load stats'))
+      .catch(() => setError('Could not load stats'))
       .finally(() => setLoading(false));
   }, []);
 

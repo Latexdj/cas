@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
@@ -106,7 +106,7 @@ export default function SuperAdminDashboard() {
         </div>
         <Link
           href="/super-admin/schools/new"
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#145C44] hover:bg-[#145C44] text-white text-sm font-semibold transition-colors"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
             <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -118,9 +118,9 @@ export default function SuperAdminDashboard() {
       {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {stats.map(s => (
-          <div key={s.label} className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+          <div key={s.label} className="bg-slate-800 border border-slate-700 rounded-xl p-5">
             <p className="text-3xl font-bold" style={{ color: s.color }}>
-              {loading ? '—' : s.value}
+              {loading ? 'â€”' : s.value}
             </p>
             <p className="text-xs text-slate-400 mt-1 font-medium">{s.label}</p>
           </div>
@@ -129,8 +129,8 @@ export default function SuperAdminDashboard() {
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Expiry alerts */}
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-4">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+          <p className="text-xs font-bold font-medium text-slate-400 mb-4">
             Expiry Alerts
           </p>
           {loading ? (
@@ -142,7 +142,7 @@ export default function SuperAdminDashboard() {
             const urgent = days <= 0;
             return (
               <Link key={s.id} href={`/super-admin/schools/${s.id}`}>
-                <div className={`flex items-center justify-between rounded-xl px-3 py-2.5 mb-2 border cursor-pointer hover:opacity-80 ${
+                <div className={`flex items-center justify-between rounded-xl px-3 py-2.5 mb-2 border cursor-pointer hover:opacity-90 ${
                   urgent ? 'bg-red-900/30 border-red-800' : 'bg-yellow-900/20 border-yellow-800/50'
                 }`}>
                   <div>
@@ -161,10 +161,10 @@ export default function SuperAdminDashboard() {
         </div>
 
         {/* Recent activity */}
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Recent Activity</p>
-            <Link href="/super-admin/audit" className="text-xs text-indigo-400 hover:text-indigo-300">View all</Link>
+            <p className="text-xs font-bold font-medium text-slate-400">Recent Activity</p>
+            <Link href="/super-admin/audit" className="text-xs text-[#C8973A] hover:text-[#C8973A]">View all</Link>
           </div>
           {loading ? (
             <div className="space-y-2">{[1,2,3,4].map(i => <div key={i} className="h-10 rounded-xl bg-slate-700 animate-pulse" />)}</div>
@@ -178,7 +178,7 @@ export default function SuperAdminDashboard() {
                   {actionLabel(log.action)}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-xs text-slate-300 truncate">{log.entity_name ?? '—'}</p>
+                  <p className="text-xs text-slate-300 truncate">{log.entity_name ?? 'â€”'}</p>
                   <p className="text-[10px] text-slate-500">{new Date(log.created_at).toLocaleString()}</p>
                 </div>
               </div>
@@ -188,10 +188,10 @@ export default function SuperAdminDashboard() {
       </div>
 
       {/* Recent schools */}
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 mt-6">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 mt-6">
         <div className="flex items-center justify-between mb-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Recent Schools</p>
-          <Link href="/super-admin/schools" className="text-xs text-indigo-400 hover:text-indigo-300">View all</Link>
+          <p className="text-xs font-bold font-medium text-slate-400">Recent Schools</p>
+          <Link href="/super-admin/schools" className="text-xs text-[#C8973A] hover:text-[#C8973A]">View all</Link>
         </div>
         {loading ? (
           <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-12 rounded-xl bg-slate-700 animate-pulse" />)}</div>
@@ -204,10 +204,10 @@ export default function SuperAdminDashboard() {
                 <div className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-700/50 transition-colors cursor-pointer">
                   <div>
                     <p className="text-sm font-semibold text-white">{s.name}</p>
-                    <p className="text-xs text-slate-400">{s.code} · {s.active_teachers} teachers · Added {fmtDate(s.created_at)}</p>
+                    <p className="text-xs text-slate-400">{s.code} Â· {s.active_teachers} teachers Â· Added {fmtDate(s.created_at)}</p>
                   </div>
                   <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                    s.subscription_status === 'active' ? 'bg-green-900/50 text-green-300' :
+                    s.subscription_status === 'active' ? 'bg-green-900/50 text-[#5DAA82]' :
                     s.subscription_status === 'trial'  ? 'bg-yellow-900/40 text-yellow-300' :
                     'bg-red-900/40 text-red-300'
                   }`}>

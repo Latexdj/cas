@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -113,7 +113,7 @@ export default function TeacherDashboardPage() {
       if (sumRes.status  === 'fulfilled') setSummary(sumRes.value.data);
       if (meetRes.status === 'fulfilled') { const d = meetRes.value.data; setMeetingRows(Array.isArray(d) ? d : []); }
     } catch {
-      setError('Failed to load data. Please refresh.');
+      setError('Could not load data. Please refresh.');
     } finally {
       setLoading(false);
     }
@@ -182,10 +182,10 @@ export default function TeacherDashboardPage() {
           {notices.map(n => {
             const s = NOTICE_STYLE[n.priority] ?? NOTICE_STYLE.normal;
             return (
-              <div key={n.id} className="rounded-2xl px-4 py-3 shadow-sm"
+              <div key={n.id} className="rounded-xl px-4 py-3 shadow-sm"
                 style={{ backgroundColor: s.bg, border: `1px solid ${s.border}`, borderLeft: `4px solid ${s.badge}` }}>
                 <div className="flex items-start gap-2">
-                  {n.is_pinned && <span className="text-sm shrink-0 mt-0.5">📌</span>}
+                  {n.is_pinned && <span className="w-3 h-3 rounded-full shrink-0 mt-1" style={{ background: '#C8973A' }} />}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                       <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: s.badge }}>
@@ -212,7 +212,7 @@ export default function TeacherDashboardPage() {
           { label: 'Submitted', value: submittedCount, color: primary },
           { label: 'Pending', value: pending, color: pending > 0 ? '#B83232' : '#8C7E6E' },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-3 text-center">
+          <div key={stat.label} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-3 text-center">
             <p className="text-2xl font-bold" style={{ color: stat.color }}>{stat.value}</p>
             <p className="text-xs text-[#8C7E6E] mt-0.5">{stat.label}</p>
           </div>
@@ -221,9 +221,9 @@ export default function TeacherDashboardPage() {
 
       {/* My Attendance — Current Semester */}
       {summary && (
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
+        <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E]">My Attendance — Current Semester</p>
+            <p className="text-xs font-bold font-medium text-[#8C7E6E]">My Attendance — Current Semester</p>
             <p className="text-xl font-bold" style={{ color: pctColor(summary.attendance_pct) }}>
               {summary.attendance_pct !== null ? `${summary.attendance_pct}%` : '—'}
             </p>
@@ -252,8 +252,8 @@ export default function TeacherDashboardPage() {
 
       {/* Meeting Attendance — Current Semester */}
       {meetingRows.length > 0 && (
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-3">Meeting Attendance — Current Semester</p>
+        <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
+          <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">Meeting Attendance — Current Semester</p>
           <div className="space-y-3">
             {meetingRows.map((row) => (
               <div key={row.meeting_type}>
@@ -283,7 +283,7 @@ export default function TeacherDashboardPage() {
       {/* View Weekly Timetable */}
       <button
         onClick={() => router.push('/teacher/timetable')}
-        className="w-full flex items-center justify-between bg-white rounded-2xl border border-[#E2D9CC] shadow-sm px-4 py-3 mb-6 text-sm font-semibold hover:bg-slate-50 transition-colors"
+        className="w-full flex items-center justify-between bg-white rounded-xl border border-[#E2D9CC] shadow-sm px-4 py-3 mb-6 text-sm font-semibold hover:bg-[#F5F0E8] transition-colors"
         style={{ color: primary }}
       >
         <div className="flex items-center gap-2">
@@ -300,15 +300,15 @@ export default function TeacherDashboardPage() {
 
       {/* Timetable slots */}
       <div className="mb-6">
-        <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-3">Schedule</p>
+        <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">Schedule</p>
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-white rounded-2xl border border-[#E2D9CC] h-20 animate-pulse" />
+              <div key={i} className="bg-white rounded-xl border border-[#E2D9CC] h-20 animate-pulse" />
             ))}
           </div>
         ) : slots.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-6 text-center">
+          <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-6 text-center">
             <p className="text-[#8C7E6E] text-sm">No lessons scheduled for today</p>
           </div>
         ) : (
@@ -318,7 +318,7 @@ export default function TeacherDashboardPage() {
               return (
                 <div
                   key={slot.id}
-                  className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-4 flex items-center justify-between"
+                  className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 flex items-center justify-between"
                 >
                   <div className="flex items-start gap-3">
                     <div
@@ -359,7 +359,7 @@ export default function TeacherDashboardPage() {
       {/* Upcoming events */}
       {events.length > 0 && (
         <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] mb-3">Upcoming Events</p>
+          <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">Upcoming Events</p>
           <div className="space-y-2">
             {events.map((ev) => {
               const col = eventColor(ev.type);

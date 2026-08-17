@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -74,7 +74,7 @@ export default function TeacherLoginPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4"
             style={{ background: colors.primary }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
@@ -87,10 +87,10 @@ export default function TeacherLoginPage() {
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] shadow-sm p-6">
+        <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-6">
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1.5">
+              <label className="text-xs font-bold font-medium text-[#8C7E6E] block mb-1.5">
                 Teacher ID
               </label>
               <input
@@ -105,7 +105,7 @@ export default function TeacherLoginPage() {
             </div>
 
             <div>
-              <label className="text-xs font-bold uppercase tracking-wide text-[#8C7E6E] block mb-1.5">
+              <label className="text-xs font-bold font-medium text-[#8C7E6E] block mb-1.5">
                 Password
               </label>
               <div className="relative">

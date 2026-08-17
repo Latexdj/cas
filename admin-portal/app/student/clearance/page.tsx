@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -16,7 +16,7 @@ interface ClearanceData {
 }
 
 const STATUS_STYLE = {
-  cleared:     { icon: '✓', bg: 'bg-green-50',  border: 'border-green-200', dot: 'bg-green-500',  text: 'text-green-700',  label: 'Cleared'     },
+  cleared:     { icon: '✓', bg: 'bg-[#E8F4EE]',  border: 'border-[#B8D9C8]', dot: 'bg-[#145C44]',  text: 'text-[#145C44]',  label: 'Cleared'     },
   not_cleared: { icon: '✗', bg: 'bg-red-50',    border: 'border-red-200',   dot: 'bg-red-500',    text: 'text-red-700',    label: 'Not Cleared' },
   pending:     { icon: '○', bg: 'bg-white',      border: 'border-slate-200', dot: 'bg-amber-400',  text: 'text-amber-700',  label: 'Pending'     },
 };
@@ -25,7 +25,7 @@ const OVERALL_STYLE = {
   not_initiated:  { bg: 'bg-slate-100',  border: 'border-slate-200', text: 'text-slate-600',  label: 'Not Started',      sub: 'Your clearance has not been initiated yet.' },
   in_progress:    { bg: 'bg-amber-50',   border: 'border-amber-200', text: 'text-amber-700',  label: 'In Progress',      sub: 'Awaiting sign-off from some offices.' },
   action_required:{ bg: 'bg-red-50',     border: 'border-red-200',   text: 'text-red-700',    label: 'Action Required',  sub: 'One or more offices have not cleared you. See details below.' },
-  fully_cleared:  { bg: 'bg-green-50',   border: 'border-green-300', text: 'text-green-700',  label: 'Fully Cleared',    sub: 'You have been cleared by all offices. You may collect your certificate.' },
+  fully_cleared:  { bg: 'bg-[#E8F4EE]',   border: 'border-[#8FC4A4]', text: 'text-[#145C44]',  label: 'Fully Cleared',    sub: 'You have been cleared by all offices. You may collect your certificate.' },
 };
 
 export default function StudentClearancePage() {
@@ -63,10 +63,10 @@ export default function StudentClearancePage() {
     <div className="p-4 md:p-6 space-y-5 max-w-xl mx-auto">
 
       {/* Overall status banner */}
-      <div className={`rounded-2xl border p-5 ${overall.bg} ${overall.border}`}>
+      <div className={`rounded-xl border p-5 ${overall.bg} ${overall.border}`}>
         <div className="flex items-center gap-3 mb-2">
           {data?.status === 'fully_cleared' ? (
-            <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-full bg-[#145C44] flex items-center justify-center shrink-0">
               <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
@@ -105,7 +105,7 @@ export default function StudentClearancePage() {
         )}
 
         {data?.fully_cleared_at && (
-          <p className="text-xs text-green-600 mt-2 font-semibold">
+          <p className="text-xs text-[#145C44] mt-2 font-semibold">
             Cleared on {new Date(data.fully_cleared_at).toLocaleDateString('en', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         )}
@@ -114,15 +114,15 @@ export default function StudentClearancePage() {
       {/* Synthetic fees clearance item */}
       {feeBalance !== null && (
         <div className="space-y-3">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Finance</p>
-          <div className={`rounded-xl border p-4 flex items-start gap-3 ${feeBalance > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 mt-0.5 ${feeBalance > 0 ? 'bg-red-500' : 'bg-green-500'}`}>
+          <p className="text-xs font-bold text-slate-400 font-medium">Finance</p>
+          <div className={`rounded-xl border p-4 flex items-start gap-3 ${feeBalance > 0 ? 'bg-red-50 border-red-200' : 'bg-[#E8F4EE] border-[#B8D9C8]'}`}>
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 mt-0.5 ${feeBalance > 0 ? 'bg-red-500' : 'bg-[#145C44]'}`}>
               {feeBalance > 0 ? '✗' : '✓'}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2 flex-wrap">
-                <p className={`font-semibold text-sm ${feeBalance > 0 ? 'text-red-700' : 'text-green-700'}`}>Accounts Office</p>
-                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${feeBalance > 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                <p className={`font-semibold text-sm ${feeBalance > 0 ? 'text-red-700' : 'text-[#145C44]'}`}>Accounts Office</p>
+                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${feeBalance > 0 ? 'bg-red-50 text-red-700 border-red-200' : 'bg-[#E8F4EE] text-[#145C44] border-[#B8D9C8]'}`}>
                   {feeBalance > 0 ? 'Not Cleared' : 'Cleared'}
                 </span>
               </div>
@@ -134,7 +134,7 @@ export default function StudentClearancePage() {
                   <Link href="/student/fees" className="text-xs text-red-600 underline font-medium mt-0.5 inline-block">View fee statement →</Link>
                 </div>
               ) : (
-                <p className="text-xs text-green-600 mt-1">All fees fully paid.</p>
+                <p className="text-xs text-[#145C44] mt-1">All fees fully paid.</p>
               )}
             </div>
           </div>
@@ -144,7 +144,7 @@ export default function StudentClearancePage() {
       {/* Office checklist */}
       {data?.items && data.items.length > 0 && (
         <div className="space-y-3">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">Clearance Checklist</p>
+          <p className="text-xs font-bold text-slate-400 font-medium">Clearance Checklist</p>
           {data.items.map(item => {
             const st = STATUS_STYLE[item.status];
             return (
@@ -163,7 +163,7 @@ export default function StudentClearancePage() {
                     </div>
                   )}
                   {item.status === 'cleared' && item.notes && (
-                    <p className="text-xs text-green-600 mt-1">{item.notes}</p>
+                    <p className="text-xs text-[#145C44] mt-1">{item.notes}</p>
                   )}
                   {item.actioned_at && (
                     <p className="text-[10px] text-slate-400 mt-1">{new Date(item.actioned_at).toLocaleString()}</p>
@@ -178,7 +178,7 @@ export default function StudentClearancePage() {
       {/* Not initiated state */}
       {data?.status === 'not_initiated' && (
         <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+          <div className="w-14 h-14 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
             <svg viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
               <path d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.745 3.745 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
             </svg>

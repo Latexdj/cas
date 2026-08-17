@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
@@ -54,7 +54,7 @@ export default function ReportsPage() {
     setLoading(true); setError(''); setReport(null);
     principalApi.get(`/api/principal/reports?scope=${scope}&type=${type}&status=${status}`)
       .then(r => setReport(r.data))
-      .catch(() => setError('Failed to load report.'))
+      .catch(() => setError('Could not load report.'))
       .finally(() => setLoading(false));
   }, [scope, type, status]);
 
@@ -63,7 +63,7 @@ export default function ReportsPage() {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A' }}>Reports</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208' }}>Reports</h2>
         <p style={{ fontSize: 13, color: dark ? '#64748B' : '#94A3B8', marginTop: 2 }}>
           Read-only view of school data reports.
         </p>
@@ -79,7 +79,7 @@ export default function ReportsPage() {
               onClick={() => setScope(s)}
               style={{
                 padding: '6px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer',
-                background: scope === s ? '#10B981' : 'transparent',
+                background: scope === s ? '#145C44' : 'transparent',
                 color: scope === s ? '#FFFFFF' : (dark ? '#94A3B8' : '#64748B'),
                 transition: 'all 0.15s',
               }}
@@ -94,7 +94,7 @@ export default function ReportsPage() {
           onChange={e => setType(e.target.value)}
           style={{
             border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#0F172A',
+            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#1C1208',
             borderRadius: 8, padding: '7px 12px', fontSize: 13,
           }}
         >
@@ -106,7 +106,7 @@ export default function ReportsPage() {
           onChange={e => setStatus(e.target.value)}
           style={{
             border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
-            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#0F172A',
+            background: dark ? '#1E293B' : '#FFFFFF', color: dark ? '#F1F5F9' : '#1C1208',
             borderRadius: 8, padding: '7px 12px', fontSize: 13,
           }}
         >
@@ -129,7 +129,7 @@ export default function ReportsPage() {
             padding: '14px 20px', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}>
-            <span style={{ fontWeight: 700, fontSize: 15, color: dark ? '#F1F5F9' : '#0F172A' }}>
+            <span style={{ fontWeight: 700, fontSize: 15, color: dark ? '#F1F5F9' : '#1C1208' }}>
               {report.label}
             </span>
             <span style={{ fontSize: 12, color: dark ? '#64748B' : '#94A3B8' }}>
@@ -140,7 +140,7 @@ export default function ReportsPage() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr style={{ background: dark ? '#0F172A' : '#F8FAFC', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
+                <tr style={{ background: dark ? '#1C1208' : '#F5F0E8', borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}` }}>
                   {report.columns.map(c => (
                     <th key={c} style={{
                       padding: '10px 16px', textAlign: 'left', fontWeight: 600,
@@ -153,13 +153,13 @@ export default function ReportsPage() {
                 {report.rows.map((row, i) => (
                   <tr key={i} style={{
                     borderBottom: `1px solid ${dark ? '#1E293B' : '#F1F5F9'}`,
-                    background: i % 2 === 0 ? 'transparent' : (dark ? '#0F172A22' : '#F8FAFC66'),
+                    background: i % 2 === 0 ? 'transparent' : (dark ? '#1C120822' : '#F0EBE166'),
                   }}>
                     {report.keys.map((k, ki) => (
                       <td key={k} style={{
                         padding: '10px 16px',
                         color: ki === 0
-                          ? (dark ? '#F1F5F9' : '#0F172A')
+                          ? (dark ? '#F1F5F9' : '#1C1208')
                           : (dark ? '#CBD5E1' : '#374151'),
                         fontWeight: ki === 0 ? 500 : 400,
                       }}>
@@ -169,11 +169,11 @@ export default function ReportsPage() {
                   </tr>
                 ))}
                 {/* Totals row */}
-                <tr style={{ background: dark ? '#0F172A' : '#F0FDF4', borderTop: `2px solid ${dark ? '#334155' : '#BBF7D0'}` }}>
+                <tr style={{ background: dark ? '#1C1208' : '#F0FDF4', borderTop: `2px solid ${dark ? '#334155' : '#BBF7D0'}` }}>
                   {report.keys.map((k, ki) => (
                     <td key={k} style={{
                       padding: '10px 16px', fontWeight: 700,
-                      color: ki === 0 ? (dark ? '#10B981' : '#15803D') : (dark ? '#F1F5F9' : '#0F172A'),
+                      color: ki === 0 ? (dark ? '#145C44' : '#145C44') : (dark ? '#F1F5F9' : '#1C1208'),
                     }}>
                       {report.totals[k] ?? '—'}
                     </td>

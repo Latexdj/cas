@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { teacherApi } from '@/lib/teacher-api';
 
@@ -48,7 +48,7 @@ function Dashboard() {
   if (!stats) return <div className="flex justify-center py-16"><div className="w-6 h-6 rounded-full border-4 border-green-600 border-t-transparent animate-spin" /></div>;
   const cards = [
     { label: 'Total Books',    value: stats.total_books,     color: '#3B82F6' },
-    { label: 'Available',      value: stats.available_copies, color: '#10B981' },
+    { label: 'Available',      value: stats.available_copies, color: '#145C44' },
     { label: 'Active Loans',   value: stats.active_loans,    color: '#F59E0B' },
     { label: 'Overdue',        value: stats.overdue_loans,   color: '#EF4444' },
     { label: 'Returned Today', value: stats.returned_today,  color: '#8B5CF6' },
@@ -133,7 +133,7 @@ function IssueBook() {
   return (
     <div className="space-y-5">
       {issueMsg && (
-        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 font-semibold flex justify-between">
+        <div className="rounded-xl border border-[#B8D9C8] bg-[#E8F4EE] px-4 py-3 text-sm text-[#0B3D2E] font-semibold flex justify-between">
           {issueMsg}
           <button onClick={() => setIssueMsg('')} className="opacity-50 hover:opacity-100">×</button>
         </div>
@@ -143,22 +143,22 @@ function IssueBook() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
         <p className="text-xs font-bold uppercase tracking-wider text-gray-400">1. Student</p>
         <div className="flex gap-2">
-          <input className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          <input className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]"
             placeholder="Student ID / code" value={studentCode}
             onChange={e => setStudentCode(e.target.value.toUpperCase())}
             onKeyDown={e => e.key === 'Enter' && lookupStudent()} />
           <button onClick={lookupStudent} disabled={lookingUp}
             className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-            style={{ background: '#15803D' }}>
+            style={{ background: '#145C44' }}>
             {lookingUp ? '…' : 'Find'}
           </button>
         </div>
         {lookupErr && <p className="text-sm text-red-600">{lookupErr}</p>}
         {student && (
-          <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm">
-            <span className="font-semibold text-green-800">{student.student.name}</span>
-            <span className="text-green-600 ml-2">{student.student.class_name}</span>
-            <span className="ml-2 text-xs text-green-500">
+          <div className="rounded-lg bg-[#E8F4EE] border border-[#B8D9C8] px-3 py-2 text-sm">
+            <span className="font-semibold text-[#0B3D2E]">{student.student.name}</span>
+            <span className="text-[#145C44] ml-2">{student.student.class_name}</span>
+            <span className="ml-2 text-xs text-[#2D7A4F]">
               {student.loans.filter(l => l.status === 'active').length} active loan(s)
             </span>
           </div>
@@ -169,7 +169,7 @@ function IssueBook() {
       {student && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
           <p className="text-xs font-bold uppercase tracking-wider text-gray-400">2. Book</p>
-          <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]"
             placeholder="Search by title, author, or ISBN…"
             value={bookSearch} onChange={e => { setBookSearch(e.target.value); setSelectedBook(null); }} />
           {loadingBooks && <p className="text-xs text-gray-400">Searching…</p>}
@@ -177,11 +177,11 @@ function IssueBook() {
             <div className="border border-gray-100 rounded-lg divide-y divide-gray-50 max-h-48 overflow-y-auto">
               {books.map(b => (
                 <button key={b.id} onClick={() => selectBook(b)}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm">
+                  className="w-full text-left px-3 py-2 hover:bg-[#F5F0E8] text-sm">
                   <span className="font-medium text-gray-900">{b.title}</span>
                   {b.author && <span className="text-gray-500 ml-2 text-xs">{b.author}</span>}
                   {b.isbn && <span className="text-gray-400 ml-2 text-xs">ISBN: {b.isbn}</span>}
-                  <span className="ml-2 text-xs text-green-600 font-semibold">{b.available_copies} available</span>
+                  <span className="ml-2 text-xs text-[#145C44] font-semibold">{b.available_copies} available</span>
                 </button>
               ))}
             </div>
@@ -199,7 +199,7 @@ function IssueBook() {
       {selectedBook && copies.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
           <p className="text-xs font-bold uppercase tracking-wider text-gray-400">3. Copy</p>
-          <select className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          <select className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]"
             value={selectedCopy} onChange={e => setSelectedCopy(e.target.value)}>
             <option value="">Select a copy…</option>
             {copies.map(c => (
@@ -208,12 +208,12 @@ function IssueBook() {
               </option>
             ))}
           </select>
-          <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]"
             placeholder="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} />
           {issueErr && <p className="text-sm text-red-600">{issueErr}</p>}
           <button onClick={issue} disabled={issuing || !selectedCopy}
             className="w-full py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-            style={{ background: '#15803D' }}>
+            style={{ background: '#145C44' }}>
             {issuing ? 'Issuing…' : 'Issue Book'}
           </button>
         </div>
@@ -311,7 +311,7 @@ function ReturnBook() {
           <button onClick={() => setMsg('')} className="opacity-50 hover:opacity-100">×</button>
         </div>
       )}
-      <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+      <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]"
         placeholder="Search by student name or ID…" value={search} onChange={e => setSearch(e.target.value)} />
       {loading ? (
         <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-4 border-green-600 border-t-transparent animate-spin" /></div>
@@ -331,7 +331,7 @@ function ReturnBook() {
                     {l.renewed_count > 0 && <span className="text-blue-500 ml-1">· Renewed ×{l.renewed_count}</span>}
                   </p>
                   {l.fine_amount > 0 && (
-                    <p className={`text-xs mt-0.5 font-semibold ${l.fine_paid ? 'text-green-600' : 'text-red-600'}`}>
+                    <p className={`text-xs mt-0.5 font-semibold ${l.fine_paid ? 'text-[#145C44]' : 'text-red-600'}`}>
                       Fine: GH₵ {l.fine_amount.toFixed(2)} {l.fine_waived ? '(waived)' : l.fine_paid ? '(paid)' : '(unpaid)'}
                     </p>
                   )}
@@ -339,7 +339,7 @@ function ReturnBook() {
                 <div className="flex flex-col gap-1.5 shrink-0">
                   <button onClick={() => returnLoan(l.id)} disabled={returning === l.id}
                     className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
-                    style={{ background: '#15803D' }}>
+                    style={{ background: '#145C44' }}>
                     {returning === l.id ? '…' : 'Return'}
                   </button>
                   <button onClick={() => renewLoan(l.id)} disabled={renewing === l.id}
@@ -400,7 +400,7 @@ function Overdue() {
             {l.days_overdue} day{l.days_overdue !== 1 ? 's' : ''} overdue · Due {new Date(l.due_date).toLocaleDateString('en-GB')}
           </p>
           {l.fine_amount > 0 && (
-            <p className={`text-xs mt-0.5 font-medium ${l.fine_paid ? 'text-green-600' : 'text-red-500'}`}>
+            <p className={`text-xs mt-0.5 font-medium ${l.fine_paid ? 'text-[#145C44]' : 'text-red-500'}`}>
               Fine: GH₵ {l.fine_amount.toFixed(2)} {l.fine_waived ? '(waived)' : l.fine_paid ? '(paid)' : '(unpaid)'}
             </p>
           )}
@@ -538,11 +538,11 @@ function Catalogue() {
         <div className="flex-1">
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search by title, author, or ISBN…"
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
         </div>
         <button onClick={openAdd}
           className="px-4 py-2 rounded-lg text-sm font-semibold text-white shrink-0"
-          style={{ background: '#15803D' }}>
+          style={{ background: '#145C44' }}>
           + Add Book
         </button>
       </div>
@@ -559,12 +559,12 @@ function Catalogue() {
               {filtered.map(b => (
                 <div key={b.id}
                   onClick={() => loadCopies(b)}
-                  className={`cursor-pointer px-4 py-3 flex items-center gap-3 transition-colors ${selBook?.id === b.id ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
+                  className={`cursor-pointer px-4 py-3 flex items-center gap-3 transition-colors ${selBook?.id === b.id ? 'bg-[#E8F4EE]' : 'hover:bg-[#F5F0E8]'}`}>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900 truncate">{b.title}</p>
                     <p className="text-xs text-gray-500">{b.author ?? 'Unknown author'}{b.isbn ? ` · ISBN: ${b.isbn}` : ''}</p>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${b.available_copies > 0 ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${b.available_copies > 0 ? 'bg-[#E8F4EE] text-[#145C44]' : 'bg-red-50 text-red-700'}`}>
                     {b.available_copies}/{b.total_copies}
                   </span>
                   <div className="flex gap-2 shrink-0" onClick={e => e.stopPropagation()}>
@@ -582,12 +582,12 @@ function Catalogue() {
           <div className="w-72 shrink-0 bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
             <div className="flex justify-between items-start">
               <p className="text-sm font-semibold text-gray-900">{selBook.title}</p>
-              <button onClick={() => setSelBook(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
+              <button onClick={() => setSelBook(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </div>
             {copiesLoad ? <div className="flex justify-center py-4"><div className="w-5 h-5 rounded-full border-4 border-green-600 border-t-transparent animate-spin" /></div> : (
               <div className="space-y-1.5 max-h-56 overflow-y-auto">
                 {copies.map(c => (
-                  <div key={c.id} className="bg-gray-50 rounded-lg px-3 py-2 flex items-start justify-between gap-2">
+                  <div key={c.id} className="bg-[#F5F0E8] rounded-lg px-3 py-2 flex items-start justify-between gap-2">
                     <div>
                       <p className="text-xs font-semibold text-gray-900">#{c.copy_number}</p>
                       <p className="text-xs text-gray-500">{c.condition}{c.shelf_location ? ` · ${c.shelf_location}` : ''}</p>
@@ -597,14 +597,14 @@ function Catalogue() {
                         c.status === 'lost' ? 'bg-red-100 text-red-700' :
                         c.status === 'damaged' ? 'bg-orange-100 text-orange-700' :
                         c.status === 'on_loan' ? 'bg-amber-100 text-amber-700' :
-                        'bg-green-100 text-green-700'
+                        'bg-[#D1EAD9] text-[#145C44]'
                       }`}>
                         {c.status === 'available' ? 'In' : c.status === 'on_loan' ? 'Out' : c.status.charAt(0).toUpperCase() + c.status.slice(1)}
                       </span>
                       {c.status === 'available' && (
                         <>
                           <button onClick={() => markCopyLost(c.id, selBook.id)} className="text-xs text-orange-500 hover:text-orange-700 font-medium">Lost</button>
-                          <button onClick={() => deleteCopy(c.id, selBook.id)} className="text-xs text-red-500 hover:text-red-700">&times;</button>
+                          <button onClick={() => deleteCopy(c.id, selBook.id)} className="text-xs text-red-500 hover:text-red-700"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
                         </>
                       )}
                     </div>
@@ -614,7 +614,7 @@ function Catalogue() {
               </div>
             )}
             <div className="pt-2 border-t border-gray-100 space-y-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Add Copy</p>
+              <p className="text-xs font-semibold text-gray-500 font-medium">Add Copy</p>
               <div className="flex gap-1.5">
                 <input value={newCopy.copy_number} onChange={e => setNewCopy(p => ({ ...p, copy_number: e.target.value }))}
                   placeholder="Copy #" className="flex-1 rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none" />
@@ -627,7 +627,7 @@ function Catalogue() {
                 placeholder="Shelf location (optional)" className="w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs focus:outline-none" />
               <button onClick={addCopy} disabled={copySaving || !newCopy.copy_number.trim()}
                 className="w-full py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-50"
-                style={{ background: '#15803D' }}>
+                style={{ background: '#145C44' }}>
                 {copySaving ? 'Adding…' : 'Add Copy'}
               </button>
             </div>
@@ -637,15 +637,15 @@ function Catalogue() {
 
       {/* Add/Edit modal */}
       {modal !== 'none' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold text-gray-900">{modal === 'add' ? 'Add Book' : 'Edit Book'}</h2>
-              <button onClick={() => setModal('none')} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+              <button onClick={() => setModal('none')} className="text-gray-400 hover:text-gray-600 text-2xl leading-none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </div>
             <div className="space-y-3">
               <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-                placeholder="Title *" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                placeholder="Title *" className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
               <div className="grid grid-cols-2 gap-3">
                 <input value={form.author} onChange={e => setForm(p => ({ ...p, author: e.target.value }))}
                   placeholder="Author" className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none" />
@@ -688,7 +688,7 @@ function Catalogue() {
               <button onClick={() => setModal('none')} className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-200">Cancel</button>
               <button onClick={saveBook} disabled={saving}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
-                style={{ background: '#15803D' }}>
+                style={{ background: '#145C44' }}>
                 {saving ? 'Saving…' : modal === 'add' ? 'Add Book' : 'Save Changes'}
               </button>
             </div>
@@ -720,8 +720,8 @@ export default function TeacherLibraryPage() {
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
               tab === t.id
-                ? 'bg-green-600 text-white'
-                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
+                ? 'bg-[#145C44] text-white'
+                : 'bg-white border border-gray-200 text-gray-600 hover:bg-[#F5F0E8] dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
             }`}>
             {t.label}
           </button>

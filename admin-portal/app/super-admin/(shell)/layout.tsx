@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
@@ -45,20 +45,20 @@ export default function SuperAdminShell({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen" style={{ background: '#0F172A' }}>
+    <div className="flex h-screen" style={{ background: '#0E1A0C' }}>
       {/* Sidebar */}
-      <aside className="w-56 shrink-0 flex flex-col border-r border-slate-700/60 bg-slate-900">
+      <aside className="w-56 shrink-0 flex flex-col" style={{ backgroundColor: '#0B3D2E', borderRight: '1px solid #2A3D28' }}>
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-slate-700/60">
+        <div className="px-5 py-5" style={{ borderBottom: '1px solid #2A3D28' }}>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} className="w-4 h-4">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#C8973A' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#0B3D2E" strokeWidth={2} className="w-4 h-4">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
             </div>
             <div>
               <p className="text-xs font-bold text-white leading-none">CAS Admin</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">Super Admin</p>
+              <p className="text-[10px] mt-0.5" style={{ color: 'rgba(200,151,58,0.55)' }}>Super Admin</p>
             </div>
           </div>
         </div>
@@ -73,36 +73,40 @@ export default function SuperAdminShell({ children }: { children: React.ReactNod
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-indigo-600 text-white'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
+                className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                style={active
+                  ? { backgroundColor: 'rgba(200,151,58,0.15)', color: '#C8973A' }
+                  : { color: 'rgba(255,255,255,0.55)' }
+                }
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="w-4 h-4 shrink-0">
                   <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
                 </svg>
                 {item.label}
+                {active && <span className="ml-auto w-1 h-4 rounded-full" style={{ backgroundColor: '#C8973A' }} />}
               </Link>
             );
           })}
         </nav>
 
         {/* Logout + credit */}
-        <div className="px-3 py-4 border-t border-slate-700/60 space-y-3">
+        <div className="px-3 py-4 space-y-3" style={{ borderTop: '1px solid #2A3D28' }}>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
+            style={{ color: 'rgba(255,255,255,0.45)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#f87171'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.45)'; }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="w-4 h-4 shrink-0">
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
             Sign Out
           </button>
-          <div className="pt-2.5 border-t border-slate-700/40 text-center">
-            <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-600">Designed by</p>
-            <p className="text-[11px] font-bold text-indigo-400 mt-0.5">LatexTech</p>
-            <p className="text-[9px] text-slate-600 mt-0.5">+233 24 8234 649</p>
+          <div className="pt-2.5 text-center" style={{ borderTop: '1px solid rgba(42,61,40,0.6)' }}>
+            <p className="text-[9px] font-semibold" style={{ color: 'rgba(255,255,255,0.25)' }}>Designed by</p>
+            <p className="text-[11px] font-bold mt-0.5" style={{ color: '#C8973A' }}>LatexTech</p>
+            <p className="text-[9px] mt-0.5" style={{ color: 'rgba(255,255,255,0.25)' }}>+233 24 8234 649</p>
           </div>
         </div>
       </aside>

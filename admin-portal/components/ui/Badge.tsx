@@ -1,4 +1,4 @@
-const palette: Record<string, { bg: string; text: string; dot: string }> = {
+﻿const palette: Record<string, { bg: string; text: string; dot: string }> = {
   present:              { bg: '#F0FDF4', text: '#16A34A', dot: '#16A34A' },
   Verified:             { bg: '#F0FDF4', text: '#16A34A', dot: '#16A34A' },
   'Made Up':            { bg: '#F0FDF4', text: '#16A34A', dot: '#16A34A' },
@@ -11,13 +11,13 @@ const palette: Record<string, { bg: string; text: string; dot: string }> = {
   Absent:               { bg: '#FEF2F2', text: '#DC2626', dot: '#DC2626' },
   absent:               { bg: '#FEF2F2', text: '#DC2626', dot: '#DC2626' },
   Excused:              { bg: '#F5F3FF', text: '#7C3AED', dot: '#7C3AED' },
-  Cancelled:            { bg: '#F8FAFC', text: '#94A3B8', dot: '#CBD5E1' },
-  Cleared:              { bg: '#F8FAFC', text: '#94A3B8', dot: '#CBD5E1' },
-  Inactive:             { bg: '#F8FAFC', text: '#94A3B8', dot: '#CBD5E1' },
+  Cancelled:            { bg: '#FDFAF5', text: '#94A3B8', dot: '#CBD5E1' },
+  Cleared:              { bg: '#FDFAF5', text: '#94A3B8', dot: '#CBD5E1' },
+  Inactive:             { bg: '#FDFAF5', text: '#94A3B8', dot: '#CBD5E1' },
 };
 
 export function Badge({ status }: { status: string }) {
-  const cfg = palette[status] ?? { bg: '#F8FAFC', text: '#64748B', dot: '#CBD5E1' };
+  const cfg = palette[status] ?? { bg: '#FDFAF5', text: '#64748B', dot: '#CBD5E1' };
   const label = status === 'in_session' ? 'In Session' : status;
   return (
     <span

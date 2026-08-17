@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { teacherApi } from '@/lib/teacher-api';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -63,11 +63,15 @@ export default function NotificationsPage() {
 
       {loading ? (
         <div className="space-y-3">
-          {[1,2,3].map(i => <div key={i} className="bg-white rounded-2xl h-20 animate-pulse border border-[#E2D9CC]" />)}
+          {[1,2,3].map(i => <div key={i} className="bg-white rounded-xl h-20 animate-pulse border border-[#E2D9CC]" />)}
         </div>
       ) : items.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-[#E2D9CC] p-10 text-center">
-          <p className="text-3xl mb-2">🔔</p>
+        <div className="bg-white rounded-xl border border-[#E2D9CC] p-10 text-center">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: 'rgba(200,151,58,0.12)' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#C8973A" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+              <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" />
+            </svg>
+          </div>
           <p className="text-sm font-semibold text-[#2C2218]">No notifications yet</p>
           <p className="text-xs text-[#8C7E6E] mt-1">You'll see system messages here when they arrive.</p>
         </div>
@@ -75,7 +79,7 @@ export default function NotificationsPage() {
         <div className="space-y-2">
           {(displayRows as typeof items).map(n => (
             <div key={n.id}
-              className="bg-white rounded-2xl border p-4 transition-colors"
+              className="bg-white rounded-xl border p-4 transition-colors"
               style={{ borderColor: n.read ? '#E2D9CC' : '#FCA5A5', background: n.read ? 'white' : '#FFF8F8' }}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">

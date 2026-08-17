@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -13,7 +13,7 @@ const RES_STATUSES = ['Day', 'Boarding'];
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
       <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
         <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">{title}</h3>
       </div>
@@ -100,7 +100,7 @@ export default function StudentProfilePage() {
       setForm(toForm(s));
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setLoadErr(msg ?? 'Failed to load student profile.');
+      setLoadErr(msg ?? 'Could not load student profile.');
     } finally { setLoading(false); }
   }, [id]);
 
@@ -173,7 +173,7 @@ export default function StudentProfilePage() {
     return (
       <div className="p-6 max-w-5xl mx-auto">
         <div className="h-8 w-48 bg-gray-100 rounded animate-pulse mb-6" />
-        {[1,2,3].map(i => <div key={i} className="h-40 bg-gray-100 rounded-2xl animate-pulse mb-5" />)}
+        {[1,2,3].map(i => <div key={i} className="h-40 bg-gray-100 rounded-xl animate-pulse mb-5" />)}
       </div>
     );
   }
@@ -227,9 +227,9 @@ export default function StudentProfilePage() {
       )}
 
       {/* Photo + quick info */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-5 flex items-start gap-5">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 mb-5 flex items-start gap-5">
         <div className="relative shrink-0">
-          <div className="w-24 h-24 rounded-2xl bg-gray-100 overflow-hidden border border-gray-200">
+          <div className="w-24 h-24 rounded-xl bg-gray-100 overflow-hidden border border-gray-200">
             {profile.picture_url
               ? <Image src={profile.picture_url} alt={profile.name} width={96} height={96} className="w-full h-full object-cover" />
               : (
@@ -261,7 +261,7 @@ export default function StudentProfilePage() {
 
       {/* Personal Information */}
       {editing ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Personal Information</h3>
           </div>
@@ -330,7 +330,7 @@ export default function StudentProfilePage() {
 
       {/* Guardian Information */}
       {editing ? (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Parent / Guardian</h3>
           </div>
@@ -350,7 +350,7 @@ export default function StudentProfilePage() {
 
       {/* Notes */}
       {editing && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Notes</h3>
           </div>

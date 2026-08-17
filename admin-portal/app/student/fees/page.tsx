@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState } from 'react';
 import { studentApi } from '@/lib/student-api';
 import { getStudentColors } from '@/lib/student-auth';
@@ -36,7 +36,7 @@ const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' });
 
 function StatusBadge({ balance, amount }: { balance: number; amount: number }) {
-  if (balance <= 0)             return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700">Paid</span>;
+  if (balance <= 0)             return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D1EAD9] text-[#145C44]">Paid</span>;
   if (balance < amount)         return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Part Paid</span>;
   return                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Unpaid</span>;
 }
@@ -117,16 +117,16 @@ export default function StudentFeesPage() {
       )}
 
       {/* Summary card */}
-      <div className="rounded-2xl p-5 text-white" style={{ background: `linear-gradient(135deg, ${primary}, ${primary}cc)` }}>
-        <p className="text-white/70 text-xs font-semibold uppercase tracking-wide mb-4">Fee Statement</p>
+      <div className="rounded-xl p-5 text-white" style={{ backgroundColor: primary }}>
+        <p className="text-white/70 text-xs font-semibold font-medium mb-4">Fee Statement</p>
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Total Billed', value: fmt(summary.total_billed), color: 'text-white' },
-            { label: 'Total Paid',   value: fmt(summary.total_paid),   color: 'text-green-300' },
-            { label: 'Outstanding',  value: fmt(summary.outstanding),  color: hasOutstanding ? 'text-red-300' : 'text-green-300' },
+            { label: 'Total Paid',   value: fmt(summary.total_paid),   color: 'text-[#5DAA82]' },
+            { label: 'Outstanding',  value: fmt(summary.outstanding),  color: hasOutstanding ? 'text-red-300' : 'text-[#5DAA82]' },
           ].map(({ label, value, color }) => (
             <div key={label} className="text-center">
-              <p className={`text-base font-black ${color}`}>{value}</p>
+              <p className={`text-base font-bold ${color}`}>{value}</p>
               <p className="text-white/60 text-[10px] font-medium mt-0.5">{label}</p>
             </div>
           ))}
@@ -191,11 +191,11 @@ export default function StudentFeesPage() {
                   </div>
                   <div>
                     <p className="text-[10px] text-slate-400 font-medium">Paid</p>
-                    <p className="text-sm font-bold text-green-600">{fmt(bill.amount_paid)}</p>
+                    <p className="text-sm font-bold text-[#145C44]">{fmt(bill.amount_paid)}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-slate-400 font-medium">Balance</p>
-                    <p className={`text-sm font-bold ${bill.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>{fmt(bill.balance)}</p>
+                    <p className={`text-sm font-bold ${bill.balance > 0 ? 'text-red-600' : 'text-[#145C44]'}`}>{fmt(bill.balance)}</p>
                   </div>
                 </div>
                 {bill.due_date && (
@@ -227,7 +227,7 @@ export default function StudentFeesPage() {
             const label = pmt.fee_item_name || pmt.bill_label || 'Payment';
             return (
               <div key={pmt.id} className="bg-white rounded-xl border border-slate-100 p-4 flex items-start gap-3">
-                <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-9 h-9 rounded-full bg-[#D1EAD9] flex items-center justify-center shrink-0 mt-0.5">
                   <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
@@ -235,7 +235,7 @@ export default function StudentFeesPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-bold text-slate-800 truncate">{label}</p>
-                    <p className="text-sm font-black text-green-600 shrink-0">{fmt(pmt.amount)}</p>
+                    <p className="text-sm font-bold text-[#145C44] shrink-0">{fmt(pmt.amount)}</p>
                   </div>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span className="text-[10px] text-slate-400">{fmtDate(pmt.payment_date)}</span>

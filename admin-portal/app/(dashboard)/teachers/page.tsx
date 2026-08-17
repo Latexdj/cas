@@ -348,7 +348,7 @@ export default function TeachersPage() {
           <select
             value={filterStatus}
             onChange={e => setFilterStatus(e.target.value)}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#145C44]"
           >
             <option value="">All Statuses</option>
             <option value="Active">Active</option>
@@ -357,7 +357,7 @@ export default function TeachersPage() {
           <select
             value={filterDept}
             onChange={e => setFilterDept(e.target.value)}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#145C44]"
           >
             <option value="">All Departments</option>
             {departments.map(d => <option key={d} value={d}>{d}</option>)}
@@ -365,7 +365,7 @@ export default function TeachersPage() {
           <select
             value={filterRole}
             onChange={e => setFilterRole(e.target.value)}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#145C44]"
           >
             <option value="">All Roles</option>
             <option value="teacher">Teacher</option>
@@ -403,7 +403,7 @@ export default function TeachersPage() {
 
       {/* Bulk send result banner */}
       {bulkResult && (
-        <div className={`rounded-xl border px-4 py-3 text-sm flex items-start justify-between gap-3 ${bulkResult.failed > 0 ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-green-200 bg-green-50 text-green-800'}`}>
+        <div className={`rounded-xl border px-4 py-3 text-sm flex items-start justify-between gap-3 ${bulkResult.failed > 0 ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-[#B8D9C8] bg-[#E8F4EE] text-[#0B3D2E]'}`}>
           <div>
             <p className="font-semibold">
               ✓ Emails sent to {bulkResult.sent} teacher{bulkResult.sent !== 1 ? 's' : ''}.
@@ -429,19 +429,19 @@ export default function TeachersPage() {
           <table className="min-w-[900px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-10"></th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium w-10"></th>
                 <Th label="ID" sortKey="teacher_code" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
-                    className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
+                    className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
                 <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
-                    className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Email</th>
+                    className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium">Email</th>
                 <Th label="Dept" sortKey="department" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
-                    className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Periods</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Role</th>
+                    className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium hidden md:table-cell">Periods</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium hidden md:table-cell">Role</th>
                 <Th label="Status" sortKey="status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort}
-                    className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide"></th>
+                    className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium" />
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 font-medium"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -456,7 +456,7 @@ export default function TeachersPage() {
                     </div>
                   </td>
                   <td className="px-3 py-2.5">
-                    <span className="font-mono font-bold text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5 text-xs">{t.teacher_code}</span>
+                    <span className="font-mono font-bold text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded px-2 py-0.5 text-xs">{t.teacher_code}</span>
                   </td>
                   <td className="px-3 py-2.5 font-medium text-gray-900">{t.name}</td>
                   <td className="px-3 py-2.5 text-gray-600">{t.email ?? '—'}</td>
@@ -516,20 +516,20 @@ export default function TeachersPage() {
               <li>• Existing Teacher IDs are skipped with an error — edit those individually</li>
             </ul>
           </div>
-          <button onClick={openTemplateModal} className="text-sm font-semibold text-green-700 hover:underline">
+          <button onClick={openTemplateModal} className="text-sm font-semibold text-[#145C44] hover:underline">
             ↓ Download template (.xlsx)
           </button>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-1">
+            <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">
               Select file (.xlsx, .xls, .csv)
             </label>
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv"
-              className="w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-green-600 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-green-700 cursor-pointer" />
+              className="w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-[#145C44] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white hover:file:bg-[#145C44] cursor-pointer" />
           </div>
           {uploadErr && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{uploadErr}</p>}
           {uploadResult && (
             <div className="space-y-2">
-              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+              <div className="rounded-lg bg-[#E8F4EE] border border-[#B8D9C8] px-4 py-3 text-sm text-[#0B3D2E]">
                 <span className="font-semibold">{uploadResult.inserted}</span> teacher{uploadResult.inserted !== 1 ? 's' : ''} added successfully
               </div>
               {uploadResult.errors.length > 0 && (
@@ -564,15 +564,15 @@ export default function TeachersPage() {
           </div>
           <button
             onClick={openTemplateModal}
-            className="text-sm font-semibold text-green-700 hover:underline"
+            className="text-sm font-semibold text-[#145C44] hover:underline"
           >
             ↓ Download populated template (.xlsx)
           </button>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 block mb-2">Select file (.xlsx, .xls, .csv)</label>
+            <label className="text-xs font-semibold font-medium text-slate-500 block mb-2">Select file (.xlsx, .xls, .csv)</label>
             <div
               onClick={() => updateFileRef.current?.click()}
-              className="border-2 border-dashed border-slate-200 rounded-xl px-6 py-6 text-center cursor-pointer hover:border-green-400 hover:bg-green-50 transition-colors"
+              className="border-2 border-dashed border-slate-200 rounded-xl px-6 py-6 text-center cursor-pointer hover:border-[#2D7A4F] hover:bg-[#E8F4EE] transition-colors"
             >
               <p className="text-sm text-slate-500">
                 {updateFileRef.current?.files?.[0]?.name ?? 'Click to choose file or drag & drop'}
@@ -584,7 +584,7 @@ export default function TeachersPage() {
           {updateErr && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{updateErr}</p>}
           {updateResult && (
             <div className="space-y-2">
-              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+              <div className="rounded-lg bg-[#E8F4EE] border border-[#B8D9C8] px-4 py-3 text-sm text-[#0B3D2E]">
                 <span className="font-semibold">{updateResult.updated}</span> teacher record{updateResult.updated !== 1 ? 's' : ''} updated successfully
               </div>
               {updateResult.notFound.length > 0 && (
@@ -617,10 +617,10 @@ export default function TeachersPage() {
 
           {pinConfirmed ? (
             <div className="space-y-3">
-              <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-4 text-center">
-                <p className="text-sm text-green-700 mb-2">PIN has been reset. New PIN:</p>
-                <p className="text-4xl font-bold tracking-widest text-green-800 font-mono">{pinConfirmed}</p>
-                <p className="text-xs text-green-600 mt-2">The teacher can now log in with this PIN.</p>
+              <div className="rounded-xl border border-[#B8D9C8] bg-[#E8F4EE] px-4 py-4 text-center">
+                <p className="text-sm text-[#145C44] mb-2">PIN has been reset. New PIN:</p>
+                
+                <p className="text-xs text-[#145C44] mt-2">The teacher can now log in with this PIN.</p>
               </div>
 
               {/* Email PIN button — only if teacher has email */}
@@ -672,7 +672,7 @@ export default function TeachersPage() {
                   placeholder="e.g. 5678  —  or leave blank for default"
                   value={pinInput}
                   onChange={e => { setPinInput(e.target.value.replace(/\D/g, '')); setPinError(''); }}
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500 font-mono tracking-widest"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44] font-mono tracking-widest"
                 />
                 <p className="mt-1 text-xs text-slate-400">4–8 digits. Blank resets to the school default PIN.</p>
               </div>
@@ -691,10 +691,10 @@ export default function TeachersPage() {
         <div className="space-y-4">
           {sendResult ? (
             <div className="space-y-3">
-              <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-4 text-center space-y-2">
+              <div className="rounded-xl border border-[#B8D9C8] bg-[#E8F4EE] px-4 py-4 text-center space-y-2">
                 <p className="text-2xl">✉️</p>
-                <p className="text-sm font-semibold text-green-800">PIN reset — email on its way!</p>
-                <p className="text-xs text-green-700">Login details being sent to <strong>{sendResult.email}</strong></p>
+                <p className="text-sm font-semibold text-[#0B3D2E]">PIN reset — email on its way!</p>
+                <p className="text-xs text-[#145C44]">Login details being sent to <strong>{sendResult.email}</strong></p>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-center">
                 <p className="text-xs text-slate-500 mb-1">New PIN (keep as backup)</p>
@@ -738,7 +738,7 @@ export default function TeachersPage() {
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Teacher ID {modal === 'create' && <span className="font-normal text-slate-400">(auto if blank)</span>}</label>
-                  <input className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-bold text-green-700 uppercase focus:outline-none focus:ring-2 focus:ring-green-600"
+                  <input className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono font-bold text-[#145C44] uppercase focus:outline-none focus:ring-2 focus:ring-green-600"
                     value={form.teacher_code ?? ''} onChange={e => setForm(f => ({ ...f, teacher_code: e.target.value.toUpperCase() }))} placeholder="e.g. T001" maxLength={10} />
                 </div>
                 <div className="col-span-2"><Input label="Full Name *" value={form.name ?? ''} onChange={field('name')} required /></div>
@@ -869,7 +869,7 @@ export default function TeachersPage() {
 
           {/* Notes */}
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Notes</label>
             <textarea value={form.notes ?? ''} onChange={field('notes')} rows={2}
               className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
           </div>
@@ -882,7 +882,7 @@ export default function TeachersPage() {
             {availableResp.length === 0 ? (
               <p className="text-sm text-slate-400 italic">
                 No responsibilities defined.{' '}
-                <a href="/responsibilities" className="text-green-700 hover:underline font-medium">Add them in Setup → Responsibilities</a>
+                <a href="/responsibilities" className="text-[#145C44] hover:underline font-medium">Add them in Setup → Responsibilities</a>
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-2">
@@ -898,7 +898,7 @@ export default function TeachersPage() {
                     />
                     <span className="font-medium text-slate-700 flex-1 truncate">{r.name}</span>
                     {r.module_key && (
-                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-700 flex-shrink-0">
+                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#D1EAD9] text-[#145C44] flex-shrink-0">
                         {r.module_key}
                       </span>
                     )}
@@ -919,15 +919,15 @@ export default function TeachersPage() {
       {/* Template download modal */}
       {tmplOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
-            <h2 className="text-lg font-bold mb-1" style={{ color: '#0F172A' }}>Download Template</h2>
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl" style={{ border: '1px solid #E2D9CC' }}>
+            <h2 className="text-lg font-bold mb-1" style={{ color: '#1C1208' }}>Download Template</h2>
             <p className="text-sm mb-5" style={{ color: '#64748B' }}>Download a blank template or one pre-filled with existing teachers for editing and re-upload.</p>
 
             <div className="flex rounded-xl overflow-hidden border border-slate-200 mb-5 text-sm">
               {(['empty', 'populated'] as const).map(m => (
                 <button key={m} onClick={() => setTmplMode(m)}
                   className="flex-1 py-2.5 font-semibold transition-colors"
-                  style={{ backgroundColor: tmplMode === m ? '#15803D' : '#F8FAFC', color: tmplMode === m ? '#FFFFFF' : '#64748B' }}>
+                  style={{ backgroundColor: tmplMode === m ? '#145C44' : '#F5F0E8', color: tmplMode === m ? '#FFFFFF' : '#64748B' }}>
                   {m === 'empty' ? 'Empty template' : 'Pre-filled with teachers'}
                 </button>
               ))}
@@ -937,7 +937,7 @@ export default function TeachersPage() {
               <div className="mb-5">
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Status</label>
                 <select value={tmplStatus} onChange={e => setTmplStatus(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#0F172A' }}>
+                  className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}>
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                   <option value="all">All statuses</option>
@@ -948,7 +948,7 @@ export default function TeachersPage() {
             <div className="flex gap-3">
               <Button variant="secondary" className="flex-1" onClick={() => setTmplOpen(false)}>Cancel</Button>
               <Button className="flex-1" loading={tmplLoading} onClick={doTemplateDownload}
-                style={{ backgroundColor: '#15803D' }}>
+                style={{ backgroundColor: '#145C44' }}>
                 Download
               </Button>
             </div>

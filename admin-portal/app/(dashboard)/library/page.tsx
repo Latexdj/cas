@@ -62,7 +62,7 @@ export default function LibraryOverviewPage() {
           </div>
         </>
       ) : (
-        <p className="text-sm text-red-500">Failed to load stats</p>
+        <p className="text-sm text-red-500">Could not load stats, try again</p>
       )}
     </div>
   );

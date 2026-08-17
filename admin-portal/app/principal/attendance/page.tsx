@@ -25,7 +25,7 @@ interface MeetingRow {
 
 function attendanceStatus(pct: number | null): { label: string; color: string; bg: string } {
   if (pct === null) return { label: 'No Data',        color: '#94A3B8', bg: 'rgba(148,163,184,0.12)' };
-  if (pct >= 90)   return { label: 'Excellent',       color: '#10B981', bg: 'rgba(16,185,129,0.12)'  };
+  if (pct >= 90)   return { label: 'Excellent',       color: '#145C44', bg: 'rgba(16,185,129,0.12)'  };
   if (pct >= 75)   return { label: 'Good',            color: '#3B82F6', bg: 'rgba(59,130,246,0.12)'  };
   if (pct >= 60)   return { label: 'Needs Attention', color: '#F59E0B', bg: 'rgba(245,158,11,0.12)'  };
   return               { label: 'Critical',       color: '#EF4444', bg: 'rgba(239,68,68,0.12)'   };
@@ -91,7 +91,7 @@ function Spinner() {
     <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
       <div style={{
         width: 28, height: 28, borderRadius: '50%',
-        border: '3px solid #10B981', borderTopColor: 'transparent',
+        border: '3px solid #145C44', borderTopColor: 'transparent',
         animation: 'spin 0.8s linear infinite',
       }} />
     </div>
@@ -119,7 +119,7 @@ function ClassTable({ rows, dark, search }: { rows: ClassRow[]; dark: boolean; s
     padding: '10px 14px', textAlign: 'left', fontWeight: 600,
     color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em',
     textTransform: 'uppercase', whiteSpace: 'nowrap',
-    background: dark ? '#0F172A' : '#F8FAFC',
+    background: dark ? '#1C1208' : '#F5F0E8',
     borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
   };
 
@@ -144,13 +144,13 @@ function ClassTable({ rows, dark, search }: { rows: ClassRow[]; dark: boolean; s
         <tbody>
           {(displayRows as ClassRow[]).map((r, i) => (
             <tr key={r.id} style={{
-              borderBottom: i < displayRows.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F8FAFC'}` : 'none',
+              borderBottom: i < displayRows.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F5F0E8'}` : 'none',
               background: i % 2 === 0 ? 'transparent' : (dark ? 'rgba(15,23,42,0.3)' : 'rgba(248,250,252,0.6)'),
             }}>
-              <td style={{ padding: '11px 14px', fontWeight: 600, color: dark ? '#F1F5F9' : '#0F172A' }}>{r.name}</td>
+              <td style={{ padding: '11px 14px', fontWeight: 600, color: dark ? '#F1F5F9' : '#1C1208' }}>{r.name}</td>
               <td style={{ padding: '11px 14px', fontSize: 12, color: dark ? '#94A3B8' : '#64748B' }}>{r.department}</td>
               <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', color: dark ? '#CBD5E1' : '#475569' }}>{r.total_scheduled}</td>
-              <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: '#10B981' }}>{r.present_periods}</td>
+              <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: '#145C44' }}>{r.present_periods}</td>
               <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: r.absent_periods > 0 ? '#EF4444' : (dark ? '#475569' : '#94A3B8') }}>{r.absent_periods}</td>
               <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: r.excused_periods > 0 ? '#7C3AED' : (dark ? '#475569' : '#94A3B8') }}>{r.excused_periods}</td>
               <PctCell pct={r.attendance_pct} dark={dark} />
@@ -159,11 +159,11 @@ function ClassTable({ rows, dark, search }: { rows: ClassRow[]; dark: boolean; s
           ))}
         </tbody>
         <tfoot>
-          <tr style={{ borderTop: `2px solid ${dark ? '#334155' : '#E2E8F0'}`, background: dark ? '#0F172A' : '#F8FAFC' }}>
+          <tr style={{ borderTop: `2px solid ${dark ? '#334155' : '#E2E8F0'}`, background: dark ? '#1C1208' : '#F5F0E8' }}>
             <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 12, color: dark ? '#64748B' : '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>School Total</td>
             <td style={{ padding: '10px 14px' }} />
-            <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A' }}>{totals.s}</td>
-            <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: '#10B981' }}>{totals.p}</td>
+            <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208' }}>{totals.s}</td>
+            <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: '#145C44' }}>{totals.p}</td>
             <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: totals.ab > 0 ? '#EF4444' : (dark ? '#475569' : '#94A3B8') }}>{totals.ab}</td>
             <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: totals.ex > 0 ? '#7C3AED' : (dark ? '#475569' : '#94A3B8') }}>{totals.ex}</td>
             <PctCell pct={schoolPct} dark={dark} />
@@ -198,7 +198,7 @@ function MeetingTable({ rows, dark, search }: { rows: MeetingRow[]; dark: boolea
     padding: '10px 14px', textAlign: 'left', fontWeight: 600,
     color: dark ? '#94A3B8' : '#64748B', fontSize: 11, letterSpacing: '0.04em',
     textTransform: 'uppercase', whiteSpace: 'nowrap',
-    background: dark ? '#0F172A' : '#F8FAFC',
+    background: dark ? '#1C1208' : '#F5F0E8',
     borderBottom: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
   };
 
@@ -222,13 +222,13 @@ function MeetingTable({ rows, dark, search }: { rows: MeetingRow[]; dark: boolea
         <tbody>
           {(displayRows as MeetingRow[]).map((r, i) => (
             <tr key={r.id} style={{
-              borderBottom: i < displayRows.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F8FAFC'}` : 'none',
+              borderBottom: i < displayRows.length - 1 ? `1px solid ${dark ? '#1E293B' : '#F5F0E8'}` : 'none',
               background: i % 2 === 0 ? 'transparent' : (dark ? 'rgba(15,23,42,0.3)' : 'rgba(248,250,252,0.6)'),
             }}>
-              <td style={{ padding: '11px 14px', fontWeight: 600, color: dark ? '#F1F5F9' : '#0F172A' }}>{r.name}</td>
+              <td style={{ padding: '11px 14px', fontWeight: 600, color: dark ? '#F1F5F9' : '#1C1208' }}>{r.name}</td>
               <td style={{ padding: '11px 14px', fontSize: 12, color: dark ? '#94A3B8' : '#64748B' }}>{r.department}</td>
               <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', color: dark ? '#CBD5E1' : '#475569' }}>{r.total_scheduled}</td>
-              <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: '#10B981' }}>{r.present_count}</td>
+              <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: '#145C44' }}>{r.present_count}</td>
               <td style={{ padding: '11px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: r.absent_count > 0 ? '#EF4444' : (dark ? '#475569' : '#94A3B8') }}>{r.absent_count}</td>
               <PctCell pct={r.attendance_pct} dark={dark} />
               <StatusCell pct={r.attendance_pct} dark={dark} />
@@ -236,11 +236,11 @@ function MeetingTable({ rows, dark, search }: { rows: MeetingRow[]; dark: boolea
           ))}
         </tbody>
         <tfoot>
-          <tr style={{ borderTop: `2px solid ${dark ? '#334155' : '#E2E8F0'}`, background: dark ? '#0F172A' : '#F8FAFC' }}>
+          <tr style={{ borderTop: `2px solid ${dark ? '#334155' : '#E2E8F0'}`, background: dark ? '#1C1208' : '#F5F0E8' }}>
             <td style={{ padding: '10px 14px', fontWeight: 700, fontSize: 12, color: dark ? '#64748B' : '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>School Total</td>
             <td style={{ padding: '10px 14px' }} />
-            <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A' }}>{totals.s}</td>
-            <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: '#10B981' }}>{totals.p}</td>
+            <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208' }}>{totals.s}</td>
+            <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: '#145C44' }}>{totals.p}</td>
             <td style={{ padding: '10px 14px', fontFamily: 'monospace', textAlign: 'center', fontWeight: 700, color: totals.ab > 0 ? '#EF4444' : (dark ? '#475569' : '#94A3B8') }}>{totals.ab}</td>
             <PctCell pct={schoolPct} dark={dark} />
             <StatusCell pct={schoolPct} dark={dark} />
@@ -324,7 +324,7 @@ export default function TeacherAttendancePage() {
   const sel: React.CSSProperties = {
     border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
     background: dark ? '#1E293B' : '#FFFFFF',
-    color: dark ? '#F1F5F9' : '#0F172A',
+    color: dark ? '#F1F5F9' : '#1C1208',
     borderRadius: 8, padding: '7px 12px', fontSize: 13,
   };
 
@@ -332,7 +332,7 @@ export default function TeacherAttendancePage() {
     <div>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#0F172A', marginBottom: 4 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208', marginBottom: 4 }}>
           Teacher Attendance
         </h2>
         <p style={{ fontSize: 13, color: dark ? '#64748B' : '#94A3B8' }}>
@@ -369,8 +369,8 @@ export default function TeacherAttendancePage() {
             style={{
               padding: '8px 16px', fontSize: 13, fontWeight: 600, border: 'none',
               background: 'transparent', cursor: 'pointer', borderRadius: '8px 8px 0 0',
-              color: tab === t.key ? '#10B981' : (dark ? '#64748B' : '#94A3B8'),
-              borderBottom: tab === t.key ? '2px solid #10B981' : '2px solid transparent',
+              color: tab === t.key ? '#145C44' : (dark ? '#64748B' : '#94A3B8'),
+              borderBottom: tab === t.key ? '2px solid #145C44' : '2px solid transparent',
               marginBottom: -1,
             }}
           >

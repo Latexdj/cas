@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -87,12 +87,12 @@ export default function LocationsPage() {
           <table className="min-w-[800px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                <Th label="Type" sortKey="type" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide" />
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Latitude</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Longitude</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Radius (m)</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">GPS</th>
+                <Th label="Name" sortKey="name" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium" />
+                <Th label="Type" sortKey="type" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium" />
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">Latitude</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">Longitude</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">Radius (m)</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 font-medium">GPS</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -105,7 +105,7 @@ export default function LocationsPage() {
                   <td className="px-4 py-3 text-gray-600">{l.longitude ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-600">{l.radius_meters}</td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs font-medium ${l.has_coordinates ? 'text-green-600' : 'text-gray-400'}`}>
+                    <span className={`text-xs font-medium ${l.has_coordinates ? 'text-[#145C44]' : 'text-gray-400'}`}>
                       {l.has_coordinates ? '✓ Set' : '—'}
                     </span>
                   </td>
@@ -128,7 +128,7 @@ export default function LocationsPage() {
         <div className="space-y-3">
           <Input label="Name *" value={form.name} onChange={f('name')} required />
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Type</label>
+            <label className="text-xs font-semibold font-medium text-slate-500">Type</label>
             <select value={form.type} onChange={f('type')}
               className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600">
               <option value="classroom">Classroom</option>
