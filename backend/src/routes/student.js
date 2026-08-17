@@ -166,9 +166,9 @@ router.get('/results', async (req, res, next) => {
       subjectMap[row.subject].examMax = parseFloat(row.max_score);
     }
 
-    // Imported fallback
+    // Imported fallback: apply when no live CA exists, even if live exam data is present
     for (const row of imported) {
-      if (!subjectMap[row.subject] || (subjectMap[row.subject].caMaxRaw === 0 && subjectMap[row.subject].exam === null)) {
+      if (!subjectMap[row.subject] || subjectMap[row.subject].caMaxRaw === 0) {
         subjectMap[row.subject] = {
           caRaw: row.ca_score ?? null,
           caMaxRaw: null,
@@ -275,7 +275,9 @@ router.get('/results', async (req, res, next) => {
           subMap[r.subject].examMax = parseFloat(r.max_score);
         }
         for (const r of impR.rows) {
-          if (!subMap[r.subject]) subMap[r.subject] = { caRaw: 0, caMaxRaw: 0, exam: null, examMax: null, total: r.total_score, imported: true };
+          if (!subMap[r.subject] || subMap[r.subject].caMaxRaw === 0) {
+            subMap[r.subject] = { caRaw: 0, caMaxRaw: 0, exam: null, examMax: null, total: r.total_score, imported: true };
+          }
         }
         const tots = Object.entries(subMap).map(([, d]) => {
           if (d.imported && d.total != null) return d.total;
