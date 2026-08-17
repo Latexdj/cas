@@ -150,7 +150,7 @@ router.get('/results', async (req, res, next) => {
     // CA per subject
     for (const row of assessments) {
       if (!subjectMap[row.subject]) subjectMap[row.subject] = { caRaw: 0, caMaxRaw: 0, exam: null, examMax: null, imported: false };
-      const modeContrib = modes.find(m => m.id === row.mode_id)?.ca_contribution ?? 0;
+      const modeContrib = parseFloat(modes.find(m => m.id === row.mode_id)?.ca_contribution ?? 0);
       const scaledScore = row.max_score > 0 ? (parseFloat(row.score) / parseFloat(row.max_score)) * modeContrib : 0;
       subjectMap[row.subject].caRaw    += scaledScore;
       subjectMap[row.subject].caMaxRaw += modeContrib;
@@ -255,7 +255,7 @@ router.get('/results', async (req, res, next) => {
         const subMap = {};
         for (const r of caR.rows) {
           if (!subMap[r.subject]) subMap[r.subject] = { caRaw: 0, caMaxRaw: 0, exam: null, examMax: null };
-          const mc = modes.find(m => m.id === r.mode_id)?.ca_contribution ?? 0;
+          const mc = parseFloat(modes.find(m => m.id === r.mode_id)?.ca_contribution ?? 0);
           subMap[r.subject].caRaw    += r.max_score > 0 ? (parseFloat(r.score) / parseFloat(r.max_score)) * mc : 0;
           subMap[r.subject].caMaxRaw += mc;
         }
