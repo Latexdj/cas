@@ -264,7 +264,6 @@ router.get('/results', async (req, res, next) => {
 
       const validPeers = peerResults.filter(a => a !== null);
       class_position = validPeers.filter(a => a > average).length + 1;
-      class_total = validPeers.length; // count only students who were actually ranked
     }
 
     // Remarks from form teacher (if any)
