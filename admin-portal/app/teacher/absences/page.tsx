@@ -89,9 +89,8 @@ export default function AbsencesPage() {
         <div className="space-y-4">
           {cards.map(card => (
             <div key={card.title} className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-5">
-              <div className="flex items-center justify-between mb-3">
+              <div className="mb-3">
                 <p className="text-xs font-bold font-medium text-[#8C7E6E]">{card.title}</p>
-                <span className="text-xl">{card.icon}</span>
               </div>
               <div className="flex items-end gap-3 mb-4">
                 <span className="text-5xl font-bold leading-none" style={{ color: card.accent }}>
