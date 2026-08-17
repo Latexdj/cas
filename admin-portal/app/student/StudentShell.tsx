@@ -167,7 +167,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: isDark ? '#0E1A0C' : '#F5F0E8' }}>
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: PRIMARY, borderTopColor: 'transparent' }} />
+        <div className="w-8 h-8 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: PRIMARY, borderBottomColor: 'transparent' }} />
       </div>
     );
   }
@@ -266,7 +266,9 @@ export default function StudentShell({ children }: { children: ReactNode }) {
           <div className="flex items-center justify-between mb-3">
             <p className={`text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>More</p>
             <button onClick={() => setMoreOpen(false)}
-              className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>✕</button>
+              className={`w-7 h-7 flex items-center justify-center rounded-full ${isDark ? 'bg-slate-700 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" className="w-3.5 h-3.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
           </div>
           <div className="space-y-1">
             {mobileMoreItems.map((item) => {

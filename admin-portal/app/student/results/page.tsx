@@ -382,16 +382,16 @@ export default function StudentResultsPage() {
           <div>
             <label className="text-xs font-bold text-slate-400 font-medium block mb-1">Academic Year</label>
             <select value={yearId} onChange={e => setYearId(e.target.value)} disabled={!yearsReady}
-              className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44] disabled:opacity-50">
               {!yearsReady && <option value="">Loading…</option>}
               {yearsReady && years.length === 0 && <option value="">No academic years found</option>}
-              {years.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>)}
+              {years.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (current)' : ''}</option>)}
             </select>
           </div>
           <div>
             <label className="text-xs font-bold text-slate-400 font-medium block mb-1">Semester</label>
             <select value={semester} onChange={e => setSemester(e.target.value)}
-              className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]">
               <option value="1">Semester 1</option>
               <option value="2">Semester 2</option>
             </select>
@@ -428,15 +428,15 @@ export default function StudentResultsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 12, color: '#64748B' }}>Class average: <strong>{classAvg}%</strong></span>
             {result.average > classAvg ? (
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#145C44', background: '#DCFCE7', padding: '1px 8px', borderRadius: 20 }}>
-                ↑ {(result.average - classAvg).toFixed(1)}% above
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#145C44', background: '#E8F4EE', padding: '1px 8px', borderRadius: 20 }}>
+                +{(result.average - classAvg).toFixed(1)}% above class
               </span>
             ) : result.average < classAvg ? (
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', background: '#FEE2E2', padding: '1px 8px', borderRadius: 20 }}>
-                ↓ {(classAvg - result.average).toFixed(1)}% below
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#B83232', background: '#FEF2F2', padding: '1px 8px', borderRadius: 20 }}>
+                {(classAvg - result.average).toFixed(1)}% below class
               </span>
             ) : (
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748B', background: '#F1F5F9', padding: '1px 8px', borderRadius: 20 }}>= At class average</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', background: '#F5F0E8', padding: '1px 8px', borderRadius: 20 }}>At class average</span>
             )}
           </div>
         )}
@@ -444,12 +444,12 @@ export default function StudentResultsPage() {
         {/* At-risk banner */}
         {result && result.average !== null && result.average < 40 && (
           <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth={2} style={{ width: 20, height: 20, flexShrink: 0, marginTop: 1 }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#B83232" strokeWidth={2} style={{ width: 20, height: 20, flexShrink: 0, marginTop: 1 }}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
             </svg>
             <div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#DC2626', margin: 0 }}>Your average is below 40%</p>
-              <p style={{ fontSize: 12, color: '#B91C1C', margin: '3px 0 0' }}>Please speak with your form teacher or subject teachers for additional support.</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#B83232', margin: 0 }}>Average below 40%</p>
+              <p style={{ fontSize: 12, color: '#991B1B', margin: '3px 0 0' }}>Speak with your form teacher or subject teachers for support.</p>
             </div>
           </div>
         )}
@@ -457,12 +457,12 @@ export default function StudentResultsPage() {
         {/* Subject table */}
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+            <div className="w-8 h-8 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
           </div>
         ) : result ? (
           <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-50 flex items-center justify-between">
-              <p className="text-sm font-bold text-slate-700">{selectedYear?.name} — Semester {semester}</p>
+              <p className="text-sm font-bold text-slate-700">{selectedYear?.name}, Semester {semester}</p>
               <p className="text-xs text-slate-400">{result.subjects.length} subjects</p>
             </div>
             <div className="overflow-x-auto">
@@ -527,7 +527,7 @@ export default function StudentResultsPage() {
             {/* Form Teacher's Remarks */}
             {displayRemarks && (displayRemarks.attitude || displayRemarks.conduct || displayRemarks.general_remarks) && (
               <div style={{ marginTop: 16, background: '#F5F0E8', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px', margin: '16px' }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Form Teacher&apos;s Remarks</p>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#64748B', marginBottom: 10 }}>Form Teacher&apos;s Remarks</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {displayRemarks.attitude && (
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -647,7 +647,7 @@ export default function StudentResultsPage() {
               </svg>
               <div>
                 <p className="text-sm font-bold" style={{ color: primary }}>Best Semester</p>
-                <p className="text-xs text-slate-600">{best.label} — {best.average}% ({best.grade})</p>
+                <p className="text-xs text-slate-600">{best.label}: {best.average}% ({best.grade})</p>
               </div>
             </div>
           );
