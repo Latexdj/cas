@@ -299,16 +299,17 @@ export default function HodPage() {
     }
   }
 
-  async function submitReview() {
+  async function submitReview(action: 'approve' | 'reject') {
     if (!reviewTarget) return;
-    if (reviewAction === 'reject' && !reviewComment.trim()) {
+    if (action === 'reject' && !reviewComment.trim()) {
       setReviewError('Please provide a reason for rejection.'); return;
     }
+    setReviewAction(action);
     setReviewing(true); setReviewError('');
     try {
       await teacherApi.post('/api/result-submissions/hod-review', {
         submission_id: reviewTarget.id,
-        action: reviewAction,
+        action,
         comment: reviewComment.trim() || undefined,
       });
       setReviewTarget(null); setReviewComment(''); setReviewAction('approve');
@@ -590,43 +591,32 @@ export default function HodPage() {
                     })()}
                   </div>
 
-                  {/* Toggle approve/reject */}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                    {(['approve', 'reject'] as const).map(a => (
-                      <button key={a}
-                        onClick={() => { setReviewAction(a); setReviewError(''); }}
-                        style={{
-                          flex: 1, padding: '8px 0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                          border: reviewAction === a ? 'none' : '1px solid #E2E8F0',
-                          background: reviewAction === a ? (a === 'approve' ? '#145C44' : '#DC2626') : '#F5F0E8',
-                          color: reviewAction === a ? '#fff' : '#64748B',
-                        }}>
-                        {a === 'approve' ? 'Approve' : 'Reject'}
-                      </button>
-                    ))}
-                  </div>
-
                   <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
-                    {reviewAction === 'reject' ? 'Reason (required)' : 'Comment (optional)'}
+                    Comment <span style={{ fontWeight: 400, color: '#94A3B8' }}>(required when rejecting)</span>
                   </label>
                   <textarea
                     value={reviewComment}
                     onChange={e => { setReviewComment(e.target.value); setReviewError(''); }}
-                    placeholder={reviewAction === 'reject' ? 'Explain why this is being returned…' : 'Add an optional note…'}
+                    placeholder="Add a note or reason…"
                     rows={3}
                     style={{ width: '100%', border: '1px solid #E2E8F0', borderRadius: 10, padding: '8px 12px', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
                   />
-                  {reviewError && <p style={{ fontSize: 12, color: '#DC2626', marginTop: 6 }}>{reviewError}</p>}
+                  {reviewError && <p style={{ fontSize: 12, color: '#B83232', marginTop: 6 }}>{reviewError}</p>}
 
-                  <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-                    <button onClick={() => setReviewTarget(null)}
-                      style={{ flex: 1, padding: '9px 0', border: '1px solid #E2E8F0', borderRadius: 10, fontSize: 13, fontWeight: 600, background: '#fff', color: '#374151', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                    <button onClick={() => setReviewTarget(null)} disabled={reviewing}
+                      style={{ flex: 1, padding: '9px 0', border: '1px solid #E2E8F0', borderRadius: 10, fontSize: 13, fontWeight: 600, background: '#fff', color: '#374151', cursor: 'pointer', opacity: reviewing ? 0.5 : 1 }}>
                       Cancel
                     </button>
-                    <button onClick={submitReview} disabled={reviewing}
-                      style={{ flex: 1, padding: '9px 0', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                        background: reviewAction === 'approve' ? '#145C44' : '#DC2626', color: '#fff', opacity: reviewing ? 0.7 : 1 }}>
-                      {reviewing ? 'Submitting…' : (reviewAction === 'approve' ? 'Approve' : 'Reject & Return')}
+                    <button onClick={() => submitReview('reject')} disabled={reviewing}
+                      style={{ flex: 1, padding: '9px 0', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: reviewing ? 'not-allowed' : 'pointer',
+                        background: '#B83232', color: '#fff', opacity: reviewing && reviewAction === 'reject' ? 0.7 : 1 }}>
+                      {reviewing && reviewAction === 'reject' ? 'Submitting…' : 'Reject'}
+                    </button>
+                    <button onClick={() => submitReview('approve')} disabled={reviewing}
+                      style={{ flex: 1, padding: '9px 0', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: reviewing ? 'not-allowed' : 'pointer',
+                        background: '#145C44', color: '#fff', opacity: reviewing && reviewAction === 'approve' ? 0.7 : 1 }}>
+                      {reviewing && reviewAction === 'approve' ? 'Submitting…' : 'Approve'}
                     </button>
                   </div>
                 </div>
