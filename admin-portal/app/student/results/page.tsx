@@ -412,7 +412,7 @@ export default function StudentResultsPage() {
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: 'Average', value: result.average !== null ? `${result.average}%` : '—', sub: result.overall_grade },
-              { label: 'Position', value: result.class_position ? `${result.class_position}${ordinal(result.class_position)}` : '—', sub: result.class_total ? `of ${result.class_total}` : '' },
+              { label: 'Position', value: result.class_position ? ordinal(result.class_position) : '—', sub: result.class_total ? `of ${result.class_total}` : '' },
               { label: 'Subjects', value: result.subjects.filter(s => s.total !== null).length, sub: `${result.subjects.filter(s => s.total !== null && s.total >= 50).length} passed` },
             ].map(({ label, value, sub }) => (
               <div key={label} className="bg-white rounded-xl border border-slate-100 p-3 text-center">
