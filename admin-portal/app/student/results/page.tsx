@@ -338,7 +338,6 @@ export default function StudentResultsPage() {
     setPrinting(false);
   }
 
-  const maxAvg = Math.max(...history.map(h => h.average), 100);
   const selectedYear = years.find(y => y.id === yearId);
 
   // Determine which remarks to show on screen
@@ -570,40 +569,73 @@ export default function StudentResultsPage() {
         </div>
 
         {/* Performance trend chart */}
-        {history.length > 1 && (
-          <div className="bg-white rounded-xl border border-slate-100 p-4">
-            <p className="text-sm font-bold text-slate-700 mb-1">Performance Trend</p>
-            <p className="text-xs text-slate-400 mb-4">Average score across all semesters</p>
-            <div className="space-y-2">
-              {history.map(h => (
-                <div key={h.label} className="flex items-center gap-3">
-                  <span className="text-xs text-slate-500 w-24 shrink-0 truncate">{h.label}</span>
-                  <div className="flex-1 bg-slate-100 rounded-full h-4 overflow-hidden">
-                    <div className="h-4 rounded-full flex items-center justify-end pr-2 transition-all"
-                      style={{
-                        width: `${(h.average / maxAvg) * 100}%`,
-                        background: h.average >= 70 ? '#16a34a' : h.average >= 50 ? '#d97706' : '#dc2626',
-                        minWidth: 28,
-                      }}>
-                      <span className="text-[9px] font-bold text-white">{h.average}%</span>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold w-6 text-right" style={{ color: gradeColor(h.grade) }}>{h.grade}</span>
-                </div>
-              ))}
-            </div>
+        {history.length > 1 && (() => {
+          const PAD = { top: 24, right: 16, bottom: 48, left: 36 };
+          const VW = 560, VH = 200;
+          const cW = VW - PAD.left - PAD.right;
+          const cH = VH - PAD.top - PAD.bottom;
+          const n = history.length;
+          const xOf = (i: number) => PAD.left + (n === 1 ? cW / 2 : (i / (n - 1)) * cW);
+          const yOf = (v: number) => PAD.top + (1 - v / 100) * cH;
+          const pts = history.map((h, i) => ({ x: xOf(i), y: yOf(h.average), h }));
+          const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+          const areaPath = `${linePath} L ${pts[pts.length - 1].x.toFixed(1)} ${(PAD.top + cH).toFixed(1)} L ${pts[0].x.toFixed(1)} ${(PAD.top + cH).toFixed(1)} Z`;
+          const yGrids = [0, 25, 50, 75, 100];
+          return (
+            <div className="bg-white rounded-xl border border-slate-100 p-4">
+              <p className="text-sm font-bold text-slate-700 mb-0.5">Performance Trend</p>
+              <p className="text-xs text-slate-400 mb-3">Average score across all semesters</p>
+              <div className="overflow-x-auto">
+                <svg viewBox={`0 0 ${VW} ${VH}`} width="100%" style={{ minWidth: Math.max(280, n * 64) }}>
+                  {/* y-axis grid lines */}
+                  {yGrids.map(v => (
+                    <g key={v}>
+                      <line
+                        x1={PAD.left} y1={yOf(v)} x2={PAD.left + cW} y2={yOf(v)}
+                        stroke="#f1f5f9" strokeWidth={1}
+                      />
+                      <text x={PAD.left - 6} y={yOf(v) + 4} textAnchor="end" fontSize={9} fill="#94a3b8">
+                        {v}
+                      </text>
+                    </g>
+                  ))}
+                  {/* area fill */}
+                  <path d={areaPath} fill="#145C44" fillOpacity={0.08} />
+                  {/* line */}
+                  <path d={linePath} fill="none" stroke="#145C44" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+                  {/* data points + labels */}
+                  {pts.map(({ x, y, h }) => (
+                    <g key={h.label}>
+                      <circle cx={x} cy={y} r={5} fill="#145C44" stroke="white" strokeWidth={2} />
+                      <text x={x} y={y - 10} textAnchor="middle" fontSize={9} fontWeight="700" fill="#145C44">
+                        {h.average}%
+                      </text>
+                      <text x={x} y={PAD.top + cH + 14} textAnchor="middle" fontSize={8.5} fill="#64748b">
+                        {h.academic_year.replace('/', '/​')}
+                      </text>
+                      <text x={x} y={PAD.top + cH + 26} textAnchor="middle" fontSize={8.5} fill="#94a3b8">
+                        Sem {h.semester}
+                      </text>
+                      <text x={x} y={PAD.top + cH + 38} textAnchor="middle" fontSize={8} fontWeight="700" fill={gradeColor(h.grade)}>
+                        {h.grade}
+                      </text>
+                    </g>
+                  ))}
+                </svg>
+              </div>
 
-            <p className="text-xs font-bold text-slate-400 font-medium mt-5 mb-3">Subjects Sat Per Semester</p>
-            <div className="flex flex-wrap gap-2">
-              {history.map(h => (
-                <div key={h.label} className="text-center px-3 py-2 rounded-lg bg-[#F5F0E8] border border-slate-100">
-                  <p className="text-xs text-slate-400">{h.label}</p>
-                  <p className="text-lg font-bold text-slate-700">{h.subject_count}</p>
-                </div>
-              ))}
+              <p className="text-xs font-bold text-slate-400 mt-5 mb-3">Subjects Sat Per Semester</p>
+              <div className="flex flex-wrap gap-2">
+                {history.map(h => (
+                  <div key={h.label} className="text-center px-3 py-2 rounded-lg bg-[#F5F0E8] border border-slate-100">
+                    <p className="text-xs text-slate-400">{h.label}</p>
+                    <p className="text-lg font-bold text-slate-700">{h.subject_count}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Best semester callout */}
         {history.length > 0 && (() => {

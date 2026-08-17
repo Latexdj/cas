@@ -409,7 +409,7 @@ router.get('/results/history', async (req, res, next) => {
         [req.schoolId, student.id]
       ),
       pool.query(
-        `SELECT academic_year_id, semester, subject, total_score
+        `SELECT academic_year_id, semester, subject, total_score, class_score AS ca_score, exam_score
          FROM results_import WHERE school_id = $1 AND student_id = $2`,
         [req.schoolId, student.id]
       ),
@@ -427,7 +427,7 @@ router.get('/results/history', async (req, res, next) => {
       const p = addPeriod(r.academic_year_id, r.semester);
       const sub = r.subject;
       if (!p.subjects[sub]) p.subjects[sub] = { caRaw: 0, caMaxRaw: 0, exam: null, examMax: null };
-      const mc = modes.find(m => m.id === r.mode_id)?.ca_contribution ?? 0;
+      const mc = parseFloat(modes.find(m => m.id === r.mode_id)?.ca_contribution ?? 0);
       p.subjects[sub].caRaw    += r.max_score > 0 ? (parseFloat(r.score) / parseFloat(r.max_score)) * mc : 0;
       p.subjects[sub].caMaxRaw += mc;
     }
@@ -439,7 +439,14 @@ router.get('/results/history', async (req, res, next) => {
     }
     for (const r of allImported) {
       const p = addPeriod(r.academic_year_id, r.semester);
-      if (!p.subjects[r.subject]) p.subjects[r.subject] = { imported: true, total: r.total_score };
+      if (!p.subjects[r.subject]) {
+        const rawTotal = r.total_score != null
+          ? parseFloat(r.total_score)
+          : (r.ca_score != null && r.exam_score != null
+              ? parseFloat(r.ca_score) + parseFloat(r.exam_score)
+              : null);
+        p.subjects[r.subject] = { imported: true, total: rawTotal };
+      }
     }
 
     const history = [];
@@ -447,7 +454,7 @@ router.get('/results/history', async (req, res, next) => {
       const yearInfo = years.find(y => y.id === p.year_id);
       if (!yearInfo) continue;
       const tots = Object.values(p.subjects).map(d => {
-        if (d.imported && d.total != null) return d.total;
+        if (d.imported && d.total != null) return parseFloat(d.total);
         const ca = d.caMaxRaw > 0 ? (d.caRaw / d.caMaxRaw) * caPercentage : null;
         const ex = d.exam !== null && d.examMax > 0 ? (d.exam / d.examMax) * examPct : null;
         return ca !== null && ex !== null ? ca + ex : null;
