@@ -206,13 +206,13 @@ router.get('/', async (req, res, next) => {
           for (const mode of modes) {
             const modeScores = studentSubjectModes[mode.id] || [];
             if (modeScores.length === 0) continue;
-            const avgPct = modeScores.reduce((sum, s) => sum + (s.score / s.max_score * 100), 0) / modeScores.length;
+            const avgPct = modeScores.reduce((sum, s) => sum + Math.min(100, s.score / s.max_score * 100), 0) / modeScores.length;
             caScore += (avgPct * parseFloat(mode.ca_contribution)) / 100;
           }
           const scaledCA = totalConfiguredCA > 0 ? (caScore / totalConfiguredCA) * caPercentage : caScore;
 
           const examEntry = examData[st.id]?.[subject];
-          const examScore = examEntry ? (examEntry.score / examEntry.max_score) * examPercentage : null;
+          const examScore = examEntry ? Math.min(1, examEntry.score / examEntry.max_score) * examPercentage : null;
           const total = (examScore != null) ? Math.round(scaledCA + examScore) : null;
 
           subjectResults[subject].push({
@@ -642,12 +642,12 @@ router.get('/transcript/:student_id', async (req, res, next) => {
           for (const mode of modes) {
             const ms = myCA[subject]?.[mode.id] || [];
             if (!ms.length) continue;
-            const avgPct = ms.reduce((s, r) => s + (r.score / r.max_score * 100), 0) / ms.length;
+            const avgPct = ms.reduce((s, r) => s + Math.min(100, r.score / r.max_score * 100), 0) / ms.length;
             caScore += (avgPct * parseFloat(mode.ca_contribution)) / 100;
           }
           const scaledCA = totalConfiguredCA > 0 ? (caScore / totalConfiguredCA) * caPercentage : caScore;
           const ee = myExam[subject];
-          const ev = ee ? (ee.score / ee.max_score) * examPercentage : null;
+          const ev = ee ? Math.min(1, ee.score / ee.max_score) * examPercentage : null;
           total     = ev != null ? Math.round(scaledCA + ev) : null;
           ca_score  = Math.round(scaledCA * 10) / 10;
           exam_score = ev != null ? Math.round(ev * 10) / 10 : null;
@@ -712,12 +712,12 @@ router.get('/transcript/:student_id', async (req, res, next) => {
                 for (const mode of modes) {
                   const ms = cCA[subj]?.[mode.id] || [];
                   if (!ms.length) continue;
-                  const ap = ms.reduce((s, r) => s + (r.score / r.max_score * 100), 0) / ms.length;
+                  const ap = ms.reduce((s, r) => s + Math.min(100, r.score / r.max_score * 100), 0) / ms.length;
                   cs += (ap * parseFloat(mode.ca_contribution)) / 100;
                 }
                 const sca = totalConfiguredCA > 0 ? (cs / totalConfiguredCA) * caPercentage : cs;
                 const ee2 = cEx[subj];
-                const ev2 = ee2 ? (ee2.score / ee2.max_score) * examPercentage : null;
+                const ev2 = ee2 ? Math.min(1, ee2.score / ee2.max_score) * examPercentage : null;
                 t = ev2 != null ? Math.round((sca + ev2) * 10) / 10 : null;
               }
               if (t != null) { sum += t; cnt++; }

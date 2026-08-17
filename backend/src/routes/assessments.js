@@ -615,6 +615,19 @@ router.put('/:id', async (req, res, next) => {
     if (max_score !== undefined && (!max_score || parseFloat(max_score) <= 0)) {
       return res.status(400).json({ error: 'max_score must be greater than 0' });
     }
+    if (max_score !== undefined) {
+      const newMax = parseFloat(max_score);
+      const { rows: highScoreRows } = await pool.query(
+        'SELECT MAX(score) AS highest FROM assessment_scores WHERE assessment_id = $1 AND score IS NOT NULL AND absent = false',
+        [req.params.id]
+      );
+      const highest = parseFloat(highScoreRows[0]?.highest || 0);
+      if (highest > 0 && newMax < highest) {
+        return res.status(400).json({
+          error: `Cannot reduce max score to ${newMax} — a student already has a score of ${highest} for this assessment. Update or clear that score first.`
+        });
+      }
+    }
     const finalMaxScore = max_score !== undefined ? parseFloat(max_score) : assessment.max_score;
 
     const { rows } = await pool.query(

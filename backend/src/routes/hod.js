@@ -416,7 +416,7 @@ router.get('/results', hodOnly, async (req, res, next) => {
     for (const e of examScores) (examByStudent[e.student_id] ??= {})[e.subject] = e;
 
     const allSubjects = [...new Set([...assessments.map(a=>a.subject), ...examScores.map(e=>e.subject)])].sort();
-    const totalConfiguredCA = modes.reduce((s, m) => s + parseFloat(m.ca_contribution || 0), 0);
+    const totalConfiguredCA = modes.reduce((s, m) => s + parseFloat(m.ca_contribution || 0), 0) || caPercentage;
 
     const results = students.map(student => {
       const examBody = student.exam_body || 'WAEC';
@@ -436,7 +436,7 @@ router.get('/results', hodOnly, async (req, res, next) => {
             const scores = mas.map(a => {
               const sc = (caByStudent[student.id]??{})[a.id];
               if (!sc||sc.absent||sc.score===null) return null;
-              return (parseFloat(sc.score)/parseFloat(a.max_score))*100;
+              return Math.min(100, (parseFloat(sc.score)/parseFloat(a.max_score))*100);
             }).filter(s=>s!==null);
             if (scores.length) { hasCA=true; wSum += (scores.reduce((a,b)=>a+b,0)/scores.length)*parseFloat(mode.ca_contribution||0)/100; }
           }
@@ -444,7 +444,7 @@ router.get('/results', hodOnly, async (req, res, next) => {
         }
 
         let examScore = null;
-        if (examEntry?.score != null) examScore = (parseFloat(examEntry.score)/parseFloat(examEntry.max_score||100))*examPercentage;
+        if (examEntry?.score != null) examScore = Math.min(1, parseFloat(examEntry.score)/parseFloat(examEntry.max_score||100))*examPercentage;
 
         if (caScore === null && examScore === null) continue;
         const roundedCA   = caScore   !== null ? Math.round(caScore   * 10) / 10 : null;

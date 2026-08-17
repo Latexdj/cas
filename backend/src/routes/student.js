@@ -151,7 +151,7 @@ router.get('/results', async (req, res, next) => {
     for (const row of assessments) {
       if (!subjectMap[row.subject]) subjectMap[row.subject] = { caRaw: 0, caMaxRaw: 0, exam: null, examMax: null, imported: false };
       const modeContrib = parseFloat(modes.find(m => m.id === row.mode_id)?.ca_contribution ?? 0);
-      const scaledScore = row.max_score > 0 ? (parseFloat(row.score) / parseFloat(row.max_score)) * modeContrib : 0;
+      const scaledScore = row.max_score > 0 ? Math.min(1, parseFloat(row.score) / parseFloat(row.max_score)) * modeContrib : 0;
       subjectMap[row.subject].caRaw    += scaledScore;
       subjectMap[row.subject].caMaxRaw += modeContrib;
     }
@@ -186,7 +186,7 @@ router.get('/results', async (req, res, next) => {
         total     = d.total;
       } else {
         caScore   = d.caMaxRaw > 0 ? (d.caRaw / d.caMaxRaw) * caPercentage : null;
-        examScore = d.exam !== null && d.examMax > 0 ? (d.exam / d.examMax) * examPct : null;
+        examScore = d.exam !== null && d.examMax > 0 ? Math.min(1, d.exam / d.examMax) * examPct : null;
         total     = caScore !== null && examScore !== null ? caScore + examScore : null;
       }
 
@@ -256,7 +256,7 @@ router.get('/results', async (req, res, next) => {
         for (const r of caR.rows) {
           if (!subMap[r.subject]) subMap[r.subject] = { caRaw: 0, caMaxRaw: 0, exam: null, examMax: null };
           const mc = parseFloat(modes.find(m => m.id === r.mode_id)?.ca_contribution ?? 0);
-          subMap[r.subject].caRaw    += r.max_score > 0 ? (parseFloat(r.score) / parseFloat(r.max_score)) * mc : 0;
+          subMap[r.subject].caRaw    += r.max_score > 0 ? Math.min(1, parseFloat(r.score) / parseFloat(r.max_score)) * mc : 0;
           subMap[r.subject].caMaxRaw += mc;
         }
         for (const r of exR.rows) {
@@ -274,7 +274,7 @@ router.get('/results', async (req, res, next) => {
           .map(([, d]) => {
             if (d.imported && d.total != null) return d.total;
             const ca = d.caMaxRaw > 0 ? (d.caRaw / d.caMaxRaw) * caPercentage : null;
-            const ex = d.exam !== null && d.examMax > 0 ? (d.exam / d.examMax) * examPct : null;
+            const ex = d.exam !== null && d.examMax > 0 ? Math.min(1, d.exam / d.examMax) * examPct : null;
             return ca !== null && ex !== null ? ca + ex : null;
           }).filter(t => t !== null);
         return tots.length ? tots.reduce((a, b) => a + b, 0) / tots.length : null;
@@ -428,7 +428,7 @@ router.get('/results/history', async (req, res, next) => {
       const sub = r.subject;
       if (!p.subjects[sub]) p.subjects[sub] = { caRaw: 0, caMaxRaw: 0, exam: null, examMax: null };
       const mc = parseFloat(modes.find(m => m.id === r.mode_id)?.ca_contribution ?? 0);
-      p.subjects[sub].caRaw    += r.max_score > 0 ? (parseFloat(r.score) / parseFloat(r.max_score)) * mc : 0;
+      p.subjects[sub].caRaw    += r.max_score > 0 ? Math.min(1, parseFloat(r.score) / parseFloat(r.max_score)) * mc : 0;
       p.subjects[sub].caMaxRaw += mc;
     }
     for (const r of allExam) {
@@ -456,7 +456,7 @@ router.get('/results/history', async (req, res, next) => {
       const tots = Object.values(p.subjects).map(d => {
         if (d.imported && d.total != null) return parseFloat(d.total);
         const ca = d.caMaxRaw > 0 ? (d.caRaw / d.caMaxRaw) * caPercentage : null;
-        const ex = d.exam !== null && d.examMax > 0 ? (d.exam / d.examMax) * examPct : null;
+        const ex = d.exam !== null && d.examMax > 0 ? Math.min(1, d.exam / d.examMax) * examPct : null;
         return ca !== null && ex !== null ? ca + ex : null;
       }).filter(t => t !== null);
 

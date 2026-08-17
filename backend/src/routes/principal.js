@@ -1300,7 +1300,7 @@ router.get('/results', async (req, res, next) => {
 
         // Calculate CA
         let caScore = null;
-        const totalConfiguredCA = modes.reduce((s, m) => s + parseFloat(m.ca_contribution || 0), 0);
+        const totalConfiguredCA = modes.reduce((s, m) => s + parseFloat(m.ca_contribution || 0), 0) || caPercentage;
         let hasAnyCA = false;
 
         if (Object.keys(modeGroups).length > 0) {
@@ -1311,7 +1311,7 @@ router.get('/results', async (req, res, next) => {
             const scores = modeAssessments.map(a => {
               const sc = (caByStudent[student.id] ?? {})[a.id];
               if (!sc || sc.absent) return null;
-              return (parseFloat(sc.score) / parseFloat(a.max_score)) * 100;
+              return Math.min(100, (parseFloat(sc.score) / parseFloat(a.max_score)) * 100);
             }).filter(s => s !== null);
             if (scores.length) {
               hasAnyCA = true;
@@ -1327,7 +1327,7 @@ router.get('/results', async (req, res, next) => {
         // Calculate exam
         let examScore = null;
         if (examEntry?.score != null) {
-          examScore = (parseFloat(examEntry.score) / parseFloat(examEntry.max_score || 100)) * examPercentage;
+          examScore = Math.min(1, parseFloat(examEntry.score) / parseFloat(examEntry.max_score || 100)) * examPercentage;
         }
 
         let total = null, grade = null, remark = null, isImported = false;
