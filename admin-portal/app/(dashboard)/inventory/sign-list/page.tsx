@@ -278,7 +278,7 @@ export default function SignListPage() {
                 <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin mx-auto mb-2"
                   style={{ borderColor: '#16A34A', borderTopColor: 'transparent' }} />
               ) : (
-                
+                <p className="text-3xl font-bold tabular-nums" style={{ color: '#145C44' }}>{count ?? '—'}</p>
               )}
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                 {recipientType === 'students' ? 'students' : 'teachers'} match filters
