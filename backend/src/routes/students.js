@@ -235,11 +235,17 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       if (val instanceof Date) return isNaN(val) ? null : val.toISOString().slice(0, 10);
       const s = String(val).trim();
       if (!s) return null;
-      let d = new Date(s);
-      if (!isNaN(d)) return d.toISOString().slice(0, 10);
+      // Reject bare 4-digit years — new Date("2001") gives 2001-01-01, not a real birthday
+      if (/^\d{4}$/.test(s)) return null;
+      // Prefer explicit YYYY-MM-DD parsing (UTC) to avoid locale-dependent new Date() quirks
+      const ymd = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+      if (ymd) {
+        const d = new Date(`${ymd[1]}-${ymd[2].padStart(2,'0')}-${ymd[3].padStart(2,'0')}`);
+        if (!isNaN(d)) return d.toISOString().slice(0, 10);
+      }
       const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
       if (dmy) {
-        d = new Date(`${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`);
+        const d = new Date(`${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`);
         if (!isNaN(d)) return d.toISOString().slice(0, 10);
       }
       return null;
@@ -369,11 +375,15 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
       if (val instanceof Date) return isNaN(val) ? undefined : val.toISOString().slice(0, 10);
       const s = String(val).trim();
       if (!s) return undefined;
-      let d = new Date(s);
-      if (!isNaN(d)) return d.toISOString().slice(0, 10);
+      if (/^\d{4}$/.test(s)) return undefined;
+      const ymd = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+      if (ymd) {
+        const d = new Date(`${ymd[1]}-${ymd[2].padStart(2,'0')}-${ymd[3].padStart(2,'0')}`);
+        if (!isNaN(d)) return d.toISOString().slice(0, 10);
+      }
       const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
       if (dmy) {
-        d = new Date(`${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`);
+        const d = new Date(`${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`);
         if (!isNaN(d)) return d.toISOString().slice(0, 10);
       }
       return undefined;
