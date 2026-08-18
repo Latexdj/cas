@@ -1,21 +1,26 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { studentApi } from '@/lib/student-api';
 import { getStudentColors } from '@/lib/student-auth';
 
 interface TimetableRow {
-  id: string; day_of_week: number; start_time: string; end_time: string;
+  id: string; day_of_week: string; start_time: string; end_time: string;
   subject: string; class_names: string; teacher_name: string;
 }
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const TODAY_DAY = (() => { const d = new Date().getDay(); return d === 0 ? 7 : d; })();
+
+// getDay(): 0=Sun 1=Mon … 6=Sat → map to DAYS index (0=Mon … 6=Sun)
+const TODAY_NAME = (() => {
+  const d = new Date().getDay();
+  return DAYS[d === 0 ? 6 : d - 1];
+})();
 
 export default function StudentTimetablePage() {
   const [rows,    setRows]    = useState<TimetableRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selDay,  setSelDay]  = useState(TODAY_DAY);
+  const [selDay,  setSelDay]  = useState(TODAY_NAME);
   const colors = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
   const primary = colors.primary;
 
@@ -26,8 +31,13 @@ export default function StudentTimetablePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const days = [...new Set(rows.map(r => Number(r.day_of_week)))].sort((a, b) => a - b);
-  const dayRows = rows.filter(r => Number(r.day_of_week) === selDay).sort((a, b) => a.start_time.localeCompare(b.start_time));
+  // Unique days in calendar order
+  const days = [...new Set(rows.map(r => r.day_of_week))]
+    .sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b));
+
+  const dayRows = rows
+    .filter(r => r.day_of_week === selDay)
+    .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
   if (loading) {
     return (
@@ -40,7 +50,6 @@ export default function StudentTimetablePage() {
   if (!rows.length) {
     return (
       <div className="p-6 text-center text-slate-400">
-        
         <p className="font-semibold text-slate-600">No timetable found</p>
         <p className="text-sm mt-1">Your school hasn&apos;t published a timetable yet.</p>
       </div>
@@ -54,14 +63,14 @@ export default function StudentTimetablePage() {
 
         {/* Day selector */}
         <div className="flex gap-1.5 flex-wrap">
-          {days.map(d => (
-            <button key={d} onClick={() => setSelDay(d)}
+          {days.map(dayName => (
+            <button key={dayName} onClick={() => setSelDay(dayName)}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-              style={selDay === d
+              style={selDay === dayName
                 ? { background: primary, color: '#fff' }
                 : { background: '#f1f5f9', color: '#64748b' }}>
-              {DAYS[d - 1]?.slice(0, 3)}
-              {d === TODAY_DAY && <span className="ml-1 text-[9px] opacity-70">Today</span>}
+              {dayName.slice(0, 3)}
+              {dayName === TODAY_NAME && <span className="ml-1 text-[9px] opacity-70">Today</span>}
             </button>
           ))}
         </div>
@@ -69,14 +78,18 @@ export default function StudentTimetablePage() {
 
       {dayRows.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-100 p-10 text-center">
-          <p className="text-slate-500 font-medium">No classes on {DAYS[(selDay - 1)] ?? 'this day'}.</p>
+          <p className="text-slate-500 font-medium">No classes on {selDay}.</p>
           <p className="text-slate-400 text-sm mt-1">Select another day to view its schedule.</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {dayRows.map(r => (
+          {dayRows.map((r, i) => (
             <div key={r.id} className="bg-white rounded-xl border border-slate-100 px-4 py-3 flex items-center gap-4">
-              <div className="shrink-0 text-center w-16">
+              <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
+                style={{ background: '#E8F4EE', color: '#145C44' }}>
+                {i + 1}
+              </div>
+              <div className="shrink-0 text-center w-20">
                 <p className="text-xs font-mono font-semibold text-slate-700">{r.start_time.slice(0, 5)}</p>
                 <p className="text-[10px] text-slate-400">to</p>
                 <p className="text-xs font-mono font-semibold text-slate-700">{r.end_time.slice(0, 5)}</p>
@@ -95,20 +108,19 @@ export default function StudentTimetablePage() {
       {/* Full week overview (desktop) */}
       <div className="hidden md:block space-y-2">
         <p className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">Weekly Overview</p>
-        {days.map(d => {
-          const dayLabel = DAYS[d - 1] ?? `Day ${d}`;
+        {days.map(dayName => {
           const dayEntries = rows
-            .filter(r => Number(r.day_of_week) === d)
+            .filter(r => r.day_of_week === dayName)
             .sort((a, b) => a.start_time.localeCompare(b.start_time));
-          const isToday = d === TODAY_DAY;
+          const isToday = dayName === TODAY_NAME;
           return (
-            <div key={d} className="rounded-xl overflow-hidden"
+            <div key={dayName} className="rounded-xl overflow-hidden"
               style={{ border: isToday ? '1.5px solid #145C44' : '1px solid #E8E0D5' }}>
               {/* Day header */}
               <div className="px-4 py-2.5 flex items-center justify-between"
                 style={{ background: isToday ? '#0B3D2E' : '#F5F0E8' }}>
                 <div className="flex items-center gap-2.5">
-                  <span className="text-sm font-bold" style={{ color: isToday ? '#fff' : '#3C2F20' }}>{dayLabel}</span>
+                  <span className="text-sm font-bold" style={{ color: isToday ? '#fff' : '#3C2F20' }}>{dayName}</span>
                   {isToday && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#C8973A', color: '#0B3D2E' }}>Today</span>
                   )}
@@ -120,7 +132,7 @@ export default function StudentTimetablePage() {
               {/* Period rows */}
               <div className="bg-white divide-y divide-slate-50">
                 {dayEntries.map((r, i) => (
-                  <div key={r.id} className="px-4 py-3 flex items-center gap-4 group hover:bg-[#FDFAF5] transition-colors">
+                  <div key={r.id} className="px-4 py-3 flex items-center gap-4 hover:bg-[#FDFAF5] transition-colors">
                     <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
                       style={{ background: isToday ? '#E8F4EE' : '#F1EDE6', color: isToday ? '#145C44' : '#8C7E6E' }}>
                       {i + 1}
