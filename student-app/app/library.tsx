@@ -90,7 +90,7 @@ export default function LibraryScreen() {
                   {book.subject && <Text style={[s.bookSubject, { color: C.accent }]}>{book.subject}</Text>}
                 </View>
                 <View style={[s.availBadge, { backgroundColor: book.available > 0 ? '#DCFCE7' : '#FEE2E2' }]}>
-                  <Text style={[s.availText, { color: book.available > 0 ? '#15803D' : '#DC2626' }]}>
+                  <Text style={[s.availText, { color: book.available > 0 ? '#145C44' : '#DC2626' }]}>
                     {book.available > 0 ? `${book.available} avail.` : 'Unavail.'}
                   </Text>
                 </View>

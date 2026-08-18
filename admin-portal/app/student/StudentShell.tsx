@@ -225,7 +225,8 @@ export default function StudentShell({ children }: { children: ReactNode }) {
 
         <div className="px-4 py-3" style={{ borderTop: `1px solid ${sidebarBorder}` }}>
           <button onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors">
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors"
+            style={{ color: '#B83232' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
             </svg>
@@ -245,7 +246,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
             <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: primary }}>S</div>
           )}
           <span className="font-bold text-sm flex-1" style={{ color: primary }}>Student Portal</span>
-          <button onClick={handleLogout} className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-950">
+          <button onClick={handleLogout} className="p-1.5 rounded-lg transition-colors" style={{ color: '#B83232' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
             </svg>
@@ -262,7 +263,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
 
       {/* ── Mobile More bottom-sheet ── */}
       {moreOpen && (
-        <div className={`md:hidden fixed bottom-[60px] left-0 right-0 rounded-t-2xl shadow-2xl z-40 px-4 pt-4 pb-5 ${isDark ? 'bg-slate-800 border-t border-slate-700' : 'bg-white border-t border-slate-200'}`}>
+        <div className={`md:hidden fixed bottom-[60px] left-0 right-0 rounded-t-xl shadow-2xl z-40 px-4 pt-4 pb-5 ${isDark ? 'bg-slate-800 border-t border-slate-700' : 'bg-white border-t border-slate-200'}`}>
           <div className="flex items-center justify-between mb-3">
             <p className={`text-sm font-bold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>More</p>
             <button onClick={() => setMoreOpen(false)}

@@ -11,9 +11,9 @@ interface AttSummary { present: number; absent: number; late: number; total: num
 interface Session { id: string; date: string; subject: string; class_name: string; semester: number; teacher_name: string | null; status: 'Present' | 'Absent' | 'Late'; }
 
 const STATUS_STYLE: Record<string, { bg: string; text: string }> = {
-  Present: { bg: 'bg-[#E8F4EE]',  text: 'text-[#145C44]' },
-  Absent:  { bg: 'bg-red-50',   text: 'text-red-600'   },
-  Late:    { bg: 'bg-amber-50', text: 'text-amber-700' },
+  Present: { bg: 'bg-[#E8F4EE]',    text: 'text-[#145C44]'  },
+  Absent:  { bg: 'bg-[#FEF2F2]',    text: 'text-[#B83232]'  },
+  Late:    { bg: 'bg-amber-50',     text: 'text-amber-700'  },
 };
 
 export default function StudentAttendancePage() {
@@ -46,7 +46,7 @@ export default function StudentAttendancePage() {
   }, [yearId, semester]);
 
   const rate = summary?.rate ?? null;
-  const rateColor = rate === null ? '#94A3B8' : rate >= 85 ? '#16a34a' : rate >= 70 ? '#d97706' : '#dc2626';
+  const rateColor = rate === null ? '#94A3B8' : rate >= 85 ? '#2D7A4F' : rate >= 70 ? '#d97706' : '#B83232';
 
   const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(sessions);
 
@@ -58,16 +58,16 @@ export default function StudentAttendancePage() {
         <div>
           <label className="text-xs font-bold text-slate-400 font-medium block mb-1">Academic Year</label>
           <select value={yearId} onChange={e => setYearId(e.target.value)} disabled={!yearsReady}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44] disabled:opacity-50">
             {!yearsReady && <option value="">Loading…</option>}
             {yearsReady && years.length === 0 && <option value="">No academic years found</option>}
-            {years.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>)}
+            {years.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (current)' : ''}</option>)}
           </select>
         </div>
         <div>
           <label className="text-xs font-bold text-slate-400 font-medium block mb-1">Semester</label>
           <select value={semester} onChange={e => setSemester(e.target.value)}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]">
             <option value="">All</option>
             <option value="1">Semester 1</option>
             <option value="2">Semester 2</option>
@@ -88,7 +88,7 @@ export default function StudentAttendancePage() {
             <div className="grid grid-cols-3 gap-3 mb-4">
               {[
                 { label: 'Present', value: summary.present, bg: 'bg-[#E8F4EE]', text: 'text-[#145C44]' },
-                { label: 'Absent',  value: summary.absent,  bg: 'bg-red-50',   text: 'text-red-600'   },
+                { label: 'Absent',  value: summary.absent,  bg: 'bg-[#FEF2F2]', text: 'text-[#B83232]' },
                 { label: 'Late',    value: summary.late,    bg: 'bg-amber-50', text: 'text-amber-700' },
               ].map(({ label, value, bg, text }) => (
                 <div key={label} className={`rounded-xl p-3 text-center ${bg}`}>
@@ -108,8 +108,12 @@ export default function StudentAttendancePage() {
               </span>
             </div>
             {rate !== null && rate < 75 && (
-              <div className="mt-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                <p className="text-xs font-semibold text-red-700">⚠ Your attendance is below 75%. You may be at risk of being barred from exams.</p>
+              <div className="mt-3 rounded-lg px-3 py-2 flex items-start gap-2" style={{ background: '#FEF2F2', border: '1px solid #FECACA' }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="#B83232" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0 mt-0.5">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                <p className="text-xs font-semibold" style={{ color: '#B83232' }}>Attendance below 75% — you may be at risk of being barred from exams.</p>
               </div>
             )}
           </div>
@@ -124,10 +128,13 @@ export default function StudentAttendancePage() {
         </div>
         {loading ? (
           <div className="flex justify-center py-10">
-            <div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+            <div className="w-7 h-7 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
           </div>
         ) : sessions.length === 0 ? (
-          <div className="p-10 text-center text-slate-400 text-sm">No attendance records found for this period.</div>
+          <div className="p-10 text-center">
+            <p className="text-slate-500 text-sm font-medium">No attendance records for this period.</p>
+            <p className="text-slate-400 text-xs mt-1">Try a different year or semester.</p>
+          </div>
         ) : (
           <div className="divide-y divide-slate-50">
             {(displayRows as typeof sessions).map(s => {

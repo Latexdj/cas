@@ -25,7 +25,7 @@ export default function MoreScreen() {
     { label: 'Timetable', icon: 'calendar-outline',      iconColor: '#D97706', route: '/timetable', color: '#FEF3C7' },
     { label: 'Calendar',  icon: 'calendar-number-outline',iconColor: '#1D4ED8', route: '/calendar',  color: '#EFF6FF' },
     { label: 'Fees',      icon: 'card-outline',           iconColor: '#DC2626', route: '/fees',      color: '#FEF2F2' },
-    { label: 'Clearance', icon: 'document-text-outline',  iconColor: '#15803D', route: '/clearance', color: '#F0FDF4' },
+    { label: 'Clearance', icon: 'document-text-outline',  iconColor: '#145C44', route: '/clearance', color: '#F0FDF4' },
     { label: 'Library',   icon: 'library-outline',        iconColor: '#7C3AED', route: '/library',   color: '#EDE9FE' },
     { label: 'Exeat',     icon: 'exit-outline',           iconColor: '#EA580C', route: '/exeat',     color: '#FFF7ED' },
     { label: 'LMS',       icon: 'school-outline',         iconColor: '#0F766E', route: '/lms',       color: '#ECFDF5' },

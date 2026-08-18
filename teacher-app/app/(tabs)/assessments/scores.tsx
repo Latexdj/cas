@@ -99,7 +99,7 @@ export default function ScoresScreen() {
       </View>
 
       {error ? <Text style={[styles.errBanner, { backgroundColor: Colors.dangerLight, color: Colors.danger }]}>{error}</Text> : null}
-      {saved ? <Text style={[styles.errBanner, { backgroundColor: '#DCFCE7', color: '#15803D' }]}>âœ“ Scores saved.</Text> : null}
+      {saved ? <Text style={[styles.errBanner, { backgroundColor: '#DCFCE7', color: '#145C44' }]}>âœ“ Scores saved.</Text> : null}
 
       <FlatList
         data={rows}

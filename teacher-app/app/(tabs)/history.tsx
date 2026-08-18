@@ -426,7 +426,7 @@ export default function HistoryScreen() {
   /* ── Sessions tab ── */
   if (tab === 'sessions') {
     const statusColor: Record<string, { bg: string; color: string }> = {
-      Present: { bg: '#DCFCE7', color: '#15803D' },
+      Present: { bg: '#DCFCE7', color: '#145C44' },
       Absent:  { bg: '#FEF2F2', color: '#DC2626' },
       Late:    { bg: '#FFFBEB', color: '#D97706' },
     };
@@ -475,7 +475,7 @@ export default function HistoryScreen() {
                 </View>
                 <View style={styles.statRow}>
                   {[
-                    { label: 'Present', val: sess.present, color: '#15803D', bg: '#DCFCE7' },
+                    { label: 'Present', val: sess.present, color: '#145C44', bg: '#DCFCE7' },
                     { label: 'Absent',  val: sess.absent,  color: '#DC2626', bg: '#FEF2F2' },
                     { label: 'Late',    val: sess.late,    color: '#D97706', bg: '#FFFBEB' },
                   ].map(({ label, val, color, bg }) => (
@@ -503,7 +503,7 @@ export default function HistoryScreen() {
                 </View>
                 {detail && (
                   <View style={styles.modalCounts}>
-                    <Text style={[styles.modalCountText, { color: '#15803D' }]}>
+                    <Text style={[styles.modalCountText, { color: '#145C44' }]}>
                       {detail.records.filter(r => r.status === 'Present').length} Present
                     </Text>
                     <Text style={[styles.modalCountText, { color: '#DC2626' }]}>
@@ -555,7 +555,7 @@ export default function HistoryScreen() {
       PLC:        { bg: '#EDE9FE', color: '#7C3AED' },
       Staff:      { bg: '#DBEAFE', color: '#1D4ED8' },
       Department: { bg: '#FEF3C7', color: '#D97706' },
-      General:    { bg: '#F0FDF4', color: '#15803D' },
+      General:    { bg: '#F0FDF4', color: '#145C44' },
     };
 
     return (
@@ -724,7 +724,7 @@ export default function HistoryScreen() {
 
                 {isOpen && students.map(s => {
                   const pct = s.present_pct ?? 0;
-                  const barColor = pct >= 90 ? '#15803D' : pct >= RISK_THRESHOLD ? '#D97706' : '#DC2626';
+                  const barColor = pct >= 90 ? '#145C44' : pct >= RISK_THRESHOLD ? '#D97706' : '#DC2626';
                   const isLow = s.present_pct !== null && s.present_pct < RISK_THRESHOLD;
                   return (
                     <View key={s.id} style={[styles.studentRow, isLow && { backgroundColor: '#FFF8F8' }]}>
@@ -816,7 +816,7 @@ const styles = StyleSheet.create({
   meetingTypeText:    { fontSize: 11, fontWeight: '700' },
   meetingMeta:        { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
   meetingMetaText:    { fontSize: 12, color: '#8C7E6E' },
-  meetingVerified:    { fontSize: 12, color: '#15803D', fontWeight: '600' },
+  meetingVerified:    { fontSize: 12, color: '#145C44', fontWeight: '600' },
   meetingNotes:       { fontSize: 13, color: '#4A3F32', fontStyle: 'italic', marginTop: 6, lineHeight: 18 },
   loadMoreBtn:        { borderWidth: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
   loadMoreText:       { fontSize: 13, fontWeight: '700' },

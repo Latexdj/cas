@@ -38,7 +38,7 @@ const fmtDate = (d: string) =>
 function StatusBadge({ balance, amount }: { balance: number; amount: number }) {
   if (balance <= 0)             return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#D1EAD9] text-[#145C44]">Paid</span>;
   if (balance < amount)         return <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Part Paid</span>;
-  return                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Unpaid</span>;
+  return                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#FEF2F2] text-[#B83232]">Unpaid</span>;
 }
 
 type Tab = 'bills' | 'payments';
@@ -70,7 +70,7 @@ export default function StudentFeesPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+      <div className="w-8 h-8 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
     </div>
   );
 
@@ -104,14 +104,14 @@ export default function StudentFeesPage() {
 
       {/* Outstanding alert */}
       {hasOutstanding && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-3">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 shrink-0 mt-0.5">
+        <div className="rounded-xl px-4 py-3 flex items-start gap-3" style={{ background: '#FEF2F2', border: '1px solid #FECACA' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#B83232" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 shrink-0 mt-0.5">
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
             <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
           <div>
-            <p className="text-sm font-bold text-red-700">Outstanding Balance — {fmt(summary.outstanding)}</p>
-            <p className="text-xs text-red-600 mt-0.5">Please settle your outstanding fees. Unpaid balances may affect your clearance.</p>
+            <p className="text-sm font-bold" style={{ color: '#B83232' }}>Outstanding Balance — {fmt(summary.outstanding)}</p>
+            <p className="text-xs mt-0.5" style={{ color: '#B83232' }}>Unpaid balances may affect your clearance and exam eligibility.</p>
           </div>
         </div>
       )}
@@ -123,7 +123,7 @@ export default function StudentFeesPage() {
           {[
             { label: 'Total Billed', value: fmt(summary.total_billed), color: 'text-white' },
             { label: 'Total Paid',   value: fmt(summary.total_paid),   color: 'text-[#5DAA82]' },
-            { label: 'Outstanding',  value: fmt(summary.outstanding),  color: hasOutstanding ? 'text-red-300' : 'text-[#5DAA82]' },
+            { label: 'Outstanding',  value: fmt(summary.outstanding),  color: hasOutstanding ? 'text-[#FF9090]' : 'text-[#5DAA82]' },
           ].map(({ label, value, color }) => (
             <div key={label} className="text-center">
               <p className={`text-base font-bold ${color}`}>{value}</p>
@@ -137,10 +137,10 @@ export default function StudentFeesPage() {
               <span>Payment Progress</span>
               <span className="font-bold text-white">{collectionPct}%</span>
             </div>
-            <div className="w-full bg-white/20 rounded-full h-2 overflow-hidden">
+            <div className="w-full bg-white/30 rounded-full h-2 overflow-hidden">
               <div
                 className="h-2 rounded-full transition-all"
-                style={{ width: `${collectionPct}%`, background: collectionPct >= 100 ? '#4ade80' : collectionPct >= 60 ? '#fbbf24' : '#f87171' }}
+                style={{ width: `${collectionPct}%`, background: collectionPct >= 100 ? '#2D7A4F' : collectionPct >= 60 ? '#fbbf24' : '#B83232' }}
               />
             </div>
           </div>
@@ -169,7 +169,8 @@ export default function StudentFeesPage() {
         <div className="space-y-3">
           {bills.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-100 p-8 text-center">
-              <p className="text-slate-400 text-sm font-medium">No fee bills yet</p>
+              <p className="text-slate-500 text-sm font-medium">No fee bills on record.</p>
+              <p className="text-slate-400 text-xs mt-1">Contact your school administrator if you expect bills to appear here.</p>
             </div>
           ) : (billRows as typeof bills).map(bill => {
             const name = bill.fee_item_name || bill.label || bill.schedule_name || 'Fee Bill';
@@ -195,7 +196,7 @@ export default function StudentFeesPage() {
                   </div>
                   <div>
                     <p className="text-[10px] text-slate-400 font-medium">Balance</p>
-                    <p className={`text-sm font-bold ${bill.balance > 0 ? 'text-red-600' : 'text-[#145C44]'}`}>{fmt(bill.balance)}</p>
+                    <p className="text-sm font-bold" style={{ color: bill.balance > 0 ? '#B83232' : '#145C44' }}>{fmt(bill.balance)}</p>
                   </div>
                 </div>
                 {bill.due_date && (
@@ -221,14 +222,15 @@ export default function StudentFeesPage() {
         <div className="space-y-3">
           {payments.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-100 p-8 text-center">
-              <p className="text-slate-400 text-sm font-medium">No payments recorded yet</p>
+              <p className="text-slate-500 text-sm font-medium">No payments recorded.</p>
+              <p className="text-slate-400 text-xs mt-1">Payments appear here once processed by the accounts office.</p>
             </div>
           ) : (paymentRows as typeof payments).map(pmt => {
             const label = pmt.fee_item_name || pmt.bill_label || 'Payment';
             return (
               <div key={pmt.id} className="bg-white rounded-xl border border-slate-100 p-4 flex items-start gap-3">
                 <div className="w-9 h-9 rounded-full bg-[#D1EAD9] flex items-center justify-center shrink-0 mt-0.5">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#2D7A4F" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 </div>

@@ -50,7 +50,7 @@ interface PlcTodayResponse {
 type ActiveTab = 'meetings' | 'plc';
 
 const TYPE_COLORS: Record<string, string> = {
-  'PLC':              '#15803D',
+  'PLC':              '#145C44',
   'Morning Briefing': '#1D4ED8',
   'Staff Meeting':    '#7E22CE',
   'PTA':              '#B45309',
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
   // Segmented control
   segmentWrap:           { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E2D9CC', marginBottom: 16, overflow: 'hidden' },
   segment:               { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, gap: 6, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  segmentActive:         { backgroundColor: '#F0FAF4', borderBottomColor: '#15803D' },
+  segmentActive:         { backgroundColor: '#F0FAF4', borderBottomColor: '#145C44' },
   segmentText:           { fontSize: 13, fontWeight: '700', color: '#A09282' },
   // Loading / empty
   loadingWrap:           { justifyContent: 'center', alignItems: 'center', paddingVertical: 60 },

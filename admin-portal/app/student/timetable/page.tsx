@@ -26,13 +26,13 @@ export default function StudentTimetablePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const days = [...new Set(rows.map(r => r.day_of_week))].sort();
-  const dayRows = rows.filter(r => r.day_of_week === selDay).sort((a, b) => a.start_time.localeCompare(b.start_time));
+  const days = [...new Set(rows.map(r => Number(r.day_of_week)))].sort((a, b) => a - b);
+  const dayRows = rows.filter(r => Number(r.day_of_week) === selDay).sort((a, b) => a.start_time.localeCompare(b.start_time));
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+        <div className="w-7 h-7 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
       </div>
     );
   }
@@ -68,8 +68,9 @@ export default function StudentTimetablePage() {
       </div>
 
       {dayRows.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-100 p-10 text-center text-slate-400">
-          No classes on {DAYS[(selDay - 1)] ?? 'this day'}.
+        <div className="bg-white rounded-xl border border-slate-100 p-10 text-center">
+          <p className="text-slate-500 font-medium">No classes on {DAYS[(selDay - 1)] ?? 'this day'}.</p>
+          <p className="text-slate-400 text-sm mt-1">Select another day to view its schedule.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -107,8 +108,8 @@ export default function StudentTimetablePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {rows.sort((a, b) => a.day_of_week !== b.day_of_week ? a.day_of_week - b.day_of_week : a.start_time.localeCompare(b.start_time)).map(r => (
-                <tr key={r.id} className={`hover:bg-[#F5F0E8] ${r.day_of_week === TODAY_DAY ? 'bg-blue-50/40' : ''}`}>
+              {[...rows].sort((a, b) => Number(a.day_of_week) !== Number(b.day_of_week) ? Number(a.day_of_week) - Number(b.day_of_week) : a.start_time.localeCompare(b.start_time)).map(r => (
+                <tr key={r.id} className={`hover:bg-[#F5F0E8] ${Number(r.day_of_week) === TODAY_DAY ? 'bg-[#E8F4EE]/60' : ''}`}>
                   <td className="px-4 py-2.5 font-medium text-slate-600">{DAYS[r.day_of_week - 1]?.slice(0, 3)}</td>
                   <td className="px-4 py-2.5 text-xs font-mono text-slate-500">{r.start_time.slice(0, 5)}–{r.end_time.slice(0, 5)}</td>
                   <td className="px-4 py-2.5 font-semibold text-slate-800">{r.subject}</td>

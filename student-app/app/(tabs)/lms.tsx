@@ -76,7 +76,7 @@ export default function LmsScreen() {
             const statusCfg = {
               pending:   { label: 'Pending',   color: '#D97706', bg: '#FEF3C7' },
               submitted: { label: 'Submitted', color: '#1D4ED8', bg: '#DBEAFE' },
-              graded:    { label: 'Graded',    color: '#15803D', bg: '#DCFCE7' },
+              graded:    { label: 'Graded',    color: '#145C44', bg: '#DCFCE7' },
             }[a.status] ?? { label: a.status, color: C.muted, bg: C.surfaceWarm };
             const overdue = a.status === 'pending' && a.due_date && new Date(a.due_date) < new Date();
             return (

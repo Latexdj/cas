@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator, FlatList, Linking, PermissionsAndroid,
+  ActivityIndicator, FlatList, Linking,
   Platform, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -10,8 +10,17 @@ import { router } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const LM_BASE = '/storage/emulated/0/LM';
-const LM_URI  = `file://${LM_BASE}`;
+// App-specific external dir: always readable without any permission (Android 11+)
+const APP_LM_BASE    = '/storage/emulated/0/Android/data/com.cas.student/files/LM';
+// Shared storage fallback: requires MANAGE_EXTERNAL_STORAGE on Android 11+
+const SHARED_LM_BASE = '/storage/emulated/0/LM';
+
+// Helpers for building URIs once the base is resolved
+function lmUri(base: string)  { return `file://${base}`; }
+function lmPath(base: string, stack: string[], name?: string) {
+  const parts = name ? [...stack, name] : stack;
+  return parts.length ? `${base}/${parts.join('/')}` : base;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface FsItem {
@@ -50,34 +59,43 @@ function fmtSize(bytes?: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-// ── Permission helpers ────────────────────────────────────────────────────────
-async function requestPermission(): Promise<'granted' | 'denied'> {
-  if (Platform.OS !== 'android') return 'granted';
-  const v = Number(Platform.Version);
+// ── LM base resolution ────────────────────────────────────────────────────────
+// Returns the LM base path the app should use, or null if neither location is
+// accessible. Prefers the app-specific external directory (no permission needed);
+// falls back to shared storage when that directory doesn't exist.
+async function findLmBase(): Promise<string | null> {
+  if (Platform.OS !== 'android') return SHARED_LM_BASE;
 
-  if (v >= 30) {
-    // PermissionsAndroid.check() always returns false for MANAGE_EXTERNAL_STORAGE —
-    // Android uses Environment.isExternalStorageManager(), not checkSelfPermission().
-    // Probe Android/data/ instead of the root: it is never empty (every installed
-    // app has a subfolder there) and listing it is explicitly blocked without
-    // MANAGE_EXTERNAL_STORAGE on API 30+. A non-empty result = permission granted.
-    // An empty result or an exception = permission not granted.
+  // Try every candidate location — first one with readable content wins.
+  // readDirectoryAsync is used (not getInfoAsync) because FUSE blocks stat()
+  // traversal through Android/data/ even for the app's own package dir.
+  const candidates = [
+    APP_LM_BASE,                                  // Android/data/com.cas.student/files/LM
+    SHARED_LM_BASE,                               // /storage/emulated/0/LM
+    '/storage/emulated/0/Learning materials',     // alternative name some transfers use
+    '/storage/emulated/0/Learning Materials',
+  ];
+
+  for (const base of candidates) {
     try {
-      const names = await FileSystem.readDirectoryAsync(
-        'file:///storage/emulated/0/Android/data/'
-      );
-      return names.length > 0 ? 'granted' : 'denied';
-    } catch {
-      return 'denied';
+      const names = await FileSystem.readDirectoryAsync(`file://${base}`);
+      console.log(`[CAS] probe "${base}" → ${names.length} items`);
+      if (names.length > 0) return base;
+    } catch (e: any) {
+      console.log(`[CAS] probe "${base}" threw: ${e?.message ?? e}`);
     }
   }
 
-  // Android 10 and below: runtime READ_EXTERNAL_STORAGE is sufficient.
-  const r = await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-    { title: 'Storage Access', message: 'Required to read learning materials from device storage.', buttonPositive: 'Allow', buttonNegative: 'Deny' }
-  );
-  return r === PermissionsAndroid.RESULTS.GRANTED ? 'granted' : 'denied';
+  // No candidate had content — check if shared storage is accessible at all.
+  // If the root probe also returns empty, it's a permission issue.
+  try {
+    const root = await FileSystem.readDirectoryAsync('file:///storage/emulated/0/');
+    console.log(`[CAS] root probe → ${root.length} items`);
+    if (root.length > 0) return null; // storage accessible but no LM folder found
+  } catch (e: any) {
+    console.log(`[CAS] root probe threw: ${e?.message ?? e}`);
+  }
+  return null;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -89,13 +107,15 @@ interface Props {
 export default function FileBrowser({ showBackAsClose }: Props) {
   const C = useTheme();
 
-  // Navigation stack: array of folder names relative to LM_BASE
+  const [lmBase,  setLmBase]  = useState<string | null>(null);
   const [stack,   setStack]   = useState<string[]>([]);
   const [items,   setItems]   = useState<FsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<'permission' | 'not-found' | 'other' | null>(null);
 
-  const currentUri = [LM_URI, ...stack].join('/');
+  const currentUri = lmBase
+    ? (stack.length ? `${lmUri(lmBase)}/${stack.join('/')}` : lmUri(lmBase))
+    : '';
 
   // ── Load directory ──────────────────────────────────────────────────────────
   const loadDir = useCallback(async (dirUri: string) => {
@@ -122,12 +142,10 @@ export default function FileBrowser({ showBackAsClose }: Props) {
       setItems(detailed.filter(i => !i.name.startsWith('.')));
     } catch (e: any) {
       const msg = String(e?.message ?? e ?? '');
-      console.log('[FileBrowser] readDir error (API ' + Platform.Version + '):', msg);
       const isNotFound = msg.includes('ENOENT') || msg.includes('does not exist') || msg.includes('No such');
       if (isNotFound) {
         setError('not-found');
       } else if (
-        // Android 11+ (API 30+): any read failure on /storage/emulated/0/ is a permission problem
         (Platform.OS === 'android' && Number(Platform.Version) >= 30) ||
         msg.toLowerCase().includes('permission') ||
         msg.includes('EACCES') ||
@@ -141,12 +159,13 @@ export default function FileBrowser({ showBackAsClose }: Props) {
     } finally { setLoading(false); }
   }, []);
 
-  // ── Initial permission request then load ────────────────────────────────────
+  // ── Resolve LM base then load root ─────────────────────────────────────────
   useEffect(() => {
     (async () => {
-      const perm = await requestPermission();
-      if (perm === 'granted') {
-        await loadDir(LM_URI);
+      const base = await findLmBase();
+      if (base) {
+        setLmBase(base);
+        await loadDir(lmUri(base));
       } else {
         setError('permission');
         setLoading(false);
@@ -155,7 +174,7 @@ export default function FileBrowser({ showBackAsClose }: Props) {
   }, [loadDir]);
 
   useEffect(() => {
-    if (!loading && !error) loadDir(currentUri);
+    if (lmBase && !loading && !error) loadDir(currentUri);
   }, [stack]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Navigation ──────────────────────────────────────────────────────────────
@@ -168,7 +187,7 @@ export default function FileBrowser({ showBackAsClose }: Props) {
       router.push({
         pathname: '/viewer',
         params: {
-          path: `${LM_BASE}/${[...stack, item.name].join('/')}`,
+          path: lmPath(lmBase!, stack, item.name),
           type: kind,
           name: item.name,
         },
@@ -196,19 +215,16 @@ export default function FileBrowser({ showBackAsClose }: Props) {
     // On Android 11+, deep-link directly to the All Files Access page for this app.
     // The user just needs to flip one toggle — no digging through menus.
     function openPermissionSettings() {
-      if (needsAllFiles) {
-        Linking.openURL('package:com.cas.student').catch(() => Linking.openSettings());
-      } else {
-        Linking.openSettings();
-      }
+      Linking.openSettings();
     }
 
     async function retry() {
       setLoading(true); setError(null);
-      const perm = await requestPermission();
-      if (perm === 'granted') {
+      const base = await findLmBase();
+      if (base) {
+        setLmBase(base);
         setStack([]);
-        await loadDir(LM_URI);
+        await loadDir(lmUri(base));
       } else {
         setError('permission');
         setLoading(false);
@@ -267,9 +283,11 @@ export default function FileBrowser({ showBackAsClose }: Props) {
         <Ionicons name="folder-open-outline" size={52} color={C.muted as string} />
         <Text style={[s.stateTitle, { color: C.text }]}>LM Folder Not Found</Text>
         <Text style={[s.stateText, { color: C.muted }]}>
-          No folder named <Text style={{ fontWeight: '800' }}>LM</Text> was found at{' '}
-          <Text style={{ fontFamily: 'monospace' }}>/storage/emulated/0/LM</Text>.
-          {'\n\n'}Please ensure the learning materials have been loaded onto this device.
+          No LM folder was found on this device.{'\n\n'}
+          Copy the <Text style={{ fontWeight: '800' }}>LM</Text> folder to:{'\n'}
+          <Text style={{ fontFamily: 'monospace', fontSize: 11 }}>Android/data/com.cas.student/files/LM</Text>
+          {'\n'}or{'\n'}
+          <Text style={{ fontFamily: 'monospace', fontSize: 11 }}>/storage/emulated/0/LM</Text>
         </Text>
       </View>
     );

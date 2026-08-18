@@ -14,7 +14,7 @@ const SEM_OPTIONS = [
 ];
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  Present: { label: 'Present', color: '#15803D', bg: '#DCFCE7' },
+  Present: { label: 'Present', color: '#145C44', bg: '#DCFCE7' },
   Absent:  { label: 'Absent',  color: '#DC2626', bg: '#FEE2E2' },
   Late:    { label: 'Late',    color: '#D97706', bg: '#FEF3C7' },
 };
@@ -110,7 +110,7 @@ export default function AttendanceScreen() {
             {/* Stats row */}
             <View style={s.countsRow}>
               {[
-                { label: 'Present', count: present, color: '#15803D', bg: '#DCFCE7' },
+                { label: 'Present', count: present, color: '#145C44', bg: '#DCFCE7' },
                 { label: 'Absent',  count: absent,  color: '#DC2626', bg: '#FEE2E2' },
                 { label: 'Late',    count: late,    color: '#D97706', bg: '#FEF3C7' },
                 { label: 'Total',   count: total,   color: C.textSoft as string, bg: C.surfaceWarm as string },

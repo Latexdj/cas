@@ -7,9 +7,9 @@ import { getStudentColors } from '@/lib/student-auth';
 interface CalEvent { id: string; date: string; name: string; type: string; notes: string | null; }
 
 const TYPE_STYLE: Record<string, { bg: string; text: string; dot: string }> = {
-  'Holiday':     { bg: 'bg-[#E8F4EE]',  text: 'text-[#145C44]',  dot: '#16a34a' },
-  'School Event':{ bg: 'bg-blue-50',   text: 'text-blue-700',   dot: '#2563eb' },
-  'Closed Day':  { bg: 'bg-red-50',    text: 'text-red-600',    dot: '#dc2626' },
+  'Holiday':     { bg: 'bg-[#E8F4EE]',  text: 'text-[#145C44]',  dot: '#2D7A4F' },
+  'School Event':{ bg: 'bg-[#F5F0E8]',  text: 'text-[#8C7E6E]',  dot: '#8C7E6E' },
+  'Closed Day':  { bg: 'bg-[#FEF2F2]',  text: 'text-[#B83232]',  dot: '#B83232' },
 };
 
 export default function StudentCalendarPage() {
@@ -64,11 +64,12 @@ export default function StudentCalendarPage() {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+          <div className="w-7 h-7 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
         </div>
       ) : events.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-100 p-12 text-center text-slate-400">
-          No events for {year}.
+        <div className="bg-white rounded-xl border border-slate-100 p-12 text-center">
+          <p className="text-slate-500 font-medium">No events for {year}.</p>
+          <p className="text-slate-400 text-sm mt-1">Try a different year, or check back when your school publishes events.</p>
         </div>
       ) : (
         Object.entries(byMonth).map(([month, evs]) => {

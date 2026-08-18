@@ -7,7 +7,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import type { CalendarEvent } from '@/types/api';
 
 const TYPE_COLOR: Record<string, { color: string; bg: string }> = {
-  holiday:    { color: '#15803D', bg: '#DCFCE7' },
+  holiday:    { color: '#145C44', bg: '#DCFCE7' },
   exam:       { color: '#DC2626', bg: '#FEE2E2' },
   event:      { color: '#1D4ED8', bg: '#DBEAFE' },
   sports:     { color: '#D97706', bg: '#FEF3C7' },

@@ -84,7 +84,7 @@ export default function FeesScreen() {
           <View style={s.billHeader}>
             <Text style={[s.billLabel, { color: C.text }]}>{bill.label}</Text>
             <View style={[s.statusBadge, { backgroundColor: bill.status === 'paid' ? '#DCFCE7' : bill.balance > 0 ? '#FEE2E2' : '#FEF3C7' }]}>
-              <Text style={[s.statusText, { color: bill.status === 'paid' ? '#15803D' : bill.balance > 0 ? '#DC2626' : '#D97706' }]}>
+              <Text style={[s.statusText, { color: bill.status === 'paid' ? '#145C44' : bill.balance > 0 ? '#DC2626' : '#D97706' }]}>
                 {bill.status === 'paid' ? 'Paid' : bill.balance > 0 ? 'Unpaid' : 'Partial'}
               </Text>
             </View>

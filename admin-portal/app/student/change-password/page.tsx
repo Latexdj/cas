@@ -87,15 +87,15 @@ export default function StudentChangePasswordPage() {
                 className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 bg-white"
               />
             </div>
-            {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+            {error && <p className="text-sm rounded-lg px-3 py-2" style={{ color: '#B83232', background: '#FEF2F2', border: '1px solid #FECACA' }}>{error}</p>}
             <button
               type="submit" disabled={loading}
-              className="w-full py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-40 transition-opacity"
+              className="w-full py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-40 transition-colors"
               style={{ background: primary }}
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <span className="w-4 h-4 rounded-full border-2 border-white border-b-transparent animate-spin" />
                   Saving…
                 </span>
               ) : 'Set Password & Continue'}

@@ -22,8 +22,8 @@ interface MyRequestsResponse {
 
 const STATUS_META: Record<string, { label: string; badge: string }> = {
   pending:  { label: 'Pending Approval', badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
-  active:   { label: 'Approved — Out',   badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
-  overdue:  { label: 'Overdue',          badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
+  active:   { label: 'Approved — Out',   badge: 'bg-[#E8F4EE] text-[#145C44] dark:bg-green-900/30 dark:text-[#5DAA82]' },
+  overdue:  { label: 'Overdue',          badge: 'bg-[#FEF2F2] text-[#B83232] dark:bg-red-900/30 dark:text-[#FF9090]' },
   returned: { label: 'Returned',         badge: 'bg-[#D1EAD9] text-[#145C44] dark:bg-green-900/30 dark:text-[#5DAA82]' },
   rejected: { label: 'Rejected',         badge: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300' },
 };
@@ -48,7 +48,7 @@ function QuotaBar({ label, used, max, color }: { label: string; used: number; ma
   }
   const remaining = Math.max(0, max - used);
   const pct = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 100;
-  const barColor = pct >= 100 ? '#ef4444' : pct >= 75 ? '#f59e0b' : color;
+  const barColor = pct >= 100 ? '#B83232' : pct >= 75 ? '#f59e0b' : color;
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4">
       <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium">{label} Exeat</p>
@@ -59,7 +59,7 @@ function QuotaBar({ label, used, max, color }: { label: string; used: number; ma
       <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-700 mt-2 overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
       </div>
-      <p className={`text-xs mt-1.5 font-semibold ${remaining === 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
+      <p className={`text-xs mt-1.5 font-semibold ${remaining === 0 ? 'text-[#B83232] dark:text-[#FF9090]' : 'text-slate-500 dark:text-slate-400'}`}>
         {remaining === 0 ? 'Quota reached — contact your housemaster' : `${remaining} remaining`}
       </p>
     </div>
@@ -121,13 +121,17 @@ function RequestModal({
       <div className="bg-white dark:bg-slate-800 w-full sm:max-w-md rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <p className="font-bold text-slate-900 dark:text-white">Request Exeat</p>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" className="w-3.5 h-3.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
 
         {bothBlocked ? (
           <div className="px-5 py-8 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto" style={{ background: '#FEF2F2' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#B83232" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
                 <circle cx="12" cy="12" r="10" /><line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
               </svg>
             </div>
@@ -150,7 +154,7 @@ function RequestModal({
                         style={type === t && !blocked ? { borderColor: primaryColor, color: primaryColor, backgroundColor: `${primaryColor}10` } : { color: '#64748b' }}>
                         <p className="capitalize">{t}</p>
                         <p className="text-[10px] font-normal mt-0.5 opacity-70">{t === 'internal' ? 'Few hours off campus' : 'Overnight / home visit'}</p>
-                        {blocked && <p className="text-[10px] text-red-500 mt-0.5">Quota reached</p>}
+                        {blocked && <p className="text-[10px] mt-0.5" style={{ color: '#B83232' }}>Quota reached</p>}
                       </button>
                     );
                   })}
@@ -158,7 +162,7 @@ function RequestModal({
               </div>
 
               {isBlocked ? (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-xl px-4 py-3 text-sm text-red-700 dark:text-red-400">
+                <div className="rounded-xl px-4 py-3 text-sm dark:bg-red-900/20 dark:border-red-700 dark:text-[#FF9090]" style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#B83232' }}>
                   You have used all your {type} exeat slots for this semester. Contact your housemaster for an exception.
                 </div>
               ) : (
@@ -166,47 +170,47 @@ function RequestModal({
                   <div>
                     <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Destination *</label>
                     <input value={dest} onChange={e => setDest(e.target.value)} placeholder="e.g. Kumasi — family home"
-                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Reason *</label>
                     <input value={reason} onChange={e => setReason(e.target.value)} placeholder="e.g. Medical appointment"
-                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Parent / Guardian Contact</label>
                     <input value={contact} onChange={e => setContact(e.target.value)} placeholder="e.g. 0244123456"
-                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                     <p className="text-[11px] text-slate-400 mt-1">Pre-filled from your record. Edit to override.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Departure Date *</label>
                       <input type="date" value={depDate} min={today} onChange={e => setDepDate(e.target.value)}
-                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                     </div>
                     <div>
                       <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Departure Time *</label>
                       <input type="time" value={depTime} onChange={e => setDepTime(e.target.value)}
-                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                     </div>
                     <div>
                       <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Expected Return *</label>
                       <input type="date" value={retDate} min={depDate} onChange={e => setRetDate(e.target.value)}
-                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                     </div>
                     <div>
                       <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Return Time *</label>
                       <input type="time" value={retTime} onChange={e => setRetTime(e.target.value)}
-                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                        className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                     </div>
                   </div>
                   <div>
                     <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Additional Notes</label>
                     <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes for the housemaster"
-                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                   </div>
-                  {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+                  {error && <p className="text-xs font-medium" style={{ color: '#B83232' }}>{error}</p>}
                 </>
               )}
             </div>
@@ -262,7 +266,7 @@ export default function StudentExeatPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+        <div className="w-8 h-8 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
       </div>
     );
   }
@@ -292,7 +296,7 @@ export default function StudentExeatPage() {
       {data?.settings.semester_start_date ? (
         <div className="grid grid-cols-2 gap-3">
           <QuotaBar label="Internal" used={data.used.internal} max={data.settings.max_internal} color={primary} />
-          <QuotaBar label="External" used={data.used.external} max={data.settings.max_external} color="#7c3aed" />
+          <QuotaBar label="External" used={data.used.external} max={data.settings.max_external} color={primary} />
         </div>
       ) : (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-4 py-3 text-xs text-amber-700 dark:text-amber-300 font-medium">
@@ -323,7 +327,7 @@ export default function StudentExeatPage() {
               <div key={e.id} className={`bg-white dark:bg-slate-800 rounded-xl border ${isOverdue ? 'border-red-200 dark:border-red-700' : 'border-slate-100 dark:border-slate-700'} p-4 space-y-3`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-medium ${e.exeat_type === 'external' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-medium ${e.exeat_type === 'external' ? 'bg-[#F5F0E8] text-[#8C7E6E] dark:bg-slate-700 dark:text-slate-300' : 'bg-[#E8F4EE] text-[#145C44] dark:bg-green-900/30 dark:text-[#5DAA82]'}`}>
                       {e.exeat_type}
                     </span>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${meta.badge}`}>{meta.label}</span>
@@ -334,7 +338,7 @@ export default function StudentExeatPage() {
                   {e.destination && <div><span className="text-slate-400">Destination: </span><span className="text-slate-700 dark:text-slate-300 font-medium">{e.destination}</span></div>}
                   {e.reason && <div><span className="text-slate-400">Reason: </span><span className="text-slate-700 dark:text-slate-300">{e.reason}</span></div>}
                   <div><span className="text-slate-400">Departs: </span><span className="text-slate-700 dark:text-slate-300">{fmtDate(e.departure_date)} {fmtTime(e.departure_time)}</span></div>
-                  <div className={isOverdue ? 'text-red-600 dark:text-red-400 font-semibold' : ''}>
+                  <div className={isOverdue ? 'font-semibold' : ''} style={isOverdue ? { color: '#B83232' } : {}}>
                     <span className="text-slate-400">Exp. return: </span>
                     <span>{fmtDate(e.expected_return_date)} {fmtTime(e.expected_return_time)}</span>
                   </div>
@@ -344,12 +348,12 @@ export default function StudentExeatPage() {
                   {e.granted_by_name && <div><span className="text-slate-400">Approved by: </span><span className="text-slate-700 dark:text-slate-300">{e.granted_by_name}</span></div>}
                 </div>
                 {e.status === 'rejected' && e.notes && (
-                  <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">
+                  <p className="text-xs rounded-lg px-3 py-2 dark:bg-red-900/20 dark:text-[#FF9090]" style={{ color: '#B83232', background: '#FEF2F2' }}>
                     Reason: {e.notes}
                   </p>
                 )}
                 {isOverdue && (
-                  <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2 font-semibold">
+                  <p className="text-xs rounded-lg px-3 py-2 font-semibold dark:bg-red-900/20 dark:text-[#FF9090]" style={{ color: '#B83232', background: '#FEF2F2' }}>
                     You have not returned by the expected time. Please report to your housemaster.
                   </p>
                 )}

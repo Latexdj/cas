@@ -33,12 +33,12 @@ interface ClassStats {
 }
 
 const GRADE_COLORS: Record<string, string> = {
-  A: '#16a34a', B: '#2563eb', C: '#d97706', D: '#9333ea', E: '#64748b', F: '#dc2626',
+  A: '#2D7A4F', B: '#2563eb', C: '#d97706', D: '#C8780A', E: '#64748b', F: '#B83232',
 };
 function gradeColor(g: string) { return GRADE_COLORS[g?.[0]?.toUpperCase()] ?? '#64748b'; }
 function scoreColor(t: number | null) {
   if (t === null) return 'text-slate-400';
-  if (t >= 70) return 'text-[#145C44]'; if (t >= 50) return 'text-amber-600'; return 'text-red-600';
+  if (t >= 70) return 'text-[#145C44]'; if (t >= 50) return 'text-amber-600'; return 'text-[#B83232]';
 }
 
 function ordinal(n: number): string {
@@ -64,10 +64,10 @@ function ReportCard({ result, yearName, semester, schoolName, schoolAddress, sch
 
   const gradeCol = (g: string) =>
     ['A1','B2','B3','A','B+','B-'].includes(g) ? '#145C44' :
-    ['F9','F','E8'].includes(g) ? '#DC2626' : '#D97706';
+    ['F9','F','E8'].includes(g) ? '#B83232' : '#D97706';
 
   const barColor = (t: number | null) =>
-    t == null ? '#e5e7eb' : t >= 70 ? '#145C44' : t >= 50 ? '#D97706' : '#DC2626';
+    t == null ? '#e5e7eb' : t >= 70 ? '#145C44' : t >= 50 ? '#D97706' : '#B83232';
 
   const page: React.CSSProperties = {
     width: '210mm', minHeight: '297mm', padding: '12mm 13mm 10mm',
@@ -162,7 +162,7 @@ function ReportCard({ result, yearName, semester, schoolName, schoolAddress, sch
           {[
             { label: 'Periods Present', value: result.attendance.present, color: '#145C44' },
             { label: 'Late',            value: result.attendance.late,    color: '#D97706' },
-            { label: 'Absent',          value: result.attendance.absent,  color: '#DC2626' },
+            { label: 'Absent',          value: result.attendance.absent,  color: '#B83232' },
             { label: 'Total Periods',   value: result.attendance.total,   color: '#333'    },
           ].map(({ label, value, color }) => (
             <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', border: `1px solid #c6e8d8`, borderRadius: '4px', padding: '3px 8px', background: '#fff', minWidth: '60px' }}>
@@ -216,7 +216,7 @@ function ReportCard({ result, yearName, semester, schoolName, schoolAddress, sch
             <span style={{ fontSize: '7pt', fontWeight: 400, color: '#888', textTransform: 'none' }}>
               <span style={{ color: '#145C44' }}>■</span> ≥70 &nbsp;
               <span style={{ color: '#D97706' }}>■</span> 50–69 &nbsp;
-              <span style={{ color: '#DC2626' }}>■</span> &lt;50
+              <span style={{ color: '#B83232' }}>■</span> &lt;50
             </span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5px' }}>
@@ -552,8 +552,9 @@ export default function StudentResultsPage() {
             )}
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-slate-100 p-12 text-center text-slate-400">
-            No results found for this period.
+          <div className="bg-white rounded-xl border border-slate-100 p-12 text-center">
+            <p className="text-slate-500 font-medium">No results for this period.</p>
+            <p className="text-slate-400 text-sm mt-1">Results are published after the semester ends. Try a different year or semester.</p>
           </div>
         )}
 

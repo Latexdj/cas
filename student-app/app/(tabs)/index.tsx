@@ -30,7 +30,7 @@ interface QuickLink {
   tint: string;
 }
 const QUICK_LINKS: QuickLink[] = [
-  { label: 'Results',    icon: 'ribbon-outline',            route: '/results',    bg: '#EAF4EE', tint: '#15803D' },
+  { label: 'Results',    icon: 'ribbon-outline',            route: '/results',    bg: '#EAF4EE', tint: '#145C44' },
   { label: 'Attendance', icon: 'checkmark-circle-outline',  route: '/attendance', bg: '#EBF3FF', tint: '#1D4ED8' },
   { label: 'Timetable',  icon: 'calendar-outline',          route: '/timetable',  bg: '#FEF9EC', tint: '#D97706' },
   { label: 'Fees',       icon: 'card-outline',              route: '/fees',       bg: '#FEF2F2', tint: '#DC2626' },
@@ -148,7 +148,7 @@ function PositionChart({ data }: {
           const filled = d.position != null;
           const inv = filled ? maxPos - d.position! + 1 : 0;
           const h = filled ? Math.max((inv / maxPos) * H, 6) : 6;
-          const c = d.position === 1 ? '#D97706' : (d.position ?? 99) <= 3 ? '#15803D' : '#4F46E5';
+          const c = d.position === 1 ? '#D97706' : (d.position ?? 99) <= 3 ? '#145C44' : '#4F46E5';
           return (
             <View key={i} style={{ flex: 1, alignItems: 'center', paddingHorizontal: 4 }}>
               {filled ? (
@@ -184,7 +184,7 @@ function SubjectRow({
   name, current, prev,
 }: { name: string; current: number | null; prev: number | null }) {
   const pct  = Math.min(current ?? 0, 100);
-  const clr  = pct >= 50 ? '#15803D' : '#DC2626';
+  const clr  = pct >= 50 ? '#145C44' : '#DC2626';
   const delta = current != null && prev != null ? current - prev : null;
   return (
     <View style={{ marginBottom: 14 }}>
@@ -198,9 +198,9 @@ function SubjectRow({
               <Ionicons
                 name={delta >= 0 ? 'trending-up' : 'trending-down'}
                 size={13}
-                color={delta >= 0 ? '#15803D' : '#DC2626'}
+                color={delta >= 0 ? '#145C44' : '#DC2626'}
               />
-              <Text style={{ fontSize: 11, fontWeight: '700', color: delta >= 0 ? '#15803D' : '#DC2626' }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: delta >= 0 ? '#145C44' : '#DC2626' }}>
                 {delta >= 0 ? '+' : ''}{delta.toFixed(0)}
               </Text>
             </View>
@@ -317,7 +317,7 @@ export default function HomeScreen() {
 
   // ── Derived values ─────────────────────────────────────────────────────────
   const avgScore = results?.average;
-  const avgColor = (avgScore ?? 0) >= 50 ? '#15803D' : '#DC2626';
+  const avgColor = (avgScore ?? 0) >= 50 ? '#145C44' : '#DC2626';
   const attRate  = attendance?.summary?.rate ?? 0;
   const attColor = attRate >= 75 ? '#1D4ED8' : '#DC2626';
 
@@ -440,11 +440,11 @@ export default function HomeScreen() {
             {/* Academic Average */}
             <Card style={s.chartCard}>
               <View style={s.chartHeader}>
-                <View style={[s.chartDot, { backgroundColor: '#15803D' }]} />
+                <View style={[s.chartDot, { backgroundColor: '#145C44' }]} />
                 <Text style={[s.chartTitle, { color: C.text }]}>Academic Average</Text>
               </View>
               <Text style={[s.chartSub, { color: C.muted }]}>Overall score across semesters. Dashed line = 50% pass mark.</Text>
-              <SemBarChart data={avgData} color="#15803D" unit="%" max={100} refLine={50} />
+              <SemBarChart data={avgData} color="#145C44" unit="%" max={100} refLine={50} />
             </Card>
 
             {/* Attendance Rate */}
@@ -484,7 +484,7 @@ export default function HomeScreen() {
               ))}
               {prevSubjects.length > 0 && (
                 <View style={[s.subjectLegend, { borderTopColor: C.border }]}>
-                  <Ionicons name="trending-up" size={12} color="#15803D" />
+                  <Ionicons name="trending-up" size={12} color="#145C44" />
                   <Text style={[s.subjectLegendText, { color: C.muted }]}>
                     Arrows show change from previous semester
                   </Text>

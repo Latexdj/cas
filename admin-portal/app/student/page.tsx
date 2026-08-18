@@ -21,7 +21,7 @@ interface FeeSummary { total_billed: number; total_paid: number; outstanding: nu
 
 function AttPill({ rate }: { rate: number | null }) {
   if (rate === null) return <span className="text-xs text-slate-400">—</span>;
-  const color = rate >= 85 ? 'bg-[#D1EAD9] text-[#145C44]' : rate >= 70 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
+  const color = rate >= 85 ? 'bg-[#D1EAD9] text-[#145C44]' : rate >= 70 ? 'bg-amber-100 text-amber-700' : 'bg-[#FEF2F2] text-[#B83232]';
   return <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${color}`}>{rate}%</span>;
 }
 
@@ -261,7 +261,7 @@ export default function StudentDashboard() {
                 const d = new Date(ev.date + 'T00:00:00');
                 const typeStyle: Record<string, { fg: string; bg: string }> = {
                   'Holiday':     { fg: '#145C44', bg: '#E8F4EE' },
-                  'School Event':{ fg: '#1D4ED8', bg: '#EFF6FF' },
+                  'School Event':{ fg: '#8C7E6E', bg: '#F5F0E8' },
                   'Closed Day':  { fg: '#B83232', bg: '#FEF2F2' },
                 };
                 const ts = typeStyle[ev.type] ?? { fg: '#6B7280', bg: '#F3F4F6' };

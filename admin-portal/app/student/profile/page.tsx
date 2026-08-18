@@ -50,7 +50,7 @@ export default function StudentProfilePage() {
     setPwdLoading(true); setPwdMsg('');
     try {
       await studentApi.post('/api/student/change-pin', { currentPin: curPwd, newPin: newPwd });
-      setPwdMsg('Password changed successfully!'); setCurPwd(''); setNewPwd('');
+      setPwdMsg('Password changed.'); setCurPwd(''); setNewPwd('');
       setTimeout(() => { setPwdMode(false); setPwdMsg(''); }, 2000);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -61,7 +61,7 @@ export default function StudentProfilePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+        <div className="w-7 h-7 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
       </div>
     );
   }
@@ -91,9 +91,9 @@ export default function StudentProfilePage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">{profile.class_name}</span>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#E8F4EE] text-[#145C44]">{profile.class_name}</span>
             {profile.program_name && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">{profile.program_name}</span>}
-            {profile.residential_status && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">{profile.residential_status}</span>}
+            {profile.residential_status && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#F5F0E8] text-[#8C7E6E]">{profile.residential_status}</span>}
             {profile.house && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">{profile.house} House</span>}
           </div>
         </div>
@@ -151,16 +151,16 @@ export default function StudentProfilePage() {
               <label className="text-xs font-semibold text-slate-500 block mb-1">Current Password</label>
               <input type="password" value={curPwd} onChange={e => { setCurPwd(e.target.value); setPwdMsg(''); }}
                 placeholder="Current password"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-500 block mb-1">New Password</label>
               <input type="password" value={newPwd} onChange={e => { setNewPwd(e.target.value); setPwdMsg(''); }}
                 placeholder="New password (min 4 characters)"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
             </div>
             {pwdMsg && (
-              <p className={`text-xs ${pwdMsg.includes('success') ? 'text-[#145C44]' : 'text-red-500'}`}>{pwdMsg}</p>
+              <p className={`text-xs ${pwdMsg.startsWith('Password changed') ? 'text-[#145C44]' : 'text-[#B83232]'}`}>{pwdMsg}</p>
             )}
             <button type="submit" disabled={pwdLoading}
               className="w-full py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40"

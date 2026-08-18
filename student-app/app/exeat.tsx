@@ -9,7 +9,7 @@ import type { ExeatData } from '@/types/api';
 
 const STATUS_CFG = {
   pending:  { label: 'Pending',  color: '#D97706', bg: '#FEF3C7' },
-  approved: { label: 'Approved', color: '#15803D', bg: '#DCFCE7' },
+  approved: { label: 'Approved', color: '#145C44', bg: '#DCFCE7' },
   rejected: { label: 'Rejected', color: '#DC2626', bg: '#FEE2E2' },
   returned: { label: 'Returned', color: '#1D4ED8', bg: '#DBEAFE' },
 };

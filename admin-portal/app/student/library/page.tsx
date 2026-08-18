@@ -27,8 +27,8 @@ interface Resource {
 
 const TYPE_LABELS: Record<string, string> = { ebook: 'E-Book', past_question: 'Past Question', notes: 'Notes', other: 'Other' };
 const TYPE_COLORS: Record<string, string> = {
-  ebook:         'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  past_question: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  ebook:         'bg-[#E8F4EE] text-[#145C44] dark:bg-green-900/30 dark:text-[#5DAA82]',
+  past_question: 'bg-[#F5F0E8] text-[#8C7E6E] dark:bg-slate-700 dark:text-slate-300',
   notes:         'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   other:         'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
 };
@@ -86,7 +86,7 @@ export default function StudentLibraryPage() {
     try {
       const { data } = await studentApi.post<{ new_due_date: string; renewed_count: number }>(`/api/student/library/loans/${id}/renew`, {});
       setLoans(prev => prev.map(l => l.id === id ? { ...l, due_date: data.new_due_date, renewed_count: data.renewed_count } : l));
-      setRenewMsg(`Loan renewed! New due date: ${new Date(data.new_due_date).toLocaleDateString('en-GB')}`);
+      setRenewMsg(`Loan renewed. New due date: ${new Date(data.new_due_date).toLocaleDateString('en-GB')}`);
     } catch (err: any) { setRenewMsg(err.response?.data?.error ?? 'Could not renew. Please visit the library.'); }
     finally { setRenewing(null); }
   }
@@ -144,11 +144,14 @@ export default function StudentLibraryPage() {
             value={bookSearch}
             onChange={e => setBookSearch(e.target.value)}
             placeholder="Search by title, author, or subject…"
-            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2"
+            className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
             style={{ ['--tw-ring-color' as string]: primary }}
           />
           {booksLoading ? <p className="text-sm text-slate-500">Loading…</p> : filteredBooks.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-10">No books found.</p>
+            <div className="text-center py-10">
+              <p className="text-sm text-slate-500 font-medium">No books found.</p>
+              <p className="text-slate-400 text-xs mt-1">Try a different search term, or browse without filtering.</p>
+            </div>
           ) : (
             <div className="grid gap-3">
               {(bookRows as typeof filteredBooks).map(b => (
@@ -171,7 +174,7 @@ export default function StudentLibraryPage() {
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${b.available_copies > 0 ? 'bg-[#E8F4EE] dark:bg-green-900/30 text-[#145C44] dark:text-[#2ab289]' : 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400'}`}>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${b.available_copies > 0 ? 'bg-[#E8F4EE] dark:bg-green-900/30 text-[#145C44] dark:text-[#2ab289]' : 'bg-[#FEF2F2] dark:bg-red-900/30 text-[#B83232] dark:text-[#FF9090]'}`}>
                       {b.available_copies > 0 ? `${b.available_copies} available` : 'All out'}
                     </span>
                     <p className="text-xs text-slate-400 mt-1">{b.total_copies} total</p>
@@ -191,13 +194,20 @@ export default function StudentLibraryPage() {
       {tab === 'my-loans' && (
         <div className="space-y-4">
           {renewMsg && (
-            <div className={`rounded-xl border px-4 py-3 text-sm font-semibold flex justify-between ${renewMsg.startsWith('Loan renewed') ? 'border-[#B8D9C8] bg-[#E8F4EE] text-[#0B3D2E]' : 'border-red-200 bg-red-50 text-red-700'}`}>
-              {renewMsg}
-              <button onClick={() => setRenewMsg('')} className="opacity-50 hover:opacity-100">×</button>
+            <div className={`rounded-xl border px-4 py-3 text-sm font-semibold flex justify-between items-center gap-2 ${renewMsg.startsWith('Loan renewed') ? 'border-[#B8D9C8] bg-[#E8F4EE] text-[#0B3D2E]' : 'border-[#FECACA] bg-[#FEF2F2] text-[#B83232]'}`}>
+              <span>{renewMsg}</span>
+              <button onClick={() => setRenewMsg('')} className="opacity-50 hover:opacity-100 flex items-center justify-center shrink-0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" className="w-3.5 h-3.5">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
             </div>
           )}
           {loansLoading ? <p className="text-sm text-slate-500">Loading…</p> : loans.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-10">You have no loan history.</p>
+            <div className="text-center py-10">
+              <p className="text-sm text-slate-500 font-medium">No loan history.</p>
+              <p className="text-slate-400 text-xs mt-1">Borrow a book from the library and it will appear here.</p>
+            </div>
           ) : (
             <>
               {activeLoans.length > 0 && (
@@ -211,17 +221,17 @@ export default function StudentLibraryPage() {
                             <p className="font-semibold text-slate-900 dark:text-white text-sm">{l.book_title}</p>
                             {l.author && <p className="text-xs text-slate-500 dark:text-slate-400">{l.author}</p>}
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                              Copy #{l.copy_number} · Issued: {new Date(l.issued_at).toLocaleDateString('en-GB')}
-                              {l.renewed_count > 0 && <span className="ml-2 text-blue-500">· Renewed ×{l.renewed_count}</span>}
+                              Copy #{l.copy_number}, Issued: {new Date(l.issued_at).toLocaleDateString('en-GB')}
+                              {l.renewed_count > 0 && <span className="ml-2 text-[#145C44]">, Renewed ×{l.renewed_count}</span>}
                             </p>
                           </div>
                           <div className="text-right shrink-0">
                             {l.is_overdue ? (
-                              <span className="inline-block px-2 py-0.5 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full text-xs font-bold">OVERDUE</span>
+                              <span className="inline-block px-2 py-0.5 bg-[#FEF2F2] dark:bg-red-900/30 text-[#B83232] dark:text-[#FF9090] rounded-full text-xs font-bold">OVERDUE</span>
                             ) : (
-                              <span className="inline-block px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full text-xs font-semibold">Active</span>
+                              <span className="inline-block px-2 py-0.5 bg-[#E8F4EE] dark:bg-green-900/30 text-[#145C44] dark:text-[#5DAA82] rounded-full text-xs font-semibold">Active</span>
                             )}
-                            <p className={`text-xs mt-1 font-semibold ${l.is_overdue ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                            <p className={`text-xs mt-1 font-semibold ${l.is_overdue ? 'text-[#B83232] dark:text-[#FF9090]' : 'text-slate-600 dark:text-slate-400'}`}>
                               Due: {new Date(l.due_date).toLocaleDateString('en-GB')}
                             </p>
                             {!l.is_overdue && (
@@ -234,7 +244,7 @@ export default function StudentLibraryPage() {
                           </div>
                         </div>
                         {l.fine_amount > 0 && (
-                          <p className={`text-xs font-semibold mt-2 ${l.fine_waived ? 'text-[#145C44] dark:text-[#2ab289]' : l.fine_paid ? 'text-slate-500 dark:text-slate-400' : 'text-red-600 dark:text-red-400'}`}>
+                          <p className={`text-xs font-semibold mt-2 ${l.fine_waived ? 'text-[#145C44] dark:text-[#2ab289]' : l.fine_paid ? 'text-slate-500 dark:text-slate-400' : 'text-[#B83232] dark:text-[#FF9090]'}`}>
                             Fine: GH₵ {l.fine_amount.toFixed(2)} {l.fine_waived ? '(waived)' : l.fine_paid ? '(paid)' : '(unpaid — please visit the library)'}
                           </p>
                         )}
@@ -286,7 +296,10 @@ export default function StudentLibraryPage() {
           </div>
 
           {resourcesLoading ? <p className="text-sm text-slate-500">Loading…</p> : resources.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-10">No resources available.</p>
+            <div className="text-center py-10">
+              <p className="text-sm text-slate-500 font-medium">No resources available.</p>
+              <p className="text-slate-400 text-xs mt-1">Resources are uploaded by your school. Check back later or try a different filter.</p>
+            </div>
           ) : (
             <div className="space-y-3">
               {(resRows as typeof resources).map(r => (

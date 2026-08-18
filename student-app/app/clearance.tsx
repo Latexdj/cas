@@ -10,11 +10,11 @@ const STATUS_CFG = {
   not_initiated:  { label: 'Not Started',     color: '#64748B', bg: '#F1F5F9' },
   in_progress:    { label: 'In Progress',     color: '#D97706', bg: '#FEF3C7' },
   action_required:{ label: 'Action Required', color: '#DC2626', bg: '#FEE2E2' },
-  fully_cleared:  { label: 'Fully Cleared',   color: '#15803D', bg: '#DCFCE7' },
+  fully_cleared:  { label: 'Fully Cleared',   color: '#145C44', bg: '#DCFCE7' },
 };
 
 const ITEM_STATUS = {
-  cleared:          { icon: '✓', color: '#15803D', bg: '#DCFCE7' },
+  cleared:          { icon: '✓', color: '#145C44', bg: '#DCFCE7' },
   not_cleared:      { icon: '✗', color: '#DC2626', bg: '#FEE2E2' },
   action_required:  { icon: '!', color: '#D97706', bg: '#FEF3C7' },
 };
@@ -58,7 +58,7 @@ export default function ClearanceScreen() {
           <Text style={[s.overallPct, { color: sc.color }]}>{pct}%</Text>
         </View>
         <View style={[s.track, { backgroundColor: C.border }]}>
-          <View style={[s.fill, { width: `${pct}%`, backgroundColor: overall === 'fully_cleared' ? '#15803D' : overall === 'action_required' ? '#DC2626' : '#D97706' }]} />
+          <View style={[s.fill, { width: `${pct}%`, backgroundColor: overall === 'fully_cleared' ? '#145C44' : overall === 'action_required' ? '#DC2626' : '#D97706' }]} />
         </View>
         <Text style={[s.trackLabel, { color: C.muted }]}>{cleared} of {total} offices cleared</Text>
       </Card>
