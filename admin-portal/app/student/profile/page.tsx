@@ -103,7 +103,7 @@ export default function StudentProfilePage() {
       <div className="bg-white rounded-xl border border-slate-100 px-5 py-3">
         <p className="text-xs font-bold text-slate-400 font-medium py-2">Personal Information</p>
         <Row label="Gender"        value={profile.gender} />
-        <Row label="Date of Birth" value={profile.date_of_birth ? `${profile.date_of_birth}${profile.age ? ` (${profile.age} yrs)` : ''}` : null} />
+        <Row label="Date of Birth" value={profile.date_of_birth ? `${new Date(profile.date_of_birth).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}${profile.age ? ` (${profile.age} yrs)` : ''}` : null} />
         <Row label="Hometown"      value={profile.hometown} />
         <Row label="Address"       value={profile.residential_address} />
         <Row label="Mobile"        value={profile.mobile_number} />
