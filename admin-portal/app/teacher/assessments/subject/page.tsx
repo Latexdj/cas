@@ -408,7 +408,7 @@ function SubjectContent() {
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold text-[#2C2218] truncate">{subject}</h1>
-          <p className="text-xs text-[#8C7E6E]">{class_name} Â· {year_name} Â· Semester {semester}</p>
+          <p className="text-xs text-[#8C7E6E]">{class_name} | {year_name} | Semester {semester}</p>
         </div>
 
         {/* Bulk CA offline buttons */}
@@ -579,7 +579,7 @@ function SubjectContent() {
                   <p className="text-xs mt-0.5" style={{
                     color: item.total_students > 0 && item.score_count >= item.total_students ? '#145C44' : '#8C7E6E'
                   }}>
-                    Max: {item.max_score} Â· {item.score_count}/{item.total_students} students scored/absent
+                    Max: {item.max_score} | {item.score_count}/{item.total_students} students scored/absent
                   </p>
                 </button>
                 <button
@@ -842,7 +842,7 @@ function SubjectContent() {
                 <button onClick={() => setShowConfirmModal(false)} className="w-7 h-7 rounded-full bg-[#F4EFE6] flex items-center justify-center text-[#8C7E6E]"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className="w-3.5 h-3.5"><path d="M18 6L6 18M6 6l12 12" /></svg></button>
               )}
             </div>
-            <p className="text-xs text-[#8C7E6E] mb-4">{subject} Â· {class_name} Â· Semester {semester}</p>
+            <p className="text-xs text-[#8C7E6E] mb-4">{subject} | {class_name} | Semester {semester}</p>
 
             {readinessLoading ? (
               <div className="flex justify-center py-6 mb-5">
