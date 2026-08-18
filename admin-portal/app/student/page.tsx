@@ -88,7 +88,7 @@ export default function StudentDashboard() {
   const scoreBar = (v: number) => v >= 70 ? '#145C44' : v >= 50 ? '#C8780A' : '#B83232';
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-3xl mx-auto">
 
       {/* ── Identity banner ───────────────────────────────────────────── */}
       <div className="relative overflow-hidden" style={{ background: '#0B3D2E' }}>

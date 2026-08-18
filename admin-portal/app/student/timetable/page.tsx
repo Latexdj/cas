@@ -92,33 +92,50 @@ export default function StudentTimetablePage() {
         </div>
       )}
 
-      {/* Full week grid (desktop) */}
-      <div className="hidden md:block bg-white rounded-xl border border-slate-100 overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-50">
-          <p className="text-sm font-bold text-slate-700">Weekly Overview</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-[#F5F0E8] text-xs font-semibold text-slate-400 font-medium border-b border-slate-100">
-                <th className="px-4 py-2 text-left">Day</th>
-                <th className="px-4 py-2 text-left">Time</th>
-                <th className="px-4 py-2 text-left">Subject</th>
-                <th className="px-4 py-2 text-left">Teacher</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {[...rows].sort((a, b) => Number(a.day_of_week) !== Number(b.day_of_week) ? Number(a.day_of_week) - Number(b.day_of_week) : a.start_time.localeCompare(b.start_time)).map(r => (
-                <tr key={r.id} className={`hover:bg-[#F5F0E8] ${Number(r.day_of_week) === TODAY_DAY ? 'bg-[#E8F4EE]/60' : ''}`}>
-                  <td className="px-4 py-2.5 font-medium text-slate-600">{DAYS[r.day_of_week - 1]?.slice(0, 3)}</td>
-                  <td className="px-4 py-2.5 text-xs font-mono text-slate-500">{r.start_time.slice(0, 5)}–{r.end_time.slice(0, 5)}</td>
-                  <td className="px-4 py-2.5 font-semibold text-slate-800">{r.subject}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{r.teacher_name}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Full week overview (desktop) */}
+      <div className="hidden md:block space-y-2">
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">Weekly Overview</p>
+        {days.map(d => {
+          const dayLabel = DAYS[d - 1] ?? `Day ${d}`;
+          const dayEntries = rows
+            .filter(r => Number(r.day_of_week) === d)
+            .sort((a, b) => a.start_time.localeCompare(b.start_time));
+          const isToday = d === TODAY_DAY;
+          return (
+            <div key={d} className="rounded-xl overflow-hidden"
+              style={{ border: isToday ? '1.5px solid #145C44' : '1px solid #E8E0D5' }}>
+              {/* Day header */}
+              <div className="px-4 py-2.5 flex items-center justify-between"
+                style={{ background: isToday ? '#0B3D2E' : '#F5F0E8' }}>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-sm font-bold" style={{ color: isToday ? '#fff' : '#3C2F20' }}>{dayLabel}</span>
+                  {isToday && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#C8973A', color: '#0B3D2E' }}>Today</span>
+                  )}
+                </div>
+                <span className="text-xs" style={{ color: isToday ? 'rgba(255,255,255,0.5)' : '#8C7E6E' }}>
+                  {dayEntries.length} {dayEntries.length === 1 ? 'class' : 'classes'}
+                </span>
+              </div>
+              {/* Period rows */}
+              <div className="bg-white divide-y divide-slate-50">
+                {dayEntries.map((r, i) => (
+                  <div key={r.id} className="px-4 py-3 flex items-center gap-4 group hover:bg-[#FDFAF5] transition-colors">
+                    <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
+                      style={{ background: isToday ? '#E8F4EE' : '#F1EDE6', color: isToday ? '#145C44' : '#8C7E6E' }}>
+                      {i + 1}
+                    </div>
+                    <span className="text-xs font-mono tabular-nums shrink-0 w-28" style={{ color: '#6B5E50' }}>
+                      {r.start_time.slice(0, 5)} – {r.end_time.slice(0, 5)}
+                    </span>
+                    <span className="font-semibold flex-1 text-slate-800">{r.subject}</span>
+                    <span className="text-xs text-slate-400 shrink-0 max-w-[160px] truncate">{r.teacher_name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

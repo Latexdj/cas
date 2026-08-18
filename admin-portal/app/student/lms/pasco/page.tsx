@@ -120,14 +120,14 @@ export default function PascoPage() {
   if (phase === 'setup') {
     if (subjectsLoading) {
       return (
-        <div className="p-4 md:p-6 max-w-xl mx-auto flex justify-center pt-20">
+        <div className="p-4 md:p-6 max-w-2xl mx-auto flex justify-center pt-20">
           <div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
         </div>
       );
     }
 
     return (
-      <div className="p-4 md:p-6 max-w-xl mx-auto">
+      <div className="p-4 md:p-6 max-w-2xl mx-auto">
         <div className="mb-6">
           <h1 className="text-xl font-bold text-slate-800">Pasco Practice</h1>
           <p className="text-sm text-slate-400 mt-1">Ghana WAEC past questions drill</p>
@@ -204,7 +204,7 @@ export default function PascoPage() {
       pct >= 40 ? { label: 'Pass', color: '#D97706', bg: '#FEF3C7' } :
                   { label: 'Needs Work', color: '#DC2626', bg: '#FEE2E2' };
     return (
-      <div className="p-4 md:p-6 max-w-md mx-auto">
+      <div className="p-4 md:p-6 max-w-lg mx-auto">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8 text-center">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Session Complete</p>
           <div className="text-5xl font-bold mb-2" style={{ color: primary }}>

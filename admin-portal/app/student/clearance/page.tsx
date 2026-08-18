@@ -60,7 +60,7 @@ export default function StudentClearancePage() {
   const pct      = total > 0 ? Math.round((cleared / total) * 100) : 0;
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-3xl mx-auto">
+    <div className="p-4 md:p-6 space-y-5 max-w-4xl mx-auto">
 
       {/* Overall status banner */}
       <div className={`rounded-xl border p-5 ${overall.bg} ${overall.border}`}>

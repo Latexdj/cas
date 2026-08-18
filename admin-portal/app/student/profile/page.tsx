@@ -71,7 +71,7 @@ export default function StudentProfilePage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-xl mx-auto">
+    <div className="p-4 md:p-6 space-y-4 max-w-2xl mx-auto">
 
       {/* Identity card */}
       <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
