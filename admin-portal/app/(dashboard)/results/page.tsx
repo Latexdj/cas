@@ -392,7 +392,7 @@ function RemarksModal({
         <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</button>
           <button onClick={handleSave} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-semibold bg-[#145C44] text-white hover:bg-[#145C44] disabled:opacity-50 flex items-center gap-2">
-            {saving && <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />}
+            {saving && <span className="w-4 h-4 rounded-full border-2 border-white border-b-transparent animate-spin" />}
             {saved ? 'Saved ✓' : saving ? 'Saving…' : 'Save Remarks'}
           </button>
         </div>
@@ -569,9 +569,9 @@ interface FinalQueueItem {
 }
 
 const SUB_STATUS: Record<string, { label: string; color: string; bg: string }> = {
-  hod_approved:   { label: 'HOD Approved',   color: '#065F46', bg: '#D1FAE5' },
-  final_approved: { label: 'Final Approved', color: '#3730A3', bg: '#EDE9FE' },
-  published:      { label: 'Published',      color: '#14532D', bg: '#F0FDF4' },
+  hod_approved:   { label: 'HOD Approved',   color: '#C8780A', bg: '#FEF3C7' },
+  final_approved: { label: 'Final Approved', color: '#145C44', bg: '#E8F4EE' },
+  published:      { label: 'Published',      color: '#0B3D2E', bg: '#D1EAD9' },
 };
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
@@ -604,6 +604,8 @@ export default function ResultsPage() {
   const [approvalError,   setApprovalError]   = useState('');
   const [showApprovals,      setShowApprovals]      = useState(false);
   const [queueStatusFilter,  setQueueStatusFilter]  = useState<'all' | 'hod_approved' | 'final_approved' | 'published'>('all');
+  const [queueClassFilter,   setQueueClassFilter]   = useState('');
+  const [queueSubjectFilter, setQueueSubjectFilter] = useState('');
   const [previewResults,  setPreviewResults]  = useState<StudentResult[]>([]);
   const [previewLoading,  setPreviewLoading]  = useState(false);
   const [previewError,    setPreviewError]    = useState('');
@@ -752,7 +754,12 @@ export default function ResultsPage() {
   const sorted   = results.slice().sort((a, b) => (a.class_position ?? 999) - (b.class_position ?? 999));
 
   const { displayRows: resultRows, total: resultTotal, page: resultPage, setPage: setResultPage, pageSize: resultPageSize, setPageSize: setResultPageSize } = useTableControls(sorted);
-  const filteredQueue = queueStatusFilter === 'all' ? approvalQueue : approvalQueue.filter(q => q.status === queueStatusFilter);
+  const queueClasses  = [...new Set(approvalQueue.map(q => q.class_name))].sort();
+  const queueSubjects = [...new Set(approvalQueue.map(q => q.subject))].sort();
+  const filteredQueue = approvalQueue
+    .filter(q => queueStatusFilter  === 'all' || q.status  === queueStatusFilter)
+    .filter(q => !queueClassFilter  || q.class_name === queueClassFilter)
+    .filter(q => !queueSubjectFilter || q.subject   === queueSubjectFilter);
   const { displayRows: queueRows, total: queueTotal, page: queuePage, setPage: setQueuePage, pageSize: queuePageSize, setPageSize: setQueuePageSize } = useTableControls(filteredQueue);
 
   const selectStyle = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#145C44] focus:border-transparent';
@@ -860,7 +867,7 @@ export default function ResultsPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: '#1C1208' }}>Result Approvals</span>
               {approvalQueue.filter(q => q.status === 'hod_approved').length > 0 && (
-                <span style={{ background: '#DC2626', color: '#fff', fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 20 }}>
+                <span style={{ background: '#B83232', color: '#fff', fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 20 }}>
                   {approvalQueue.filter(q => q.status === 'hod_approved').length} pending
                 </span>
               )}
@@ -873,10 +880,11 @@ export default function ResultsPage() {
               {approvalLoading ? (
                 <div style={{ textAlign: 'center', padding: 24, color: '#94A3B8' }}>Loading…</div>
               ) : approvalQueue.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 24, color: '#94A3B8', fontSize: 13 }}>No submissions in queue for selected filters.</div>
+                <div style={{ textAlign: 'center', padding: 24, color: '#94A3B8', fontSize: 13 }}>No submissions in queue for the selected year and semester.</div>
               ) : (
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, gap: 12 }}>
+                  {/* Row 1: status tabs + bulk action */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 12 }}>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {([
                         { key: 'all',            label: 'All',           count: approvalQueue.length },
@@ -888,7 +896,7 @@ export default function ResultsPage() {
                         return (
                           <button key={key} onClick={() => { setQueueStatusFilter(key); setQueuePage(1); }}
                             style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: active ? 'none' : '1px solid #E2E8F0',
-                              background: active ? '#1C1208' : '#F5F0E8', color: active ? '#fff' : '#64748B' }}>
+                              background: active ? '#0B3D2E' : '#F5F0E8', color: active ? '#fff' : '#64748B' }}>
                             {label}
                             <span style={{ marginLeft: 5, background: active ? 'rgba(255,255,255,0.25)' : '#E2E8F0', color: active ? '#fff' : '#374151', borderRadius: 10, padding: '1px 6px', fontSize: 11 }}>{count}</span>
                           </button>
@@ -900,7 +908,36 @@ export default function ResultsPage() {
                       Publish All Final-Approved
                     </button>
                   </div>
-                  <div style={{ overflowX: 'auto' }}>
+                  {/* Row 2: class + subject filters */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #F1F5F9' }}>
+                    <select value={queueClassFilter} onChange={e => { setQueueClassFilter(e.target.value); setQueuePage(1); }}
+                      style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: '5px 10px', fontSize: 12, color: queueClassFilter ? '#0B3D2E' : '#64748B', background: queueClassFilter ? '#E8F4EE' : '#fff', cursor: 'pointer', fontWeight: queueClassFilter ? 600 : 400 }}>
+                      <option value="">All Classes</option>
+                      {queueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <select value={queueSubjectFilter} onChange={e => { setQueueSubjectFilter(e.target.value); setQueuePage(1); }}
+                      style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: '5px 10px', fontSize: 12, color: queueSubjectFilter ? '#0B3D2E' : '#64748B', background: queueSubjectFilter ? '#E8F4EE' : '#fff', cursor: 'pointer', fontWeight: queueSubjectFilter ? 600 : 400 }}>
+                      <option value="">All Subjects</option>
+                      {queueSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    {(queueClassFilter || queueSubjectFilter) && (
+                      <button onClick={() => { setQueueClassFilter(''); setQueueSubjectFilter(''); setQueuePage(1); }}
+                        style={{ fontSize: 11, color: '#64748B', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
+                        Clear filters
+                      </button>
+                    )}
+                    <span style={{ fontSize: 11, color: '#94A3B8', marginLeft: 'auto' }}>
+                      {filteredQueue.length === approvalQueue.length ? `${approvalQueue.length} submissions` : `${filteredQueue.length} of ${approvalQueue.length} submissions`}
+                    </span>
+                  </div>
+                  {filteredQueue.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px 0', color: '#94A3B8', fontSize: 13 }}>
+                      No submissions match the active filters.{' '}
+                      <button onClick={() => { setQueueStatusFilter('all'); setQueueClassFilter(''); setQueueSubjectFilter(''); setQueuePage(1); }}
+                        style={{ color: '#145C44', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>Clear all filters</button>
+                    </div>
+                  ) : null}
+                  <div style={{ overflowX: 'auto', display: filteredQueue.length === 0 ? 'none' : undefined }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                       <thead>
                         <tr style={{ background: '#F5F0E8', borderBottom: '1px solid #E2E8F0' }}>
@@ -937,7 +974,7 @@ export default function ResultsPage() {
                                   )}
                                   {item.status === 'final_approved' && (
                                     <button onClick={() => openApprovalModal(item, 'publish')}
-                                      style={{ background: '#3730A3', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                                      style={{ background: '#145C44', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                                       Publish
                                     </button>
                                   )}
@@ -1128,7 +1165,7 @@ export default function ResultsPage() {
                         style={{ flex: 1, padding: '9px 0', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600,
                           cursor: (approving || (approvalAction === 'approve' && readiness !== null && !readiness.canApprove)) ? 'not-allowed' : 'pointer',
                           opacity: (approving || (approvalAction === 'approve' && readiness !== null && !readiness.canApprove)) ? 0.45 : 1,
-                          background: approvalAction === 'reject' ? '#DC2626' : approvalAction === 'unlock' ? '#64748B' : approvalAction === 'publish' ? '#3730A3' : '#145C44',
+                          background: approvalAction === 'reject' ? '#B83232' : approvalAction === 'unlock' ? '#64748B' : '#145C44',
                           color: '#fff' }}>
                         {approving ? '…' : approvalAction === 'approve' ? 'Final Approve' : approvalAction === 'publish' ? 'Publish' : approvalAction === 'unlock' ? 'Unlock' : 'Reject & Return'}
                       </button>
@@ -1148,7 +1185,7 @@ export default function ResultsPage() {
           </div>
         ) : loading ? (
           <div className="bg-white rounded-xl border border-slate-200 p-12 flex items-center justify-center">
-            <div className="w-8 h-8 rounded-full border-4 border-[#145C44] border-t-transparent animate-spin" />
+            <div className="w-8 h-8 rounded-full border-4 border-[#145C44] border-b-transparent animate-spin" />
           </div>
         ) : results.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
