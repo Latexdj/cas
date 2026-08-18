@@ -487,7 +487,7 @@ function SubjectContent() {
         );
       })()}
 
-      {/* Exam scores link â€” shows whether scores have been entered */}
+      {/* Exam scores link â€" shows whether scores have been entered */}
       <button
         onClick={() => router.push(
           `/teacher/assessments/exam?subject=${encodeURIComponent(subject)}&class_name=${encodeURIComponent(class_name)}&year_id=${year_id}&semester=${semester}&year_name=${encodeURIComponent(year_name)}`
@@ -508,7 +508,7 @@ function SubjectContent() {
         {readiness && (
           <span className="text-xs font-bold shrink-0" style={{ color: readiness.examComplete ? '#145C44' : '#B83232' }}>
             {readiness.examComplete
-              ? `âœ“ ${readiness.examScoredCount}/${readiness.totalStudents}`
+              ? `âœ" ${readiness.examScoredCount}/${readiness.totalStudents}`
               : `âœ— ${readiness.examScoredCount}/${readiness.totalStudents}`}
           </span>
         )}
@@ -526,8 +526,8 @@ function SubjectContent() {
                 <span key={m.id} className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
                   style={{ background: done ? '#E8F4EE' : '#FEF2F2', color: done ? '#145C44' : '#B83232' }}>
                   {done
-                    ? <svg viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” strokeWidth={3} className=”w-3 h-3 inline mr-0.5”><polyline points=”20 6 9 17 4 12” /></svg>
-                    : <svg viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” strokeWidth={3} className=”w-3 h-3 inline mr-0.5”><line x1=”18” y1=”6” x2=”6” y2=”18” /><line x1=”6” y1=”6” x2=”18” y2=”18” /></svg>
+                    ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} className="w-3 h-3 inline mr-0.5"><polyline points="20 6 9 17 4 12" /></svg>
+                    : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} className="w-3 h-3 inline mr-0.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                   } {m.name} ({count})
                 </span>
               );
@@ -640,11 +640,11 @@ function SubjectContent() {
               </div>
 
               {structuralLocked && (
-                <div className=”flex gap-2.5 bg-[#FFFBEB] border border-[#FDE68A] rounded-xl px-3 py-2.5 mb-4”>
-                  <svg className=”w-4 h-4 text-[#C8780A] shrink-0 mt-0.5” fill=”none” stroke=”currentColor” viewBox=”0 0 24 24” strokeWidth={2}>
-                    <path strokeLinecap=”round” strokeLinejoin=”round” d=”M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z” />
+                <div className="flex gap-2.5 bg-[#FFFBEB] border border-[#FDE68A] rounded-xl px-3 py-2.5 mb-4">
+                  <svg className="w-4 h-4 text-[#C8780A] shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                   </svg>
-                  <p className=”text-xs text-[#92400E]”><strong>Semester &amp; Year are locked</strong> — {lockReason}. You can still edit the mode, title, date, and max score.</p>
+                  <p className="text-xs text-[#92400E]"><strong>Semester &amp; Year are locked</strong> — {lockReason}. You can still edit the mode, title, date, and max score.</p>
                 </div>
               )}
 
@@ -858,28 +858,28 @@ function SubjectContent() {
                 {/* Exam scores completeness */}
                 <CheckRow
                   ok={readiness.examComplete}
-                  label={`End-of-semester exam â€” ${readiness.examScoredCount}/${readiness.totalStudents} students scored`}
+                  label={`End-of-semester exam â€" ${readiness.examScoredCount}/${readiness.totalStudents} students scored`}
                   blocking={true}
                 />
                 {/* CA modes that have no assessment at all */}
                 {readiness.missingModes.map(name => (
-                  <CheckRow key={name} ok={false} label={`${name} â€” no assessment created yet`} blocking={true} />
+                  <CheckRow key={name} ok={false} label={`${name} â€" no assessment created yet`} blocking={true} />
                 ))}
                 {/* Assessments where not all students are acted on */}
                 {readiness.incompleteAssessments.map(a => (
                   <CheckRow
                     key={a.id}
                     ok={false}
-                    label={`${a.label} (${a.modeName}) â€” ${a.actedOn}/${readiness.totalStudents} students scored/absent`}
+                    label={`${a.label} (${a.modeName}) â€" ${a.actedOn}/${readiness.totalStudents} students scored/absent`}
                     blocking={true}
                   />
                 ))}
-                {/* Modes with assessments but all complete â€” show âœ“ */}
+                {/* Modes with assessments but all complete â€" show âœ" */}
                 {activeModes
                   .filter(m => (modeUsage[m.id] ?? 0) > 0)
                   .filter(m => !readiness.incompleteAssessments.some(a => a.modeName === m.name))
                   .map(m => (
-                    <CheckRow key={m.id} ok={true} label={`${m.name} â€” all students scored/absent`} blocking={true} />
+                    <CheckRow key={m.id} ok={true} label={`${m.name} â€" all students scored/absent`} blocking={true} />
                   ))
                 }
                 {readiness.canSubmit && (
