@@ -100,7 +100,7 @@ export default function StudentFeesPage() {
     ? Math.round((summary.total_paid / summary.total_billed) * 100) : 0;
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-xl mx-auto">
+    <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto">
 
       {/* Outstanding alert */}
       {hasOutstanding && (

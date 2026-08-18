@@ -209,7 +209,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
           <p className="text-sm font-semibold truncate" style={{ color: isDark ? 'rgba(255,255,255,0.85)' : '#2C2218' }}>{student?.name}</p>
         </div>
 
-        <nav className="flex-1 py-4 space-y-1 px-3 overflow-y-auto">
+        <nav className="flex-1 py-4 space-y-1 px-3 overflow-y-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none' }}>
           {NAV_ITEMS.map((item) => {
             const active = isActive(item.href);
             return (

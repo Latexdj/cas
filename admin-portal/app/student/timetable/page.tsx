@@ -48,7 +48,7 @@ export default function StudentTimetablePage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-2xl mx-auto">
+    <div className="p-4 md:p-6 space-y-4 max-w-5xl mx-auto">
       <div className="bg-white rounded-xl border border-slate-100 p-4">
         <p className="text-sm font-bold text-slate-700 mb-3">My Class Timetable</p>
 

@@ -38,7 +38,7 @@ export default function StudentCalendarPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-2xl mx-auto">
+    <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto">
 
       {/* Year selector */}
       <div className="bg-white rounded-xl border border-slate-100 p-4 flex items-center gap-3">

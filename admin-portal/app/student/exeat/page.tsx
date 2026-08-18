@@ -274,7 +274,7 @@ export default function StudentExeatPage() {
   const exeats = data?.exeats ?? [];
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-lg mx-auto">
+    <div className="p-4 md:p-6 space-y-5 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

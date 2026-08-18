@@ -120,7 +120,7 @@ export default function StudentLibraryPage() {
   const { displayRows: resRows,     total: resTotal,     page: resPage,     setPage: setResPage,     pageSize: resPageSize,     setPageSize: setResPageSize     } = useTableControls(resources);
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-2xl mx-auto">
+    <div className="p-4 md:p-6 space-y-5 max-w-4xl mx-auto">
       <div>
         <h1 className="text-xl font-bold text-slate-800 dark:text-white">Library</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Browse books, view your loans, and access digital resources</p>

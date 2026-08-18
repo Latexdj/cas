@@ -51,7 +51,7 @@ export default function StudentAttendancePage() {
   const { displayRows, total, page, setPage, pageSize, setPageSize } = useTableControls(sessions);
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-2xl mx-auto">
+    <div className="p-4 md:p-6 space-y-5 max-w-4xl mx-auto">
 
       {/* Filter bar */}
       <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-wrap gap-3 items-end">
