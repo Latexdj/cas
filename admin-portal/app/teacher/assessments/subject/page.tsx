@@ -34,11 +34,11 @@ interface SubStatus {
 
 const STATUS_CONFIG: Record<SubmissionStatus, { label: string; color: string; bg: string; border: string; desc: string }> = {
   draft:          { label: 'Draft',           color: '#92400E', bg: '#FEF3C7', border: '#FCD34D', desc: 'Scores can still be edited. Submit when ready for HOD review.' },
-  submitted:      { label: 'Submitted',        color: '#1E40AF', bg: '#DBEAFE', border: '#93C5FD', desc: 'Awaiting HOD review. Scores are locked.' },
-  hod_approved:   { label: 'HOD Approved',     color: '#065F46', bg: '#D1FAE5', border: '#6EE7B7', desc: 'HOD approved. Awaiting final review by management.' },
-  final_approved: { label: 'Final Approved',   color: '#3730A3', bg: '#EDE9FE', border: '#C4B5FD', desc: 'Approved by management. Awaiting publication.' },
-  published:      { label: 'Published',        color: '#14532D', bg: '#F0FDF4', border: '#86EFAC', desc: 'Results are published and visible to students.' },
-  rejected:       { label: 'Returned',         color: '#991B1B', bg: '#FEE2E2', border: '#FCA5A5', desc: 'Results returned for correction. Edit scores and resubmit.' },
+  submitted:      { label: 'Submitted',        color: '#145C44', bg: '#E8F4EE', border: '#B8D9C8', desc: 'Awaiting HOD review. Scores are locked.' },
+  hod_approved:   { label: 'HOD Approved',     color: '#2D7A4F', bg: '#E8F4EE', border: '#B8D9C8', desc: 'HOD approved. Awaiting final review by management.' },
+  final_approved: { label: 'Final Approved',   color: '#8C7E6E', bg: '#F5F0E8', border: '#E2D9CC', desc: 'Approved by management. Awaiting publication.' },
+  published:      { label: 'Published',        color: '#145C44', bg: '#E8F4EE', border: '#B8D9C8', desc: 'Results are published and visible to students.' },
+  rejected:       { label: 'Returned',         color: '#B83232', bg: '#FEF2F2', border: '#FECACA', desc: 'Results returned for correction. Edit scores and resubmit.' },
 };
 
 interface ReadinessCheck {
@@ -51,9 +51,9 @@ interface ReadinessCheck {
 }
 
 function CheckRow({ ok, label, blocking }: { ok: boolean; label: string; blocking: boolean }) {
-  const bg     = ok ? '#F0FDF4' : blocking ? '#FEF2F2' : '#FFFBEB';
-  const border = ok ? '#86EFAC' : blocking ? '#FCA5A5' : '#FDE68A';
-  const color  = ok ? '#145C44' : blocking ? '#DC2626' : '#92400E';
+  const bg     = ok ? '#E8F4EE' : blocking ? '#FEF2F2' : '#FFFBEB';
+  const border = ok ? '#B8D9C8' : blocking ? '#FCA5A5' : '#FDE68A';
+  const color  = ok ? '#145C44' : blocking ? '#B83232' : '#92400E';
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: bg, border: `1px solid ${border}` }}>
       <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15, flexShrink: 0 }}>
@@ -427,7 +427,7 @@ function SubjectContent() {
           title="Upload bulk CA scores"
           className="w-8 h-8 rounded-xl flex items-center justify-center bg-white border border-[#E2D9CC] shrink-0 text-[#8C7E6E] disabled:opacity-40"
         >
-          {bulkUploading ? <div className="w-3.5 h-3.5 rounded-full border-2 border-[#8C7E6E] border-t-transparent animate-spin" /> : (
+          {bulkUploading ? <div className="w-3.5 h-3.5 rounded-full border-2 border-[#8C7E6E] border-b-transparent animate-spin" /> : (
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V3M7 8l5-5 5 5M5 20h14" />
             </svg>
@@ -443,11 +443,11 @@ function SubjectContent() {
       </div>
 
       {bulkUploadError && (
-        <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{bulkUploadError}</p>
+        <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 mb-4">{bulkUploadError}</p>
       )}
 
       {error && (
-        <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{error}</p>
+        <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 mb-4">{error}</p>
       )}
 
       {/* Submission status banner */}
@@ -473,7 +473,7 @@ function SubjectContent() {
               ) : null}
             </div>
             {subStatus.rejected_reason && (
-              <p style={{ fontSize: 12, color: '#991B1B', marginTop: 8, fontStyle: 'italic' }}>
+              <p style={{ fontSize: 12, color: '#B83232', marginTop: 8, fontStyle: 'italic' }}>
                 Reason: {subStatus.rejected_reason}
               </p>
             )}
@@ -482,7 +482,7 @@ function SubjectContent() {
                 HOD note: {subStatus.hod_comment}
               </p>
             )}
-            {subError && <p style={{ fontSize: 12, color: '#DC2626', marginTop: 6 }}>{subError}</p>}
+            {subError && <p style={{ fontSize: 12, color: '#B83232', marginTop: 6 }}>{subError}</p>}
           </div>
         );
       })()}
@@ -494,7 +494,7 @@ function SubjectContent() {
         )}
         className="w-full flex items-center gap-2.5 bg-white rounded-xl px-4 py-3 mb-3 text-sm font-semibold transition-colors text-left"
         style={{
-          border: `2px ${readiness ? 'solid' : 'dashed'} ${readiness?.examComplete ? '#86EFAC' : readiness ? '#FCA5A5' : '#E2D9CC'}`,
+          border: `2px ${readiness ? 'solid' : 'dashed'} ${readiness?.examComplete ? '#B8D9C8' : readiness ? '#FCA5A5' : '#E2D9CC'}`,
           color: primary,
         }}
       >
@@ -506,7 +506,7 @@ function SubjectContent() {
         </svg>
         <span className="flex-1">End-of-Semester Exam Scores</span>
         {readiness && (
-          <span className="text-xs font-bold shrink-0" style={{ color: readiness.examComplete ? '#145C44' : '#DC2626' }}>
+          <span className="text-xs font-bold shrink-0" style={{ color: readiness.examComplete ? '#145C44' : '#B83232' }}>
             {readiness.examComplete
               ? `âœ“ ${readiness.examScoredCount}/${readiness.totalStudents}`
               : `âœ— ${readiness.examScoredCount}/${readiness.totalStudents}`}
@@ -524,8 +524,11 @@ function SubjectContent() {
               const done  = count > 0;
               return (
                 <span key={m.id} className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
-                  style={{ background: done ? '#DCFCE7' : '#FEE2E2', color: done ? '#145C44' : '#DC2626' }}>
-                  {done ? 'âœ“' : 'âœ—'} {m.name} ({count})
+                  style={{ background: done ? '#E8F4EE' : '#FEF2F2', color: done ? '#145C44' : '#B83232' }}>
+                  {done
+                    ? <svg viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” strokeWidth={3} className=”w-3 h-3 inline mr-0.5”><polyline points=”20 6 9 17 4 12” /></svg>
+                    : <svg viewBox=”0 0 24 24” fill=”none” stroke=”currentColor” strokeWidth={3} className=”w-3 h-3 inline mr-0.5”><line x1=”18” y1=”6” x2=”6” y2=”18” /><line x1=”6” y1=”6” x2=”18” y2=”18” /></svg>
+                  } {m.name} ({count})
                 </span>
               );
             })}
@@ -590,14 +593,14 @@ function SubjectContent() {
                 </button>
                 {!isLocked && (
                   <button
-                    className="px-4 flex items-center justify-center border-l border-[#E2D9CC] hover:bg-red-50 transition-colors"
+                    className="px-4 flex items-center justify-center border-l border-[#E2D9CC] hover:bg-[#FEF2F2] transition-colors"
                     onClick={() => deleteAssessment(item.id, label)}
                     disabled={deleting === item.id}
                   >
                     {deleting === item.id ? (
-                      <div className="w-4 h-4 rounded-full border-2 border-red-300 border-t-transparent animate-spin" />
+                      <div className="w-4 h-4 rounded-full border-2 border-[#FECACA] border-b-transparent animate-spin" />
                     ) : (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-red-400">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-[#B83232]">
                         <polyline points="3 6 5 6 21 6" />
                         <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
                         <path d="M10 11v6M14 11v6" />
@@ -629,7 +632,7 @@ function SubjectContent() {
           ? 'scores have already been entered'
           : 'the assessment is more than 48 hours old';
         return (
-          <div className="fixed inset-0 bg-[#0B3D2E]/45 z-40 flex items-end md:items-center justify-center" onClick={() => setEditTarget(null)}>
+          <div className="fixed inset-0 bg-[#0B3D2E]/55 z-40 flex items-end md:items-center justify-center" onClick={() => setEditTarget(null)}>
             <div className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-xl p-6 pb-8 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-bold text-[#2C2218]">Edit Assessment</h2>
@@ -637,11 +640,11 @@ function SubjectContent() {
               </div>
 
               {structuralLocked && (
-                <div className="flex gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 mb-4">
-                  <svg className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <div className=”flex gap-2.5 bg-[#FFFBEB] border border-[#FDE68A] rounded-xl px-3 py-2.5 mb-4”>
+                  <svg className=”w-4 h-4 text-[#C8780A] shrink-0 mt-0.5” fill=”none” stroke=”currentColor” viewBox=”0 0 24 24” strokeWidth={2}>
+                    <path strokeLinecap=”round” strokeLinejoin=”round” d=”M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z” />
                   </svg>
-                  <p className="text-xs text-amber-800"><strong>Semester &amp; Year are locked</strong> â€” {lockReason}. You can still edit the mode, title, date, and max score.</p>
+                  <p className=”text-xs text-[#92400E]”><strong>Semester &amp; Year are locked</strong> — {lockReason}. You can still edit the mode, title, date, and max score.</p>
                 </div>
               )}
 
@@ -750,7 +753,7 @@ function SubjectContent() {
                 <p className="text-xs font-semibold text-[#B83232] mb-1">{bulkUploadResult.errors.length} error{bulkUploadResult.errors.length !== 1 ? 's' : ''}:</p>
                 <div className="max-h-40 overflow-y-auto space-y-1">
                   {bulkUploadResult.errors.map((e, i) => (
-                    <div key={i} className="text-xs text-[#B83232] bg-red-50 border border-red-100 rounded-lg px-2 py-1">
+                    <div key={i} className="text-xs text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-2 py-1">
                       Row {e.row}: {e.message}
                     </div>
                   ))}
@@ -763,7 +766,7 @@ function SubjectContent() {
 
       {/* Create modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-[#0B3D2E]/45 z-40 flex items-end md:items-center justify-center" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 bg-[#0B3D2E]/55 z-40 flex items-end md:items-center justify-center" onClick={() => setShowModal(false)}>
           <div
             className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-xl p-6 pb-8 shadow-2xl"
             onClick={e => e.stopPropagation()}
@@ -831,7 +834,7 @@ function SubjectContent() {
       )}
       {/* Submit confirmation modal (Layer 2) */}
       {showConfirmModal && (
-        <div className="fixed inset-0 bg-[#0B3D2E]/45 z-50 flex items-end md:items-center justify-center" onClick={() => { if (!submitting) setShowConfirmModal(false); }}>
+        <div className="fixed inset-0 bg-[#0B3D2E]/55 z-50 flex items-end md:items-center justify-center" onClick={() => { if (!submitting) setShowConfirmModal(false); }}>
           <div className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-xl p-6 pb-8 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
               <h2 className="text-base font-bold text-[#2C2218]">Submit for HOD Review</h2>
@@ -843,10 +846,10 @@ function SubjectContent() {
 
             {readinessLoading ? (
               <div className="flex justify-center py-6 mb-5">
-                <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+                <div className="w-6 h-6 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
               </div>
             ) : readinessError ? (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 text-center">
+              <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-xl p-4 mb-5 text-center">
                 <p className="text-sm text-[#B83232] mb-3">{readinessError}</p>
                 <button onClick={fetchReadiness} className="text-sm font-semibold text-[#B83232] underline">Retry</button>
               </div>
@@ -880,15 +883,15 @@ function SubjectContent() {
                   ))
                 }
                 {readiness.canSubmit && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: '#F0FDF4', border: '1px solid #86EFAC' }}>
-                    <span style={{ fontSize: 15 }}>âœ…</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: '#E8F4EE', border: '1px solid #B8D9C8' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#145C44" strokeWidth={2.5} style={{ width: 15, height: 15, flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
                     <span style={{ fontSize: 13, color: '#145C44', fontWeight: 600 }}>All checks passed. Ready to submit.</span>
                   </div>
                 )}
               </div>
             ) : null}
 
-            {subError && <p className="text-xs text-[#B83232] mb-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2">{subError}</p>}
+            {subError && <p className="text-xs text-[#B83232] mb-3 bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-3 py-2">{subError}</p>}
 
             {readiness && !readiness.canSubmit && !readinessLoading && (
               <p className="text-xs text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] rounded-xl px-3 py-2 mb-3">
@@ -918,7 +921,7 @@ function SubjectContent() {
 
 export default function SubjectPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ background: '#F4EFE6' }}><div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-t-transparent animate-spin" /></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ background: '#F4EFE6' }}><div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-b-transparent animate-spin" /></div>}>
       <SubjectContent />
     </Suspense>
   );

@@ -90,7 +90,7 @@ function ResultsContent() {
         <div className="flex gap-3">
           <div className="flex-1 relative">
             <select value={yearId} onChange={e => setYearId(e.target.value)} className={selCls} disabled={loadingMeta}>
-              {years.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>)}
+              {years.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (current)' : ''}</option>)}
             </select>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 text-[#8C7E6E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none"><polyline points="6 9 12 15 18 9" /></svg>
           </div>
@@ -111,17 +111,17 @@ function ResultsContent() {
         </div>
       </div>
 
-      {error && <p className="mx-4 text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{error}</p>}
+      {error && <p className="mx-4 text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 mb-4">{error}</p>}
 
       {rejections.length > 0 && (
-        <div className="mx-4 mb-4 bg-red-50 border border-red-200 rounded-xl p-4">
-          <p className="text-sm font-bold text-red-700 mb-2">Results Returned for Editing</p>
+        <div className="mx-4 mb-4 bg-[#FEF2F2] border border-[#FECACA] rounded-xl p-4">
+          <p className="text-sm font-bold text-[#B83232] mb-2">Results Returned for Editing</p>
           <div className="space-y-2">
             {rejections.map(r => (
-              <div key={`${r.subject}||${r.class_name}`} className="bg-white rounded-xl border border-red-100 px-3 py-2.5">
+              <div key={`${r.subject}||${r.class_name}`} className="bg-white rounded-xl border border-[#FECACA] px-3 py-2.5">
                 <p className="text-sm font-semibold text-[#2C2218]">{r.subject} — {r.class_name}</p>
                 {(r.rejected_reason || r.hod_comment) && (
-                  <p className="text-xs text-red-600 mt-0.5 italic">"{r.rejected_reason || r.hod_comment}"</p>
+                  <p className="text-xs text-[#B83232] mt-0.5 italic">"{r.rejected_reason || r.hod_comment}"</p>
                 )}
                 <p className="text-xs text-[#8C7E6E] mt-1">Edit your scores and resubmit from the Assessments page.</p>
               </div>
@@ -136,7 +136,7 @@ function ResultsContent() {
         </div>
       ) : loading ? (
         <div className="flex justify-center py-16">
-          <div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+          <div className="w-7 h-7 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
         </div>
       ) : results.length === 0 ? (
         <div className="mx-4 bg-white rounded-xl border border-[#E2D9CC] p-10 text-center">
@@ -179,7 +179,7 @@ function ResultsContent() {
 
       {/* Report card slide-in */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-[#0B3D2E]/45" onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}>
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-[#0B3D2E]/55" onClick={e => { if (e.target === e.currentTarget) setSelected(null); }}>
           <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-3xl md:rounded-xl shadow-2xl">
             {/* Card header */}
             <div className="sticky top-0 bg-white px-5 pt-5 pb-4 border-b border-[#E2D9CC]">
@@ -215,7 +215,7 @@ function ResultsContent() {
                   {[
                     { label: 'Present',       value: selected.attendance.present, color: '#145C44' },
                     { label: 'Late',          value: selected.attendance.late,    color: '#D97706' },
-                    { label: 'Absent',        value: selected.attendance.absent,  color: '#DC2626' },
+                    { label: 'Absent',        value: selected.attendance.absent,  color: '#B83232' },
                     { label: 'Total Periods', value: selected.attendance.total,   color: '#2C2218' },
                   ].map(({ label, value, color }) => (
                     <div key={label} className="bg-[#F4EFE6] rounded-xl p-2.5 text-center">
@@ -249,7 +249,7 @@ function ResultsContent() {
                         <td className="py-2.5 font-medium text-[#2C2218] pr-3">
                           {s.subject}
                           {s.is_imported && (
-                            <span className="ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 align-middle">IMP</span>
+                            <span className="ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#F5F0E8] text-[#8C7E6E] align-middle">IMP</span>
                           )}
                         </td>
                         <td className="py-2.5 text-center text-[#2C2218]">{s.ca_score ?? '—'}</td>
@@ -275,7 +275,7 @@ function ResultsContent() {
 
 export default function ResultsPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ background: '#F4EFE6' }}><div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-t-transparent animate-spin" /></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ background: '#F4EFE6' }}><div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-b-transparent animate-spin" /></div>}>
       <ResultsContent />
     </Suspense>
   );

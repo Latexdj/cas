@@ -209,7 +209,7 @@ function ScoresContent() {
             title="Upload filled scores"
             className="w-8 h-8 rounded-xl flex items-center justify-center bg-white border border-[#E2D9CC] shrink-0 text-[#8C7E6E] disabled:opacity-40"
           >
-            {uploading ? <div className="w-3.5 h-3.5 rounded-full border-2 border-[#8C7E6E] border-t-transparent animate-spin" /> : (
+            {uploading ? <div className="w-3.5 h-3.5 rounded-full border-2 border-[#8C7E6E] border-b-transparent animate-spin" /> : (
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V3M7 8l5-5 5 5M5 20h14" />
               </svg>
@@ -225,13 +225,13 @@ function ScoresContent() {
         </div>
 
         {error && (
-          <p className="text-xs text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-2">{error}</p>
+          <p className="text-xs text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-3 py-2 mb-2">{error}</p>
         )}
         {saved && (
           <p className="text-xs font-semibold text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-2 mb-2">Scores saved.</p>
         )}
         {subLocked && (
-          <div style={{ background: '#DBEAFE', border: '1px solid #93C5FD', borderRadius: 10, padding: '10px 14px', marginBottom: 8, fontSize: 13, color: '#1E40AF', fontWeight: 500 }}>
+          <div style={{ background: '#F5F0E8', border: '1px solid #E2D9CC', borderRadius: 10, padding: '10px 14px', marginBottom: 8, fontSize: 13, color: '#8C7E6E', fontWeight: 500 }}>
             🔒 Scores are locked — submission status is <strong>{subStatus}</strong>. Contact your HOD or admin to unlock.
           </div>
         )}
@@ -261,7 +261,7 @@ function ScoresContent() {
                 </div>
 
                 {isAbsent ? (
-                  <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-red-50 text-red-500 border border-red-100">
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#FEF2F2] text-[#B83232] border border-[#FECACA]">
                     Absent
                   </span>
                 ) : (
@@ -288,7 +288,7 @@ function ScoresContent() {
                   className="w-8 h-8 rounded-full flex items-center justify-center border transition-colors"
                   style={
                     isAbsent
-                      ? { background: '#EF4444', borderColor: '#EF4444' }
+                      ? { background: '#B83232', borderColor: '#B83232' }
                       : { background: '#F4EFE6', borderColor: '#E2D9CC' }
                   }
                   title="Toggle absent"
@@ -353,7 +353,7 @@ function ScoresContent() {
                 <p className="text-xs font-semibold text-[#B83232] mb-1">{uploadResult.errors.length} error{uploadResult.errors.length !== 1 ? 's' : ''}:</p>
                 <div className="max-h-40 overflow-y-auto space-y-1">
                   {uploadResult.errors.map((e, i) => (
-                    <div key={i} className="text-xs text-[#B83232] bg-red-50 border border-red-100 rounded-lg px-2 py-1">
+                    <div key={i} className="text-xs text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-2 py-1">
                       Row {e.row}: {e.message}
                     </div>
                   ))}
@@ -369,7 +369,7 @@ function ScoresContent() {
 
 export default function ScoresPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ background: '#F4EFE6' }}><div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-t-transparent animate-spin" /></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ background: '#F4EFE6' }}><div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-b-transparent animate-spin" /></div>}>
       <ScoresContent />
     </Suspense>
   );

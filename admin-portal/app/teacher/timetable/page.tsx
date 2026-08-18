@@ -83,7 +83,7 @@ export default function TimetablePage() {
       </div>
 
       {error && (
-        <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{error}</p>
+        <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 mb-4">{error}</p>
       )}
 
       {loading ? (

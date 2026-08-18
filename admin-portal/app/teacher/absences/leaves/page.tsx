@@ -28,8 +28,8 @@ function fmt(iso: string) {
 }
 
 function statusStyle(status: string) {
-  if (status === 'Approved') return { bg: '#DCFCE7', color: '#166534' };
-  if (status === 'Rejected') return { bg: '#FEE2E2', color: '#991B1B' };
+  if (status === 'Approved') return { bg: '#E8F4EE', color: '#145C44' };
+  if (status === 'Rejected') return { bg: '#FEF2F2', color: '#B83232' };
   return { bg: '#FEF3C7', color: '#92400E' };
 }
 
@@ -177,7 +177,7 @@ function LeavesContent() {
             {docRequired && (
               <div>
                 <p className="text-xs text-[#8C7E6E] mb-1.5">
-                  Supporting Document <span className="text-[#DC2626]">*</span>
+                  Supporting Document <span className="text-[#B83232]">*</span>
                   <span className="ml-1 font-normal">(PDF or Word — required for this leave type)</span>
                 </p>
                 <input
@@ -187,14 +187,15 @@ function LeavesContent() {
                   className="w-full text-sm text-[#4A3F32] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#F4EFE6] file:text-[#4A3F32] cursor-pointer"
                 />
                 {leaveDoc && (
-                  <p className="text-xs mt-1" style={{ color: primary }}>
-                    ✓ {leaveDoc.name}
+                  <p className="text-xs mt-1 flex items-center gap-1" style={{ color: primary }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3 h-3 shrink-0"><polyline points="20 6 9 17 4 12" /></svg>
+                    {leaveDoc.name}
                   </p>
                 )}
               </div>
             )}
             {leaveError && (
-              <p className="text-xs text-[#B83232] bg-red-50 border border-red-200 rounded-lg px-3 py-2">{leaveError}</p>
+              <p className="text-xs text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">{leaveError}</p>
             )}
             <div className="flex gap-2">
               <button type="button" onClick={() => setShowLeave(false)}

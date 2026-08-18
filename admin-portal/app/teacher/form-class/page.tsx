@@ -15,7 +15,7 @@ function ordinal(n: number) {
 
 function AttPill({ pct }: { pct: number | null }) {
   if (pct == null) return <span className="text-xs text-slate-300">—</span>;
-  const cls = pct >= 80 ? 'bg-[#D1EAD9] text-[#145C44]' : pct >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700';
+  const cls = pct >= 80 ? 'bg-[#D1EAD9] text-[#145C44]' : pct >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-[#FEF2F2] text-[#B83232]';
   return <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cls}`}>{pct}%</span>;
 }
 
@@ -23,7 +23,7 @@ function Avatar({ url, name, gender }: { url?: string | null; name: string; gend
   if (url) return <img src={url} alt={name} className="w-full h-full object-cover" />;
   const isFemale = gender?.toLowerCase() === 'female';
   return (
-    <div className={`w-full h-full flex items-center justify-center text-sm font-bold ${isFemale ? 'bg-pink-100 text-pink-600' : 'bg-blue-100 text-blue-600'}`}>
+    <div className={`w-full h-full flex items-center justify-center text-sm font-bold ${isFemale ? 'bg-pink-100 text-pink-600' : 'bg-[#F5F0E8] text-[#8C7E6E]'}`}>
       {name[0]}
     </div>
   );
@@ -45,7 +45,7 @@ function StudentDrawer({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end bg-[#0B3D2E]/45" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-50 flex items-start justify-end bg-[#0B3D2E]/55" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="h-full w-full max-w-sm bg-white shadow-2xl overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-slate-100 px-4 py-3 flex items-center gap-3 z-10">
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
@@ -73,7 +73,7 @@ function StudentDrawer({
             <div className="bg-[#F5F0E8] rounded-xl p-3">
               <p className="text-xs font-semibold text-slate-500 font-medium mb-2">Attendance</p>
               <div className="grid grid-cols-4 gap-2 text-center">
-                {[['Present', attRow.present, 'text-[#145C44]'], ['Absent', attRow.absent, 'text-red-600'], ['Late', attRow.late, 'text-amber-600'], ['Total', attRow.total, 'text-slate-700']].map(([label, val, color]) => (
+                {[['Present', attRow.present, 'text-[#145C44]'], ['Absent', attRow.absent, 'text-[#B83232]'], ['Late', attRow.late, 'text-amber-600'], ['Total', attRow.total, 'text-slate-700']].map(([label, val, color]) => (
                   <div key={String(label)}>
                     <p className={`text-lg font-bold ${color}`}>{val}</p>
                     <p className="text-[10px] text-slate-400">{label}</p>
@@ -82,7 +82,7 @@ function StudentDrawer({
               </div>
               {attRow.pct != null && (
                 <div className="mt-2 bg-slate-200 rounded-full h-2 overflow-hidden">
-                  <div className={`h-full rounded-full ${attRow.pct >= 80 ? 'bg-[#145C44]' : attRow.pct >= 60 ? 'bg-amber-400' : 'bg-red-400'}`}
+                  <div className={`h-full rounded-full ${attRow.pct >= 80 ? 'bg-[#145C44]' : attRow.pct >= 60 ? 'bg-amber-400' : 'bg-[#B83232]'}`}
                     style={{ width: `${attRow.pct}%` }} />
                 </div>
               )}
@@ -302,7 +302,7 @@ export default function FormClassPage() {
   if (assignment === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#F4EFE6' }}>
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+        <div className="w-8 h-8 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
       </div>
     );
   }
@@ -354,7 +354,7 @@ export default function FormClassPage() {
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: 'Total Students',  value: students.length, color: 'text-slate-700' },
-                { label: 'Avg Attendance',  value: stats?.avgAtt != null ? `${stats.avgAtt}%` : '—', color: stats?.avgAtt != null ? (stats.avgAtt >= 80 ? 'text-[#145C44]' : stats.avgAtt >= 60 ? 'text-amber-600' : 'text-red-600') : 'text-slate-400' },
+                { label: 'Avg Attendance',  value: stats?.avgAtt != null ? `${stats.avgAtt}%` : '—', color: stats?.avgAtt != null ? (stats.avgAtt >= 80 ? 'text-[#145C44]' : stats.avgAtt >= 60 ? 'text-amber-600' : 'text-[#B83232]') : 'text-slate-400' },
                 { label: 'Remarks Entered', value: stats ? `${stats.remarksEntered}/${stats.total}` : '—', color: 'text-slate-700' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="bg-white rounded-xl border border-[#E2D9CC] p-4 text-center">
@@ -366,7 +366,7 @@ export default function FormClassPage() {
 
             {loadingStudents ? (
               <div className="flex justify-center py-8">
-                <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+                <div className="w-6 h-6 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
               </div>
             ) : (
               <div className="space-y-2">
@@ -421,7 +421,7 @@ export default function FormClassPage() {
                 <button onClick={saveRemarks} disabled={saving}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#145C44] text-white hover:bg-[#145C44] disabled:opacity-60">
                   {saving ? (
-                    <><div className="w-3 h-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Saving…</>
+                    <><div className="w-3 h-3 rounded-full border-2 border-white border-b-transparent animate-spin" />Saving…</>
                   ) : savedMsg ? (
                     <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5"><polyline points="20 6 9 17 4 12" /></svg>Saved!</>
                   ) : 'Save All'}
@@ -430,7 +430,7 @@ export default function FormClassPage() {
 
               {loadingTab ? (
                 <div className="flex justify-center py-10">
-                  <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+                  <div className="w-6 h-6 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
                 </div>
               ) : (
                 <div className="divide-y divide-slate-50">
@@ -454,7 +454,7 @@ export default function FormClassPage() {
                           </div>
                           <div className="flex items-center gap-1 flex-shrink-0">
                             <button type="button" onClick={() => setDrawerStudent(s)}
-                              className="text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600 transition-colors whitespace-nowrap">
+                              className="text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-200 text-slate-500 hover:border-[#8FC4A4] hover:text-[#145C44] transition-colors whitespace-nowrap">
                               Attendance
                             </button>
                             <button type="button" onClick={() => setDrawerStudent(s)}
@@ -466,7 +466,7 @@ export default function FormClassPage() {
                         {/* Compact stat strip */}
                         <div className="flex items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 mb-2.5 flex-wrap">
                           <span>
-                            Att: <span className={`font-bold ${att.pct != null ? (att.pct >= 80 ? 'text-[#145C44]' : att.pct >= 60 ? 'text-amber-600' : 'text-red-500') : 'text-slate-400'}`}>{att.pct != null ? `${att.pct}%` : '—'}</span>
+                            Att: <span className={`font-bold ${att.pct != null ? (att.pct >= 80 ? 'text-[#145C44]' : att.pct >= 60 ? 'text-amber-600' : 'text-[#B83232]') : 'text-slate-400'}`}>{att.pct != null ? `${att.pct}%` : '—'}</span>
                             <span className="text-slate-400 ml-1">({att.present}P · {att.absent}A{att.late > 0 ? ` · ${att.late}L` : ''})</span>
                           </span>
                           {sResult ? (
@@ -474,7 +474,7 @@ export default function FormClassPage() {
                               <span className="text-slate-300">·</span>
                               <span>Pos: <span className="font-bold text-slate-700">{sResult.class_position ? ordinal(sResult.class_position) : '—'}</span></span>
                               <span className="text-slate-300">·</span>
-                              <span>Avg: <span className={`font-bold ${sResult.average != null ? (sResult.average >= 70 ? 'text-[#145C44]' : sResult.average >= 50 ? 'text-amber-600' : 'text-red-500') : 'text-slate-400'}`}>{sResult.average != null ? `${sResult.average}%` : '—'}</span></span>
+                              <span>Avg: <span className={`font-bold ${sResult.average != null ? (sResult.average >= 70 ? 'text-[#145C44]' : sResult.average >= 50 ? 'text-amber-600' : 'text-[#B83232]') : 'text-slate-400'}`}>{sResult.average != null ? `${sResult.average}%` : '—'}</span></span>
                               <span className="text-slate-300">·</span>
                               <span>Grade: <span className="font-bold text-slate-700">{sResult.overall_grade || '—'}</span></span>
                             </>
@@ -527,7 +527,7 @@ export default function FormClassPage() {
             </div>
             {loadingTab ? (
               <div className="flex justify-center py-10">
-                <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+                <div className="w-6 h-6 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -564,7 +564,7 @@ export default function FormClassPage() {
                                 </div>
                               </td>
                               <td className="px-4 py-2.5 text-center text-[#145C44] font-semibold text-xs">{row.present}</td>
-                              <td className="px-4 py-2.5 text-center text-red-600 font-semibold text-xs">{row.absent}</td>
+                              <td className="px-4 py-2.5 text-center text-[#B83232] font-semibold text-xs">{row.absent}</td>
                               <td className="px-4 py-2.5 text-center text-amber-600 font-semibold text-xs">{row.late}</td>
                               <td className="px-4 py-2.5 text-center text-slate-600 text-xs">{row.total}</td>
                               <td className="px-4 py-2.5 text-center"><AttPill pct={row.pct} /></td>
@@ -587,7 +587,7 @@ export default function FormClassPage() {
             </div>
             {loadingTab ? (
               <div className="flex justify-center py-10">
-                <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+                <div className="w-6 h-6 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
               </div>
             ) : (
               <div className="divide-y divide-slate-50">
@@ -612,11 +612,11 @@ export default function FormClassPage() {
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <div className="text-right">
-                          <p className="text-sm font-bold" style={{ color: r.average != null ? (r.average >= 70 ? '#145C44' : r.average >= 50 ? '#D97706' : '#DC2626') : '#94a3b8' }}>
+                          <p className="text-sm font-bold" style={{ color: r.average != null ? (r.average >= 70 ? '#145C44' : r.average >= 50 ? '#D97706' : '#B83232') : '#94a3b8' }}>
                             {r.average ?? '—'}
                           </p>
                         </div>
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${['A1','B2','B3','A','B+','B-'].includes(r.overall_grade) ? 'bg-[#D1EAD9] text-[#145C44]' : ['F9','F','E8'].includes(r.overall_grade) ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${['A1','B2','B3','A','B+','B-'].includes(r.overall_grade) ? 'bg-[#D1EAD9] text-[#145C44]' : ['F9','F','E8'].includes(r.overall_grade) ? 'bg-[#FEF2F2] text-[#B83232]' : 'bg-amber-100 text-amber-700'}`}>
                           {r.overall_grade || '—'}
                         </span>
                       </div>

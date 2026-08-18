@@ -351,7 +351,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: dk.pageBg }}>
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
+        <div className="w-8 h-8 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: '#145C44', borderBottomColor: 'transparent' }} />
       </div>
     );
   }
@@ -404,7 +404,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
               {unreadCount > 0 && (
-                <span style={{ position: 'absolute', top: 0, right: 0, background: '#DC2626', color: '#fff', fontSize: 9, fontWeight: 800, minWidth: 14, height: 14, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px' }}>
+                <span style={{ position: 'absolute', top: 0, right: 0, background: '#B83232', color: '#fff', fontSize: 9, fontWeight: 800, minWidth: 14, height: 14, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px' }}>
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
@@ -452,14 +452,14 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
                 <span style={{ color: active ? dk.navActiveText : dk.navText }} className="relative">
                   {item.icon}
                   {item.badge && unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#B83232] text-white text-[9px] font-bold flex items-center justify-center">
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
                 </span>
                 {item.label}
                 {item.badge && unreadCount > 0 ? (
-                  <span className="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">
+                  <span className="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full bg-[#FEF2F2] text-[#B83232]">
                     {unreadCount}
                   </span>
                 ) : active ? (
@@ -555,14 +555,14 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
                   <span style={{ color: active ? dk.navActiveText : dk.navText }} className="relative">
                     {item.icon}
                     {item.badge && unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#B83232] text-white text-[9px] font-bold flex items-center justify-center">
                         {unreadCount > 9 ? '9+' : unreadCount}
                       </span>
                     )}
                   </span>
                   <span className="flex-1">{item.label}</span>
                   {item.badge && unreadCount > 0 && (
-                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">{unreadCount}</span>
+                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-[#FEF2F2] text-[#B83232]">{unreadCount}</span>
                   )}
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 opacity-30">
                     <polyline points="9 18 15 12 9 6" />

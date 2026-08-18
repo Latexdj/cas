@@ -73,8 +73,8 @@ interface SessionDetail {
 }
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  Present: { bg: '#DCFCE7', color: '#145C44' },
-  Absent:  { bg: '#FEF2F2', color: '#DC2626' },
+  Present: { bg: '#E8F4EE', color: '#145C44' },
+  Absent:  { bg: '#FEF2F2', color: '#B83232' },
   Late:    { bg: '#FFFBEB', color: '#D97706' },
 };
 
@@ -193,7 +193,7 @@ export default function SubmitPage() {
     absentCountBg:   isDark ? '#450A0A' : '#FEF2F2',
     totalCountBg:    isDark ? '#1E293B' : '#F5F0E8',
     presentCountText:isDark ? '#86EFAC' : '#2D7A4F',
-    absentCountText: isDark ? '#FCA5A5' : '#DC2626',
+    absentCountText: isDark ? '#FCA5A5' : '#B83232',
     totalCountText:  isDark ? '#94A3B8' : '#64748B',
     absentCardBg:    isDark ? '#2D0A0A' : '#FEF2F2',
     absentCardBorder:isDark ? '#7F1D1D' : '#FCA5A5',
@@ -612,7 +612,7 @@ export default function SubmitPage() {
                         <p className="text-xs" style={{ color: dk.muted }}>{slot.start_time.slice(0,5)} – {slot.end_time.slice(0,5)}{slot.periods ? ` · ${slot.periods} period${slot.periods !== 1 ? 's' : ''}` : ''}</p>
                         {done && (
                           <>
-                            <p className="text-xs font-semibold mt-0.5" style={{ color: '#2D7A4F' }}>✓ Submitted</p>
+                            <p className="text-xs font-semibold mt-0.5 flex items-center gap-1" style={{ color: '#2D7A4F' }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3 h-3 shrink-0"><polyline points="20 6 9 17 4 12" /></svg>Submitted</p>
                             {(() => {
                               const slotClasses = slot.class_names.split(',').map(c => c.trim());
                               const sessions = todaySessions.filter(s =>
@@ -645,7 +645,7 @@ export default function SubmitPage() {
                             })()}
                           </>
                         )}
-                        {absent && <p className="text-xs font-semibold mt-0.5" style={{ color: '#DC2626' }}>✗ Marked Absent — contact admin to resubmit</p>}
+                        {absent && <p className="text-xs font-semibold mt-0.5 flex items-center gap-1" style={{ color: '#B83232' }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3 h-3 shrink-0"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>Marked Absent — contact admin to resubmit</p>}
                       </div>
                     </label>
                   );
@@ -662,7 +662,7 @@ export default function SubmitPage() {
 
               {qrVerified ? (
                 <div className="flex items-center gap-3 py-1">
-                  <span className="w-8 h-8 rounded-full bg-[#D1EAD9] flex items-center justify-center text-[#145C44] font-bold text-lg shrink-0">✓</span>
+                  <span className="w-8 h-8 rounded-full bg-[#D1EAD9] flex items-center justify-center text-[#145C44] shrink-0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4"><polyline points="20 6 9 17 4 12" /></svg></span>
                   <div>
                     <p className="text-sm font-semibold" style={{ color: dk.text }}>Verified — {qrClassName}</p>
                     <button type="button" onClick={() => { setQrVerified(false); setQrClassName(''); }}
@@ -769,7 +769,7 @@ export default function SubmitPage() {
             {errors.photo && <p className="text-xs text-[#B83232] mt-1">{errors.photo}</p>}
           </div>
 
-          {apiError && <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3">{apiError}</p>}
+          {apiError && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3">{apiError}</p>}
           <button type="submit" disabled={submitting}
             className="w-full py-3.5 rounded-xl text-sm font-bold text-white disabled:opacity-40"
             style={{ background: primary }}>
@@ -800,10 +800,10 @@ export default function SubmitPage() {
                     return (
                       <span key={cls} className="text-xs font-semibold px-2.5 py-1 rounded-full"
                         style={{
-                          background: isDone ? '#DCFCE7' : isCurrent ? primary : dk.pendingChipBg,
-                          color:      isDone ? '#166534' : isCurrent ? '#fff'   : dk.pendingChipText,
+                          background: isDone ? '#E8F4EE' : isCurrent ? primary : dk.pendingChipBg,
+                          color:      isDone ? '#145C44' : isCurrent ? '#fff'   : dk.pendingChipText,
                         }}>
-                        {isDone ? `✓ ${cls}` : cls}
+                        {isDone ? <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3 h-3 inline mr-0.5 shrink-0"><polyline points="20 6 9 17 4 12" /></svg>{cls}</> : cls}
                       </span>
                     );
                   })}
@@ -879,8 +879,8 @@ export default function SubmitPage() {
                     </div>
                     <span className="text-xs font-bold px-2.5 py-1 rounded-full"
                       style={{
-                        background: absent ? (isDark ? '#7F1D1D' : '#FEE2E2') : (isDark ? '#14532D' : '#DCFCE7'),
-                        color:      absent ? (isDark ? '#FCA5A5' : '#DC2626') : (isDark ? '#86EFAC' : '#166634'),
+                        background: absent ? (isDark ? '#7F1D1D' : '#FEF2F2') : (isDark ? '#14532D' : '#E8F4EE'),
+                        color:      absent ? (isDark ? '#FCA5A5' : '#B83232') : (isDark ? '#86EFAC' : '#145C44'),
                       }}>
                       {absent ? 'Absent' : 'Present'}
                     </span>
@@ -890,7 +890,7 @@ export default function SubmitPage() {
             </div>
           )}
 
-          {step2Error && <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3">{step2Error}</p>}
+          {step2Error && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3">{step2Error}</p>}
           <button onClick={handleStep2} disabled={step2Loading}
             className="w-full py-3.5 rounded-xl text-sm font-bold text-white disabled:opacity-40"
             style={{ background: primary }}>
@@ -898,7 +898,7 @@ export default function SubmitPage() {
               ? 'Submitting…'
               : classQueueIdx < classQueue.length - 1
                 ? `Submit & Mark ${classQueue[classQueueIdx + 1]} →`
-                : 'Submit Student Attendance ✓'}
+                : 'Submit Student Attendance'}
           </button>
         </div>
       )}
@@ -906,7 +906,7 @@ export default function SubmitPage() {
       {/* ── Edit Status Picker ── */}
       {editStatusSheet && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          style={{ backgroundColor: 'rgba(11,61,46,0.55)' }}
           onClick={() => setEditStatusSheet(null)}>
           <div className="rounded-t-3xl w-full shadow-xl" style={{ background: dk.cardBg }}
             onClick={e => e.stopPropagation()}>
@@ -928,7 +928,12 @@ export default function SubmitPage() {
                   <div className="flex items-center gap-3">
                     <span className="w-9 h-9 rounded-full flex items-center justify-center text-base font-bold shrink-0"
                       style={{ background: sc.bg, color: sc.color }}>
-                      {status === 'Present' ? '✓' : status === 'Absent' ? '✗' : '⏰'}
+                      {status === 'Present'
+                        ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4"><polyline points="20 6 9 17 4 12" /></svg>
+                        : status === 'Absent'
+                        ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                        : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      }
                     </span>
                     <span className="text-sm font-semibold" style={{ color: dk.text }}>{status}</span>
                   </div>
@@ -952,7 +957,7 @@ export default function SubmitPage() {
 
       {/* ── Edit Attendance Modal ── */}
       {(editDetail || editDetailLoading) && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ backgroundColor: 'rgba(11,61,46,0.55)' }}>
           <div className="rounded-t-3xl w-full max-h-[85vh] flex flex-col shadow-xl"
             style={{ background: dk.cardBg }}>
             {/* Header */}
@@ -971,7 +976,7 @@ export default function SubmitPage() {
               {editDetail && (
                 <div className="flex gap-3 text-xs font-bold mr-3">
                   <span style={{ color: '#145C44' }}>{editDetail.records.filter(r => r.status === 'Present').length} Present</span>
-                  <span style={{ color: '#DC2626' }}>{editDetail.records.filter(r => r.status === 'Absent').length} Absent</span>
+                  <span style={{ color: '#B83232' }}>{editDetail.records.filter(r => r.status === 'Absent').length} Absent</span>
                   {editDetail.records.filter(r => r.status === 'Late').length > 0 && (
                     <span style={{ color: '#D97706' }}>{editDetail.records.filter(r => r.status === 'Late').length} Late</span>
                   )}
@@ -980,7 +985,7 @@ export default function SubmitPage() {
               <button onClick={() => setEditDetail(null)} className="text-2xl font-bold leading-none" style={{ color: dk.muted }}>×</button>
             </div>
             {editModalError && (
-              <p className="text-xs text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-2 mx-5 mt-2">
+              <p className="text-xs text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-2 mx-5 mt-2">
                 {editModalError}
               </p>
             )}
@@ -988,8 +993,8 @@ export default function SubmitPage() {
             <div className="overflow-y-auto flex-1 px-5 py-3">
               {editDetailLoading && !editDetail && (
                 <div className="flex justify-center py-8">
-                  <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-                    style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+                  <div className="w-8 h-8 rounded-full border-2 border-b-transparent animate-spin"
+                    style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
                 </div>
               )}
               {editDetail && (

@@ -104,17 +104,17 @@ function NewCourseModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55" onClick={onClose}>
       <div
         className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-900">New Course</h2>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm font-bold hover:bg-slate-200">✕</button>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
-          {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+          {error && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">{error}</p>}
           {!loadingAssignments && subjects.length === 0 && (
             <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
               You have no timetable assignments yet. Ask your admin to assign you subjects and classes in the timetable before creating a course.
@@ -288,7 +288,7 @@ function CoursesContent() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{error}</p>}
+      {error && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 mb-4">{error}</p>}
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -327,15 +327,15 @@ function CoursesContent() {
                     <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: primary }}>{course.teacher_name}</span>
                   )}
                   {course.semester && (
-                    <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Sem {course.semester}</span>
+                    <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#F5F0E8] text-[#8C7E6E]">Sem {course.semester}</span>
                   )}
                 </div>
                 <p className="text-xs text-[#8C7E6E]">
                   {course.lesson_count} lessons · {course.assignment_count} assignments · {course.quiz_count} quizzes
                 </p>
                 {course.pending_submissions > 0 && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 bg-red-50 border border-red-100 rounded-full px-2.5 py-0.5 w-fit">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-full px-2.5 py-0.5 w-fit">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#B83232] inline-block" />
                     {course.pending_submissions} pending
                   </span>
                 )}
@@ -380,10 +380,11 @@ export default function LmsPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#F4EFE6' }}>
-        <div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-t-transparent animate-spin" />
+        <div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-b-transparent animate-spin" />
       </div>
     }>
       <CoursesContent />
     </Suspense>
   );
 }
+

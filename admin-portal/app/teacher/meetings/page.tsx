@@ -35,9 +35,9 @@ interface PlcTodayData {
 type ActiveTab = 'meetings' | 'plc';
 
 const TYPE_BADGE: Record<string, { bg: string; color: string }> = {
-  'PLC':              { bg: '#DCFCE7', color: '#145C44' },
-  'Morning Briefing': { bg: '#DBEAFE', color: '#1D4ED8' },
-  'Staff Meeting':    { bg: '#F3E8FF', color: '#7E22CE' },
+  'PLC':              { bg: '#E8F4EE', color: '#145C44' },
+  'Morning Briefing': { bg: '#E8F4EE', color: '#145C44' },
+  'Staff Meeting':    { bg: '#F5F0E8', color: '#8C7E6E' },
   'PTA':              { bg: '#FEF3C7', color: '#B45309' },
   'Other':            { bg: '#F1F5F9', color: '#475569' },
 };
@@ -403,7 +403,7 @@ export default function TeacherMeetingsPage() {
             </div>
             {qrError && (
               <div className="absolute bottom-0 left-0 right-0 bg-[#0B3D2E]/70 px-3 py-2 text-center">
-                <p className="text-xs text-red-300">{qrError}</p>
+                <p className="text-xs text-[#B83232]">{qrError}</p>
               </div>
             )}
             <button
@@ -430,7 +430,7 @@ export default function TeacherMeetingsPage() {
               <p className="text-sm font-bold text-[#2C2218]">Scan Venue QR Code</p>
               <p className="text-xs text-[#8C7E6E]">Scan the QR code posted at the venue</p>
             </div>
-            {qrError && <span className="text-xs text-red-500 shrink-0">Failed — retry</span>}
+            {qrError && <span className="text-xs text-[#B83232] shrink-0">Failed — retry</span>}
           </button>
         )}
       </>
@@ -443,8 +443,8 @@ export default function TeacherMeetingsPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#F4EFE6' }}>
-        <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-          style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+        <div className="w-8 h-8 rounded-full border-2 border-b-transparent animate-spin"
+          style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
       </div>
     );
   }
@@ -567,7 +567,7 @@ export default function TeacherMeetingsPage() {
                     {renderQrScanner()}
                   </div>
                   {submitError && (
-                    <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">{submitError}</p>
+                    <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-3 py-2.5">{submitError}</p>
                   )}
                   <button
                     onClick={handleMeetingSubmit}
@@ -599,7 +599,9 @@ export default function TeacherMeetingsPage() {
             <div className="space-y-3">
               <div className="bg-white rounded-xl border border-[#A7D7B8] shadow-sm p-5" style={{ background: '#F0FAF4' }}>
                 <div className="flex items-center gap-3 mb-3">
-                  <span className="w-10 h-10 rounded-full bg-[#D1EAD9] flex items-center justify-center text-[#145C44] text-xl font-bold shrink-0">✓</span>
+                  <span className="w-10 h-10 rounded-full bg-[#D1EAD9] flex items-center justify-center text-[#145C44] shrink-0">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} className="w-5 h-5"><polyline points="20 6 9 17 4 12" /></svg>
+                  </span>
                   <div>
                     <p className="text-sm font-bold text-[#1A4D2E]">Attendance Submitted</p>
                     <p className="text-xs text-[#2D7A4F]">
@@ -668,7 +670,7 @@ export default function TeacherMeetingsPage() {
               </div>
 
               {submitError && (
-                <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3">{submitError}</p>
+                <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3">{submitError}</p>
               )}
 
               <button
@@ -677,7 +679,7 @@ export default function TeacherMeetingsPage() {
                 className="w-full py-3.5 rounded-xl text-sm font-bold text-white disabled:opacity-40"
                 style={{ background: primary }}
               >
-                {submitting ? 'Submitting…' : 'Submit PLC Attendance ✓'}
+                {submitting ? 'Submitting…' : 'Submit PLC Attendance'}
               </button>
             </form>
           )}

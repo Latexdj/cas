@@ -20,7 +20,7 @@ interface HistoryItem {
 
 const STATUS_STYLE = {
   cleared:     { dot: 'bg-[#145C44]',  badge: 'bg-[#D1EAD9] text-[#145C44]',  label: 'Cleared'     },
-  not_cleared: { dot: 'bg-red-500',    badge: 'bg-red-100 text-red-700',      label: 'Not Cleared' },
+  not_cleared: { dot: 'bg-[#B83232]',  badge: 'bg-[#FEF2F2] text-[#B83232]',  label: 'Not Cleared' },
   pending:     { dot: 'bg-amber-400',  badge: 'bg-amber-100 text-amber-700',  label: 'Pending'     },
 };
 
@@ -108,7 +108,7 @@ export default function TeacherClearancePage() {
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+      <div className="w-8 h-8 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
     </div>
   );
 
@@ -201,11 +201,11 @@ export default function TeacherClearancePage() {
             <button type="submit" disabled={lookupLoading || !lookupCode.trim()}
               className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 flex items-center gap-2"
               style={{ background: primary }}>
-              {lookupLoading && <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />}
+              {lookupLoading && <span className="w-4 h-4 rounded-full border-2 border-white border-b-transparent animate-spin" />}
               Search
             </button>
           </form>
-          {lookupError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{lookupError}</p>}
+          {lookupError && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3">{lookupError}</p>}
           {lookupResult && (
             <div className="space-y-3">
               <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-3">
@@ -295,24 +295,24 @@ export default function TeacherClearancePage() {
                     Cleared
                   </button>
                   <button onClick={() => setAcStatus('not_cleared')}
-                    className={`py-2.5 rounded-xl text-sm font-bold border transition-colors ${acStatus === 'not_cleared' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-slate-600 border-slate-200 hover:border-red-300'}`}>
+                    className={`py-2.5 rounded-xl text-sm font-bold border transition-colors ${acStatus === 'not_cleared' ? 'bg-[#B83232] text-white border-[#B83232]' : 'bg-white text-slate-600 border-slate-200 hover:border-[#FECACA]'}`}>
                     Not Cleared
                   </button>
                 </div>
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-500 font-medium block mb-1">
-                  Reason / Notes {acStatus === 'not_cleared' && <span className="text-red-500">*</span>}
+                  Reason / Notes {acStatus === 'not_cleared' && <span className="text-[#B83232]">*</span>}
                 </label>
                 <textarea value={acNotes} onChange={e => { setAcNotes(e.target.value); setAcError(''); }} rows={3}
                   placeholder={acStatus === 'not_cleared' ? 'Required — state the reason clearly…' : 'Optional notes…'}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44] resize-none" />
               </div>
-              {acError && <p className="text-sm text-red-600">{acError}</p>}
+              {acError && <p className="text-sm text-[#B83232]">{acError}</p>}
               <div className="flex gap-3">
                 <button onClick={() => setAction(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-[#F5F0E8]">Cancel</button>
                 <button onClick={submitAction} disabled={acSaving || (acStatus === 'not_cleared' && !acNotes.trim())}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 ${acStatus === 'not_cleared' ? 'bg-red-600 hover:bg-red-700' : 'bg-[#145C44] hover:bg-[#145C44]'}`}>
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 ${acStatus === 'not_cleared' ? 'bg-[#B83232] hover:bg-[#9B2020]' : 'bg-[#145C44] hover:bg-[#145C44]'}`}>
                   {acSaving ? 'Saving…' : 'Confirm'}
                 </button>
               </div>

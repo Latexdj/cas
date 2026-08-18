@@ -55,9 +55,9 @@ interface Notice {
 }
 
 const NOTICE_STYLE: Record<string, { bg: string; border: string; badge: string }> = {
-  urgent:    { bg: '#FEF2F2', border: '#FECACA', badge: '#DC2626' },
+  urgent:    { bg: '#FEF2F2', border: '#FECACA', badge: '#B83232' },
   important: { bg: '#FFFBEB', border: '#FDE68A', badge: '#D97706' },
-  normal:    { bg: '#F0FDF4', border: '#BBF7D0', badge: '#16A34A' },
+  normal:    { bg: '#E8F4EE', border: '#BBF7D0', badge: '#2D7A4F' },
 };
 
 function formatLocalDate(iso: string) {
@@ -73,9 +73,9 @@ function formatMeetingType(t: string) {
 function pctColor(pct: number | null) {
   if (pct === null) return '#8C7E6E';
   if (pct >= 90) return '#2D7A4F';
-  if (pct >= 75) return '#2563EB';
+  if (pct >= 75) return '#C8780A';
   if (pct >= 60) return '#D97706';
-  return '#DC2626';
+  return '#B83232';
 }
 
 export default function TeacherDashboardPage() {
@@ -146,7 +146,7 @@ export default function TeacherDashboardPage() {
 
   const eventColor = (type: string) => {
     if (type === 'Holiday') return { bg: '#FEF3C7', border: '#FCD34D', text: '#92400E' };
-    if (type === 'Closed Day') return { bg: '#FEE2E2', border: '#FCA5A5', text: '#991B1B' };
+    if (type === 'Closed Day') return { bg: '#FEF2F2', border: '#FECACA', text: '#B83232' };
     return { bg: `${primary}18`, border: `${primary}55`, text: primary };
   };
 
@@ -173,7 +173,7 @@ export default function TeacherDashboardPage() {
       </div>
 
       {error && (
-        <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{error}</p>
+        <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 mb-4">{error}</p>
       )}
 
       {/* Notices */}
@@ -231,8 +231,8 @@ export default function TeacherDashboardPage() {
           <div className="grid grid-cols-4 gap-2 mb-3">
             {[
               { label: 'Present',   value: summary.present_periods,   color: '#2D7A4F' },
-              { label: 'Absent',    value: summary.absent_periods,    color: summary.absent_periods > 0 ? '#DC2626' : '#8C7E6E' },
-              { label: 'Excused',   value: summary.excused_periods,   color: '#7C3AED' },
+              { label: 'Absent',    value: summary.absent_periods,    color: summary.absent_periods > 0 ? '#B83232' : '#8C7E6E' },
+              { label: 'Excused',   value: summary.excused_periods,   color: '#8C7E6E' },
               { label: 'Scheduled', value: summary.total_scheduled,   color: '#8C7E6E' },
             ].map(({ label, value, color }) => (
               <div key={label} className="text-center">

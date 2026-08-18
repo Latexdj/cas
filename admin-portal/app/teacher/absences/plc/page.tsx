@@ -23,8 +23,8 @@ function fmt(iso: string) {
 }
 
 function statusStyle(s: string) {
-  if (s === 'excused') return { bg: '#DCFCE7', color: '#166534' };
-  return { bg: '#FEE2E2', color: '#991B1B' };
+  if (s === 'excused') return { bg: '#E8F4EE', color: '#145C44' };
+  return { bg: '#FEF2F2', color: '#B83232' };
 }
 
 export default function PlcAbsencesPage() {

@@ -239,15 +239,15 @@ export default function RemedialPage() {
               className="mt-3 rounded-xl px-3 py-2.5 text-xs font-medium"
               style={
                 banner.kind === 'ok'
-                  ? { background: '#DCFCE7', color: '#145C44' }
+                  ? { background: '#E8F4EE', color: '#145C44' }
                   : banner.kind === 'warn'
                   ? { background: '#FEF3C7', color: '#92400E' }
-                  : { background: '#FEE2E2', color: '#B91C1C' }
+                  : { background: '#FEF2F2', color: '#B83232' }
               }
             >
-              {banner.kind === 'ok'   && '✓ '}
-              {banner.kind === 'warn' && '⚠ '}
-              {banner.kind === 'error' && '✕ '}
+              {banner.kind === 'ok'    && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 inline mr-1 shrink-0"><polyline points="20 6 9 17 4 12" /></svg>}
+              {banner.kind === 'warn'  && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5 inline mr-1 shrink-0"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>}
+              {banner.kind === 'error' && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 inline mr-1 shrink-0"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>}
               {banner.text}
             </div>
           )}
@@ -297,7 +297,7 @@ export default function RemedialPage() {
         </div>
 
         {error && (
-          <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>
+          <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3">{error}</p>
         )}
 
         <button
@@ -308,7 +308,7 @@ export default function RemedialPage() {
         >
           {loading ? (
             <span className="flex items-center justify-center gap-2">
-              <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+              <span className="w-4 h-4 rounded-full border-2 border-white border-b-transparent animate-spin" />
               Scheduling...
             </span>
           ) : 'Schedule Remedial Lesson'}

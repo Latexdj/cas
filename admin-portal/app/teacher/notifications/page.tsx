@@ -84,7 +84,7 @@ export default function NotificationsPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    {!n.read && <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />}
+                    {!n.read && <span className="w-2 h-2 rounded-full bg-[#B83232] shrink-0" />}
                     <p className="text-sm font-bold text-[#2C2218] truncate">{n.title}</p>
                   </div>
                   <p className="text-xs text-[#5C4F42] leading-relaxed">{n.message}</p>

@@ -52,8 +52,8 @@ function formatDate(iso: string) {
 }
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  Present: { bg: '#DCFCE7', color: '#145C44' },
-  Absent:  { bg: '#FEF2F2', color: '#DC2626' },
+  Present: { bg: '#E8F4EE', color: '#145C44' },
+  Absent:  { bg: '#FEF2F2', color: '#B83232' },
   Late:    { bg: '#FFFBEB', color: '#D97706' },
 };
 
@@ -265,7 +265,7 @@ export default function StudentAttendancePage() {
 
           <div className="px-4">
             {sessError && (
-              <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{sessError}</p>
+              <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 mb-4">{sessError}</p>
             )}
             {sessLoading ? (
               <div className="space-y-3">
@@ -308,8 +308,8 @@ export default function StudentAttendancePage() {
                       </div>
                       <div className="flex gap-3">
                         {[
-                          { label: 'Present', val: sess.present, color: '#145C44', bg: '#DCFCE7' },
-                          { label: 'Absent',  val: sess.absent,  color: '#DC2626', bg: '#FEF2F2' },
+                          { label: 'Present', val: sess.present, color: '#145C44', bg: '#E8F4EE' },
+                          { label: 'Absent',  val: sess.absent,  color: '#B83232', bg: '#FEF2F2' },
                           { label: 'Late',    val: sess.late,    color: '#D97706', bg: '#FFFBEB' },
                         ].map(({ label, val, color, bg }) => (
                           <div key={label} className="flex-1 rounded-lg py-1.5 text-center" style={{ background: bg }}>
@@ -328,7 +328,7 @@ export default function StudentAttendancePage() {
           {/* Status picker overlay */}
           {statusSheet && (
             <div className="fixed inset-0 z-[60] flex items-end justify-center"
-              style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+              style={{ backgroundColor: 'rgba(11,61,46,0.55)' }}
               onClick={() => setStatusSheet(null)}>
               <div className="bg-white rounded-t-3xl w-full shadow-xl"
                 onClick={e => e.stopPropagation()}>
@@ -349,7 +349,11 @@ export default function StudentAttendancePage() {
                       <div className="flex items-center gap-3">
                         <span className="w-9 h-9 rounded-full flex items-center justify-center text-base font-bold shrink-0"
                           style={{ background: sc.bg, color: sc.color }}>
-                          {status === 'Present' ? '✓' : status === 'Absent' ? '✗' : '⏰'}
+                          {status === 'Present'
+                          ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} className="w-4 h-4"><polyline points="20 6 9 17 4 12" /></svg>
+                          : status === 'Absent'
+                          ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                          : '⏰'}
                         </span>
                         <span className="text-sm font-semibold text-[#2C2218]">{status}</span>
                       </div>
@@ -372,7 +376,7 @@ export default function StudentAttendancePage() {
 
           {/* Session detail bottom sheet */}
           {(detail || detailLoading) && (
-            <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+            <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ backgroundColor: 'rgba(11,61,46,0.55)' }}>
               <div className="bg-white rounded-t-3xl w-full max-h-[85vh] flex flex-col shadow-xl">
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 py-4 border-b border-[#E2D9CC]">
@@ -385,7 +389,7 @@ export default function StudentAttendancePage() {
                   {detail && (
                     <div className="flex gap-3 text-xs font-bold mr-3">
                       <span style={{ color: '#145C44' }}>{detail.records.filter(r => r.status === 'Present').length} Present</span>
-                      <span style={{ color: '#DC2626' }}>{detail.records.filter(r => r.status === 'Absent').length} Absent</span>
+                      <span style={{ color: '#B83232' }}>{detail.records.filter(r => r.status === 'Absent').length} Absent</span>
                       {detail.records.filter(r => r.status === 'Late').length > 0 && (
                         <span style={{ color: '#D97706' }}>{detail.records.filter(r => r.status === 'Late').length} Late</span>
                       )}
@@ -394,7 +398,7 @@ export default function StudentAttendancePage() {
                   <button onClick={() => setDetail(null)} className="text-2xl font-bold text-[#8C7E6E] leading-none">×</button>
                 </div>
                 {editError && (
-                  <p className="text-xs text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-2 mx-5 mt-2">
+                  <p className="text-xs text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-2 mx-5 mt-2">
                     {editError}
                   </p>
                 )}
@@ -402,8 +406,8 @@ export default function StudentAttendancePage() {
                 <div className="overflow-y-auto flex-1 px-5 py-3">
                   {detailLoading && !detail && (
                     <div className="flex justify-center py-8">
-                      <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
-                        style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+                      <div className="w-8 h-8 rounded-full border-2 border-b-transparent animate-spin"
+                        style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
                     </div>
                   )}
                   {detail && (
@@ -476,7 +480,7 @@ export default function StudentAttendancePage() {
 
           <div className="px-4">
             {riskError && (
-              <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{riskError}</p>
+              <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 mb-4">{riskError}</p>
             )}
             {riskLoading ? (
               <div className="space-y-3">
@@ -525,7 +529,7 @@ export default function StudentAttendancePage() {
                             <span className="text-xs text-[#8C7E6E] shrink-0">
                               {students.length} student{students.length !== 1 ? 's' : ''}
                               {hasAlert && !riskBelowOnly && (
-                                <span style={{ color: '#DC2626' }}> · {belowCount} below {RISK_THRESHOLD}%</span>
+                                <span style={{ color: '#B83232' }}> · {belowCount} below {RISK_THRESHOLD}%</span>
                               )}
                             </span>
                           </div>
@@ -540,7 +544,7 @@ export default function StudentAttendancePage() {
                           <div className="bg-white divide-y divide-[#F4EFE6]">
                             {students.map(s => {
                               const pct = s.present_pct ?? 0;
-                              const barColor = pct >= 90 ? '#145C44' : pct >= RISK_THRESHOLD ? '#D97706' : '#DC2626';
+                              const barColor = pct >= 90 ? '#145C44' : pct >= RISK_THRESHOLD ? '#D97706' : '#B83232';
                               const isLow = s.present_pct !== null && s.present_pct < RISK_THRESHOLD;
                               return (
                                 <div key={s.id} className="px-4 py-3"

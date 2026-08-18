@@ -96,7 +96,7 @@ export default function AbsenceListPage() {
       </div>
 
       {loadError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+        <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-xl p-4 mb-4">
           <p className="text-sm text-[#B83232]">{loadError}</p>
           <button onClick={loadData} className="mt-2 text-xs font-semibold text-[#B83232] underline">Retry</button>
         </div>
@@ -125,7 +125,7 @@ export default function AbsenceListPage() {
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-semibold text-[#2C2218]">{ab.subject} — {ab.class_name}</p>
                 {ab.is_combined && (
-                  <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Combined</span>
+                  <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-[#F5F0E8] text-[#8C7E6E]">Combined</span>
                 )}
               </div>
               <p className="text-xs text-[#8C7E6E] mt-0.5">
@@ -133,9 +133,9 @@ export default function AbsenceListPage() {
                 {ab.periods_lost > 1 ? ` · ${ab.periods_lost} periods outstanding` : ' · 1 period outstanding'}
               </p>
               {ab.rejection_reason && (
-                <div className="mt-1.5 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
-                  <p className="text-xs font-semibold text-red-700">Remedial rejected — please reschedule</p>
-                  <p className="text-xs text-red-600 mt-0.5">{ab.rejection_reason}</p>
+                <div className="mt-1.5 bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-2.5 py-1.5">
+                  <p className="text-xs font-semibold text-[#B83232]">Remedial rejected — please reschedule</p>
+                  <p className="text-xs text-[#B83232] mt-0.5">{ab.rejection_reason}</p>
                 </div>
               )}
               {ab.reason && <p className="text-xs text-[#8C7E6E] mt-1 italic">&ldquo;{ab.reason}&rdquo;</p>}

@@ -26,9 +26,9 @@ interface InvStudent {
 }
 
 function condColor(c: string) {
-  if (c === 'Good')    return { color: '#145C44', bg: '#F0FDF4' };
+  if (c === 'Good')    return { color: '#145C44', bg: '#E8F4EE' };
   if (c === 'Damaged') return { color: '#92400E', bg: '#FEF9C3' };
-  return { color: '#B91C1C', bg: '#FEF2F2' };
+  return { color: '#B83232', bg: '#FEF2F2' };
 }
 
 export default function HodInventoryPage() {
@@ -160,7 +160,7 @@ export default function HodInventoryPage() {
     return (
       <div className="flex justify-center py-16">
         <div className="w-7 h-7 rounded-full border-2 animate-spin"
-          style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+          style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
       </div>
     );
   }
@@ -271,7 +271,7 @@ export default function HodInventoryPage() {
                         <div>
                           <p className="text-[10px] font-bold font-medium text-[#8C7E6E]">Available</p>
                           <p className="text-base font-bold"
-                            style={{ color: item.quantity_available > 0 ? '#145C44' : '#B91C1C' }}>
+                            style={{ color: item.quantity_available > 0 ? '#145C44' : '#B83232' }}>
                             {item.quantity_available}
                           </p>
                         </div>
@@ -348,9 +348,9 @@ export default function HodInventoryPage() {
                     {issueStudentLoading ? '…' : 'Find'}
                   </button>
                 </div>
-                {issueStudentError && <p className="text-xs text-red-600 mt-1">{issueStudentError}</p>}
+                {issueStudentError && <p className="text-xs text-[#B83232] mt-1">{issueStudentError}</p>}
                 {issueStudent && (
-                  <div className="mt-2 bg-[#F0FDF4] border border-[#B8D9C8] rounded-xl px-3 py-2">
+                  <div className="mt-2 bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-2">
                     <p className="text-sm font-semibold text-[#145C44]">{issueStudent.name}</p>
                     <p className="text-xs text-[#8C7E6E]">
                       {issueStudent.student_code}{issueStudent.class_name ? ` · ${issueStudent.class_name}` : ''}
@@ -396,7 +396,7 @@ export default function HodInventoryPage() {
                 className="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none resize-none" />
             </div>
 
-            {issueError   && <p className="text-sm text-red-600">{issueError}</p>}
+            {issueError   && <p className="text-sm text-[#B83232]">{issueError}</p>}
             {issueSuccess && <p className="text-sm font-semibold text-[#145C44]">{issueSuccess}</p>}
 
             <button onClick={submitIssue} disabled={issuing}
@@ -455,7 +455,7 @@ export default function HodInventoryPage() {
                 className="w-full rounded-xl border border-[#E2D9CC] px-3 py-2 text-sm focus:outline-none resize-none" />
             </div>
 
-            {returnError   && <p className="text-sm text-red-600">{returnError}</p>}
+            {returnError   && <p className="text-sm text-[#B83232]">{returnError}</p>}
             {returnSuccess && <p className="text-sm font-semibold text-[#145C44]">{returnSuccess}</p>}
 
             <button onClick={submitReturn} disabled={returning}

@@ -133,12 +133,12 @@ function Badge({ label, color, bg }: { label: string; color: string; bg: string 
 }
 
 const ABSENCE_STATUS_STYLE: Record<string, { color: string; bg: string }> = {
-  'Absent':             { color: '#B91C1C', bg: '#FEF2F2' },
+  'Absent':             { color: '#B83232', bg: '#FEF2F2' },
   'Remedial Scheduled': { color: '#92400E', bg: '#FEF9C3' },
-  'Made Up':            { color: '#145C44', bg: '#F0FDF4' },
-  'Cleared':            { color: '#1D4ED8', bg: '#EFF6FF' },
-  'Verified':           { color: '#1D4ED8', bg: '#DBEAFE' },
-  'Excused':            { color: '#6D28D9', bg: '#F5F3FF' },
+  'Made Up':            { color: '#145C44', bg: '#E8F4EE' },
+  'Cleared':            { color: '#145C44', bg: '#E8F4EE' },
+  'Verified':           { color: '#145C44', bg: '#E8F4EE' },
+  'Excused':            { color: '#8C7E6E', bg: '#F5F0E8' },
 };
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -384,7 +384,7 @@ export default function HodPage() {
   function Spinner() {
     return (
       <div className="flex justify-center py-16">
-        <div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+        <div className="w-7 h-7 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
       </div>
     );
   }
@@ -451,7 +451,7 @@ export default function HodPage() {
       </div>
 
       {error && (
-        <div className="mx-4 mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+        <div className="mx-4 mb-4 bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 text-sm text-[#B83232]">
           {error}
         </div>
       )}
@@ -467,7 +467,7 @@ export default function HodPage() {
                 <StatCard label="Classes"          value={overview.class_count} />
                 <StatCard label="Students"         value={overview.student_count} />
                 <StatCard label="Outstanding Absences" value={overview.outstanding_absences}
-                  accent={overview.outstanding_absences > 0 ? '#B91C1C' : undefined} />
+                  accent={overview.outstanding_absences > 0 ? '#B83232' : undefined} />
                 <StatCard label="Pending Remedials"    value={overview.pending_remedials}
                   accent={overview.pending_remedials > 0 ? '#92400E' : undefined} />
                 <StatCard label="Assessments (Term)"   value={overview.assessments_total}
@@ -542,7 +542,7 @@ export default function HodPage() {
 
             {/* Review modal */}
             {reviewTarget && (
-              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(11,61,46,0.55)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
                 onClick={() => setReviewTarget(null)}>
                 <div style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}
                   onClick={e => e.stopPropagation()}>
@@ -555,7 +555,7 @@ export default function HodPage() {
                     {previewLoading ? (
                       <div style={{ textAlign: 'center', padding: '14px 0', color: '#94A3B8', fontSize: 12 }}>Loading results…</div>
                     ) : previewError ? (
-                      <p style={{ fontSize: 12, color: '#DC2626' }}>{previewError}</p>
+                      <p style={{ fontSize: 12, color: '#B83232' }}>{previewError}</p>
                     ) : previewResults.length === 0 ? (
                       <p style={{ fontSize: 12, color: '#94A3B8', fontStyle: 'italic' }}>No result data found for this class.</p>
                     ) : (() => {
@@ -580,7 +580,7 @@ export default function HodPage() {
                                     <td style={{ padding: '6px 10px', textAlign: 'center', color: '#374151' }}>{sub?.ca_score != null ? sub.ca_score.toFixed(1) : '—'}</td>
                                     <td style={{ padding: '6px 10px', textAlign: 'center', color: '#374151' }}>{sub?.exam_score != null ? sub.exam_score.toFixed(1) : '—'}</td>
                                     <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 600, color: '#1C1208' }}>{sub?.total != null ? sub.total : '—'}</td>
-                                    <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700, color: sub?.grade?.startsWith('F') || sub?.grade === 'E8' ? '#DC2626' : '#145C44' }}>{sub?.grade ?? '—'}</td>
+                                    <td style={{ padding: '6px 10px', textAlign: 'center', fontWeight: 700, color: sub?.grade?.startsWith('F') || sub?.grade === 'E8' ? '#B83232' : '#145C44' }}>{sub?.grade ?? '—'}</td>
                                   </tr>
                                 );
                               })}
@@ -675,7 +675,7 @@ export default function HodPage() {
               )}
             </div>
 
-            {resultsError && <p style={{ fontSize: 13, color: '#DC2626', marginBottom: 12 }}>{resultsError}</p>}
+            {resultsError && <p style={{ fontSize: 13, color: '#B83232', marginBottom: 12 }}>{resultsError}</p>}
 
             {hodResults.length > 0 && (
               <div style={{ border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
@@ -690,7 +690,7 @@ export default function HodPage() {
                         <span style={{ fontSize: 12, color: '#374151' }}><strong>{hodResults.length}</strong> students</span>
                         <span style={{ fontSize: 12, color: '#374151' }}>Class avg: <strong>{avg}%</strong></span>
                         <span style={{ fontSize: 12, color: '#374151' }}>Passing: <strong style={{ color: '#145C44' }}>{passing}</strong></span>
-                        <span style={{ fontSize: 12, color: '#374151' }}>At risk: <strong style={{ color: '#DC2626' }}>{withAvg.filter(r=>(r.average??0)<40).length}</strong></span>
+                        <span style={{ fontSize: 12, color: '#374151' }}>At risk: <strong style={{ color: '#B83232' }}>{withAvg.filter(r=>(r.average??0)<40).length}</strong></span>
                       </>
                     );
                   })()}
@@ -719,15 +719,15 @@ export default function HodPage() {
                               <p style={{ fontWeight: 600, color: '#1C1208', margin: 0 }}>{student.name}</p>
                               <p style={{ fontSize: 11, color: '#64748B', margin: 0 }}>{student.student_code}</p>
                             </td>
-                            <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: student.average !== null && student.average >= 40 ? '#145C44' : '#DC2626' }}>
+                            <td style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: student.average !== null && student.average >= 40 ? '#145C44' : '#B83232' }}>
                               {student.average !== null ? student.average + '%' : '—'}
                             </td>
                             <td style={{ padding: '10px 12px', textAlign: 'center', color: '#374151' }}>{student.subjects.length}</td>
                             <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                               {student.average !== null && student.average < 40 ? (
-                                <span style={{ background: '#FEE2E2', color: '#DC2626', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>AT RISK</span>
+                                <span style={{ background: '#FEF2F2', color: '#B83232', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>AT RISK</span>
                               ) : student.average !== null ? (
-                                <span style={{ background: '#DCFCE7', color: '#145C44', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>PASSING</span>
+                                <span style={{ background: '#E8F4EE', color: '#145C44', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>PASSING</span>
                               ) : null}
                             </td>
                             <td style={{ padding: '10px 12px', textAlign: 'center' }}>
@@ -757,7 +757,7 @@ export default function HodPage() {
                                         <td style={{ padding: '5px 8px', textAlign: 'center', color: '#64748B' }}>{sub.ca_score != null ? sub.ca_score.toFixed(1) : '—'}</td>
                                         <td style={{ padding: '5px 8px', textAlign: 'center', color: '#64748B' }}>{sub.exam_score != null ? sub.exam_score.toFixed(1) : '—'}</td>
                                         <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 600, color: '#1C1208' }}>{sub.total != null ? sub.total : '—'}</td>
-                                        <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 700, color: sub.grade?.startsWith('F') || sub.grade==='E8' ? '#DC2626' : '#145C44' }}>{sub.grade ?? '—'}</td>
+                                        <td style={{ padding: '5px 8px', textAlign: 'center', fontWeight: 700, color: sub.grade?.startsWith('F') || sub.grade==='E8' ? '#B83232' : '#145C44' }}>{sub.grade ?? '—'}</td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -813,7 +813,7 @@ export default function HodPage() {
                         <p className="text-xs text-[#8C7E6E] mt-0.5">{cls.student_count} student{cls.student_count !== 1 ? 's' : ''}</p>
                       </div>
                       {teacherName ? (
-                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ml-2" style={{ background: '#F0FDF4', color: '#145C44' }}>
+                        <span className="text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ml-2" style={{ background: '#E8F4EE', color: '#145C44' }}>
                           {assignedLabel}
                         </span>
                       ) : (
@@ -884,7 +884,7 @@ export default function HodPage() {
                   <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-xl px-3 py-2.5" style={{ background: t.outstanding_absences > 0 ? '#FEF2F2' : '#F5F0E8' }}>
                       <p className="text-[10px] font-bold font-medium text-[#8C7E6E]">Absences</p>
-                      <p className="text-lg font-bold mt-0.5" style={{ color: t.outstanding_absences > 0 ? '#B91C1C' : '#1C1208' }}>
+                      <p className="text-lg font-bold mt-0.5" style={{ color: t.outstanding_absences > 0 ? '#B83232' : '#1C1208' }}>
                         {t.outstanding_absences}
                       </p>
                       <p className="text-[10px] text-[#94A3B8]">outstanding</p>

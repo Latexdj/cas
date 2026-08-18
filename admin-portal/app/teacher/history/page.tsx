@@ -210,7 +210,7 @@ export default function HistoryPage() {
                 className="w-full appearance-none border border-[#E2D9CC] rounded-xl px-3 py-2 pr-8 text-sm font-semibold text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]"
               >
                 {academicYears.map(y => (
-                  <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>
+                  <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (current)' : ''}</option>
                 ))}
               </select>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 text-[#8C7E6E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -237,7 +237,7 @@ export default function HistoryPage() {
             <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">
               {selectedYearName} · {semLabel}
             </p>
-            {error && <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{error}</p>}
+            {error && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 mb-4">{error}</p>}
             {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3, 4, 5].map(i => (
@@ -272,7 +272,7 @@ export default function HistoryPage() {
                   <button onClick={() => fetchPage(offset, true)} disabled={loadingMore}
                     className="w-full py-3 rounded-xl text-sm font-semibold border border-[#E2D9CC] bg-white text-[#8C7E6E] disabled:opacity-40">
                     {loadingMore
-                      ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 rounded-full border-2 border-[#8C7E6E] border-t-transparent animate-spin" />Loading...</span>
+                      ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 rounded-full border-2 border-[#8C7E6E] border-b-transparent animate-spin" />Loading...</span>
                       : 'Load More'}
                   </button>
                 )}
@@ -294,7 +294,7 @@ export default function HistoryPage() {
                 className="w-full appearance-none border border-[#E2D9CC] rounded-xl px-3 py-2 pr-8 text-sm font-semibold text-[#2C2218] bg-[#F4EFE6] focus:outline-none focus:border-[#8C7E6E]"
               >
                 {academicYears.map(y => (
-                  <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>
+                  <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (current)' : ''}</option>
                 ))}
               </select>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 text-[#8C7E6E] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -326,7 +326,7 @@ export default function HistoryPage() {
                 </div>
               </div>
             )}
-            {plcError && <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{plcError}</p>}
+            {plcError && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 mb-4">{plcError}</p>}
             {plcLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3, 4, 5].map(i => (
@@ -352,7 +352,7 @@ export default function HistoryPage() {
                         {rec.location_name && (
                           <p className="text-xs text-[#8C7E6E] mt-1 truncate">
                             <span className="font-medium">Venue:</span> {rec.location_name}
-                            {rec.location_verified && <span className="text-[#145C44] ml-1">✓</span>}
+                            {rec.location_verified && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3 h-3 inline text-[#145C44] ml-1"><polyline points="20 6 9 17 4 12" /></svg>}
                           </p>
                         )}
                         {rec.notes && (
@@ -372,7 +372,7 @@ export default function HistoryPage() {
                   <button onClick={() => fetchPlcPage(plcOffset, true)} disabled={plcLoadingMore}
                     className="w-full py-3 rounded-xl text-sm font-semibold border border-[#E2D9CC] bg-white text-[#8C7E6E] disabled:opacity-40">
                     {plcLoadingMore
-                      ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 rounded-full border-2 border-[#8C7E6E] border-t-transparent animate-spin" />Loading...</span>
+                      ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 rounded-full border-2 border-[#8C7E6E] border-b-transparent animate-spin" />Loading...</span>
                       : 'Load More'}
                   </button>
                 )}

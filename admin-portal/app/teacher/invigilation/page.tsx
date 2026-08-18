@@ -242,16 +242,16 @@ export default function InvigilationPage() {
             <span className="text-xs text-slate-500">{students.length} students</span>
             <div className="flex gap-4 text-xs font-semibold">
               <span className="text-[#145C44]">{presentCount} Present</span>
-              <span className="text-red-500">{absentCount} Absent</span>
+              <span className="text-[#B83232]">{absentCount} Absent</span>
             </div>
           </div>
 
           {loadingStudents ? (
             <div className="flex justify-center py-10">
-              <div className="w-7 h-7 rounded-full border-3 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+              <div className="w-7 h-7 rounded-full border-3 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
             </div>
           ) : regError && !students.length ? (
-            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl p-4 text-sm text-red-600 dark:text-red-400 text-center">{regError}</div>
+            <div className="bg-[#FEF2F2] rounded-xl p-4 text-sm text-[#B83232] text-center">{regError}</div>
           ) : (
             <div className="space-y-2">
               {students.map(s => {
@@ -262,19 +262,22 @@ export default function InvigilationPage() {
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors text-left ${
                       isPresent
                         ? 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'
-                        : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                        : 'bg-[#FEF2F2] border-[#FECACA]'
                     }`}>
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                      isPresent ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-red-100 text-red-600'
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      isPresent ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-[#FEF2F2] text-[#B83232]'
                     }`}>
-                      {isPresent ? '✓' : '✗'}
+                      {isPresent
+                        ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4"><polyline points="20 6 9 17 4 12" /></svg>
+                        : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                      }
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{s.name}</p>
                       <p className="text-xs text-slate-400">{s.student_code} · {s.class_name}</p>
                     </div>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                      isPresent ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-red-100 text-red-600'
+                      isPresent ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-[#FEF2F2] text-[#B83232]'
                     }`}>{status}</span>
                   </button>
                 );
@@ -283,7 +286,7 @@ export default function InvigilationPage() {
           )}
 
           {regError && students.length > 0 && (
-            <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-xl px-4 py-3">{regError}</p>
+            <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3">{regError}</p>
           )}
 
           {students.length > 0 && !regSubmitted && (
@@ -329,12 +332,12 @@ export default function InvigilationPage() {
             <p className="text-xs font-bold font-medium text-slate-400">Your Location</p>
             {gpsAcquiring ? (
               <p className="text-sm text-slate-500 flex items-center gap-2">
-                <span className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin inline-block" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+                <span className="w-4 h-4 rounded-full border-2 border-b-transparent animate-spin inline-block" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
                 Acquiring GPS…
               </p>
             ) : gpsError ? (
               <div className="flex items-center justify-between">
-                <p className="text-sm text-red-500">{gpsError}</p>
+                <p className="text-sm text-[#B83232]">{gpsError}</p>
                 <button onClick={grabGps} className="text-xs font-semibold px-3 py-1 rounded-lg border border-slate-200">Refresh</button>
               </div>
             ) : gps ? (
@@ -352,7 +355,7 @@ export default function InvigilationPage() {
               <div className="space-y-2">
                 <img src={photoDataUrl} alt="selfie" className="w-32 h-32 rounded-xl object-cover" />
                 <p className="text-xs text-slate-400">{photoSizeKb} KB</p>
-                <button onClick={() => photoRef.current?.click()} className="text-xs font-semibold text-blue-500">Retake</button>
+                <button onClick={() => photoRef.current?.click()} className="text-xs font-semibold text-[#145C44]">Retake</button>
               </div>
             ) : (
               <button onClick={() => photoRef.current?.click()}
@@ -372,7 +375,7 @@ export default function InvigilationPage() {
           </div>
 
           {checkInError && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-600 dark:text-red-400">{checkInError}</div>
+            <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 text-sm text-[#B83232]">{checkInError}</div>
           )}
 
           <button onClick={submitCheckIn} disabled={checkInSubmitting || !gps || !photoDataUrl}
@@ -395,7 +398,7 @@ export default function InvigilationPage() {
 
       {loading ? (
         <div className="flex justify-center py-16">
-          <div className="w-8 h-8 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} />
+          <div className="w-8 h-8 rounded-full border-4 border-b-transparent animate-spin" style={{ borderColor: primary, borderBottomColor: 'transparent' }} />
         </div>
       ) : duties.length === 0 ? (
         <div className="mx-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 py-16 text-center">
@@ -496,7 +499,7 @@ function DutyCard({ duty, isToday, isPast = false, primary, onCheckIn, onRegiste
               </button>
             ) : (
               <div className="flex-1 flex items-center gap-1.5 text-xs font-semibold text-[#145C44]">
-                <span className="w-4 h-4 bg-[#D1EAD9] rounded-full flex items-center justify-center">✓</span>
+                <span className="w-4 h-4 bg-[#D1EAD9] rounded-full flex items-center justify-center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3 h-3"><polyline points="20 6 9 17 4 12" /></svg></span>
                 Checked in
               </div>
             )}
@@ -513,7 +516,7 @@ function DutyCard({ duty, isToday, isPast = false, primary, onCheckIn, onRegiste
 
         {/* Past sessions: show absence notice if not checked in */}
         {isPast && !checkedIn && (
-          <p className="text-xs text-red-500 font-medium">No check-in recorded for this session</p>
+          <p className="text-xs text-[#B83232] font-medium">No check-in recorded for this session</p>
         )}
       </div>
     </div>
@@ -527,11 +530,14 @@ function StatusPill({ done, label, doneLabel, manual = false }: {
     <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
       done
         ? manual
-          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+          ? 'bg-[#F5F0E8] text-[#8C7E6E]'
           : 'bg-[#D1EAD9] text-[#145C44] dark:bg-green-900/30 dark:text-[#5DAA82]'
         : 'bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500'
     }`}>
-      {done ? '✓' : '○'} {done ? doneLabel : label}
+      {done
+        ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3 h-3 shrink-0"><polyline points="20 6 9 17 4 12" /></svg>
+        : <span className="w-2 h-2 rounded-full bg-current" />
+      } {done ? doneLabel : label}
     </span>
   );
 }

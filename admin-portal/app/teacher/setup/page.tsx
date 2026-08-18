@@ -101,7 +101,7 @@ export default function TeacherSetupPage() {
             </div>
 
             {error && (
-              <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+              <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">{error}</p>
             )}
 
             <button
@@ -112,7 +112,7 @@ export default function TeacherSetupPage() {
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <span className="w-4 h-4 rounded-full border-2 border-white border-b-transparent animate-spin" />
                   Looking up...
                 </span>
               ) : 'Find School'}

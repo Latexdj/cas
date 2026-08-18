@@ -45,13 +45,13 @@ function Dashboard() {
   useEffect(() => {
     teacherApi.get<DashStats>('/api/library/dashboard').then(r => setStats(r.data)).catch(() => {});
   }, []);
-  if (!stats) return <div className="flex justify-center py-16"><div className="w-6 h-6 rounded-full border-4 border-green-600 border-t-transparent animate-spin" /></div>;
+  if (!stats) return <div className="flex justify-center py-16"><div className="w-6 h-6 rounded-full border-4 border-green-600 border-b-transparent animate-spin" /></div>;
   const cards = [
-    { label: 'Total Books',    value: stats.total_books,     color: '#3B82F6' },
+    { label: 'Total Books',    value: stats.total_books,     color: '#8C7E6E' },
     { label: 'Available',      value: stats.available_copies, color: '#145C44' },
-    { label: 'Active Loans',   value: stats.active_loans,    color: '#F59E0B' },
-    { label: 'Overdue',        value: stats.overdue_loans,   color: '#EF4444' },
-    { label: 'Returned Today', value: stats.returned_today,  color: '#8B5CF6' },
+    { label: 'Active Loans',   value: stats.active_loans,    color: '#C8780A' },
+    { label: 'Overdue',        value: stats.overdue_loans,   color: '#B83232' },
+    { label: 'Returned Today', value: stats.returned_today,  color: '#8C7E6E' },
   ];
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -153,7 +153,7 @@ function IssueBook() {
             {lookingUp ? '…' : 'Find'}
           </button>
         </div>
-        {lookupErr && <p className="text-sm text-red-600">{lookupErr}</p>}
+        {lookupErr && <p className="text-sm text-[#B83232]">{lookupErr}</p>}
         {student && (
           <div className="rounded-lg bg-[#E8F4EE] border border-[#B8D9C8] px-3 py-2 text-sm">
             <span className="font-semibold text-[#0B3D2E]">{student.student.name}</span>
@@ -187,9 +187,9 @@ function IssueBook() {
             </div>
           )}
           {selectedBook && (
-            <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-800">
+            <div className="rounded-lg bg-[#E8F4EE] border border-[#B8D9C8] px-3 py-2 text-sm font-semibold text-[#0B3D2E]">
               {selectedBook.title}
-              {selectedBook.author && <span className="font-normal text-blue-600 ml-2">— {selectedBook.author}</span>}
+              {selectedBook.author && <span className="font-normal text-[#145C44] ml-2">— {selectedBook.author}</span>}
             </div>
           )}
         </div>
@@ -210,7 +210,7 @@ function IssueBook() {
           </select>
           <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]"
             placeholder="Notes (optional)" value={notes} onChange={e => setNotes(e.target.value)} />
-          {issueErr && <p className="text-sm text-red-600">{issueErr}</p>}
+          {issueErr && <p className="text-sm text-[#B83232]">{issueErr}</p>}
           <button onClick={issue} disabled={issuing || !selectedCopy}
             className="w-full py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
             style={{ background: '#145C44' }}>
@@ -219,7 +219,7 @@ function IssueBook() {
         </div>
       )}
       {selectedBook && copies.length === 0 && (
-        <p className="text-sm text-center text-red-600 py-2">No available copies for this book.</p>
+        <p className="text-sm text-center text-[#B83232] py-2">No available copies for this book.</p>
       )}
     </div>
   );
@@ -300,8 +300,8 @@ function ReturnBook() {
   }
 
   const msgBg = msgType === 'ok'
-    ? 'rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800'
-    : 'rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700';
+    ? 'rounded-xl border border-[#B8D9C8] bg-[#E8F4EE] px-4 py-3 text-sm text-[#0B3D2E]'
+    : 'rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#B83232]';
 
   return (
     <div className="space-y-4">
@@ -314,24 +314,24 @@ function ReturnBook() {
       <input className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]"
         placeholder="Search by student name or ID…" value={search} onChange={e => setSearch(e.target.value)} />
       {loading ? (
-        <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-4 border-green-600 border-t-transparent animate-spin" /></div>
+        <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-4 border-green-600 border-b-transparent animate-spin" /></div>
       ) : loans.length === 0 ? (
         <p className="text-center text-sm text-gray-400 py-10">No active loans found.</p>
       ) : (
         <div className="space-y-2">
           {loans.map(l => (
-            <div key={l.id} className={`bg-white rounded-xl border shadow-sm p-4 space-y-2 ${l.is_overdue ? 'border-red-200' : 'border-gray-100'}`}>
+            <div key={l.id} className={`bg-white rounded-xl border shadow-sm p-4 space-y-2 ${l.is_overdue ? 'border-[#FECACA]' : 'border-gray-100'}`}>
               <div className="flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900 truncate">{l.book_title}</p>
                   <p className="text-xs text-gray-500">Copy #{l.copy_number} · {l.student_name} ({l.student_code}) · {l.class_name}</p>
-                  <p className={`text-xs mt-0.5 font-medium ${l.is_overdue ? 'text-red-600' : 'text-gray-400'}`}>
+                  <p className={`text-xs mt-0.5 font-medium ${l.is_overdue ? 'text-[#B83232]' : 'text-gray-400'}`}>
                     Due: {new Date(l.due_date).toLocaleDateString('en-GB')}
                     {l.is_overdue && ' — OVERDUE'}
-                    {l.renewed_count > 0 && <span className="text-blue-500 ml-1">· Renewed ×{l.renewed_count}</span>}
+                    {l.renewed_count > 0 && <span className="text-[#8C7E6E] ml-1">· Renewed ×{l.renewed_count}</span>}
                   </p>
                   {l.fine_amount > 0 && (
-                    <p className={`text-xs mt-0.5 font-semibold ${l.fine_paid ? 'text-[#145C44]' : 'text-red-600'}`}>
+                    <p className={`text-xs mt-0.5 font-semibold ${l.fine_paid ? 'text-[#145C44]' : 'text-[#B83232]'}`}>
                       Fine: GH₵ {l.fine_amount.toFixed(2)} {l.fine_waived ? '(waived)' : l.fine_paid ? '(paid)' : '(unpaid)'}
                     </p>
                   )}
@@ -343,7 +343,7 @@ function ReturnBook() {
                     {returning === l.id ? '…' : 'Return'}
                   </button>
                   <button onClick={() => renewLoan(l.id)} disabled={renewing === l.id}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-700 border border-blue-200 bg-blue-50 disabled:opacity-50">
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#145C44] border border-[#B8D9C8] bg-[#E8F4EE] disabled:opacity-50">
                     {renewing === l.id ? '…' : 'Renew'}
                   </button>
                 </div>
@@ -362,7 +362,7 @@ function ReturnBook() {
                       <button onClick={() => waiveFine(l.id)}
                         className="px-3 py-1 rounded-lg text-xs font-semibold text-white bg-orange-500">Waive</button>
                       <button onClick={() => { setWaivedId(null); setWaiveReason(''); }}
-                        className="px-2 py-1 rounded-lg text-xs text-gray-500">✕</button>
+                        className="px-2 py-1 rounded-lg text-xs text-gray-500"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
                     </div>
                   ) : (
                     <button onClick={() => setWaivedId(l.id)}
@@ -388,19 +388,19 @@ function Overdue() {
     teacherApi.get<(ActiveLoan & { days_overdue: number })[]>('/api/library/loans/overdue')
       .then(r => setLoans(r.data)).catch(() => {}).finally(() => setLoading(false));
   }, []);
-  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-4 border-red-500 border-t-transparent animate-spin" /></div>;
+  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-4 border-[#B83232] border-b-transparent animate-spin" /></div>;
   if (!loans.length) return <p className="text-center text-sm text-gray-400 py-10">No overdue loans.</p>;
   return (
     <div className="space-y-2">
       {loans.map(l => (
-        <div key={l.id} className="bg-white rounded-xl border border-red-200 shadow-sm p-4">
+        <div key={l.id} className="bg-white rounded-xl border border-[#FECACA] shadow-sm p-4">
           <p className="text-sm font-semibold text-gray-900">{l.book_title} <span className="font-normal text-gray-500">#{l.copy_number}</span></p>
           <p className="text-xs text-gray-500 mt-0.5">{l.student_name} ({l.student_code}) · {l.class_name}</p>
-          <p className="text-xs text-red-600 font-semibold mt-1">
+          <p className="text-xs text-[#B83232] font-semibold mt-1">
             {l.days_overdue} day{l.days_overdue !== 1 ? 's' : ''} overdue · Due {new Date(l.due_date).toLocaleDateString('en-GB')}
           </p>
           {l.fine_amount > 0 && (
-            <p className={`text-xs mt-0.5 font-medium ${l.fine_paid ? 'text-[#145C44]' : 'text-red-500'}`}>
+            <p className={`text-xs mt-0.5 font-medium ${l.fine_paid ? 'text-[#145C44]' : 'text-[#B83232]'}`}>
               Fine: GH₵ {l.fine_amount.toFixed(2)} {l.fine_waived ? '(waived)' : l.fine_paid ? '(paid)' : '(unpaid)'}
             </p>
           )}
@@ -551,7 +551,7 @@ function Catalogue() {
         {/* Book list */}
         <div className="flex-1 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           {loading ? (
-            <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-4 border-green-600 border-t-transparent animate-spin" /></div>
+            <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-4 border-green-600 border-b-transparent animate-spin" /></div>
           ) : filtered.length === 0 ? (
             <p className="p-5 text-sm text-gray-400">No books found.</p>
           ) : (
@@ -564,12 +564,12 @@ function Catalogue() {
                     <p className="text-sm font-semibold text-gray-900 truncate">{b.title}</p>
                     <p className="text-xs text-gray-500">{b.author ?? 'Unknown author'}{b.isbn ? ` · ISBN: ${b.isbn}` : ''}</p>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${b.available_copies > 0 ? 'bg-[#E8F4EE] text-[#145C44]' : 'bg-red-50 text-red-700'}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${b.available_copies > 0 ? 'bg-[#E8F4EE] text-[#145C44]' : 'bg-[#FEF2F2] text-[#B83232]'}`}>
                     {b.available_copies}/{b.total_copies}
                   </span>
                   <div className="flex gap-2 shrink-0" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => openEdit(b)} className="text-xs text-blue-600 hover:underline">Edit</button>
-                    <button onClick={() => deleteBook(b.id)} className="text-xs text-red-500 hover:underline">Del</button>
+                    <button onClick={() => openEdit(b)} className="text-xs text-[#145C44] hover:underline">Edit</button>
+                    <button onClick={() => deleteBook(b.id)} className="text-xs text-[#B83232] hover:underline">Del</button>
                   </div>
                 </div>
               ))}
@@ -584,7 +584,7 @@ function Catalogue() {
               <p className="text-sm font-semibold text-gray-900">{selBook.title}</p>
               <button onClick={() => setSelBook(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </div>
-            {copiesLoad ? <div className="flex justify-center py-4"><div className="w-5 h-5 rounded-full border-4 border-green-600 border-t-transparent animate-spin" /></div> : (
+            {copiesLoad ? <div className="flex justify-center py-4"><div className="w-5 h-5 rounded-full border-4 border-green-600 border-b-transparent animate-spin" /></div> : (
               <div className="space-y-1.5 max-h-56 overflow-y-auto">
                 {copies.map(c => (
                   <div key={c.id} className="bg-[#F5F0E8] rounded-lg px-3 py-2 flex items-start justify-between gap-2">
@@ -594,7 +594,7 @@ function Catalogue() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                        c.status === 'lost' ? 'bg-red-100 text-red-700' :
+                        c.status === 'lost' ? 'bg-[#FEF2F2] text-[#B83232]' :
                         c.status === 'damaged' ? 'bg-orange-100 text-orange-700' :
                         c.status === 'on_loan' ? 'bg-amber-100 text-amber-700' :
                         'bg-[#D1EAD9] text-[#145C44]'
@@ -604,7 +604,7 @@ function Catalogue() {
                       {c.status === 'available' && (
                         <>
                           <button onClick={() => markCopyLost(c.id, selBook.id)} className="text-xs text-orange-500 hover:text-orange-700 font-medium">Lost</button>
-                          <button onClick={() => deleteCopy(c.id, selBook.id)} className="text-xs text-red-500 hover:text-red-700"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
+                          <button onClick={() => deleteCopy(c.id, selBook.id)} className="text-xs text-[#B83232] hover:text-[#9B2020]"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
                         </>
                       )}
                     </div>
@@ -637,7 +637,7 @@ function Catalogue() {
 
       {/* Add/Edit modal */}
       {modal !== 'none' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold text-gray-900">{modal === 'add' ? 'Add Book' : 'Edit Book'}</h2>
@@ -683,7 +683,7 @@ function Catalogue() {
                 </div>
               </div>
             </div>
-            {err && <p className="text-xs text-red-500">{err}</p>}
+            {err && <p className="text-xs text-[#B83232]">{err}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={() => setModal('none')} className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 border border-gray-200">Cancel</button>
               <button onClick={saveBook} disabled={saving}

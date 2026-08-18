@@ -89,9 +89,9 @@ function RemedialCountdown({ target, onExpired }: { target: Date; onExpired: () 
 }
 
 function statusColor(status: string, primary: string): { bg: string; color: string } {
-  if (status === 'Completed')  return { bg: '#DCFCE7', color: '#145C44' };
-  if (status === 'Verified')   return { bg: '#DBEAFE', color: '#1D4ED8' };
-  if (status === 'Rejected')   return { bg: '#FEE2E2', color: '#DC2626' };
+  if (status === 'Completed')  return { bg: '#E8F4EE', color: '#145C44' };
+  if (status === 'Verified')   return { bg: '#E8F4EE', color: '#145C44' };
+  if (status === 'Rejected')   return { bg: '#FEF2F2', color: '#B83232' };
   if (status === 'Cancelled')  return { bg: '#F1F5F9', color: '#64748B' };
   return { bg: `${primary}18`, color: primary };
 }
@@ -169,8 +169,8 @@ function RegisterModal({
   const isMerged = new Set(students.map(s => s.class_name)).size > 1;
 
   function statusBadge(s: 'Present' | 'Absent' | 'Late') {
-    if (s === 'Present') return { bg: '#DCFCE7', color: '#145C44', label: 'P' };
-    if (s === 'Absent')  return { bg: '#FEE2E2', color: '#B91C1C', label: 'A' };
+    if (s === 'Present') return { bg: '#E8F4EE', color: '#145C44', label: 'P' };
+    if (s === 'Absent')  return { bg: '#FEF2F2', color: '#B83232', label: 'A' };
     return { bg: '#FEF9C3', color: '#92400E', label: 'L' };
   }
 
@@ -198,7 +198,7 @@ function RegisterModal({
         </button>
         <button
           onClick={() => markAll('Absent')}
-          className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-700"
+          className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-[#FEF2F2] text-[#B83232] border border-[#FECACA]"
         >
           All Absent
         </button>
@@ -235,10 +235,10 @@ function RegisterModal({
 
       {/* Summary + Submit */}
       <div className="bg-white dark:bg-slate-800 border-t border-[#E2D9CC] dark:border-slate-700 px-4 py-3">
-        {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+        {error && <p className="text-xs text-[#B83232] mb-2">{error}</p>}
         <div className="flex gap-4 text-xs font-semibold mb-3">
           <span className="text-[#145C44] dark:text-[#2ab289]">Present: {present}</span>
-          <span className="text-red-700 dark:text-red-400">Absent: {absent}</span>
+          <span className="text-[#B83232]">Absent: {absent}</span>
           <span className="text-amber-700 dark:text-amber-400">Late: {late}</span>
         </div>
         <button
@@ -381,7 +381,7 @@ function SubmitProofModal({
               {remedial.subject} — {remedial.class_name} · {fmt(remedial.remedial_date)}
             </p>
             {gpsError && <p className="text-amber-400 text-xs text-center">{gpsError}</p>}
-            {error && <p className="text-red-400 text-xs text-center">{error}</p>}
+            {error && <p className="text-[#B83232] text-xs text-center">{error}</p>}
             <div className="flex items-center gap-8">
               <button
                 onClick={flipCamera}
@@ -422,14 +422,14 @@ function SubmitProofModal({
             </div>
 
             {gps ? (
-              <p className="text-xs text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-2">GPS captured ✓</p>
+              <p className="text-xs text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-2 flex items-center gap-1.5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 shrink-0"><polyline points="20 6 9 17 4 12" /></svg>GPS captured</p>
             ) : (
               <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
                 {gpsError || 'Acquiring GPS…'}
               </p>
             )}
 
-            {error && <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>}
+            {error && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3">{error}</p>}
 
             <div className="flex gap-3 pt-1">
               <button onClick={retake} className="flex-1 py-3 rounded-xl border border-[#E2D9CC] text-sm font-semibold text-[#8C7E6E]">
@@ -578,7 +578,7 @@ export default function RemedialsPage() {
                 )}
 
                 {rem.status === 'Rejected' && (
-                  <p className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+                  <p className="mt-2 text-xs text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-3 py-2">
                     Rejected: {rem.notes || 'No reason provided'}. You need to reschedule a remedial for this absence.
                   </p>
                 )}
@@ -604,7 +604,7 @@ export default function RemedialsPage() {
                         : 'text-[#8C7E6E] bg-[#F4EFE6] border-[#E2D9CC]'
                       } ${rem.status === 'Scheduled' ? 'flex-none px-4' : 'flex-1'}`}
                     >
-                      {rem.has_register ? 'Register taken ✓' : 'Mark Register'}
+                      {rem.has_register ? <span className="flex items-center gap-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 shrink-0"><polyline points="20 6 9 17 4 12" /></svg>Register taken</span> : 'Mark Register'}
                     </button>
                   </div>
                 )}
@@ -616,8 +616,9 @@ export default function RemedialsPage() {
                 )}
 
                 {rem.status === 'Verified' && (
-                  <p className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
-                    Verified by admin ✓
+                  <p className="mt-2 text-xs text-[#145C44] bg-[#E8F4EE] border border-[#B8D9C8] rounded-xl px-3 py-2 flex items-center gap-1.5">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="w-3.5 h-3.5 shrink-0"><polyline points="20 6 9 17 4 12" /></svg>
+                    Verified by admin
                   </p>
                 )}
               </div>

@@ -102,9 +102,9 @@ interface Announcement {
 function ContentTypeBadge({ type }: { type: Lesson['content_type'] }) {
   const map: Record<string, string> = {
     text: 'bg-slate-100 text-slate-600',
-    file: 'bg-blue-100 text-blue-700',
-    youtube: 'bg-red-100 text-red-700',
-    link: 'bg-purple-100 text-purple-700',
+    file: 'bg-[#E8F4EE] text-[#145C44]',
+    youtube: 'bg-[#FEF2F2] text-[#B83232]',
+    link: 'bg-[#F5F0E8] text-[#8C7E6E]',
   };
   return (
     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${map[type] ?? ''}`}>{type}</span>
@@ -187,7 +187,7 @@ function LessonsTab({ courseId, primary }: { courseId: string; primary: string }
           + Add Lesson
         </button>
       </div>
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {error && <p className="text-sm text-[#B83232] mb-3">{error}</p>}
       {loading ? (
         <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-14 bg-slate-100 rounded-xl animate-pulse" />)}</div>
       ) : lessons.length === 0 ? (
@@ -208,7 +208,7 @@ function LessonsTab({ courseId, primary }: { courseId: string; primary: string }
                 {lesson.is_published ? 'Published' : 'Draft'}
               </button>
               <button onClick={() => { setEditing(lesson); setShowModal(true); }} className="text-xs text-slate-400 hover:text-slate-700 px-1.5">Edit</button>
-              <button onClick={() => deleteLesson(lesson.id)} className="text-xs text-red-400 hover:text-red-600 px-1.5">Del</button>
+              <button onClick={() => deleteLesson(lesson.id)} className="text-xs text-[#B83232] hover:text-[#9B2020] px-1.5">Del</button>
             </div>
           ))}
         </div>
@@ -283,14 +283,14 @@ function LessonModal({
   const types: Lesson['content_type'][] = ['text', 'file', 'youtube', 'link'];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-900">{lesson ? 'Edit Lesson' : 'Add Lesson'}</h2>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm font-bold hover:bg-slate-200">✕</button>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
-          {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+          {error && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">{error}</p>}
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Title</label>
             <input className={INPUT} value={title} onChange={e => setTitle(e.target.value)} placeholder="Lesson title" />
@@ -405,7 +405,7 @@ function AssignmentsTab({ courseId, primary }: { courseId: string; primary: stri
           + Add Assignment
         </button>
       </div>
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {error && <p className="text-sm text-[#B83232] mb-3">{error}</p>}
       {loading ? (
         <div className="space-y-2">{[1, 2].map(i => <div key={i} className="h-16 bg-slate-100 rounded-xl animate-pulse" />)}</div>
       ) : assignments.length === 0 ? (
@@ -430,10 +430,10 @@ function AssignmentsTab({ courseId, primary }: { courseId: string; primary: stri
                 {a.is_published ? 'Published' : 'Draft'}
               </span>
               {a.assessment_mode_id && (
-                <button onClick={() => syncToCA(a)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 whitespace-nowrap">Sync CA</button>
+                <button onClick={() => syncToCA(a)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E8F4EE] text-[#145C44] hover:bg-[#D1EAD9] whitespace-nowrap">Sync CA</button>
               )}
               <button onClick={() => { setEditing(a); setShowModal(true); }} className="text-xs text-slate-400 hover:text-slate-700 px-1.5">Edit</button>
-              <button onClick={() => deleteAssignment(a.id)} className="text-xs text-red-400 hover:text-red-600 px-1.5">Del</button>
+              <button onClick={() => deleteAssignment(a.id)} className="text-xs text-[#B83232] hover:text-[#9B2020] px-1.5">Del</button>
             </div>
           ))}
         </div>
@@ -507,14 +507,14 @@ function AssignmentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-900">{assignment ? 'Edit Assignment' : 'Add Assignment'}</h2>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm font-bold hover:bg-slate-200">✕</button>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
-          {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+          {error && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">{error}</p>}
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Title</label>
             <input className={INPUT} value={title} onChange={e => setTitle(e.target.value)} placeholder="Assignment title" />
@@ -635,7 +635,7 @@ function QuizzesTab({ courseId, primary }: { courseId: string; primary: string }
           + New Quiz
         </button>
       </div>
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {error && <p className="text-sm text-[#B83232] mb-3">{error}</p>}
       {loading ? (
         <div className="space-y-2">{[1, 2].map(i => <div key={i} className="h-16 bg-slate-100 rounded-xl animate-pulse" />)}</div>
       ) : quizzes.length === 0 ? (
@@ -662,11 +662,11 @@ function QuizzesTab({ courseId, primary }: { courseId: string; primary: string }
                 {q.is_published ? 'Published' : 'Draft'}
               </button>
               {q.assessment_mode_id && (
-                <button onClick={() => syncToCA(q)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 whitespace-nowrap">Sync CA</button>
+                <button onClick={() => syncToCA(q)} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E8F4EE] text-[#145C44] hover:bg-[#D1EAD9] whitespace-nowrap">Sync CA</button>
               )}
               <button onClick={() => { setEditingMeta(q); setShowMetaModal(true); }} className="text-xs text-slate-400 hover:text-slate-700 px-1.5">Edit</button>
-              <button onClick={() => setBuilderQuizId(q.id)} className="text-xs text-blue-500 hover:text-blue-700 px-1.5">Questions</button>
-              <button onClick={() => deleteQuiz(q.id)} className="text-xs text-red-400 hover:text-red-600 px-1.5">Del</button>
+              <button onClick={() => setBuilderQuizId(q.id)} className="text-xs text-[#145C44] hover:text-[#0B3D2E] px-1.5">Questions</button>
+              <button onClick={() => deleteQuiz(q.id)} className="text-xs text-[#B83232] hover:text-[#9B2020] px-1.5">Del</button>
             </div>
           ))}
         </div>
@@ -740,14 +740,14 @@ function QuizMetaModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-900">{quiz ? 'Edit Quiz' : 'New Quiz'}</h2>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm font-bold hover:bg-slate-200">✕</button>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
-          {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+          {error && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">{error}</p>}
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Title</label>
             <input className={INPUT} value={title} onChange={e => setTitle(e.target.value)} placeholder="Quiz title" />
@@ -829,7 +829,7 @@ function QuizBuilder({ quizId, primary, onDone }: { quizId: string; primary: str
     finally { setSaving(false); }
   }
 
-  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-green-600 border-t-transparent animate-spin" /></div>;
+  if (loading) return <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-green-600 border-b-transparent animate-spin" /></div>;
 
   return (
     <div>
@@ -845,7 +845,7 @@ function QuizBuilder({ quizId, primary, onDone }: { quizId: string; primary: str
           </button>
         </div>
       </div>
-      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      {error && <p className="text-sm text-[#B83232] mb-3">{error}</p>}
       <div className="space-y-4">
         {questions.map((q, idx) => (
           <div key={idx} className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
@@ -860,7 +860,7 @@ function QuizBuilder({ quizId, primary, onDone }: { quizId: string; primary: str
                   placeholder="Question text…"
                 />
               </div>
-              <button onClick={() => setQuestions(prev => prev.filter((_, i) => i !== idx))} className="text-xs text-red-400 hover:text-red-600 mt-1 px-1">✕</button>
+              <button onClick={() => setQuestions(prev => prev.filter((_, i) => i !== idx))} className="text-xs text-[#B83232] hover:text-[#9B2020] mt-1 px-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </div>
             <div className="flex gap-3 items-center">
               <div>
@@ -1016,7 +1016,7 @@ function SubmissionsTab({ courseId, primary }: { courseId: string; primary: stri
                 {isOpen && (
                   <div className="border-t border-slate-100 px-4 py-3">
                     {isLoading ? (
-                      <div className="flex justify-center py-4"><div className="w-5 h-5 rounded-full border-2 border-green-600 border-t-transparent animate-spin" /></div>
+                      <div className="flex justify-center py-4"><div className="w-5 h-5 rounded-full border-2 border-green-600 border-b-transparent animate-spin" /></div>
                     ) : subs.length === 0 ? (
                       <p className="text-xs text-slate-400 py-2 text-center">No submissions found.</p>
                     ) : (
@@ -1133,7 +1133,7 @@ function AnnouncementsTab({ courseId, primary }: { courseId: string; primary: st
                 <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{a.body}</p>
                 <p className="text-[10px] text-slate-400 mt-1">{new Date(a.created_at).toLocaleDateString()}</p>
               </div>
-              <button onClick={() => deleteAnnouncement(a.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0 px-1 mt-0.5">Del</button>
+              <button onClick={() => deleteAnnouncement(a.id)} className="text-xs text-[#B83232] hover:text-[#9B2020] shrink-0 px-1 mt-0.5">Del</button>
             </div>
           ))}
         </div>
@@ -1181,14 +1181,14 @@ function AnnouncementModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-slate-900">New Announcement</h2>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm font-bold hover:bg-slate-200">✕</button>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
         </div>
         <form onSubmit={submit} className="px-6 py-5 space-y-4">
-          {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+          {error && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">{error}</p>}
           <div>
             <label className="block text-xs font-semibold text-slate-500 mb-1">Title</label>
             <input className={INPUT} value={title} onChange={e => setTitle(e.target.value)} placeholder="Announcement title" />
@@ -1247,7 +1247,7 @@ function CourseStudioContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#F4EFE6' }}>
-        <div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-t-transparent animate-spin" />
+        <div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-b-transparent animate-spin" />
       </div>
     );
   }
@@ -1255,7 +1255,7 @@ function CourseStudioContent() {
   if (error || !course) {
     return (
       <div className="min-h-screen px-4 pt-8" style={{ background: '#F4EFE6' }}>
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error || 'Course not found.'}</p>
+        <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3">{error || 'Course not found.'}</p>
       </div>
     );
   }
@@ -1312,7 +1312,7 @@ export default function CourseStudioPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center" style={{ background: '#F4EFE6' }}>
-        <div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-t-transparent animate-spin" />
+        <div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-b-transparent animate-spin" />
       </div>
     }>
       <CourseStudioContent />

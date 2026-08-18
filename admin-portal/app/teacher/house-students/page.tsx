@@ -79,7 +79,7 @@ function DistBar({ label, count, total, color }: { label: string; count: number;
 function OccupancyBar({ count, capacity }: { count: number; capacity: number | null }) {
   if (!capacity) return <span className="text-xs text-slate-400">{count} students</span>;
   const pct = Math.min(100, Math.round((count / capacity) * 100));
-  const color = pct >= 95 ? '#ef4444' : pct >= 80 ? '#f59e0b' : ACCENT;
+  const color = pct >= 95 ? '#B83232' : pct >= 80 ? '#f59e0b' : ACCENT;
   return (
     <div className="flex items-center gap-2 w-full">
       <div className="flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
@@ -136,11 +136,11 @@ function AssignModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/45 px-0 sm:px-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/55 px-0 sm:px-4">
       <div className="bg-white dark:bg-slate-800 w-full sm:max-w-md rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col max-h-[85vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <p className="font-bold text-slate-900 dark:text-white">Assign Students</p>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-slate-500"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
         </div>
         <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700">
           <input
@@ -151,7 +151,7 @@ function AssignModal({
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
           {loading ? (
-            <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
+            <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-b-transparent animate-spin" /></div>
           ) : filtered.length === 0 ? (
             <p className="text-center text-sm text-slate-500 py-8">{search ? 'No matches' : 'All students are assigned to rooms'}</p>
           ) : filtered.map(s => (
@@ -250,7 +250,7 @@ function RoomDetail({
         )}
 
         {loading ? (
-          <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
+          <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-b-transparent animate-spin" /></div>
         ) : students.length === 0 ? (
           <div className="text-center py-10 text-sm text-slate-500">No students assigned to this room.</div>
         ) : (
@@ -263,14 +263,14 @@ function RoomDetail({
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {s.residential_status && (
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.residential_status.toLowerCase() === 'boarding' ? 'bg-blue-50 text-[#1D4ED8] dark:bg-blue-900/30 dark:text-[#93C5FD]' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.residential_status.toLowerCase() === 'boarding' ? 'bg-[#E8F4EE] text-[#145C44]' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
                       {s.residential_status}
                     </span>
                   )}
                   <button
                     onClick={() => remove(s.id)}
                     disabled={removing === s.id}
-                    className="text-xs text-red-500 hover:underline disabled:opacity-40"
+                    className="text-xs text-[#B83232] hover:underline disabled:opacity-40"
                   >
                     Remove
                   </button>
@@ -386,7 +386,7 @@ function RoomsTab({
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
+        <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-b-transparent animate-spin" /></div>
       ) : rooms.length === 0 ? (
         <div className="text-center py-10 text-sm text-slate-500">No rooms yet. Add a room to get started.</div>
       ) : (
@@ -400,8 +400,8 @@ function RoomsTab({
                 </div>
                 <div className="flex gap-3 flex-shrink-0">
                   <button onClick={() => setSelectedRoom(r)} className="text-xs font-semibold text-[#145C44] dark:text-[#2ab289] hover:underline">Manage</button>
-                  <button onClick={() => openEdit(r)}         className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Edit</button>
-                  <button onClick={() => deleteRoom(r)}       className="text-xs text-red-500 hover:underline">Delete</button>
+                  <button onClick={() => openEdit(r)}         className="text-xs text-[#145C44] hover:underline">Edit</button>
+                  <button onClick={() => deleteRoom(r)}       className="text-xs text-[#B83232] hover:underline">Delete</button>
                 </div>
               </div>
               <OccupancyBar count={r.student_count} capacity={r.capacity} />
@@ -412,11 +412,11 @@ function RoomsTab({
 
       {/* Add/Edit Room bottom sheet */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/45 px-0 sm:px-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/55 px-0 sm:px-4">
           <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl shadow-2xl p-5 space-y-4">
             <div className="flex items-center justify-between">
               <p className="font-bold text-slate-900 dark:text-white">{editRoom ? 'Edit Room' : 'Add Room'}</p>
-              <button onClick={() => setShowForm(false)} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>
+              <button onClick={() => setShowForm(false)} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-slate-500"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -434,7 +434,7 @@ function RoomsTab({
                 <input value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="e.g. Ground floor"
                   className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
               </div>
-              {formError && <p className="text-xs text-red-500">{formError}</p>}
+              {formError && <p className="text-xs text-[#B83232]">{formError}</p>}
             </div>
             <div className="flex gap-3 pt-1">
               <button onClick={() => setShowForm(false)} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-sm font-semibold text-slate-600 dark:text-slate-300">Cancel</button>
@@ -462,9 +462,9 @@ function HouseOverviewCard({ h, accent }: { h: HouseStats; accent: string }) {
       </div>
       <div className="grid grid-cols-4 gap-2 text-center">
         {([
-          { label: 'Male',     value: h.male,     color: 'text-blue-600 dark:text-blue-400' },
+          { label: 'Male',     value: h.male,     color: 'text-[#8C7E6E]' },
           { label: 'Female',   value: h.female,   color: 'text-pink-600 dark:text-pink-400' },
-          { label: 'Boarding', value: h.boarding, color: 'text-[#1D4ED8] dark:text-[#60A5FA]' },
+          { label: 'Boarding', value: h.boarding, color: 'text-[#145C44]' },
           { label: 'Day',      value: h.day,      color: 'text-amber-600 dark:text-amber-400' },
         ] as const).map(({ label, value, color }) => (
           <div key={label} className="bg-[#F5F0E8] dark:bg-slate-700/50 rounded-xl py-2">
@@ -514,8 +514,8 @@ interface Exeat {
 
 const STATUS_META: Record<string, { label: string; dot: string; badge: string }> = {
   pending:  { label: 'Pending',  dot: 'bg-amber-400',  badge: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' },
-  active:   { label: 'Out',      dot: 'bg-blue-500',   badge: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
-  overdue:  { label: 'Overdue',  dot: 'bg-red-500',    badge: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
+  active:   { label: 'Out',      dot: 'bg-[#8C7E6E]',  badge: 'bg-[#F5F0E8] text-[#8C7E6E]' },
+  overdue:  { label: 'Overdue',  dot: 'bg-[#B83232]',  badge: 'bg-[#FEF2F2] text-[#B83232]' },
   returned: { label: 'Returned', dot: 'bg-[#145C44]',  badge: 'bg-[#E8F4EE] text-[#145C44] dark:bg-green-900/30 dark:text-[#5DAA82]' },
   rejected: { label: 'Rejected', dot: 'bg-slate-400',  badge: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300' },
 };
@@ -596,14 +596,14 @@ function CreateExeatModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/45 px-0 sm:px-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/55 px-0 sm:px-4">
       <div className="bg-white dark:bg-slate-800 w-full sm:max-w-lg rounded-t-2xl sm:rounded-xl shadow-2xl flex flex-col max-h-[92vh]">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
           <div>
             <p className="font-bold text-slate-900 dark:text-white">New {exeatType === 'internal' ? 'Internal' : 'External'} Exeat</p>
             <p className="text-xs text-slate-400 mt-0.5">{exeatType === 'internal' ? 'Few hours outside campus' : 'Student goes home / overnight stay'}</p>
           </div>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-slate-500"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {/* Student selector */}
@@ -615,14 +615,14 @@ function CreateExeatModal({
                   <p className="text-sm font-semibold text-slate-900 dark:text-white">{selectedStu.name}</p>
                   <p className="text-xs text-slate-500">{selectedStu.student_code} · {selectedStu.class_name}{houseOptions.length > 1 ? ` · ${selectedStu.house}` : ''}</p>
                 </div>
-                <button onClick={() => { setSelectedStu(null); setContact(''); }} className="text-xs text-slate-400 hover:text-red-500">Change</button>
+                <button onClick={() => { setSelectedStu(null); setContact(''); }} className="text-xs text-slate-400 hover:text-[#B83232]">Change</button>
               </div>
             ) : (
               <div className="space-y-2">
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or ID…"
                   className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
                 {stuLoading ? (
-                  <div className="flex justify-center py-4"><div className="w-5 h-5 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
+                  <div className="flex justify-center py-4"><div className="w-5 h-5 rounded-full border-2 border-[#145C44] border-b-transparent animate-spin" /></div>
                 ) : search.trim() ? (
                   <div className="border border-slate-200 dark:border-slate-600 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
                     {filtered.length === 0 ? (
@@ -690,7 +690,7 @@ function CreateExeatModal({
             <span className="text-sm text-slate-700 dark:text-slate-300">Grant immediately (mark as active now)</span>
           </label>
 
-          {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+          {error && <p className="text-xs text-[#B83232] font-medium">{error}</p>}
         </div>
         <div className="px-5 py-4 border-t border-slate-100 dark:border-slate-700 flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-sm font-semibold text-slate-600 dark:text-slate-300">Cancel</button>
@@ -730,11 +730,11 @@ function ReturnModal({ exeat, onClose, onReturned }: { exeat: Exeat; onClose: ()
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/45 px-0 sm:px-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/55 px-0 sm:px-4">
       <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl shadow-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
           <p className="font-bold text-slate-900 dark:text-white">Mark Returned</p>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-slate-500"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
         </div>
         <p className="text-sm text-slate-600 dark:text-slate-300">Confirm return for <strong>{exeat.student_name}</strong></p>
         <div className="grid grid-cols-2 gap-3">
@@ -749,7 +749,7 @@ function ReturnModal({ exeat, onClose, onReturned }: { exeat: Exeat; onClose: ()
               className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
           </div>
         </div>
-        {error && <p className="text-xs text-red-500">{error}</p>}
+        {error && <p className="text-xs text-[#B83232]">{error}</p>}
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-sm font-semibold text-slate-600 dark:text-slate-300">Cancel</button>
           <button onClick={submit} disabled={saving}
@@ -828,12 +828,12 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
     const meta = STATUS_META[e.status] ?? STATUS_META.pending;
     const isOverdue = e.status === 'overdue';
     return (
-      <div className={`bg-white dark:bg-slate-800 rounded-xl border ${isOverdue ? 'border-red-200 dark:border-red-700' : 'border-slate-100 dark:border-slate-700'} p-4 space-y-3`}>
+      <div className={`bg-white dark:bg-slate-800 rounded-xl border ${isOverdue ? 'border-[#FECACA]' : 'border-slate-100 dark:border-slate-700'} p-4 space-y-3`}>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-semibold text-slate-900 dark:text-white text-sm">{e.student_name}</p>
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full font-medium ${e.exeat_type === 'external' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'}`}>
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full font-medium ${e.exeat_type === 'external' ? 'bg-[#F5F0E8] text-[#8C7E6E]' : 'bg-[#F5F0E8] text-[#8C7E6E]'}`}>
                 {e.exeat_type}
               </span>
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${meta.badge}`}>
@@ -849,7 +849,7 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
           {e.destination && <div><span className="text-slate-400">Destination: </span><span className="text-slate-700 dark:text-slate-300 font-medium">{e.destination}</span></div>}
           {e.reason      && <div><span className="text-slate-400">Reason: </span><span className="text-slate-700 dark:text-slate-300">{e.reason}</span></div>}
           <div><span className="text-slate-400">Departed: </span><span className="text-slate-700 dark:text-slate-300">{fmtDate(e.departure_date)} {fmtTime(e.departure_time)}</span></div>
-          <div className={isOverdue ? 'text-red-600 dark:text-red-400 font-semibold' : ''}>
+          <div className={isOverdue ? 'text-[#B83232] font-semibold' : ''}>
             <span className="text-slate-400">Expected back: </span>
             <span>{fmtDate(e.expected_return_date)} {fmtTime(e.expected_return_time)}</span>
           </div>
@@ -860,7 +860,7 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
         </div>
 
         {isOverdue && (
-          <p className="text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">
+          <p className="text-xs font-semibold text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">
             Student has not returned by the expected time. Parent may need to be contacted.
           </p>
         )}
@@ -876,7 +876,7 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
             </button>
             <button
               onClick={() => { setRejectId(e.id); setRejectNote(''); }}
-              className="flex-1 py-2 rounded-xl border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 text-xs font-semibold hover:bg-red-50 dark:hover:bg-red-900/20">
+              className="flex-1 py-2 rounded-xl border border-[#FECACA] text-[#B83232] text-xs font-semibold hover:bg-[#FEF2F2]">
               Reject
             </button>
           </div>
@@ -908,7 +908,7 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500 dark:text-slate-400">
           {overdue.length > 0 && (
-            <span className="text-red-600 dark:text-red-400 font-semibold">{overdue.length} overdue · </span>
+            <span className="text-[#B83232] font-semibold">{overdue.length} overdue · </span>
           )}
           {active.length} currently out
         </p>
@@ -929,7 +929,7 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
             style={subTab === t.key ? { backgroundColor: '#fff', color: ACCENT, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' } : { color: '#64748b' }}>
             {t.label}
             {t.count !== undefined && t.count > 0 && (
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.key === 'pending' ? 'bg-amber-100 text-amber-700' : t.key === 'out' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'}`}>
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.key === 'pending' ? 'bg-amber-100 text-amber-700' : t.key === 'out' ? 'bg-[#F5F0E8] text-[#8C7E6E]' : 'bg-slate-200 text-slate-600'}`}>
                 {t.count}
               </span>
             )}
@@ -937,7 +937,7 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
         ))}
       </div>
 
-      {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+      {error && <p className="text-xs text-[#B83232] font-medium">{error}</p>}
 
       {subTab === 'history' && (
         <input
@@ -949,7 +949,7 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
       )}
 
       {loading ? (
-        <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
+        <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-b-transparent animate-spin" /></div>
       ) : displayList.length === 0 ? (
         <div className="text-center py-10 text-sm text-slate-500">
           {subTab === 'pending' ? 'No pending exeat requests.' : subTab === 'out' ? 'No students currently on exeat.' : 'No exeat history.'}
@@ -962,11 +962,11 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
 
       {/* Reject modal */}
       {rejectId && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/45 px-0 sm:px-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#0B3D2E]/55 px-0 sm:px-4">
           <div className="bg-white dark:bg-slate-800 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl shadow-2xl p-5 space-y-4">
             <div className="flex items-center justify-between">
               <p className="font-bold text-slate-900 dark:text-white">Reject Exeat</p>
-              <button onClick={() => setRejectId(null)} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-sm">✕</button>
+              <button onClick={() => setRejectId(null)} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 text-slate-500"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </div>
             <div>
               <label className="text-xs font-semibold font-medium text-slate-500 block mb-1">Reason (optional)</label>
@@ -976,7 +976,7 @@ function ExeatTab({ role, houseOptions }: { role: 'housemaster' | 'senior_housem
             <div className="flex gap-3">
               <button onClick={() => setRejectId(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-sm font-semibold text-slate-600 dark:text-slate-300">Cancel</button>
               <button onClick={() => reject(rejectId)} disabled={actioning === rejectId}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold disabled:opacity-40">
+                className="flex-1 py-2.5 rounded-xl bg-[#B83232] text-white text-sm font-semibold disabled:opacity-40">
                 {actioning === rejectId ? 'Rejecting…' : 'Reject'}
               </button>
             </div>
@@ -1067,7 +1067,7 @@ export default function HouseStudentsPage() {
   const { displayRows: stuRows, total: stuTotal, page: stuPage, setPage: setStuPage, pageSize: stuPageSize, setPageSize: setStuPageSize } = useTableControls(students);
 
   if (role === 'loading') {
-    return <div className="flex items-center justify-center min-h-64"><div className="w-8 h-8 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>;
+    return <div className="flex items-center justify-center min-h-64"><div className="w-8 h-8 rounded-full border-2 border-[#145C44] border-b-transparent animate-spin" /></div>;
   }
 
   if (role === 'none') {
@@ -1179,13 +1179,13 @@ export default function HouseStudentsPage() {
               )}
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 space-y-3">
                 <p className="text-xs font-bold font-medium text-slate-400">Gender Distribution</p>
-                <DistBar label="Male"   count={d!.male}   total={d!.total} color="#3b82f6" />
+                <DistBar label="Male"   count={d!.male}   total={d!.total} color="#8C7E6E" />
                 <DistBar label="Female" count={d!.female} total={d!.total} color="#ec4899" />
                 {d!.total - d!.male - d!.female > 0 && <DistBar label="Not specified" count={d!.total - d!.male - d!.female} total={d!.total} color="#94a3b8" />}
               </div>
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-4 space-y-3">
                 <p className="text-xs font-bold font-medium text-slate-400">Residential Status</p>
-                <DistBar label="Boarding" count={d!.boarding} total={d!.total} color="#6366f1" />
+                <DistBar label="Boarding" count={d!.boarding} total={d!.total} color="#8C7E6E" />
                 <DistBar label="Day"      count={d!.day}      total={d!.total} color="#f59e0b" />
                 {d!.total - d!.boarding - d!.day > 0 && <DistBar label="Not specified" count={d!.total - d!.boarding - d!.day} total={d!.total} color="#94a3b8" />}
               </div>
@@ -1262,7 +1262,7 @@ export default function HouseStudentsPage() {
             </select>
           </div>
           {stuLoading ? (
-            <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-t-transparent animate-spin" /></div>
+            <div className="flex justify-center py-10"><div className="w-6 h-6 rounded-full border-2 border-[#145C44] border-b-transparent animate-spin" /></div>
           ) : students.length === 0 ? (
             <div className="text-center py-10 text-sm text-slate-500">No students found.</div>
           ) : (
@@ -1280,12 +1280,12 @@ export default function HouseStudentsPage() {
                     <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap justify-end">
                       {s.class_name && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">{s.class_name}</span>}
                       {s.residential_status && (
-                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.residential_status.toLowerCase() === 'boarding' ? 'bg-blue-50 text-[#1D4ED8] dark:bg-blue-900/30 dark:text-[#93C5FD]' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'}`}>
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.residential_status.toLowerCase() === 'boarding' ? 'bg-[#E8F4EE] text-[#145C44]' : 'bg-amber-50 text-amber-700'}`}>
                           {s.residential_status}
                         </span>
                       )}
                       {s.gender && (
-                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.gender.toLowerCase() === 'male' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-pink-50 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300'}`}>
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.gender.toLowerCase() === 'male' ? 'bg-[#F5F0E8] text-[#8C7E6E]' : 'bg-pink-50 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300'}`}>
                           {s.gender}
                         </span>
                       )}

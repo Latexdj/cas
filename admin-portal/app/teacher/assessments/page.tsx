@@ -124,7 +124,7 @@ function AssessmentsContent() {
       </div>
 
       {error && (
-        <p className="text-sm text-[#B83232] bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{error}</p>
+        <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 mb-4">{error}</p>
       )}
 
       {loading ? (
@@ -176,7 +176,7 @@ function AssessmentsContent() {
 
 export default function AssessmentsPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ background: '#F4EFE6' }}><div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-t-transparent animate-spin" /></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ background: '#F4EFE6' }}><div className="w-7 h-7 rounded-full border-2 border-[#2ab289] border-b-transparent animate-spin" /></div>}>
       <AssessmentsContent />
     </Suspense>
   );
