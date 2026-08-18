@@ -666,6 +666,7 @@ async function runMigrations() {
         ON form_teacher_assignments(teacher_id)
     `);
     await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS pin_hash TEXT`);
+    await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS year_of_admission SMALLINT`);
 
     // ── Clearance module ───────────────────────────────────────────────────
     // Drop legacy tables (cascade removes FK constraints; columns cleaned up below)
