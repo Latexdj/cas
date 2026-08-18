@@ -26,7 +26,7 @@ export default function StudentResultScreen() {
       <View style={[styles.summaryCard, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
         <Text style={[styles.studentName, { color: Colors.text }]}>{result.name}</Text>
         <Text style={[styles.studentMeta, { color: Colors.muted }]}>
-          {result.student_code} · {class_name} · {year_name} · Semester {semester}
+          {result.student_code} | {class_name} | {year_name} | Semester {semester}
         </Text>
 
         <View style={styles.statsRow}>
@@ -73,7 +73,7 @@ export default function StudentResultScreen() {
               </View>
               <Text style={[styles.subjectPos, { color: Colors.muted }]}>
                 {s.subject_position ? `${ordinal(s.subject_position)} / ${s.class_size}` : ''}
-                {s.remark && s.remark !== '-' ? ` · ${s.remark}` : ''}
+                {s.remark && s.remark !== '-' ? ` | ${s.remark}` : ''}
               </Text>
             </View>
             <Text style={[styles.subjectNum, { color: Colors.muted }]}>{s.ca_score ?? '—'}</Text>

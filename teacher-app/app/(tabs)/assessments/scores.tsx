@@ -94,12 +94,12 @@ export default function ScoresScreen() {
       <View style={[styles.infoCard, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
         <Text style={[styles.infoTitle, { color: Colors.text }]}>{assessment_label}</Text>
         <Text style={[styles.infoMeta, { color: Colors.muted }]}>
-          {assessment?.subject} Â· {assessment?.class_name} Â· Max: {maxScore}
+          {assessment?.subject} | {assessment?.class_name} | Max: {maxScore}
         </Text>
       </View>
 
       {error ? <Text style={[styles.errBanner, { backgroundColor: Colors.dangerLight, color: Colors.danger }]}>{error}</Text> : null}
-      {saved ? <Text style={[styles.errBanner, { backgroundColor: '#DCFCE7', color: '#145C44' }]}>âœ“ Scores saved.</Text> : null}
+      {saved ? <Text style={[styles.errBanner, { backgroundColor: '#DCFCE7', color: '#145C44' }]}>Scores saved.</Text> : null}
 
       <FlatList
         data={rows}

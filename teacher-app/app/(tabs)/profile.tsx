@@ -432,7 +432,7 @@ const styles = StyleSheet.create({
   sectionLabel:    { fontSize: 11, fontWeight: '700', color: '#8C7E6E', letterSpacing: 0.6, textTransform: 'uppercase' },
   editBtn:         { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 4 },
   editBtnText:     { fontSize: 12, fontWeight: '700' },
-  infoCard:        { backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', overflow: 'hidden' },
+  infoCard:        { backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', overflow: 'hidden' },
   infoRow:         { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F4EFE6' },
   infoLabel:       { fontSize: 13, color: '#8C7E6E', flex: 1 },
   infoValue:       { fontSize: 13, fontWeight: '600', color: '#1C1208', flex: 1.5, textAlign: 'right' },
@@ -461,7 +461,7 @@ const styles = StyleSheet.create({
   // Edit modal
   overlay:         { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheetScroll:     { flexGrow: 1, justifyContent: 'flex-end' },
-  sheet:           { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 44 },
+  sheet:           { backgroundColor: '#FAFAF8', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 44 },
   sheetTitle:      { fontSize: 18, fontWeight: '700', color: '#1C1208', marginBottom: 4 },
   sheetSub:        { fontSize: 13, color: '#8C7E6E', marginBottom: 18 },
   fieldLabel:      { fontSize: 11, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 2 },
@@ -469,6 +469,6 @@ const styles = StyleSheet.create({
   chipRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   chip:            { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#E2D9CC', backgroundColor: '#FDFAF5' },
   chipText:        { fontSize: 13, fontWeight: '600', color: '#4A3F32' },
-  errText:         { fontSize: 12, color: '#DC2626', backgroundColor: '#FEF2F2', borderRadius: 8, padding: 10, marginBottom: 14 },
+  errText:         { fontSize: 12, color: '#B83232', backgroundColor: '#FEF2F2', borderRadius: 8, padding: 10, marginBottom: 14 },
   row2:            { flexDirection: 'row', gap: 10 },
 });

@@ -54,7 +54,7 @@ export default function RemedialsScreen() {
                 <Text style={styles.meta}>
                   {fmt(rem.remedial_date)} at {rem.remedial_time?.slice(0, 5)}
                   {rem.duration_periods
-                    ? ` · ${rem.duration_periods} period${rem.duration_periods !== 1 ? 's' : ''}`
+                    ? ` | ${rem.duration_periods} period${rem.duration_periods !== 1 ? 's' : ''}`
                     : ''}
                 </Text>
                 {rem.topic ? <Text style={styles.topic}>{rem.topic}</Text> : null}
@@ -75,11 +75,11 @@ const styles = StyleSheet.create({
   container:  { flex: 1, backgroundColor: '#F4EFE6' },
   content:    { padding: 16, paddingBottom: 40 },
   skeleton:   { backgroundColor: '#E5DDD5', borderRadius: 16, height: 96, marginBottom: 12 },
-  empty:      { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 32, alignItems: 'center' },
+  empty:      { backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 32, alignItems: 'center' },
   emptyIcon:  { fontSize: 32, marginBottom: 8 },
   emptyTitle: { fontSize: 15, fontWeight: '700', color: '#2C2218' },
   emptySub:   { fontSize: 13, color: '#8C7E6E', marginTop: 4 },
-  card:       { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 16, marginBottom: 12 },
+  card:       { backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 16, marginBottom: 12 },
   cardRow:    { flexDirection: 'row', alignItems: 'flex-start' },
   flex1:      { flex: 1, marginRight: 12 },
   subject:    { fontSize: 14, fontWeight: '700', color: '#2C2218' },

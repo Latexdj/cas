@@ -57,7 +57,7 @@ export default function ResultsIndexScreen() {
 
   const yearName = years.find(y => y.id === yearId)?.name ?? '';
   const classOpts = classes.map(c => ({ label: c, value: c }));
-  const yearOpts  = years.map(y => ({ label: y.name + (y.is_current ? ' ✦' : ''), value: y.id }));
+  const yearOpts  = years.map(y => ({ label: y.name + (y.is_current ? ' (current)' : ''), value: y.id }));
   const semOpts   = [{ label: 'Semester 1', value: '1' }, { label: 'Semester 2', value: '2' }];
 
   return (
@@ -92,7 +92,7 @@ export default function ResultsIndexScreen() {
         <View style={[styles.listCard, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
           <View style={[styles.listHeader, { borderBottomColor: Colors.border }]}>
             <Text style={[styles.listTitle, { color: Colors.text }]}>{className}</Text>
-            <Text style={[styles.listMeta, { color: Colors.muted }]}>{yearName} · Semester {semester} · {results.length} students</Text>
+            <Text style={[styles.listMeta, { color: Colors.muted }]}>{yearName} | Semester {semester} | {results.length} students</Text>
           </View>
           {results
             .slice()

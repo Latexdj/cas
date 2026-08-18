@@ -97,7 +97,7 @@ export default function SubjectAssessmentsScreen() {
       {/* Header info */}
       <View style={[styles.headerCard, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
         <Text style={[styles.headerSubject, { color: Colors.text }]}>{subject}</Text>
-        <Text style={[styles.headerMeta, { color: Colors.muted }]}>{class_name} Â· {year_name} Â· Semester {semester}</Text>
+        <Text style={[styles.headerMeta, { color: Colors.muted }]}>{class_name} | {year_name} | Semester {semester}</Text>
       </View>
 
       {loading ? (
@@ -137,7 +137,7 @@ export default function SubjectAssessmentsScreen() {
                     {dateStr && <Text style={[styles.dateText, { color: Colors.muted }]}>{dateStr}</Text>}
                   </View>
                   <Text style={[styles.cardTitle, { color: Colors.text }]}>{label}</Text>
-                  <Text style={[styles.cardMeta, { color: Colors.muted }]}>Max: {item.max_score} Â· {item.score_count} score{item.score_count !== 1 ? 's' : ''} entered</Text>
+                  <Text style={[styles.cardMeta, { color: Colors.muted }]}>Max: {item.max_score} | {item.score_count} score{item.score_count !== 1 ? 's' : ''} entered</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.cardDelete} onPress={() => deleteAssessment(item.id, label)}>
                   <Ionicons name="trash-outline" size={16} color={Colors.danger} />
@@ -190,7 +190,7 @@ export default function SubjectAssessmentsScreen() {
                 <Text style={{ color: Colors.text, fontWeight: '600' }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.primary, flex: 1 }]} onPress={createAssessment} disabled={creating}>
-                <Text style={{ color: '#fff', fontWeight: '700' }}>{creating ? 'Creatingâ€¦' : 'Create'}</Text>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>{creating ? 'Creating...' : 'Create'}</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -21,8 +21,8 @@ function fmt(iso: string) {
 }
 
 function statusStyle(status: string) {
-  if (status === 'Approved') return { bg: '#DCFCE7', color: '#166534' };
-  if (status === 'Rejected') return { bg: '#FEE2E2', color: '#991B1B' };
+  if (status === 'Approved') return { bg: '#DCFCE7', color: '#2D7A4F' };
+  if (status === 'Rejected') return { bg: '#FEE2E2', color: '#B83232' };
   return { bg: '#FEF3C7', color: '#92400E' };
 }
 
@@ -230,7 +230,7 @@ export default function LeavesScreen() {
               {docRequired && (
                 <View>
                   <Text style={styles.fieldLabel}>
-                    Supporting Document <Text style={{ color: '#DC2626' }}>*</Text>
+                    Supporting Document <Text style={{ color: '#B83232' }}>*</Text>
                   </Text>
                   <Text style={styles.fieldHint}>PDF or Word file required for this leave type</Text>
                   <TouchableOpacity
@@ -239,7 +239,7 @@ export default function LeavesScreen() {
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.docBtnText, docUri && { color: Colors.primary }]}>
-                      {docUri ? `✓  ${docName}` : '📎  Attach Document'}
+                      {docUri ? `Attached: ${docName}` : '📎  Attach Document'}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -268,11 +268,11 @@ const styles = StyleSheet.create({
   newBtn:      { borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 16 },
   newBtnText:  { color: '#fff', fontSize: 14, fontWeight: '700' },
   skeleton:    { backgroundColor: '#E5DDD5', borderRadius: 16, height: 96, marginBottom: 12 },
-  empty:       { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 32, alignItems: 'center' },
+  empty:       { backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 32, alignItems: 'center' },
   emptyIcon:   { fontSize: 32, marginBottom: 8 },
   emptyTitle:  { fontSize: 15, fontWeight: '700', color: '#2C2218' },
   emptySub:    { fontSize: 13, color: '#8C7E6E', marginTop: 4 },
-  card:        { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 16, marginBottom: 12 },
+  card:        { backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 16, marginBottom: 12 },
   cardRow:     { flexDirection: 'row', alignItems: 'flex-start' },
   flex1:       { flex: 1 },
   leaveType:   { fontSize: 14, fontWeight: '700', color: '#2C2218' },
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
   badgeText:   { fontSize: 12, fontWeight: '700' },
   overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   sheetScroll: { flexGrow: 1, justifyContent: 'flex-end' },
-  sheet:       { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 44 },
+  sheet:       { backgroundColor: '#FAFAF8', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 44 },
   sheetTitle:  { fontSize: 18, fontWeight: '700', color: '#1C1208', marginBottom: 4 },
   sheetSub:    { fontSize: 14, color: '#8C7E6E', marginBottom: 18 },
   fieldLabel:  { fontSize: 11, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },

@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   schoolLogo:  { width: 72, height: 72, borderRadius: 16, marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.15)' },
   appName:     { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -0.5 },
   tagline:     { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 5 },
-  card:        { backgroundColor: '#FFFFFF', marginHorizontal: 20, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#E2D9CC', shadowColor: '#1C1208', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
+  card:        { backgroundColor: '#FAFAF8', marginHorizontal: 20, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#E2D9CC', shadowColor: '#1C1208', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
   cardHeading: { fontSize: 20, fontWeight: '800', color: '#1C1208', marginBottom: 22, letterSpacing: -0.3 },
   loginBtn:    { marginTop: 4 },
   errorText:   { fontSize: 13, color: '#B83232', marginBottom: 10, fontWeight: '600' },

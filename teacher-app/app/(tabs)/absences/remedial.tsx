@@ -63,7 +63,7 @@ export default function ScheduleRemedialScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.absenceInfo}>
         <Text style={styles.absenceLabel}>Making up absence for:</Text>
-        <Text style={styles.absenceSubject}>{params.subject} · {params.className}</Text>
+        <Text style={styles.absenceSubject}>{params.subject} | {params.className}</Text>
         <Text style={styles.absenceDate}>{new Date(params.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
         {params.absenceGroupId ? (
           <Text style={styles.combinedNote}>Combined class — this remedial covers all classes in this lesson</Text>

@@ -77,7 +77,7 @@ export default function TimetableScreen() {
                       const parts   = [];
                       if (lessons) parts.push(`${lessons} ${lessons === 1 ? 'lesson' : 'lessons'}`);
                       if (plc)     parts.push('PLC');
-                      return parts.join(' · ') || '0 lessons';
+                      return parts.join(' | ') || '0 lessons';
                     })()}
                   </Text>
                 </View>
@@ -147,10 +147,10 @@ const styles = StyleSheet.create({
   dayCount:      { fontSize: 11, color: '#8C7E6E', fontWeight: '600' },
   todayPill:     { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, marginRight: 8 },
   todayPillText: { fontSize: 10, fontWeight: '700', color: '#fff', letterSpacing: 0.3 },
-  emptyDay:      { backgroundColor: '#FFFFFF', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: '#E2D9CC', borderStyle: 'dashed' },
+  emptyDay:      { backgroundColor: '#FAFAF8', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: '#E2D9CC', borderStyle: 'dashed' },
   emptyDayText:  { fontSize: 13, color: '#C0B8AF', fontStyle: 'italic' },
   // Slot card
-  slotCard:      { flexDirection: 'row', backgroundColor: '#FFFFFF', borderRadius: 12, marginBottom: 6, borderWidth: 1, borderColor: '#E2D9CC', overflow: 'hidden' },
+  slotCard:      { flexDirection: 'row', backgroundColor: '#FAFAF8', borderRadius: 12, marginBottom: 6, borderWidth: 1, borderColor: '#E2D9CC', overflow: 'hidden' },
   slotTime:      { width: 52, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, backgroundColor: '#F8F5F0', gap: 2 },
   slotTimeText:  { fontSize: 10, fontWeight: '700', color: '#4A3F32', fontVariant: ['tabular-nums'] },
   slotTimeLine:  { width: 1, height: 10, backgroundColor: '#C0B8AF' },

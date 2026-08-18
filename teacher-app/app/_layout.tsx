@@ -79,7 +79,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#fff',
+    backgroundColor: '#FAFAF8',
     zIndex: 999,
   },
 });

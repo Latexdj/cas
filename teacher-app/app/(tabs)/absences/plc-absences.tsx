@@ -58,7 +58,7 @@ export default function PlcAbsencesScreen() {
               <View style={styles.flex1}>
                 <Text style={styles.title}>{ab.session_title}</Text>
                 <Text style={styles.meta}>
-                  {fmt(ab.date)} · {ab.start_time?.slice(0, 5)}–{ab.end_time?.slice(0, 5)}
+                  {fmt(ab.date)} | {ab.start_time?.slice(0, 5)}–{ab.end_time?.slice(0, 5)}
                 </Text>
                 {ab.reason ? <Text style={styles.reason}>"{ab.reason}"</Text> : null}
               </View>
@@ -81,11 +81,11 @@ const styles = StyleSheet.create({
   container:       { flex: 1, backgroundColor: '#F4EFE6' },
   content:         { padding: 16, paddingBottom: 40 },
   skeleton:        { backgroundColor: '#E5DDD5', borderRadius: 16, height: 88, marginBottom: 12 },
-  empty:           { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 32, alignItems: 'center' },
+  empty:           { backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 32, alignItems: 'center' },
   emptyIcon:       { fontSize: 32, marginBottom: 8 },
   emptyTitle:      { fontSize: 15, fontWeight: '700', color: '#2C2218' },
   emptySub:        { fontSize: 13, color: '#8C7E6E', marginTop: 4 },
-  card:            { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 16, marginBottom: 12 },
+  card:            { backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 16, marginBottom: 12 },
   cardRow:         { flexDirection: 'row', alignItems: 'flex-start' },
   flex1:           { flex: 1 },
   title:           { fontSize: 14, fontWeight: '700', color: '#2C2218' },
@@ -93,8 +93,8 @@ const styles = StyleSheet.create({
   reason:          { fontSize: 12, color: '#4A3F32', fontStyle: 'italic', marginTop: 4 },
   badge:           { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginLeft: 10 },
   badgeAbsent:     { backgroundColor: '#FEE2E2' },
-  badgeAbsentText: { color: '#991B1B' },
+  badgeAbsentText: { color: '#B83232' },
   badgeExcused:    { backgroundColor: '#DCFCE7' },
-  badgeExcusedText:{ color: '#166534' },
+  badgeExcusedText:{ color: '#2D7A4F' },
   badgeText:       { fontSize: 11, fontWeight: '700' },
 });

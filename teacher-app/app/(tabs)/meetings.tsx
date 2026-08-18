@@ -51,8 +51,8 @@ type ActiveTab = 'meetings' | 'plc';
 
 const TYPE_COLORS: Record<string, string> = {
   'PLC':              '#145C44',
-  'Morning Briefing': '#1D4ED8',
-  'Staff Meeting':    '#7E22CE',
+  'Morning Briefing': '#8C7E6E',
+  'Staff Meeting':    '#8C7E6E',
   'PTA':              '#B45309',
   'Other':            '#475569',
 };
@@ -457,7 +457,7 @@ export default function MeetingsScreen() {
           style={[styles.cancelBtn, { position: 'absolute', top: 56, left: 20 }]}
           onPress={() => { setShowQrScanner(false); qrScannedRef.current = false; setQrError(''); }}
         >
-          <Text style={styles.cancelBtnText}>✕  Cancel</Text>
+          <Text style={styles.cancelBtnText}>Cancel</Text>
         </TouchableOpacity>
       </View>
     );
@@ -587,7 +587,7 @@ export default function MeetingsScreen() {
                     <Text style={[styles.typeBadge, { color: typeColor }]}>{meeting.meeting_type}</Text>
                     <Text style={styles.meetingTitle}>{meeting.title}</Text>
                     <Text style={styles.meetingMeta}>
-                      {meeting.start_time?.slice(0, 5)} – {meeting.end_time?.slice(0, 5)} · {meeting.location_name}
+                      {meeting.start_time?.slice(0, 5)} – {meeting.end_time?.slice(0, 5)} | {meeting.location_name}
                     </Text>
                   </View>
                   {meeting.submitted ? (
@@ -695,7 +695,7 @@ const styles = StyleSheet.create({
   container:             { flex: 1, backgroundColor: '#F4EFE6' },
   content:               { padding: 16, paddingBottom: 48 },
   // Segmented control
-  segmentWrap:           { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E2D9CC', marginBottom: 16, overflow: 'hidden' },
+  segmentWrap:           { flexDirection: 'row', backgroundColor: '#FAFAF8', borderRadius: 12, borderWidth: 1, borderColor: '#E2D9CC', marginBottom: 16, overflow: 'hidden' },
   segment:               { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, gap: 6, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   segmentActive:         { backgroundColor: '#F0FAF4', borderBottomColor: '#145C44' },
   segmentText:           { fontSize: 13, fontWeight: '700', color: '#A09282' },
@@ -709,7 +709,7 @@ const styles = StyleSheet.create({
   // Meetings list
   pageTitle:             { fontSize: 22, fontWeight: '800', color: '#1C1208', marginBottom: 4 },
   pageSub:               { fontSize: 13, color: '#8C7E6E', marginBottom: 16 },
-  meetingCard:           { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, borderWidth: 1.5, borderColor: '#E2D9CC', borderLeftWidth: 4, padding: 14, marginBottom: 12, gap: 12 },
+  meetingCard:           { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1.5, borderColor: '#E2D9CC', borderLeftWidth: 4, padding: 14, marginBottom: 12, gap: 12 },
   typeBadge:             { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4 },
   meetingTitle:          { fontSize: 16, fontWeight: '800', color: '#1C1208', marginBottom: 3 },
   meetingMeta:           { fontSize: 13, color: '#8C7E6E' },
@@ -722,7 +722,7 @@ const styles = StyleSheet.create({
   backText:              { fontSize: 14, color: '#8C7E6E', fontWeight: '600' },
   sectionTitle:          { fontSize: 13, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 16 },
   optionalTag:           { fontSize: 11, fontWeight: '500', color: '#B0A898', textTransform: 'none' },
-  sessionCard:           { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, borderWidth: 2, padding: 16, marginBottom: 4 },
+  sessionCard:           { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 2, padding: 16, marginBottom: 4 },
   sessionCardLeft:       { flex: 1 },
   sessionTime:           { fontSize: 12, fontWeight: '700', marginBottom: 4 },
   sessionTitle:          { fontSize: 17, fontWeight: '800', color: '#1C1208', marginBottom: 2 },
@@ -732,7 +732,7 @@ const styles = StyleSheet.create({
   doneTitle:             { fontSize: 15, fontWeight: '700', color: '#1A4D2E' },
   doneSub:               { fontSize: 13, color: '#2D7A4F', marginTop: 2 },
   // GPS
-  gpsRow:                { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14 },
+  gpsRow:                { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FAFAF8', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14 },
   gpsRowError:           { borderColor: '#E8A020', backgroundColor: '#FFFBF2' },
   gpsValue:              { fontSize: 13, color: '#1C1208', flex: 1 },
   gpsMuted:              { fontSize: 13, color: '#8C7E6E', flex: 1, fontStyle: 'italic' },
@@ -744,7 +744,7 @@ const styles = StyleSheet.create({
   photoSize:             { fontSize: 11, color: '#8C7E6E', textAlign: 'right', marginTop: 4 },
   retakeBtn:             { marginTop: 8, alignItems: 'center' },
   retakeBtnText:         { fontWeight: '600', fontSize: 14 },
-  cameraPlaceholder:     { backgroundColor: '#fff', borderWidth: 2, borderColor: '#E2D9CC', borderStyle: 'dashed', borderRadius: 12, height: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  cameraPlaceholder:     { backgroundColor: '#FAFAF8', borderWidth: 2, borderColor: '#E2D9CC', borderStyle: 'dashed', borderRadius: 12, height: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   cameraIcon:            { fontSize: 40 },
   cameraPlaceholderText: { fontSize: 15, color: '#8C7E6E', marginTop: 8 },
   submitBtn:             { marginTop: 8 },
@@ -764,7 +764,7 @@ const styles = StyleSheet.create({
   qrStatusStrip:         { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.75)', paddingVertical: 24, paddingHorizontal: 24, alignItems: 'center', gap: 10 },
   qrStatusText:          { color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center' },
   qrRetryText:           { color: '#FCD34D', fontSize: 13, fontWeight: '700', marginTop: 6 },
-  qrScanCard:            { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#E2D9CC', padding: 14, marginBottom: 16, gap: 12 },
+  qrScanCard:            { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAF8', borderRadius: 14, borderWidth: 1.5, borderColor: '#E2D9CC', padding: 14, marginBottom: 16, gap: 12 },
   qrScanIconWrap:        { width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   qrScanTitle:           { fontSize: 14, fontWeight: '700', marginBottom: 2 },
   qrScanSub:             { fontSize: 12, color: '#8C7E6E' },

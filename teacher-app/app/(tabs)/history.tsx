@@ -83,7 +83,7 @@ function todayStr() { return new Date().toISOString().slice(0, 10); }
 function PendingCard({ item }: { item: QueuedSubmission }) {
   const dt = new Date(item.queuedAt);
   const timeStr = dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-    + ' · ' + dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    + ' | ' + dt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   return (
     <View style={pendingStyles.card}>
       <View style={pendingStyles.header}>
@@ -91,7 +91,7 @@ function PendingCard({ item }: { item: QueuedSubmission }) {
         <Text style={pendingStyles.time}>{timeStr}</Text>
       </View>
       <Text style={pendingStyles.subject}>{item.subject}</Text>
-      <Text style={pendingStyles.meta}>{item.classNames} · {item.periods} period{item.periods !== 1 ? 's' : ''}</Text>
+      <Text style={pendingStyles.meta}>{item.classNames} | {item.periods} period{item.periods !== 1 ? 's' : ''}</Text>
       {item.topic ? <Text style={pendingStyles.topic}>{item.topic}</Text> : null}
       {item.locationName ? <Text style={pendingStyles.meta}>{item.locationName}</Text> : null}
     </View>
@@ -138,7 +138,7 @@ function DateRangeRow({ from, to, onChangeFrom, onChangeTo }: {
 }
 
 const drStyles = StyleSheet.create({
-  row:   { flexDirection: 'row', gap: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2D9CC', paddingHorizontal: 16, paddingVertical: 10 },
+  row:   { flexDirection: 'row', gap: 12, backgroundColor: '#FAFAF8', borderBottomWidth: 1, borderBottomColor: '#E2D9CC', paddingHorizontal: 16, paddingVertical: 10 },
   half:  { flex: 1 },
   label: { fontSize: 11, fontWeight: '700', color: '#8C7E6E', marginBottom: 4 },
   input: { backgroundColor: '#F4EFE6', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: '#1C1208', borderWidth: 1, borderColor: '#E2D9CC' },
@@ -359,7 +359,7 @@ export default function HistoryScreen() {
       <View style={styles.filterDropRow}>
         <DropdownSelect
           value={filterYear}
-          options={academicYears.map(y => ({ label: y.name + (y.is_current ? ' ✦' : ''), value: y.id }))}
+          options={academicYears.map(y => ({ label: y.name + (y.is_current ? ' (current)' : ''), value: y.id }))}
           onChange={id => applyFilter(id, filterSem)}
           placeholder="Academic Year"
           colors={Colors}
@@ -394,7 +394,7 @@ export default function HistoryScreen() {
           <View style={styles.divider} />
         </View>
       )}
-      <Text style={styles.historyLabel}>{selectedYearName} · {semLabel}</Text>
+      <Text style={styles.historyLabel}>{selectedYearName} | {semLabel}</Text>
     </View>
   );
 
@@ -427,8 +427,8 @@ export default function HistoryScreen() {
   if (tab === 'sessions') {
     const statusColor: Record<string, { bg: string; color: string }> = {
       Present: { bg: '#DCFCE7', color: '#145C44' },
-      Absent:  { bg: '#FEF2F2', color: '#DC2626' },
-      Late:    { bg: '#FFFBEB', color: '#D97706' },
+      Absent:  { bg: '#FEF2F2', color: '#B83232' },
+      Late:    { bg: '#FFFBEB', color: '#C8780A' },
     };
 
     return (
@@ -476,8 +476,8 @@ export default function HistoryScreen() {
                 <View style={styles.statRow}>
                   {[
                     { label: 'Present', val: sess.present, color: '#145C44', bg: '#DCFCE7' },
-                    { label: 'Absent',  val: sess.absent,  color: '#DC2626', bg: '#FEF2F2' },
-                    { label: 'Late',    val: sess.late,    color: '#D97706', bg: '#FFFBEB' },
+                    { label: 'Absent',  val: sess.absent,  color: '#B83232', bg: '#FEF2F2' },
+                    { label: 'Late',    val: sess.late,    color: '#C8780A', bg: '#FFFBEB' },
                   ].map(({ label, val, color, bg }) => (
                     <View key={label} style={[styles.statBox, { backgroundColor: bg }]}>
                       <Text style={[styles.statNum, { color }]}>{val}</Text>
@@ -506,18 +506,18 @@ export default function HistoryScreen() {
                     <Text style={[styles.modalCountText, { color: '#145C44' }]}>
                       {detail.records.filter(r => r.status === 'Present').length} Present
                     </Text>
-                    <Text style={[styles.modalCountText, { color: '#DC2626' }]}>
+                    <Text style={[styles.modalCountText, { color: '#B83232' }]}>
                       {detail.records.filter(r => r.status === 'Absent').length} Absent
                     </Text>
                     {detail.records.filter(r => r.status === 'Late').length > 0 && (
-                      <Text style={[styles.modalCountText, { color: '#D97706' }]}>
+                      <Text style={[styles.modalCountText, { color: '#C8780A' }]}>
                         {detail.records.filter(r => r.status === 'Late').length} Late
                       </Text>
                     )}
                   </View>
                 )}
                 <TouchableOpacity onPress={() => setDetail(null)} style={styles.closeBtn}>
-                  <Text style={styles.closeBtnText}>✕</Text>
+                  <Text style={styles.closeBtnText}>Close</Text>
                 </TouchableOpacity>
               </View>
 
@@ -552,9 +552,9 @@ export default function HistoryScreen() {
     const meetingSemLabel = meetingFilterSem === '1' ? 'Sem 1' : meetingFilterSem === '2' ? 'Sem 2' : 'All';
 
     const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
-      PLC:        { bg: '#EDE9FE', color: '#7C3AED' },
-      Staff:      { bg: '#DBEAFE', color: '#1D4ED8' },
-      Department: { bg: '#FEF3C7', color: '#D97706' },
+      PLC:        { bg: '#F0EDE8', color: '#8C7E6E' },
+      Staff:      { bg: '#F0EDE8', color: '#8C7E6E' },
+      Department: { bg: '#FEF3C7', color: '#C8780A' },
       General:    { bg: '#F0FDF4', color: '#145C44' },
     };
 
@@ -568,7 +568,7 @@ export default function HistoryScreen() {
             <View style={styles.filterDropRow}>
               <DropdownSelect
                 value={meetingFilterYear}
-                options={academicYears.map(y => ({ label: y.name + (y.is_current ? ' ✦' : ''), value: y.id }))}
+                options={academicYears.map(y => ({ label: y.name + (y.is_current ? ' (current)' : ''), value: y.id }))}
                 onChange={id => applyMeetingFilter(id, meetingFilterSem)}
                 placeholder="Academic Year"
                 colors={Colors}
@@ -584,7 +584,7 @@ export default function HistoryScreen() {
             </View>
           </View>
 
-          <Text style={styles.historyLabel}>{meetingSelectedYearName} · {meetingSemLabel}</Text>
+          <Text style={styles.historyLabel}>{meetingSelectedYearName} | {meetingSemLabel}</Text>
 
           <View style={{ paddingHorizontal: 16, paddingBottom: 24 }}>
             {meetingLoading ? (
@@ -613,10 +613,10 @@ export default function HistoryScreen() {
                       {m.start_time} – {m.end_time}
                     </Text>
                     {m.location_name ? (
-                      <Text style={styles.meetingMetaText}> · {m.location_name}</Text>
+                      <Text style={styles.meetingMetaText}> | {m.location_name}</Text>
                     ) : null}
                     {m.location_verified && (
-                      <Text style={styles.meetingVerified}> · Location verified</Text>
+                      <Text style={styles.meetingVerified}> | Location verified</Text>
                     )}
                   </View>
                   {m.notes ? <Text style={styles.meetingNotes}>{m.notes}</Text> : null}
@@ -715,7 +715,7 @@ export default function HistoryScreen() {
                     <Text style={styles.classSubText}>
                       {students.length} student{students.length !== 1 ? 's' : ''}
                       {hasAlert && !riskBelowOnly
-                        ? <Text style={{ color: '#DC2626' }}> · {belowCount} below {RISK_THRESHOLD}%</Text>
+                        ? <Text style={{ color: '#B83232' }}> | {belowCount} below {RISK_THRESHOLD}%</Text>
                         : null}
                     </Text>
                   </View>
@@ -724,7 +724,7 @@ export default function HistoryScreen() {
 
                 {isOpen && students.map(s => {
                   const pct = s.present_pct ?? 0;
-                  const barColor = pct >= 90 ? '#145C44' : pct >= RISK_THRESHOLD ? '#D97706' : '#DC2626';
+                  const barColor = pct >= 90 ? '#145C44' : pct >= RISK_THRESHOLD ? '#C8780A' : '#B83232';
                   const isLow = s.present_pct !== null && s.present_pct < RISK_THRESHOLD;
                   return (
                     <View key={s.id} style={[styles.studentRow, isLow && { backgroundColor: '#FFF8F8' }]}>
@@ -742,7 +742,7 @@ export default function HistoryScreen() {
                         <View style={[styles.barFill, { width: `${Math.min(pct, 100)}%` as any, backgroundColor: barColor }]} />
                       </View>
                       <Text style={styles.sessionsMeta}>
-                        {s.absent} absent{s.late > 0 ? ` · ${s.late} late` : ''} · {s.total_sessions} session{s.total_sessions !== 1 ? 's' : ''}
+                        {s.absent} absent{s.late > 0 ? ` | ${s.late} late` : ''} | {s.total_sessions} session{s.total_sessions !== 1 ? 's' : ''}
                       </Text>
                     </View>
                   );
@@ -760,11 +760,11 @@ const styles = StyleSheet.create({
   container:          { flex: 1, backgroundColor: '#F4EFE6' },
   list:               { flexGrow: 1 },
   /* Tab bar */
-  tabBar:             { flexDirection: 'row', backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2D9CC', padding: 8, gap: 6 },
+  tabBar:             { flexDirection: 'row', backgroundColor: '#FAFAF8', borderBottomWidth: 1, borderBottomColor: '#E2D9CC', padding: 8, gap: 6 },
   tabBtn:             { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', backgroundColor: '#F4EFE6' },
   tabBtnText:         { fontSize: 12, fontWeight: '700', color: '#8C7E6E' },
   /* Filter bar */
-  filterBar:          { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E2D9CC', paddingVertical: 10, paddingHorizontal: 16 },
+  filterBar:          { backgroundColor: '#FAFAF8', borderBottomWidth: 1, borderBottomColor: '#E2D9CC', paddingVertical: 10, paddingHorizontal: 16 },
   filterDropRow:      { flexDirection: 'row', gap: 8 },
   semChip:            { flex: 1, paddingVertical: 6, borderRadius: 20, backgroundColor: '#F0EDE8', alignItems: 'center', borderWidth: 1, borderColor: '#E2D9CC' },
   semChipText:        { fontSize: 12, fontWeight: '700', color: '#4A3F32' },
@@ -778,11 +778,11 @@ const styles = StyleSheet.create({
   historyLabel:       { fontSize: 13, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, padding: 16, paddingBottom: 4 },
   /* Sessions */
   skeleton:           { backgroundColor: '#E5DDD5', borderRadius: 12, height: 96 },
-  emptyCard:          { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 32, alignItems: 'center' },
+  emptyCard:          { backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 32, alignItems: 'center' },
   emptyIcon:          { fontSize: 32, marginBottom: 8 },
   emptyTitle:         { fontSize: 15, fontWeight: '700', color: '#2C2218' },
   emptySub:           { fontSize: 13, color: '#8C7E6E', marginTop: 4, textAlign: 'center' },
-  sessCard:           { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#E2D9CC', padding: 14, marginBottom: 12 },
+  sessCard:           { backgroundColor: '#FAFAF8', borderRadius: 14, borderWidth: 1, borderColor: '#E2D9CC', padding: 14, marginBottom: 12 },
   sessTop:            { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   flex1:              { flex: 1 },
   sessSubject:        { fontSize: 14, fontWeight: '700', color: '#2C2218' },
@@ -793,7 +793,7 @@ const styles = StyleSheet.create({
   statLabel:          { fontSize: 10, fontWeight: '700', marginTop: 1 },
   /* Session detail modal */
   modalOverlay:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  modalSheet:         { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%' },
+  modalSheet:         { backgroundColor: '#FAFAF8', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%' },
   modalHeader:        { flexDirection: 'row', alignItems: 'flex-start', padding: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#E2D9CC' },
   modalTitle:         { fontSize: 15, fontWeight: '800', color: '#2C2218' },
   modalSub:           { fontSize: 12, color: '#8C7E6E', marginTop: 2 },
@@ -808,7 +808,7 @@ const styles = StyleSheet.create({
   statusPill:         { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   statusPillText:     { fontSize: 12, fontWeight: '700' },
   /* Meetings */
-  meetingCard:        { backgroundColor: '#fff', borderRadius: 14, borderWidth: 1, borderColor: '#E2D9CC', padding: 14, marginBottom: 12 },
+  meetingCard:        { backgroundColor: '#FAFAF8', borderRadius: 14, borderWidth: 1, borderColor: '#E2D9CC', padding: 14, marginBottom: 12 },
   meetingTop:         { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 },
   meetingTitle:       { fontSize: 14, fontWeight: '700', color: '#2C2218', marginBottom: 2 },
   meetingDate:        { fontSize: 12, color: '#8C7E6E' },
@@ -827,7 +827,7 @@ const styles = StyleSheet.create({
   classSubText:       { fontSize: 12, color: '#8C7E6E', marginTop: 2 },
   chevron:            { fontSize: 20, color: '#8C7E6E', transform: [{ rotate: '0deg' }] },
   chevronOpen:        { transform: [{ rotate: '90deg' }] },
-  studentRow:         { backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F4EFE6' },
+  studentRow:         { backgroundColor: '#FAFAF8', paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#F4EFE6' },
   studentInfo:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   studentRight:       { alignItems: 'flex-end' },
   pctText:            { fontSize: 16, fontWeight: '800' },

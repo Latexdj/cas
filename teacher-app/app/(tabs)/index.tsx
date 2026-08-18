@@ -54,7 +54,7 @@ function UpcomingEventsSection({ events }: { events: SchoolCalendarEntry[] }) {
 const eventStyles = StyleSheet.create({
   section:  { paddingHorizontal: 16, paddingBottom: 24, marginTop: 8 },
   header:   { fontSize: 12, fontWeight: '700', color: '#8C7E6E', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 10 },
-  card:     { backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#E2D9CC', flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  card:     { backgroundColor: '#FAFAF8', borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#E2D9CC', flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   typePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginTop: 2 },
   typeText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.2 },
   body:     { flex: 1 },
@@ -125,9 +125,9 @@ export default function HomeScreen() {
   const pctColor = (pct: number | null) => {
     if (pct === null) return '#8C7E6E';
     if (pct >= 90)  return '#2D7A4F';
-    if (pct >= 75)  return '#2563EB';
-    if (pct >= 60)  return '#D97706';
-    return '#DC2626';
+    if (pct >= 75)  return '#C8780A';
+    if (pct >= 60)  return '#C8780A';
+    return '#B83232';
   };
 
   if (!user)   return <Spinner />;
@@ -137,7 +137,7 @@ export default function HomeScreen() {
     <View style={styles.root}>
       <View style={[styles.header, { backgroundColor: themeColors.primary }]}>
         <View>
-          <Text style={styles.greeting}>Good day, {firstName}</Text>
+          <Text style={styles.greeting}>{firstName}</Text>
           <Text style={styles.date}>{today}</Text>
         </View>
         <View style={styles.headerRight}>
@@ -189,11 +189,11 @@ export default function HomeScreen() {
               <Text style={styles.summaryLabel}>Present</Text>
             </View>
             <View style={[styles.summaryItem, styles.summaryItemDivider]}>
-              <Text style={[styles.summaryNum, { color: mySummary.absent_periods > 0 ? '#DC2626' : '#8C7E6E' }]}>{mySummary.absent_periods}</Text>
+              <Text style={[styles.summaryNum, { color: mySummary.absent_periods > 0 ? '#B83232' : '#8C7E6E' }]}>{mySummary.absent_periods}</Text>
               <Text style={styles.summaryLabel}>Absent</Text>
             </View>
             <View style={[styles.summaryItem, styles.summaryItemDivider]}>
-              <Text style={[styles.summaryNum, { color: '#7C3AED' }]}>{mySummary.excused_periods}</Text>
+              <Text style={[styles.summaryNum, { color: '#8C7E6E' }]}>{mySummary.excused_periods}</Text>
               <Text style={styles.summaryLabel}>Excused</Text>
             </View>
             <View style={[styles.summaryItem, styles.summaryItemDivider]}>
@@ -282,11 +282,11 @@ const styles = StyleSheet.create({
   date:          { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
   headerRight:   { flexDirection: 'row', alignItems: 'center', gap: 12 },
   bellBtn:       { position: 'relative', width: 38, height: 38, justifyContent: 'center', alignItems: 'center' },
-  bellBadge:     { position: 'absolute', top: 0, right: 0, backgroundColor: '#EF4444', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
+  bellBadge:     { position: 'absolute', top: 0, right: 0, backgroundColor: '#B83232', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
   bellBadgeText: { fontSize: 9, fontWeight: '800', color: '#fff' },
   avatarSmall:   { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
   avatarLetter:  { fontSize: 18, fontWeight: '800', color: '#fff' },
-  statsRow:    { flexDirection: 'row', backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: -16, borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', shadowColor: '#1C1208', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3, marginBottom: 20 },
+  statsRow:    { flexDirection: 'row', backgroundColor: '#FAFAF8', marginHorizontal: 16, marginTop: -16, borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', shadowColor: '#1C1208', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3, marginBottom: 20 },
   stat:        { flex: 1, alignItems: 'center', paddingVertical: 14 },
   statDivider: { borderLeftWidth: 1, borderLeftColor: '#E2D9CC' },
   statNum:     { fontSize: 24, fontWeight: '800', color: '#1C1208' },
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
   sectionLabel:{ fontSize: 12, fontWeight: '700', color: '#8C7E6E', letterSpacing: 0.5, textTransform: 'uppercase', paddingHorizontal: 20, marginBottom: 8 },
   list:        { paddingHorizontal: 16, paddingBottom: 8, flexGrow: 1 },
   // My Attendance card
-  summaryCard:        { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#E2D9CC', padding: 14 },
+  summaryCard:        { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#FAFAF8', borderRadius: 14, borderWidth: 1, borderColor: '#E2D9CC', padding: 14 },
   summaryHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   summaryTitle:       { fontSize: 11, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.4 },
   summaryPct:         { fontSize: 20, fontWeight: '800' },
@@ -316,6 +316,6 @@ const styles = StyleSheet.create({
   meetingBar:       { height: 4, backgroundColor: '#F1F5F9', borderRadius: 2, overflow: 'hidden' },
   meetingBarFill:   { height: 4, borderRadius: 2 },
   // View Timetable button
-  timetableBtn:       { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  timetableBtn:       { marginHorizontal: 16, marginBottom: 12, backgroundColor: '#FAFAF8', borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   timetableBtnText:   { flex: 1, fontSize: 14, fontWeight: '700' },
 });

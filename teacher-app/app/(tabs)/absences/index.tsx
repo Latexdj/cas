@@ -40,11 +40,11 @@ export default function AbsencesScreen() {
 
   const cards = [
     {
-      icon: '⚠️',
+      icon: '📋',
       title: 'Class Absences',
       count: classCount,
       subtitle: classCount === 1 ? 'unresolved absence' : 'unresolved absences',
-      accent: '#DC2626',
+      accent: '#B83232',
       href: '/absences/list',
     },
     {
@@ -52,7 +52,7 @@ export default function AbsencesScreen() {
       title: 'Meeting Absences',
       count: meetingCount,
       subtitle: meetingCount === 1 ? 'recorded absence' : 'recorded absences',
-      accent: '#D97706',
+      accent: '#C8780A',
       href: '/absences/meetings',
     },
     {
@@ -60,7 +60,7 @@ export default function AbsencesScreen() {
       title: 'PLC Absences',
       count: plcCount,
       subtitle: plcCount === 1 ? 'recorded absence' : 'recorded absences',
-      accent: '#7C3AED',
+      accent: '#8C7E6E',
       href: '/absences/plc-absences',
     },
     {
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
   heading:     { fontSize: 20, fontWeight: '800', color: '#2C2218', letterSpacing: -0.3 },
   sub:         { fontSize: 13, color: '#8C7E6E', marginTop: 2 },
   skeleton:    { backgroundColor: '#E5DDD5', borderRadius: 16, height: 120, marginBottom: 16 },
-  card:        { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 20, marginBottom: 16 },
+  card:        { backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 20, marginBottom: 16 },
   cardTop:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   cardTitle:   { fontSize: 11, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.6 },
   cardIcon:    { fontSize: 20 },

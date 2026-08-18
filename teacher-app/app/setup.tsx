@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
   logoLetter:     { fontSize: 30, fontWeight: '800', color: '#fff' },
   appName:        { fontSize: 26, fontWeight: '800', color: '#fff', letterSpacing: -0.5 },
   tagline:        { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 5 },
-  card:           { backgroundColor: '#FFFFFF', marginHorizontal: 20, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#E2D9CC', shadowColor: '#1C1208', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
+  card:           { backgroundColor: '#FAFAF8', marginHorizontal: 20, borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#E2D9CC', shadowColor: '#1C1208', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 4 },
   cardHeading:    { fontSize: 20, fontWeight: '800', color: '#1C1208', marginBottom: 8, letterSpacing: -0.3 },
   cardSub:        { fontSize: 14, color: '#8C7E6E', lineHeight: 20, marginBottom: 20 },
   schoolNameBox:  { borderWidth: 2, borderRadius: 12, padding: 16, marginBottom: 16, alignItems: 'center' },

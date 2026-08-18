@@ -285,7 +285,7 @@ export default function PlcScreen() {
           style={[styles.cancelBtn, { position: 'absolute', top: 56, left: 20 }]}
           onPress={() => { setShowQrScanner(false); qrScannedRef.current = false; setQrError(''); }}
         >
-          <Text style={styles.cancelBtnText}>✕  Cancel</Text>
+          <Text style={styles.cancelBtnText}>Cancel</Text>
         </TouchableOpacity>
       </View>
     );
@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
   sectionTitle:          { fontSize: 13, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 16 },
   optionalTag:           { fontSize: 11, fontWeight: '500', color: '#B0A898', textTransform: 'none' },
   // Session card
-  sessionCard:           { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, borderWidth: 2, padding: 16, marginBottom: 4 },
+  sessionCard:           { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 2, padding: 16, marginBottom: 4 },
   sessionCardLeft:       { flex: 1 },
   sessionTime:           { fontSize: 12, fontWeight: '700', marginBottom: 4 },
   sessionTitle:          { fontSize: 17, fontWeight: '800', color: '#1C1208', marginBottom: 2 },
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
   emptyTitle:            { fontSize: 22, fontWeight: '800', color: '#1C1208', marginBottom: 10, textAlign: 'center' },
   emptySub:              { fontSize: 14, color: '#8C7E6E', textAlign: 'center', lineHeight: 22 },
   // GPS
-  gpsRow:                { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14 },
+  gpsRow:                { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FAFAF8', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14 },
   gpsRowError:           { borderColor: '#E8A020', backgroundColor: '#FFFBF2' },
   gpsValue:              { fontSize: 13, color: '#1C1208', flex: 1 },
   gpsMuted:              { fontSize: 13, color: '#8C7E6E', flex: 1, fontStyle: 'italic' },
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
   photoSize:             { fontSize: 11, color: '#8C7E6E', textAlign: 'right', marginTop: 4 },
   retakeBtn:             { marginTop: 8, alignItems: 'center' },
   retakeBtnText:         { fontWeight: '600', fontSize: 14 },
-  cameraPlaceholder:     { backgroundColor: '#fff', borderWidth: 2, borderColor: '#E2D9CC', borderStyle: 'dashed', borderRadius: 12, height: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  cameraPlaceholder:     { backgroundColor: '#FAFAF8', borderWidth: 2, borderColor: '#E2D9CC', borderStyle: 'dashed', borderRadius: 12, height: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   cameraIcon:            { fontSize: 40 },
   cameraPlaceholderText: { fontSize: 15, color: '#8C7E6E', marginTop: 8 },
   submitBtn:             { marginTop: 8 },
@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
   qrStatusText:          { color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center' },
   qrRetryText:           { color: '#FCD34D', fontSize: 13, fontWeight: '700', marginTop: 6 },
   // QR form card — unverified
-  qrScanCard:            { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#E2D9CC', padding: 14, marginBottom: 16, gap: 12 },
+  qrScanCard:            { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAF8', borderRadius: 14, borderWidth: 1.5, borderColor: '#E2D9CC', padding: 14, marginBottom: 16, gap: 12 },
   qrScanIconWrap:        { width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   qrScanTitle:           { fontSize: 14, fontWeight: '700', marginBottom: 2 },
   qrScanSub:             { fontSize: 12, color: '#8C7E6E' },

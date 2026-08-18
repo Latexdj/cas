@@ -482,7 +482,7 @@ export default function SubmitScreen() {
           style={[styles.cancelBtn, { position: 'absolute', top: 56, left: 20 }]}
           onPress={() => { setShowQrScanner(false); qrScannedRef.current = false; setQrError(''); }}
         >
-          <Text style={styles.cancelBtnText}>✕  Cancel</Text>
+          <Text style={styles.cancelBtnText}>Cancel</Text>
         </TouchableOpacity>
       </View>
     );
@@ -591,8 +591,8 @@ export default function SubmitScreen() {
             <Text style={[styles.countLabel, { color: '#2D7A4F' }]}>Present</Text>
           </View>
           <View style={[styles.countBadge, { backgroundColor: '#FEF2F2' }]}>
-            <Text style={[styles.countNum, { color: '#DC2626' }]}>{absentCount}</Text>
-            <Text style={[styles.countLabel, { color: '#DC2626' }]}>Absent</Text>
+            <Text style={[styles.countNum, { color: '#B83232' }]}>{absentCount}</Text>
+            <Text style={[styles.countLabel, { color: '#B83232' }]}>Absent</Text>
           </View>
           {exeatCount > 0 && (
             <View style={[styles.countBadge, { backgroundColor: '#FEF3C7' }]}>
@@ -644,7 +644,7 @@ export default function SubmitScreen() {
                   <Text style={[styles.studentName, !isPresent && styles.studentNameAbsent]}>{student.name}</Text>
                 </View>
                 <View style={[styles.statusPill, { backgroundColor: isPresent ? '#E4F4EB' : '#FEF2F2' }]}>
-                  <Text style={[styles.statusPillText, { color: isPresent ? '#2D7A4F' : '#DC2626' }]}>
+                  <Text style={[styles.statusPillText, { color: isPresent ? '#2D7A4F' : '#B83232' }]}>
                     {isPresent ? 'Present' : 'Absent'}
                   </Text>
                 </View>
@@ -687,7 +687,7 @@ export default function SubmitScreen() {
       {allDone && (
         <View style={styles.allDoneBanner}>
           <Ionicons name="checkmark-circle" size={16} color="#2D7A4F" />
-          <Text style={styles.allDoneText}>All lessons submitted for today!</Text>
+          <Text style={styles.allDoneText}>All lessons submitted for today</Text>
         </View>
       )}
       {slots.map((slot) => {
@@ -846,7 +846,7 @@ const styles = StyleSheet.create({
   content:               { padding: 16, paddingBottom: 40 },
   sectionTitle:          { fontSize: 13, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 16 },
   // Step indicator
-  stepBar:               { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, padding: 14, marginBottom: 4, borderWidth: 1, borderColor: '#E2D9CC' },
+  stepBar:               { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAF8', borderRadius: 14, padding: 14, marginBottom: 4, borderWidth: 1, borderColor: '#E2D9CC' },
   stepItem:              { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, borderWidth: 1.5, borderColor: 'transparent', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
   stepDone:              { borderColor: '#2D7A4F' },
   stepPending:           { borderColor: 'transparent' },
@@ -867,7 +867,7 @@ const styles = StyleSheet.create({
   allDoneBanner:         { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#E4F4EB', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12 },
   allDoneText:           { fontSize: 13, color: '#2D7A4F', fontWeight: '600' },
   // Slot rows
-  slotRow:               { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, marginBottom: 8, padding: 14, borderWidth: 1.5, borderColor: '#E2D9CC' },
+  slotRow:               { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAF8', borderRadius: 14, marginBottom: 8, padding: 14, borderWidth: 1.5, borderColor: '#E2D9CC' },
   slotRowSelected:       { borderColor: '#2D7A4F', backgroundColor: '#F0FAF4' },
   slotRowDone:           { opacity: 0.55 },
   slotRowLeft:           { flex: 1 },
@@ -876,18 +876,18 @@ const styles = StyleSheet.create({
   slotSubject:           { fontSize: 15, fontWeight: '700', color: '#1C1208' },
   slotClass:             { fontSize: 12, color: '#4A3F32', marginTop: 2 },
   // Locked card
-  lockedCard:            { backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#E2D9CC', marginBottom: 16, overflow: 'hidden' },
+  lockedCard:            { backgroundColor: '#FAFAF8', borderRadius: 14, borderWidth: 1, borderColor: '#E2D9CC', marginBottom: 16, overflow: 'hidden' },
   lockedRow:             { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12 },
   lockedLabel:           { fontSize: 12, color: '#8C7E6E', fontWeight: '600' },
   lockedValue:           { fontSize: 14, color: '#1C1208', fontWeight: '600', flex: 1, textAlign: 'right' },
   // Fields
   fieldLabel:            { fontSize: 13, fontWeight: '600', color: '#1C1208', marginBottom: 6 },
-  picker:                { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
+  picker:                { backgroundColor: '#FAFAF8', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
   pickerRequired:        { borderColor: '#E8A020' },
   pickerValue:           { fontSize: 15, color: '#1C1208' },
   pickerPlaceholder:     { fontSize: 15, color: '#8C7E6E' },
   pickerArrow:           { color: '#8C7E6E', fontSize: 16 },
-  gpsRow:                { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14 },
+  gpsRow:                { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FAFAF8', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 14 },
   gpsRowError:           { borderColor: '#E8A020', backgroundColor: '#FFFBF2' },
   gpsValue:              { fontSize: 13, color: '#1C1208', flex: 1 },
   gpsMuted:              { fontSize: 13, color: '#8C7E6E', flex: 1, fontStyle: 'italic' },
@@ -900,7 +900,7 @@ const styles = StyleSheet.create({
   photoSize:             { fontSize: 11, color: '#8C7E6E', textAlign: 'right', marginTop: 4 },
   retakeBtn:             { marginTop: 8, alignItems: 'center' },
   retakeBtnText:         { fontWeight: '600', fontSize: 14 },
-  cameraPlaceholder:     { backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: '#E2D9CC', borderStyle: 'dashed', borderRadius: 12, height: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  cameraPlaceholder:     { backgroundColor: '#FAFAF8', borderWidth: 2, borderColor: '#E2D9CC', borderStyle: 'dashed', borderRadius: 12, height: 160, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   cameraIcon:            { fontSize: 40 },
   cameraPlaceholderText: { fontSize: 15, color: '#8C7E6E', marginTop: 8 },
   submitBtn:             { marginTop: 8 },
@@ -916,7 +916,7 @@ const styles = StyleSheet.create({
   flipBtnText:           { color: '#fff', fontSize: 28, fontWeight: '700' },
   // Location modal
   modalOverlay:          { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalSheet:            { backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', padding: 20 },
+  modalSheet:            { backgroundColor: '#FAFAF8', borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '60%', padding: 20 },
   modalTitle:            { fontSize: 17, fontWeight: '700', color: '#1C1208', marginBottom: 16 },
   locItem:               { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#E2D9CC' },
   locItemRow:            { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -934,7 +934,7 @@ const styles = StyleSheet.create({
   qrStatusText:          { color: '#fff', fontSize: 15, fontWeight: '600', textAlign: 'center' },
   qrRetryText:           { color: '#FCD34D', fontSize: 13, fontWeight: '700', marginTop: 6 },
   // QR form card — unverified
-  qrScanCard:            { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#E2D9CC', padding: 14, marginBottom: 16, gap: 12 },
+  qrScanCard:            { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAF8', borderRadius: 14, borderWidth: 1.5, borderColor: '#E2D9CC', padding: 14, marginBottom: 16, gap: 12 },
   qrScanIconWrap:        { width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   qrScanTitle:           { fontSize: 14, fontWeight: '700', marginBottom: 2 },
   qrScanSub:             { fontSize: 12, color: '#8C7E6E' },
@@ -948,13 +948,13 @@ const styles = StyleSheet.create({
   countBadge:            { flex: 1, borderRadius: 12, padding: 12, alignItems: 'center' },
   countNum:              { fontSize: 24, fontWeight: '800' },
   countLabel:            { fontSize: 11, fontWeight: '600', marginTop: 2 },
-  studentRow:            { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, marginBottom: 6, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1.5, borderColor: '#E2D9CC' },
+  studentRow:            { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FAFAF8', borderRadius: 12, marginBottom: 6, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1.5, borderColor: '#E2D9CC' },
   studentPresent:        { borderColor: '#E2D9CC' },
   studentAbsent:         { borderColor: '#FCA5A5', backgroundColor: '#FEF2F2' },
   studentLeft:           { flex: 1 },
   studentCode:           { fontSize: 11, color: '#8C7E6E', fontWeight: '600', marginBottom: 2 },
   studentName:           { fontSize: 15, fontWeight: '600', color: '#1C1208' },
-  studentNameAbsent:     { color: '#DC2626' },
+  studentNameAbsent:     { color: '#B83232' },
   statusPill:            { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
   statusPillText:        { fontSize: 12, fontWeight: '700' },
 });

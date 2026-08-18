@@ -86,7 +86,7 @@ export default function AbsenceListScreen() {
               )}
             </View>
             <Text style={styles.meta}>
-              {fmt(ab.date)}{ab.scheduled_period ? ` · ${ab.scheduled_period}` : ''}
+              {fmt(ab.date)}{ab.scheduled_period ? ` | ${ab.scheduled_period}` : ''}
             </Text>
             {ab.rejection_reason ? (
               <View style={styles.rejectionBox}>
@@ -158,20 +158,20 @@ const styles = StyleSheet.create({
   content:         { padding: 16, paddingBottom: 40 },
   skeleton:        { backgroundColor: '#E5DDD5', borderRadius: 16, height: 96, marginBottom: 12 },
   errorBox:        { backgroundColor: '#FEE2E2', borderRadius: 16, borderWidth: 1, borderColor: '#FECACA', padding: 20, alignItems: 'center' },
-  errorText:       { fontSize: 13, color: '#B91C1C', textAlign: 'center', fontWeight: '600' },
-  empty:           { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 32, alignItems: 'center' },
+  errorText:       { fontSize: 13, color: '#B83232', textAlign: 'center', fontWeight: '600' },
+  empty:           { backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 32, alignItems: 'center' },
   emptyIcon:       { fontSize: 32, marginBottom: 8 },
   emptyTitle:      { fontSize: 15, fontWeight: '700', color: '#2C2218' },
   emptySub:        { fontSize: 13, color: '#8C7E6E', marginTop: 4 },
-  card:            { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 16, marginBottom: 12 },
+  card:            { backgroundColor: '#FAFAF8', borderRadius: 16, borderWidth: 1, borderColor: '#E2D9CC', padding: 16, marginBottom: 12 },
   subjectRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 2 },
   subject:         { fontSize: 14, fontWeight: '700', color: '#2C2218' },
   combinedBadge:   { backgroundColor: '#FEF3C7', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },
   combinedBadgeText: { fontSize: 11, fontWeight: '700', color: '#92400E' },
   meta:            { fontSize: 12, color: '#8C7E6E', marginTop: 2 },
   rejectionBox:    { backgroundColor: '#FEF2F2', borderRadius: 8, borderWidth: 1, borderColor: '#FECACA', padding: 8, marginTop: 6 },
-  rejectionTitle:  { fontSize: 11, fontWeight: '700', color: '#B91C1C', marginBottom: 2 },
-  rejectionText:   { fontSize: 11, color: '#DC2626' },
+  rejectionTitle:  { fontSize: 11, fontWeight: '700', color: '#B83232', marginBottom: 2 },
+  rejectionText:   { fontSize: 11, color: '#B83232' },
   reason:          { fontSize: 12, color: '#4A3F32', fontStyle: 'italic', marginTop: 6 },
   btnRow:          { flexDirection: 'row', gap: 8, marginTop: 12 },
   btnSecondary:    { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: '#E2D9CC', backgroundColor: '#F4EFE6', alignItems: 'center' },

@@ -86,7 +86,7 @@ export default function ExamScoresScreen() {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.container, { backgroundColor: Colors.bg }]}>
       <View style={[styles.infoCard, { backgroundColor: Colors.surface, borderColor: Colors.border }]}>
         <Text style={[styles.infoTitle, { color: Colors.text }]}>End-of-Semester Exam</Text>
-        <Text style={[styles.infoMeta, { color: Colors.muted }]}>{subject} Â· {class_name} Â· {year_name} Â· Semester {semester}</Text>
+        <Text style={[styles.infoMeta, { color: Colors.muted }]}>{subject} | {class_name} | {year_name} | Semester {semester}</Text>
         <View style={styles.maxRow}>
           <Text style={[styles.maxLabel, { color: Colors.muted }]}>Max Score</Text>
           <TextInput
@@ -101,7 +101,7 @@ export default function ExamScoresScreen() {
       </View>
 
       {error ? <Text style={[styles.banner, { backgroundColor: Colors.dangerLight, color: Colors.danger }]}>{error}</Text> : null}
-      {saved ? <Text style={[styles.banner, { backgroundColor: '#DCFCE7', color: '#145C44' }]}>âœ“ Exam scores saved.</Text> : null}
+      {saved ? <Text style={[styles.banner, { backgroundColor: '#DCFCE7', color: '#145C44' }]}>Exam scores saved.</Text> : null}
 
       <FlatList
         data={rows}
