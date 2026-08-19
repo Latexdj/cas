@@ -599,13 +599,16 @@ export default function ResultsPage() {
   interface NonSubmitter { teacher_id: string; teacher_name: string; department: string | null; subject: string; class_name: string; submission_status: 'not_started' | 'draft' | 'rejected'; submission_id: string | null; }
   interface NsDebug {
     params: Record<string,unknown>;
-    source_counts: {
-      timetable_raw_rows: number; timetable_distinct_teacher_subject_class: number; timetable_total_all_years: number | null;
-      assessments: {total:number;with_teacher_id:number}; assessments_after_teacher_join: number;
-      exam_scores: {total:number;with_teacher_id:number};
+    source_counts: Record<string, unknown> & {
+      timetable_raw_rows: number | null;
+      timetable_distinct_teacher_subject_class: number | null;
+      timetable_after_teacher_join: number | null;
+      assessments: {total:number|null;with_teacher_id:number|null} | null;
+      assessments_after_teacher_join: number | null;
+      exam_scores: {total:number|null} | null;
       result_submissions_by_status: {status:string;count:number}[];
     };
-    pipeline: { total_union_candidates: number | null; final_non_submitter_count: number | null; timetable_candidates_with_no_submission: number | null; timetable_candidates_excluded_by_existing_submission: number | null; };
+    pipeline: Record<string,unknown> & { total_union_candidates: number | null; final_non_submitter_count: number | null; };
     samples: { timetable_rows: Record<string,unknown>[]; submission_rows: Record<string,unknown>[]; };
   }
   const [nonSubmitters,        setNonSubmitters]        = useState<NonSubmitter[]>([]);
@@ -1298,17 +1301,19 @@ export default function ResultsPage() {
                       </div>
                       {/* Source counts */}
                       {[
-                        { label: 'Timetable rows (this year/sem)', value: nsDebug.source_counts.timetable_raw_rows, note: `${nsDebug.source_counts.timetable_distinct_teacher_subject_class} distinct teacher/subject/class combos` },
-                        { label: 'Assessments (this year/sem)', value: nsDebug.source_counts.assessments.total, note: `${nsDebug.source_counts.assessments_after_teacher_join} after join with teachers table` },
-                        { label: 'Exam scores (this year/sem)', value: nsDebug.source_counts.exam_scores.total, note: `${nsDebug.source_counts.exam_scores.with_teacher_id} with teacher ID` },
-                        { label: 'Union candidates (all 4 sources)', value: nsDebug.pipeline.total_union_candidates, note: 'distinct teacher/subject/class combos with no complete submission' },
-                        { label: 'Final non-submitter count', value: nsDebug.pipeline.final_non_submitter_count, note: 'what the main panel should show' },
+                        { label: 'Timetable raw rows', value: nsDebug.source_counts.timetable_raw_rows, note: nsDebug.source_counts.timetable_raw_error as string | undefined },
+                        { label: 'Timetable after LATERAL unnest', value: nsDebug.source_counts.timetable_distinct_teacher_subject_class, note: nsDebug.source_counts.timetable_distinct_error as string | undefined },
+                        { label: 'Timetable after JOIN teachers', value: nsDebug.source_counts.timetable_after_teacher_join, note: nsDebug.source_counts.timetable_join_error as string | undefined },
+                        { label: 'Assessments raw', value: nsDebug.source_counts.assessments?.total ?? null, note: nsDebug.source_counts.assessments_error as string | undefined },
+                        { label: 'Assessments after JOIN teachers', value: nsDebug.source_counts.assessments_after_teacher_join, note: nsDebug.source_counts.assessments_join_error as string | undefined },
+                        { label: 'Exam scores raw', value: nsDebug.source_counts.exam_scores?.total ?? null, note: nsDebug.source_counts.exam_error as string | undefined },
+                        { label: 'Union candidates (all 4 sources)', value: nsDebug.pipeline.total_union_candidates, note: nsDebug.pipeline.union_error as string | undefined },
                       ].map(row => (
                         <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 14px', borderTop: '1px solid #F1F5F9' }}>
                           <span style={{ color: '#4A3F32' }}>{row.label}</span>
                           <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                            <span style={{ fontWeight: 700, color: row.value === 0 ? '#B83232' : '#145C44' }}>{row.value}</span>
-                            {row.note && <span style={{ color: '#8C7E6E', fontSize: 11 }}>{row.note}</span>}
+                            <span style={{ fontWeight: 700, color: row.value === null ? '#B83232' : row.value === 0 ? '#B83232' : '#145C44' }}>{row.value ?? 'ERR'}</span>
+                            {row.note && <span style={{ color: (row.value === null || String(row.note).length > 30) ? '#B83232' : '#8C7E6E', fontSize: 11, maxWidth: 260, wordBreak: 'break-word' }}>{row.note}</span>}
                           </span>
                         </div>
                       ))}

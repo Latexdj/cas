@@ -231,113 +231,94 @@ router.get('/non-submitters/debug', adminOnly, async (req, res, next) => {
     const sem = parseInt(semester);
     const p = [req.schoolId, academic_year_id, sem];
 
-    // Run each query separately (sequential) so errors are easy to isolate
-    const tt = await pool.query(
-      `SELECT COUNT(*) AS cnt FROM timetable
-       WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3`, p);
+    // Helper: run a query and return {cnt, error} — never throws
+    const safe = async (sql, params) => {
+      try { const r = await pool.query(sql, params); return { cnt: Number(r.rows[0]?.cnt ?? r.rows[0]?.total ?? -1), rows: r.rows }; }
+      catch (e) { console.error('[debug safe]', e?.message); return { cnt: null, error: e?.message, rows: [] }; }
+    };
 
-    const ttDistinct = await pool.query(
+    // 1. Raw timetable row count (simple — no LATERAL)
+    const tt = await safe(
+      `SELECT COUNT(*) AS cnt FROM timetable WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3`, p);
+
+    // 2. Timetable distinct combos after LATERAL unnest
+    const ttDistinct = await safe(
       `SELECT COUNT(*) AS cnt FROM (
          SELECT DISTINCT tt.teacher_id, tt.subject, TRIM(cls) AS class_name
-         FROM timetable tt,
-              LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
+         FROM timetable tt
+         CROSS JOIN LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
          WHERE tt.school_id=$1 AND tt.academic_year_id=$2 AND tt.semester=$3
        ) x`, p);
 
-    const assess = await pool.query(
-      `SELECT COUNT(*) AS total, COUNT(teacher_id) AS with_tid
+    // 3. Timetable + teachers join (checks teacher records exist)
+    const ttJoined = await safe(
+      `SELECT COUNT(*) AS cnt FROM (
+         SELECT DISTINCT tt.teacher_id, tt.subject, TRIM(cls) AS class_name
+         FROM timetable tt
+         JOIN teachers te ON te.id = tt.teacher_id AND te.school_id = $1
+         CROSS JOIN LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
+         WHERE tt.school_id=$1 AND tt.academic_year_id=$2 AND tt.semester=$3
+       ) x`, p);
+
+    // 4. Raw assessment count
+    const assess = await safe(
+      `SELECT COUNT(*) AS cnt, COUNT(teacher_id) AS with_tid
        FROM assessments WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3`, p);
 
-    const exam = await pool.query(
-      `SELECT COUNT(*) AS total, COUNT(teacher_id) AS with_tid
-       FROM exam_scores WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3`, p);
+    // 5. Assessments after joining teachers
+    const assessJoined = await safe(
+      `SELECT COUNT(*) AS cnt FROM (
+         SELECT DISTINCT a.teacher_id, a.subject, a.class_name
+         FROM assessments a
+         JOIN teachers te ON te.id = a.teacher_id AND te.school_id = $1
+         WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
+           AND a.teacher_id IS NOT NULL
+       ) x`, p);
 
-    const rs = await pool.query(
+    // 6. Raw exam score count
+    const exam = await safe(
+      `SELECT COUNT(*) AS cnt FROM exam_scores WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3`, p);
+
+    // 7. Submissions by status
+    const rsStatus = await pool.query(
       `SELECT status, COUNT(*) AS cnt FROM result_submissions
        WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3
        GROUP BY status ORDER BY cnt DESC`, p);
 
-    // Assessments after JOIN with teachers (filters out orphaned teacher_ids)
-    const assessJoined = await pool.query(
-      `SELECT COUNT(DISTINCT (a.teacher_id, a.subject, a.class_name)) AS cnt
-       FROM assessments a
-       JOIN teachers te ON te.id = a.teacher_id AND te.school_id = $1
-       WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
-         AND a.teacher_id IS NOT NULL`, p);
-
-    // Full UNION candidates CTE count
-    const unionCount = await pool.query(
+    // 8. Full UNION candidate count
+    const unionCount = await safe(
       `SELECT COUNT(*) AS cnt FROM (
          SELECT DISTINCT tt.teacher_id, tt.subject, TRIM(cls) AS class_name
-         FROM timetable tt,
-              LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
+         FROM timetable tt
          JOIN teachers te ON te.id = tt.teacher_id AND te.school_id = $1
+         CROSS JOIN LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
          WHERE tt.school_id=$1 AND tt.academic_year_id=$2 AND tt.semester=$3
          UNION
          SELECT DISTINCT a.teacher_id, a.subject, a.class_name
          FROM assessments a
-         JOIN teachers te ON te.id = a.teacher_id AND te.school_id = $1
-         WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
-           AND a.teacher_id IS NOT NULL
+         JOIN teachers te2 ON te2.id = a.teacher_id AND te2.school_id = $1
+         WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3 AND a.teacher_id IS NOT NULL
          UNION
          SELECT DISTINCT es.teacher_id, es.subject, es.class_name
          FROM exam_scores es
-         JOIN teachers te ON te.id = es.teacher_id AND te.school_id = $1
-         WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3
-           AND es.teacher_id IS NOT NULL
+         JOIN teachers te3 ON te3.id = es.teacher_id AND te3.school_id = $1
+         WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3 AND es.teacher_id IS NOT NULL
          UNION
          SELECT DISTINCT rs2.teacher_id, rs2.subject, rs2.class_name
          FROM result_submissions rs2
-         WHERE rs2.school_id=$1 AND rs2.academic_year_id=$2 AND rs2.semester=$3
-           AND rs2.status IN ('draft','rejected')
-       ) all_candidates`, p);
+         WHERE rs2.school_id=$1 AND rs2.academic_year_id=$2 AND rs2.semester=$3 AND rs2.status IN ('draft','rejected')
+       ) all_c`, p);
 
-    // Final query count (what the main endpoint actually returns)
-    const finalCount = await pool.query(
-      `WITH candidates AS (
-         SELECT DISTINCT tt.teacher_id, tt.subject, TRIM(cls) AS class_name
-         FROM timetable tt,
-              LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
-         JOIN teachers te ON te.id = tt.teacher_id AND te.school_id = $1
-         WHERE tt.school_id=$1 AND tt.academic_year_id=$2 AND tt.semester=$3
-         UNION
-         SELECT DISTINCT a.teacher_id, a.subject, a.class_name
-         FROM assessments a
-         JOIN teachers te ON te.id = a.teacher_id AND te.school_id = $1
-         WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
-           AND a.teacher_id IS NOT NULL
-         UNION
-         SELECT DISTINCT es.teacher_id, es.subject, es.class_name
-         FROM exam_scores es
-         JOIN teachers te ON te.id = es.teacher_id AND te.school_id = $1
-         WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3
-           AND es.teacher_id IS NOT NULL
-         UNION
-         SELECT DISTINCT rs2.teacher_id, rs2.subject, rs2.class_name
-         FROM result_submissions rs2
-         WHERE rs2.school_id=$1 AND rs2.academic_year_id=$2 AND rs2.semester=$3
-           AND rs2.status IN ('draft','rejected')
-       )
-       SELECT COUNT(*) AS cnt
-       FROM candidates c
-       LEFT JOIN result_submissions rs
-         ON  rs.school_id=$1 AND rs.academic_year_id=$2 AND rs.semester=$3
-         AND rs.teacher_id=c.teacher_id
-         AND LOWER(rs.subject)=LOWER(c.subject)
-         AND LOWER(rs.class_name)=LOWER(c.class_name)
-       WHERE rs.id IS NULL OR rs.status IN ('draft','rejected')`, p);
-
-    // 5 sample timetable rows
-    const ttSample = await pool.query(
-      `SELECT tt.teacher_id, te.name AS teacher_name, tt.subject, tt.class_names,
-              tt.academic_year_id, tt.semester
+    // 9. Sample timetable rows
+    const ttSample = await safe(
+      `SELECT tt.teacher_id, te.name AS teacher_name, tt.subject, tt.class_names
        FROM timetable tt
        LEFT JOIN teachers te ON te.id = tt.teacher_id
        WHERE tt.school_id=$1 AND tt.academic_year_id=$2 AND tt.semester=$3
        LIMIT 5`, p);
 
-    // 5 sample result_submission rows
-    const rsSample = await pool.query(
+    // 10. Sample submission rows
+    const rsSample = await safe(
       `SELECT rs.subject, rs.class_name, rs.status, t.name AS teacher_name
        FROM result_submissions rs
        LEFT JOIN teachers t ON t.id = rs.teacher_id
@@ -347,17 +328,20 @@ router.get('/non-submitters/debug', adminOnly, async (req, res, next) => {
     res.json({
       params: { academic_year_id, semester: sem, school_id: req.schoolId },
       source_counts: {
-        timetable_raw_rows: Number(tt.rows[0].cnt),
-        timetable_distinct_teacher_subject_class: Number(ttDistinct.rows[0].cnt),
+        timetable_raw_rows: tt.cnt,         timetable_raw_error: tt.error,
+        timetable_distinct_teacher_subject_class: ttDistinct.cnt, timetable_distinct_error: ttDistinct.error,
+        timetable_after_teacher_join: ttJoined.cnt,  timetable_join_error: ttJoined.error,
         timetable_total_all_years: null,
-        assessments: { total: Number(assess.rows[0].total), with_teacher_id: Number(assess.rows[0].with_tid) },
-        assessments_after_teacher_join: Number(assessJoined.rows[0].cnt),
-        exam_scores:  { total: Number(exam.rows[0].total),   with_teacher_id: Number(exam.rows[0].with_tid) },
-        result_submissions_by_status: rs.rows.map(r => ({ status: r.status, count: Number(r.cnt) })),
+        assessments: { total: assess.rows[0] ? Number(assess.rows[0].cnt) : null, with_teacher_id: assess.rows[0] ? Number(assess.rows[0].with_tid) : null },
+        assessments_error: assess.error,
+        assessments_after_teacher_join: assessJoined.cnt, assessments_join_error: assessJoined.error,
+        exam_scores: { total: exam.cnt }, exam_error: exam.error,
+        result_submissions_by_status: rsStatus.rows.map(r => ({ status: r.status, count: Number(r.cnt) })),
       },
       pipeline: {
-        total_union_candidates: Number(unionCount.rows[0].cnt),
-        final_non_submitter_count: Number(finalCount.rows[0].cnt),
+        total_union_candidates: unionCount.cnt,
+        union_error: unionCount.error,
+        final_non_submitter_count: null,
         timetable_candidates_with_no_submission: null,
         timetable_candidates_excluded_by_existing_submission: null,
       },
