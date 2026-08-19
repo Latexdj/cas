@@ -248,7 +248,12 @@ export default function StudentProfilePage() {
             }
           </button>
           <input ref={photoRef} type="file" accept="image/*" className="hidden"
-            onChange={e => { if (e.target.files?.[0]) uploadPhoto(e.target.files[0]); }} />
+            onChange={e => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              if (file.size > 30 * 1024) { setUploadErr('Photo must be 30 KB or smaller.'); e.target.value = ''; return; }
+              uploadPhoto(file);
+            }} />
         </div>
         <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 gap-3">
           <Field label="Status"  value={profile.status} />
