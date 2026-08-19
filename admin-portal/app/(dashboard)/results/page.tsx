@@ -601,11 +601,11 @@ export default function ResultsPage() {
     params: Record<string,unknown>;
     source_counts: {
       timetable_raw_rows: number; timetable_distinct_teacher_subject_class: number; timetable_total_all_years: number | null;
-      assessments: {total:number;with_teacher_id:number};
+      assessments: {total:number;with_teacher_id:number}; assessments_after_teacher_join: number;
       exam_scores: {total:number;with_teacher_id:number};
       result_submissions_by_status: {status:string;count:number}[];
     };
-    pipeline: { total_union_candidates: number | null; timetable_candidates_with_no_submission: number | null; timetable_candidates_excluded_by_existing_submission: number | null; };
+    pipeline: { total_union_candidates: number | null; final_non_submitter_count: number | null; timetable_candidates_with_no_submission: number | null; timetable_candidates_excluded_by_existing_submission: number | null; };
     samples: { timetable_rows: Record<string,unknown>[]; submission_rows: Record<string,unknown>[]; };
   }
   const [nonSubmitters,        setNonSubmitters]        = useState<NonSubmitter[]>([]);
@@ -1299,8 +1299,10 @@ export default function ResultsPage() {
                       {/* Source counts */}
                       {[
                         { label: 'Timetable rows (this year/sem)', value: nsDebug.source_counts.timetable_raw_rows, note: `${nsDebug.source_counts.timetable_distinct_teacher_subject_class} distinct teacher/subject/class combos` },
-                        { label: 'Assessments (this year/sem)', value: nsDebug.source_counts.assessments.total, note: `${nsDebug.source_counts.assessments.with_teacher_id} with teacher ID` },
+                        { label: 'Assessments (this year/sem)', value: nsDebug.source_counts.assessments.total, note: `${nsDebug.source_counts.assessments_after_teacher_join} after join with teachers table` },
                         { label: 'Exam scores (this year/sem)', value: nsDebug.source_counts.exam_scores.total, note: `${nsDebug.source_counts.exam_scores.with_teacher_id} with teacher ID` },
+                        { label: 'Union candidates (all 4 sources)', value: nsDebug.pipeline.total_union_candidates, note: 'distinct teacher/subject/class combos with no complete submission' },
+                        { label: 'Final non-submitter count', value: nsDebug.pipeline.final_non_submitter_count, note: 'what the main panel should show' },
                       ].map(row => (
                         <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 14px', borderTop: '1px solid #F1F5F9' }}>
                           <span style={{ color: '#4A3F32' }}>{row.label}</span>
