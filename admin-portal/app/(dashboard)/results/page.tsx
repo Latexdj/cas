@@ -619,6 +619,7 @@ export default function ResultsPage() {
   const [nsDeptFilter,         setNsDeptFilter]         = useState('');
   const [nsDebug,              setNsDebug]              = useState<NsDebug | null>(null);
   const [nsDebugLoading,       setNsDebugLoading]       = useState(false);
+  const [nsLoadError,          setNsLoadError]          = useState<string | null>(null);
 
   // ── Approval queue state ──
   const [approvalQueue,   setApprovalQueue]   = useState<FinalQueueItem[]>([]);
@@ -681,11 +682,16 @@ export default function ResultsPage() {
   const loadNonSubmitters = useCallback(async () => {
     if (!yearId || !semester) return;
     setNonSubmittersLoading(true);
+    setNsLoadError(null);
     try {
       const params = new URLSearchParams({ academic_year_id: yearId, semester });
       const { data } = await api.get<NonSubmitter[]>(`/api/result-submissions/non-submitters?${params}`);
       setNonSubmitters(data);
-    } catch { /* non-fatal */ }
+    } catch (e: unknown) {
+      const msg = (e as {response?:{data?:{error?:string}}})?.response?.data?.error ?? (e as {message?:string})?.message ?? 'Unknown error';
+      console.error('[non-submitters]', msg);
+      setNsLoadError(msg);
+    }
     finally { setNonSubmittersLoading(false); }
   }, [yearId, semester]);
 
@@ -1273,6 +1279,11 @@ export default function ResultsPage() {
                 </div>
               ) : nonSubmitters.length === 0 ? (
                 <div style={{ padding: 20 }}>
+                  {nsLoadError && (
+                    <p style={{ textAlign: 'center', color: '#B83232', fontSize: 13, marginBottom: 12, background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '8px 14px' }}>
+                      Query error: {nsLoadError}
+                    </p>
+                  )}
                   <p style={{ textAlign: 'center', color: '#145C44', fontSize: 13, marginBottom: 16 }}>
                     No outstanding submissions detected for the selected year and semester.
                   </p>
