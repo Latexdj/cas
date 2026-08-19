@@ -229,42 +229,93 @@ router.get('/non-submitters/debug', adminOnly, async (req, res, next) => {
     const { academic_year_id, semester } = req.query;
     if (!academic_year_id || !semester) return res.status(400).json({ error: 'academic_year_id and semester are required' });
     const sem = parseInt(semester);
+    const p = [req.schoolId, academic_year_id, sem];
 
-    const [tt, assess, exam, rs, rs_all] = await Promise.all([
-      pool.query(
-        `SELECT COUNT(*) AS cnt FROM (
+    const [tt, assess, exam, rs, rs_all,
+           cand_count, after_join_null, after_join_bad, sample_cand, sample_rs] = await Promise.all([
+      // Source counts
+      pool.query(`SELECT COUNT(*) AS cnt FROM (
            SELECT DISTINCT tt.teacher_id, tt.subject, TRIM(cls) AS class_name
            FROM timetable tt, LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
-           WHERE tt.school_id=$1 AND tt.academic_year_id=$2 AND tt.semester=$3
-         ) x`, [req.schoolId, academic_year_id, sem]),
-      pool.query(
-        `SELECT COUNT(*) AS cnt, COUNT(teacher_id) AS with_teacher_id
-         FROM assessments
-         WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3`,
-        [req.schoolId, academic_year_id, sem]),
-      pool.query(
-        `SELECT COUNT(*) AS cnt, COUNT(teacher_id) AS with_teacher_id
-         FROM exam_scores
-         WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3`,
-        [req.schoolId, academic_year_id, sem]),
-      pool.query(
-        `SELECT status, COUNT(*) AS cnt
-         FROM result_submissions
-         WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3
-         GROUP BY status`,
-        [req.schoolId, academic_year_id, sem]),
-      pool.query(
-        `SELECT COUNT(*) AS total FROM timetable WHERE school_id=$1`,
-        [req.schoolId]),
+           WHERE tt.school_id=$1 AND tt.academic_year_id=$2 AND tt.semester=$3) x`, p),
+      pool.query(`SELECT COUNT(*) AS cnt, COUNT(teacher_id) AS with_teacher_id
+         FROM assessments WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3`, p),
+      pool.query(`SELECT COUNT(*) AS cnt, COUNT(teacher_id) AS with_teacher_id
+         FROM exam_scores WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3`, p),
+      pool.query(`SELECT status, COUNT(*) AS cnt FROM result_submissions
+         WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3 GROUP BY status`, p),
+      pool.query(`SELECT COUNT(*) AS total FROM timetable WHERE school_id=$1`, [req.schoolId]),
+
+      // How many distinct candidates in the UNION CTE?
+      pool.query(`SELECT COUNT(*) AS cnt FROM (
+         SELECT DISTINCT tt.teacher_id, tt.subject, TRIM(cls) AS class_name
+         FROM timetable tt, LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
+         JOIN teachers te ON te.id = tt.teacher_id AND te.school_id=$1
+         WHERE tt.school_id=$1 AND tt.academic_year_id=$2 AND tt.semester=$3
+         UNION
+         SELECT DISTINCT a.teacher_id, a.subject, a.class_name
+         FROM assessments a JOIN teachers te ON te.id=a.teacher_id
+         WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3 AND a.teacher_id IS NOT NULL
+         UNION
+         SELECT DISTINCT es.teacher_id, es.subject, es.class_name
+         FROM exam_scores es JOIN teachers te ON te.id=es.teacher_id
+         WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3 AND es.teacher_id IS NOT NULL
+         UNION
+         SELECT DISTINCT rs.teacher_id, rs.subject, rs.class_name
+         FROM result_submissions rs JOIN teachers te ON te.id=rs.teacher_id
+         WHERE rs.school_id=$1 AND rs.academic_year_id=$2 AND rs.semester=$3 AND rs.status IN ('draft','rejected')
+       ) all_candidates`, p),
+
+      // Of those candidates, how many have rs.id IS NULL after the LEFT JOIN?
+      pool.query(`SELECT COUNT(*) AS cnt FROM (
+         SELECT DISTINCT tt.teacher_id, tt.subject, TRIM(cls) AS class_name
+         FROM timetable tt, LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
+         JOIN teachers te ON te.id=tt.teacher_id AND te.school_id=$1
+         WHERE tt.school_id=$1 AND tt.academic_year_id=$2 AND tt.semester=$3) c
+         LEFT JOIN result_submissions rs ON rs.school_id=$1 AND rs.academic_year_id=$2 AND rs.semester=$3
+           AND LOWER(rs.subject)=LOWER(c.subject) AND LOWER(rs.class_name)=LOWER(c.class_name)
+         WHERE rs.id IS NULL`, p),
+
+      // How many have a submission but it's NOT draft/rejected (i.e. submitted/published/etc)?
+      pool.query(`SELECT COUNT(*) AS cnt FROM (
+         SELECT DISTINCT tt.teacher_id, tt.subject, TRIM(cls) AS class_name
+         FROM timetable tt, LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
+         JOIN teachers te ON te.id=tt.teacher_id AND te.school_id=$1
+         WHERE tt.school_id=$1 AND tt.academic_year_id=$2 AND tt.semester=$3) c
+         INNER JOIN result_submissions rs ON rs.school_id=$1 AND rs.academic_year_id=$2 AND rs.semester=$3
+           AND LOWER(rs.subject)=LOWER(c.subject) AND LOWER(rs.class_name)=LOWER(c.class_name)
+         WHERE rs.status NOT IN ('draft','rejected')`, p),
+
+      // 5 sample candidate rows from timetable
+      pool.query(`SELECT DISTINCT tt.teacher_id, te.name AS teacher_name, tt.subject, TRIM(cls) AS class_name
+         FROM timetable tt, LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
+         JOIN teachers te ON te.id=tt.teacher_id AND te.school_id=$1
+         WHERE tt.school_id=$1 AND tt.academic_year_id=$2 AND tt.semester=$3 LIMIT 5`, p),
+
+      // 5 sample result_submissions rows
+      pool.query(`SELECT rs.subject, rs.class_name, rs.status, t.name AS teacher_name
+         FROM result_submissions rs LEFT JOIN teachers t ON t.id=rs.teacher_id
+         WHERE rs.school_id=$1 AND rs.academic_year_id=$2 AND rs.semester=$3 LIMIT 5`, p),
     ]);
 
     res.json({
       params: { academic_year_id, semester: sem, school_id: req.schoolId },
-      timetable_candidates: Number(tt.rows[0].cnt),
-      timetable_total_all_years: Number(rs_all.rows[0].total),
-      assessments: { total: Number(assess.rows[0].cnt), with_teacher_id: Number(assess.rows[0].with_teacher_id) },
-      exam_scores:  { total: Number(exam.rows[0].cnt),   with_teacher_id: Number(exam.rows[0].with_teacher_id) },
-      result_submissions_by_status: rs.rows.map(r => ({ status: r.status, count: Number(r.cnt) })),
+      source_counts: {
+        timetable_candidates: Number(tt.rows[0].cnt),
+        timetable_total_all_years: Number(rs_all.rows[0].total),
+        assessments: { total: Number(assess.rows[0].cnt), with_teacher_id: Number(assess.rows[0].with_teacher_id) },
+        exam_scores:  { total: Number(exam.rows[0].cnt),   with_teacher_id: Number(exam.rows[0].with_teacher_id) },
+        result_submissions_by_status: rs.rows.map(r => ({ status: r.status, count: Number(r.cnt) })),
+      },
+      pipeline: {
+        total_union_candidates: Number(cand_count.rows[0].cnt),
+        timetable_candidates_with_no_submission: Number(after_join_null.rows[0].cnt),
+        timetable_candidates_excluded_by_existing_submission: Number(after_join_bad.rows[0].cnt),
+      },
+      samples: {
+        timetable_rows: sample_cand.rows,
+        submission_rows: sample_rs.rows,
+      },
     });
   } catch (err) { next(err); }
 });
