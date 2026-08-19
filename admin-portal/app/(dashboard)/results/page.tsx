@@ -1422,7 +1422,7 @@ export default function ResultsPage() {
                                 ) : item.submission_status === 'rejected' ? (
                                   <span style={{ background: '#FEF2F2', color: '#B83232', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20 }}>Rejected — Needs Resubmission</span>
                                 ) : (
-                                  <span style={{ background: '#FEF2F2', color: '#B83232', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20 }}>Not Started</span>
+                                  <span style={{ background: '#F1F5F9', color: '#475569', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20 }}>Not Submitted to HOD</span>
                                 )}
                               </td>
                             </tr>
