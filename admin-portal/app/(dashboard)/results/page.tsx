@@ -600,12 +600,12 @@ export default function ResultsPage() {
   interface NsDebug {
     params: Record<string,unknown>;
     source_counts: {
-      timetable_candidates: number; timetable_total_all_years: number;
+      timetable_raw_rows: number; timetable_distinct_teacher_subject_class: number; timetable_total_all_years: number | null;
       assessments: {total:number;with_teacher_id:number};
       exam_scores: {total:number;with_teacher_id:number};
       result_submissions_by_status: {status:string;count:number}[];
     };
-    pipeline: { total_union_candidates: number; timetable_candidates_with_no_submission: number; timetable_candidates_excluded_by_existing_submission: number; };
+    pipeline: { total_union_candidates: number | null; timetable_candidates_with_no_submission: number | null; timetable_candidates_excluded_by_existing_submission: number | null; };
     samples: { timetable_rows: Record<string,unknown>[]; submission_rows: Record<string,unknown>[]; };
   }
   const [nonSubmitters,        setNonSubmitters]        = useState<NonSubmitter[]>([]);
@@ -1298,12 +1298,9 @@ export default function ResultsPage() {
                       </div>
                       {/* Source counts */}
                       {[
-                        { label: 'Timetable entries (this year/sem)', value: nsDebug.source_counts.timetable_candidates, note: `${nsDebug.source_counts.timetable_total_all_years} total across all years` },
+                        { label: 'Timetable rows (this year/sem)', value: nsDebug.source_counts.timetable_raw_rows, note: `${nsDebug.source_counts.timetable_distinct_teacher_subject_class} distinct teacher/subject/class combos` },
                         { label: 'Assessments (this year/sem)', value: nsDebug.source_counts.assessments.total, note: `${nsDebug.source_counts.assessments.with_teacher_id} with teacher ID` },
                         { label: 'Exam scores (this year/sem)', value: nsDebug.source_counts.exam_scores.total, note: `${nsDebug.source_counts.exam_scores.with_teacher_id} with teacher ID` },
-                        { label: 'Union candidates (all sources combined)', value: nsDebug.pipeline.total_union_candidates, note: '' },
-                        { label: 'Timetable entries with NO submission', value: nsDebug.pipeline.timetable_candidates_with_no_submission, note: 'should appear as Not Started' },
-                        { label: 'Timetable entries excluded by submitted/published row', value: nsDebug.pipeline.timetable_candidates_excluded_by_existing_submission, note: '' },
                       ].map(row => (
                         <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 14px', borderTop: '1px solid #F1F5F9' }}>
                           <span style={{ color: '#4A3F32' }}>{row.label}</span>
@@ -1331,7 +1328,7 @@ export default function ResultsPage() {
                         <div style={{ padding: '8px 14px', borderTop: '1px solid #F1F5F9' }}>
                           <div style={{ color: '#4A3F32', marginBottom: 4 }}>Sample timetable rows</div>
                           {nsDebug.samples.timetable_rows.map((r, i) => (
-                            <div key={i} style={{ color: '#64748B', fontSize: 11 }}>{String(r.teacher_name)} · {String(r.subject)} · {String(r.class_name)}</div>
+                            <div key={i} style={{ color: '#64748B', fontSize: 11 }}>{String(r.teacher_name)} · {String(r.subject)} · {String(r.class_names ?? r.class_name)}</div>
                           ))}
                         </div>
                       )}
