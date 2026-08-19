@@ -310,6 +310,8 @@ function SubjectContent() {
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setSubError(msg ?? 'Failed to submit.');
+      // Re-fetch readiness so the checklist reflects the actual state
+      await fetchReadiness();
     } finally { setSubmitting(false); }
   }
 
@@ -468,7 +470,7 @@ function SubjectContent() {
                   disabled={submitting}
                   style={{ background: '#145C44', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 18px', fontSize: 13, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}
                 >
-                  {submitting ? 'Submittingâ€¦' : 'Submit for Review'}
+                  {submitting ? 'Submitting...' : 'Submit for Review'}
                 </button>
               ) : null}
             </div>
@@ -487,7 +489,7 @@ function SubjectContent() {
         );
       })()}
 
-      {/* Exam scores link â€" shows whether scores have been entered */}
+      {/* Exam scores link — shows whether scores have been entered */}
       <button
         onClick={() => router.push(
           `/teacher/assessments/exam?subject=${encodeURIComponent(subject)}&class_name=${encodeURIComponent(class_name)}&year_id=${year_id}&semester=${semester}&year_name=${encodeURIComponent(year_name)}`
@@ -508,8 +510,8 @@ function SubjectContent() {
         {readiness && (
           <span className="text-xs font-bold shrink-0" style={{ color: readiness.examComplete ? '#145C44' : '#B83232' }}>
             {readiness.examComplete
-              ? `âœ" ${readiness.examScoredCount}/${readiness.totalStudents}`
-              : `âœ— ${readiness.examScoredCount}/${readiness.totalStudents}`}
+              ? `✓ ${readiness.examScoredCount}/${readiness.totalStudents}`
+              : `✗ ${readiness.examScoredCount}/${readiness.totalStudents}`}
           </span>
         )}
       </button>
@@ -715,7 +717,7 @@ function SubjectContent() {
                 <button onClick={saveEdit} disabled={editSaving}
                   className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-60"
                   style={{ background: primary }}>
-                  {editSaving ? 'Savingâ€¦' : 'Save Changes'}
+                  {editSaving ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </div>
@@ -826,7 +828,7 @@ function SubjectContent() {
                 className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-60"
                 style={{ background: primary }}
               >
-                {creating ? 'Creatingâ€¦' : 'Create'}
+                {creating ? 'Creating...' : 'Create'}
               </button>
             </div>
           </div>
@@ -858,31 +860,31 @@ function SubjectContent() {
                 {/* Exam scores completeness */}
                 <CheckRow
                   ok={readiness.examComplete}
-                  label={`End-of-semester exam â€" ${readiness.examScoredCount}/${readiness.totalStudents} students scored`}
+                  label={`End-of-semester exam — ${readiness.examScoredCount}/${readiness.totalStudents} students scored`}
                   blocking={true}
                 />
                 {/* CA modes that have no assessment at all */}
                 {readiness.missingModes.map(name => (
-                  <CheckRow key={name} ok={false} label={`${name} â€" no assessment created yet`} blocking={true} />
+                  <CheckRow key={name} ok={false} label={`${name} — no assessment created yet`} blocking={true} />
                 ))}
                 {/* Assessments where not all students are acted on */}
                 {readiness.incompleteAssessments.map(a => (
                   <CheckRow
                     key={a.id}
                     ok={false}
-                    label={`${a.label} (${a.modeName}) â€" ${a.actedOn}/${readiness.totalStudents} students scored/absent`}
+                    label={`${a.label} (${a.modeName}) — ${a.actedOn}/${readiness.totalStudents} students scored/absent`}
                     blocking={true}
                   />
                 ))}
-                {/* Modes with assessments but all complete â€" show âœ" */}
+                {/* Modes with assessments but all complete — show ✓ */}
                 {activeModes
                   .filter(m => (modeUsage[m.id] ?? 0) > 0)
                   .filter(m => !readiness.incompleteAssessments.some(a => a.modeName === m.name))
                   .map(m => (
-                    <CheckRow key={m.id} ok={true} label={`${m.name} â€" all students scored/absent`} blocking={true} />
+                    <CheckRow key={m.id} ok={true} label={`${m.name} — all students scored/absent`} blocking={true} />
                   ))
                 }
-                {readiness.canSubmit && (
+                {readiness.canSubmit && !subError && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, background: '#E8F4EE', border: '1px solid #B8D9C8' }}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="#145C44" strokeWidth={2.5} style={{ width: 15, height: 15, flexShrink: 0 }}><polyline points="20 6 9 17 4 12" /></svg>
                     <span style={{ fontSize: 13, color: '#145C44', fontWeight: 600 }}>All checks passed. Ready to submit.</span>
@@ -895,7 +897,7 @@ function SubjectContent() {
 
             {readiness && !readiness.canSubmit && !readinessLoading && (
               <p className="text-xs text-[#92400E] bg-[#FEF3C7] border border-[#FCD34D] rounded-xl px-3 py-2 mb-3">
-                Fix the issues marked âŒ above before submitting. Scores are incomplete.
+                Fix the issues marked above before submitting. Scores are incomplete.
               </p>
             )}
 
@@ -909,7 +911,7 @@ function SubjectContent() {
                 disabled={submitting || readinessLoading || !!readinessError || !readiness?.canSubmit}
                 className="flex-1 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-50"
                 style={{ background: '#145C44' }}>
-                {submitting ? 'Submittingâ€¦' : readinessLoading ? 'Checkingâ€¦' : readiness?.canSubmit ? 'Confirm & Submit' : 'Cannot Submit Yet'}
+                {submitting ? 'Submitting...' : readinessLoading ? 'Checking...' : readiness?.canSubmit ? 'Confirm & Submit' : 'Cannot Submit Yet'}
               </button>
             </div>
           </div>
