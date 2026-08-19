@@ -246,8 +246,8 @@ router.get('/final-queue', adminOnly, async (req, res, next) => {
        LEFT JOIN teachers t   ON t.id = rs.teacher_id
        LEFT JOIN teachers hod ON hod.id = rs.hod_reviewed_by
        LEFT JOIN academic_years ay ON ay.id = rs.academic_year_id
-       WHERE rs.school_id = $1 AND rs.status IN ('hod_approved','final_approved','published') ${filter}
-       ORDER BY rs.hod_reviewed_at ASC`,
+       WHERE rs.school_id = $1 AND rs.status IN ('submitted','hod_approved','final_approved','published') ${filter}
+       ORDER BY rs.submitted_at ASC`,
       params
     );
     res.json(rows);

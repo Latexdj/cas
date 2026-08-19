@@ -552,7 +552,7 @@ interface FinalQueueItem {
   id: string;
   subject: string;
   class_name: string;
-  status: 'hod_approved' | 'final_approved' | 'published';
+  status: 'submitted' | 'hod_approved' | 'final_approved' | 'published';
   submitted_at: string;
   hod_reviewed_at: string | null;
   hod_comment: string | null;
@@ -569,6 +569,7 @@ interface FinalQueueItem {
 }
 
 const SUB_STATUS: Record<string, { label: string; color: string; bg: string }> = {
+  submitted:      { label: 'Awaiting HOD',   color: '#B83232', bg: '#FEF2F2' },
   hod_approved:   { label: 'HOD Approved',   color: '#C8780A', bg: '#FEF3C7' },
   final_approved: { label: 'Final Approved', color: '#145C44', bg: '#E8F4EE' },
   published:      { label: 'Published',      color: '#0B3D2E', bg: '#D1EAD9' },
@@ -598,12 +599,12 @@ export default function ResultsPage() {
   const [approvalQueue,   setApprovalQueue]   = useState<FinalQueueItem[]>([]);
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [approvalTarget,  setApprovalTarget]  = useState<FinalQueueItem | null>(null);
-  const [approvalAction,  setApprovalAction]  = useState<'approve' | 'reject' | 'publish' | 'unlock'>('approve');
+  const [approvalAction,  setApprovalAction]  = useState<'hod_approve' | 'hod_reject' | 'approve' | 'reject' | 'publish' | 'unlock'>('approve');
   const [approvalComment, setApprovalComment] = useState('');
   const [approving,       setApproving]       = useState(false);
   const [approvalError,   setApprovalError]   = useState('');
   const [showApprovals,      setShowApprovals]      = useState(false);
-  const [queueStatusFilter,  setQueueStatusFilter]  = useState<'all' | 'hod_approved' | 'final_approved' | 'published'>('all');
+  const [queueStatusFilter,  setQueueStatusFilter]  = useState<'all' | 'submitted' | 'hod_approved' | 'final_approved' | 'published'>('all');
   const [queueClassFilter,   setQueueClassFilter]   = useState('');
   const [queueSubjectFilter, setQueueSubjectFilter] = useState('');
   const [previewResults,  setPreviewResults]  = useState<StudentResult[]>([]);
@@ -674,7 +675,7 @@ export default function ResultsPage() {
     if (yearId || semester) loadApprovalQueue();
   }, [yearId, semester, loadApprovalQueue]);
 
-  async function openApprovalModal(item: FinalQueueItem, action: 'approve' | 'reject' | 'publish' | 'unlock') {
+  async function openApprovalModal(item: FinalQueueItem, action: 'hod_approve' | 'hod_reject' | 'approve' | 'reject' | 'publish' | 'unlock') {
     setApprovalTarget(item);
     setApprovalAction(action);
     setApprovalComment('');
@@ -684,8 +685,7 @@ export default function ResultsPage() {
     setReadiness(null);
     setReadinessError('');
 
-    if (action === 'approve' || action === 'publish') {
-      // Fetch results preview and (for approve) the completeness check in parallel
+    if (action === 'approve' || action === 'hod_approve' || action === 'publish') {
       const fetches: Promise<void>[] = [
         (async () => {
           setPreviewLoading(true);
@@ -699,7 +699,7 @@ export default function ResultsPage() {
         })(),
       ];
 
-      if (action === 'approve') {
+      if (action === 'approve' || action === 'hod_approve') {
         fetches.push(
           (async () => {
             setReadinessLoading(true);
@@ -718,12 +718,16 @@ export default function ResultsPage() {
 
   async function doApprovalAction() {
     if (!approvalTarget) return;
-    if ((approvalAction === 'reject' || approvalAction === 'unlock') && !approvalComment.trim()) {
+    if ((approvalAction === 'reject' || approvalAction === 'hod_reject' || approvalAction === 'unlock') && !approvalComment.trim()) {
       setApprovalError('A reason is required.'); return;
     }
     setApproving(true); setApprovalError('');
     try {
-      if (approvalAction === 'approve') {
+      if (approvalAction === 'hod_approve') {
+        await api.post('/api/result-submissions/hod-review', { submission_id: approvalTarget.id, action: 'approve', comment: approvalComment.trim() || undefined });
+      } else if (approvalAction === 'hod_reject') {
+        await api.post('/api/result-submissions/hod-review', { submission_id: approvalTarget.id, action: 'reject', comment: approvalComment.trim() });
+      } else if (approvalAction === 'approve') {
         await api.post('/api/result-submissions/final-review', { submission_id: approvalTarget.id, action: 'approve', comment: approvalComment.trim() || undefined });
       } else if (approvalAction === 'reject') {
         await api.post('/api/result-submissions/final-review', { submission_id: approvalTarget.id, action: 'reject', comment: approvalComment.trim() });
@@ -866,9 +870,9 @@ export default function ResultsPage() {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: '#1C1208' }}>Result Approvals</span>
-              {approvalQueue.filter(q => q.status === 'hod_approved').length > 0 && (
+              {approvalQueue.filter(q => q.status === 'submitted' || q.status === 'hod_approved').length > 0 && (
                 <span style={{ background: '#B83232', color: '#fff', fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 20 }}>
-                  {approvalQueue.filter(q => q.status === 'hod_approved').length} pending
+                  {approvalQueue.filter(q => q.status === 'submitted' || q.status === 'hod_approved').length} pending
                 </span>
               )}
             </div>
@@ -888,7 +892,8 @@ export default function ResultsPage() {
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {([
                         { key: 'all',            label: 'All',           count: approvalQueue.length },
-                        { key: 'hod_approved',   label: 'Pending',       count: approvalQueue.filter(q => q.status === 'hod_approved').length },
+                        { key: 'submitted',      label: 'Awaiting HOD',  count: approvalQueue.filter(q => q.status === 'submitted').length },
+                        { key: 'hod_approved',   label: 'HOD Approved',  count: approvalQueue.filter(q => q.status === 'hod_approved').length },
                         { key: 'final_approved', label: 'Final Approved',count: approvalQueue.filter(q => q.status === 'final_approved').length },
                         { key: 'published',      label: 'Published',     count: approvalQueue.filter(q => q.status === 'published').length },
                       ] as const).map(({ key, label, count }) => {
@@ -959,12 +964,25 @@ export default function ResultsPage() {
                                 <span style={{ background: sc.bg, color: sc.color, fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20 }}>{sc.label}</span>
                               </td>
                               <td style={{ padding: '10px 12px' }}>
-                                <div style={{ display: 'flex', gap: 6 }}>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  {item.status === 'submitted' && (
+                                    <>
+                                      <button onClick={() => openApprovalModal(item, 'hod_approve')}
+                                        style={{ background: '#0B3D2E', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                                        title="Approve on behalf of the HOD">
+                                        Approve as HOD
+                                      </button>
+                                      <button onClick={() => openApprovalModal(item, 'hod_reject')}
+                                        style={{ background: '#FEF2F2', color: '#B83232', border: '1px solid #FECACA', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                                        Reject
+                                      </button>
+                                    </>
+                                  )}
                                   {item.status === 'hod_approved' && (
                                     <>
                                       <button onClick={() => openApprovalModal(item, 'approve')}
                                         style={{ background: '#145C44', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
-                                        Approve
+                                        Final Approve
                                       </button>
                                       <button onClick={() => openApprovalModal(item, 'reject')}
                                         style={{ background: '#FEE2E2', color: '#DC2626', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
@@ -1004,7 +1022,7 @@ export default function ResultsPage() {
                     onClick={e => e.stopPropagation()}>
                     <div style={{ padding: '20px 24px 14px', borderBottom: '1px solid #F1F5F9', flexShrink: 0 }}>
                       <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1C1208', marginBottom: 4 }}>
-                        {approvalAction === 'approve' ? 'Final Approval' : approvalAction === 'publish' ? 'Publish Results' : approvalAction === 'unlock' ? 'Unlock Submission' : 'Reject & Return'}
+                        {approvalAction === 'hod_approve' ? 'Approve as HOD' : approvalAction === 'hod_reject' ? 'Reject & Return (HOD)' : approvalAction === 'approve' ? 'Final Approval' : approvalAction === 'publish' ? 'Publish Results' : approvalAction === 'unlock' ? 'Unlock Submission' : 'Reject & Return'}
                       </h3>
                       <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>
                         {approvalTarget.subject} · {approvalTarget.class_name} · {approvalTarget.teacher_name}
@@ -1012,8 +1030,15 @@ export default function ResultsPage() {
                     </div>
                     <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
 
-                    {/* Completeness check — shown only for Approve action */}
-                    {approvalAction === 'approve' && (
+                    {/* HOD override notice */}
+                    {(approvalAction === 'hod_approve' || approvalAction === 'hod_reject') && (
+                      <div style={{ background: '#FFF7ED', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 12px', marginBottom: 14, fontSize: 12, color: '#92400E' }}>
+                        You are acting on behalf of the HOD. This submission has not yet been reviewed by the assigned HOD.
+                      </div>
+                    )}
+
+                    {/* Completeness check — shown for HOD and final Approve actions */}
+                    {(approvalAction === 'approve' || approvalAction === 'hod_approve') && (
                       <div style={{ marginBottom: 16 }}>
                         <p style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           Scores Completeness
