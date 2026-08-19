@@ -223,15 +223,20 @@ router.get('/hod-queue', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /non-submitters — admin sees timetable assignments with no/draft submission ──
+// ── GET /non-submitters — teachers with draft/rejected/no submission ─────────
+// Uses UNION of two sources so teachers without timetable entries are still caught:
+//   1. Timetable assignments (teacher scheduled for subject+class this year/sem)
+//   2. result_submissions in draft or rejected (teacher has activity but hasn't submitted)
 router.get('/non-submitters', adminOnly, async (req, res, next) => {
   try {
     const { academic_year_id, semester } = req.query;
     if (!academic_year_id || !semester) {
       return res.status(400).json({ error: 'academic_year_id and semester are required' });
     }
+    const sem = parseInt(semester);
     const { rows } = await pool.query(
-      `WITH assignments AS (
+      `WITH candidates AS (
+         -- Source 1: timetable assignments for this year/semester
          SELECT DISTINCT
            tt.teacher_id,
            te.name       AS teacher_name,
@@ -244,26 +249,44 @@ router.get('/non-submitters', adminOnly, async (req, res, next) => {
          WHERE tt.school_id = $1
            AND tt.academic_year_id = $2
            AND tt.semester = $3
+
+         UNION
+
+         -- Source 2: existing draft/rejected submissions (teacher has activity but hasn't submitted)
+         SELECT DISTINCT
+           rs.teacher_id,
+           te.name       AS teacher_name,
+           te.department,
+           rs.subject,
+           rs.class_name
+         FROM result_submissions rs
+         JOIN teachers te ON te.id = rs.teacher_id
+         WHERE rs.school_id = $1
+           AND rs.academic_year_id = $2
+           AND rs.semester = $3
+           AND rs.status IN ('draft', 'rejected')
        )
-       SELECT
-         a.teacher_id,
-         a.teacher_name,
-         a.department,
-         a.subject,
-         a.class_name,
+       SELECT DISTINCT ON (c.teacher_id, LOWER(c.subject), LOWER(c.class_name))
+         c.teacher_id,
+         c.teacher_name,
+         c.department,
+         c.subject,
+         c.class_name,
          COALESCE(rs.status, 'not_started') AS submission_status,
          rs.id AS submission_id
-       FROM assignments a
+       FROM candidates c
        LEFT JOIN result_submissions rs
          ON  rs.school_id        = $1
          AND rs.academic_year_id = $2
          AND rs.semester         = $3
-         AND LOWER(rs.subject)   = LOWER(a.subject)
-         AND LOWER(rs.class_name)= LOWER(a.class_name)
-       WHERE rs.id IS NULL OR rs.status = 'draft'
-       ORDER BY a.teacher_name ASC, a.subject ASC, a.class_name ASC`,
-      [req.schoolId, academic_year_id, parseInt(semester)]
+         AND LOWER(rs.subject)   = LOWER(c.subject)
+         AND LOWER(rs.class_name)= LOWER(c.class_name)
+       WHERE rs.id IS NULL OR rs.status IN ('draft', 'rejected')
+       ORDER BY c.teacher_id, LOWER(c.subject), LOWER(c.class_name), c.teacher_name`,
+      [req.schoolId, academic_year_id, sem]
     );
+    // Re-sort for display after DISTINCT ON
+    rows.sort((a, b) => a.teacher_name.localeCompare(b.teacher_name) || a.subject.localeCompare(b.subject) || a.class_name.localeCompare(b.class_name));
     res.json(rows);
   } catch (err) { next(err); }
 });

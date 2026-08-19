@@ -596,7 +596,7 @@ export default function ResultsPage() {
   const [printTarget,   setPrintTarget]   = useState<'all' | StudentResult | null>(null);
 
   // ── Non-submitters state ──
-  interface NonSubmitter { teacher_id: string; teacher_name: string; department: string | null; subject: string; class_name: string; submission_status: 'not_started' | 'draft'; submission_id: string | null; }
+  interface NonSubmitter { teacher_id: string; teacher_name: string; department: string | null; subject: string; class_name: string; submission_status: 'not_started' | 'draft' | 'rejected'; submission_id: string | null; }
   const [nonSubmitters,        setNonSubmitters]        = useState<NonSubmitter[]>([]);
   const [nonSubmittersLoading, setNonSubmittersLoading] = useState(false);
   const [showNonSubmitters,    setShowNonSubmitters]    = useState(false);
@@ -1257,7 +1257,7 @@ export default function ResultsPage() {
                 </div>
               ) : nonSubmitters.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 24, color: '#145C44', fontSize: 13 }}>
-                  All teachers in the timetable have submitted their results for the selected year and semester.
+                  No outstanding submissions found — all timetabled teachers and active draft/rejected submissions have been resolved for the selected year and semester.
                 </div>
               ) : (
                 <>
@@ -1317,6 +1317,8 @@ export default function ResultsPage() {
                               <td style={{ padding: '10px 12px' }}>
                                 {item.submission_status === 'draft' ? (
                                   <span style={{ background: '#FEF3C7', color: '#C8780A', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20 }}>Draft</span>
+                                ) : item.submission_status === 'rejected' ? (
+                                  <span style={{ background: '#FEF2F2', color: '#B83232', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20 }}>Rejected — Needs Resubmission</span>
                                 ) : (
                                   <span style={{ background: '#FEF2F2', color: '#B83232', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20 }}>Not Started</span>
                                 )}
