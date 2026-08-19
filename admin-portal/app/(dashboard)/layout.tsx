@@ -30,6 +30,7 @@ const pageTitles: Record<string, string> = {
   '/clearance/offices':  'Clearance Offices & Staff',
   '/houses':             'Houses',
   '/exeat':              'Exeat Records',
+  '/discipline':         'Discipline & Conduct',
   '/lms':               'LMS Overview',
   '/lms/pasco':         'Pasco Bank',
   '/notice-board':      'Notice Board',
