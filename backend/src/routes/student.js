@@ -646,14 +646,58 @@ router.get('/clearance', async (req, res, next) => {
       [clearance.id]
     );
 
+    // Check for active (unresolved) disciplinary letters — these block clearance
+    const { rows: discRows } = await pool.query(
+      `SELECT COUNT(*) AS cnt FROM student_disciplinary_letters
+       WHERE student_id = $1 AND school_id = $2 AND status != 'resolved'`,
+      [req.user.id, req.schoolId]
+    );
+    const activeDisciplineCount = parseInt(discRows[0].cnt);
+
     res.json({
       status: clearance.is_fully_cleared ? 'fully_cleared'
             : items.some(i => i.status === 'not_cleared') ? 'action_required'
             : 'in_progress',
       initiated_at:    clearance.initiated_at,
       fully_cleared_at: clearance.fully_cleared_at,
+      active_discipline_count: activeDisciplineCount,
       items,
     });
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/student/discipline ──────────────────────────────────────────────
+router.get('/discipline', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT sdl.id, sdl.letter_type, sdl.offense_category, sdl.offense_other,
+              sdl.subject, sdl.body, sdl.issued_date::text,
+              sdl.status, sdl.acknowledged_at, sdl.acknowledged_by,
+              sdl.resolution_notes, sdl.resolved_at, sdl.issued_by_name, sdl.created_at,
+              ay.name AS academic_year_name, sdl.semester
+       FROM student_disciplinary_letters sdl
+       LEFT JOIN academic_years ay ON ay.id = sdl.academic_year_id
+       WHERE sdl.student_id = $1 AND sdl.school_id = $2
+       ORDER BY sdl.created_at DESC`,
+      [req.user.id, req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/student/discipline/:id/acknowledge ──────────────────────────────
+router.post('/discipline/:id/acknowledge', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE student_disciplinary_letters
+       SET status = 'acknowledged', acknowledged_at = now(),
+           acknowledged_by = 'student', updated_at = now()
+       WHERE id = $1 AND student_id = $2 AND school_id = $3 AND status = 'issued'
+       RETURNING *`,
+      [req.params.id, req.user.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Letter not found or already acknowledged' });
+    res.json(rows[0]);
   } catch (err) { next(err); }
 });
 

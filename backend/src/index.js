@@ -59,6 +59,7 @@ const lmsRoutes               = require('./routes/lms');
 const inventoryRoutes         = require('./routes/inventory');
 const examsRoutes             = require('./routes/exams');
 const noticesRoutes           = require('./routes/notices');
+const disciplineRoutes        = require('./routes/discipline');
 const { startAbsenceCheckJob }          = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob }    = require('./jobs/subscriptionExpiry');
 const { startLibraryNotificationJob }   = require('./jobs/libraryNotifications');
@@ -147,6 +148,7 @@ app.use('/api/lms',                   lmsRoutes);
 app.use('/api/inventory',             inventoryRoutes);
 app.use('/api/exams',                 examsRoutes);
 app.use('/api/notices',               noticesRoutes);
+app.use('/api/discipline',            disciplineRoutes);
 
 app.use(errorHandler);
 
@@ -2139,6 +2141,64 @@ async function runMigrations() {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_semesters_year ON semesters(academic_year_id)`);
+
+    // ── Discipline & Conduct module ───────────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS teacher_queries (
+        id                         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id                  UUID REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id                 UUID REFERENCES teachers(id) ON DELETE CASCADE,
+        issued_by_id               UUID,
+        issued_by_name             TEXT NOT NULL DEFAULT '',
+        category                   TEXT NOT NULL,
+        category_other             TEXT,
+        subject                    TEXT NOT NULL,
+        body                       TEXT NOT NULL,
+        issued_date                DATE NOT NULL DEFAULT CURRENT_DATE,
+        response_deadline          DATE,
+        academic_year_id           UUID REFERENCES academic_years(id),
+        status                     TEXT NOT NULL DEFAULT 'issued',
+        teacher_response_text      TEXT,
+        teacher_response_file_url  TEXT,
+        teacher_response_file_name TEXT,
+        response_submitted_at      TIMESTAMPTZ,
+        resolution_notes           TEXT,
+        resolved_by_name           TEXT,
+        resolved_at                TIMESTAMPTZ,
+        created_at                 TIMESTAMPTZ DEFAULT now(),
+        updated_at                 TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_teacher_queries_school  ON teacher_queries(school_id, created_at DESC)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_teacher_queries_teacher ON teacher_queries(teacher_id)`);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS student_disciplinary_letters (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id         UUID REFERENCES schools(id) ON DELETE CASCADE,
+        student_id        UUID REFERENCES students(id) ON DELETE CASCADE,
+        issued_by_id      UUID,
+        issued_by_name    TEXT NOT NULL DEFAULT '',
+        letter_type       TEXT NOT NULL,
+        offense_category  TEXT,
+        offense_other     TEXT,
+        subject           TEXT NOT NULL,
+        body              TEXT NOT NULL,
+        issued_date       DATE NOT NULL DEFAULT CURRENT_DATE,
+        academic_year_id  UUID REFERENCES academic_years(id),
+        semester          SMALLINT,
+        status            TEXT NOT NULL DEFAULT 'issued',
+        acknowledged_at   TIMESTAMPTZ,
+        acknowledged_by   TEXT,
+        resolution_notes  TEXT,
+        resolved_at       TIMESTAMPTZ,
+        resolved_by_name  TEXT,
+        created_at        TIMESTAMPTZ DEFAULT now(),
+        updated_at        TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_disc_letters_school   ON student_disciplinary_letters(school_id, created_at DESC)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_disc_letters_student  ON student_disciplinary_letters(student_id)`);
 
     console.log('Migrations OK');
   } catch (err) {
