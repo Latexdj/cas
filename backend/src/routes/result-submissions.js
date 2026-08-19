@@ -223,10 +223,12 @@ router.get('/hod-queue', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /non-submitters — teachers with draft/rejected/no submission ─────────
-// Uses UNION of two sources so teachers without timetable entries are still caught:
-//   1. Timetable assignments (teacher scheduled for subject+class this year/sem)
-//   2. result_submissions in draft or rejected (teacher has activity but hasn't submitted)
+// ── GET /non-submitters — teachers with no/draft/rejected submission ──────────
+// Four sources are unioned so teachers without timetable entries are caught:
+//   1. Timetable: scheduled teacher→subject→class for this year/sem
+//   2. Assessments: teacher who created CA assessments for this year/sem
+//   3. Exam scores: teacher who entered exam scores for this year/sem
+//   4. result_submissions draft/rejected: started but not completed
 router.get('/non-submitters', adminOnly, async (req, res, next) => {
   try {
     const { academic_year_id, semester } = req.query;
@@ -236,34 +238,42 @@ router.get('/non-submitters', adminOnly, async (req, res, next) => {
     const sem = parseInt(semester);
     const { rows } = await pool.query(
       `WITH candidates AS (
-         -- Source 1: timetable assignments for this year/semester
-         SELECT DISTINCT
-           tt.teacher_id,
-           te.name       AS teacher_name,
-           te.department,
-           tt.subject,
-           TRIM(cls)     AS class_name
+         -- 1. Timetable assignments
+         SELECT DISTINCT tt.teacher_id, te.name AS teacher_name, te.department,
+                tt.subject, TRIM(cls) AS class_name
          FROM timetable tt,
               LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
          JOIN teachers te ON te.id = tt.teacher_id AND te.school_id = $1
-         WHERE tt.school_id = $1
-           AND tt.academic_year_id = $2
-           AND tt.semester = $3
+         WHERE tt.school_id = $1 AND tt.academic_year_id = $2 AND tt.semester = $3
 
          UNION
 
-         -- Source 2: existing draft/rejected submissions (teacher has activity but hasn't submitted)
-         SELECT DISTINCT
-           rs.teacher_id,
-           te.name       AS teacher_name,
-           te.department,
-           rs.subject,
-           rs.class_name
+         -- 2. Assessments (CA marks entered by teacher)
+         SELECT DISTINCT a.teacher_id, te.name AS teacher_name, te.department,
+                a.subject, a.class_name
+         FROM assessments a
+         JOIN teachers te ON te.id = a.teacher_id
+         WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.semester = $3
+           AND a.teacher_id IS NOT NULL
+
+         UNION
+
+         -- 3. Exam scores entered by teacher
+         SELECT DISTINCT es.teacher_id, te.name AS teacher_name, te.department,
+                es.subject, es.class_name
+         FROM exam_scores es
+         JOIN teachers te ON te.id = es.teacher_id
+         WHERE es.school_id = $1 AND es.academic_year_id = $2 AND es.semester = $3
+           AND es.teacher_id IS NOT NULL
+
+         UNION
+
+         -- 4. Draft / rejected submissions (started but not completed)
+         SELECT DISTINCT rs.teacher_id, te.name AS teacher_name, te.department,
+                rs.subject, rs.class_name
          FROM result_submissions rs
          JOIN teachers te ON te.id = rs.teacher_id
-         WHERE rs.school_id = $1
-           AND rs.academic_year_id = $2
-           AND rs.semester = $3
+         WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.semester = $3
            AND rs.status IN ('draft', 'rejected')
        )
        SELECT DISTINCT ON (c.teacher_id, LOWER(c.subject), LOWER(c.class_name))
@@ -285,8 +295,11 @@ router.get('/non-submitters', adminOnly, async (req, res, next) => {
        ORDER BY c.teacher_id, LOWER(c.subject), LOWER(c.class_name), c.teacher_name`,
       [req.schoolId, academic_year_id, sem]
     );
-    // Re-sort for display after DISTINCT ON
-    rows.sort((a, b) => a.teacher_name.localeCompare(b.teacher_name) || a.subject.localeCompare(b.subject) || a.class_name.localeCompare(b.class_name));
+    rows.sort((a, b) =>
+      a.teacher_name.localeCompare(b.teacher_name) ||
+      a.subject.localeCompare(b.subject) ||
+      a.class_name.localeCompare(b.class_name)
+    );
     res.json(rows);
   } catch (err) { next(err); }
 });
