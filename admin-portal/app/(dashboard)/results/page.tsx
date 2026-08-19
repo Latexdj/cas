@@ -1098,8 +1098,8 @@ export default function ResultsPage() {
                       </div>
                     )}
 
-                    {/* Results preview for approve / publish actions */}
-                    {(approvalAction === 'approve' || approvalAction === 'publish') && (
+                    {/* Results preview for approve / hod_approve / publish actions */}
+                    {(approvalAction === 'approve' || approvalAction === 'hod_approve' || approvalAction === 'publish') && (
                       <div style={{ marginBottom: 16 }}>
                         <p style={{ fontSize: 11, fontWeight: 700, color: '#374151', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           Results Preview
@@ -1163,13 +1163,13 @@ export default function ResultsPage() {
                       </p>
                     )}
 
-                    {(approvalAction === 'reject' || approvalAction === 'unlock' || approvalAction === 'approve') && (
+                    {(approvalAction === 'reject' || approvalAction === 'hod_reject' || approvalAction === 'unlock' || approvalAction === 'approve' || approvalAction === 'hod_approve') && (
                       <>
                         <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
-                          {approvalAction === 'reject' || approvalAction === 'unlock' ? 'Reason (required)' : 'Comment (optional)'}
+                          {approvalAction === 'reject' || approvalAction === 'hod_reject' || approvalAction === 'unlock' ? 'Reason (required)' : 'Comment (optional)'}
                         </label>
                         <textarea value={approvalComment} onChange={e => { setApprovalComment(e.target.value); setApprovalError(''); }} rows={3}
-                          placeholder={approvalAction === 'unlock' ? 'Why is this being unlocked?' : approvalAction === 'reject' ? 'Why is this being returned?' : 'Optional note…'}
+                          placeholder={approvalAction === 'unlock' ? 'Why is this being unlocked?' : (approvalAction === 'reject' || approvalAction === 'hod_reject') ? 'Why is this being returned?' : 'Optional note…'}
                           style={{ width: '100%', border: '1px solid #E2E8F0', borderRadius: 10, padding: '8px 12px', fontSize: 13, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
                       </>
                     )}
@@ -1185,14 +1185,14 @@ export default function ResultsPage() {
                       </button>
                       <button
                         onClick={doApprovalAction}
-                        disabled={approving || (approvalAction === 'approve' && readiness !== null && !readiness.canApprove)}
-                        title={approvalAction === 'approve' && readiness && !readiness.canApprove ? 'Scores are incomplete — reject back to the teacher to fix first' : undefined}
+                        disabled={approving || ((approvalAction === 'approve' || approvalAction === 'hod_approve') && readiness !== null && !readiness.canApprove)}
+                        title={(approvalAction === 'approve' || approvalAction === 'hod_approve') && readiness && !readiness.canApprove ? 'Scores are incomplete — reject back to the teacher to fix first' : undefined}
                         style={{ flex: 1, padding: '9px 0', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                          cursor: (approving || (approvalAction === 'approve' && readiness !== null && !readiness.canApprove)) ? 'not-allowed' : 'pointer',
-                          opacity: (approving || (approvalAction === 'approve' && readiness !== null && !readiness.canApprove)) ? 0.45 : 1,
-                          background: approvalAction === 'reject' ? '#B83232' : approvalAction === 'unlock' ? '#64748B' : '#145C44',
+                          cursor: (approving || ((approvalAction === 'approve' || approvalAction === 'hod_approve') && readiness !== null && !readiness.canApprove)) ? 'not-allowed' : 'pointer',
+                          opacity: (approving || ((approvalAction === 'approve' || approvalAction === 'hod_approve') && readiness !== null && !readiness.canApprove)) ? 0.45 : 1,
+                          background: (approvalAction === 'reject' || approvalAction === 'hod_reject') ? '#B83232' : approvalAction === 'unlock' ? '#64748B' : '#145C44',
                           color: '#fff' }}>
-                        {approving ? '…' : approvalAction === 'approve' ? 'Final Approve' : approvalAction === 'publish' ? 'Publish' : approvalAction === 'unlock' ? 'Unlock' : 'Reject & Return'}
+                        {approving ? '…' : approvalAction === 'hod_approve' ? 'Approve as HOD' : approvalAction === 'hod_reject' ? 'Reject & Return' : approvalAction === 'approve' ? 'Final Approve' : approvalAction === 'publish' ? 'Publish' : approvalAction === 'unlock' ? 'Unlock' : 'Reject & Return'}
                       </button>
                     </div>
                     </div>
