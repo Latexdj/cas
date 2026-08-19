@@ -223,6 +223,52 @@ router.get('/hod-queue', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /non-submitters/debug — diagnostic: counts from each source ───────────
+router.get('/non-submitters/debug', adminOnly, async (req, res, next) => {
+  try {
+    const { academic_year_id, semester } = req.query;
+    if (!academic_year_id || !semester) return res.status(400).json({ error: 'academic_year_id and semester are required' });
+    const sem = parseInt(semester);
+
+    const [tt, assess, exam, rs, rs_all] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*) AS cnt FROM (
+           SELECT DISTINCT tt.teacher_id, tt.subject, TRIM(cls) AS class_name
+           FROM timetable tt, LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
+           WHERE tt.school_id=$1 AND tt.academic_year_id=$2 AND tt.semester=$3
+         ) x`, [req.schoolId, academic_year_id, sem]),
+      pool.query(
+        `SELECT COUNT(*) AS cnt, COUNT(teacher_id) AS with_teacher_id
+         FROM assessments
+         WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3`,
+        [req.schoolId, academic_year_id, sem]),
+      pool.query(
+        `SELECT COUNT(*) AS cnt, COUNT(teacher_id) AS with_teacher_id
+         FROM exam_scores
+         WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3`,
+        [req.schoolId, academic_year_id, sem]),
+      pool.query(
+        `SELECT status, COUNT(*) AS cnt
+         FROM result_submissions
+         WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3
+         GROUP BY status`,
+        [req.schoolId, academic_year_id, sem]),
+      pool.query(
+        `SELECT COUNT(*) AS total FROM timetable WHERE school_id=$1`,
+        [req.schoolId]),
+    ]);
+
+    res.json({
+      params: { academic_year_id, semester: sem, school_id: req.schoolId },
+      timetable_candidates: Number(tt.rows[0].cnt),
+      timetable_total_all_years: Number(rs_all.rows[0].total),
+      assessments: { total: Number(assess.rows[0].cnt), with_teacher_id: Number(assess.rows[0].with_teacher_id) },
+      exam_scores:  { total: Number(exam.rows[0].cnt),   with_teacher_id: Number(exam.rows[0].with_teacher_id) },
+      result_submissions_by_status: rs.rows.map(r => ({ status: r.status, count: Number(r.cnt) })),
+    });
+  } catch (err) { next(err); }
+});
+
 // ── GET /non-submitters — teachers with no/draft/rejected submission ──────────
 // Four sources are unioned so teachers without timetable entries are caught:
 //   1. Timetable: scheduled teacher→subject→class for this year/sem

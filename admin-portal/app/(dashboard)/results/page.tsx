@@ -597,12 +597,15 @@ export default function ResultsPage() {
 
   // ── Non-submitters state ──
   interface NonSubmitter { teacher_id: string; teacher_name: string; department: string | null; subject: string; class_name: string; submission_status: 'not_started' | 'draft' | 'rejected'; submission_id: string | null; }
+  interface NsDebug { params: Record<string,unknown>; timetable_candidates: number; timetable_total_all_years: number; assessments: {total:number;with_teacher_id:number}; exam_scores: {total:number;with_teacher_id:number}; result_submissions_by_status: {status:string;count:number}[]; }
   const [nonSubmitters,        setNonSubmitters]        = useState<NonSubmitter[]>([]);
   const [nonSubmittersLoading, setNonSubmittersLoading] = useState(false);
   const [showNonSubmitters,    setShowNonSubmitters]    = useState(false);
   const [nsClassFilter,        setNsClassFilter]        = useState('');
   const [nsSubjectFilter,      setNsSubjectFilter]      = useState('');
   const [nsDeptFilter,         setNsDeptFilter]         = useState('');
+  const [nsDebug,              setNsDebug]              = useState<NsDebug | null>(null);
+  const [nsDebugLoading,       setNsDebugLoading]       = useState(false);
 
   // ── Approval queue state ──
   const [approvalQueue,   setApprovalQueue]   = useState<FinalQueueItem[]>([]);
@@ -1256,8 +1259,57 @@ export default function ResultsPage() {
                   <div style={{ display: 'inline-block', width: 24, height: 24, borderRadius: '50%', border: '3px solid #145C44', borderBottomColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
                 </div>
               ) : nonSubmitters.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 24, color: '#145C44', fontSize: 13 }}>
-                  No outstanding submissions found — all timetabled teachers and active draft/rejected submissions have been resolved for the selected year and semester.
+                <div style={{ padding: 20 }}>
+                  <p style={{ textAlign: 'center', color: '#145C44', fontSize: 13, marginBottom: 16 }}>
+                    No outstanding submissions detected for the selected year and semester.
+                  </p>
+                  <div style={{ textAlign: 'center' }}>
+                    <button
+                      onClick={async () => {
+                        setNsDebugLoading(true); setNsDebug(null);
+                        try {
+                          const params = new URLSearchParams({ academic_year_id: yearId, semester });
+                          const { data } = await api.get<NsDebug>(`/api/result-submissions/non-submitters/debug?${params}`);
+                          setNsDebug(data);
+                        } catch { /* ignore */ } finally { setNsDebugLoading(false); }
+                      }}
+                      disabled={nsDebugLoading}
+                      style={{ background: '#F5F0E8', border: '1px solid #E2D9CC', borderRadius: 8, padding: '6px 14px', fontSize: 12, color: '#4A3F32', cursor: 'pointer' }}>
+                      {nsDebugLoading ? 'Running…' : 'Run Diagnostic'}
+                    </button>
+                  </div>
+                  {nsDebug && (
+                    <div style={{ marginTop: 16, border: '1px solid #E2D9CC', borderRadius: 10, overflow: 'hidden', fontSize: 12 }}>
+                      <div style={{ background: '#F5F0E8', padding: '8px 14px', fontWeight: 700, color: '#2C2218', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Data Source Counts — Year {String(nsDebug.params.academic_year_id).slice(0,8)}… · Semester {String(nsDebug.params.semester)}
+                      </div>
+                      {[
+                        { label: 'Timetable entries (this year/sem)', value: nsDebug.timetable_candidates, note: `${nsDebug.timetable_total_all_years} total across all years` },
+                        { label: 'Assessments (this year/sem)', value: nsDebug.assessments.total, note: `${nsDebug.assessments.with_teacher_id} with teacher ID` },
+                        { label: 'Exam scores (this year/sem)', value: nsDebug.exam_scores.total, note: `${nsDebug.exam_scores.with_teacher_id} with teacher ID` },
+                      ].map(row => (
+                        <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderTop: '1px solid #F1F5F9' }}>
+                          <span style={{ color: '#4A3F32' }}>{row.label}</span>
+                          <span style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                            <span style={{ fontWeight: 700, color: row.value === 0 ? '#B83232' : '#145C44' }}>{row.value}</span>
+                            <span style={{ color: '#8C7E6E', fontSize: 11 }}>{row.note}</span>
+                          </span>
+                        </div>
+                      ))}
+                      <div style={{ padding: '8px 14px', borderTop: '1px solid #F1F5F9' }}>
+                        <span style={{ color: '#4A3F32' }}>Result submissions (this year/sem)</span>
+                        <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {nsDebug.result_submissions_by_status.length === 0
+                            ? <span style={{ color: '#B83232', fontWeight: 700 }}>None</span>
+                            : nsDebug.result_submissions_by_status.map(s => (
+                                <span key={s.status} style={{ background: '#F5F0E8', border: '1px solid #E2D9CC', borderRadius: 6, padding: '2px 10px', fontSize: 11, color: '#2C2218' }}>
+                                  {s.status}: <strong>{s.count}</strong>
+                                </span>
+                              ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
