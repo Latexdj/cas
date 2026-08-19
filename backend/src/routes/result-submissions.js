@@ -372,47 +372,49 @@ router.get('/non-submitters', adminOnly, async (req, res, next) => {
     const { rows } = await pool.query(
       `WITH candidates AS (
          -- 1. Timetable assignments
-         SELECT DISTINCT tt.teacher_id, te.name AS teacher_name, te.department,
+         SELECT DISTINCT tt.teacher_id, te.name AS teacher_name,
                 tt.subject, TRIM(cls) AS class_name
-         FROM timetable tt,
-              LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
+         FROM timetable tt
          JOIN teachers te ON te.id = tt.teacher_id AND te.school_id = $1
+         CROSS JOIN LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
          WHERE tt.school_id = $1 AND tt.academic_year_id = $2 AND tt.semester = $3
 
          UNION
 
          -- 2. Assessments (CA marks entered by teacher)
-         SELECT DISTINCT a.teacher_id, te.name AS teacher_name, te.department,
+         SELECT DISTINCT a.teacher_id, te.name AS teacher_name,
                 a.subject, a.class_name
          FROM assessments a
-         JOIN teachers te ON te.id = a.teacher_id
+         JOIN teachers te ON te.id = a.teacher_id AND te.school_id = $1
          WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.semester = $3
            AND a.teacher_id IS NOT NULL
 
          UNION
 
          -- 3. Exam scores entered by teacher
-         SELECT DISTINCT es.teacher_id, te.name AS teacher_name, te.department,
+         SELECT DISTINCT es.teacher_id, te.name AS teacher_name,
                 es.subject, es.class_name
          FROM exam_scores es
-         JOIN teachers te ON te.id = es.teacher_id
+         JOIN teachers te ON te.id = es.teacher_id AND te.school_id = $1
          WHERE es.school_id = $1 AND es.academic_year_id = $2 AND es.semester = $3
            AND es.teacher_id IS NOT NULL
 
          UNION
 
          -- 4. Draft / rejected submissions (started but not completed)
-         SELECT DISTINCT rs.teacher_id, te.name AS teacher_name, te.department,
-                rs.subject, rs.class_name
-         FROM result_submissions rs
-         JOIN teachers te ON te.id = rs.teacher_id
-         WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.semester = $3
-           AND rs.status IN ('draft', 'rejected')
+         SELECT DISTINCT rs2.teacher_id, te.name AS teacher_name,
+                rs2.subject, rs2.class_name
+         FROM result_submissions rs2
+         JOIN teachers te ON te.id = rs2.teacher_id AND te.school_id = $1
+         WHERE rs2.school_id = $1 AND rs2.academic_year_id = $2 AND rs2.semester = $3
+           AND rs2.status IN ('draft', 'rejected')
        )
        SELECT DISTINCT ON (c.teacher_id, LOWER(c.subject), LOWER(c.class_name))
          c.teacher_id,
          c.teacher_name,
-         c.department,
+         (SELECT d.name FROM department_teachers dt
+          JOIN departments d ON d.id = dt.department_id
+          WHERE dt.teacher_id = c.teacher_id LIMIT 1) AS department,
          c.subject,
          c.class_name,
          COALESCE(rs.status, 'not_started') AS submission_status,
