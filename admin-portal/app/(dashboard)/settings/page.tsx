@@ -399,17 +399,37 @@ export default function SettingsPage() {
   async function handleLetterheadChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setLetterheadError('File is too large. Please upload an image under 10 MB.');
+      if (letterheadFileRef.current) letterheadFileRef.current.value = '';
+      return;
+    }
     setLetterheadSaving(true); setLetterheadError(''); setLetterheadSaved(false);
     const reader = new FileReader();
     reader.onload = async (ev) => {
       try {
         const dataUrl = ev.target?.result as string;
-        const res = await api.patch('/api/admin/settings/letterhead', { imageBase64: dataUrl, filename: file.name });
+        if (!dataUrl) throw new Error('Could not read file');
+        const res = await api.patch(
+          '/api/admin/settings/letterhead',
+          { imageBase64: dataUrl, filename: file.name },
+          { timeout: 90000 },
+        );
         setLetterheadUrl(res.data.letterhead_url);
         setLetterheadSaved(true);
         setTimeout(() => setLetterheadSaved(false), 3000);
-      } catch { setLetterheadError('Failed to upload letterhead. Please try again.'); }
-      finally { setLetterheadSaving(false); if (letterheadFileRef.current) letterheadFileRef.current.value = ''; }
+      } catch (err: unknown) {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        setLetterheadError(msg ?? 'Failed to upload letterhead. Please try again.');
+      } finally {
+        setLetterheadSaving(false);
+        if (letterheadFileRef.current) letterheadFileRef.current.value = '';
+      }
+    };
+    reader.onerror = () => {
+      setLetterheadError('Could not read the selected file. Please try again.');
+      setLetterheadSaving(false);
+      if (letterheadFileRef.current) letterheadFileRef.current.value = '';
     };
     reader.readAsDataURL(file);
   }
