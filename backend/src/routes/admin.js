@@ -549,7 +549,14 @@ router.patch('/settings/letterhead', adminOnly, async (req, res, next) => {
       [url, filename || 'letterhead', req.schoolId]
     );
     res.json({ letterhead_url: url });
-  } catch (err) { next(err); }
+  } catch (err) {
+    console.error('[letterhead upload]', err?.message, err?.code);
+    const msg = err?.message?.startsWith('Storage upload failed:')
+      ? err.message
+      : null;
+    if (msg) return res.status(500).json({ error: msg });
+    next(err);
+  }
 });
 
 // DELETE /api/admin/settings/letterhead — remove school letterhead
