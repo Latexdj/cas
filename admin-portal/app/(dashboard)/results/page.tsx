@@ -595,6 +595,15 @@ export default function ResultsPage() {
   const [remarksMap,    setRemarksMap]    = useState<Record<string, ReportRemark>>({});
   const [printTarget,   setPrintTarget]   = useState<'all' | StudentResult | null>(null);
 
+  // ── Non-submitters state ──
+  interface NonSubmitter { teacher_id: string; teacher_name: string; department: string | null; subject: string; class_name: string; submission_status: 'not_started' | 'draft'; submission_id: string | null; }
+  const [nonSubmitters,        setNonSubmitters]        = useState<NonSubmitter[]>([]);
+  const [nonSubmittersLoading, setNonSubmittersLoading] = useState(false);
+  const [showNonSubmitters,    setShowNonSubmitters]    = useState(false);
+  const [nsClassFilter,        setNsClassFilter]        = useState('');
+  const [nsSubjectFilter,      setNsSubjectFilter]      = useState('');
+  const [nsDeptFilter,         setNsDeptFilter]         = useState('');
+
   // ── Approval queue state ──
   const [approvalQueue,   setApprovalQueue]   = useState<FinalQueueItem[]>([]);
   const [approvalLoading, setApprovalLoading] = useState(false);
@@ -653,6 +662,17 @@ export default function ResultsPage() {
     finally { setApprovalLoading(false); }
   }, [yearId, semester]);
 
+  const loadNonSubmitters = useCallback(async () => {
+    if (!yearId || !semester) return;
+    setNonSubmittersLoading(true);
+    try {
+      const params = new URLSearchParams({ academic_year_id: yearId, semester });
+      const { data } = await api.get<NonSubmitter[]>(`/api/result-submissions/non-submitters?${params}`);
+      setNonSubmitters(data);
+    } catch { /* non-fatal */ }
+    finally { setNonSubmittersLoading(false); }
+  }, [yearId, semester]);
+
   const load = useCallback(async () => {
     if (!yearId || !semester || !className) return;
     setLoading(true); setError(''); setSelected(null);
@@ -672,8 +692,8 @@ export default function ResultsPage() {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    if (yearId || semester) loadApprovalQueue();
-  }, [yearId, semester, loadApprovalQueue]);
+    if (yearId || semester) { loadApprovalQueue(); loadNonSubmitters(); }
+  }, [yearId, semester, loadApprovalQueue, loadNonSubmitters]);
 
   async function openApprovalModal(item: FinalQueueItem, action: 'hod_approve' | 'hod_reject' | 'approve' | 'reject' | 'publish' | 'unlock') {
     setApprovalTarget(item);
@@ -765,6 +785,15 @@ export default function ResultsPage() {
     .filter(q => !queueClassFilter  || q.class_name === queueClassFilter)
     .filter(q => !queueSubjectFilter || q.subject   === queueSubjectFilter);
   const { displayRows: queueRows, total: queueTotal, page: queuePage, setPage: setQueuePage, pageSize: queuePageSize, setPageSize: setQueuePageSize } = useTableControls(filteredQueue);
+
+  const nsClasses  = [...new Set(nonSubmitters.map(n => n.class_name))].sort();
+  const nsSubjects = [...new Set(nonSubmitters.map(n => n.subject))].sort();
+  const nsDepts    = [...new Set(nonSubmitters.map(n => n.department).filter(Boolean))].sort() as string[];
+  const filteredNs = nonSubmitters
+    .filter(n => !nsClassFilter   || n.class_name === nsClassFilter)
+    .filter(n => !nsSubjectFilter || n.subject    === nsSubjectFilter)
+    .filter(n => !nsDeptFilter    || n.department === nsDeptFilter);
+  const { displayRows: nsRows, total: nsTotal, page: nsPage, setPage: setNsPage, pageSize: nsPageSize, setPageSize: setNsPageSize } = useTableControls(filteredNs);
 
   const selectStyle = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#145C44] focus:border-transparent';
 
@@ -1198,6 +1227,108 @@ export default function ResultsPage() {
                     </div>
                   </div>
                 </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Outstanding Submissions Panel */}
+        <div style={{ border: '1px solid #E2E8F0', borderRadius: 14, overflow: 'hidden', background: '#fff' }}>
+          <button
+            onClick={() => { setShowNonSubmitters(v => !v); if (!showNonSubmitters) loadNonSubmitters(); }}
+            style={{ width: '100%', padding: '14px 20px', background: '#F5F0E8', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: showNonSubmitters ? '1px solid #E2E8F0' : 'none' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#1C1208' }}>Outstanding Submissions</span>
+              {nonSubmitters.length > 0 && (
+                <span style={{ background: '#C8780A', color: '#fff', fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 20 }}>
+                  {nonSubmitters.length} not submitted
+                </span>
+              )}
+            </div>
+            <span style={{ fontSize: 12, color: '#64748B' }}>{showNonSubmitters ? '▲ Hide' : '▼ Show'}</span>
+          </button>
+
+          {showNonSubmitters && (
+            <div style={{ padding: 16 }}>
+              {nonSubmittersLoading ? (
+                <div style={{ textAlign: 'center', padding: 24 }}>
+                  <div style={{ display: 'inline-block', width: 24, height: 24, borderRadius: '50%', border: '3px solid #145C44', borderBottomColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+                </div>
+              ) : nonSubmitters.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 24, color: '#145C44', fontSize: 13 }}>
+                  All teachers in the timetable have submitted their results for the selected year and semester.
+                </div>
+              ) : (
+                <>
+                  {/* Filters */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #F1F5F9' }}>
+                    <select value={nsClassFilter} onChange={e => { setNsClassFilter(e.target.value); setNsPage(1); }}
+                      style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: '5px 10px', fontSize: 12, color: nsClassFilter ? '#0B3D2E' : '#64748B', background: nsClassFilter ? '#E8F4EE' : '#fff', cursor: 'pointer', fontWeight: nsClassFilter ? 600 : 400 }}>
+                      <option value="">All Classes</option>
+                      {nsClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <select value={nsSubjectFilter} onChange={e => { setNsSubjectFilter(e.target.value); setNsPage(1); }}
+                      style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: '5px 10px', fontSize: 12, color: nsSubjectFilter ? '#0B3D2E' : '#64748B', background: nsSubjectFilter ? '#E8F4EE' : '#fff', cursor: 'pointer', fontWeight: nsSubjectFilter ? 600 : 400 }}>
+                      <option value="">All Subjects</option>
+                      {nsSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    {nsDepts.length > 0 && (
+                      <select value={nsDeptFilter} onChange={e => { setNsDeptFilter(e.target.value); setNsPage(1); }}
+                        style={{ border: '1px solid #E2E8F0', borderRadius: 8, padding: '5px 10px', fontSize: 12, color: nsDeptFilter ? '#0B3D2E' : '#64748B', background: nsDeptFilter ? '#E8F4EE' : '#fff', cursor: 'pointer', fontWeight: nsDeptFilter ? 600 : 400 }}>
+                        <option value="">All Departments</option>
+                        {nsDepts.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    )}
+                    {(nsClassFilter || nsSubjectFilter || nsDeptFilter) && (
+                      <button onClick={() => { setNsClassFilter(''); setNsSubjectFilter(''); setNsDeptFilter(''); setNsPage(1); }}
+                        style={{ fontSize: 11, color: '#64748B', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
+                        Clear filters
+                      </button>
+                    )}
+                    <span style={{ fontSize: 11, color: '#94A3B8', marginLeft: 'auto' }}>
+                      {filteredNs.length === nonSubmitters.length ? `${nonSubmitters.length} outstanding` : `${filteredNs.length} of ${nonSubmitters.length} outstanding`}
+                    </span>
+                  </div>
+
+                  {filteredNs.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px 0', color: '#94A3B8', fontSize: 13 }}>
+                      No results match the active filters.{' '}
+                      <button onClick={() => { setNsClassFilter(''); setNsSubjectFilter(''); setNsDeptFilter(''); setNsPage(1); }}
+                        style={{ color: '#145C44', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>Clear all</button>
+                    </div>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ background: '#F5F0E8', borderBottom: '1px solid #E2E8F0' }}>
+                            {['Teacher', 'Department', 'Subject', 'Class', 'Status'].map(h => (
+                              <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#64748B', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(nsRows as NonSubmitter[]).map((item, idx) => (
+                            <tr key={`${item.teacher_id}-${item.subject}-${item.class_name}`} style={{ borderBottom: '1px solid #F1F5F9', background: idx % 2 === 0 ? '#fff' : '#FAFAFA' }}>
+                              <td style={{ padding: '10px 12px', fontWeight: 600, color: '#1C1208' }}>{item.teacher_name}</td>
+                              <td style={{ padding: '10px 12px', color: '#64748B' }}>{item.department ?? '—'}</td>
+                              <td style={{ padding: '10px 12px', color: '#374151' }}>{item.subject}</td>
+                              <td style={{ padding: '10px 12px', color: '#374151' }}>{item.class_name}</td>
+                              <td style={{ padding: '10px 12px' }}>
+                                {item.submission_status === 'draft' ? (
+                                  <span style={{ background: '#FEF3C7', color: '#C8780A', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20 }}>Draft</span>
+                                ) : (
+                                  <span style={{ background: '#FEF2F2', color: '#B83232', fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20 }}>Not Started</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <Pagination page={nsPage} pageSize={nsPageSize} total={nsTotal} onPage={setNsPage} onPageSize={(s) => { setNsPageSize(s); setNsPage(1); }} />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

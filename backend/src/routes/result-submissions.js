@@ -223,6 +223,51 @@ router.get('/hod-queue', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /non-submitters — admin sees timetable assignments with no/draft submission ──
+router.get('/non-submitters', adminOnly, async (req, res, next) => {
+  try {
+    const { academic_year_id, semester } = req.query;
+    if (!academic_year_id || !semester) {
+      return res.status(400).json({ error: 'academic_year_id and semester are required' });
+    }
+    const { rows } = await pool.query(
+      `WITH assignments AS (
+         SELECT DISTINCT
+           tt.teacher_id,
+           te.name       AS teacher_name,
+           te.department,
+           tt.subject,
+           TRIM(cls)     AS class_name
+         FROM timetable tt,
+              LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
+         JOIN teachers te ON te.id = tt.teacher_id AND te.school_id = $1
+         WHERE tt.school_id = $1
+           AND tt.academic_year_id = $2
+           AND tt.semester = $3
+       )
+       SELECT
+         a.teacher_id,
+         a.teacher_name,
+         a.department,
+         a.subject,
+         a.class_name,
+         COALESCE(rs.status, 'not_started') AS submission_status,
+         rs.id AS submission_id
+       FROM assignments a
+       LEFT JOIN result_submissions rs
+         ON  rs.school_id        = $1
+         AND rs.academic_year_id = $2
+         AND rs.semester         = $3
+         AND LOWER(rs.subject)   = LOWER(a.subject)
+         AND LOWER(rs.class_name)= LOWER(a.class_name)
+       WHERE rs.id IS NULL OR rs.status = 'draft'
+       ORDER BY a.teacher_name ASC, a.subject ASC, a.class_name ASC`,
+      [req.schoolId, academic_year_id, parseInt(semester)]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // ── GET /final-queue — admin sees hod_approved entries awaiting final approval ──
 router.get('/final-queue', adminOnly, async (req, res, next) => {
   try {
