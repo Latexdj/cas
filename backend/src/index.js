@@ -2200,6 +2200,16 @@ async function runMigrations() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_disc_letters_school   ON student_disciplinary_letters(school_id, created_at DESC)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_disc_letters_student  ON student_disciplinary_letters(student_id)`);
 
+    // Letterhead + ref-number system for discipline letters
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS letterhead_url TEXT`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS letterhead_filename TEXT`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS letter_ref_prefix TEXT DEFAULT ''`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS letter_ref_counter INTEGER NOT NULL DEFAULT 0`);
+    await pool.query(`ALTER TABLE teacher_queries ADD COLUMN IF NOT EXISTS ref_number TEXT`);
+    await pool.query(`ALTER TABLE teacher_queries ADD COLUMN IF NOT EXISTS issued_by_signature_url TEXT`);
+    await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS ref_number TEXT`);
+    await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS issued_by_signature_url TEXT`);
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);

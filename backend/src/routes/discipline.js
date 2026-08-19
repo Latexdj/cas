@@ -6,6 +6,20 @@ const { uploadDocument } = require('../services/storage.service');
 
 router.use(authenticate, requireActiveSubscription);
 
+async function generateRefNumber(schoolId) {
+  const { rows } = await pool.query(
+    `UPDATE schools SET letter_ref_counter = letter_ref_counter + 1
+     WHERE id = $1
+     RETURNING letter_ref_counter, letter_ref_prefix, headmaster_signature_url`,
+    [schoolId]
+  );
+  const { letter_ref_counter, letter_ref_prefix, headmaster_signature_url } = rows[0];
+  const year = new Date().getFullYear();
+  const seq  = String(letter_ref_counter).padStart(4, '0');
+  const ref  = letter_ref_prefix ? `${letter_ref_prefix}/${year}/${seq}` : `${year}/${seq}`;
+  return { ref_number: ref, signature_url: headmaster_signature_url || null };
+}
+
 // ─── TEACHER QUERIES ──────────────────────────────────────────────────────────
 
 // GET /api/discipline/queries
@@ -29,12 +43,13 @@ router.get('/queries', async (req, res, next) => {
     if (academic_year_id)        { params.push(academic_year_id); extra += ` AND tq.academic_year_id = $${params.length}`; }
 
     const { rows } = await pool.query(
-      `SELECT tq.id, tq.category, tq.category_other, tq.subject, tq.body,
+      `SELECT tq.id, tq.ref_number, tq.category, tq.category_other, tq.subject, tq.body,
               tq.issued_date::text, tq.response_deadline::text,
               tq.status, tq.teacher_response_text,
               tq.teacher_response_file_url, tq.teacher_response_file_name,
               tq.response_submitted_at, tq.resolution_notes,
               tq.resolved_by_name, tq.resolved_at, tq.created_at, tq.issued_by_name,
+              tq.issued_by_signature_url,
               t.id AS teacher_id, t.name AS teacher_name, t.department,
               ay.name AS academic_year_name
        FROM teacher_queries tq
@@ -95,17 +110,21 @@ router.post('/queries', adminOnly, async (req, res, next) => {
     );
     if (!tRows.length) return res.status(404).json({ error: 'Teacher not found' });
 
+    const { ref_number, signature_url } = await generateRefNumber(req.schoolId);
+
     const { rows } = await pool.query(
       `INSERT INTO teacher_queries
          (school_id, teacher_id, issued_by_id, issued_by_name,
           category, category_other, subject, body,
-          issued_date, response_deadline, academic_year_id, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'issued')
+          issued_date, response_deadline, academic_year_id, status,
+          ref_number, issued_by_signature_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'issued',$12,$13)
        RETURNING *`,
       [req.schoolId, teacher_id, req.user.id, req.user.name || 'Management',
        category, category_other?.trim() || null, subject.trim(), body.trim(),
        issued_date || new Date().toISOString().slice(0,10),
-       response_deadline || null, academic_year_id || null]
+       response_deadline || null, academic_year_id || null,
+       ref_number, signature_url]
     );
 
     await pool.query(
@@ -131,7 +150,8 @@ router.get('/queries/:id', async (req, res, next) => {
       extra = ` AND tq.teacher_id = $${params.length}`;
     }
     const { rows } = await pool.query(
-      `SELECT tq.*, tq.issued_date::text, tq.response_deadline::text,
+      `SELECT tq.*, tq.ref_number, tq.issued_by_signature_url,
+              tq.issued_date::text, tq.response_deadline::text,
               t.name AS teacher_name, t.department,
               ay.name AS academic_year_name
        FROM teacher_queries tq
@@ -250,11 +270,11 @@ router.get('/letters', adminOnly, async (req, res, next) => {
     if (semester)         { params.push(Number(semester));  filters.push(`sdl.semester = $${params.length}`); }
 
     const { rows } = await pool.query(
-      `SELECT sdl.id, sdl.letter_type, sdl.offense_category, sdl.offense_other,
+      `SELECT sdl.id, sdl.ref_number, sdl.letter_type, sdl.offense_category, sdl.offense_other,
               sdl.subject, sdl.body, sdl.issued_date::text,
               sdl.status, sdl.acknowledged_at, sdl.acknowledged_by,
               sdl.resolution_notes, sdl.resolved_at, sdl.resolved_by_name,
-              sdl.issued_by_name, sdl.created_at, sdl.semester,
+              sdl.issued_by_name, sdl.issued_by_signature_url, sdl.created_at, sdl.semester,
               s.id AS student_id, s.name AS student_name,
               s.student_code, s.class_name,
               ay.name AS academic_year_name
@@ -311,18 +331,22 @@ router.post('/letters', adminOnly, async (req, res, next) => {
     );
     if (!sRows.length) return res.status(404).json({ error: 'Student not found' });
 
+    const { ref_number, signature_url } = await generateRefNumber(req.schoolId);
+
     const { rows } = await pool.query(
       `INSERT INTO student_disciplinary_letters
          (school_id, student_id, issued_by_id, issued_by_name,
           letter_type, offense_category, offense_other,
-          subject, body, issued_date, academic_year_id, semester, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'issued')
+          subject, body, issued_date, academic_year_id, semester, status,
+          ref_number, issued_by_signature_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'issued',$13,$14)
        RETURNING *`,
       [req.schoolId, student_id, req.user.id, req.user.name || 'Management',
        letter_type, offense_category, offense_other?.trim() || null,
        subject.trim(), body.trim(),
        issued_date || new Date().toISOString().slice(0,10),
-       academic_year_id || null, semester ? Number(semester) : null]
+       academic_year_id || null, semester ? Number(semester) : null,
+       ref_number, signature_url]
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }

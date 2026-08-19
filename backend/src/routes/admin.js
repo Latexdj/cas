@@ -406,7 +406,7 @@ router.get('/settings', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, code, email, phone, address, primary_color, accent_color, logo_url,
-              headmaster_signature_url,
+              headmaster_signature_url, letterhead_url, letter_ref_prefix,
               period_duration_minutes, ca_percentage,
               school_type, school_category, motto, region, district,
               admission_prefix, admission_year,
@@ -423,7 +423,7 @@ router.get('/settings', async (req, res, next) => {
 // PATCH /api/admin/settings/info — update general school information
 router.patch('/settings/info', adminOnly, async (req, res, next) => {
   try {
-    const { name, address, phone, email, school_type, school_category, motto, region, district, admission_prefix, admission_year, school_latitude, school_longitude, school_gps_radius, vision, mission, core_values } = req.body;
+    const { name, address, phone, email, school_type, school_category, motto, region, district, admission_prefix, admission_year, school_latitude, school_longitude, school_gps_radius, vision, mission, core_values, letter_ref_prefix } = req.body;
     const fields = [];
     const vals   = [req.schoolId];
     const add    = (col, val) => { if (val !== undefined) { fields.push(`${col}=$${vals.length + 1}`); vals.push(val || null); } };
@@ -441,6 +441,7 @@ router.patch('/settings/info', adminOnly, async (req, res, next) => {
     add('vision',            vision);
     add('mission',           mission);
     add('core_values',       core_values);
+    add('letter_ref_prefix', letter_ref_prefix);
     add('school_latitude',   school_latitude  !== undefined ? (school_latitude  === '' ? null : parseFloat(school_latitude))  : undefined);
     add('school_longitude',  school_longitude !== undefined ? (school_longitude === '' ? null : parseFloat(school_longitude)) : undefined);
     add('school_gps_radius', school_gps_radius !== undefined ? (school_gps_radius === '' ? null : parseInt(school_gps_radius, 10)) : undefined);
@@ -534,6 +535,31 @@ router.patch('/settings/signature', adminOnly, async (req, res, next) => {
       [sigUrl, req.schoolId]
     );
     res.json({ headmaster_signature_url: sigUrl });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/admin/settings/letterhead — upload / replace school official letterhead
+router.patch('/settings/letterhead', adminOnly, async (req, res, next) => {
+  try {
+    const { imageBase64, filename } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'imageBase64 is required' });
+    const url = await uploadFile(imageBase64, `letterheads/${req.schoolId}`, { upsert: true });
+    await pool.query(
+      `UPDATE schools SET letterhead_url = $1, letterhead_filename = $2, updated_at = now() WHERE id = $3`,
+      [url, filename || 'letterhead', req.schoolId]
+    );
+    res.json({ letterhead_url: url });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/admin/settings/letterhead — remove school letterhead
+router.delete('/settings/letterhead', adminOnly, async (req, res, next) => {
+  try {
+    await pool.query(
+      `UPDATE schools SET letterhead_url = NULL, letterhead_filename = NULL, updated_at = now() WHERE id = $1`,
+      [req.schoolId]
+    );
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 

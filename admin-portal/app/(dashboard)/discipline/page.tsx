@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { api } from '@/lib/api';
+import { PrintLetterModal } from '@/components/PrintLetterModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,7 @@ interface TeacherQuery {
   response_submitted_at?: string; resolution_notes?: string;
   resolved_by_name?: string; resolved_at?: string; created_at: string; issued_by_name: string;
   teacher_id: string; teacher_name: string; department?: string; academic_year_name?: string;
+  ref_number?: string; issued_by_signature_url?: string;
 }
 
 interface QueryStats { total: string; open: string; issued: string; responded: string; resolved: string; escalated: string; overdue: string; }
@@ -25,6 +27,7 @@ interface DisciplinaryLetter {
   acknowledged_at?: string; acknowledged_by?: string; resolution_notes?: string;
   resolved_at?: string; resolved_by_name?: string; issued_by_name: string; created_at: string; semester?: number;
   student_id: string; student_name: string; student_code: string; class_name: string; academic_year_name?: string;
+  ref_number?: string; issued_by_signature_url?: string;
 }
 
 interface LetterStats { total: string; active: string; resolved: string; warning: string; final_warning: string; suspension: string; dismissal: string; }
@@ -465,8 +468,8 @@ function IssueLetterModal({ students, academicYears, onClose, onCreated }: {
 
 // ─── Query Detail Panel ───────────────────────────────────────────────────────
 
-function QueryDetailPanel({ query, onClose, onUpdate }: {
-  query: TeacherQuery; onClose: () => void; onUpdate: (q: TeacherQuery) => void;
+function QueryDetailPanel({ query, onClose, onUpdate, onPrint }: {
+  query: TeacherQuery; onClose: () => void; onUpdate: (q: TeacherQuery) => void; onPrint: () => void;
 }) {
   const [resolveNotes, setResolveNotes] = useState('');
   const [escalateNotes, setEscalateNotes] = useState('');
@@ -508,6 +511,12 @@ function QueryDetailPanel({ query, onClose, onUpdate }: {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <Badge label={sLabel} color={sColor} bg={sBg} />
+          <button onClick={onPrint} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, border: `1.5px solid ${C.mid}`, background: 'white', color: C.mid, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+              <polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" />
+            </svg>
+            Print
+          </button>
           <button onClick={onClose} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: C.bg, color: C.muted, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
       </div>
@@ -608,8 +617,8 @@ function QueryDetailPanel({ query, onClose, onUpdate }: {
 
 // ─── Letter Detail Panel ──────────────────────────────────────────────────────
 
-function LetterDetailPanel({ letter, onClose, onUpdate }: {
-  letter: DisciplinaryLetter; onClose: () => void; onUpdate: (l: DisciplinaryLetter) => void;
+function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
+  letter: DisciplinaryLetter; onClose: () => void; onUpdate: (l: DisciplinaryLetter) => void; onPrint: () => void;
 }) {
   const [ackBy, setAckBy] = useState('admin');
   const [resolveNotes, setResolveNotes] = useState('');
@@ -660,7 +669,15 @@ function LetterDetailPanel({ letter, onClose, onUpdate }: {
             {letter.offense_other ? ` — ${letter.offense_other}` : ''}
           </p>
         </div>
-        <button onClick={onClose} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: C.bg, color: C.muted, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <button onClick={onPrint} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, border: `1.5px solid ${C.mid}`, background: 'white', color: C.mid, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+              <polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" />
+            </svg>
+            Print
+          </button>
+          <button onClick={onClose} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: C.bg, color: C.muted, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+        </div>
       </div>
 
       {/* Formal letter body */}
@@ -751,11 +768,16 @@ export default function DisciplinePage() {
   const [lStatusFilter, setLStatusFilter] = useState('');
   const [showIssueLetter, setShowIssueLetter] = useState(false);
 
+  // Print state
+  const [schoolInfo,         setSchoolInfo]         = useState<Record<string, string> | null>(null);
+  const [printTarget,        setPrintTarget]        = useState<TeacherQuery | DisciplinaryLetter | null>(null);
+  const [printRecipientType, setPrintRecipientType] = useState<'student' | 'teacher'>('student');
+
   useEffect(() => {
     async function load() {
       setLoading(true);
       try {
-        const [qRes, qsRes, lRes, lsRes, tRes, sRes, ayRes] = await Promise.all([
+        const [qRes, qsRes, lRes, lsRes, tRes, sRes, ayRes, schRes] = await Promise.all([
           api.get<TeacherQuery[]>('/api/discipline/queries'),
           api.get<QueryStats>('/api/discipline/queries/stats'),
           api.get<DisciplinaryLetter[]>('/api/discipline/letters'),
@@ -763,6 +785,7 @@ export default function DisciplinePage() {
           api.get<Teacher[]>('/api/teachers?status=Active&limit=500'),
           api.get<Student[]>('/api/students?limit=1000'),
           api.get<AcademicYear[]>('/api/academic-years'),
+          api.get('/api/admin/settings'),
         ]);
         setQueries(qRes.data);
         setQueryStats(qsRes.data);
@@ -771,6 +794,7 @@ export default function DisciplinePage() {
         setTeachers(tRes.data);
         setStudents(Array.isArray(sRes.data) ? sRes.data : (sRes.data as { data?: Student[] }).data ?? []);
         setAcademicYears(ayRes.data);
+        setSchoolInfo(schRes.data);
       } catch { /* ignore */ }
       setLoading(false);
     }
@@ -918,6 +942,7 @@ export default function DisciplinePage() {
                                     setQueries(prev => prev.map(x => x.id === updated.id ? { ...x, ...updated } : x));
                                     setSelectedQuery({ ...selectedQuery, ...updated });
                                   }}
+                                  onPrint={() => { setPrintTarget(selectedQuery); setPrintRecipientType('teacher'); }}
                                 />
                               </td>
                             </tr>
@@ -1019,6 +1044,7 @@ export default function DisciplinePage() {
                                     setLetters(prev => prev.map(x => x.id === updated.id ? { ...x, ...updated } : x));
                                     setSelectedLetter({ ...selectedLetter, ...updated });
                                   }}
+                                  onPrint={() => { setPrintTarget(selectedLetter); setPrintRecipientType('student'); }}
                                 />
                               </td>
                             </tr>
@@ -1050,6 +1076,16 @@ export default function DisciplinePage() {
           academicYears={academicYears}
           onClose={() => setShowIssueLetter(false)}
           onCreated={l => { setLetters(prev => [l, ...prev]); setShowIssueLetter(false); }}
+        />
+      )}
+
+      {printTarget && schoolInfo && (
+        <PrintLetterModal
+          open={true}
+          onClose={() => setPrintTarget(null)}
+          letter={printTarget as TeacherQuery & DisciplinaryLetter}
+          school={schoolInfo}
+          recipientType={printRecipientType}
         />
       )}
     </div>

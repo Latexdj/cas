@@ -12,6 +12,8 @@ interface SchoolSettings {
   accent_color: string;
   logo_url?: string | null;
   headmaster_signature_url?: string | null;
+  letterhead_url?: string | null;
+  letter_ref_prefix?: string | null;
   period_duration_minutes: number;
   ca_percentage: number;
   vision?: string | null;
@@ -265,8 +267,9 @@ function GradeBoundariesCard() {
 }
 
 export default function SettingsPage() {
-  const logoFileRef = useRef<HTMLInputElement>(null);
-  const sigFileRef  = useRef<HTMLInputElement>(null);
+  const logoFileRef        = useRef<HTMLInputElement>(null);
+  const sigFileRef         = useRef<HTMLInputElement>(null);
+  const letterheadFileRef  = useRef<HTMLInputElement>(null);
   const [settings,     setSettings]     = useState<SchoolSettings | null>(null);
   const [primary,      setPrimary]      = useState('#0B3D2E');
   const [accent,       setAccent]       = useState('#C8973A');
@@ -278,10 +281,18 @@ export default function SettingsPage() {
   const [logoSaving,   setLogoSaving]   = useState(false);
   const [logoSaved,    setLogoSaved]    = useState(false);
   const [logoError,    setLogoError]    = useState('');
-  const [sigUrl,       setSigUrl]       = useState<string | null>(null);
-  const [sigSaving,    setSigSaving]    = useState(false);
-  const [sigSaved,     setSigSaved]     = useState(false);
-  const [sigError,     setSigError]     = useState('');
+  const [sigUrl,          setSigUrl]          = useState<string | null>(null);
+  const [sigSaving,       setSigSaving]       = useState(false);
+  const [sigSaved,        setSigSaved]        = useState(false);
+  const [sigError,        setSigError]        = useState('');
+  const [letterheadUrl,   setLetterheadUrl]   = useState<string | null>(null);
+  const [letterheadSaving,setLetterheadSaving]= useState(false);
+  const [letterheadSaved, setLetterheadSaved] = useState(false);
+  const [letterheadError, setLetterheadError] = useState('');
+  const [letterRefPrefix, setLetterRefPrefix] = useState('');
+  const [refPrefixSaving, setRefPrefixSaving] = useState(false);
+  const [refPrefixSaved,  setRefPrefixSaved]  = useState(false);
+  const [refPrefixError,  setRefPrefixError]  = useState('');
 
   // Period duration state
   const [periodMins,      setPeriodMins]      = useState(60);
@@ -310,6 +321,8 @@ export default function SettingsPage() {
       setAccent(r.data.accent_color);
       setLogoUrl(r.data.logo_url ?? null);
       setSigUrl(r.data.headmaster_signature_url ?? null);
+      setLetterheadUrl(r.data.letterhead_url ?? null);
+      setLetterRefPrefix(r.data.letter_ref_prefix ?? '');
       setPeriodMins(r.data.period_duration_minutes ?? 60);
       setCaPct(r.data.ca_percentage ?? 30);
       setVision(r.data.vision ?? '');
@@ -381,6 +394,36 @@ export default function SettingsPage() {
       setSigSaving(false);
       if (sigFileRef.current) sigFileRef.current.value = '';
     }
+  }
+
+  async function handleLetterheadChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLetterheadSaving(true); setLetterheadError(''); setLetterheadSaved(false);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const dataUrl = ev.target?.result as string;
+        const res = await api.patch('/api/admin/settings/letterhead', { imageBase64: dataUrl, filename: file.name });
+        setLetterheadUrl(res.data.letterhead_url);
+        setLetterheadSaved(true);
+        setTimeout(() => setLetterheadSaved(false), 3000);
+      } catch { setLetterheadError('Failed to upload letterhead. Please try again.'); }
+      finally { setLetterheadSaving(false); if (letterheadFileRef.current) letterheadFileRef.current.value = ''; }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function saveLetterRefPrefix() {
+    setRefPrefixSaving(true); setRefPrefixError(''); setRefPrefixSaved(false);
+    try {
+      await api.patch('/api/admin/settings/info', { letter_ref_prefix: letterRefPrefix.trim() });
+      setRefPrefixSaved(true);
+      setTimeout(() => setRefPrefixSaved(false), 3000);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setRefPrefixError(msg ?? 'Failed to save.');
+    } finally { setRefPrefixSaving(false); }
   }
 
   async function saveIdentity() {
@@ -519,6 +562,75 @@ export default function SettingsPage() {
             {!sigUrl  && !sigSaved && <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>No signature uploaded yet.</p>}
           </div>
         </div>
+      </div>
+
+      {/* Official Letterhead */}
+      <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+        <h2 className="text-sm font-semibold font-medium mb-1" style={{ color: '#64748B' }}>Official Letterhead</h2>
+        <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
+          Upload your school&apos;s official letterhead as a PNG or JPG. It will appear at the top of all printed discipline letters and official correspondence. Upload a high-resolution image for best print quality.
+        </p>
+        <input ref={letterheadFileRef} type="file" accept="image/png,image/jpeg,image/jpg" className="hidden" onChange={handleLetterheadChange} />
+        {letterheadUrl && (
+          <div className="mb-4 rounded-lg overflow-hidden flex items-center justify-center"
+            style={{ border: '1px solid #E2D9CC', background: '#F5F0E8', height: 120 }}>
+            <img src={letterheadUrl} alt="School letterhead" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+          </div>
+        )}
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => letterheadFileRef.current?.click()}
+            disabled={letterheadSaving}
+            className="px-4 py-2 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-40"
+            style={{ borderColor: '#145C44', color: '#145C44', background: '#F0FDF4' }}
+          >
+            {letterheadSaving ? (
+              <span className="flex items-center gap-2">
+                <span className="w-3.5 h-3.5 rounded-full border-2 border-[#145C44] border-b-transparent animate-spin" />
+                Uploading...
+              </span>
+            ) : letterheadUrl ? 'Replace Letterhead' : 'Upload Letterhead'}
+          </button>
+          {letterheadUrl && (
+            <button
+              onClick={async () => { await api.delete('/api/admin/settings/letterhead'); setLetterheadUrl(null); }}
+              className="px-4 py-2 rounded-lg text-sm font-semibold border transition-colors"
+              style={{ borderColor: '#E2D9CC', color: '#8C7E6E' }}
+            >
+              Remove
+            </button>
+          )}
+        </div>
+        {letterheadSaved && <p className="text-xs mt-2" style={{ color: '#145C44' }}>Letterhead updated successfully.</p>}
+        {letterheadError && <p className="text-xs mt-2" style={{ color: '#B83232' }}>{letterheadError}</p>}
+        {!letterheadUrl && !letterheadSaved && <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>No letterhead uploaded yet.</p>}
+      </div>
+
+      {/* Letter Reference Prefix */}
+      <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+        <h2 className="text-sm font-semibold font-medium mb-1" style={{ color: '#64748B' }}>Letter Reference Prefix</h2>
+        <p className="text-xs mb-4" style={{ color: '#94A3B8' }}>
+          Used to auto-generate reference numbers on all official letters. Example: <span className="font-mono font-semibold">UWR/STASHTS</span> produces references like <span className="font-mono font-semibold">UWR/STASHTS/2026/0042</span>.
+        </p>
+        <div className="flex gap-3 items-start">
+          <input
+            value={letterRefPrefix}
+            onChange={e => setLetterRefPrefix(e.target.value)}
+            placeholder="e.g. UWR/STASHTS"
+            className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#145C44]"
+            style={{ borderColor: '#E2D9CC', maxWidth: 280 }}
+          />
+          <button
+            onClick={saveLetterRefPrefix}
+            disabled={refPrefixSaving}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40"
+            style={{ background: '#145C44' }}
+          >
+            {refPrefixSaving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+        {refPrefixSaved  && <p className="text-xs mt-2" style={{ color: '#145C44' }}>Reference prefix saved.</p>}
+        {refPrefixError  && <p className="text-xs mt-2" style={{ color: '#B83232' }}>{refPrefixError}</p>}
       </div>
 
       {/* School Identity */}
