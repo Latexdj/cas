@@ -613,9 +613,25 @@ export default function ResultsPage() {
 
   const selectStyle = 'border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#145C44] focus:border-transparent';
 
-  function triggerPrint(target: 'all' | StudentResult) {
+  async function triggerPrint(target: 'all' | StudentResult) {
     flushSync(() => setPrintTarget(target));
+    // Wait for every image in the print area to finish loading before opening the
+    // print dialog. Without this, logo / student photos / signature arrive blank
+    // because window.print() fires before the network responses are ready.
+    const area = document.getElementById('print-area');
+    if (area) {
+      const imgs = Array.from(area.querySelectorAll<HTMLImageElement>('img'));
+      await Promise.all(
+        imgs.map(img =>
+          img.complete
+            ? Promise.resolve()
+            : new Promise<void>(resolve => { img.onload = () => resolve(); img.onerror = () => resolve(); })
+        )
+      );
+    }
     window.print();
+    // Allow re-print without stale target
+    setPrintTarget(null);
   }
 
   const printStudents = printTarget === 'all' ? sorted : printTarget ? [printTarget] : [];
@@ -635,13 +651,23 @@ export default function ResultsPage() {
             background: white;
             z-index: 9999;
           }
-          #print-area * { visibility: visible !important; }
+          #print-area * {
+            visibility: visible !important;
+            /* Preserve background colours for the bar chart and table row stripes */
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          #print-area img {
+            /* Ensure images are shown even when browser blocks backgrounds */
+            display: inline-block !important;
+            visibility: visible !important;
+          }
           @page { size: A4 portrait; margin: 0; }
         }
       `}</style>
 
-      {/* Print area */}
-      <div id="print-area">
+      {/* Print area — positioned off-screen (not display:none) so browsers fetch images */}
+      <div id="print-area" style={printTarget ? { position: 'fixed', left: '-9999px', top: 0, width: '210mm' } : {}}>
         {printStudents.map((r, i) => (
           <ReportCard
             key={r.student_id}
