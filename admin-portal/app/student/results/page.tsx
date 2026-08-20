@@ -358,12 +358,25 @@ export default function StudentResultsPage() {
     <>
       {/* Print styles */}
       <style>{`
-        #student-print-area { display: none; }
+        #student-print-area {
+          position: fixed;
+          left: -9999px;
+          top: 0;
+          width: 210mm;
+          visibility: hidden;
+          pointer-events: none;
+        }
         @media print {
           body * { visibility: hidden; }
           #student-print-area {
-            display: block !important; visibility: visible !important;
-            position: fixed; top: 0; left: 0; width: 100%; background: white; z-index: 9999;
+            display: block !important;
+            visibility: visible !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            background: white;
+            z-index: 9999;
           }
           #student-print-area * {
             visibility: visible !important;
@@ -378,8 +391,8 @@ export default function StudentResultsPage() {
         }
       `}</style>
 
-      {/* Print area — off-screen when active so browser fetches images before print dialog */}
-      <div id="student-print-area" style={printing ? { position: 'fixed', left: '-9999px', top: 0, width: '210mm' } : {}}>
+      {/* Print area */}
+      <div id="student-print-area">
         {printing && result && (
           <ReportCard
             result={result}

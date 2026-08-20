@@ -639,26 +639,33 @@ export default function ResultsPage() {
   return (
     <>
       <style>{`
-        #print-area { display: none; }
+        /* Off-screen but not display:none — visibility:hidden lets browsers fetch images */
+        #print-area {
+          position: fixed;
+          left: -9999px;
+          top: 0;
+          width: 210mm;
+          visibility: hidden;
+          pointer-events: none;
+        }
         @media print {
           body * { visibility: hidden; }
           #print-area {
             display: block !important;
             visibility: visible !important;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
             background: white;
             z-index: 9999;
           }
           #print-area * {
             visibility: visible !important;
-            /* Preserve background colours for the bar chart and table row stripes */
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
           #print-area img {
-            /* Ensure images are shown even when browser blocks backgrounds */
             display: inline-block !important;
             visibility: visible !important;
           }
@@ -666,8 +673,8 @@ export default function ResultsPage() {
         }
       `}</style>
 
-      {/* Print area — positioned off-screen (not display:none) so browsers fetch images */}
-      <div id="print-area" style={printTarget ? { position: 'fixed', left: '-9999px', top: 0, width: '210mm' } : {}}>
+      {/* Print area */}
+      <div id="print-area">
         {printStudents.map((r, i) => (
           <ReportCard
             key={r.student_id}
