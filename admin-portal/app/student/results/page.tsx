@@ -332,8 +332,19 @@ export default function StudentResultsPage() {
       .finally(() => setLoading(false));
   }, [yearId, semester]);
 
-  function handlePrint() {
+  async function handlePrint() {
     flushSync(() => setPrinting(true));
+    const area = document.getElementById('student-print-area');
+    if (area) {
+      const imgs = Array.from(area.querySelectorAll<HTMLImageElement>('img'));
+      await Promise.all(
+        imgs.map(img =>
+          img.complete
+            ? Promise.resolve()
+            : new Promise<void>(resolve => { img.onload = () => resolve(); img.onerror = () => resolve(); })
+        )
+      );
+    }
     window.print();
     setPrinting(false);
   }
@@ -354,13 +365,21 @@ export default function StudentResultsPage() {
             display: block !important; visibility: visible !important;
             position: fixed; top: 0; left: 0; width: 100%; background: white; z-index: 9999;
           }
-          #student-print-area * { visibility: visible !important; }
+          #student-print-area * {
+            visibility: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          #student-print-area img {
+            display: inline-block !important;
+            visibility: visible !important;
+          }
           @page { size: A4 portrait; margin: 0; }
         }
       `}</style>
 
-      {/* Print area */}
-      <div id="student-print-area">
+      {/* Print area — off-screen when active so browser fetches images before print dialog */}
+      <div id="student-print-area" style={printing ? { position: 'fixed', left: '-9999px', top: 0, width: '210mm' } : {}}>
         {printing && result && (
           <ReportCard
             result={result}
