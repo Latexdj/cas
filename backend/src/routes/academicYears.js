@@ -79,7 +79,7 @@ router.post('/', adminOnly, async (req, res, next) => {
     res.status(201).json(rows[0]);
   } catch (err) {
     if (err.code === '23505') {
-      const msg = err.constraint?.includes('current_year')
+      const msg = err.constraint?.includes('current')
         ? 'Another year is already marked as current â€” unset it first'
         : 'An academic year with that name already exists';
       return res.status(409).json({ error: msg });
