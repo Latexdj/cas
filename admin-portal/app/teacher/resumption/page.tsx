@@ -85,6 +85,7 @@ export default function ResumptionPage() {
 
   const [arrivals, setArrivals]               = useState<Arrival[]>([]);
   const [arrivalsLoading, setArrivalsLoading] = useState(false);
+  const [arrivalsErr, setArrivalsErr]         = useState<string | null>(null);
   const [arrivalSearch, setArrivalSearch]     = useState('');
   const [arrivalClass, setArrivalClass]       = useState('');
   const [arrivalHouse, setArrivalHouse]       = useState('');
@@ -128,6 +129,7 @@ export default function ResumptionPage() {
 
   const loadArrivals = useCallback(async () => {
     setArrivalsLoading(true);
+    setArrivalsErr(null);
     try {
       const params: Record<string, string> = {};
       if (arrivalClass) params.class_name = arrivalClass;
@@ -135,7 +137,18 @@ export default function ResumptionPage() {
       if (arrivalSearch) params.search = arrivalSearch;
       const r = await api.get('/api/resumption/arrivals', { params });
       setArrivals(r.data.arrivals || []);
-    } catch (e) { console.error('loadArrivals error:', e); setArrivals([]); } finally { setArrivalsLoading(false); }
+      if (r.data._error) {
+        setArrivalsErr(`DB has ${r.data._rawCount} record(s) but query failed: ${r.data._error} [${r.data._code}]`);
+      } else if (r.data._rawCount > 0 && (r.data.arrivals || []).length === 0) {
+        setArrivalsErr(`DB has ${r.data._rawCount} record(s) but none returned. Check year/semester config.`);
+      }
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string; code?: string } } };
+      const msg = err?.response?.data?.error || 'Failed to load arrivals';
+      const code = err?.response?.data?.code;
+      setArrivalsErr(code ? `${msg} [${code}]` : msg);
+      setArrivals([]);
+    } finally { setArrivalsLoading(false); }
   }, [arrivalClass, arrivalHouse, arrivalSearch]);
 
   const loadMissing = useCallback(async () => {
@@ -294,6 +307,11 @@ export default function ResumptionPage() {
             <button onClick={loadArrivals} style={btn('ghost')}>Search</button>
           </div>
 
+          {arrivalsErr && (
+            <p style={{ color: '#DC2626', fontSize: 12, marginBottom: 12, background: '#FEF2F2', padding: '8px 12px', borderRadius: 6 }}>
+              {arrivalsErr}
+            </p>
+          )}
           {arrivalsLoading ? (
             <p style={{ color: '#9CA3AF', fontSize: 13 }}>Loading…</p>
           ) : arrivals.length === 0 ? (

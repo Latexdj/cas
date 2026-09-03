@@ -146,7 +146,16 @@ router.get('/arrivals', async (req, res, next) => {
   try {
     await withTables(async () => {
       const { yearId, sem } = await getCurrentYearSem(req.schoolId);
-      if (!yearId) return res.json({ arrivals: [] });
+      if (!yearId) return res.json({ arrivals: [], _debug: 'no_active_year' });
+
+      // Step 1: raw count — tells us if records exist regardless of JOIN issues
+      const { rows: countRows } = await pool.query(
+        `SELECT COUNT(*)::int AS total FROM student_arrivals
+         WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3`,
+        [req.schoolId, yearId, sem]
+      );
+      const rawCount = countRows[0]?.total ?? 0;
+
       const { class_name, house, search } = req.query;
       let q = `
         SELECT a.id, a.arrival_date, a.notes, a.created_at,
@@ -163,10 +172,25 @@ router.get('/arrivals', async (req, res, next) => {
       if (house)      { params.push(house);       q += ` AND s.house = $${params.length}`; }
       if (search)     { params.push(`%${search}%`); q += ` AND (s.name ILIKE $${params.length} OR s.student_code ILIKE $${params.length})`; }
       q += ` ORDER BY a.arrival_date DESC, s.name`;
-      const { rows } = await pool.query(q, params);
-      res.json({ arrivals: rows });
+
+      try {
+        const { rows } = await pool.query(q, params);
+        res.json({ arrivals: rows, _rawCount: rawCount });
+      } catch (joinErr) {
+        // Full JOIN query failed — return raw count so frontend can show a meaningful error
+        console.error('[arrivals GET] join query failed code=%s msg=%s', joinErr.code, joinErr.message);
+        res.json({
+          arrivals: [],
+          _rawCount: rawCount,
+          _error: joinErr.message,
+          _code: joinErr.code,
+        });
+      }
     });
-  } catch (err) { next(err); }
+  } catch (err) {
+    console.error('[arrivals GET] withTables error code=%s msg=%s', err.code, err.message);
+    next(err);
+  }
 });
 
 /** POST /api/resumption/arrivals — bulk-friendly: accepts array of student_ids */
