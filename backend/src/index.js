@@ -2214,8 +2214,7 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS ref_number TEXT`);
     await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS issued_by_signature_url TEXT`);
 
-    // ── Resumption Attendance & Roll Call ────────────────────────────────────
-    // Isolated try-catch so a failure in earlier migrations never blocks these tables.
+    // ── Resumption Attendance ─────────────────────────────────────────────────
     try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS semester_config (
@@ -2265,6 +2264,12 @@ async function runMigrations() {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_resumption_flags_school ON resumption_flags(school_id, resolved_at)`);
+    } catch (e) { console.error('Resumption migration error:', e.message); }
+
+    // ── Roll Call ─────────────────────────────────────────────────────────────
+    // Separate try-catch so resumption_flags failures (e.g. missing FK table)
+    // never prevent roll_calls from being created.
+    try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS roll_calls (
         id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2294,7 +2299,7 @@ async function runMigrations() {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_roll_call_entries_roll_call ON roll_call_entries(roll_call_id)`);
-    } catch (e) { console.error('Resumption/RollCall migration error:', e.message); }
+    } catch (e) { console.error('RollCall migration error:', e.message); }
 
     console.log('Migrations OK');
   } catch (err) {
