@@ -600,31 +600,26 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
       ),
       dr AS (
         SELECT
-          COALESCE(MIN(date), CURRENT_DATE - INTERVAL '365 days') AS min_date,
-          COALESCE(MAX(date), CURRENT_DATE) AS max_date
+          MIN(date) AS min_date,
+          MAX(date) AS max_date
         FROM attendance
         WHERE school_id = $1
           AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
           AND ($3::int  IS NULL OR semester = $3::int)
       ),
       abs AS (
-        -- SUM(periods_lost) counts actual teaching periods missed.
-        -- Sibling rows in a combined lesson have periods_lost = 0, so they don't add to the total.
-        -- Manual / legacy rows with periods_lost = NULL fall back to 1 period.
         SELECT
           ab.teacher_id,
           COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')), 0) AS absent_periods,
           COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status = 'Excused'), 0)                             AS excused_periods
         FROM absences ab, dr
         WHERE ab.school_id = $1
+          AND dr.min_date IS NOT NULL
           AND ab.date >= dr.min_date
           AND ab.date <= dr.max_date
         GROUP BY ab.teacher_id
       ),
       made AS (
-        -- Sum the remedial lesson's own duration_periods (not the original absence periods_lost,
-        -- which gets zeroed out on verification). One remedial covers both classes in a combined
-        -- lesson, so combined lessons are correctly counted once.
         SELECT
           ab.teacher_id,
           COALESCE(SUM(COALESCE(rl.duration_periods, 1)), 0) AS made_up_periods
@@ -632,6 +627,7 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
         JOIN remedial_lessons rl ON rl.absence_id = ab.id
         , dr
         WHERE ab.school_id = $1
+          AND dr.min_date IS NOT NULL
           AND ab.date >= dr.min_date
           AND ab.date <= dr.max_date
           AND ab.status IN ('Made Up','Verified')
