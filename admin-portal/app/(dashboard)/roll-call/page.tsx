@@ -123,8 +123,10 @@ export default function RollCallPage() {
       setShowCreate(false);
       setCreateForm({ title: '', location: '', date: new Date().toISOString().slice(0, 10), notes: '' });
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { error?: string } } };
-      setCreateErr(err?.response?.data?.error || 'Failed to create');
+      const err = e as { response?: { data?: { error?: string; code?: string } } };
+      const code = err?.response?.data?.code;
+      const msg  = err?.response?.data?.error || 'Failed to create';
+      setCreateErr(code ? `${msg} [${code}]` : msg);
     } finally { setCreating(false); }
   }
 

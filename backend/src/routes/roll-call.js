@@ -4,6 +4,49 @@ const { authenticate, requireActiveSubscription } = require('../middleware/auth'
 
 router.use(authenticate, requireActiveSubscription);
 
+// Ensure these tables exist regardless of migration state.
+// CREATE TABLE IF NOT EXISTS is a no-op when the table already exists.
+async function ensureTables() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS roll_calls (
+      id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      school_id        UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+      academic_year_id UUID        REFERENCES academic_years(id) ON DELETE SET NULL,
+      semester         SMALLINT,
+      date             DATE        NOT NULL DEFAULT CURRENT_DATE,
+      title            TEXT,
+      location         TEXT,
+      conducted_by     UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+      notes            TEXT,
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_roll_calls_school ON roll_calls(school_id, date DESC)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS roll_call_entries (
+      id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      roll_call_id UUID        NOT NULL REFERENCES roll_calls(id) ON DELETE CASCADE,
+      school_id    UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+      student_id   UUID        NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      status       TEXT        NOT NULL DEFAULT 'Present'
+                     CHECK (status IN ('Present', 'Absent', 'Break Bounds')),
+      notes        TEXT,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (roll_call_id, student_id)
+    )
+  `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_roll_call_entries_roll_call ON roll_call_entries(roll_call_id)`);
+}
+
+let tablesReady = false;
+async function withTables(fn) {
+  if (!tablesReady) {
+    await ensureTables();
+    tablesReady = true;
+  }
+  return fn();
+}
+
 async function getCurrentYearSem(schoolId) {
   const { rows } = await pool.query(
     `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
@@ -15,42 +58,49 @@ async function getCurrentYearSem(schoolId) {
 /** GET /api/roll-call */
 router.get('/', async (req, res, next) => {
   try {
-    const { yearId, sem } = await getCurrentYearSem(req.schoolId);
-    const { rows } = await pool.query(
-      `SELECT rc.*,
-              t.surname || ' ' || t.other_names AS conducted_by_name,
-              COUNT(e.id)::int AS total_entries,
-              SUM(CASE WHEN e.status = 'Present' THEN 1 ELSE 0 END)::int AS present_count,
-              SUM(CASE WHEN e.status = 'Absent' THEN 1 ELSE 0 END)::int AS absent_count,
-              SUM(CASE WHEN e.status = 'Break Bounds' THEN 1 ELSE 0 END)::int AS break_bounds_count
-       FROM roll_calls rc
-       LEFT JOIN teachers t ON t.id = rc.conducted_by
-       LEFT JOIN roll_call_entries e ON e.roll_call_id = rc.id
-       WHERE rc.school_id = $1
-         AND (rc.academic_year_id = $2 OR $2 IS NULL)
-         AND (rc.semester = $3 OR $3 IS NULL)
-       GROUP BY rc.id, t.surname, t.other_names
-       ORDER BY rc.date DESC, rc.created_at DESC`,
-      [req.schoolId, yearId, sem]
-    );
-    res.json({ roll_calls: rows });
+    await withTables(async () => {
+      const { yearId, sem } = await getCurrentYearSem(req.schoolId);
+      const { rows } = await pool.query(
+        `SELECT rc.*,
+                t.surname || ' ' || t.other_names AS conducted_by_name,
+                COUNT(e.id)::int AS total_entries,
+                SUM(CASE WHEN e.status = 'Present' THEN 1 ELSE 0 END)::int AS present_count,
+                SUM(CASE WHEN e.status = 'Absent' THEN 1 ELSE 0 END)::int AS absent_count,
+                SUM(CASE WHEN e.status = 'Break Bounds' THEN 1 ELSE 0 END)::int AS break_bounds_count
+         FROM roll_calls rc
+         LEFT JOIN teachers t ON t.id = rc.conducted_by
+         LEFT JOIN roll_call_entries e ON e.roll_call_id = rc.id
+         WHERE rc.school_id = $1
+           AND (rc.academic_year_id = $2 OR $2 IS NULL)
+           AND (rc.semester = $3 OR $3 IS NULL)
+         GROUP BY rc.id, t.surname, t.other_names
+         ORDER BY rc.date DESC, rc.created_at DESC`,
+        [req.schoolId, yearId, sem]
+      );
+      res.json({ roll_calls: rows });
+    });
   } catch (err) { next(err); }
 });
 
 /** POST /api/roll-call */
 router.post('/', async (req, res, next) => {
   try {
-    const { title, location, notes, date } = req.body;
-    const { yearId, sem } = await getCurrentYearSem(req.schoolId);
-    const { rows } = await pool.query(
-      `INSERT INTO roll_calls (school_id, academic_year_id, semester, date, title, location, conducted_by, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-       RETURNING *`,
-      [req.schoolId, yearId, sem, date || new Date().toISOString().slice(0, 10),
-       title || null, location || null, req.user.id, notes || null]
-    );
-    res.status(201).json({ roll_call: rows[0] });
-  } catch (err) { next(err); }
+    await withTables(async () => {
+      const { title, location, notes, date } = req.body;
+      const { yearId, sem } = await getCurrentYearSem(req.schoolId);
+      const { rows } = await pool.query(
+        `INSERT INTO roll_calls (school_id, academic_year_id, semester, date, title, location, conducted_by, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         RETURNING *`,
+        [req.schoolId, yearId, sem, date || new Date().toISOString().slice(0, 10),
+         title || null, location || null, req.user.id, notes || null]
+      );
+      res.status(201).json({ roll_call: rows[0] });
+    });
+  } catch (err) {
+    console.error('[roll-call POST] code=%s msg=%s', err.code, err.message);
+    next(err);
+  }
 });
 
 /** GET /api/roll-call/:id */
