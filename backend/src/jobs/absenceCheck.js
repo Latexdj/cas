@@ -364,6 +364,7 @@ async function runMeetingAbsenceCheck(schoolId) {
     [schoolId, today]
   );
   if (calRows.length) return;
+  if (await getVacationPeriod(schoolId, today)) return;
 
   const { rows: meetings } = await pool.query(
     `SELECT id, title FROM meetings
