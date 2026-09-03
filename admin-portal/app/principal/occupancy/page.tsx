@@ -54,16 +54,27 @@ export default function OccupancyPage() {
   const { theme }             = useTheme();
   const [mounted, setMounted] = useState(false);
   const [date, setDate]       = useState(new Date().toISOString().slice(0, 10));
-  const [slots, setSlots]     = useState<Slot[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState('');
+  const [slots, setSlots]         = useState<Slot[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState('');
+  const [closedReason, setClosedReason] = useState<{ label: string; kind: 'holiday' | 'vacation' } | null>(null);
 
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setClosedReason(null);
     principalApi.get(`/api/principal/occupancy?date=${date}`)
-      .then(r => setSlots(r.data.slots ?? []))
+      .then(r => {
+        if (r.data.reason) {
+          setSlots([]);
+          setClosedReason({
+            label: r.data.label || r.data.reason,
+            kind: r.data.reason === 'vacation' ? 'vacation' : 'holiday',
+          });
+        } else {
+          setSlots(r.data.slots ?? []);
+        }
+      })
       .catch(() => setError('Could not load occupancy data.'))
       .finally(() => setLoading(false));
   }, [date]);
@@ -118,9 +129,24 @@ export default function OccupancyPage() {
         <div style={{ textAlign: 'center', padding: 60, color: dark ? '#64748B' : '#94A3B8' }}>Loading…</div>
       ) : error ? (
         <div style={{ textAlign: 'center', padding: 60, color: '#EF4444' }}>{error}</div>
+      ) : closedReason ? (
+        <div style={{
+          margin: '0 auto', maxWidth: 480, padding: '20px 24px', borderRadius: 12,
+          background: dark ? '#1C2A1C' : '#F0F9F4',
+          border: `1px solid ${dark ? '#2D4A2D' : '#BBF7D0'}`,
+          color: dark ? '#86EFAC' : '#2D7A4F',
+          textAlign: 'center',
+        }}>
+          <p style={{ fontWeight: 700, fontSize: 15, margin: '0 0 4px' }}>
+            {closedReason.kind === 'vacation' ? 'School is on vacation' : 'School closed'}
+          </p>
+          <p style={{ fontSize: 13, margin: 0, opacity: 0.85 }}>
+            {closedReason.label} — no timetable slots scheduled for this date.
+          </p>
+        </div>
       ) : slots.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 60, color: dark ? '#64748B' : '#94A3B8' }}>
-          No timetable slots found for this date.
+          No timetable slots found for this date. A timetable may not have been uploaded for the current academic year and semester.
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>

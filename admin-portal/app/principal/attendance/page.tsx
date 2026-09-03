@@ -281,6 +281,7 @@ export default function TeacherAttendancePage() {
   const [plcRows,      setPlcRows]      = useState<MeetingRow[]>([]);
   const [briefRows,    setBriefRows]    = useState<MeetingRow[]>([]);
   const [staffRows,    setStaffRows]    = useState<MeetingRow[]>([]);
+  const [noTimetable,  setNoTimetable]  = useState(false);
 
   const [loading,      setLoading]      = useState(false);
 
@@ -310,7 +311,13 @@ export default function TeacherAttendancePage() {
       principalApi.get(`/api/principal/meetings-summary?${qs}&type=Morning+Briefing`),
       principalApi.get(`/api/principal/meetings-summary?${qs}&type=Staff+Meeting`),
     ]);
-    if (cls.status   === 'fulfilled') setClassRows(cls.value.data);
+    if (cls.status === 'fulfilled') {
+      const d = cls.value.data;
+      setClassRows(d.teachers ?? d ?? []);
+      setNoTimetable(d.noTimetable === true);
+    } else {
+      setNoTimetable(false);
+    }
     if (plc.status   === 'fulfilled') setPlcRows(plc.value.data);
     if (brief.status === 'fulfilled') setBriefRows(brief.value.data);
     if (staff.status === 'fulfilled') setStaffRows(staff.value.data);
@@ -382,6 +389,21 @@ export default function TeacherAttendancePage() {
       {/* Content */}
       {loading ? (
         <Spinner />
+      ) : tab === 'class' && noTimetable ? (
+        <div style={{
+          padding: '20px 24px', borderRadius: 12, marginBottom: 16,
+          background: dark ? '#1C2513' : '#FEFCE8',
+          border: `1px solid ${dark ? '#3A4A1A' : '#FEF08A'}`,
+          color: dark ? '#BEF264' : '#854D0E',
+        }}>
+          <p style={{ fontWeight: 700, fontSize: 14, margin: '0 0 4px' }}>
+            No timetable for this period
+          </p>
+          <p style={{ fontSize: 13, margin: 0 }}>
+            No timetable has been uploaded for the selected academic year and semester.
+            Upload a timetable before attendance data will appear here.
+          </p>
+        </div>
       ) : tab === 'class' ? (
         <ClassTable rows={classRows} dark={dark} search={search} />
       ) : tab === 'plc' ? (

@@ -276,8 +276,8 @@ router.get('/my-summary', async (req, res, next) => {
       ),
       dr AS (
         SELECT
-          COALESCE(MIN(date), CURRENT_DATE - INTERVAL '365 days') AS min_date,
-          COALESCE(MAX(date), CURRENT_DATE) AS max_date
+          MIN(date) AS min_date,
+          MAX(date) AS max_date
         FROM attendance
         WHERE teacher_id = $4
           AND school_id  = $1
@@ -291,6 +291,7 @@ router.get('/my-summary', async (req, res, next) => {
         FROM absences ab, dr
         WHERE ab.teacher_id = $4
           AND ab.school_id  = $1
+          AND dr.min_date IS NOT NULL
           AND ab.date >= dr.min_date
           AND ab.date <= dr.max_date
       ),
@@ -302,6 +303,7 @@ router.get('/my-summary', async (req, res, next) => {
         , dr
         WHERE ab.teacher_id = $4
           AND ab.school_id  = $1
+          AND dr.min_date IS NOT NULL
           AND ab.date >= dr.min_date
           AND ab.date <= dr.max_date
           AND ab.status IN ('Made Up','Verified')

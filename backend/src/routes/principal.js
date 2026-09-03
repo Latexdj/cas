@@ -39,6 +39,8 @@ router.get('/snapshot', async (req, res, next) => {
         FROM teachers t
         JOIN timetable tt ON tt.teacher_id = t.id AND tt.school_id = $1
           AND tt.day_of_week = $2
+          AND tt.academic_year_id = (SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1)
+          AND tt.semester = (SELECT current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1)
         LEFT JOIN attendance a ON a.teacher_id = t.id AND a.school_id = $1 AND a.date = $3
         WHERE t.school_id = $1 AND t.status = 'Active'
       `, [sid, dow, date]),
@@ -93,6 +95,27 @@ router.get('/occupancy', async (req, res, next) => {
     const date = req.query.date || today();
     const dow  = new Date(date + 'T12:00:00').getDay();
 
+    // Pre-flight: whole-day school calendar events (holidays, closed days)
+    const { rows: calRows } = await pool.query(`
+      SELECT name, type FROM school_calendar
+      WHERE school_id = $1 AND date = $2 AND start_time IS NULL
+        AND type IN ('Holiday', 'Closed Day', 'School Event')
+      LIMIT 1
+    `, [sid, date]);
+    if (calRows.length) {
+      return res.json({ date, slots: [], reason: 'calendar', label: calRows[0].name, eventType: calRows[0].type });
+    }
+
+    // Pre-flight: vacation / term-break periods
+    const { rows: vacRows } = await pool.query(`
+      SELECT kind FROM school_vacation_periods
+      WHERE school_id = $1 AND start_date <= $2 AND end_date >= $2
+      LIMIT 1
+    `, [sid, date]);
+    if (vacRows.length) {
+      return res.json({ date, slots: [], reason: 'vacation', label: vacRows[0].kind });
+    }
+
     const [slotRes, attRes, absRes, excRes] = await Promise.all([
       pool.query(`
         SELECT tt.id, tt.start_time, tt.end_time, tt.subject, tt.class_names,
@@ -100,6 +123,8 @@ router.get('/occupancy', async (req, res, next) => {
         FROM timetable tt
         JOIN teachers t ON t.id = tt.teacher_id
         WHERE tt.school_id = $1 AND tt.day_of_week = $2 AND t.status = 'Active'
+          AND tt.academic_year_id = (SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1)
+          AND tt.semester = (SELECT current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1)
         ORDER BY tt.start_time, tt.class_names
       `, [sid, dow]),
 
@@ -204,6 +229,19 @@ router.get('/teacher-attendance', async (req, res, next) => {
   try {
     const [yearId, sem] = await resolveYearSem(req.schoolId, req.query);
 
+    // Guard: if no timetable exists for this period, return empty rather than
+    // showing phantom absence data pulled from the 365-day fallback window.
+    const { rows: ttCheck } = await pool.query(
+      `SELECT 1 FROM timetable WHERE school_id = $1
+         AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
+         AND ($3::int  IS NULL OR semester = $3::int)
+       LIMIT 1`,
+      [req.schoolId, yearId, sem]
+    );
+    if (!ttCheck.length) {
+      return res.json({ noTimetable: true, teachers: [] });
+    }
+
     const { rows } = await pool.query(`
       WITH att AS (
         SELECT teacher_id, COALESCE(SUM(periods), 0) AS present_periods
@@ -214,9 +252,12 @@ router.get('/teacher-attendance', async (req, res, next) => {
         GROUP BY teacher_id
       ),
       dr AS (
+        -- Use plain MIN/MAX — no fallback. When no attendance records exist yet
+        -- for this period, min_date/max_date will be NULL and the abs CTE below
+        -- is skipped entirely, preventing phantom absent counts.
         SELECT
-          COALESCE(MIN(date), CURRENT_DATE - INTERVAL '365 days') AS min_date,
-          COALESCE(MAX(date), CURRENT_DATE) AS max_date
+          MIN(date) AS min_date,
+          MAX(date) AS max_date
         FROM attendance
         WHERE school_id = $1
           AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
@@ -230,6 +271,7 @@ router.get('/teacher-attendance', async (req, res, next) => {
           COUNT(*) FILTER (WHERE ab.status IN ('Made Up','Verified'))               AS made_up_periods
         FROM absences ab, dr
         WHERE ab.school_id = $1
+          AND dr.min_date IS NOT NULL
           AND ab.date >= dr.min_date
           AND ab.date <= dr.max_date
         GROUP BY ab.teacher_id
@@ -254,7 +296,7 @@ router.get('/teacher-attendance', async (req, res, next) => {
       ORDER BY attendance_pct ASC NULLS LAST, t.name
     `, [req.schoolId, yearId, sem]);
 
-    res.json(rows);
+    res.json({ teachers: rows });
   } catch (err) { next(err); }
 });
 
