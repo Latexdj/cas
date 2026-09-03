@@ -56,7 +56,7 @@ router.get('/', async (req, res, next) => {
     // Default to current year/semester if not provided
     if (!academic_year_id || !semester) {
       const { rows: yr } = await pool.query(
-        `SELECT id, current_semester FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1`,
+        `SELECT id, current_semester FROM academic_years WHERE school_id=$1 AND is_current=true ORDER BY name DESC LIMIT 1`,
         [req.schoolId]
       );
       if (yr[0]) {
@@ -98,8 +98,8 @@ router.get('/by-date', async (req, res, next) => {
         SELECT id, day_of_week, start_time, end_time, subject, class_names
         FROM timetable
         WHERE school_id = $1 AND teacher_id = $2 AND day_of_week = $3
-          AND academic_year_id = (SELECT id FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1)
-          AND semester = (SELECT current_semester FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1)
+          AND academic_year_id = (SELECT id FROM academic_years WHERE school_id=$1 AND is_current=true ORDER BY name DESC LIMIT 1)
+          AND semester = (SELECT current_semester FROM academic_years WHERE school_id=$1 AND is_current=true ORDER BY name DESC LIMIT 1)
         ORDER BY start_time
       `, [req.schoolId, teacherId, dayOfWeek]),
       fetchBreaks(req.schoolId, dayOfWeek),
@@ -125,8 +125,8 @@ router.get('/today/:teacherId', async (req, res, next) => {
         SELECT id, day_of_week, start_time, end_time, subject, class_names
         FROM timetable
         WHERE school_id = $1 AND teacher_id = $2 AND day_of_week = $3
-          AND academic_year_id = (SELECT id FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1)
-          AND semester = (SELECT current_semester FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1)
+          AND academic_year_id = (SELECT id FROM academic_years WHERE school_id=$1 AND is_current=true ORDER BY name DESC LIMIT 1)
+          AND semester = (SELECT current_semester FROM academic_years WHERE school_id=$1 AND is_current=true ORDER BY name DESC LIMIT 1)
         ORDER BY start_time
       `, [req.schoolId, req.params.teacherId, dayOfWeek]),
       fetchBreaks(req.schoolId, dayOfWeek),
@@ -148,7 +148,7 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
     // Default to current year/semester if not provided
     if (!academic_year_id || !semester) {
       const { rows: yr } = await pool.query(
-        `SELECT id, current_semester FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1`,
+        `SELECT id, current_semester FROM academic_years WHERE school_id=$1 AND is_current=true ORDER BY name DESC LIMIT 1`,
         [req.schoolId]
       );
       if (yr[0]) {
@@ -469,7 +469,7 @@ router.post('/class-subjects/seed', adminOnly, async (req, res, next) => {
     // Default to current year/semester if not provided
     if (!academic_year_id || !semester) {
       const { rows: yr } = await pool.query(
-        `SELECT id, current_semester FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1`,
+        `SELECT id, current_semester FROM academic_years WHERE school_id=$1 AND is_current=true ORDER BY name DESC LIMIT 1`,
         [req.schoolId]
       );
       if (yr[0]) {
