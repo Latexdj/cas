@@ -89,20 +89,23 @@ router.post('/', adminOnly, async (req, res, next) => {
 });
 
 router.put('/:id', adminOnly, async (req, res, next) => {
+  const { name, is_current, current_semester, start_date, end_date } = req.body;
+  if (start_date && end_date && end_date < start_date) {
+    return res.status(400).json({ error: 'end_date must be on or after start_date' });
+  }
+
+  const client = await pool.connect();
   try {
-    const { name, is_current, current_semester, start_date, end_date } = req.body;
-    if (start_date && end_date && end_date < start_date) {
-      return res.status(400).json({ error: 'end_date must be on or after start_date' });
-    }
+    await client.query('BEGIN');
 
     if (is_current === true) {
-      await pool.query(
+      await client.query(
         `UPDATE academic_years SET is_current = false WHERE school_id = $1 AND is_current = true`,
         [req.schoolId]
       );
     }
 
-    const { rows } = await pool.query(
+    const { rows } = await client.query(
       `UPDATE academic_years
        SET name             = COALESCE($1, name),
            is_current       = COALESCE($2, is_current),
@@ -114,9 +117,20 @@ router.put('/:id', adminOnly, async (req, res, next) => {
                  start_date::text AS start_date, end_date::text AS end_date`,
       [name||null, is_current??null, current_semester??null, start_date||null, end_date||null, req.params.id, req.schoolId]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Academic year not found' });
+
+    if (!rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Academic year not found' });
+    }
+
+    await client.query('COMMIT');
     res.json(rows[0]);
-  } catch (err) { next(err); }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
 });
 
 router.delete('/:id', adminOnly, async (req, res, next) => {
