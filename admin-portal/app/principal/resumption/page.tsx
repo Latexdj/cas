@@ -103,6 +103,15 @@ export default function ResumptionPage() {
   const [kitchen, setKitchen]             = useState<KitchenCount | null>(null);
   const [kitchenLoading, setKitchenLoading] = useState(false);
 
+  const [boardingStudents, setBoardingStudents] = useState<{ id: string; class_name: string; house: string | null }[]>([]);
+
+  const loadBoardingStudents = useCallback(async () => {
+    try {
+      const r = await api.get('/api/students', { params: { status: 'Active' } });
+      setBoardingStudents((r.data || []).filter((s: { residential_status: string }) => s.residential_status === 'Boarding'));
+    } catch { /* silently ignore */ }
+  }, []);
+
   const loadConfig = useCallback(async () => {
     try {
       const r = await api.get('/api/resumption/config');
@@ -156,6 +165,7 @@ export default function ResumptionPage() {
     } catch { setKitchen(null); } finally { setKitchenLoading(false); }
   }, []);
 
+  useEffect(() => { loadBoardingStudents(); }, [loadBoardingStudents]);
   useEffect(() => { loadConfig(); }, [loadConfig]);
   useEffect(() => { if (tab === 'arrivals') loadArrivals(); }, [tab, loadArrivals]);
   useEffect(() => { if (tab === 'missing') loadMissing(); }, [tab, loadMissing]);
@@ -203,10 +213,8 @@ export default function ResumptionPage() {
     } catch { alert('Failed to resolve flag'); } finally { setResolvingFlag(null); }
   }
 
-  const arrivalClasses = [...new Set(arrivals.map(a => a.class_name))].sort();
-  const arrivalHouses  = [...new Set(arrivals.map(a => a.house).filter(Boolean))].sort() as string[];
-  const missingClasses = [...new Set(missing.map(s => s.class_name))].sort();
-  const missingHouses  = [...new Set(missing.map(s => s.house).filter(Boolean))].sort() as string[];
+  const allClasses = [...new Set(boardingStudents.map(s => s.class_name))].sort();
+  const allHouses  = [...new Set(boardingStudents.map(s => s.house).filter(Boolean))].sort() as string[];
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'arrivals', label: 'Arrival Register' },
@@ -277,11 +285,11 @@ export default function ResumptionPage() {
             />
             <select value={arrivalClass} onChange={e => setArrivalClass(e.target.value)} style={inputStyle}>
               <option value="">All Classes</option>
-              {arrivalClasses.map(c => <option key={c}>{c}</option>)}
+              {allClasses.map(c => <option key={c}>{c}</option>)}
             </select>
             <select value={arrivalHouse} onChange={e => setArrivalHouse(e.target.value)} style={inputStyle}>
               <option value="">All Houses</option>
-              {arrivalHouses.map(h => <option key={h}>{h}</option>)}
+              {allHouses.map(h => <option key={h}>{h}</option>)}
             </select>
             <button onClick={loadArrivals} style={btn('ghost')}>Search</button>
           </div>
@@ -332,11 +340,11 @@ export default function ResumptionPage() {
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
             <select value={missingClass} onChange={e => setMissingClass(e.target.value)} style={inputStyle}>
               <option value="">All Classes</option>
-              {missingClasses.map(c => <option key={c}>{c}</option>)}
+              {allClasses.map(c => <option key={c}>{c}</option>)}
             </select>
             <select value={missingHouse} onChange={e => setMissingHouse(e.target.value)} style={inputStyle}>
               <option value="">All Houses</option>
-              {missingHouses.map(h => <option key={h}>{h}</option>)}
+              {allHouses.map(h => <option key={h}>{h}</option>)}
             </select>
             <button onClick={loadMissing} style={btn('ghost')}>Refresh</button>
             {selectedMissing.size > 0 && (
