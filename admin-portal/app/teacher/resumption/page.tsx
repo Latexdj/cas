@@ -180,6 +180,10 @@ export default function ResumptionPage() {
 
   useEffect(() => { loadBoardingStudents(); }, [loadBoardingStudents]);
   useEffect(() => { loadConfig(); }, [loadConfig]);
+  // missing and flags load on mount so tab labels show correct counts immediately,
+  // and also reload when switching to their tab for freshness.
+  useEffect(() => { loadMissing(); }, [loadMissing]);
+  useEffect(() => { loadFlags(); }, [loadFlags]);
   useEffect(() => { if (tab === 'arrivals') loadArrivals(); }, [tab, loadArrivals]);
   useEffect(() => { if (tab === 'missing') loadMissing(); }, [tab, loadMissing]);
   useEffect(() => { if (tab === 'flags') loadFlags(); }, [tab, loadFlags]);

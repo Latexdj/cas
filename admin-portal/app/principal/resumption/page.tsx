@@ -180,6 +180,8 @@ export default function ResumptionPage() {
 
   useEffect(() => { loadBoardingStudents(); }, [loadBoardingStudents]);
   useEffect(() => { loadConfig(); }, [loadConfig]);
+  useEffect(() => { loadMissing(); }, [loadMissing]);
+  useEffect(() => { loadFlags(); }, [loadFlags]);
   useEffect(() => { if (tab === 'arrivals') loadArrivals(); }, [tab, loadArrivals]);
   useEffect(() => { if (tab === 'missing') loadMissing(); }, [tab, loadMissing]);
   useEffect(() => { if (tab === 'flags') loadFlags(); }, [tab, loadFlags]);
