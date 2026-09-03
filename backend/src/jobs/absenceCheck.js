@@ -50,7 +50,8 @@ async function buildAttendanceLookup(schoolId, date) {
 async function getVacationPeriod(schoolId, date) {
   const { rows } = await pool.query(
     `SELECT name FROM school_vacation_periods
-     WHERE school_id = $1 AND start_date <= $2 AND end_date >= $2 LIMIT 1`,
+     WHERE school_id = $1 AND start_date <= $2 AND end_date >= $2
+       AND kind = 'vacation' LIMIT 1`,
     [schoolId, date]
   );
   return rows[0] ?? null;
@@ -297,7 +298,7 @@ async function runPlcAbsenceCheck(schoolId) {
 
   // Skip on school holidays or vacation periods
   const { rows: calRows } = await pool.query(
-    'SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 LIMIT 1',
+    'SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 AND start_time IS NULL AND end_time IS NULL LIMIT 1',
     [schoolId, today]
   );
   if (calRows.length) return;
@@ -360,7 +361,7 @@ async function runMeetingAbsenceCheck(schoolId) {
   const now   = new Date().toTimeString().slice(0, 5);
 
   const { rows: calRows } = await pool.query(
-    'SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 LIMIT 1',
+    'SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 AND start_time IS NULL AND end_time IS NULL LIMIT 1',
     [schoolId, today]
   );
   if (calRows.length) return;
