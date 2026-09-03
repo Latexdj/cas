@@ -103,7 +103,7 @@ router.get('/config', async (req, res, next) => {
       const { yearId, sem } = await getCurrentYearSem(req.schoolId);
       if (!yearId) return res.json({ config: null });
       const { rows } = await pool.query(
-        `SELECT sc.*, t.surname || ' ' || t.other_names AS created_by_name
+        `SELECT sc.*, t.name AS created_by_name
          FROM semester_config sc
          LEFT JOIN teachers t ON t.id = sc.created_by
          WHERE sc.school_id = $1 AND sc.academic_year_id = $2 AND sc.semester = $3`,
@@ -161,7 +161,7 @@ router.get('/arrivals', async (req, res, next) => {
         SELECT a.id, a.arrival_date, a.notes, a.created_at,
                s.id AS student_id, s.name AS student_name, s.student_code,
                s.class_name, s.house, s.residential_status,
-               t.surname || ' ' || t.other_names AS recorded_by_name
+               t.name AS recorded_by_name
         FROM student_arrivals a
         JOIN students s ON s.id = a.student_id
         LEFT JOIN teachers t ON t.id = a.recorded_by
@@ -304,8 +304,8 @@ router.get('/flags', async (req, res, next) => {
       let q = `
         SELECT f.id, f.flagged_at, f.resolved_at, f.resolution_note,
                s.id AS student_id, s.name AS student_name, s.student_code, s.class_name, s.house,
-               t.surname || ' ' || t.other_names AS flagged_by_name,
-               r.surname || ' ' || r.other_names AS resolved_by_name,
+               t.name AS flagged_by_name,
+               r.name AS resolved_by_name,
                sas.subject, sas.date AS session_date
         FROM resumption_flags f
         JOIN students s ON s.id = f.student_id

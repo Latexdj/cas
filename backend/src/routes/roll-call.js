@@ -62,7 +62,7 @@ router.get('/', async (req, res, next) => {
       const { yearId, sem } = await getCurrentYearSem(req.schoolId);
       const { rows } = await pool.query(
         `SELECT rc.*,
-                t.surname || ' ' || t.other_names AS conducted_by_name,
+                t.name AS conducted_by_name,
                 COUNT(e.id)::int AS total_entries,
                 SUM(CASE WHEN e.status = 'Present' THEN 1 ELSE 0 END)::int AS present_count,
                 SUM(CASE WHEN e.status = 'Absent' THEN 1 ELSE 0 END)::int AS absent_count,
@@ -73,7 +73,7 @@ router.get('/', async (req, res, next) => {
          WHERE rc.school_id = $1
            AND (rc.academic_year_id = $2 OR $2 IS NULL)
            AND (rc.semester = $3 OR $3 IS NULL)
-         GROUP BY rc.id, t.surname, t.other_names
+         GROUP BY rc.id, t.name
          ORDER BY rc.date DESC, rc.created_at DESC`,
         [req.schoolId, yearId, sem]
       );
@@ -107,7 +107,7 @@ router.post('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const { rows: rcRows } = await pool.query(
-      `SELECT rc.*, t.surname || ' ' || t.other_names AS conducted_by_name
+      `SELECT rc.*, t.name AS conducted_by_name
        FROM roll_calls rc
        LEFT JOIN teachers t ON t.id = rc.conducted_by
        WHERE rc.id = $1 AND rc.school_id = $2`,
