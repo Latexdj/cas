@@ -89,6 +89,7 @@ export default function TeacherDashboardPage() {
   const [error,     setError]     = useState('');
   const [primary,   setPrimary]   = useState('#2ab289');
   const [notices,   setNotices]   = useState<Notice[]>([]);
+  const [dayStatus, setDayStatus] = useState<{ status: string; label: string | null } | null>(null);
 
   const loadData = useCallback(async () => {
     const teacher = getTeacher();
@@ -99,12 +100,13 @@ export default function TeacherDashboardPage() {
       const today  = new Date().toISOString().slice(0, 10);
       const future = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
 
-      const [ttRes, attRes, calRes, sumRes, meetRes] = await Promise.allSettled([
+      const [ttRes, attRes, calRes, sumRes, meetRes, dsRes] = await Promise.allSettled([
         teacherApi.get(`/api/timetable/today/${teacher.id}`),
         teacherApi.get(`/api/attendance/today/${teacher.id}`),
         teacherApi.get(`/api/school-calendar?from=${today}&to=${future}`),
         teacherApi.get('/api/attendance/my-summary'),
         teacherApi.get('/api/meetings/my-summary'),
+        teacherApi.get(`/api/school-calendar/day-status?date=${today}`),
       ]);
 
       if (ttRes.status   === 'fulfilled') { const d = ttRes.value.data;  setSlots(Array.isArray(d) ? d : d?.slots ?? d?.timetable ?? []); }
@@ -112,6 +114,7 @@ export default function TeacherDashboardPage() {
       if (calRes.status  === 'fulfilled') { const d = calRes.value.data; setEvents(Array.isArray(d) ? d : d?.events ?? []); }
       if (sumRes.status  === 'fulfilled') setSummary(sumRes.value.data);
       if (meetRes.status === 'fulfilled') { const d = meetRes.value.data; setMeetingRows(Array.isArray(d) ? d : []); }
+      if (dsRes.status   === 'fulfilled') setDayStatus(dsRes.value.data);
     } catch {
       setError('Could not load data. Please refresh.');
     } finally {
@@ -175,6 +178,28 @@ export default function TeacherDashboardPage() {
       {error && (
         <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 mb-4">{error}</p>
       )}
+
+      {/* School status banner */}
+      {dayStatus && dayStatus.status !== 'normal' && (() => {
+        const isVac     = dayStatus.status === 'vacation';
+        const isHoliday = dayStatus.status === 'holiday';
+        const isClosed  = dayStatus.status === 'closed';
+        const bg     = isVac || isHoliday ? '#E8F4EE' : isClosed ? '#FEF2F2' : '#FFF8E1';
+        const border = isVac || isHoliday ? '#BBF7D0' : isClosed ? '#FECACA' : '#FDE68A';
+        const color  = isVac || isHoliday ? '#145C44' : isClosed ? '#B83232' : '#92400E';
+        const icon   = isVac || isHoliday ? '🏖️' : isClosed ? '🔒' : '📅';
+        const title  = isVac ? 'School Vacation' : isHoliday ? 'Public Holiday' : isClosed ? 'School Closed' : 'School Event';
+        return (
+          <div className="mb-4 rounded-xl px-4 py-3 flex items-start gap-3"
+            style={{ backgroundColor: bg, border: `1px solid ${border}`, borderLeft: `4px solid ${color}` }}>
+            <span className="text-lg leading-none mt-0.5">{icon}</span>
+            <div>
+              <p className="text-sm font-bold" style={{ color }}>{title} — No lessons scheduled today</p>
+              {dayStatus.label && <p className="text-xs mt-0.5" style={{ color, opacity: 0.8 }}>{dayStatus.label}</p>}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Notices */}
       {notices.length > 0 && (

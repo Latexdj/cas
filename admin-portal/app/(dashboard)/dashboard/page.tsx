@@ -424,6 +424,7 @@ export default function DashboardPage() {
   const [filter,         setFilter]         = useState<OccupancyFilter>('all');
   const [showConflicts,  setShowConflicts]  = useState(false);
   const [timetableGaps,  setTimetableGaps]  = useState<{ unscheduled: number; unteachered: number } | null>(null);
+  const [dayStatus,      setDayStatus]      = useState<{ status: string; label: string | null } | null>(null);
 
   // Load academic years once and set defaults to current year + current semester
   useEffect(() => {
@@ -458,14 +459,17 @@ export default function DashboardPage() {
 
   const load = useCallback(async () => {
     try {
-      const [s, c, g] = await Promise.allSettled([
+      const today0 = new Date().toISOString().slice(0, 10);
+      const [s, c, g, ds] = await Promise.allSettled([
         api.get<AdminStats>('/api/admin/stats'),
         api.get<ClassroomStatus[]>('/api/admin/classroom-status'),
         api.get<{ unscheduled: number; unteachered: number; total: number }>('/api/timetable/coverage/summary'),
+        api.get(`/api/school-calendar/day-status?date=${today0}`),
       ]);
-      if (s.status === 'fulfilled') setStats(s.value.data);
-      if (c.status === 'fulfilled') setClasses(c.value.data);
-      if (g.status === 'fulfilled') setTimetableGaps(g.value.data);
+      if (s.status  === 'fulfilled') setStats(s.value.data);
+      if (c.status  === 'fulfilled') setClasses(c.value.data);
+      if (g.status  === 'fulfilled') setTimetableGaps(g.value.data);
+      if (ds.status === 'fulfilled') setDayStatus(ds.value.data);
     } finally {
       setLoading(false);
     }
@@ -556,6 +560,27 @@ export default function DashboardPage() {
           onCleared={load}
         />
       )}
+
+      {/* School status banner */}
+      {dayStatus && dayStatus.status !== 'normal' && (() => {
+        const isVac     = dayStatus.status === 'vacation';
+        const isHoliday = dayStatus.status === 'holiday';
+        const isClosed  = dayStatus.status === 'closed';
+        const bg     = isVac || isHoliday ? '#E8F4EE' : isClosed ? '#FEF2F2' : '#FFF8E1';
+        const border = isVac || isHoliday ? '#BBF7D0' : isClosed ? '#FECACA' : '#FDE68A';
+        const color  = isVac || isHoliday ? '#145C44' : isClosed ? '#B83232' : '#92400E';
+        const title  = isVac ? 'School Vacation' : isHoliday ? 'Public Holiday' : isClosed ? 'School Closed' : 'School Event';
+        return (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm"
+            style={{ backgroundColor: bg, border: `1px solid ${border}`, borderLeft: `4px solid ${color}` }}>
+            <span style={{ fontSize: 18 }}>{isVac || isHoliday ? '🏖️' : isClosed ? '🔒' : '📅'}</span>
+            <div>
+              <span className="font-bold" style={{ color }}>{title} — No lessons scheduled today</span>
+              {dayStatus.label && <span style={{ color, opacity: 0.75 }}> &middot; {dayStatus.label}</span>}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── header ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">

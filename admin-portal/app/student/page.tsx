@@ -65,6 +65,7 @@ export default function StudentDashboard() {
   const [fees,        setFees]        = useState<FeeSummary | null>(null);
   const [loading,     setLoading]     = useState(true);
   const [currentYear, setCurrentYear] = useState<AcademicYear | null>(null);
+  const [dayStatus,   setDayStatus]   = useState<{ status: string; label: string | null } | null>(null);
 
   const colors  = typeof window !== 'undefined' ? getStudentColors() : { primary: '#3B82F6' };
   const primary = colors.primary;
@@ -72,10 +73,13 @@ export default function StudentDashboard() {
   useEffect(() => {
     async function load() {
       try {
-        const [profileRes, yearsRes] = await Promise.all([
+        const today2 = new Date().toISOString().slice(0, 10);
+        const [profileRes, yearsRes, dsRes] = await Promise.all([
           studentApi.get<Profile>('/api/student/profile'),
           studentApi.get<AcademicYear[]>('/api/student/academic-years'),
+          studentApi.get(`/api/student/day-status?date=${today2}`).catch(() => null),
         ]);
+        if (dsRes) setDayStatus(dsRes.data);
         studentApi.get<{ summary: FeeSummary }>('/api/student/fees')
           .then(r => setFees(r.data.summary))
           .catch(() => null);
@@ -187,6 +191,28 @@ export default function StudentDashboard() {
       </div>
 
       <div className="p-4 md:p-5 space-y-4">
+
+        {/* School status banner */}
+        {dayStatus && dayStatus.status !== 'normal' && (() => {
+          const isVac     = dayStatus.status === 'vacation';
+          const isHoliday = dayStatus.status === 'holiday';
+          const isClosed  = dayStatus.status === 'closed';
+          const bg     = isVac || isHoliday ? '#E8F4EE' : isClosed ? '#FEF2F2' : '#FFF8E1';
+          const border = isVac || isHoliday ? '#BBF7D0' : isClosed ? '#FECACA' : '#FDE68A';
+          const color  = isVac || isHoliday ? '#145C44' : isClosed ? '#B83232' : '#92400E';
+          const icon   = isVac || isHoliday ? '🏖️' : isClosed ? '🔒' : '📅';
+          const title  = isVac ? 'School Vacation' : isHoliday ? 'Public Holiday' : isClosed ? 'School Closed' : 'School Event';
+          return (
+            <div className="flex items-start gap-3 px-4 py-3 rounded-xl"
+              style={{ backgroundColor: bg, border: `1px solid ${border}`, borderLeft: `4px solid ${color}` }}>
+              <span className="text-lg leading-none mt-0.5">{icon}</span>
+              <div>
+                <p className="text-sm font-bold" style={{ color }}>{title} — No lessons scheduled today</p>
+                {dayStatus.label && <p className="text-xs mt-0.5" style={{ color, opacity: 0.8 }}>{dayStatus.label}</p>}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Attendance warning */}
         {att && att.rate !== null && att.rate < 75 && (

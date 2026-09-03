@@ -67,6 +67,33 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/school-calendar/day-status?date=YYYY-MM-DD — today's school status
+router.get('/day-status', async (req, res, next) => {
+  try {
+    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const { rows: calRows } = await pool.query(
+      `SELECT name, type FROM school_calendar
+       WHERE school_id = $1 AND date = $2 AND start_time IS NULL
+       ORDER BY CASE type WHEN 'Holiday' THEN 1 WHEN 'Closed Day' THEN 2 ELSE 3 END LIMIT 1`,
+      [req.schoolId, date]
+    );
+    if (calRows.length) {
+      const t = calRows[0].type;
+      const status = t === 'Holiday' ? 'holiday' : t === 'Closed Day' ? 'closed' : 'event';
+      return res.json({ status, label: calRows[0].name, type: t });
+    }
+    const { rows: vacRows } = await pool.query(
+      `SELECT name, kind FROM school_vacation_periods
+       WHERE school_id = $1 AND start_date <= $2 AND end_date >= $2 LIMIT 1`,
+      [req.schoolId, date]
+    );
+    if (vacRows.length) {
+      return res.json({ status: 'vacation', label: vacRows[0].name, kind: vacRows[0].kind });
+    }
+    res.json({ status: 'normal', label: null });
+  } catch (err) { next(err); }
+});
+
 // POST /api/school-calendar — admin only
 router.post('/', adminOnly, async (req, res, next) => {
   try {
