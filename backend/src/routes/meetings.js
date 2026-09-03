@@ -656,8 +656,7 @@ router.get('/my-summary', async (req, res, next) => {
     // Resolve current academic year + semester
     const { rows: yearRows } = await pool.query(
       `SELECT id FROM academic_years
-       WHERE school_id = $1 AND is_current = true
-       LIMIT 1`,
+       WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
       [req.schoolId]
     );
     const academicYearId = yearRows[0]?.id ?? null;
