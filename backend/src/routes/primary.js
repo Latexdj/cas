@@ -126,7 +126,7 @@ router.get('/students', async (req, res, next) => {
       const { rows: ct } = await pool.query(
         `SELECT ct.class_name FROM primary_class_teachers ct
          JOIN academic_years ay ON ay.id=ct.academic_year_id
-         WHERE ct.school_id=$1 AND ct.teacher_id=$2 AND ay.is_current=true LIMIT 1`,
+         WHERE ct.school_id=$1 AND ct.teacher_id=$2 AND ay.is_current=true ORDER BY ay.name DESC LIMIT 1`,
         [req.schoolId, req.user.id]
       );
       if (ct.length) class_name = ct[0].class_name;
@@ -664,7 +664,7 @@ router.get('/my-class', async (req, res, next) => {
        FROM primary_class_teachers ct
        JOIN academic_years ay ON ay.id = ct.academic_year_id
        WHERE ct.school_id = $1 AND ct.teacher_id = $2 AND ay.is_current = true
-       LIMIT 1`,
+       ORDER BY ay.name DESC LIMIT 1`,
       [req.schoolId, req.user.id]
     );
     if (!rows.length) return res.json(null);
@@ -732,7 +732,7 @@ router.get('/classes', adminOnly, async (req, res, next) => {
     let { academic_year_id } = req.query;
     if (!academic_year_id) {
       const { rows: ay } = await pool.query(
-        `SELECT id FROM academic_years WHERE school_id=$1 AND is_current=true LIMIT 1`, [req.schoolId]
+        `SELECT id FROM academic_years WHERE school_id=$1 AND is_current=true ORDER BY name DESC LIMIT 1`, [req.schoolId]
       );
       academic_year_id = ay[0]?.id ?? null;
     }
@@ -1058,7 +1058,7 @@ router.get('/attendance', async (req, res, next) => {
       const { rows: ct } = await pool.query(
         `SELECT ct.class_name FROM primary_class_teachers ct
          JOIN academic_years ay ON ay.id=ct.academic_year_id
-         WHERE ct.school_id=$1 AND ct.teacher_id=$2 AND ay.is_current=true LIMIT 1`,
+         WHERE ct.school_id=$1 AND ct.teacher_id=$2 AND ay.is_current=true ORDER BY ay.name DESC LIMIT 1`,
         [req.schoolId, req.user.id]
       );
       if (!ct.length) return res.status(403).json({ error: 'No class assigned' });
@@ -1132,7 +1132,7 @@ router.post('/attendance', async (req, res, next) => {
       const { rows: ct } = await pool.query(
         `SELECT ct.class_name FROM primary_class_teachers ct
          JOIN academic_years ay ON ay.id=ct.academic_year_id
-         WHERE ct.school_id=$1 AND ct.teacher_id=$2 AND ay.is_current=true LIMIT 1`,
+         WHERE ct.school_id=$1 AND ct.teacher_id=$2 AND ay.is_current=true ORDER BY ay.name DESC LIMIT 1`,
         [req.schoolId, req.user.id]
       );
       if (!ct.length) return res.status(403).json({ error: 'No class assigned' });
