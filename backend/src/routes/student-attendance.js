@@ -91,6 +91,39 @@ router.post('/submit', async (req, res, next) => {
         bulkParams
       );
 
+      // Flag boarding students marked Present who have no resumption arrival record
+      try {
+        if (yearId && sem) {
+          const presentIds = records.filter(r => r.status === 'Present').map(r => r.studentId).filter(Boolean);
+          if (presentIds.length) {
+            const { rows: flaggable } = await client.query(
+              `SELECT s.id FROM students s
+               WHERE s.id = ANY($1::uuid[]) AND s.school_id = $2
+                 AND s.residential_status = 'Boarding'
+                 AND NOT EXISTS (
+                   SELECT 1 FROM student_arrivals a
+                   WHERE a.student_id = s.id AND a.school_id = $2
+                     AND a.academic_year_id = $3 AND a.semester = $4
+                 )`,
+              [presentIds, req.schoolId, yearId, sem]
+            );
+            if (flaggable.length) {
+              const fVals = flaggable.map((_, i) => {
+                const b = i * 6;
+                return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6})`;
+              });
+              const fParams = flaggable.flatMap(s => [req.schoolId, s.id, yearId, sem, sessionId, teacherId]);
+              await client.query(
+                `INSERT INTO resumption_flags (school_id, student_id, academic_year_id, semester, session_id, flagged_by)
+                 VALUES ${fVals.join(',')}
+                 ON CONFLICT (school_id, student_id, academic_year_id, semester) DO NOTHING`,
+                fParams
+              );
+            }
+          }
+        }
+      } catch (_) { /* resumption flag errors must never block attendance submission */ }
+
       await client.query('COMMIT');
       const present = records.filter(r => r.status === 'Present').length;
       const absent  = records.filter(r => r.status === 'Absent').length;

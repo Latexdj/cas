@@ -1,7 +1,7 @@
 export interface PrincipalUser {
   id: string;
   name: string;
-  role: 'principal' | 'vice_principal';
+  role: string;
   managementCode: string;
   schoolId: string;
   school: { name: string; primaryColor: string; accentColor: string; logoUrl: string };
@@ -28,5 +28,7 @@ export function clearPrincipal() {
 }
 
 export function getRoleLabel(role: string) {
-  return role === 'principal' ? 'Principal' : 'Vice Principal';
+  if (role === 'principal') return 'Principal';
+  if (role === 'vice_principal') return 'Vice Principal';
+  return role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }

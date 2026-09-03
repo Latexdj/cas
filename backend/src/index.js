@@ -60,6 +60,8 @@ const inventoryRoutes         = require('./routes/inventory');
 const examsRoutes             = require('./routes/exams');
 const noticesRoutes           = require('./routes/notices');
 const disciplineRoutes        = require('./routes/discipline');
+const resumptionRoutes        = require('./routes/resumption');
+const rollCallRoutes          = require('./routes/roll-call');
 const { startAbsenceCheckJob }          = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob }    = require('./jobs/subscriptionExpiry');
 const { startLibraryNotificationJob }   = require('./jobs/libraryNotifications');
@@ -149,6 +151,8 @@ app.use('/api/inventory',             inventoryRoutes);
 app.use('/api/exams',                 examsRoutes);
 app.use('/api/notices',               noticesRoutes);
 app.use('/api/discipline',            disciplineRoutes);
+app.use('/api/resumption',            resumptionRoutes);
+app.use('/api/roll-call',             rollCallRoutes);
 
 app.use(errorHandler);
 
@@ -2209,6 +2213,85 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE teacher_queries ADD COLUMN IF NOT EXISTS issued_by_signature_url TEXT`);
     await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS ref_number TEXT`);
     await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS issued_by_signature_url TEXT`);
+
+    // ── Resumption Attendance & Roll Call ────────────────────────────────────
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS semester_config (
+        id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        academic_year_id UUID        NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        semester         SMALLINT    NOT NULL CHECK (semester IN (1, 2)),
+        resumption_date  DATE,
+        max_days_home    SMALLINT    NOT NULL DEFAULT 7,
+        is_open          BOOLEAN     NOT NULL DEFAULT false,
+        created_by       UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, academic_year_id, semester)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS student_arrivals (
+        id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        student_id       UUID        NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        academic_year_id UUID        NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        semester         SMALLINT    NOT NULL CHECK (semester IN (1, 2)),
+        arrival_date     DATE        NOT NULL DEFAULT CURRENT_DATE,
+        recorded_by      UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        notes            TEXT,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, student_id, academic_year_id, semester)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_arrivals_school ON student_arrivals(school_id, academic_year_id, semester)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_arrivals_student ON student_arrivals(student_id)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS resumption_flags (
+        id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        student_id       UUID        NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        academic_year_id UUID        REFERENCES academic_years(id) ON DELETE SET NULL,
+        semester         SMALLINT,
+        session_id       UUID        REFERENCES student_attendance_sessions(id) ON DELETE SET NULL,
+        flagged_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        flagged_by       UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        resolved_at      TIMESTAMPTZ,
+        resolved_by      UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        resolution_note  TEXT,
+        UNIQUE (school_id, student_id, academic_year_id, semester)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_resumption_flags_school ON resumption_flags(school_id, resolved_at)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS roll_calls (
+        id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        academic_year_id UUID        REFERENCES academic_years(id) ON DELETE SET NULL,
+        semester         SMALLINT,
+        date             DATE        NOT NULL DEFAULT CURRENT_DATE,
+        title            TEXT,
+        location         TEXT,
+        conducted_by     UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        notes            TEXT,
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_roll_calls_school ON roll_calls(school_id, date DESC)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS roll_call_entries (
+        id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        roll_call_id UUID        NOT NULL REFERENCES roll_calls(id) ON DELETE CASCADE,
+        school_id    UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        student_id   UUID        NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        status       TEXT        NOT NULL DEFAULT 'Present'
+                       CHECK (status IN ('Present', 'Absent', 'Break Bounds')),
+        notes        TEXT,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (roll_call_id, student_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_roll_call_entries_roll_call ON roll_call_entries(roll_call_id)`);
 
     console.log('Migrations OK');
   } catch (err) {

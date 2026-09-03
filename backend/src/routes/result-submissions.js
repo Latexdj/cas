@@ -672,6 +672,7 @@ router.post('/submit', async (req, res, next) => {
     }
 
     // Check B: every CA mode with a contribution must have at least one assessment
+    // scoped to the submitting teacher (consistent with the teacher's UI view).
     const { rows: missingModes } = await pool.query(
       `SELECT m.name FROM assessment_modes m
        WHERE m.school_id=$1 AND m.ca_contribution > 0
@@ -680,16 +681,20 @@ router.post('/submit', async (req, res, next) => {
            WHERE a.school_id=$1 AND a.mode_id=m.id
              AND LOWER(a.subject)=LOWER($4) AND LOWER(a.class_name)=LOWER($5)
              AND a.academic_year_id=$2 AND a.semester=$3
+             AND a.teacher_id = $6
          )
        ORDER BY m.sort_order`,
-      p
+      [...p, req.user.id]
     );
     if (missingModes.length) {
       const names = missingModes.map(m => m.name).join(', ');
       return res.status(400).json({ error: `Missing assessments for: ${names}. Every CA mode must have at least one assessment before submitting.` });
     }
 
-    // Check C: every CA assessment must have ALL students acted on (scored or absent)
+    // Check C: every CA assessment owned by this teacher must have ALL students acted on
+    // (scored or absent). We scope to teacher_id so the check is consistent with what
+    // the teacher sees in their UI — assessments created by other teachers or via admin
+    // actions are not the submitting teacher's responsibility to complete.
     const { rows: incomplete } = await pool.query(
       `SELECT a.id,
               COALESCE(a.title, m.name || ' #' || ROW_NUMBER() OVER (PARTITION BY a.mode_id ORDER BY a.created_at)) AS label,
@@ -699,9 +704,10 @@ router.post('/submit', async (req, res, next) => {
        LEFT JOIN assessment_scores sc ON sc.assessment_id = a.id
        WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
          AND LOWER(a.subject)=LOWER($4) AND LOWER(a.class_name)=LOWER($5)
+         AND a.teacher_id = $7
        GROUP BY a.id, m.name, m.id
        HAVING COUNT(CASE WHEN sc.score IS NOT NULL OR sc.absent = true THEN sc.student_id END) < $6`,
-      [...p, totalStudents]
+      [...p, totalStudents, req.user.id]
     );
     if (incomplete.length) {
       const names = incomplete.map(a => `"${a.label}" (${a.acted_on}/${totalStudents})`).join(', ');
