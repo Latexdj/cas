@@ -115,6 +115,8 @@ async function runAbsenceCheck(schoolId) {
     FROM timetable tt
     JOIN teachers te ON te.id = tt.teacher_id AND te.status = 'Active'
     WHERE tt.school_id = $1 AND tt.day_of_week = $2
+      AND tt.academic_year_id = (SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
+      AND tt.semester = (SELECT current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
   `, [schoolId, dayOfWeek]);
 
   console.log(`[AbsenceCheck] ${lessons.length} timetable slot(s) for school ${schoolId}`);
@@ -221,6 +223,7 @@ async function runPerLessonCheck(schoolId) {
   );
   const wholeDayEv = calRows.find(e => !e.start_time && !e.end_time);
   if (wholeDayEv) return;
+  if (await getVacationPeriod(schoolId, today)) return;
   const partialEvs = calRows.filter(e => e.start_time && e.end_time);
 
   const { rows: excuseRows } = await pool.query(
@@ -237,6 +240,8 @@ async function runPerLessonCheck(schoolId) {
     FROM timetable tt
     JOIN teachers te ON te.id = tt.teacher_id AND te.status = 'Active'
     WHERE tt.school_id = $1 AND tt.day_of_week = $2
+      AND tt.academic_year_id = (SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
+      AND tt.semester = (SELECT current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
   `, [schoolId, dayOfWeek]);
 
   // Single bulk query replaces per-class hasAttendance() calls

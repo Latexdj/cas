@@ -1,11 +1,11 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { verifyLocation } = require('../services/geo.service');
 const { uploadPhoto }    = require('../services/storage.service');
 const { logAudit }       = require('../services/audit.service');
 
-// ── Self-healing table setup ──────────────────────────────────────────────────
+// â”€â”€ Self-healing table setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Runs once at module load. If the migration missed these tables this creates
 // them, and stores any failure so routes can surface the real error.
 let _setupErr = null;
@@ -114,7 +114,7 @@ function setupGuard(res) {
 
 router.use(authenticate, requireActiveSubscription);
 
-// ── Exam Sessions ─────────────────────────────────────────────────────────────
+// â”€â”€ Exam Sessions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/sessions', async (req, res, next) => {
   try {
@@ -176,7 +176,7 @@ router.post('/sessions', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/exams/sessions/bulk — create one session per class in a single request
+// POST /api/exams/sessions/bulk â€” create one session per class in a single request
 router.post('/sessions/bulk', adminOnly, async (req, res, next) => {
   if (setupGuard(res)) return;
   try {
@@ -213,7 +213,7 @@ router.post('/sessions/bulk', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/exams/sessions/merge — combine multiple sessions into one
+// POST /api/exams/sessions/merge â€” combine multiple sessions into one
 router.post('/sessions/merge', adminOnly, async (req, res, next) => {
   if (setupGuard(res)) return;
   try {
@@ -296,7 +296,7 @@ router.delete('/sessions/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Invigilator Pool ──────────────────────────────────────────────────────────
+// â”€â”€ Invigilator Pool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/pool', adminOnly, async (req, res, next) => {
   try {
@@ -335,7 +335,7 @@ router.put('/pool/:teacherId', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Roster Generation ─────────────────────────────────────────────────────────
+// â”€â”€ Roster Generation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.post('/generate', adminOnly, async (req, res, next) => {
   try {
@@ -421,7 +421,7 @@ router.post('/generate', adminOnly, async (req, res, next) => {
 
       const pick = available.slice(0, need);
       if (pick.length < need) {
-        warnings.push(`${session.hall_name} on ${session.date} ${session.start_time}–${session.end_time}: only ${pick.length}/${need} invigilators available`);
+        warnings.push(`${session.hall_name} on ${session.date} ${session.start_time}â€“${session.end_time}: only ${pick.length}/${need} invigilators available`);
       }
 
       for (let i = 0; i < pick.length; i++) {
@@ -453,7 +453,7 @@ router.post('/generate', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Confirm and save generated roster ────────────────────────────────────────
+// â”€â”€ Confirm and save generated roster â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.post('/duties/confirm', adminOnly, async (req, res, next) => {
   try {
@@ -486,7 +486,7 @@ router.post('/duties/confirm', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Individual Duties CRUD ────────────────────────────────────────────────────
+// â”€â”€ Individual Duties CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/duties', adminOnly, async (req, res, next) => {
   try {
@@ -558,9 +558,9 @@ router.delete('/duties/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Invigilation Attendance ───────────────────────────────────────────────────
+// â”€â”€ Invigilation Attendance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// GET /sessions/duties/mine — teacher: their assigned sessions (today + upcoming)
+// GET /sessions/duties/mine â€” teacher: their assigned sessions (today + upcoming)
 router.get('/sessions/duties/mine', async (req, res, next) => {
   if (setupGuard(res)) return;
   try {
@@ -597,7 +597,7 @@ router.get('/sessions/duties/mine', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /sessions/:id/check-in — invigilator submits own attendance (photo + GPS)
+// POST /sessions/:id/check-in â€” invigilator submits own attendance (photo + GPS)
 router.post('/sessions/:id/check-in', async (req, res, next) => {
   if (setupGuard(res)) return;
   try {
@@ -630,7 +630,7 @@ router.post('/sessions/:id/check-in', async (req, res, next) => {
       return res.status(400).json({ error: `Check-in is only available on the exam day (${sessionDate})` });
     }
 
-    // Duplicate check — return existing record info so client can know it's already done
+    // Duplicate check â€” return existing record info so client can know it's already done
     const { rows: existing } = await pool.query(
       `SELECT id, submitted_at FROM invigilation_check_ins
        WHERE exam_session_id = $1 AND teacher_id = $2 AND date = $3`,
@@ -644,7 +644,7 @@ router.post('/sessions/:id/check-in', async (req, res, next) => {
       });
     }
 
-    // GPS verification — hall must be in the location registry with coordinates configured
+    // GPS verification â€” hall must be in the location registry with coordinates configured
     const { rows: locRows } = await pool.query(
       `SELECT * FROM locations WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
       [req.schoolId, session.hall_name]
@@ -674,7 +674,7 @@ router.post('/sessions/:id/check-in', async (req, res, next) => {
 
     // Academic year
     const { rows: ayRows } = await pool.query(
-      `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+      `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
       [req.schoolId]
     );
     const yearId = ayRows[0]?.id              ?? null;
@@ -712,7 +712,7 @@ router.post('/sessions/:id/check-in', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /sessions/:id/check-ins — admin: view all check-ins for a session
+// GET /sessions/:id/check-ins â€” admin: view all check-ins for a session
 router.get('/sessions/:id/check-ins', adminOnly, async (req, res, next) => {
   if (setupGuard(res)) return;
   try {
@@ -732,7 +732,7 @@ router.get('/sessions/:id/check-ins', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /sessions/:id/check-in/manual — admin manually records an invigilator's attendance
+// POST /sessions/:id/check-in/manual â€” admin manually records an invigilator's attendance
 router.post('/sessions/:id/check-in/manual', adminOnly, async (req, res, next) => {
   if (setupGuard(res)) return;
   try {
@@ -806,7 +806,7 @@ router.post('/sessions/:id/check-in/manual', adminOnly, async (req, res, next) =
   } catch (err) { next(err); }
 });
 
-// GET /report — admin: invigilation attendance report across sessions
+// GET /report â€” admin: invigilation attendance report across sessions
 router.get('/report', adminOnly, async (req, res, next) => {
   if (setupGuard(res)) return;
   try {
@@ -854,7 +854,7 @@ router.get('/report', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /sessions/:id/register — load student roster (+ existing attendance if any)
+// GET /sessions/:id/register â€” load student roster (+ existing attendance if any)
 router.get('/sessions/:id/register', async (req, res, next) => {
   if (setupGuard(res)) return;
   try {
@@ -892,7 +892,7 @@ router.get('/sessions/:id/register', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /sessions/:id/register — submit student attendance (requires check-in first)
+// POST /sessions/:id/register â€” submit student attendance (requires check-in first)
 router.post('/sessions/:id/register', async (req, res, next) => {
   if (setupGuard(res)) return;
   try {
@@ -965,3 +965,4 @@ router.post('/sessions/:id/register', async (req, res, next) => {
 });
 
 module.exports = router;
+

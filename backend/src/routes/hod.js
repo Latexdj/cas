@@ -1,22 +1,22 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 
 router.use(authenticate, requireActiveSubscription);
 
-// Middleware — verify HOD and attach context to req:
-//   req.hodDept      — teacher's department string
-//   req.programmeId  — UUID if a programme is linked, null for subject HODs
-//   req.programmeName — display name
-//   req.isSubjectHod — true when department is a subject (Maths, English…), not a programme
+// Middleware â€” verify HOD and attach context to req:
+//   req.hodDept      â€” teacher's department string
+//   req.programmeId  â€” UUID if a programme is linked, null for subject HODs
+//   req.programmeName â€” display name
+//   req.isSubjectHod â€” true when department is a subject (Maths, Englishâ€¦), not a programme
 //
 // Access is granted via EITHER:
-//   (a) departments table — teacher is head_teacher_id of a department  [primary path]
+//   (a) departments table â€” teacher is head_teacher_id of a department  [primary path]
 //   (b) clearance office with office_type = 'hod'  [fallback for legacy assignments]
 async function hodOnly(req, res, next) {
   try {
     const [{ rows: deptRows }, { rows: officeRows }] = await Promise.all([
-      // Primary: Departments page assignment — load ALL departments (teacher may head more than one)
+      // Primary: Departments page assignment â€” load ALL departments (teacher may head more than one)
       pool.query(
         `SELECT d.id, d.name AS dept_name
          FROM departments d
@@ -41,7 +41,7 @@ async function hodOnly(req, res, next) {
       return res.status(403).json({ error: 'HOD access only' });
 
     if (deptRows.length) {
-      // Departments page HOD — always a subject HOD; no programme name lookup
+      // Departments page HOD â€” always a subject HOD; no programme name lookup
       req.hodDepts = deptRows.map(r => ({ id: r.id, name: r.dept_name }));
 
       // Pick the department requested via ?dept_id=, defaulting to first
@@ -86,20 +86,20 @@ async function hodOnly(req, res, next) {
 
 async function getCurrentYear(schoolId) {
   const { rows } = await pool.query(
-    `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+    `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
     [schoolId]
   );
   return rows[0] ?? null;
 }
 
-// ── GET /api/hod/check — lightweight probe used by the frontend shell ────────
+// â”€â”€ GET /api/hod/check â€” lightweight probe used by the frontend shell â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns 200 + dept info if the teacher is an HOD via any assignment path,
 // 403 otherwise. The frontend calls this to show/hide the "My Dept" nav link.
 router.get('/check', hodOnly, (req, res) => {
   res.json({ is_hod: true, dept: req.hodDept, is_subject_hod: req.isSubjectHod, depts: req.hodDepts ?? [] });
 });
 
-// ── GET /api/hod/overview ────────────────────────────────────────────────────
+// â”€â”€ GET /api/hod/overview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/overview', hodOnly, async (req, res, next) => {
   try {
     const ay   = await getCurrentYear(req.schoolId);
@@ -198,14 +198,14 @@ router.get('/overview', hodOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/hod/classes ─────────────────────────────────────────────────────
+// â”€â”€ GET /api/hod/classes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/classes', hodOnly, async (req, res, next) => {
   try {
     const dept = req.hodDept ?? '';
     const ay   = await getCurrentYear(req.schoolId);
 
     if (req.isSubjectHod) {
-      // Subject HOD: derive classes from timetable — one row per class showing the subject teacher
+      // Subject HOD: derive classes from timetable â€” one row per class showing the subject teacher
       const { rows } = await pool.query(
         `SELECT
            TRIM(cls)               AS class_name,
@@ -254,7 +254,7 @@ router.get('/classes', hodOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/hod/teachers ────────────────────────────────────────────────────
+// â”€â”€ GET /api/hod/teachers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/teachers', hodOnly, async (req, res, next) => {
   try {
     if (!req.hodDept) return res.json([]);
@@ -302,7 +302,7 @@ router.get('/teachers', hodOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/hod/absences ────────────────────────────────────────────────────
+// â”€â”€ GET /api/hod/absences â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/absences', hodOnly, async (req, res, next) => {
   try {
     if (!req.hodDept) return res.json([]);
@@ -333,7 +333,7 @@ router.get('/absences', hodOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/hod/results ─────────────────────────────────────────────────────
+// â”€â”€ GET /api/hod/results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // GET /api/hod/results?academic_year_id=&semester=&class_name=
 router.get('/results', hodOnly, async (req, res, next) => {
   try {
@@ -350,7 +350,7 @@ router.get('/results', hodOnly, async (req, res, next) => {
       );
       if (!rows.length) return res.status(403).json({ error: 'Class not in your programme.' });
     }
-    // Subject HODs don't have a programme restriction — they can see any class that has their subject
+    // Subject HODs don't have a programme restriction â€” they can see any class that has their subject
 
     // Get CA settings
     const { rows: schoolRows } = await pool.query('SELECT ca_percentage FROM schools WHERE id=$1', [req.schoolId]);
@@ -475,3 +475,4 @@ router.get('/results', hodOnly, async (req, res, next) => {
 });
 
 module.exports = router;
+

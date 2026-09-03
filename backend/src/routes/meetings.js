@@ -1,4 +1,4 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const crypto = require('crypto');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
@@ -8,7 +8,7 @@ const { logAudit }       = require('../services/audit.service');
 
 router.use(authenticate, requireActiveSubscription);
 
-// ── QR helpers (same secret mechanism as classroom-qr / plc) ──────────────────
+// â”€â”€ QR helpers (same secret mechanism as classroom-qr / plc) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function getSchoolSecret(schoolId) {
   const { rows } = await pool.query('SELECT qr_secret FROM schools WHERE id = $1', [schoolId]);
@@ -36,12 +36,12 @@ function parseToken(token) {
   return { schoolId, label, hmac };
 }
 
-// ── Repeat-schedule helpers ───────────────────────────────────────────────────
+// â”€â”€ Repeat-schedule helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Generate an array of ISO date strings (YYYY-MM-DD) for a repeat schedule.
- * 'daily'  → every Mon–Fri between startDate and endDate (inclusive)
- * 'weekly' → the same day-of-week as startDate, once per week until endDate
+ * 'daily'  â†’ every Monâ€“Fri between startDate and endDate (inclusive)
+ * 'weekly' â†’ the same day-of-week as startDate, once per week until endDate
  * Returns at most MAX_INSTANCES entries.
  */
 const MAX_INSTANCES = 200;
@@ -52,7 +52,7 @@ function generateRepeatDates(startDate, endDate, repeat) {
   const end    = new Date(endDate   + 'T00:00:00Z');
 
   if (repeat === 'daily') {
-    // Mon–Fri only
+    // Monâ€“Fri only
     while (cursor <= end && dates.length < MAX_INSTANCES) {
       const dow = cursor.getUTCDay(); // 0=Sun, 6=Sat
       if (dow >= 1 && dow <= 5) {
@@ -70,9 +70,9 @@ function generateRepeatDates(startDate, endDate, repeat) {
   return dates;
 }
 
-// ── Admin: meetings CRUD ──────────────────────────────────────────────────────
+// â”€â”€ Admin: meetings CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// GET /api/meetings — list meetings with optional ?type=&from=&to= filters
+// GET /api/meetings â€” list meetings with optional ?type=&from=&to= filters
 router.get('/', adminOnly, async (req, res, next) => {
   try {
     const { type, from, to } = req.query;
@@ -99,7 +99,7 @@ router.get('/', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/meetings — create one or many (with repeat support)
+// POST /api/meetings â€” create one or many (with repeat support)
 router.post('/', adminOnly, async (req, res, next) => {
   try {
     const {
@@ -168,7 +168,7 @@ router.post('/', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/meetings/:id/minutes — admin uploads meeting minutes
+// POST /api/meetings/:id/minutes â€” admin uploads meeting minutes
 router.post('/:id/minutes', adminOnly, async (req, res, next) => {
   try {
     const { fileBase64, filename } = req.body;
@@ -207,7 +207,7 @@ router.post('/:id/minutes', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/meetings/:id/minutes — admin removes meeting minutes
+// DELETE /api/meetings/:id/minutes â€” admin removes meeting minutes
 router.delete('/:id/minutes', adminOnly, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query(
@@ -221,7 +221,7 @@ router.delete('/:id/minutes', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PUT /api/meetings/:id — update meeting
+// PUT /api/meetings/:id â€” update meeting
 router.put('/:id', adminOnly, async (req, res, next) => {
   try {
     const { title, meeting_type, date, start_time, end_time, location_id, is_active } = req.body;
@@ -275,7 +275,7 @@ router.delete('/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/meetings/:id/token — returns QR token for client-side rendering
+// GET /api/meetings/:id/token â€” returns QR token for client-side rendering
 router.get('/:id/token', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -292,7 +292,7 @@ router.get('/:id/token', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/meetings/summary — per-teacher meeting attendance summary
+// GET /api/meetings/summary â€” per-teacher meeting attendance summary
 router.get('/summary', adminOnly, async (req, res, next) => {
   try {
     const { academic_year_id, semester } = req.query;
@@ -303,7 +303,7 @@ router.get('/summary', adminOnly, async (req, res, next) => {
     if (!yearId || (!useAll && sem === null)) {
       const { rows: ayRows } = await pool.query(
         `SELECT id, current_semester FROM academic_years
-         WHERE school_id = $1 AND is_current = true LIMIT 1`,
+         WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
         [req.schoolId]
       );
       if (!yearId) yearId = ayRows[0]?.id || null;
@@ -339,7 +339,7 @@ router.get('/summary', adminOnly, async (req, res, next) => {
       SELECT
         t.id,
         t.name,
-        COALESCE(t.department, '—') AS department,
+        COALESCE(t.department, 'â€”') AS department,
         COALESCE(att.present_count, 0)::int AS present_count,
         COALESCE(abs.absent_count, 0)::int  AS absent_count,
         (COALESCE(att.present_count, 0) + COALESCE(abs.absent_count, 0))::int AS total_scheduled,
@@ -360,7 +360,7 @@ router.get('/summary', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/meetings/attendance — admin list attendance records
+// GET /api/meetings/attendance â€” admin list attendance records
 router.get('/attendance', adminOnly, async (req, res, next) => {
   try {
     const { from, to, type } = req.query;
@@ -386,7 +386,7 @@ router.get('/attendance', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/meetings/absences — admin list absence records
+// GET /api/meetings/absences â€” admin list absence records
 router.get('/absences', adminOnly, async (req, res, next) => {
   try {
     const { from, to } = req.query;
@@ -410,7 +410,7 @@ router.get('/absences', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/meetings/attendance/manual — admin manually records attendance for a teacher
+// POST /api/meetings/attendance/manual â€” admin manually records attendance for a teacher
 router.post('/attendance/manual', adminOnly, async (req, res, next) => {
   try {
     const { meetingId, teacherId, date, notes } = req.body;
@@ -435,13 +435,13 @@ router.post('/attendance/manual', adminOnly, async (req, res, next) => {
     if (!tRows.length) return res.status(404).json({ error: 'Teacher not found' });
 
     const { rows: ayRows } = await pool.query(
-      'SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1',
+      'SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1',
       [req.schoolId]
     );
     const yearId = ayRows[0]?.id ?? null;
     const sem    = ayRows[0]?.current_semester ?? null;
 
-    // Check for duplicate entry first — return a clear error instead of relying
+    // Check for duplicate entry first â€” return a clear error instead of relying
     // on ON CONFLICT (which requires the UNIQUE constraint to exist on all envs)
     const { rows: existing } = await pool.query(
       'SELECT id FROM meeting_attendance WHERE meeting_id = $1 AND teacher_id = $2 AND date = $3',
@@ -482,7 +482,7 @@ router.post('/attendance/manual', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/meetings/:id/attendees — teacher IDs already recorded for a meeting+date
+// GET /api/meetings/:id/attendees â€” teacher IDs already recorded for a meeting+date
 router.get('/:id/attendees', adminOnly, async (req, res, next) => {
   try {
     const { date } = req.query;
@@ -496,7 +496,7 @@ router.get('/:id/attendees', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/meetings/attendance/manual-bulk — record attendance for multiple teachers at once
+// POST /api/meetings/attendance/manual-bulk â€” record attendance for multiple teachers at once
 router.post('/attendance/manual-bulk', adminOnly, async (req, res, next) => {
   try {
     const { meetingId, date, teacherIds, notes } = req.body;
@@ -514,7 +514,7 @@ router.post('/attendance/manual-bulk', adminOnly, async (req, res, next) => {
     const meeting = mtgRows[0];
 
     const { rows: ayRows } = await pool.query(
-      'SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1',
+      'SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1',
       [req.schoolId]
     );
     const yearId = ayRows[0]?.id ?? null;
@@ -579,7 +579,7 @@ router.post('/attendance/manual-bulk', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/meetings/:id/generate-absences — mark absent all teachers with no attendance for this meeting+date
+// POST /api/meetings/:id/generate-absences â€” mark absent all teachers with no attendance for this meeting+date
 router.post('/:id/generate-absences', adminOnly, async (req, res, next) => {
   try {
     const { date } = req.body;
@@ -636,7 +636,7 @@ router.post('/:id/generate-absences', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/meetings/attendance/:id — admin delete attendance record
+// DELETE /api/meetings/attendance/:id â€” admin delete attendance record
 router.delete('/attendance/:id', adminOnly, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query(
@@ -648,9 +648,9 @@ router.delete('/attendance/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Teacher: meeting attendance summary ──────────────────────────────────────
+// â”€â”€ Teacher: meeting attendance summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// GET /api/meetings/my-summary — per-type attendance summary for current semester
+// GET /api/meetings/my-summary â€” per-type attendance summary for current semester
 router.get('/my-summary', async (req, res, next) => {
   try {
     // Resolve current academic year + semester
@@ -723,9 +723,9 @@ router.get('/my-summary', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Teacher: today's meetings ─────────────────────────────────────────────────
+// â”€â”€ Teacher: today's meetings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// GET /api/meetings/today — array of today's active meetings with submission status
+// GET /api/meetings/today â€” array of today's active meetings with submission status
 router.get('/today', async (req, res, next) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
@@ -775,7 +775,7 @@ router.get('/today', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/meetings/verify-qr — teacher scans the venue QR for a meeting
+// POST /api/meetings/verify-qr â€” teacher scans the venue QR for a meeting
 router.post('/verify-qr', async (req, res, next) => {
   try {
     const { token, meetingId } = req.body;
@@ -815,7 +815,7 @@ router.post('/verify-qr', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/meetings/submit — teacher submits meeting attendance
+// POST /api/meetings/submit â€” teacher submits meeting attendance
 router.post('/submit', async (req, res, next) => {
   try {
     const { meetingId, notes, gpsCoordinates, imageBase64, photoSizeKb } = req.body;
@@ -868,7 +868,7 @@ router.post('/submit', async (req, res, next) => {
 
     // Academic year / semester
     const { rows: ayRows } = await pool.query(
-      'SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1',
+      'SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1',
       [req.schoolId]
     );
     const yearId = ayRows[0]?.id              ?? null;
@@ -914,7 +914,7 @@ router.post('/submit', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/meetings/my-absences — teacher's own meeting absence records
+// GET /api/meetings/my-absences â€” teacher's own meeting absence records
 router.get('/my-absences', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -932,7 +932,7 @@ router.get('/my-absences', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/meetings/my-history — teacher's own meeting attendance history
+// GET /api/meetings/my-history â€” teacher's own meeting attendance history
 router.get('/my-history', async (req, res, next) => {
   try {
     const limit  = Math.min(parseInt(req.query.limit) || 30, 100);
@@ -975,3 +975,4 @@ router.get('/my-history', async (req, res, next) => {
 });
 
 module.exports = router;
+

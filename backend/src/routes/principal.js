@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 const router  = require('express').Router();
 const jwt     = require('jsonwebtoken');
 const bcrypt  = require('bcrypt');
@@ -6,7 +6,7 @@ const pool    = require('../config/db');
 const ExcelJS = require('exceljs');
 const { createNotification, sendTeacherEmail } = require('../services/notification.service');
 
-// ── Auth middleware ───────────────────────────────────────────────────────────
+// â”€â”€ Auth middleware â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function auth(req, res, next) {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) return res.status(401).json({ error: 'Authentication required' });
@@ -21,10 +21,10 @@ function auth(req, res, next) {
 
 router.use(auth);
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function today() { return new Date().toISOString().slice(0, 10); }
 
-// ── 1. Snapshot ───────────────────────────────────────────────────────────────
+// â”€â”€ 1. Snapshot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/snapshot', async (req, res, next) => {
   try {
     const sid  = req.schoolId;
@@ -39,8 +39,8 @@ router.get('/snapshot', async (req, res, next) => {
         FROM teachers t
         JOIN timetable tt ON tt.teacher_id = t.id AND tt.school_id = $1
           AND tt.day_of_week = $2
-          AND tt.academic_year_id = (SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1)
-          AND tt.semester = (SELECT current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1)
+          AND tt.academic_year_id = (SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
+          AND tt.semester = (SELECT current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
         LEFT JOIN attendance a ON a.teacher_id = t.id AND a.school_id = $1 AND a.date = $3
         WHERE t.school_id = $1 AND t.status = 'Active'
       `, [sid, dow, date]),
@@ -88,7 +88,7 @@ router.get('/snapshot', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── 2. Classroom Occupancy ────────────────────────────────────────────────────
+// â”€â”€ 2. Classroom Occupancy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/occupancy', async (req, res, next) => {
   try {
     const sid  = req.schoolId;
@@ -123,8 +123,8 @@ router.get('/occupancy', async (req, res, next) => {
         FROM timetable tt
         JOIN teachers t ON t.id = tt.teacher_id
         WHERE tt.school_id = $1 AND tt.day_of_week = $2 AND t.status = 'Active'
-          AND tt.academic_year_id = (SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1)
-          AND tt.semester = (SELECT current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1)
+          AND tt.academic_year_id = (SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
+          AND tt.semester = (SELECT current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
         ORDER BY tt.start_time, tt.class_names
       `, [sid, dow]),
 
@@ -195,7 +195,7 @@ router.get('/occupancy', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── 3. Academic Years (for frontend dropdowns) ────────────────────────────────
+// â”€â”€ 3. Academic Years (for frontend dropdowns) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/academic-years', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -207,7 +207,7 @@ router.get('/academic-years', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── shared helper: resolve academic year + semester from query params ─────────
+// â”€â”€ shared helper: resolve academic year + semester from query params â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function resolveYearSem(schoolId, query) {
   const { academic_year_id, semester } = query;
   const useAll = semester === 'all' || semester === '0';
@@ -215,7 +215,7 @@ async function resolveYearSem(schoolId, query) {
   let sem    = useAll ? null : (semester ? parseInt(semester, 10) : null);
   if (!yearId || (!useAll && sem === null)) {
     const { rows } = await pool.query(
-      `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+      `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
       [schoolId]
     );
     if (!yearId) yearId = rows[0]?.id || null;
@@ -224,7 +224,7 @@ async function resolveYearSem(schoolId, query) {
   return [yearId || null, sem || null];
 }
 
-// ── 3. Teacher Class Attendance Summary ───────────────────────────────────────
+// â”€â”€ 3. Teacher Class Attendance Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/teacher-attendance', async (req, res, next) => {
   try {
     const [yearId, sem] = await resolveYearSem(req.schoolId, req.query);
@@ -252,7 +252,7 @@ router.get('/teacher-attendance', async (req, res, next) => {
         GROUP BY teacher_id
       ),
       dr AS (
-        -- Use plain MIN/MAX — no fallback. When no attendance records exist yet
+        -- Use plain MIN/MAX â€” no fallback. When no attendance records exist yet
         -- for this period, min_date/max_date will be NULL and the abs CTE below
         -- is skipped entirely, preventing phantom absent counts.
         SELECT
@@ -278,7 +278,7 @@ router.get('/teacher-attendance', async (req, res, next) => {
       )
       SELECT
         t.id, t.name,
-        COALESCE(t.department, '—') AS department,
+        COALESCE(t.department, 'â€”') AS department,
         (COALESCE(att.present_periods, 0) + COALESCE(abs.made_up_periods, 0))::int AS present_periods,
         COALESCE(abs.absent_periods, 0)::int                                        AS absent_periods,
         COALESCE(abs.excused_periods, 0)::int                                       AS excused_periods,
@@ -300,7 +300,7 @@ router.get('/teacher-attendance', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── 3b. PLC Attendance Summary (combines dedicated plc_attendance + meetings of type PLC) ──
+// â”€â”€ 3b. PLC Attendance Summary (combines dedicated plc_attendance + meetings of type PLC) â”€â”€
 router.get('/plc-summary', async (req, res, next) => {
   try {
     const [yearId, sem] = await resolveYearSem(req.schoolId, req.query);
@@ -390,7 +390,7 @@ router.get('/plc-summary', async (req, res, next) => {
       )
       SELECT
         t.id, t.name,
-        COALESCE(t.department, '—') AS department,
+        COALESCE(t.department, 'â€”') AS department,
         COALESCE(att.present_count, 0)::int AS present_count,
         COALESCE(abs.absent_count, 0)::int  AS absent_count,
         (COALESCE(att.present_count, 0) + COALESCE(abs.absent_count, 0))::int AS total_scheduled,
@@ -411,7 +411,7 @@ router.get('/plc-summary', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── 3c. Meeting Attendance Summary (Morning Briefing / Staff Meeting / etc.) ──
+// â”€â”€ 3c. Meeting Attendance Summary (Morning Briefing / Staff Meeting / etc.) â”€â”€
 router.get('/meetings-summary', async (req, res, next) => {
   try {
     const [yearId, sem] = await resolveYearSem(req.schoolId, req.query);
@@ -451,7 +451,7 @@ router.get('/meetings-summary', async (req, res, next) => {
       )
       SELECT
         t.id, t.name,
-        COALESCE(t.department, '—') AS department,
+        COALESCE(t.department, 'â€”') AS department,
         COALESCE(att.present_count, 0)::int AS present_count,
         COALESCE(abs.absent_count, 0)::int  AS absent_count,
         (COALESCE(att.present_count, 0) + COALESCE(abs.absent_count, 0))::int AS total_scheduled,
@@ -472,7 +472,7 @@ router.get('/meetings-summary', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── 4. Leave Requests ─────────────────────────────────────────────────────────
+// â”€â”€ 4. Leave Requests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/leaves', async (req, res, next) => {
   try {
     const status = req.query.status || '';
@@ -526,7 +526,7 @@ router.patch('/leaves/:id/approve', async (req, res, next) => {
       const title = 'Leave Request Approved';
       const msg = `Your leave request for ${dateRange} has been approved.`;
       await createNotification(req.schoolId, teacher_id, title, msg);
-      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\n— CAS`);
+      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\nâ€” CAS`);
     } catch (e) { /* non-fatal */ }
 
     res.json({ id: rows[0].id, status: rows[0].status });
@@ -555,14 +555,14 @@ router.patch('/leaves/:id/reject', async (req, res, next) => {
       const title = 'Leave Request Rejected';
       const msg = `Your leave request for ${dateRange} has been rejected. Reason: ${reason}`;
       await createNotification(req.schoolId, teacher_id, title, msg);
-      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\nIf you have questions, please contact your principal.\n\n— CAS`);
+      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\nIf you have questions, please contact your principal.\n\nâ€” CAS`);
     } catch (e) { /* non-fatal */ }
 
     res.json({ id: rows[0].id, status: rows[0].status, rejection_reason: rows[0].rejection_reason });
   } catch (err) { next(err); }
 });
 
-// ── 5. Exeat Usage ────────────────────────────────────────────────────────────
+// â”€â”€ 5. Exeat Usage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/exeats', async (req, res, next) => {
   try {
     const sid       = req.schoolId;
@@ -623,7 +623,7 @@ router.patch('/exeat-settings', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── 6. Clearance ──────────────────────────────────────────────────────────────
+// â”€â”€ 6. Clearance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/clearance', async (req, res, next) => {
   try {
     const sid       = req.schoolId;
@@ -704,7 +704,7 @@ router.get('/clearance/student/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── 7. Personnel Records ──────────────────────────────────────────────────────
+// â”€â”€ 7. Personnel Records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Students JSON
 router.get('/personnel/students', async (req, res, next) => {
@@ -933,7 +933,7 @@ router.get('/personnel/teachers/excel', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── 8. Reports (reuse existing report SQL) ────────────────────────────────────
+// â”€â”€ 8. Reports (reuse existing report SQL) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const STUDENT_REPORTS = {
   program_distribution: {
     label: 'Program Distribution', columns: ['Program','Male','Female','Total'], keys: ['group','male','female','total'],
@@ -946,7 +946,7 @@ const STUDENT_REPORTS = {
   },
   program_residential: {
     label: 'Program Distribution by Residential Status',
-    columns: ['Program','Day–Male','Day–Female','Boarding–Male','Boarding–Female','Total'],
+    columns: ['Program','Dayâ€“Male','Dayâ€“Female','Boardingâ€“Male','Boardingâ€“Female','Total'],
     keys:    ['group','day_male','day_female','boarding_male','boarding_female','total'],
     sql: sc => `SELECT COALESCE(p.name,'No Program') AS "group",
       COUNT(*) FILTER (WHERE s.residential_status='Day' AND s.gender='Male') AS day_male,
@@ -966,7 +966,7 @@ const STUDENT_REPORTS = {
   },
   house_distribution: {
     label: 'House Distribution',
-    columns: ['House','Day–Male','Day–Female','Boarding–Male','Boarding–Female','Total'],
+    columns: ['House','Dayâ€“Male','Dayâ€“Female','Boardingâ€“Male','Boardingâ€“Female','Total'],
     keys:    ['group','day_male','day_female','boarding_male','boarding_female','total'],
     sql: sc => `SELECT COALESCE(s.house,'No House') AS "group",
       COUNT(*) FILTER (WHERE s.residential_status='Day' AND s.gender='Male') AS day_male,
@@ -1019,11 +1019,11 @@ const STUDENT_REPORTS = {
       SELECT s.gender,
         CASE
           WHEN s.aggregate IS NULL               THEN 'Not Recorded'
-          WHEN s.aggregate BETWEEN 6  AND 12     THEN '6 – 12'
-          WHEN s.aggregate BETWEEN 13 AND 18     THEN '13 – 18'
-          WHEN s.aggregate BETWEEN 19 AND 24     THEN '19 – 24'
-          WHEN s.aggregate BETWEEN 25 AND 30     THEN '25 – 30'
-          WHEN s.aggregate BETWEEN 31 AND 36     THEN '31 – 36'
+          WHEN s.aggregate BETWEEN 6  AND 12     THEN '6 â€“ 12'
+          WHEN s.aggregate BETWEEN 13 AND 18     THEN '13 â€“ 18'
+          WHEN s.aggregate BETWEEN 19 AND 24     THEN '19 â€“ 24'
+          WHEN s.aggregate BETWEEN 25 AND 30     THEN '25 â€“ 30'
+          WHEN s.aggregate BETWEEN 31 AND 36     THEN '31 â€“ 36'
           ELSE '37 and above'
         END AS "group"
       FROM students s WHERE s.school_id=$1 ${sc}
@@ -1034,8 +1034,8 @@ const STUDENT_REPORTS = {
       COUNT(*) AS total
     FROM agg GROUP BY "group"
     ORDER BY CASE "group"
-      WHEN '6 – 12' THEN 1 WHEN '13 – 18' THEN 2 WHEN '19 – 24' THEN 3
-      WHEN '25 – 30' THEN 4 WHEN '31 – 36' THEN 5 WHEN '37 and above' THEN 6 ELSE 99
+      WHEN '6 â€“ 12' THEN 1 WHEN '13 â€“ 18' THEN 2 WHEN '19 â€“ 24' THEN 3
+      WHEN '25 â€“ 30' THEN 4 WHEN '31 â€“ 36' THEN 5 WHEN '37 and above' THEN 6 ELSE 99
     END`,
   },
 };
@@ -1104,7 +1104,7 @@ router.get('/reports', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Fees (read-only summary for management) ───────────────────────────────────
+// â”€â”€ Fees (read-only summary for management) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function feesModuleEnabled(schoolId) {
   const { rows } = await pool.query(
@@ -1201,7 +1201,7 @@ router.get('/fees/income-vs-expenditure', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Results (academic results for a class) ────────────────────────────────────
+// â”€â”€ Results (academic results for a class) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // GET /api/principal/results?academic_year_id=&semester=&class_name=
 router.get('/results', async (req, res, next) => {
   try {
@@ -1276,7 +1276,7 @@ router.get('/results', async (req, res, next) => {
 
     // Build lookup maps
     const modeMap = new Map(modes.map(m => [m.id, m]));
-    const boundaryMap = new Map(); // exam_body → sorted boundaries
+    const boundaryMap = new Map(); // exam_body â†’ sorted boundaries
     for (const b of boundaries) {
       if (!boundaryMap.has(b.exam_body)) boundaryMap.set(b.exam_body, []);
       boundaryMap.get(b.exam_body).push(b);
@@ -1303,15 +1303,15 @@ router.get('/results', async (req, res, next) => {
     }
 
     // Index scores by student
-    const caByStudent = {};   // studentId → assessmentId → score
+    const caByStudent = {};   // studentId â†’ assessmentId â†’ score
     for (const s of caScores) {
       (caByStudent[s.student_id] ??= {})[s.assessment_id] = s;
     }
-    const examByStudent = {}; // studentId → subject → {score, max_score}
+    const examByStudent = {}; // studentId â†’ subject â†’ {score, max_score}
     for (const e of examScores) {
       (examByStudent[e.student_id] ??= {})[e.subject] = e;
     }
-    const importedByStudent = {}; // studentId → subject → row
+    const importedByStudent = {}; // studentId â†’ subject â†’ row
     for (const i of imported) {
       (importedByStudent[i.student_id] ??= {})[i.subject] = i;
     }
@@ -1418,3 +1418,4 @@ router.get('/results', async (req, res, next) => {
 });
 
 module.exports = router;
+

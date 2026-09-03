@@ -1,4 +1,4 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const bcrypt = require('bcrypt');
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
@@ -14,7 +14,7 @@ function studentOnly(req, res, next) {
 }
 router.use(studentOnly);
 
-// ── Shared helpers ───────────────────────────────────────────────────────────
+// â”€â”€ Shared helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function getStudentProfile(schoolId, studentId) {
   const { rows } = await pool.query(
@@ -43,7 +43,7 @@ function getGrade(total, boundaries, examBody) {
   return { grade: 'N/A', remark: '' };
 }
 
-// ── GET /api/student/profile ─────────────────────────────────────────────────
+// â”€â”€ GET /api/student/profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/profile', async (req, res, next) => {
   try {
@@ -65,7 +65,7 @@ router.get('/profile', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/student/school-profile ─────────────────────────────────────────
+// â”€â”€ GET /api/student/school-profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/school-profile', async (req, res, next) => {
   try {
@@ -77,7 +77,7 @@ router.get('/school-profile', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/student/results?academic_year_id=&semester= ─────────────────────
+// â”€â”€ GET /api/student/results?academic_year_id=&semester= â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/results', async (req, res, next) => {
   try {
@@ -325,7 +325,7 @@ router.get('/results', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/student/results/class ───────────────────────────────────────────
+// â”€â”€ GET /api/student/results/class â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns anonymised class averages (overall + per-subject) for the student's class.
 
 router.get('/results/class', async (req, res, next) => {
@@ -372,7 +372,7 @@ router.get('/results/class', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/student/results/history ─────────────────────────────────────────
+// â”€â”€ GET /api/student/results/history â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns per-semester summary for performance graph
 
 router.get('/results/history', async (req, res, next) => {
@@ -482,7 +482,7 @@ router.get('/results/history', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/student/attendance?academic_year_id=&semester= ──────────────────
+// â”€â”€ GET /api/student/attendance?academic_year_id=&semester= â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/attendance', async (req, res, next) => {
   try {
@@ -521,7 +521,7 @@ router.get('/attendance', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/student/timetable ────────────────────────────────────────────────
+// â”€â”€ GET /api/student/timetable â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/timetable', async (req, res, next) => {
   try {
@@ -530,7 +530,7 @@ router.get('/timetable', async (req, res, next) => {
 
     // Resolve current academic year / semester for filtering
     const { rows: yearRows } = await pool.query(
-      `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+      `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
       [req.schoolId]
     );
     const cur = yearRows[0];
@@ -567,7 +567,7 @@ router.get('/timetable', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/student/calendar ─────────────────────────────────────────────────
+// â”€â”€ GET /api/student/calendar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/calendar', async (req, res, next) => {
   try {
@@ -584,7 +584,7 @@ router.get('/calendar', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/student/academic-years ──────────────────────────────────────────
+// â”€â”€ GET /api/student/academic-years â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/academic-years', async (req, res, next) => {
   try {
@@ -597,7 +597,7 @@ router.get('/academic-years', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── POST /api/student/change-pin ──────────────────────────────────────────────
+// â”€â”€ POST /api/student/change-pin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.post('/change-pin', async (req, res, next) => {
   try {
@@ -623,7 +623,7 @@ router.post('/change-pin', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/student/clearance ───────────────────────────────────────────────
+// â”€â”€ GET /api/student/clearance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/clearance', async (req, res, next) => {
   try {
@@ -646,7 +646,7 @@ router.get('/clearance', async (req, res, next) => {
       [clearance.id]
     );
 
-    // Check for active (unresolved) disciplinary letters — these block clearance
+    // Check for active (unresolved) disciplinary letters â€” these block clearance
     const { rows: discRows } = await pool.query(
       `SELECT COUNT(*) AS cnt FROM student_disciplinary_letters
        WHERE student_id = $1 AND school_id = $2 AND status != 'resolved'`,
@@ -666,7 +666,7 @@ router.get('/clearance', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/student/discipline ──────────────────────────────────────────────
+// â”€â”€ GET /api/student/discipline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/discipline', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -685,7 +685,7 @@ router.get('/discipline', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── POST /api/student/discipline/:id/acknowledge ──────────────────────────────
+// â”€â”€ POST /api/student/discipline/:id/acknowledge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/discipline/:id/acknowledge', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -701,7 +701,7 @@ router.post('/discipline/:id/acknowledge', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Library ───────────────────────────────────────────────────────────────────
+// â”€â”€ Library â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/library/books', async (req, res, next) => {
   try {
@@ -812,7 +812,7 @@ router.post('/library/resources/:id/download', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/student/fees ─────────────────────────────────────────────────────
+// â”€â”€ GET /api/student/fees â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/fees', async (req, res, next) => {
   try {
@@ -874,3 +874,4 @@ router.get('/fees', async (req, res, next) => {
 });
 
 module.exports = router;
+

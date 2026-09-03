@@ -1,4 +1,4 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const crypto = require('crypto');
 const QRCode = require('qrcode');
@@ -9,7 +9,7 @@ const { logAudit }       = require('../services/audit.service');
 
 router.use(authenticate, requireActiveSubscription);
 
-// ── QR helpers (reuses the same school secret as classroom-qr) ─
+// â”€â”€ QR helpers (reuses the same school secret as classroom-qr) â”€
 async function getSchoolSecret(schoolId) {
   const { rows } = await pool.query('SELECT qr_secret FROM schools WHERE id = $1', [schoolId]);
   if (rows[0]?.qr_secret) return rows[0].qr_secret;
@@ -36,7 +36,7 @@ function parseToken(token) {
   return { schoolId, label, hmac };
 }
 
-// ── Admin: sessions CRUD ───────────────────────────────────────
+// â”€â”€ Admin: sessions CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // GET /api/plc/sessions
 router.get('/sessions', adminOnly, async (req, res, next) => {
@@ -101,7 +101,7 @@ router.delete('/sessions/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/plc/sessions/:id/token — return raw QR token (client renders the image)
+// GET /api/plc/sessions/:id/token â€” return raw QR token (client renders the image)
 router.get('/sessions/:id/token', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -117,7 +117,7 @@ router.get('/sessions/:id/token', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Teacher: today's session ───────────────────────────────────
+// â”€â”€ Teacher: today's session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // GET /api/plc/today
 router.get('/today', async (req, res, next) => {
@@ -149,7 +149,7 @@ router.get('/today', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/plc/verify-qr — teacher scans PLC venue QR
+// POST /api/plc/verify-qr â€” teacher scans PLC venue QR
 router.post('/verify-qr', async (req, res, next) => {
   try {
     const { token, sessionId } = req.body;
@@ -240,7 +240,7 @@ router.post('/submit', async (req, res, next) => {
 
     // Academic year
     const { rows: ayRows } = await pool.query(
-      'SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1',
+      'SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1',
       [req.schoolId]
     );
     const yearId = ayRows[0]?.id ?? null;
@@ -310,7 +310,7 @@ router.get('/my-history', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/plc/my-absences — teacher's own PLC absence records
+// GET /api/plc/my-absences â€” teacher's own PLC absence records
 router.get('/my-absences', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -328,7 +328,7 @@ router.get('/my-absences', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Admin: attendance records ──────────────────────────────────
+// â”€â”€ Admin: attendance records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // GET /api/plc/attendance
 router.get('/attendance', adminOnly, async (req, res, next) => {
@@ -384,7 +384,7 @@ router.delete('/attendance/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Admin: absence reports ─────────────────────────────────────
+// â”€â”€ Admin: absence reports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // GET /api/plc/absences
 router.get('/absences', adminOnly, async (req, res, next) => {
@@ -428,7 +428,7 @@ router.delete('/absences/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/plc/summary — admin: per-teacher PLC attendance summary
+// GET /api/plc/summary â€” admin: per-teacher PLC attendance summary
 router.get('/summary', adminOnly, async (req, res, next) => {
   try {
     const { academic_year_id, semester } = req.query;
@@ -438,7 +438,7 @@ router.get('/summary', adminOnly, async (req, res, next) => {
 
     if (!yearId || (!useAll && sem === null)) {
       const { rows: ayRows } = await pool.query(
-        `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+        `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
         [req.schoolId]
       );
       if (!yearId) yearId = ayRows[0]?.id || null;
@@ -525,7 +525,7 @@ router.get('/summary', adminOnly, async (req, res, next) => {
       SELECT
         t.id,
         t.name,
-        COALESCE(t.department, '—') AS department,
+        COALESCE(t.department, 'â€”') AS department,
         COALESCE(att.present_count, 0)::int AS present_count,
         COALESCE(abs.absent_count, 0)::int  AS absent_count,
         (COALESCE(att.present_count, 0) + COALESCE(abs.absent_count, 0))::int AS total_scheduled,
@@ -546,3 +546,4 @@ router.get('/summary', adminOnly, async (req, res, next) => {
 });
 
 module.exports = router;
+

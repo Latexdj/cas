@@ -1,10 +1,10 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription, adminOnly } = require('../middleware/auth');
 
 router.use(authenticate, requireActiveSubscription);
 
-// Helper — look up teacher's form class assignment for a given year
+// Helper â€” look up teacher's form class assignment for a given year
 async function getFormClass(schoolId, teacherId, academicYearId) {
   const { rows } = await pool.query(
     `SELECT fta.id, fta.class_name, fta.academic_year_id, ay.name AS academic_year
@@ -16,7 +16,7 @@ async function getFormClass(schoolId, teacherId, academicYearId) {
   return rows[0] || null;
 }
 
-// ── Teacher-facing endpoints ─────────────────────────────────────────────────
+// â”€â”€ Teacher-facing endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // GET /api/form-teacher/assignment?academic_year_id=
 // Returns this teacher's form class (uses current year if param omitted).
@@ -25,7 +25,7 @@ router.get('/assignment', async (req, res, next) => {
     let { academic_year_id } = req.query;
     if (!academic_year_id) {
       const { rows } = await pool.query(
-        `SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+        `SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
         [req.schoolId]
       );
       academic_year_id = rows[0]?.id;
@@ -212,7 +212,7 @@ router.post('/remarks', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Admin endpoints ──────────────────────────────────────────────────────────
+// â”€â”€ Admin endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // GET /api/form-teacher/admin/assignments?academic_year_id=
 router.get('/admin/assignments', adminOnly, async (req, res, next) => {
@@ -269,3 +269,4 @@ router.delete('/admin/assignments/:id', adminOnly, async (req, res, next) => {
 });
 
 module.exports = router;
+

@@ -1,4 +1,4 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const bcrypt = require('bcrypt');
 const pool = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
@@ -11,7 +11,7 @@ const { getEnabledModules } = require('../services/modules.service');
 // Public deployment-check endpoint (no auth needed)
 router.get('/version', (_req, res) => res.json({ version: '2', has_settings: true }));
 
-// GET /api/admin/test-email — sends a test email to ADMIN_EMAIL to verify SMTP works
+// GET /api/admin/test-email â€” sends a test email to ADMIN_EMAIL to verify SMTP works
 router.get('/test-email', authenticate, adminOnly, async (_req, res) => {
   const { sendTestEmail } = require('../services/email.service');
   try {
@@ -24,7 +24,7 @@ router.get('/test-email', authenticate, adminOnly, async (_req, res) => {
 
 router.use(authenticate, requireActiveSubscription, adminOnly);
 
-// GET /api/admin/modules — list enabled module keys for current school
+// GET /api/admin/modules â€” list enabled module keys for current school
 router.get('/modules', async (req, res, next) => {
   try {
     const modules = await getEnabledModules(req.schoolId);
@@ -32,7 +32,7 @@ router.get('/modules', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/admin/school-profile — name, address, logo for report cards
+// GET /api/admin/school-profile â€” name, address, logo for report cards
 router.get('/school-profile', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -43,7 +43,7 @@ router.get('/school-profile', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/admin/stats — dashboard counters
+// GET /api/admin/stats â€” dashboard counters
 router.get('/stats', async (req, res, next) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
@@ -264,7 +264,7 @@ router.get('/reports/weekly-summary', async (req, res, next) => {
   }
 });
 
-// POST /api/admin/run-absence-check — trigger the cron job manually
+// POST /api/admin/run-absence-check â€” trigger the cron job manually
 router.post('/run-absence-check', async (req, res, next) => {
   try {
     const result = await runAbsenceCheck(req.schoolId);
@@ -274,7 +274,7 @@ router.post('/run-absence-check', async (req, res, next) => {
   }
 });
 
-// GET /api/admin/absence-conflicts — find false absences matching any of 3 conditions
+// GET /api/admin/absence-conflicts â€” find false absences matching any of 3 conditions
 router.get('/absence-conflicts', adminOnly, async (req, res, next) => {
   try {
     const { from, to } = req.query;
@@ -317,7 +317,7 @@ router.get('/absence-conflicts', adminOnly, async (req, res, next) => {
 
         -- Condition 3: teacher has an approved excuse covering that date
         SELECT ab.id, 'Teacher excused' AS flag_reason,
-               tex.date_from::text || ' – ' || tex.date_to::text AS flag_detail
+               tex.date_from::text || ' â€“ ' || tex.date_to::text AS flag_detail
         FROM absences ab
         JOIN teacher_excuses tex
           ON tex.teacher_id = ab.teacher_id
@@ -355,7 +355,7 @@ router.get('/absence-conflicts', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/admin/absence-conflicts/clear — delete validated false absences
+// POST /api/admin/absence-conflicts/clear â€” delete validated false absences
 router.post('/absence-conflicts/clear', adminOnly, async (req, res, next) => {
   try {
     const { ids } = req.body;
@@ -363,7 +363,7 @@ router.post('/absence-conflicts/clear', adminOnly, async (req, res, next) => {
       return res.status(400).json({ error: 'ids array is required' });
 
     // Re-validate server-side: only delete absences that still match at least one condition
-    // Never touch absences already resolved (Excused/Made Up/Verified) — those power the summary counts
+    // Never touch absences already resolved (Excused/Made Up/Verified) â€” those power the summary counts
     const { rows } = await pool.query(`
       DELETE FROM absences
       WHERE id = ANY($1) AND school_id = $2
@@ -401,7 +401,7 @@ router.post('/absence-conflicts/clear', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/admin/settings — return school info + theme colors + scheduling config
+// GET /api/admin/settings â€” return school info + theme colors + scheduling config
 router.get('/settings', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -420,7 +420,7 @@ router.get('/settings', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/admin/settings/info — update general school information
+// PATCH /api/admin/settings/info â€” update general school information
 router.patch('/settings/info', adminOnly, async (req, res, next) => {
   try {
     const { name, address, phone, email, school_type, school_category, motto, region, district, admission_prefix, admission_year, school_latitude, school_longitude, school_gps_radius, vision, mission, core_values, letter_ref_prefix } = req.body;
@@ -456,7 +456,7 @@ router.patch('/settings/info', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/admin/settings/scheduling — update period duration and/or CA percentage
+// PATCH /api/admin/settings/scheduling â€” update period duration and/or CA percentage
 router.patch('/settings/scheduling', adminOnly, async (req, res, next) => {
   try {
     const { period_duration_minutes, ca_percentage } = req.body;
@@ -488,7 +488,7 @@ router.patch('/settings/scheduling', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/admin/settings — update school theme colors
+// PATCH /api/admin/settings â€” update school theme colors
 router.patch('/settings', async (req, res, next) => {
   try {
     const { primary_color, accent_color } = req.body;
@@ -508,7 +508,7 @@ router.patch('/settings', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/admin/settings/logo — upload / replace school logo
+// PATCH /api/admin/settings/logo â€” upload / replace school logo
 router.patch('/settings/logo', async (req, res, next) => {
   try {
     const { imageBase64 } = req.body;
@@ -523,7 +523,7 @@ router.patch('/settings/logo', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/admin/settings/signature — upload / replace headmaster signature
+// PATCH /api/admin/settings/signature â€” upload / replace headmaster signature
 router.patch('/settings/signature', adminOnly, async (req, res, next) => {
   try {
     const { imageBase64 } = req.body;
@@ -538,7 +538,7 @@ router.patch('/settings/signature', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/admin/settings/letterhead — upload / replace school official letterhead
+// PATCH /api/admin/settings/letterhead â€” upload / replace school official letterhead
 router.patch('/settings/letterhead', adminOnly, async (req, res, next) => {
   try {
     const { imageBase64, filename } = req.body;
@@ -559,7 +559,7 @@ router.patch('/settings/letterhead', adminOnly, async (req, res, next) => {
   }
 });
 
-// DELETE /api/admin/settings/letterhead — remove school letterhead
+// DELETE /api/admin/settings/letterhead â€” remove school letterhead
 router.delete('/settings/letterhead', adminOnly, async (req, res, next) => {
   try {
     await pool.query(
@@ -582,7 +582,7 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
 
     if (!yearId || (!useAll && sem === null)) {
       const { rows: ayRows } = await pool.query(
-        `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+        `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
         [req.schoolId]
       );
       if (!yearId) yearId = ayRows[0]?.id || null;
@@ -640,7 +640,7 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
       SELECT
         t.id,
         t.name,
-        COALESCE(t.department, '—') AS department,
+        COALESCE(t.department, 'â€”') AS department,
         (COALESCE(att.present_periods, 0) + COALESCE(made.made_up_periods, 0))::int AS present_periods,
         COALESCE(abs.absent_periods, 0)::int                                         AS absent_periods,
         COALESCE(abs.excused_periods, 0)::int                                        AS excused_periods,
@@ -663,12 +663,12 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/admin/teachers/:id/reset-pin — set a new PIN for a teacher
+// PATCH /api/admin/teachers/:id/reset-pin â€” set a new PIN for a teacher
 router.patch('/teachers/:id/reset-pin', async (req, res, next) => {
   try {
     const rawPin = req.body.pin ? String(req.body.pin).trim() : null;
     if (rawPin && !/^\d{4,8}$/.test(rawPin))
-      return res.status(400).json({ error: 'PIN must be 4–8 digits' });
+      return res.status(400).json({ error: 'PIN must be 4â€“8 digits' });
 
     const newPin = rawPin || (process.env.DEFAULT_TEACHER_PIN || '1234');
     const pinHash = await bcrypt.hash(newPin, 12);
@@ -706,11 +706,11 @@ router.post('/teachers/:id/send-credentials', async (req, res, next) => {
       [pinHash, teacher.id]
     );
 
-    // Respond immediately so the browser never times out — email goes in background
+    // Respond immediately so the browser never times out â€” email goes in background
     res.json({ message: 'Credentials sent', email: teacher.email, pin });
 
     sendTeacherCredentials(teacher, school, pin).catch(err =>
-      console.error('[send-credentials] Email failed for', teacher.email, '—', err.message)
+      console.error('[send-credentials] Email failed for', teacher.email, 'â€”', err.message)
     );
   } catch (err) { next(err); }
 });
@@ -756,13 +756,13 @@ router.post('/teachers/send-credentials-bulk', async (req, res, next) => {
 
     for (const { teacher, pin } of queue) {
       sendTeacherCredentials(teacher, school, pin).catch(err =>
-        console.error('[bulk-credentials] Email failed for', teacher.email, '—', err.message)
+        console.error('[bulk-credentials] Email failed for', teacher.email, 'â€”', err.message)
       );
     }
   } catch (err) { next(err); }
 });
 
-// POST /api/admin/attendance — manually record attendance on behalf of a teacher
+// POST /api/admin/attendance â€” manually record attendance on behalf of a teacher
 router.post('/attendance', async (req, res, next) => {
   try {
     const { teacherId, subject, classNames, periods, date, topic, locationName } = req.body;
@@ -783,7 +783,7 @@ router.post('/attendance', async (req, res, next) => {
     // Resolve current academic year
     const { rows: ayRows } = await pool.query(
       `SELECT id, current_semester FROM academic_years
-       WHERE school_id = $1 AND is_current = true LIMIT 1`,
+       WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
       [req.schoolId]
     );
     if (!ayRows.length) return res.status(400).json({ error: 'No current academic year configured' });
@@ -845,3 +845,4 @@ router.post('/attendance', async (req, res, next) => {
 });
 
 module.exports = router;
+

@@ -1,4 +1,4 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const pool = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { verifyLocation } = require('../services/geo.service');
@@ -8,7 +8,7 @@ const { createNotification, sendTeacherEmail } = require('../services/notificati
 
 router.use(authenticate, requireActiveSubscription);
 
-// GET /api/remedial — all remedial lessons (admin)
+// GET /api/remedial â€” all remedial lessons (admin)
 router.get('/', adminOnly, async (req, res, next) => {
   try {
     const { status, teacherId } = req.query;
@@ -45,7 +45,7 @@ router.get('/', adminOnly, async (req, res, next) => {
   }
 });
 
-// GET /api/remedial/teacher/:teacherId — teacher's remedial lessons
+// GET /api/remedial/teacher/:teacherId â€” teacher's remedial lessons
 router.get('/teacher/:teacherId', async (req, res, next) => {
   try {
     if (req.user.role === 'teacher' && req.user.id !== req.params.teacherId) {
@@ -114,7 +114,7 @@ router.get('/outstanding/:teacherId', async (req, res, next) => {
   }
 });
 
-// POST /api/remedial — schedule a remedial lesson
+// POST /api/remedial â€” schedule a remedial lesson
 router.post('/', async (req, res, next) => {
   try {
     const {
@@ -142,7 +142,7 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Remedial date cannot be in the past' });
     }
 
-    // Resolve location — accept either a locationId or a locationName
+    // Resolve location â€” accept either a locationId or a locationName
     let locationId = req.body.locationId || null;
     let resolvedLocationName = locationName || null;
     if (locationId && !resolvedLocationName) {
@@ -204,7 +204,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-// GET /api/remedial/:id/register — students + current register state
+// GET /api/remedial/:id/register â€” students + current register state
 router.get('/:id/register', async (req, res, next) => {
   try {
     const { rows: rlRows } = await pool.query(
@@ -251,7 +251,7 @@ router.get('/:id/register', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/remedial/:id/register — submit or update the student register
+// POST /api/remedial/:id/register â€” submit or update the student register
 router.post('/:id/register', async (req, res, next) => {
   try {
     const { records } = req.body;
@@ -278,7 +278,7 @@ router.post('/:id/register', async (req, res, next) => {
       return res.status(400).json({ error: 'Lesson has not started yet' });
 
     const { rows: ayRows } = await pool.query(
-      `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+      `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
       [req.schoolId]
     );
     const yearId = ayRows[0]?.id || null;
@@ -327,7 +327,7 @@ router.post('/:id/register', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/remedial/:id/submit — submit attendance for a remedial lesson
+// POST /api/remedial/:id/submit â€” submit attendance for a remedial lesson
 router.post('/:id/submit', async (req, res, next) => {
   try {
     const { gpsCoordinates, imageBase64, topic, durationPeriods } = req.body;
@@ -347,7 +347,7 @@ router.post('/:id/submit', async (req, res, next) => {
       return res.status(403).json({ error: 'Access denied' });
     }
     if (rl.status !== 'Scheduled') {
-      return res.status(400).json({ error: `Cannot submit — lesson is already '${rl.status}'` });
+      return res.status(400).json({ error: `Cannot submit â€” lesson is already '${rl.status}'` });
     }
 
     const { rows: timeRows } = await pool.query(
@@ -410,7 +410,7 @@ router.post('/:id/submit', async (req, res, next) => {
   }
 });
 
-// PATCH /api/remedial/:id/verify — admin verifies a completed remedial lesson
+// PATCH /api/remedial/:id/verify â€” admin verifies a completed remedial lesson
 router.patch('/:id/verify', adminOnly, async (req, res, next) => {
   try {
     const { notes } = req.body;
@@ -442,7 +442,7 @@ router.patch('/:id/verify', adminOnly, async (req, res, next) => {
       const remaining   = periodsLost - periodsCovered;
 
       if (remaining <= 0) {
-        // Fully resolved — mark primary Made Up
+        // Fully resolved â€” mark primary Made Up
         await pool.query(
           `UPDATE absences SET status = 'Made Up', periods_lost = 0, updated_at = now()
            WHERE id = $1 AND school_id = $2`,
@@ -457,7 +457,7 @@ router.patch('/:id/verify', adminOnly, async (req, res, next) => {
           );
         }
       } else {
-        // Partial coverage — reduce periods_lost; siblings remain as-is (periods_lost = 0)
+        // Partial coverage â€” reduce periods_lost; siblings remain as-is (periods_lost = 0)
         await pool.query(
           `UPDATE absences SET periods_lost = $1, updated_at = now()
            WHERE id = $2 AND school_id = $3`,
@@ -473,9 +473,9 @@ router.patch('/:id/verify', adminOnly, async (req, res, next) => {
       const t = tr[0];
       const date = rl.remedial_date?.slice?.(0, 10) ?? rl.remedial_date;
       const title = 'Remedial Lesson Verified';
-      const msg = `Your remedial lesson for ${rl.subject} — ${rl.class_name} on ${date} has been verified and accepted.`;
+      const msg = `Your remedial lesson for ${rl.subject} â€” ${rl.class_name} on ${date} has been verified and accepted.`;
       await createNotification(req.schoolId, rl.teacher_id, title, msg);
-      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\n— CAS`);
+      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\nâ€” CAS`);
     } catch (e) { /* non-fatal */ }
 
     res.json(rows[0]);
@@ -484,7 +484,7 @@ router.patch('/:id/verify', adminOnly, async (req, res, next) => {
   }
 });
 
-// PATCH /api/remedial/:id/reject — admin rejects a completed (submitted) remedial
+// PATCH /api/remedial/:id/reject â€” admin rejects a completed (submitted) remedial
 router.patch('/:id/reject', adminOnly, async (req, res, next) => {
   try {
     const { reason } = req.body;
@@ -500,7 +500,7 @@ router.patch('/:id/reject', adminOnly, async (req, res, next) => {
     const rl = rlRows[0];
 
     if (rl.status !== 'Completed') {
-      return res.status(400).json({ error: `Cannot reject — lesson is '${rl.status}'. Only completed submissions can be rejected.` });
+      return res.status(400).json({ error: `Cannot reject â€” lesson is '${rl.status}'. Only completed submissions can be rejected.` });
     }
 
     const client = await pool.connect();
@@ -549,9 +549,9 @@ router.patch('/:id/reject', adminOnly, async (req, res, next) => {
           const { rows: tr } = await pool.query(`SELECT name, email FROM teachers WHERE id=$1`, [rlRow.teacher_id]);
           const t = tr[0];
           const title = 'Remedial Lesson Rejected';
-          const msg = `Your remedial lesson for ${rlRow.subject} — ${rlRow.class_name} on ${rlRow.remedial_date} was rejected. Reason: ${reason.trim()}`;
+          const msg = `Your remedial lesson for ${rlRow.subject} â€” ${rlRow.class_name} on ${rlRow.remedial_date} was rejected. Reason: ${reason.trim()}`;
           await createNotification(req.schoolId, rlRow.teacher_id, title, msg);
-          if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\nYou still need to complete a remedial lesson for this absence.\n\n— CAS`);
+          if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\nYou still need to complete a remedial lesson for this absence.\n\nâ€” CAS`);
         }
       } catch (e) { /* non-fatal */ }
 
@@ -576,7 +576,7 @@ router.patch('/:id/cancel', async (req, res, next) => {
       return res.status(403).json({ error: 'Access denied' });
     }
     if (rl.status !== 'Scheduled') {
-      return res.status(400).json({ error: `Cannot cancel — lesson is '${rl.status}'` });
+      return res.status(400).json({ error: `Cannot cancel â€” lesson is '${rl.status}'` });
     }
 
     await pool.query(
@@ -607,3 +607,4 @@ router.patch('/:id/cancel', async (req, res, next) => {
 });
 
 module.exports = router;
+

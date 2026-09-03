@@ -1,4 +1,4 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 
@@ -49,7 +49,7 @@ async function withTables(fn) {
 
 async function getCurrentYearSem(schoolId) {
   const { rows } = await pool.query(
-    `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+    `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
     [schoolId]
   );
   return { yearId: rows[0]?.id || null, sem: rows[0]?.current_semester || null };
@@ -127,7 +127,7 @@ router.get('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/** PUT /api/roll-call/:id/entries — bulk upsert student statuses */
+/** PUT /api/roll-call/:id/entries â€” bulk upsert student statuses */
 router.put('/:id/entries', async (req, res, next) => {
   try {
     const { entries } = req.body; // [{ student_id, status, notes }]
@@ -182,3 +182,4 @@ router.delete('/:id', async (req, res, next) => {
 });
 
 module.exports = router;
+

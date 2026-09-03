@@ -1,4 +1,4 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 
@@ -42,7 +42,7 @@ router.post('/submit', async (req, res, next) => {
 
     const { rows: ayRows } = await pool.query(
       `SELECT id, current_semester FROM academic_years
-       WHERE school_id = $1 AND is_current = true LIMIT 1`,
+       WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
       [req.schoolId]
     );
     const yearId = ayRows[0]?.id            || null;
@@ -184,7 +184,7 @@ router.get('/session/:sessionId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/** PATCH /api/student-attendance/records/:id — edit a single record */
+/** PATCH /api/student-attendance/records/:id â€” edit a single record */
 router.patch('/records/:id', async (req, res, next) => {
   try {
     const { status } = req.body;
@@ -222,7 +222,7 @@ router.patch('/records/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/** GET /api/student-attendance/teacher/:teacherId — teacher's own sessions (any date range) */
+/** GET /api/student-attendance/teacher/:teacherId â€” teacher's own sessions (any date range) */
 router.get('/teacher/:teacherId', async (req, res, next) => {
   try {
     if (req.user.role === 'teacher' && req.user.id !== req.params.teacherId) {
@@ -251,7 +251,7 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/** GET /api/student-attendance/report/students — per-student attendance summary (admin) */
+/** GET /api/student-attendance/report/students â€” per-student attendance summary (admin) */
 router.get('/report/students', adminOnly, async (req, res, next) => {
   try {
     const { class_name, from, to, academic_year_id, semester } = req.query;
@@ -285,7 +285,7 @@ router.get('/report/students', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/** GET /api/student-attendance/report/teacher/:teacherId/students — per-student summary for teacher's own sessions */
+/** GET /api/student-attendance/report/teacher/:teacherId/students â€” per-student summary for teacher's own sessions */
 router.get('/report/teacher/:teacherId/students', async (req, res, next) => {
   try {
     if (req.user.role === 'teacher' && req.user.id !== req.params.teacherId) {
@@ -320,7 +320,7 @@ router.get('/report/teacher/:teacherId/students', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/** GET /api/student-attendance — admin list of sessions with summary counts */
+/** GET /api/student-attendance â€” admin list of sessions with summary counts */
 router.get('/', adminOnly, async (req, res, next) => {
   try {
     const { date, class_name, teacher_id, from, to, academic_year_id, semester } = req.query;
@@ -355,3 +355,4 @@ router.get('/', adminOnly, async (req, res, next) => {
 });
 
 module.exports = router;
+

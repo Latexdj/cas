@@ -1,4 +1,4 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 
@@ -20,6 +20,11 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
         UNIQUE (school_id, academic_year_id, number)
       )
     `);
+    // Enforce only one current academic year per school
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS academic_years_one_current
+      ON academic_years (school_id) WHERE is_current = true
+    `);
   } catch (e) {
     console.error('[academicYears] self-heal error:', e.message);
   }
@@ -27,7 +32,7 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 
 router.use(authenticate, requireActiveSubscription);
 
-// ── Academic Years ─────────────────────────────────────────────────────────────
+// â”€â”€ Academic Years â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/', async (req, res, next) => {
   try {
@@ -48,7 +53,7 @@ router.get('/current', async (req, res, next) => {
       `SELECT id, name, is_current, current_semester,
               start_date::text AS start_date, end_date::text AS end_date
        FROM academic_years
-       WHERE school_id = $1 AND is_current = true LIMIT 1`,
+       WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
       [req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'No current academic year set' });
@@ -75,7 +80,7 @@ router.post('/', adminOnly, async (req, res, next) => {
   } catch (err) {
     if (err.code === '23505') {
       const msg = err.constraint?.includes('current_year')
-        ? 'Another year is already marked as current — unset it first'
+        ? 'Another year is already marked as current â€” unset it first'
         : 'An academic year with that name already exists';
       return res.status(409).json({ error: msg });
     }
@@ -125,7 +130,7 @@ router.delete('/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Semesters ─────────────────────────────────────────────────────────────────
+// â”€â”€ Semesters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/:yearId/semesters', async (req, res, next) => {
   try {
@@ -203,3 +208,4 @@ router.delete('/:yearId/semesters/:semId', adminOnly, async (req, res, next) => 
 });
 
 module.exports = router;
+

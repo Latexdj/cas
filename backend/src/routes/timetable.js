@@ -1,4 +1,4 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const multer = require('multer');
 const XLSX   = require('xlsx');
 const pool   = require('../config/db');
@@ -248,8 +248,8 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       `SELECT id, UPPER(TRIM(teacher_code)) AS code, LOWER(TRIM(name)) AS name_lower FROM teachers WHERE school_id = $1`,
       [req.schoolId]
     );
-    const teacherByCode  = new Map(teachers.map(t => [t.code, t.id]));       // T001 → UUID
-    const teacherById    = new Map(teachers.map(t => [t.id,   t.id]));       // UUID → UUID
+    const teacherByCode  = new Map(teachers.map(t => [t.code, t.id]));       // T001 â†’ UUID
+    const teacherById    = new Map(teachers.map(t => [t.id,   t.id]));       // UUID â†’ UUID
     const teacherIdsByName = new Map();
     for (const t of teachers) {
       if (!teacherIdsByName.has(t.name_lower)) teacherIdsByName.set(t.name_lower, []);
@@ -262,20 +262,20 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
 
     function resolveTeacher(raw) {
       const val = String(raw ?? '').trim();
-      // 1. Short teacher code (T001, T002…) — preferred
+      // 1. Short teacher code (T001, T002â€¦) â€” preferred
       const byCode = teacherByCode.get(val.toUpperCase());
       if (byCode) return { id: byCode };
-      // 2. Full UUID — backward compat
+      // 2. Full UUID â€” backward compat
       if (UUID_RE.test(val)) {
         return teacherById.has(val) ? { id: val }
           : { error: `Teacher ID "${val}" not found in this school` };
       }
-      // 3. Name fallback — warn about duplicates
+      // 3. Name fallback â€” warn about duplicates
       const lower = val.toLowerCase();
       if (ambiguousNames.has(lower))
-        return { error: `Teacher "${val}" is ambiguous — multiple teachers share this name. Use their Teacher ID (e.g. T001) from the template instead.` };
+        return { error: `Teacher "${val}" is ambiguous â€” multiple teachers share this name. Use their Teacher ID (e.g. T001) from the template instead.` };
       const id = teacherByName.get(lower);
-      return id ? { id } : { error: `"${val}" not found — use the Teacher ID (e.g. T001) from the downloaded template` };
+      return id ? { id } : { error: `"${val}" not found â€” use the Teacher ID (e.g. T001) from the downloaded template` };
     }
 
     // Parse and validate rows
@@ -301,14 +301,14 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
 
       const dayOfWeek = DAY_MAP[dayRaw.toLowerCase()];
       if (!dayOfWeek) {
-        errors.push({ row: rowNum, message: `Invalid day "${dayRaw}" — use Monday/Tuesday… or 1–7` });
+        errors.push({ row: rowNum, message: `Invalid day "${dayRaw}" â€” use Monday/Tuesdayâ€¦ or 1â€“7` });
         continue;
       }
 
       const startTime = parseTime(startRaw);
       const endTime   = parseTime(endRaw);
       if (!startTime || !endTime) {
-        errors.push({ row: rowNum, message: `Invalid time values — use HH:MM format (e.g. 08:00)` });
+        errors.push({ row: rowNum, message: `Invalid time values â€” use HH:MM format (e.g. 08:00)` });
         continue;
       }
 
@@ -319,7 +319,7 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     }
 
     if (valid.length === 0 && errors.length > 0) {
-      return res.status(422).json({ inserted: 0, errors, error: `All ${errors.length} row(s) failed — check errors below` });
+      return res.status(422).json({ inserted: 0, errors, error: `All ${errors.length} row(s) failed â€” check errors below` });
     }
 
     await client.query('BEGIN');
@@ -400,7 +400,7 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
   }
 });
 
-// ── Class-subject allocations (curriculum matrix) ─────────────────────────────
+// â”€â”€ Class-subject allocations (curriculum matrix) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Helper: match a class_name inside timetable.class_names (comma-separated)
 function classNameMatch(col, paramN) {
@@ -539,7 +539,7 @@ router.post('/class-subjects/seed', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Coverage analysis ──────────────────────────────────────────────────────────
+// â”€â”€ Coverage analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const COVERAGE_SQL = `
   SELECT
@@ -572,8 +572,8 @@ const COVERAGE_SQL = `
     AND LOWER(t.subject) = LOWER(s.name)
     AND ',' || REPLACE(t.class_names, ' ', '') || ','
         LIKE '%,' || REPLACE(cs.class_name, ' ', '') || ',%'
-    AND t.academic_year_id = (SELECT id FROM academic_years WHERE school_id = cs.school_id AND is_current = true LIMIT 1)
-    AND t.semester = (SELECT current_semester FROM academic_years WHERE school_id = cs.school_id AND is_current = true LIMIT 1)
+    AND t.academic_year_id = (SELECT id FROM academic_years WHERE school_id = cs.school_id AND is_current = true ORDER BY name DESC LIMIT 1)
+    AND t.semester = (SELECT current_semester FROM academic_years WHERE school_id = cs.school_id AND is_current = true ORDER BY name DESC LIMIT 1)
   LEFT JOIN LATERAL (
     SELECT COALESCE(SUM(
       GREATEST(0,
@@ -673,7 +673,7 @@ router.delete('/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/** GET /api/timetable/bulk-update/template — download current timetable as Excel for bulk-update
+/** GET /api/timetable/bulk-update/template â€” download current timetable as Excel for bulk-update
  *  ?academic_year_id=&semester=   (optional; defaults to current year/semester)
  */
 router.get('/bulk-update/template', adminOnly, async (req, res, next) => {
@@ -684,7 +684,7 @@ router.get('/bulk-update/template', adminOnly, async (req, res, next) => {
     // Resolve defaults
     if (!academic_year_id || !semester) {
       const { rows: yr } = await pool.query(
-        `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+        `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
         [req.schoolId]
       );
       if (yr.length) { academic_year_id = academic_year_id || yr[0].id; semester = semester || yr[0].current_semester || 1; }
@@ -705,7 +705,7 @@ router.get('/bulk-update/template', adminOnly, async (req, res, next) => {
     const DAYS_REV = { 1:'Monday',2:'Tuesday',3:'Wednesday',4:'Thursday',5:'Friday',6:'Saturday',7:'Sunday' };
 
     const wb = new ExcelJS.Workbook();
-    wb.creator = 'CAS – Classroom Attendance System';
+    wb.creator = 'CAS â€“ Classroom Attendance System';
     const ws = wb.addWorksheet('Timetable Update', { views: [{ state: 'frozen', ySplit: 2 }] });
 
     const GREEN_DARK = '0F4C35';
@@ -769,7 +769,7 @@ router.get('/bulk-update/template', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/** POST /api/timetable/bulk-update — update existing timetable entries by ID
+/** POST /api/timetable/bulk-update â€” update existing timetable entries by ID
  *  Column A = Entry ID (required); remaining columns update only if non-blank
  */
 router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, next) => {
@@ -807,7 +807,7 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
 
       const entryId = String(row[0] ?? '').trim();
       if (!entryId) { errors.push({ row: rowNum, message: 'Entry ID is required' }); continue; }
-      if (!UUID_RE.test(entryId)) { errors.push({ row: rowNum, message: `"${entryId}" is not a valid Entry ID — use the downloaded template` }); continue; }
+      if (!UUID_RE.test(entryId)) { errors.push({ row: rowNum, message: `"${entryId}" is not a valid Entry ID â€” use the downloaded template` }); continue; }
 
       // Verify ownership
       const { rows: existing } = await pool.query(
@@ -832,7 +832,7 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
         if (!tid) { errors.push({ row: rowNum, message: `Teacher "${newTeacherCode}" not found` }); continue; }
         add('teacher_id', tid);
       }
-      // col C = Teacher Name — reference only, skip
+      // col C = Teacher Name â€” reference only, skip
       // col D = Day
       const dayRaw = String(row[3] ?? '').trim();
       if (dayRaw) {
@@ -877,3 +877,4 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
 });
 
 module.exports = router;
+

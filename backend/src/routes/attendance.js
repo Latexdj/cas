@@ -1,4 +1,4 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { verifyLocation, getWeekNumber } = require('../services/geo.service');
@@ -44,7 +44,7 @@ router.post('/submit', async (req, res, next) => {
     if (!yearId || !sem) {
       const { rows } = await pool.query(
         `SELECT id, current_semester FROM academic_years
-         WHERE school_id = $1 AND is_current = true LIMIT 1`,
+         WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
         [req.schoolId]
       );
       if (!rows.length) return res.status(400).json({ error: 'No current academic year configured' });
@@ -74,7 +74,7 @@ router.post('/submit', async (req, res, next) => {
       }
     }
 
-    // GPS / location verification — both required
+    // GPS / location verification â€” both required
     let locationId = null, locationVerified = false, locationMsg = 'Location not verified';
     const { rows: locRows } = await pool.query(
       `SELECT * FROM locations WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
@@ -101,7 +101,7 @@ router.post('/submit', async (req, res, next) => {
       });
     }
 
-    // Upload photo first (external call — cannot be inside a DB transaction)
+    // Upload photo first (external call â€” cannot be inside a DB transaction)
     const { rows: tRows } = await pool.query(`SELECT name FROM teachers WHERE id = $1`, [teacherId]);
     const tName    = tRows[0]?.name || teacherId;
     const fileName = `${req.schoolId}/${tName}_${today}_${classNames.replace(/,\s*/g,'_')}_${Date.now()}.png`;
@@ -110,7 +110,7 @@ router.post('/submit', async (req, res, next) => {
     // Atomic duplicate-check + insert using a PostgreSQL advisory lock.
     // This serialises concurrent submissions for the same teacher/date/subject
     // so two simultaneous requests cannot both pass the duplicate check and
-    // both insert — the second will wait, re-check, and get a 409.
+    // both insert â€” the second will wait, re-check, and get a 409.
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -247,7 +247,7 @@ router.get('/history', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/attendance/my-summary — teacher's own attendance stats (defaults to current year + semester)
+// GET /api/attendance/my-summary â€” teacher's own attendance stats (defaults to current year + semester)
 router.get('/my-summary', async (req, res, next) => {
   try {
     const { academic_year_id, semester } = req.query;
@@ -258,7 +258,7 @@ router.get('/my-summary', async (req, res, next) => {
 
     if (!yearId || (!useAll && sem === null)) {
       const { rows: ayRows } = await pool.query(
-        `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+        `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
         [req.schoolId]
       );
       if (!yearId) yearId = ayRows[0]?.id    || null;
@@ -330,7 +330,7 @@ router.get('/my-summary', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/attendance/:id/revoke — admin flags fraudulent submission:
+// POST /api/attendance/:id/revoke â€” admin flags fraudulent submission:
 //   deletes record + student records, marks teacher absent, notifies teacher, audit logs
 router.post('/:id/revoke', adminOnly, async (req, res, next) => {
   try {
@@ -384,7 +384,7 @@ router.post('/:id/revoke', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/attendance/:id — admin removes a record (cascades student records, notifies teacher)
+// DELETE /api/attendance/:id â€” admin removes a record (cascades student records, notifies teacher)
 router.delete('/:id', adminOnly, async (req, res, next) => {
   try {
     const { rows: recRows } = await pool.query(
@@ -420,3 +420,4 @@ router.delete('/:id', adminOnly, async (req, res, next) => {
 });
 
 module.exports = router;
+

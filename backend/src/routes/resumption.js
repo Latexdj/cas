@@ -1,4 +1,4 @@
-const router = require('express').Router();
+﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 
@@ -38,7 +38,7 @@ async function ensureTables() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_arrivals_student ON student_arrivals(student_id)`);
   // Add columns that may be missing if the table was created by an earlier migration without them
   await pool.query(`ALTER TABLE student_arrivals ADD COLUMN IF NOT EXISTS notes TEXT`);
-  // resumption_flags has an optional FK to student_attendance_sessions which may not exist —
+  // resumption_flags has an optional FK to student_attendance_sessions which may not exist â€”
   // try with it first, fall back to without if the referenced table doesn't exist.
   try {
     await pool.query(`
@@ -90,7 +90,7 @@ async function withTables(fn) {
 // Helper: get current year/semester for a school
 async function getCurrentYearSem(schoolId) {
   const { rows } = await pool.query(
-    `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true LIMIT 1`,
+    `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
     [schoolId]
   );
   return { yearId: rows[0]?.id || null, sem: rows[0]?.current_semester || null };
@@ -148,7 +148,7 @@ router.get('/arrivals', async (req, res, next) => {
       const { yearId, sem } = await getCurrentYearSem(req.schoolId);
       if (!yearId) return res.json({ arrivals: [], _debug: 'no_active_year' });
 
-      // Step 1: raw count — tells us if records exist regardless of JOIN issues
+      // Step 1: raw count â€” tells us if records exist regardless of JOIN issues
       const { rows: countRows } = await pool.query(
         `SELECT COUNT(*)::int AS total FROM student_arrivals
          WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3`,
@@ -177,7 +177,7 @@ router.get('/arrivals', async (req, res, next) => {
         const { rows } = await pool.query(q, params);
         res.json({ arrivals: rows, _rawCount: rawCount });
       } catch (joinErr) {
-        // Full JOIN query failed — return raw count so frontend can show a meaningful error
+        // Full JOIN query failed â€” return raw count so frontend can show a meaningful error
         console.error('[arrivals GET] join query failed code=%s msg=%s', joinErr.code, joinErr.message);
         res.json({
           arrivals: [],
@@ -193,7 +193,7 @@ router.get('/arrivals', async (req, res, next) => {
   }
 });
 
-/** POST /api/resumption/arrivals — bulk-friendly: accepts array of student_ids */
+/** POST /api/resumption/arrivals â€” bulk-friendly: accepts array of student_ids */
 router.post('/arrivals', async (req, res, next) => {
   try {
     await withTables(async () => {
@@ -242,7 +242,7 @@ router.delete('/arrivals/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-/** GET /api/resumption/missing — boarding students with no arrival record */
+/** GET /api/resumption/missing â€” boarding students with no arrival record */
 router.get('/missing', async (req, res, next) => {
   try {
     await withTables(async () => {
@@ -345,3 +345,4 @@ router.post('/flags/:id/resolve', async (req, res, next) => {
 });
 
 module.exports = router;
+
