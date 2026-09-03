@@ -1343,12 +1343,12 @@ async function runMigrations() {
       SET
         academic_year_id = (
           SELECT id FROM academic_years
-          WHERE school_id = t.school_id AND is_current = true
+          WHERE school_id = t.school_id AND is_current = true ORDER BY name DESC
           LIMIT 1
         ),
         semester = (
           SELECT current_semester FROM academic_years
-          WHERE school_id = t.school_id AND is_current = true
+          WHERE school_id = t.school_id AND is_current = true ORDER BY name DESC
           LIMIT 1
         )
       WHERE t.academic_year_id IS NULL
