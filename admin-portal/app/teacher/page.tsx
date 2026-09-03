@@ -187,15 +187,20 @@ export default function TeacherDashboardPage() {
         const bg     = isVac || isHoliday ? '#E8F4EE' : isClosed ? '#FEF2F2' : '#FFF8E1';
         const border = isVac || isHoliday ? '#BBF7D0' : isClosed ? '#FECACA' : '#FDE68A';
         const color  = isVac || isHoliday ? '#145C44' : isClosed ? '#B83232' : '#92400E';
-        const icon   = isVac || isHoliday ? '🏖️' : isClosed ? '🔒' : '📅';
-        const title  = isVac ? 'School Vacation' : isHoliday ? 'Public Holiday' : isClosed ? 'School Closed' : 'School Event';
+        const title  = isVac ? 'School vacation' : isHoliday ? 'Public holiday' : isClosed ? 'School closed' : 'School event today';
+        const body   = `${dayStatus.label ? dayStatus.label + '. ' : ''}No lessons are scheduled today.`;
         return (
           <div className="mb-4 rounded-xl px-4 py-3 flex items-start gap-3"
             style={{ backgroundColor: bg, border: `1px solid ${border}`, borderLeft: `4px solid ${color}` }}>
-            <span className="text-lg leading-none mt-0.5">{icon}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"
+              style={{ width: 16, height: 16, flexShrink: 0, marginTop: 2 }}>
+              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+              <line x1="9.5" y1="14.5" x2="14.5" y2="19.5"/><line x1="14.5" y1="14.5" x2="9.5" y2="19.5"/>
+            </svg>
             <div>
-              <p className="text-sm font-bold" style={{ color }}>{title} — No lessons scheduled today</p>
-              {dayStatus.label && <p className="text-xs mt-0.5" style={{ color, opacity: 0.8 }}>{dayStatus.label}</p>}
+              <p className="text-sm font-bold" style={{ color }}>{title}</p>
+              <p className="text-xs mt-0.5" style={{ color, opacity: 0.8 }}>{body}</p>
             </div>
           </div>
         );

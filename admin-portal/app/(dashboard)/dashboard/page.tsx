@@ -569,14 +569,20 @@ export default function DashboardPage() {
         const bg     = isVac || isHoliday ? '#E8F4EE' : isClosed ? '#FEF2F2' : '#FFF8E1';
         const border = isVac || isHoliday ? '#BBF7D0' : isClosed ? '#FECACA' : '#FDE68A';
         const color  = isVac || isHoliday ? '#145C44' : isClosed ? '#B83232' : '#92400E';
-        const title  = isVac ? 'School Vacation' : isHoliday ? 'Public Holiday' : isClosed ? 'School Closed' : 'School Event';
+        const title  = isVac ? 'School vacation' : isHoliday ? 'Public holiday' : isClosed ? 'School closed' : 'School event today';
+        const body   = `${dayStatus.label ? dayStatus.label + '. ' : ''}No lessons are scheduled today.`;
         return (
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm"
+          <div className="flex items-start gap-3 px-4 py-3 rounded-xl text-sm"
             style={{ backgroundColor: bg, border: `1px solid ${border}`, borderLeft: `4px solid ${color}` }}>
-            <span style={{ fontSize: 18 }}>{isVac || isHoliday ? '🏖️' : isClosed ? '🔒' : '📅'}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"
+              style={{ width: 16, height: 16, flexShrink: 0, marginTop: 2 }}>
+              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+              <line x1="9.5" y1="14.5" x2="14.5" y2="19.5"/><line x1="14.5" y1="14.5" x2="9.5" y2="19.5"/>
+            </svg>
             <div>
-              <span className="font-bold" style={{ color }}>{title} — No lessons scheduled today</span>
-              {dayStatus.label && <span style={{ color, opacity: 0.75 }}> &middot; {dayStatus.label}</span>}
+              <p className="font-bold" style={{ color }}>{title}</p>
+              <p className="text-xs mt-0.5" style={{ color, opacity: 0.8 }}>{body}</p>
             </div>
           </div>
         );
