@@ -135,7 +135,7 @@ export default function ResumptionPage() {
       if (arrivalSearch) params.search = arrivalSearch;
       const r = await api.get('/api/resumption/arrivals', { params });
       setArrivals(r.data.arrivals || []);
-    } catch { setArrivals([]); } finally { setArrivalsLoading(false); }
+    } catch (e) { console.error('loadArrivals error:', e); setArrivals([]); } finally { setArrivalsLoading(false); }
   }, [arrivalClass, arrivalHouse, arrivalSearch]);
 
   const loadMissing = useCallback(async () => {

@@ -36,6 +36,8 @@ async function ensureTables() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_arrivals_school ON student_arrivals(school_id, academic_year_id, semester)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_arrivals_student ON student_arrivals(student_id)`);
+  // Add columns that may be missing if the table was created by an earlier migration without them
+  await pool.query(`ALTER TABLE student_arrivals ADD COLUMN IF NOT EXISTS notes TEXT`);
   // resumption_flags has an optional FK to student_attendance_sessions which may not exist —
   // try with it first, fall back to without if the referenced table doesn't exist.
   try {
