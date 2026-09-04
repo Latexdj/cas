@@ -46,6 +46,10 @@ function ExamContent() {
   const [remarksDirty,   setRemarksDirty]   = useState(false);
   const [remarksSaving,  setRemarksSaving]  = useState(false);
   const [remarksExpanded, setRemarksExpanded] = useState(false);
+  const [aiSuggestion,   setAiSuggestion]   = useState<Record<string, string>>({});
+  const [aiLoading,      setAiLoading]      = useState<Record<string, boolean>>({});
+  const [aiError,        setAiError]        = useState<Record<string, string>>({});
+  const [aiAcceptedIds,  setAiAcceptedIds]  = useState<Set<string>>(new Set());
 
   const inputRefs    = useRef<Record<string, HTMLInputElement | null>>({});
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
@@ -196,6 +200,54 @@ function ExamContent() {
     } finally { setSaving(false); }
   }
 
+  async function draftWithAI(studentId: string) {
+    const row = rows.find(r => r.student_id === studentId);
+    if (!row) return;
+    setAiLoading(prev => ({ ...prev, [studentId]: true }));
+    setAiError(prev => ({ ...prev, [studentId]: '' }));
+    setAiSuggestion(prev => ({ ...prev, [studentId]: '' }));
+
+    try {
+      const { data } = await teacherApi.post<{ draft: string }>('/api/ai/draft-remark', {
+        student_id:       studentId,
+        academic_year_id: selectedYearId,
+        semester:         parseInt(selectedSem),
+        track:            'secondary_subject',
+        context: {
+          student_name:     row.name,
+          class_name,
+          year_name:        selectedYearName,
+          semester:         parseInt(selectedSem),
+          subject_name:     subject,
+          ca_score:         null,
+          exam_score:       row.score,
+          total:            row.score,
+          grade:            null,
+          subject_position: null,
+          class_size:       rows.length,
+          previous_remark:  null,
+        },
+      });
+      setAiSuggestion(prev => ({ ...prev, [studentId]: data.draft }));
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        ?? 'Draft unavailable. Please write the remark directly.';
+      setAiError(prev => ({ ...prev, [studentId]: msg }));
+    } finally {
+      setAiLoading(prev => ({ ...prev, [studentId]: false }));
+    }
+  }
+
+  function acceptAIDraft(studentId: string) {
+    const text = aiSuggestion[studentId];
+    if (!text) return;
+    const next = subjRemarks.map(r => r.student_id === studentId ? { ...r, remarks: text } : r);
+    setSubjRemarks(next);
+    setRemarksDirty(true);
+    setAiAcceptedIds(prev => new Set(prev).add(studentId));
+    setAiSuggestion(prev => ({ ...prev, [studentId]: '' }));
+  }
+
   async function saveRemarks() {
     setRemarksSaving(true);
     try {
@@ -204,7 +256,11 @@ function ExamContent() {
         semester: selectedSem,
         subject,
         class_name,
-        remarks: subjRemarks.map(r => ({ student_id: r.student_id, remarks: r.remarks || null })),
+        remarks: subjRemarks.map(r => ({
+          student_id: r.student_id,
+          remarks:    r.remarks || null,
+          ai_drafted: aiAcceptedIds.has(r.student_id),
+        })),
       });
       setRemarksDirty(false);
     } catch { /* show error */ }
@@ -439,20 +495,57 @@ function ExamContent() {
                 Optional per-student feedback for this subject. Students will see these on their results.
               </p>
               {subjRemarks.map((r, idx) => (
-                <div key={r.student_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 16px', borderTop: '1px solid #F1F5F9' }}>
-                  <span style={{ fontSize: 13, color: '#374151', width: 180, flexShrink: 0 }}>{r.name}</span>
-                  <input
-                    disabled={subLocked}
-                    value={r.remarks}
-                    onChange={e => {
-                      const next = [...subjRemarks];
-                      next[idx] = { ...next[idx], remarks: e.target.value };
-                      setSubjRemarks(next);
-                      setRemarksDirty(true);
-                    }}
-                    placeholder="Enter remark…"
-                    style={{ flex: 1, border: '1px solid #E2E8F0', borderRadius: 8, padding: '6px 10px', fontSize: 13, outline: 'none', background: subLocked ? '#F5F0E8' : '#fff' }}
-                  />
+                <div key={r.student_id} style={{ padding: '8px 16px', borderTop: '1px solid #F1F5F9' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 13, color: '#374151', width: 180, flexShrink: 0 }}>{r.name}</span>
+                    <input
+                      disabled={subLocked}
+                      value={r.remarks}
+                      onChange={e => {
+                        const next = [...subjRemarks];
+                        next[idx] = { ...next[idx], remarks: e.target.value };
+                        setSubjRemarks(next);
+                        setRemarksDirty(true);
+                      }}
+                      placeholder="Enter remark…"
+                      style={{ flex: 1, border: '1px solid #E2E8F0', borderRadius: 8, padding: '6px 10px', fontSize: 13, outline: 'none', background: subLocked ? '#F5F0E8' : '#fff' }}
+                    />
+                    {!subLocked && (
+                      <button
+                        type="button"
+                        onClick={() => draftWithAI(r.student_id)}
+                        disabled={aiLoading[r.student_id]}
+                        style={{ flexShrink: 0, border: '1px solid #8FC4A4', borderRadius: 8, padding: '5px 10px', fontSize: 11, fontWeight: 600, color: '#145C44', background: '#F0FAF4', cursor: aiLoading[r.student_id] ? 'default' : 'pointer', opacity: aiLoading[r.student_id] ? 0.6 : 1 }}
+                      >
+                        {aiLoading[r.student_id] ? 'Drafting…' : 'Draft with AI'}
+                      </button>
+                    )}
+                  </div>
+                  {aiError[r.student_id] && (
+                    <p style={{ margin: '4px 0 0 192px', fontSize: 11, color: '#B83232' }}>{aiError[r.student_id]}</p>
+                  )}
+                  {aiSuggestion[r.student_id] && (
+                    <div style={{ margin: '8px 0 0 192px', border: '1px solid #8FC4A4', borderRadius: 8, background: '#F0FAF4', padding: '10px 12px' }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: '#145C44', marginBottom: 4 }}>AI suggestion — review before using:</p>
+                      <p style={{ fontSize: 12, color: '#374151', lineHeight: 1.5 }}>{aiSuggestion[r.student_id]}</p>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => acceptAIDraft(r.student_id)}
+                          style={{ border: 'none', borderRadius: 6, padding: '5px 14px', fontSize: 11, fontWeight: 700, color: '#fff', background: '#145C44', cursor: 'pointer' }}
+                        >
+                          Use this draft
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAiSuggestion(prev => ({ ...prev, [r.student_id]: '' }))}
+                          style={{ border: '1px solid #E2E8F0', borderRadius: 6, padding: '5px 14px', fontSize: 11, fontWeight: 600, color: '#64748B', background: '#fff', cursor: 'pointer' }}
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
               {!subLocked && (
