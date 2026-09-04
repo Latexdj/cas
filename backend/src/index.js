@@ -2323,6 +2323,45 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE primary_report_remarks ADD COLUMN IF NOT EXISTS ai_drafted BOOLEAN DEFAULT false`);
     } catch (e) { console.error('AI remarks phase 2 migration error:', e.message); }
 
+    // ── Discipline Phase 3 (approval workflow) ────────────────────────────────
+    try {
+      await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS requires_approval BOOLEAN DEFAULT false`);
+      // approved_by references teachers because admin users live in that table (not school_staff)
+      await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS approved_by UUID REFERENCES teachers(id) ON DELETE SET NULL`);
+      await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ`);
+
+      // Expand status CHECK to include pending_approval.
+      // Drop whichever auto-named or old constraint exists first, then add the canonical one.
+      await pool.query(`
+        DO $$
+        DECLARE r RECORD;
+        BEGIN
+          FOR r IN
+            SELECT conname FROM pg_constraint
+            WHERE conrelid = 'student_disciplinary_letters'::regclass
+              AND contype = 'c' AND conname LIKE '%status%'
+              AND conname != 'sdl_status_check'
+          LOOP
+            EXECUTE format('ALTER TABLE student_disciplinary_letters DROP CONSTRAINT %I', r.conname);
+          END LOOP;
+        END $$
+      `);
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conrelid = 'student_disciplinary_letters'::regclass
+              AND conname = 'sdl_status_check'
+          ) THEN
+            ALTER TABLE student_disciplinary_letters
+            ADD CONSTRAINT sdl_status_check
+            CHECK (status IN ('pending_approval','issued','acknowledged','resolved'));
+          END IF;
+        END $$
+      `);
+    } catch (e) { console.error('Discipline phase 3 migration error:', e.message); }
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);
