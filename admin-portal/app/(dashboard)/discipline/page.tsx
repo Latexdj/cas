@@ -28,9 +28,11 @@ interface DisciplinaryLetter {
   resolved_at?: string; resolved_by_name?: string; issued_by_name: string; created_at: string; semester?: number;
   student_id: string; student_name: string; student_code: string; class_name: string; academic_year_name?: string;
   ref_number?: string; issued_by_signature_url?: string;
+  requires_approval?: boolean; approved_by?: string; approved_by_name?: string; approved_at?: string;
+  school_name?: string;
 }
 
-interface LetterStats { total: string; active: string; resolved: string; warning: string; final_warning: string; suspension: string; dismissal: string; }
+interface LetterStats { total: string; active: string; pending_approval: string; resolved: string; warning: string; final_warning: string; suspension: string; dismissal: string; }
 
 // ─── Palette helpers ──────────────────────────────────────────────────────────
 
@@ -69,9 +71,10 @@ function letterTypeBadge(type: string): { label: string; color: string; bg: stri
 
 function letterStatusBadge(status: string): { label: string; color: string; bg: string } {
   const map: Record<string, { label: string; color: string; bg: string }> = {
-    issued:       { label: 'Issued',       color: C.warning, bg: C.warningBg },
-    acknowledged: { label: 'Acknowledged', color: C.mid,     bg: '#E8F4EE' },
-    resolved:     { label: 'Resolved',     color: C.success, bg: '#DCFCE7' },
+    pending_approval: { label: 'Pending Approval', color: '#6D28D9', bg: '#EDE9FE' },
+    issued:           { label: 'Issued',            color: C.warning,  bg: C.warningBg },
+    acknowledged:     { label: 'Acknowledged',      color: C.mid,      bg: '#E8F4EE' },
+    resolved:         { label: 'Resolved',           color: C.success,  bg: '#DCFCE7' },
   };
   return map[status] ?? { label: status, color: C.muted, bg: C.bg };
 }
@@ -293,10 +296,14 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
 
 // ─── Issue Letter Modal ───────────────────────────────────────────────────────
 
-function IssueLetterModal({ students, academicYears, onClose, onCreated }: {
+const APPROVAL_REQUIRED_TYPES = new Set(['suspension', 'dismissal', 'final_warning']);
+
+function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCreated }: {
   students: Student[]; academicYears: AcademicYear[];
+  schoolInfo?: Record<string, string> | null;
   onClose: () => void; onCreated: (l: DisciplinaryLetter) => void;
 }) {
+  const currentYear = academicYears.find(ay => ay.is_current);
   const [search, setSearch] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -306,10 +313,11 @@ function IssueLetterModal({ students, academicYears, onClose, onCreated }: {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [issuedDate, setIssuedDate] = useState(new Date().toISOString().slice(0, 10));
-  const [ayId, setAyId] = useState('');
+  const [ayId, setAyId] = useState(currentYear?.id ?? '');
   const [semester, setSemester] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const needsApproval = APPROVAL_REQUIRED_TYPES.has(letterType);
 
   const filteredStudents = useMemo(() =>
     students.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -349,6 +357,24 @@ function IssueLetterModal({ students, academicYears, onClose, onCreated }: {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Structural fields — pre-filled, read-only */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px' }}>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 2px' }}>School</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: C.dark, margin: 0 }}>{schoolInfo?.name ?? schoolInfo?.school_name ?? '—'}</p>
+            </div>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 2px' }}>Ref Number</p>
+              <p style={{ fontSize: 13, color: C.muted, margin: 0, fontStyle: 'italic' }}>Auto-assigned on save</p>
+            </div>
+          </div>
+
+          {needsApproval && (
+            <div style={{ background: '#EDE9FE', border: '1px solid #C4B5FD', borderRadius: 10, padding: '9px 14px', fontSize: 12, color: '#6D28D9', fontWeight: 600 }}>
+              This letter type requires headmaster approval before it is issued to the student.
+            </div>
+          )}
+
           {/* Student picker */}
           <div style={{ position: 'relative' }}>
             <label style={{ fontSize: 12, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 5 }}>Student *</label>
@@ -622,11 +648,23 @@ function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
 }) {
   const [ackBy, setAckBy] = useState('admin');
   const [resolveNotes, setResolveNotes] = useState('');
-  const [actioning, setActioning] = useState<'ack' | 'resolve' | null>(null);
+  const [actioning, setActioning] = useState<'ack' | 'resolve' | 'approve' | null>(null);
   const [error, setError] = useState('');
   const typeBadge = letterTypeBadge(letter.letter_type);
   const statusBadge = letterStatusBadge(letter.status);
   const isClosed = letter.status === 'resolved';
+  const isPendingApproval = letter.status === 'pending_approval';
+
+  async function approve() {
+    setActioning('approve'); setError('');
+    try {
+      const { data } = await api.patch<DisciplinaryLetter>(`/api/discipline/letters/${letter.id}/approve`, {});
+      onUpdate(data);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setError(err.response?.data?.error ?? 'Action failed');
+    } finally { setActioning(null); }
+  }
 
   async function acknowledge() {
     setActioning('ack'); setError('');
@@ -686,6 +724,13 @@ function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
         <p style={{ fontSize: 13, color: C.dark, lineHeight: 1.75, whiteSpace: 'pre-wrap', margin: 0 }}>{letter.body}</p>
       </div>
 
+      {/* Approved info */}
+      {letter.approved_at && (
+        <div style={{ background: '#EDE9FE', border: '1px solid #C4B5FD', borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 12, color: '#6D28D9' }}>
+          Approved by <strong>{letter.approved_by_name ?? 'Management'}</strong> on {fmt(letter.approved_at)}
+        </div>
+      )}
+
       {/* Acknowledged info */}
       {letter.acknowledged_at && (
         <div style={{ background: '#E8F4EE', border: `1px solid #B7DFC9`, borderRadius: 10, padding: 12, marginBottom: 12, fontSize: 12, color: C.mid }}>
@@ -703,7 +748,19 @@ function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
       )}
 
       {/* Actions */}
-      {!isClosed && (
+      {isPendingApproval && (
+        <div style={{ background: '#EDE9FE', border: '1px solid #C4B5FD', borderRadius: 12, padding: 14, marginTop: 4 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: '#6D28D9', marginBottom: 6 }}>Awaiting Headmaster Approval</p>
+          <p style={{ fontSize: 12, color: '#7C3AED', marginBottom: 10 }}>
+            This letter requires approval before it is issued to the student.
+          </p>
+          <button onClick={approve} disabled={actioning !== null}
+            style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: '#6D28D9', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: actioning ? 0.6 : 1 }}>
+            {actioning === 'approve' ? 'Approving...' : 'Approve and Issue'}
+          </button>
+        </div>
+      )}
+      {!isClosed && !isPendingApproval && (
         <div style={{ display: 'grid', gridTemplateColumns: letter.status === 'issued' ? '1fr 1fr' : '1fr', gap: 12, marginTop: 4 }}>
           {letter.status === 'issued' && (
             <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
@@ -717,18 +774,18 @@ function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
               </select>
               <button onClick={acknowledge} disabled={actioning !== null}
                 style={{ width: '100%', padding: '8px 0', borderRadius: 8, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: actioning ? 0.6 : 1 }}>
-                {actioning === 'ack' ? 'Acknowledging…' : 'Mark Acknowledged'}
+                {actioning === 'ack' ? 'Acknowledging...' : 'Mark Acknowledged'}
               </button>
             </div>
           )}
           <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: C.success, marginBottom: 8 }}>Mark Resolved</p>
             <textarea value={resolveNotes} onChange={e => setResolveNotes(e.target.value)} rows={3}
-              placeholder="Resolution notes (optional)…"
+              placeholder="Resolution notes (optional)..."
               style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', fontSize: 12, resize: 'vertical', fontFamily: 'inherit', outline: 'none', color: C.dark, background: C.bg, boxSizing: 'border-box' }} />
             <button onClick={resolve} disabled={actioning !== null}
               style={{ marginTop: 8, width: '100%', padding: '8px 0', borderRadius: 8, border: 'none', background: C.success, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: actioning ? 0.6 : 1 }}>
-              {actioning === 'resolve' ? 'Resolving…' : 'Resolve'}
+              {actioning === 'resolve' ? 'Resolving...' : 'Resolve'}
             </button>
           </div>
         </div>
@@ -965,6 +1022,7 @@ export default function DisciplinePage() {
           {letterStats && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
               <StatCard label="Total" value={letterStats.total} />
+              <StatCard label="Pending Approval" value={letterStats.pending_approval} color="#6D28D9" />
               <StatCard label="Active" value={letterStats.active} color={C.warning} />
               <StatCard label="Resolved" value={letterStats.resolved} color={C.success} />
               <StatCard label="Warning" value={letterStats.warning} color={C.warning} />
@@ -984,8 +1042,9 @@ export default function DisciplinePage() {
               <option value="">All types</option>
               {LETTER_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
-            <select value={lStatusFilter} onChange={e => setLStatusFilter(e.target.value)} style={{ ...selectStyle, minWidth: 130 }}>
+            <select value={lStatusFilter} onChange={e => setLStatusFilter(e.target.value)} style={{ ...selectStyle, minWidth: 160 }}>
               <option value="">All statuses</option>
+              <option value="pending_approval">Pending Approval</option>
               {['issued','acknowledged','resolved'].map(s => (
                 <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
               ))}
@@ -1074,6 +1133,7 @@ export default function DisciplinePage() {
         <IssueLetterModal
           students={students}
           academicYears={academicYears}
+          schoolInfo={schoolInfo}
           onClose={() => setShowIssueLetter(false)}
           onCreated={l => { setLetters(prev => [l, ...prev]); setShowIssueLetter(false); }}
         />
