@@ -229,11 +229,11 @@ router.post('/subject-remarks', async (req, res, next) => {
       await client.query('BEGIN');
       for (const r of safeRemarks) {
         await client.query(
-          `INSERT INTO subject_remarks (school_id, academic_year_id, semester, subject, class_name, student_id, teacher_id, remarks, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
+          `INSERT INTO subject_remarks (school_id, academic_year_id, semester, subject, class_name, student_id, teacher_id, remarks, ai_drafted, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
            ON CONFLICT (school_id, academic_year_id, semester, subject, class_name, student_id)
-           DO UPDATE SET remarks=$8, teacher_id=$7, updated_at=now()`,
-          [req.schoolId, academic_year_id, parseInt(semester), subject, class_name, r.student_id, req.user.id, r.remarks ?? null]
+           DO UPDATE SET remarks=$8, teacher_id=$7, ai_drafted=$9, updated_at=now()`,
+          [req.schoolId, academic_year_id, parseInt(semester), subject, class_name, r.student_id, req.user.id, r.remarks ?? null, r.ai_drafted === true]
         );
       }
       await client.query('COMMIT');

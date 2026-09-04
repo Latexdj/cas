@@ -200,12 +200,13 @@ router.post('/remarks', async (req, res, next) => {
     for (const r of remarks) {
       await pool.query(
         `INSERT INTO report_remarks
-           (school_id, student_id, academic_year_id, semester, attitude, conduct, general_remarks)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)
+           (school_id, student_id, academic_year_id, semester, attitude, conduct, general_remarks, ai_drafted)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
          ON CONFLICT (school_id, student_id, academic_year_id, semester)
-         DO UPDATE SET attitude=$5, conduct=$6, general_remarks=$7, updated_at=now()`,
+         DO UPDATE SET attitude=$5, conduct=$6, general_remarks=$7, ai_drafted=$8, updated_at=now()`,
         [req.schoolId, r.student_id, academic_year_id, parseInt(semester),
-         r.attitude || null, r.conduct || null, r.general_remarks || null]
+         r.attitude || null, r.conduct || null, r.general_remarks || null,
+         r.ai_drafted === true]
       );
     }
     res.json({ saved: remarks.length });
