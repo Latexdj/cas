@@ -2318,6 +2318,11 @@ async function runMigrations() {
       `);
     } catch (e) { console.error('AI remarks migration error:', e.message); }
 
+    // ── AI Remarks (Phase 2 - Primary) ───────────────────────────────────────
+    try {
+      await pool.query(`ALTER TABLE primary_report_remarks ADD COLUMN IF NOT EXISTS ai_drafted BOOLEAN DEFAULT false`);
+    } catch (e) { console.error('AI remarks phase 2 migration error:', e.message); }
+
     console.log('Migrations OK');
   } catch (err) {
     console.error('Migration error:', err.message);
