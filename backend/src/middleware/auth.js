@@ -99,6 +99,16 @@ function superAdminOnly(req, res, next) {
   next();
 }
 
+// Grants access to management portal users (principal / vice_principal).
+// These users authenticate via /api/principal/auth/login and carry type:'management' in their JWT.
+// Mirrors the gate used throughout principal.js.
+function managementOnly(req, res, next) {
+  if (req.user?.type !== 'management') {
+    return res.status(403).json({ error: 'Management portal access required' });
+  }
+  next();
+}
+
 // Checks that the school has an active trial or paid subscription.
 // Super admin bypasses this check entirely.
 async function requireActiveSubscription(req, res, next) {
@@ -162,4 +172,4 @@ async function requireActiveSubscription(req, res, next) {
   }
 }
 
-module.exports = { authenticate, adminOnly, superAdminOnly, requireActiveSubscription };
+module.exports = { authenticate, adminOnly, superAdminOnly, managementOnly, requireActiveSubscription };

@@ -1,7 +1,7 @@
 'use strict';
 const router = require('express').Router();
 const pool   = require('../config/db');
-const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { authenticate, adminOnly, managementOnly, requireActiveSubscription } = require('../middleware/auth');
 const { uploadDocument } = require('../services/storage.service');
 
 router.use(authenticate, requireActiveSubscription);
@@ -391,8 +391,8 @@ router.get('/letters/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/discipline/letters/:id/approve (admin — headmaster equivalent in this codebase)
-router.patch('/letters/:id/approve', adminOnly, async (req, res, next) => {
+// PATCH /api/discipline/letters/:id/approve — management portal only (principal / vice_principal)
+router.patch('/letters/:id/approve', managementOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `UPDATE student_disciplinary_letters
