@@ -201,8 +201,6 @@ function ExamContent() {
   }
 
   async function draftWithAI(studentId: string) {
-    const row = rows.find(r => r.student_id === studentId);
-    if (!row) return;
     setAiLoading(prev => ({ ...prev, [studentId]: true }));
     setAiError(prev => ({ ...prev, [studentId]: '' }));
     setAiSuggestion(prev => ({ ...prev, [studentId]: '' }));
@@ -213,20 +211,7 @@ function ExamContent() {
         academic_year_id: selectedYearId,
         semester:         parseInt(selectedSem),
         track:            'secondary_subject',
-        context: {
-          student_name:     row.name,
-          class_name,
-          year_name:        selectedYearName,
-          semester:         parseInt(selectedSem),
-          subject_name:     subject,
-          ca_score:         null,
-          exam_score:       row.score,
-          total:            row.score,
-          grade:            null,
-          subject_position: null,
-          class_size:       rows.length,
-          previous_remark:  null,
-        },
+        subject,
       });
       setAiSuggestion(prev => ({ ...prev, [studentId]: data.draft }));
     } catch (err: unknown) {

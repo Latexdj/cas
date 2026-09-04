@@ -251,9 +251,6 @@ export default function FormClassPage() {
   async function draftWithAI(studentId: string) {
     const s = students.find(st => st.id === studentId);
     if (!s) return;
-    const sResult = resultsData.find(r => r.student_id === studentId) ?? null;
-    const att = s.attendance;
-    const yearName = years.find(y => y.id === yearId)?.name ?? '';
 
     setAiLoading(prev => ({ ...prev, [studentId]: true }));
     setAiError(prev => ({ ...prev, [studentId]: '' }));
@@ -261,22 +258,10 @@ export default function FormClassPage() {
 
     try {
       const { data } = await teacherApi.post<{ draft: string }>('/api/ai/draft-remark', {
-        student_id: studentId,
+        student_id:       studentId,
         academic_year_id: yearId,
-        semester: parseInt(semester),
-        track: 'secondary_overall',
-        context: {
-          student_name:   s.name,
-          class_name:     assignment?.class_name ?? '',
-          year_name:      yearName,
-          semester:       parseInt(semester),
-          subjects:       sResult?.subjects ?? [],
-          class_position: sResult?.class_position ?? null,
-          class_total:    sResult?.class_total ?? null,
-          average:        sResult?.average ?? null,
-          overall_grade:  sResult?.overall_grade ?? null,
-          attendance:     { present: att.present, absent: att.absent, late: att.late },
-        },
+        semester:         parseInt(semester),
+        track:            'secondary_overall',
       });
       setAiSuggestion(prev => ({ ...prev, [studentId]: data.draft }));
     } catch (err: unknown) {
