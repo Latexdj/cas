@@ -2041,7 +2041,7 @@ router.get('/reports/student/:student_id', async (req, res, next) => {
 // POST /api/primary/reports/remarks — save remarks + affective ratings
 router.post('/reports/remarks', async (req, res, next) => {
   try {
-    const { student_id, term_id, affective_ratings, class_teacher_remarks } = req.body;
+    const { student_id, term_id, affective_ratings, class_teacher_remarks, ai_drafted } = req.body;
     let { academic_year_id } = req.body;
     if (!student_id || !term_id)
       return res.status(400).json({ error: 'student_id and term_id are required' });
@@ -2075,14 +2075,14 @@ router.post('/reports/remarks', async (req, res, next) => {
 
     const { rows } = await pool.query(
       `INSERT INTO primary_report_remarks
-         (school_id, student_id, term_id, academic_year_id, affective_ratings, class_teacher_remarks, class_teacher_id, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,now())
+         (school_id, student_id, term_id, academic_year_id, affective_ratings, class_teacher_remarks, class_teacher_id, ai_drafted, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
        ON CONFLICT (school_id, student_id, term_id)
-       DO UPDATE SET affective_ratings=$5, class_teacher_remarks=$6, class_teacher_id=$7, updated_at=now()
+       DO UPDATE SET affective_ratings=$5, class_teacher_remarks=$6, class_teacher_id=$7, ai_drafted=$8, updated_at=now()
        RETURNING *`,
       [req.schoolId, student_id, term_id, academic_year_id,
        affective_ratings ? JSON.stringify(affective_ratings) : null,
-       class_teacher_remarks || null, req.user.id]
+       class_teacher_remarks || null, req.user.id, ai_drafted === true]
     );
     res.json(rows[0]);
   } catch (err) { next(err); }

@@ -231,4 +231,109 @@ async function computeStudentResult(schoolId, studentId, academicYearId, semeste
     : null;
 }
 
-module.exports = { computeStudentResult };
+// computePrimaryStudentResult(schoolId, studentId, termId)
+// Returns enriched data for ONE primary student: subjects, grand total, class position, attendance.
+// Mirrors the query pattern from primary.js GET /reports/student/:student_id.
+async function computePrimaryStudentResult(schoolId, studentId, termId) {
+  // Validate student and get class
+  const { rows: stRows } = await pool.query(
+    `SELECT id, surname, other_names, class_name FROM primary_students WHERE id=$1 AND school_id=$2 LIMIT 1`,
+    [studentId, schoolId]
+  );
+  if (!stRows.length) return null;
+  const st = stRows[0];
+  const student_name = `${st.surname}${st.other_names ? ' ' + st.other_names : ''}`;
+
+  // Get term dates and academic year
+  const { rows: termRows } = await pool.query(
+    `SELECT pt.id, pt.name, pt.start_date, pt.end_date, pt.academic_year_id, ay.name AS year_name
+     FROM primary_terms pt
+     JOIN academic_years ay ON ay.id = pt.academic_year_id
+     WHERE pt.id=$1 AND pt.school_id=$2 LIMIT 1`,
+    [termId, schoolId]
+  );
+  if (!termRows.length) return null;
+  const term = termRows[0];
+
+  // Fetch scores, attendance, and class position in parallel
+  const [scoresRes, attRes, posRes] = await Promise.all([
+    pool.query(
+      `SELECT ps.subject_name, sc.class_score, sc.exam_score, sc.total,
+              sc.grade, sc.position, sc.max_class_score, sc.max_exam_score
+       FROM primary_scores sc
+       JOIN primary_subjects ps ON ps.id = sc.subject_id
+       WHERE sc.student_id=$1 AND sc.term_id=$2 AND sc.school_id=$3
+       ORDER BY ps.subject_name`,
+      [studentId, termId, schoolId]
+    ),
+    pool.query(
+      `SELECT
+         COUNT(*)::int                                               AS total_days,
+         COUNT(*) FILTER (WHERE status='Present')::int              AS present,
+         COUNT(*) FILTER (WHERE status='Absent')::int               AS absent,
+         COUNT(*) FILTER (WHERE status='Late')::int                 AS late,
+         COUNT(*) FILTER (WHERE status='Excused')::int              AS excused
+       FROM primary_daily_attendance
+       WHERE school_id=$1 AND student_id=$2
+         AND date >= $3::date AND date <= $4::date`,
+      [schoolId, studentId, term.start_date, term.end_date]
+    ),
+    pool.query(
+      `SELECT student_id, SUM(total) AS grand_total
+       FROM primary_scores
+       WHERE school_id=$1 AND term_id=$2
+         AND student_id IN (
+           SELECT id FROM primary_students
+           WHERE school_id=$1 AND LOWER(class_name)=LOWER($3)
+         )
+       GROUP BY student_id
+       ORDER BY grand_total DESC`,
+      [schoolId, termId, st.class_name]
+    ),
+  ]);
+
+  const scores = scoresRes.rows;
+  const att    = attRes.rows[0] ?? { total_days: 0, present: 0, absent: 0, late: 0, excused: 0 };
+
+  // Compute grand total for this student
+  const grand_total = scores.reduce((sum, s) => sum + (s.total ?? 0), 0);
+
+  // Class position (1-indexed, handle ties)
+  const allTotals = posRes.rows;
+  let class_position = null;
+  let class_total    = allTotals.length;
+  for (let i = 0; i < allTotals.length; i++) {
+    if (allTotals[i].student_id === studentId) {
+      // Position = rank (tied students share same position)
+      const myTotal = parseFloat(allTotals[i].grand_total);
+      let pos = 1;
+      for (let j = 0; j < i; j++) {
+        if (parseFloat(allTotals[j].grand_total) > myTotal) pos++;
+      }
+      class_position = pos;
+      break;
+    }
+  }
+
+  return {
+    student_id:     studentId,
+    student_name,
+    class_name:     st.class_name,
+    term_name:      term.name,
+    year_name:      term.year_name,
+    academic_year_id: term.academic_year_id,
+    scores,
+    grand_total,
+    class_position,
+    class_total,
+    attendance: {
+      total_days: att.total_days,
+      present:    att.present,
+      absent:     att.absent,
+      late:       att.late,
+      excused:    att.excused,
+    },
+  };
+}
+
+module.exports = { computeStudentResult, computePrimaryStudentResult };
