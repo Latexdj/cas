@@ -275,12 +275,17 @@ router.get('/letters', adminOnly, async (req, res, next) => {
               sdl.status, sdl.acknowledged_at, sdl.acknowledged_by,
               sdl.resolution_notes, sdl.resolved_at, sdl.resolved_by_name,
               sdl.issued_by_name, sdl.issued_by_signature_url, sdl.created_at, sdl.semester,
+              sdl.requires_approval, sdl.approved_by, sdl.approved_at,
               s.id AS student_id, s.name AS student_name,
               s.student_code, s.class_name,
-              ay.name AS academic_year_name
+              ay.name AS academic_year_name,
+              sch.name AS school_name,
+              approver.name AS approved_by_name
        FROM student_disciplinary_letters sdl
        JOIN students s ON s.id = sdl.student_id
+       JOIN schools sch ON sch.id = sdl.school_id
        LEFT JOIN academic_years ay ON ay.id = sdl.academic_year_id
+       LEFT JOIN teachers approver ON approver.id = sdl.approved_by
        WHERE sdl.school_id = $1${filters.length ? ' AND ' + filters.join(' AND ') : ''}
        ORDER BY sdl.created_at DESC`,
       params
@@ -294,19 +299,23 @@ router.get('/letters/stats', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT
-         COUNT(*)                                                AS total,
-         COUNT(*) FILTER (WHERE status != 'resolved')          AS active,
-         COUNT(*) FILTER (WHERE status = 'resolved')           AS resolved,
-         COUNT(*) FILTER (WHERE letter_type = 'warning')       AS warning,
-         COUNT(*) FILTER (WHERE letter_type = 'final_warning') AS final_warning,
-         COUNT(*) FILTER (WHERE letter_type = 'suspension')    AS suspension,
-         COUNT(*) FILTER (WHERE letter_type = 'dismissal')     AS dismissal
+         COUNT(*)                                                          AS total,
+         COUNT(*) FILTER (WHERE status = 'pending_approval')              AS pending_approval,
+         COUNT(*) FILTER (WHERE status NOT IN ('resolved'))               AS active,
+         COUNT(*) FILTER (WHERE status = 'resolved')                      AS resolved,
+         COUNT(*) FILTER (WHERE letter_type = 'warning')                  AS warning,
+         COUNT(*) FILTER (WHERE letter_type = 'final_warning')            AS final_warning,
+         COUNT(*) FILTER (WHERE letter_type = 'suspension')               AS suspension,
+         COUNT(*) FILTER (WHERE letter_type = 'dismissal')                AS dismissal
        FROM student_disciplinary_letters WHERE school_id = $1`,
       [req.schoolId]
     );
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
+
+// Letter types that require headmaster approval before issuing
+const APPROVAL_REQUIRED_TYPES = new Set(['suspension', 'dismissal', 'final_warning']);
 
 // POST /api/discipline/letters (admin only)
 router.post('/letters', adminOnly, async (req, res, next) => {
@@ -331,21 +340,29 @@ router.post('/letters', adminOnly, async (req, res, next) => {
     );
     if (!sRows.length) return res.status(404).json({ error: 'Student not found' });
 
+    const requiresApproval = APPROVAL_REQUIRED_TYPES.has(letter_type);
+    const initialStatus    = requiresApproval ? 'pending_approval' : 'issued';
+
     const { ref_number, signature_url } = await generateRefNumber(req.schoolId);
 
     const { rows } = await pool.query(
-      `INSERT INTO student_disciplinary_letters
-         (school_id, student_id, issued_by_id, issued_by_name,
-          letter_type, offense_category, offense_other,
-          subject, body, issued_date, academic_year_id, semester, status,
-          ref_number, issued_by_signature_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'issued',$13,$14)
-       RETURNING *`,
+      `WITH ins AS (
+         INSERT INTO student_disciplinary_letters
+           (school_id, student_id, issued_by_id, issued_by_name,
+            letter_type, offense_category, offense_other,
+            subject, body, issued_date, academic_year_id, semester, status,
+            requires_approval, ref_number, issued_by_signature_url)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+         RETURNING *
+       )
+       SELECT ins.*, sch.name AS school_name
+       FROM ins JOIN schools sch ON sch.id = ins.school_id`,
       [req.schoolId, student_id, req.user.id, req.user.name || 'Management',
        letter_type, offense_category, offense_other?.trim() || null,
        subject.trim(), body.trim(),
        issued_date || new Date().toISOString().slice(0,10),
        academic_year_id || null, semester ? Number(semester) : null,
+       initialStatus, requiresApproval,
        ref_number, signature_url]
     );
     res.status(201).json(rows[0]);
@@ -358,14 +375,33 @@ router.get('/letters/:id', adminOnly, async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT sdl.*, sdl.issued_date::text,
               s.name AS student_name, s.student_code, s.class_name,
-              ay.name AS academic_year_name
+              ay.name AS academic_year_name,
+              sch.name AS school_name,
+              approver.name AS approved_by_name
        FROM student_disciplinary_letters sdl
        JOIN students s ON s.id = sdl.student_id
+       JOIN schools sch ON sch.id = sdl.school_id
        LEFT JOIN academic_years ay ON ay.id = sdl.academic_year_id
+       LEFT JOIN teachers approver ON approver.id = sdl.approved_by
        WHERE sdl.id = $1 AND sdl.school_id = $2`,
       [req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/discipline/letters/:id/approve (admin — headmaster equivalent in this codebase)
+router.patch('/letters/:id/approve', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE student_disciplinary_letters
+       SET status = 'issued', approved_by = $1, approved_at = now(), updated_at = now()
+       WHERE id = $2 AND school_id = $3 AND status = 'pending_approval'
+       RETURNING *`,
+      [req.user.id, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Letter not found or not pending approval' });
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
