@@ -278,16 +278,13 @@ async function computePrimaryStudentResult(schoolId, studentId, termId) {
          AND date >= $3::date AND date <= $4::date`,
       [schoolId, studentId, term.start_date, term.end_date]
     ),
+    // Identical SQL to primary.js GET /reports/student/:student_id lines 2025-2031
     pool.query(
-      `SELECT student_id, SUM(total) AS grand_total
-       FROM primary_scores
-       WHERE school_id=$1 AND term_id=$2
-         AND student_id IN (
-           SELECT id FROM primary_students
-           WHERE school_id=$1 AND LOWER(class_name)=LOWER($3)
-         )
-       GROUP BY student_id
-       ORDER BY grand_total DESC`,
+      `SELECT sc.student_id, SUM(sc.total) AS grand_total
+       FROM primary_scores sc
+       JOIN primary_students s ON s.id = sc.student_id
+       WHERE sc.school_id=$1 AND sc.term_id=$2 AND LOWER(s.class_name)=LOWER($3)
+       GROUP BY sc.student_id ORDER BY grand_total DESC NULLS LAST`,
       [schoolId, termId, st.class_name]
     ),
   ]);
@@ -298,22 +295,10 @@ async function computePrimaryStudentResult(schoolId, studentId, termId) {
   // Compute grand total for this student
   const grand_total = scores.reduce((sum, s) => sum + (s.total ?? 0), 0);
 
-  // Class position (1-indexed, handle ties)
-  const allTotals = posRes.rows;
-  let class_position = null;
-  let class_total    = allTotals.length;
-  for (let i = 0; i < allTotals.length; i++) {
-    if (allTotals[i].student_id === studentId) {
-      // Position = rank (tied students share same position)
-      const myTotal = parseFloat(allTotals[i].grand_total);
-      let pos = 1;
-      for (let j = 0; j < i; j++) {
-        if (parseFloat(allTotals[j].grand_total) > myTotal) pos++;
-      }
-      class_position = pos;
-      break;
-    }
-  }
+  // Class position — identical logic to primary.js line 2033: findIndex + 1, no tie-sharing
+  const allTotals    = posRes.rows;
+  const class_total  = allTotals.length;
+  const class_position = allTotals.findIndex(r => r.student_id === studentId) + 1 || null;
 
   return {
     student_id:     studentId,
