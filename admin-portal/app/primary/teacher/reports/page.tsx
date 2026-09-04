@@ -65,6 +65,13 @@ export default function PrimaryTeacherReportsPage() {
   const [saving,    setSaving]    = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // AI drafting
+  const [aiSuggestion, setAiSuggestion] = useState('');
+  const [aiLoading,    setAiLoading]    = useState(false);
+  const [aiError,      setAiError]      = useState('');
+  const [aiAccepted,   setAiAccepted]   = useState(false);
+  const [discHold,     setDiscHold]     = useState(false);
+
   useEffect(() => {
     api.get<Term[]>('/api/primary/terms').then(r => {
       setTerms(r.data);
@@ -93,6 +100,7 @@ export default function PrimaryTeacherReportsPage() {
 
   async function openStudent(r: ReportStatus) {
     setSelStudent(r); setPanelLoading(true); setFullReport(null);
+    setAiSuggestion(''); setAiError(''); setAiLoading(false); setAiAccepted(false); setDiscHold(false);
     try {
       const { data } = await api.get<StudentFullReport>(`/api/primary/reports/student?term_id=${termId}&student_id=${r.student_id}`);
       setFullReport(data);
@@ -111,7 +119,9 @@ export default function PrimaryTeacherReportsPage() {
         term_id: termId,
         affective_ratings: ratings,
         class_teacher_remarks: remarks,
+        ai_drafted: aiAccepted,
       });
+      setAiAccepted(false);
       await openStudent(selStudent);
       load();
     } catch (e: unknown) {
@@ -131,6 +141,7 @@ export default function PrimaryTeacherReportsPage() {
           term_id: termId,
           affective_ratings: ratings,
           class_teacher_remarks: remarks,
+          ai_drafted: aiAccepted,
         });
         await api.put(`/api/primary/reports/${(saved.data as {id: string}).id}/submit`);
       } else {
@@ -142,6 +153,27 @@ export default function PrimaryTeacherReportsPage() {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? 'Submit failed.');
     } finally { setSubmitting(false); }
+  }
+
+  async function draftWithAI() {
+    if (!selStudent || !termId) return;
+    setAiLoading(true); setAiError(''); setAiSuggestion(''); setDiscHold(false);
+    try {
+      const { data } = await api.post<{ draft: string }>('/api/ai/draft-remark', {
+        student_id: selStudent.student_id,
+        term_id: termId,
+        track: 'primary',
+      });
+      setAiSuggestion(data.draft);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string; disciplinary_hold?: boolean } } };
+      if (err.response?.data?.disciplinary_hold) {
+        setDiscHold(true);
+        setAiError(err.response.data.error ?? 'AI drafting unavailable for this student.');
+      } else {
+        setAiError(err.response?.data?.error ?? 'Draft unavailable. Please write the remark directly.');
+      }
+    } finally { setAiLoading(false); }
   }
 
   const canEdit = !selStudent || ['draft','rejected'].includes(selStudent.status);
@@ -294,10 +326,51 @@ export default function PrimaryTeacherReportsPage() {
 
               {/* Remarks */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 space-y-3">
-                <p className="text-xs font-semibold text-slate-500 font-medium">Class Teacher Remarks</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-slate-500">Class Teacher Remarks</p>
+                  {canEdit && (
+                    <button
+                      onClick={draftWithAI}
+                      disabled={aiLoading || discHold}
+                      title={discHold ? 'AI drafting unavailable: open disciplinary matter' : 'Generate an AI draft remark'}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{ borderColor: '#2D7A4F', color: '#145C44' }}>
+                      {aiLoading ? (
+                        <>
+                          <span className="w-3 h-3 rounded-full border-2 border-t-transparent animate-spin inline-block" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
+                          Drafting...
+                        </>
+                      ) : 'Draft with AI'}
+                    </button>
+                  )}
+                </div>
+
+                {aiError && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">{aiError}</p>
+                )}
+
+                {aiSuggestion && (
+                  <div className="border border-green-300 bg-green-50 rounded-lg px-3 py-2.5 space-y-2">
+                    <p className="text-xs font-semibold text-green-800">AI Draft</p>
+                    <p className="text-sm text-slate-700 leading-relaxed">{aiSuggestion}</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setRemarks(aiSuggestion); setAiAccepted(true); setAiSuggestion(''); }}
+                        className="px-3 py-1 rounded-lg text-xs font-semibold text-white" style={{ backgroundColor: '#145C44' }}>
+                        Use this draft
+                      </button>
+                      <button
+                        onClick={() => { setAiSuggestion(''); setAiError(''); }}
+                        className="px-3 py-1 rounded-lg text-xs font-semibold text-slate-600 border border-slate-200 hover:bg-[#F5F0E8]">
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <textarea value={remarks} onChange={e => canEdit && setRemarks(e.target.value)}
                   disabled={!canEdit} rows={3}
-                  placeholder="Enter remarks for this studentâ€¦"
+                  placeholder="Enter remarks for this student..."
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none disabled:bg-[#F5F0E8] disabled:text-slate-500" />
 
                 {selStudent.status === 'rejected' && (
@@ -310,13 +383,13 @@ export default function PrimaryTeacherReportsPage() {
                   {canEdit && (
                     <button onClick={saveRemarks} disabled={saving}
                       className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-[#F5F0E8] disabled:opacity-50">
-                      {saving ? 'Savingâ€¦' : 'Save Draft'}
+                      {saving ? 'Saving...' : 'Save Draft'}
                     </button>
                   )}
                   {['draft','rejected'].includes(selStudent.status) && (
                     <button onClick={submit} disabled={submitting}
                       className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: '#145C44' }}>
-                      {submitting ? 'Submittingâ€¦' : 'Submit for Approval'}
+                      {submitting ? 'Submitting...' : 'Submit for Approval'}
                     </button>
                   )}
                 </div>
