@@ -62,6 +62,7 @@ const noticesRoutes           = require('./routes/notices');
 const disciplineRoutes        = require('./routes/discipline');
 const resumptionRoutes        = require('./routes/resumption');
 const rollCallRoutes          = require('./routes/roll-call');
+const aiRemarksRoutes         = require('./routes/ai-remarks');
 const { startAbsenceCheckJob }          = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob }    = require('./jobs/subscriptionExpiry');
 const { startLibraryNotificationJob }   = require('./jobs/libraryNotifications');
@@ -153,6 +154,7 @@ app.use('/api/notices',               noticesRoutes);
 app.use('/api/discipline',            disciplineRoutes);
 app.use('/api/resumption',            resumptionRoutes);
 app.use('/api/roll-call',             rollCallRoutes);
+app.use('/api/ai',                    aiRemarksRoutes);
 
 app.use(errorHandler);
 
@@ -2300,6 +2302,21 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_roll_call_entries_roll_call ON roll_call_entries(roll_call_id)`);
     } catch (e) { console.error('RollCall migration error:', e.message); }
+
+    // ── AI Remarks (Phase 1) ──────────────────────────────────────────────────
+    try {
+      await pool.query(`ALTER TABLE report_remarks   ADD COLUMN IF NOT EXISTS ai_drafted BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE subject_remarks  ADD COLUMN IF NOT EXISTS ai_drafted BOOLEAN DEFAULT false`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS remark_examples (
+          id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id    UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          track        TEXT        NOT NULL CHECK (track IN ('secondary_overall','secondary_subject','primary')),
+          example_text TEXT        NOT NULL,
+          created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+    } catch (e) { console.error('AI remarks migration error:', e.message); }
 
     console.log('Migrations OK');
   } catch (err) {
