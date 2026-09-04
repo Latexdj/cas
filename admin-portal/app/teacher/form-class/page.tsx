@@ -149,8 +149,12 @@ export default function FormClassPage() {
   const [students,   setStudents]   = useState<FormTeacherStudent[]>([]);
   const [attData,    setAttData]    = useState<Record<string, { present: number; absent: number; late: number; total: number; pct: number | null }>>({});
   const [resultsData, setResultsData] = useState<StudentResult[]>([]);
-  const [remarksMap,  setRemarksMap]  = useState<Record<string, ReportRemark>>({});
-  const [draft,       setDraft]       = useState<Record<string, ReportRemark>>({});
+  const [remarksMap,     setRemarksMap]     = useState<Record<string, ReportRemark>>({});
+  const [draft,          setDraft]          = useState<Record<string, ReportRemark>>({});
+  const [aiSuggestion,   setAiSuggestion]   = useState<Record<string, string>>({});
+  const [aiLoading,      setAiLoading]      = useState<Record<string, boolean>>({});
+  const [aiError,        setAiError]        = useState<Record<string, string>>({});
+  const [aiAcceptedIds,  setAiAcceptedIds]  = useState<Set<string>>(new Set());
   const [tab,         setTab]         = useState<Tab>('overview');
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [loadingTab,      setLoadingTab]      = useState(false);
@@ -244,13 +248,64 @@ export default function FormClassPage() {
     setDraft(prev => ({ ...prev, [studentId]: { ...prev[studentId], [field]: value || null } }));
   }
 
+  async function draftWithAI(studentId: string) {
+    const s = students.find(st => st.id === studentId);
+    if (!s) return;
+    const sResult = resultsData.find(r => r.student_id === studentId) ?? null;
+    const att = s.attendance;
+    const yearName = years.find(y => y.id === yearId)?.name ?? '';
+
+    setAiLoading(prev => ({ ...prev, [studentId]: true }));
+    setAiError(prev => ({ ...prev, [studentId]: '' }));
+    setAiSuggestion(prev => ({ ...prev, [studentId]: '' }));
+
+    try {
+      const { data } = await teacherApi.post<{ draft: string }>('/api/ai/draft-remark', {
+        student_id: studentId,
+        academic_year_id: yearId,
+        semester: parseInt(semester),
+        track: 'secondary_overall',
+        context: {
+          student_name:   s.name,
+          class_name:     assignment?.class_name ?? '',
+          year_name:      yearName,
+          semester:       parseInt(semester),
+          subjects:       sResult?.subjects ?? [],
+          class_position: sResult?.class_position ?? null,
+          class_total:    sResult?.class_total ?? null,
+          average:        sResult?.average ?? null,
+          overall_grade:  sResult?.overall_grade ?? null,
+          attendance:     { present: att.present, absent: att.absent, late: att.late },
+        },
+      });
+      setAiSuggestion(prev => ({ ...prev, [studentId]: data.draft }));
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        ?? 'Draft unavailable. Please write the remark directly.';
+      setAiError(prev => ({ ...prev, [studentId]: msg }));
+    } finally {
+      setAiLoading(prev => ({ ...prev, [studentId]: false }));
+    }
+  }
+
+  function acceptAIDraft(studentId: string) {
+    const text = aiSuggestion[studentId];
+    if (!text) return;
+    setDraft(prev => ({ ...prev, [studentId]: { ...prev[studentId], general_remarks: text } }));
+    setAiAcceptedIds(prev => new Set(prev).add(studentId));
+    setAiSuggestion(prev => ({ ...prev, [studentId]: '' }));
+  }
+
   async function saveRemarks() {
     setSaving(true);
     try {
       await teacherApi.post('/api/form-teacher/remarks', {
         academic_year_id: yearId,
         semester,
-        remarks: Object.values(draft),
+        remarks: Object.values(draft).map(r => ({
+          ...r,
+          ai_drafted: aiAcceptedIds.has(r.student_id),
+        })),
       });
       setRemarksMap({ ...draft });
       setSavedMsg(true);
@@ -501,10 +556,47 @@ export default function FormClassPage() {
                           </div>
                         </div>
                         <div>
-                          <label className="text-[10px] font-semibold text-slate-400 font-medium mb-1 block">General Remarks</label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[10px] font-semibold text-slate-400 font-medium">General Remarks</label>
+                            <button
+                              type="button"
+                              onClick={() => draftWithAI(s.id)}
+                              disabled={aiLoading[s.id]}
+                              className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded border border-[#8FC4A4] text-[#145C44] hover:bg-[#E8F4EE] disabled:opacity-50 transition-colors"
+                            >
+                              {aiLoading[s.id]
+                                ? <><div className="w-2.5 h-2.5 rounded-full border border-[#145C44] border-b-transparent animate-spin" />Drafting…</>
+                                : <>&#10024; Draft with AI</>}
+                            </button>
+                          </div>
                           <input value={d.general_remarks ?? ''} onChange={e => updateDraft(s.id, 'general_remarks', e.target.value)}
                             placeholder="e.g. A diligent student who shows great potential…"
                             className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+                          {aiError[s.id] && (
+                            <p className="mt-1 text-[10px] text-[#B83232]">{aiError[s.id]}</p>
+                          )}
+                          {aiSuggestion[s.id] && (
+                            <div className="mt-2 rounded-lg border border-[#8FC4A4] bg-[#F0FAF4] p-2.5">
+                              <p className="text-[10px] font-semibold text-[#145C44] mb-1">AI suggestion — review before using:</p>
+                              <p className="text-xs text-slate-700 leading-relaxed">{aiSuggestion[s.id]}</p>
+                              <div className="flex gap-2 mt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => acceptAIDraft(s.id)}
+                                  className="text-[10px] font-bold px-2.5 py-1 rounded bg-[#145C44] text-white hover:bg-[#0B3D2E] transition-colors"
+                                >
+                                  Use this draft
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAiSuggestion(prev => ({ ...prev, [s.id]: '' }))}
+                                  className="text-[10px] font-semibold px-2.5 py-1 rounded border border-slate-200 text-slate-500 hover:border-slate-300 transition-colors"
+                                >
+                                  Dismiss
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
