@@ -16,7 +16,7 @@ interface TeacherQuery {
   response_submitted_at?: string; resolution_notes?: string;
   resolved_by_name?: string; resolved_at?: string; created_at: string; issued_by_name: string;
   teacher_id: string; teacher_name: string; department?: string; academic_year_name?: string;
-  ref_number?: string; issued_by_signature_url?: string;
+  ref_number?: string; issued_by_signature_url?: string; pdf_url?: string;
 }
 
 interface QueryStats { total: string; open: string; issued: string; responded: string; resolved: string; escalated: string; overdue: string; }
@@ -29,7 +29,7 @@ interface DisciplinaryLetter {
   student_id: string; student_name: string; student_code: string; class_name: string; academic_year_name?: string;
   ref_number?: string; issued_by_signature_url?: string;
   requires_approval?: boolean; approved_by?: string; approved_by_name?: string; approved_at?: string;
-  school_name?: string;
+  school_name?: string; pdf_url?: string;
 }
 
 interface LetterStats { total: string; active: string; pending_approval: string; resolved: string; warning: string; final_warning: string; suspension: string; dismissal: string; }
@@ -135,6 +135,72 @@ function fmt(d?: string) {
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// ─── AI Chat Panel ────────────────────────────────────────────────────────────
+
+interface ChatMsg { role: 'user' | 'assistant'; content: string; }
+
+function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onUseDraft, onClose }: {
+  messages: ChatMsg[]; input: string; onInputChange: (v: string) => void;
+  onSend: () => void; loading: boolean; error: string;
+  onUseDraft: (text: string) => void; onClose: () => void;
+}) {
+  const endRef = { current: null as HTMLDivElement | null };
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  return (
+    <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 340 }}>
+      {/* Header */}
+      <div style={{ background: C.mid, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>AI Draft Assistant</span>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 13, padding: 0 }}>✕ close</button>
+      </div>
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: C.bg }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 4 }}>
+            <div style={{
+              maxWidth: '85%', padding: '8px 11px', borderRadius: 10, fontSize: 12, lineHeight: 1.6,
+              background: m.role === 'user' ? C.mid : '#fff',
+              color: m.role === 'user' ? '#fff' : C.dark,
+              border: m.role === 'assistant' ? `1px solid ${C.border}` : 'none',
+              whiteSpace: 'pre-wrap',
+            }}>{m.content}</div>
+            {m.role === 'assistant' && i === messages.length - 1 && (
+              <button onClick={() => onUseDraft(m.content)}
+                style={{ fontSize: 11, fontWeight: 700, color: C.forest, background: '#D1EAD9', border: `1px solid #B7DFC9`, borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}>
+                Use this draft
+              </button>
+            )}
+          </div>
+        ))}
+        {loading && (
+          <div style={{ alignSelf: 'flex-start', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 12px', fontSize: 12, color: C.muted }}>
+            Drafting…
+          </div>
+        )}
+        <div ref={r => { endRef.current = r; }} />
+      </div>
+      {/* Error */}
+      {error && <div style={{ padding: '4px 12px', background: C.dangerBg, fontSize: 11, color: C.danger }}>{error}</div>}
+      {/* Input */}
+      <div style={{ display: 'flex', gap: 6, padding: '8px 10px', borderTop: `1px solid ${C.border}`, background: '#fff' }}>
+        <input
+          value={input} onChange={e => onInputChange(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
+          placeholder="Add context or ask for changes…"
+          style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none', color: C.dark, background: C.bg }}
+        />
+        <button onClick={onSend} disabled={loading || !input.trim()}
+          style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: (loading || !input.trim()) ? 0.5 : 1 }}>
+          Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Issue Query Modal ────────────────────────────────────────────────────────
 
 function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
@@ -153,12 +219,54 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
   const [ayId, setAyId] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [showChat, setShowChat] = useState(false);
+  const [chatSessionId, setChatSessionId] = useState('');
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState('');
+  const [startingChat, setStartingChat] = useState(false);
 
   const filteredTeachers = useMemo(() =>
     teachers.filter(t => t.name.toLowerCase().includes(teacherSearch.toLowerCase()) ||
       (t.department ?? '').toLowerCase().includes(teacherSearch.toLowerCase())),
     [teachers, teacherSearch]
   );
+
+  async function startQueryChat() {
+    if (!selectedTeacher || !category || !subject.trim()) {
+      setError('Select a teacher, category, and subject before drafting with AI');
+      return;
+    }
+    setStartingChat(true); setChatError(''); setError('');
+    try {
+      const { data } = await api.post<{ session_id: string; opening_message: string }>('/api/letter-chat/start', {
+        document_type: 'teacher_query',
+        metadata: { teacher_name: selectedTeacher.name, department: selectedTeacher.department, category, subject },
+      });
+      setChatSessionId(data.session_id);
+      setChatMessages([{ role: 'assistant', content: data.opening_message }]);
+      setShowChat(true);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setChatError(err.response?.data?.error ?? 'Failed to start AI session');
+    } finally { setStartingChat(false); }
+  }
+
+  async function sendQueryChatMessage() {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg: ChatMsg = { role: 'user', content: chatInput.trim() };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatInput('');
+    setChatLoading(true); setChatError('');
+    try {
+      const { data } = await api.post<{ message: string }>(`/api/letter-chat/${chatSessionId}/message`, { content: userMsg.content });
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setChatError(err.response?.data?.error ?? 'Failed to send message');
+    } finally { setChatLoading(false); }
+  }
 
   async function submit() {
     if (!selectedTeacher) { setError('Select a teacher'); return; }
@@ -248,10 +356,29 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
 
           {/* Body */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 5 }}>Query Details *</label>
-            <textarea value={body} onChange={e => setBody(e.target.value)} rows={5}
-              placeholder="Describe the issue in detail…"
-              style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: C.mid2 }}>Query Details *</label>
+              {!showChat && (
+                <button onClick={startQueryChat} disabled={startingChat}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 6, border: `1px solid ${C.mid}`, background: '#E8F4EE', color: C.mid, fontWeight: 700, fontSize: 11, cursor: 'pointer', opacity: startingChat ? 0.6 : 1 }}>
+                  <svg viewBox="0 0 16 16" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={2}><path d="M8 1C4.13 1 1 3.7 1 7c0 1.4.54 2.68 1.44 3.7L1 15l4.5-1.36A7.1 7.1 0 008 14c3.87 0 7-2.7 7-6s-3.13-6-7-6z"/></svg>
+                  {startingChat ? 'Starting…' : 'Draft with AI'}
+                </button>
+              )}
+            </div>
+            {showChat ? (
+              <ChatPanel
+                messages={chatMessages} input={chatInput}
+                onInputChange={setChatInput} onSend={sendQueryChatMessage}
+                loading={chatLoading} error={chatError}
+                onUseDraft={text => { setBody(text); setShowChat(false); }}
+                onClose={() => setShowChat(false)}
+              />
+            ) : (
+              <textarea value={body} onChange={e => setBody(e.target.value)} rows={5}
+                placeholder="Describe the issue in detail…"
+                style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+            )}
           </div>
 
           {/* Dates row */}
@@ -317,6 +444,13 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
   const [semester, setSemester] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [showChat, setShowChat] = useState(false);
+  const [chatSessionId, setChatSessionId] = useState('');
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState('');
+  const [startingChat, setStartingChat] = useState(false);
   const needsApproval = APPROVAL_REQUIRED_TYPES.has(letterType);
 
   const filteredStudents = useMemo(() =>
@@ -325,6 +459,59 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
       s.class_name.toLowerCase().includes(search.toLowerCase())),
     [students, search]
   );
+
+  const SENSITIVE_OFFENSE_CATS = new Set(['exam_malpractice','substance_use','fighting_assault','bullying_harassment','indecent_behavior','other']);
+  const SENSITIVE_LETTER_TYPES = new Set(['suspension','dismissal']);
+
+  async function startLetterChat() {
+    if (!selectedStudent || !letterType || !offenseCat || !subject.trim()) {
+      setError('Select a student, letter type, offense category, and subject before drafting with AI');
+      return;
+    }
+    if (SENSITIVE_OFFENSE_CATS.has(offenseCat) || SENSITIVE_LETTER_TYPES.has(letterType)) {
+      setError('AI drafting is not available for this offense category or letter type. Please write the letter manually.');
+      return;
+    }
+    setStartingChat(true); setChatError(''); setError('');
+    try {
+      const { data } = await api.post<{ session_id: string; opening_message: string; blocked?: boolean }>('/api/letter-chat/start', {
+        document_type: 'student_letter',
+        metadata: {
+          student_name: selectedStudent.name, class_name: selectedStudent.class_name,
+          letter_type: letterType, offense_category: offenseCat, subject,
+        },
+      });
+      if (data.blocked) {
+        setError('AI drafting is not available for this offense category or letter type.');
+        return;
+      }
+      setChatSessionId(data.session_id);
+      setChatMessages([{ role: 'assistant', content: data.opening_message }]);
+      setShowChat(true);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string; blocked?: boolean } } };
+      if (err.response?.data?.blocked) {
+        setError('AI drafting is not available for this offense category or letter type.');
+      } else {
+        setChatError(err.response?.data?.error ?? 'Failed to start AI session');
+      }
+    } finally { setStartingChat(false); }
+  }
+
+  async function sendLetterChatMessage() {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg: ChatMsg = { role: 'user', content: chatInput.trim() };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatInput('');
+    setChatLoading(true); setChatError('');
+    try {
+      const { data } = await api.post<{ message: string }>(`/api/letter-chat/${chatSessionId}/message`, { content: userMsg.content });
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setChatError(err.response?.data?.error ?? 'Failed to send message');
+    } finally { setChatLoading(false); }
+  }
 
   async function submit() {
     if (!selectedStudent) { setError('Select a student'); return; }
@@ -445,10 +632,29 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
 
           {/* Body */}
           <div>
-            <label style={{ fontSize: 12, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 5 }}>Letter Body *</label>
-            <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
-              placeholder="Write the full letter content here…"
-              style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: C.mid2 }}>Letter Body *</label>
+              {!showChat && (
+                <button onClick={startLetterChat} disabled={startingChat}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 6, border: `1px solid ${C.mid}`, background: '#E8F4EE', color: C.mid, fontWeight: 700, fontSize: 11, cursor: 'pointer', opacity: startingChat ? 0.6 : 1 }}>
+                  <svg viewBox="0 0 16 16" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={2}><path d="M8 1C4.13 1 1 3.7 1 7c0 1.4.54 2.68 1.44 3.7L1 15l4.5-1.36A7.1 7.1 0 008 14c3.87 0 7-2.7 7-6s-3.13-6-7-6z"/></svg>
+                  {startingChat ? 'Starting…' : 'Draft with AI'}
+                </button>
+              )}
+            </div>
+            {showChat ? (
+              <ChatPanel
+                messages={chatMessages} input={chatInput}
+                onInputChange={setChatInput} onSend={sendLetterChatMessage}
+                loading={chatLoading} error={chatError}
+                onUseDraft={text => { setBody(text); setShowChat(false); }}
+                onClose={() => setShowChat(false)}
+              />
+            ) : (
+              <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
+                placeholder="Write the full letter content here…"
+                style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
@@ -501,7 +707,20 @@ function QueryDetailPanel({ query, onClose, onUpdate, onPrint }: {
   const [escalateNotes, setEscalateNotes] = useState('');
   const [actioning, setActioning] = useState<'resolve' | 'escalate' | null>(null);
   const [error, setError] = useState('');
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState(query.pdf_url ?? '');
   const isClosed = ['resolved', 'escalated'].includes(query.status);
+
+  async function generatePdf() {
+    setGeneratingPdf(true);
+    try {
+      const { data } = await api.post<{ pdf_url: string }>(`/api/discipline/queries/${query.id}/pdf`);
+      setPdfUrl(data.pdf_url);
+      onUpdate({ ...query, pdf_url: data.pdf_url });
+    } catch {
+      // non-fatal; user can retry
+    } finally { setGeneratingPdf(false); }
+  }
   const { label: sLabel, color: sColor, bg: sBg } = queryStatusBadge(query.status, query.response_deadline);
 
   const STEPS = [
@@ -580,6 +799,22 @@ function QueryDetailPanel({ query, onClose, onUpdate, onPrint }: {
         <p style={{ fontSize: 13, color: C.dark, lineHeight: 1.65, whiteSpace: 'pre-wrap', margin: 0 }}>{query.body}</p>
       </div>
 
+      {/* PDF section */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        {pdfUrl ? (
+          <a href={pdfUrl} target="_blank" rel="noopener noreferrer"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: `1px solid ${C.mid}`, background: '#E8F4EE', color: C.mid, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+            <svg viewBox="0 0 16 16" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 4a1 1 0 011-1h5l4 4v6a1 1 0 01-1 1H4a1 1 0 01-1-1V4z"/><path d="M9 3v4h4"/></svg>
+            Download PDF
+          </a>
+        ) : null}
+        <button onClick={generatePdf} disabled={generatingPdf}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.bg, color: C.mid2, fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: generatingPdf ? 0.6 : 1 }}>
+          <svg viewBox="0 0 16 16" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}><path d="M8 1v8M5 6l3 3 3-3M2 12v2h12v-2"/></svg>
+          {generatingPdf ? 'Generating…' : pdfUrl ? 'Regenerate PDF' : 'Generate PDF'}
+        </button>
+      </div>
+
       {/* Teacher response */}
       {query.teacher_response_text && (
         <div style={{ background: '#E8F4EE', border: `1px solid #B7DFC9`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
@@ -650,10 +885,23 @@ function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
   const [resolveNotes, setResolveNotes] = useState('');
   const [actioning, setActioning] = useState<'ack' | 'resolve' | 'approve' | null>(null);
   const [error, setError] = useState('');
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState(letter.pdf_url ?? '');
   const typeBadge = letterTypeBadge(letter.letter_type);
   const statusBadge = letterStatusBadge(letter.status);
   const isClosed = letter.status === 'resolved';
   const isPendingApproval = letter.status === 'pending_approval';
+
+  async function generatePdf() {
+    setGeneratingPdf(true);
+    try {
+      const { data } = await api.post<{ pdf_url: string }>(`/api/discipline/letters/${letter.id}/pdf`);
+      setPdfUrl(data.pdf_url);
+      onUpdate({ ...letter, pdf_url: data.pdf_url });
+    } catch {
+      // non-fatal; user can retry
+    } finally { setGeneratingPdf(false); }
+  }
 
   async function approve() {
     setActioning('approve'); setError('');
@@ -722,6 +970,25 @@ function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
       <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px 22px', marginBottom: 16, fontFamily: 'Georgia, serif' }}>
         <p style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 10, fontFamily: 'sans-serif', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Letter Content</p>
         <p style={{ fontSize: 13, color: C.dark, lineHeight: 1.75, whiteSpace: 'pre-wrap', margin: 0 }}>{letter.body}</p>
+      </div>
+
+      {/* PDF section */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        {pdfUrl ? (
+          <a href={pdfUrl} target="_blank" rel="noopener noreferrer"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: `1px solid ${C.mid}`, background: '#E8F4EE', color: C.mid, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+            <svg viewBox="0 0 16 16" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 4a1 1 0 011-1h5l4 4v6a1 1 0 01-1 1H4a1 1 0 01-1-1V4z"/><path d="M9 3v4h4"/></svg>
+            {isPendingApproval ? 'Download Draft PDF (Watermarked)' : 'Download PDF'}
+          </a>
+        ) : null}
+        <button onClick={generatePdf} disabled={generatingPdf}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.bg, color: C.mid2, fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: generatingPdf ? 0.6 : 1 }}>
+          <svg viewBox="0 0 16 16" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}><path d="M8 1v8M5 6l3 3 3-3M2 12v2h12v-2"/></svg>
+          {generatingPdf ? 'Generating…' : pdfUrl ? 'Regenerate PDF' : 'Generate PDF'}
+        </button>
+        {isPendingApproval && !pdfUrl && (
+          <span style={{ fontSize: 11, color: C.muted }}>Generate the draft PDF for the principal to review before approval.</span>
+        )}
       </div>
 
       {/* Approved info */}
