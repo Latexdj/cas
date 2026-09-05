@@ -25,10 +25,6 @@ function firstWord(name) {
 }
 
 function buildLetterHTML({ letter, school, recipientType, watermark = false }) {
-  const recipientName = recipientType === 'student' ? letter.student_name : letter.teacher_name;
-  const recipientSub  = recipientType === 'student'
-    ? [letter.class_name, letter.student_code].filter(Boolean).join(' · ')
-    : (letter.department ?? '');
   const sigUrl = letter.issued_by_signature_url || school.headmaster_signature_url;
 
   const letterheadHtml = school.letterhead_url
@@ -56,7 +52,7 @@ function buildLetterHTML({ letter, school, recipientType, watermark = false }) {
        </div>`
     : '';
 
-  return `<!DOCTYPE html>
+  const pageHead = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
@@ -74,7 +70,46 @@ function buildLetterHTML({ letter, school, recipientType, watermark = false }) {
 </head>
 <body>
   ${watermarkHtml}
-  ${letterheadHtml}
+  ${letterheadHtml}`;
+
+  // ── External / parent recipients — formal business-letter format ──────────
+  if (recipientType === 'external') {
+    const extName = letter.ext_recipient_name || '';
+    const extOrg  = letter.ext_recipient_org  || '';
+    const extAddr = letter.ext_recipient_address || '';
+    const salutation = extName ? `Dear ${esc(extName)},` : 'Dear Sir/Madam,';
+    return `${pageHead}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin:0 0 28px;font-size:11pt;">
+    <div>${letter.ref_number ? `<strong>Ref:</strong> ${esc(letter.ref_number)}` : ''}</div>
+    <div><strong>Date:</strong> ${fmtDate(letter.issued_date)}</div>
+  </div>
+  <div style="margin:0 0 28px;font-size:11pt;line-height:1.9;">
+    ${extName ? `<div style="font-weight:bold;">${esc(extName)}</div>` : ''}
+    ${extOrg ? `<div>${esc(extOrg)}</div>` : ''}
+    ${extAddr ? `<div style="white-space:pre-line;">${esc(extAddr)}</div>` : ''}
+  </div>
+  <div style="margin:0 0 24px;font-size:13pt;font-weight:bold;text-decoration:underline;text-transform:uppercase;">
+    RE: ${esc(letter.subject)}
+  </div>
+  <p style="margin:0 0 16px;font-size:11pt;">${salutation}</p>
+  <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;">${esc(letter.body)}</div>
+  <p style="margin:0;font-size:11pt;">Yours faithfully,</p>
+  ${sigHtml}
+  <div style="border-top:1px solid #000;width:240px;margin-top:6px;padding-top:8px;">
+    <div style="font-weight:bold;font-size:11pt;">${esc(letter.issued_by_name)}</div>
+    <div style="font-size:10pt;color:#4A3F32;">${esc(school.name ?? '')}</div>
+  </div>
+</body>
+</html>`;
+  }
+
+  // ── Internal recipients (student / teacher) — existing format ─────────────
+  const recipientName = recipientType === 'student' ? letter.student_name : letter.teacher_name;
+  const recipientSub  = recipientType === 'student'
+    ? [letter.class_name, letter.student_code].filter(Boolean).join(' · ')
+    : (letter.department ?? '');
+
+  return `${pageHead}
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin:0 0 20px;font-size:11pt;">
     <div><strong>Ref:</strong> ${esc(letter.ref_number ?? '—')}</div>
     <div><strong>Date:</strong> ${fmtDate(letter.issued_date)}</div>

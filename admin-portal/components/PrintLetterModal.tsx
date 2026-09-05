@@ -10,12 +10,17 @@ interface PrintLetterModalProps {
     body: string;
     issued_by_name: string;
     issued_by_signature_url?: string;
+    // Internal recipients
     student_name?: string;
     student_code?: string;
     class_name?: string;
     letter_type?: string;
     teacher_name?: string;
     department?: string;
+    // External recipients
+    ext_recipient_name?: string;
+    ext_recipient_org?: string;
+    ext_recipient_address?: string;
   };
   school: {
     name?: string;
@@ -27,7 +32,7 @@ interface PrintLetterModalProps {
     logo_url?: string;
     motto?: string;
   };
-  recipientType: 'student' | 'teacher';
+  recipientType: 'student' | 'teacher' | 'external';
 }
 
 function fmtDate(d: string) {
@@ -41,10 +46,6 @@ function firstName(name?: string) {
 }
 
 export function PrintLetterModal({ open, onClose, letter, school, recipientType }: PrintLetterModalProps) {
-  const recipientName = recipientType === 'student' ? letter.student_name : letter.teacher_name;
-  const recipientSub  = recipientType === 'student'
-    ? [letter.class_name, letter.student_code].filter(Boolean).join(' · ')
-    : (letter.department ?? '');
   const sigUrl = letter.issued_by_signature_url || school.headmaster_signature_url;
 
   function buildLetterHTML() {
@@ -64,6 +65,44 @@ export function PrintLetterModal({ open, onClose, letter, school, recipientType 
       ? `<img src="${sigUrl}" style="display:block;max-height:80px;max-width:220px;margin-top:20px;" />`
       : `<div style="margin-top:48px;"></div>`;
 
+    const signoff = `
+      <p style="margin:0;font-size:11pt;">Yours faithfully,</p>
+      ${sigHtml}
+      <div style="border-top:1px solid #000;width:240px;margin-top:6px;padding-top:8px;">
+        <div style="font-weight:bold;font-size:11pt;">${letter.issued_by_name}</div>
+        <div style="font-size:10pt;color:#4A3F32;">${school.name ?? ''}</div>
+      </div>`;
+
+    // ── External / parent recipients — formal business-letter format ─────────
+    if (recipientType === 'external') {
+      const extName    = letter.ext_recipient_name ?? '';
+      const extOrg     = letter.ext_recipient_org  ?? '';
+      const extAddr    = letter.ext_recipient_address ?? '';
+      const salutation = extName ? `Dear ${extName},` : 'Dear Sir/Madam,';
+      return `${letterheadHtml}
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin:0 0 28px;font-size:11pt;">
+          <div>${letter.ref_number ? `<strong>Ref:</strong> ${letter.ref_number}` : ''}</div>
+          <div><strong>Date:</strong> ${fmtDate(letter.issued_date)}</div>
+        </div>
+        <div style="margin:0 0 28px;font-size:11pt;line-height:1.9;">
+          ${extName ? `<div style="font-weight:bold;">${extName}</div>` : ''}
+          ${extOrg  ? `<div>${extOrg}</div>` : ''}
+          ${extAddr ? `<div style="white-space:pre-line;">${extAddr}</div>` : ''}
+        </div>
+        <div style="margin:0 0 24px;font-size:13pt;font-weight:bold;text-decoration:underline;text-transform:uppercase;">
+          RE: ${letter.subject}
+        </div>
+        <p style="margin:0 0 16px;font-size:11pt;">${salutation}</p>
+        <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;">${letter.body}</div>
+        ${signoff}`;
+    }
+
+    // ── Internal recipients (student / teacher) — existing format ────────────
+    const recipientName = recipientType === 'student' ? letter.student_name : letter.teacher_name;
+    const recipientSub  = recipientType === 'student'
+      ? [letter.class_name, letter.student_code].filter(Boolean).join(' · ')
+      : (letter.department ?? '');
+
     return `${letterheadHtml}
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin:0 0 20px;font-size:11pt;">
         <div><strong>Ref:</strong> ${letter.ref_number ?? '—'}</div>
@@ -79,12 +118,7 @@ export function PrintLetterModal({ open, onClose, letter, school, recipientType 
       </div>
       <p style="margin:0 0 16px;font-size:11pt;">Dear ${firstName(recipientName)},</p>
       <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;">${letter.body}</div>
-      <p style="margin:0;font-size:11pt;">Yours faithfully,</p>
-      ${sigHtml}
-      <div style="border-top:1px solid #000;width:240px;margin-top:6px;padding-top:8px;">
-        <div style="font-weight:bold;font-size:11pt;">${letter.issued_by_name}</div>
-        <div style="font-size:10pt;color:#4A3F32;">${school.name ?? ''}</div>
-      </div>`;
+      ${signoff}`;
   }
 
   function handlePrint() {
