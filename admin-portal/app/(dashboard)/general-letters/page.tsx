@@ -2,6 +2,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 
+type ChatMsg = { role: 'user' | 'assistant'; content: string; };
+type GroundingClause = { section_ref: string | null; document_title: string; chunk_preview?: string };
+
 const C = {
   forest: '#0B3D2E', mid: '#145C44', gold: '#C8973A',
   bg: '#F5F0E8', card: '#FDFAF5', border: '#E2D9CC',
@@ -114,6 +117,78 @@ function Field({ label, children, required }: { label: string; children: React.R
   );
 }
 
+// ── AI Chat panel ────────────────────────────────────────────────────────────
+
+function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onUseDraft, onClose }: {
+  messages: ChatMsg[]; input: string; onInputChange: (v: string) => void;
+  onSend: () => void; loading: boolean; error: string;
+  onUseDraft: (text: string) => void; onClose: () => void;
+}) {
+  const endRef  = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [input]);
+
+  // "Use this draft" only after the user has sent at least one message.
+  const hasUserMessage = messages.some(m => m.role === 'user');
+
+  return (
+    <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 380 }}>
+      <div style={{ background: C.mid, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>AI Draft Assistant</span>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 13, padding: 0 }}>✕ close</button>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: C.bg }}>
+        {messages.map((m, i) => (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 4 }}>
+            <div style={{
+              maxWidth: '85%', padding: '8px 11px', borderRadius: 10, fontSize: 12, lineHeight: 1.6,
+              background: m.role === 'user' ? C.mid : '#fff',
+              color: m.role === 'user' ? '#fff' : C.dark,
+              border: m.role === 'assistant' ? `1px solid ${C.border}` : 'none',
+              whiteSpace: 'pre-wrap',
+            }}>{m.content}</div>
+            {m.role === 'assistant' && i === messages.length - 1 && hasUserMessage && (
+              <button onClick={() => onUseDraft(m.content)}
+                style={{ fontSize: 11, fontWeight: 700, color: C.forest, background: '#D1EAD9', border: `1px solid #B7DFC9`, borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}>
+                Use this draft
+              </button>
+            )}
+          </div>
+        ))}
+        {loading && (
+          <div style={{ alignSelf: 'flex-start', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 12px', fontSize: 12, color: C.muted }}>
+            Drafting…
+          </div>
+        )}
+        <div ref={endRef} />
+      </div>
+      {error && <div style={{ padding: '4px 12px', background: C.dangerBg, fontSize: 11, color: C.danger }}>{error}</div>}
+      <div style={{ display: 'flex', gap: 6, padding: '8px 10px', borderTop: `1px solid ${C.border}`, background: '#fff', alignItems: 'flex-end' }}>
+        <textarea
+          ref={inputRef}
+          value={input} onChange={e => onInputChange(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
+          placeholder="Add context or ask for changes… (Shift+Enter for new line)"
+          rows={1}
+          style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none', color: C.dark, background: C.bg, resize: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto' }}
+        />
+        <button onClick={onSend} disabled={loading || !input.trim()}
+          style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: (loading || !input.trim()) ? 0.5 : 1, flexShrink: 0 }}>
+          Send
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function GeneralLettersPage() {
@@ -145,6 +220,16 @@ export default function GeneralLettersPage() {
   const [savingContact, setSavingContact]   = useState(false);
 
   const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // AI drafting state — scoped to the create modal
+  const [showChat, setShowChat]           = useState(false);
+  const [chatSessionId, setChatSessionId] = useState('');
+  const [chatMessages, setChatMessages]   = useState<ChatMsg[]>([]);
+  const [chatInput, setChatInput]         = useState('');
+  const [chatLoading, setChatLoading]     = useState(false);
+  const [chatError, setChatError]         = useState('');
+  const [startingChat, setStartingChat]   = useState(false);
+  const [draftLetterId, setDraftLetterId] = useState('');
 
   // Auto-grow body textarea
   useEffect(() => {
@@ -193,6 +278,9 @@ export default function GeneralLettersPage() {
     setShowContactPicker(false);
     setNewContactName(''); setNewContactOrg(''); setNewContactAddr('');
     setSaveErr('');
+    setShowChat(false); setChatSessionId(''); setChatMessages([]);
+    setChatInput(''); setChatLoading(false); setChatError('');
+    setStartingChat(false); setDraftLetterId('');
     setCreateOpen(true);
   }
 
@@ -246,6 +334,81 @@ export default function GeneralLettersPage() {
     setSavingContact(false);
   }
 
+  async function startDraft() {
+    if (!form.classification) { setSaveErr('Select a classification before drafting with AI.'); return; }
+    if (!form.recipient_type) { setSaveErr('Select a recipient type before drafting with AI.'); return; }
+    if (!form.subject.trim()) { setSaveErr('Enter a subject before drafting with AI.'); return; }
+    const isExternal = form.recipient_type === 'external' || form.recipient_type === 'parent';
+    if (isExternal && !form.ext_recipient_name.trim()) { setSaveErr('Enter recipient name before drafting with AI.'); return; }
+    if (!isExternal && !form.internal_recipient_id)    { setSaveErr('Select a recipient before drafting with AI.'); return; }
+
+    setStartingChat(true); setSaveErr(''); setChatError('');
+    try {
+      // Pre-create the letter as a draft so the server can authoratively look up
+      // is_sensitive from the DB record (never trust the client-supplied flag).
+      const draftRes = await api.post('/api/general-letters', {
+        classification:           form.classification,
+        recipient_type:           form.recipient_type,
+        internal_recipient_id:    form.internal_recipient_id || undefined,
+        internal_recipient_table: form.internal_recipient_table || undefined,
+        ext_recipient_name:       form.ext_recipient_name || undefined,
+        ext_recipient_org:        form.ext_recipient_org || undefined,
+        ext_recipient_address:    form.ext_recipient_address || undefined,
+        subject:                  form.subject,
+        body:                     '',
+        is_sensitive:             form.is_sensitive,
+        issued_date:              form.issued_date,
+        status:                   'draft',
+      });
+      const letterId: string = draftRes.data.id;
+      setDraftLetterId(letterId);
+
+      // Build metadata for the chat session — includes recipient context for salutation
+      const metadata: Record<string, string> = {
+        letter_id:      letterId,
+        classification: form.classification,
+        subject:        form.subject,
+        recipient_type: form.recipient_type,
+      };
+      if (selectedRecipientName)      metadata.internal_recipient_name = selectedRecipientName;
+      if (form.ext_recipient_name)    metadata.ext_recipient_name      = form.ext_recipient_name;
+      if (form.ext_recipient_org)     metadata.ext_recipient_org       = form.ext_recipient_org;
+
+      const chatRes = await api.post<{ session_id: string; opening_message: string; grounding_clauses?: GroundingClause[] }>('/api/letter-chat/start', {
+        document_type: 'general_letter',
+        metadata,
+      });
+      setChatSessionId(chatRes.data.session_id);
+      setChatMessages([{ role: 'assistant', content: chatRes.data.opening_message }]);
+      setShowChat(true);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string; blocked?: boolean } } };
+      const msg = err.response?.data?.error ?? 'Failed to start AI session';
+      if (err.response?.data?.blocked) {
+        setSaveErr(msg); // show blocked reason in the form error area
+      } else {
+        setChatError(msg);
+        setShowChat(true); // open panel to show the error
+      }
+      setDraftLetterId('');
+    } finally { setStartingChat(false); }
+  }
+
+  async function sendChatMessage() {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg: ChatMsg = { role: 'user', content: chatInput.trim() };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatInput('');
+    setChatLoading(true); setChatError('');
+    try {
+      const { data } = await api.post<{ role: string; content: string }>(`/api/letter-chat/${chatSessionId}/message`, { content: userMsg.content });
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setChatError(err.response?.data?.error ?? 'Failed to send message');
+    } finally { setChatLoading(false); }
+  }
+
   async function submit() {
     setSaveErr('');
     if (!form.classification) { setSaveErr('Select a classification.'); return; }
@@ -263,19 +426,24 @@ export default function GeneralLettersPage() {
 
     setSaving(true);
     try {
-      await api.post('/api/general-letters', {
-        classification:          form.classification,
-        recipient_type:          form.recipient_type,
-        internal_recipient_id:   form.internal_recipient_id || undefined,
-        internal_recipient_table: form.internal_recipient_table || undefined,
-        ext_recipient_name:      form.ext_recipient_name || undefined,
-        ext_recipient_org:       form.ext_recipient_org || undefined,
-        ext_recipient_address:   form.ext_recipient_address || undefined,
-        subject:                 form.subject,
-        body:                    form.body,
-        is_sensitive:            form.is_sensitive,
-        issued_date:             form.issued_date,
-      });
+      if (draftLetterId) {
+        // Finalize the pre-created draft (AI drafting flow)
+        await api.patch(`/api/general-letters/${draftLetterId}/finalize`, { body: form.body });
+      } else {
+        await api.post('/api/general-letters', {
+          classification:           form.classification,
+          recipient_type:           form.recipient_type,
+          internal_recipient_id:    form.internal_recipient_id || undefined,
+          internal_recipient_table: form.internal_recipient_table || undefined,
+          ext_recipient_name:       form.ext_recipient_name || undefined,
+          ext_recipient_org:        form.ext_recipient_org || undefined,
+          ext_recipient_address:    form.ext_recipient_address || undefined,
+          subject:                  form.subject,
+          body:                     form.body,
+          is_sensitive:             form.is_sensitive,
+          issued_date:              form.issued_date,
+        });
+      }
       setCreateOpen(false);
       load();
     } catch (e: any) {
@@ -725,28 +893,70 @@ export default function GeneralLettersPage() {
             </Field>
 
             {/* Body */}
-            <Field label="Letter Body" required>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label style={labelStyle}>
+                  Letter Body<span style={{ color: C.danger }}> *</span>
+                </label>
+                {!form.is_sensitive && !showChat && (
+                  <button
+                    type="button"
+                    onClick={startDraft}
+                    disabled={startingChat}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      padding: '3px 10px', borderRadius: 6,
+                      border: `1px solid ${C.mid}`, background: '#E8F4EE',
+                      color: C.mid, fontWeight: 700, fontSize: 11, cursor: 'pointer',
+                      opacity: startingChat ? 0.6 : 1,
+                    }}
+                  >
+                    <svg viewBox="0 0 16 16" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path d="M8 1C4.13 1 1 3.7 1 7c0 1.4.54 2.68 1.44 3.7L1 15l4.5-1.36A7.1 7.1 0 008 14c3.87 0 7-2.7 7-6s-3.13-6-7-6z"/>
+                    </svg>
+                    {startingChat ? 'Starting…' : 'Draft with AI'}
+                  </button>
+                )}
+              </div>
+
               {form.is_sensitive && (
                 <div style={{
                   padding: '8px 12px', marginBottom: 8, borderRadius: 6,
                   background: C.dangerBg, border: `1px solid ${C.danger}44`,
                   fontSize: 12, color: C.danger,
                 }}>
-                  Sensitive letter — compose manually. AI drafting is not available.
+                  Sensitive letters must be written manually. AI drafting is not available for them.
                 </div>
               )}
-              <textarea
-                ref={bodyRef}
-                value={form.body}
-                onChange={e => setField('body', e.target.value)}
-                placeholder="Write the letter body here (between salutation and sign-off)…"
-                rows={6}
-                style={{ ...inputStyle, resize: 'none', overflowY: 'auto', minHeight: 120 }}
-              />
-              <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0' }}>
-                Write the body only — salutation, signature, and letterhead are added when printing.
-              </p>
-            </Field>
+
+              {showChat ? (
+                <ChatPanel
+                  messages={chatMessages}
+                  input={chatInput}
+                  onInputChange={setChatInput}
+                  onSend={sendChatMessage}
+                  loading={chatLoading}
+                  error={chatError}
+                  onUseDraft={text => { setField('body', text); setShowChat(false); }}
+                  onClose={() => setShowChat(false)}
+                />
+              ) : (
+                <textarea
+                  ref={bodyRef}
+                  value={form.body}
+                  onChange={e => setField('body', e.target.value)}
+                  placeholder="Write the letter body here (between salutation and sign-off)…"
+                  rows={6}
+                  style={{ ...inputStyle, resize: 'none', overflowY: 'auto', minHeight: 120 }}
+                />
+              )}
+
+              {!showChat && (
+                <p style={{ fontSize: 11, color: C.muted, margin: '4px 0 0' }}>
+                  Write the body only — salutation, signature, and letterhead are added when printing.
+                </p>
+              )}
+            </div>
 
             {/* Issued date */}
             <Field label="Issued Date">
