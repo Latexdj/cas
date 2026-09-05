@@ -172,4 +172,4 @@ async function generateAndUploadPDF({ letter, school, recipientType, watermark =
   return data.publicUrl;
 }
 
-module.exports = { generateAndUploadPDF };
+module.exports = { generateAndUploadPDF, buildLetterHTML };
