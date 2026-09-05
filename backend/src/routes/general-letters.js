@@ -95,7 +95,14 @@ router.get('/', adminOrManagement, async (req, res, next) => {
     const { status, classification } = req.query;
     const params = [req.schoolId];
     const clauses = [];
-    if (status)         { params.push(status);         clauses.push(`gl.status = $${params.length}`); }
+    // Exclude in-progress AI drafts (status='draft') from the default listing.
+    // A draft letter has no body yet; it becomes visible once finalized.
+    if (status) {
+      params.push(status);
+      clauses.push(`gl.status = $${params.length}`);
+    } else {
+      clauses.push(`gl.status != 'draft'`);
+    }
     if (classification) { params.push(classification); clauses.push(`gl.classification = $${params.length}`); }
     const where = clauses.length ? ' AND ' + clauses.join(' AND ') : '';
 
@@ -116,6 +123,8 @@ router.get('/', adminOrManagement, async (req, res, next) => {
 });
 
 // POST /api/general-letters
+// Pass status:'draft' (with empty body) to pre-create a shell record for the AI drafting flow.
+// The draft is invisible in the list and must be finalized via PATCH /:id/finalize.
 router.post('/', adminOrManagement, async (req, res, next) => {
   try {
     const {
@@ -123,14 +132,17 @@ router.post('/', adminOrManagement, async (req, res, next) => {
       internal_recipient_id, internal_recipient_table,
       ext_recipient_name, ext_recipient_org, ext_recipient_address,
       subject, body, is_sensitive, issued_date, academic_year_id,
+      status: requestedStatus,
     } = req.body;
+
+    const savingAsDraft = requestedStatus === 'draft';
 
     if (!VALID_CLASSIFICATIONS.includes(classification))
       return res.status(400).json({ error: 'Invalid classification' });
     if (!VALID_RECIPIENT_TYPES.includes(recipient_type))
       return res.status(400).json({ error: 'Invalid recipient_type' });
     if (!subject?.trim()) return res.status(400).json({ error: 'subject is required' });
-    if (!body?.trim())    return res.status(400).json({ error: 'body is required' });
+    if (!savingAsDraft && !body?.trim()) return res.status(400).json({ error: 'body is required' });
 
     if (recipient_type === 'external' || recipient_type === 'parent') {
       if (!ext_recipient_name?.trim())
@@ -152,8 +164,15 @@ router.post('/', adminOrManagement, async (req, res, next) => {
     const { issued_by_id, issued_by_name } = await resolveIssuedBy(req);
     const sensitive = is_sensitive === true || is_sensitive === 'true';
     const requires_approval = computeRequiresApproval(classification, sensitive);
-    const computed_status = requires_approval ? 'pending_approval' : 'issued';
-    const { ref_number, signature_url } = await generateRefNumber(req.schoolId);
+
+    // Drafts skip ref_number generation — no counter is incremented until finalize.
+    let ref_number = null, signature_url = null;
+    if (!savingAsDraft) {
+      const result = await generateRefNumber(req.schoolId);
+      ref_number    = result.ref_number;
+      signature_url = result.signature_url;
+    }
+    const computed_status = savingAsDraft ? 'draft' : (requires_approval ? 'pending_approval' : 'issued');
 
     const { rows } = await pool.query(
       `INSERT INTO general_letters (
@@ -172,12 +191,48 @@ router.post('/', adminOrManagement, async (req, res, next) => {
         classification, recipient_type,
         internal_recipient_id || null, internal_recipient_table || null,
         ext_recipient_name?.trim() || null, ext_recipient_org?.trim() || null, ext_recipient_address?.trim() || null,
-        subject.trim(), body.trim(), sensitive,
+        subject.trim(), (body?.trim() || ''), sensitive,
         issued_date || null, academic_year_id || null,
         ref_number, computed_status, requires_approval,
       ]
     );
     res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/general-letters/:id/finalize — finalizes an AI-drafted letter
+// Generates ref_number, sets body, transitions draft → issued/pending_approval.
+// Must be defined before /:id to avoid Express matching 'finalize' as an id.
+router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
+  try {
+    const { body } = req.body;
+    if (!body?.trim()) return res.status(400).json({ error: 'body is required' });
+
+    const { rows: existing } = await pool.query(
+      `SELECT * FROM general_letters WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!existing.length) return res.status(404).json({ error: 'Letter not found' });
+    const draft = existing[0];
+    if (draft.status !== 'draft') {
+      return res.status(400).json({ error: 'Letter is not a draft — use /approve to change status' });
+    }
+
+    // Generate ref_number now that the letter is being issued
+    const { ref_number, signature_url } = await generateRefNumber(req.schoolId);
+    const requires_approval = computeRequiresApproval(draft.classification, draft.is_sensitive);
+    const new_status = requires_approval ? 'pending_approval' : 'issued';
+
+    const { rows } = await pool.query(
+      `UPDATE general_letters
+       SET body = $1, ref_number = $2,
+           issued_by_signature_url = COALESCE(issued_by_signature_url, $3),
+           status = $4, requires_approval = $5, updated_at = now()
+       WHERE id = $6 AND school_id = $7
+       RETURNING *`,
+      [body.trim(), ref_number, signature_url, new_status, requires_approval, req.params.id, req.schoolId]
+    );
+    res.json(rows[0]);
   } catch (err) { next(err); }
 });
 

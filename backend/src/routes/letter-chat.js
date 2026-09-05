@@ -2,7 +2,7 @@
 const router    = require('express').Router();
 const pool      = require('../config/db');
 const Anthropic = require('@anthropic-ai/sdk');
-const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { authenticate, adminOrManagement, requireActiveSubscription } = require('../middleware/auth');
 const { fetchChunksRAG } = require('../utils/rag');
 
 router.use(authenticate, requireActiveSubscription);
@@ -141,7 +141,46 @@ Your role:
 - Keep the tone firm, professional, and fair; use formal English appropriate for an official school document
 - Write in third-person institutional voice ("The school notes that…", "You are hereby directed to…")
 ${sanctionRule}`;
+
+  } else if (documentType === 'general_letter') {
+    const recipientType = metadata?.recipient_type ?? '';
+    const isExternal    = recipientType === 'external' || recipientType === 'parent';
+    const extName       = metadata?.ext_recipient_name ?? '';
+    const extOrg        = metadata?.ext_recipient_org ?? '';
+    const intName       = metadata?.internal_recipient_name ?? '';
+
+    const recipientDisplay = isExternal
+      ? (extName ? `${extName}${extOrg ? `, ${extOrg}` : ''}` : 'the recipient')
+      : (intName || `the ${recipientType || 'recipient'}`);
+
+    // Salutation per design doc Section 5:
+    // External: full name (not first-name); internal: first name.
+    const salutation = isExternal
+      ? `Dear ${extName || 'Sir/Madam'},`
+      : `Dear ${(intName || '').split(' ')[0] || '[First Name]'},`;
+
+    const classLabel = (metadata?.classification ?? '').replace(/_/g, ' ');
+
+    base = `You are assisting an admin at ${schoolName} in drafting a general correspondence letter.
+
+Context:
+- Recipient: ${recipientDisplay}
+- Classification: ${classLabel}
+- Subject: "${metadata?.subject ?? ''}"
+
+Your role:
+- Help draft the BODY of the letter only — the paragraphs between the salutation and sign-off
+- Do NOT include the date, ref number, address block, salutation, or signature block (the system handles those)
+- The salutation for this letter is: "${salutation}" — match the formality accordingly
+- Before producing a full draft, ask what this letter needs to communicate: the main purpose, any relevant facts or references, and what action or response is expected. Do not draft without these details.
+- Present a complete draft once you have enough information; revise based on feedback
+- Keep the tone appropriate to the classification: formal and professional for external official letters; warm but clear for parent communications; direct and concise for internal memos
+- Write as a school administrator would: clear, respectful, and professional
+
+SENSITIVITY SAFEGUARD: If the conversation reveals health information, bereavement, family legal matters, safeguarding concerns, or other deeply personal information about a named individual, pause and respond: "This content may involve a sensitive personal matter. If so, please close this session, re-open the letter, and mark it as sensitive so it can be composed manually." Do not produce a full draft until the user confirms the matter is not sensitive.`;
+
   } else {
+    // teacher_query (default fallback)
     base = `You are assisting an admin at ${schoolName} in drafting a formal query letter to a teacher.
 
 Context:
@@ -157,6 +196,7 @@ Your role:
 - Keep the tone formal and fair; use professional language appropriate for an official school query
 ${sanctionRule}`;
   }
+
   const formatAndToneRule = `
 
 FORMATTING AND TONE (strictly enforced):
@@ -187,18 +227,30 @@ function openingMessage(documentType, metadata) {
   if (documentType === 'student_letter') {
     return `I'm ready to help you draft the body of this ${metadata.letter_type ?? ''} letter for ${metadata.student_name ?? 'the student'}.\n\nTo write this well, please tell me:\n1. What happened — the specific incident or behaviour\n2. When it occurred (date or period)\n3. Any prior warnings or relevant history\n4. What outcome or action you want the letter to communicate\n\nOnce I have these details I will draft the body text for your review.`;
   }
+  if (documentType === 'general_letter') {
+    const recipientType = metadata?.recipient_type ?? '';
+    const isExternal    = recipientType === 'external' || recipientType === 'parent';
+    const extName       = metadata?.ext_recipient_name ?? '';
+    const intName       = metadata?.internal_recipient_name ?? '';
+    const recipientDisplay = isExternal
+      ? (extName || 'the recipient')
+      : (intName || `the ${recipientType || 'recipient'}`);
+    const classLabel = (metadata?.classification ?? '').replace(/_/g, ' ');
+    return `I am ready to help you draft the body of this ${classLabel} letter to ${recipientDisplay}.\n\nTo write a clear, professional letter please tell me:\n1. What this letter needs to communicate — the main purpose and any key facts\n2. Any action or response you expect from the recipient\n3. Any specific details, dates, or references to include\n\nOnce you provide these details I will draft the letter body for your review.`;
+  }
+  // teacher_query
   return `I'm ready to help you draft the body of this query letter for ${metadata.teacher_name ?? 'the teacher'}.\n\nPlease tell me:\n1. What happened — the specific concern or incident\n2. When it occurred\n3. Any relevant context or prior discussions\n4. What response you expect from the teacher and by when\n\nWith those details I can draft a clear, formal query body for your review.`;
 }
 
 // POST /api/letter-chat/start
-// Body: { document_type: 'teacher_query'|'student_letter', metadata: { ... } }
+// Body: { document_type: 'teacher_query'|'student_letter'|'general_letter', metadata: { ... } }
 // Returns: { session_id, opening_message, grounding_clauses }
-router.post('/start', adminOnly, async (req, res, next) => {
+router.post('/start', adminOrManagement, async (req, res, next) => {
   try {
     const { document_type, metadata } = req.body;
 
-    if (!['teacher_query', 'student_letter'].includes(document_type)) {
-      return res.status(400).json({ error: 'document_type must be teacher_query or student_letter' });
+    if (!['teacher_query', 'student_letter', 'general_letter'].includes(document_type)) {
+      return res.status(400).json({ error: 'document_type must be teacher_query, student_letter, or general_letter' });
     }
     if (!metadata?.subject?.trim()) {
       return res.status(400).json({ error: 'metadata.subject is required' });
@@ -211,8 +263,34 @@ router.post('/start', adminOnly, async (req, res, next) => {
       });
     }
 
-    // Retrieve grounding: RAG preferred, clause fallback (fail-open: none on error)
-    const grounding = await fetchGrounding(req.schoolId, document_type, metadata);
+    // Server-side sensitivity gate for general letters.
+    // Look up the pre-created draft record to read is_sensitive from the DB —
+    // we never trust the client-supplied flag for this check.
+    if (document_type === 'general_letter') {
+      const letterId = metadata?.letter_id;
+      if (!letterId) {
+        return res.status(400).json({ error: 'metadata.letter_id is required for general_letter sessions' });
+      }
+      const { rows: glRows } = await pool.query(
+        `SELECT is_sensitive FROM general_letters WHERE id = $1 AND school_id = $2`,
+        [letterId, req.schoolId]
+      );
+      if (!glRows.length) {
+        return res.status(404).json({ error: 'Letter not found' });
+      }
+      if (glRows[0].is_sensitive) {
+        return res.status(422).json({
+          error: 'AI drafting is not available for sensitive letters. Please compose the letter body manually.',
+          blocked: true,
+        });
+      }
+    }
+
+    // Grounding: skip for general_letter (no policy citation needed for general correspondence)
+    let grounding = { mode: 'none', results: [] };
+    if (document_type !== 'general_letter') {
+      grounding = await fetchGrounding(req.schoolId, document_type, metadata);
+    }
 
     // Freeze grounding in session metadata.
     // RAG results are stored here to avoid re-embedding each turn.
@@ -247,7 +325,7 @@ router.post('/start', adminOnly, async (req, res, next) => {
 // POST /api/letter-chat/:session_id/message
 // Body: { content }
 // Returns: { role: 'assistant', content }
-router.post('/:session_id/message', adminOnly, async (req, res, next) => {
+router.post('/:session_id/message', adminOrManagement, async (req, res, next) => {
   try {
     const { content } = req.body;
     if (!content?.trim()) return res.status(400).json({ error: 'content is required' });
@@ -272,6 +350,7 @@ router.post('/:session_id/message', adminOnly, async (req, res, next) => {
     // - RAG mode: use results frozen at session start (avoid re-embedding each turn)
     // - Clause mode: re-query live so clause edits are reflected immediately
     // - None: no grounding block in system prompt
+    // General letter sessions always have mode 'none' (no grounding).
     let grounding;
     if (session.metadata._grounding_mode === 'rag' && session.metadata._grounding_results?.length) {
       grounding = { mode: 'rag', results: session.metadata._grounding_results };
@@ -310,7 +389,7 @@ router.post('/:session_id/message', adminOnly, async (req, res, next) => {
 // PATCH /api/letter-chat/:session_id/finalize
 // Marks the session as finalized (no more messages can be added).
 // Returns: { messages }
-router.patch('/:session_id/finalize', adminOnly, async (req, res, next) => {
+router.patch('/:session_id/finalize', adminOrManagement, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `UPDATE letter_draft_sessions

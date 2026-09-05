@@ -109,6 +109,15 @@ function managementOnly(req, res, next) {
   next();
 }
 
+function adminOrManagement(req, res, next) {
+  const role = req.user?.role;
+  const type = req.user?.type;
+  if (role !== 'admin' && role !== 'super_admin' && type !== 'management') {
+    return res.status(403).json({ error: 'Admin or management access required' });
+  }
+  next();
+}
+
 // Checks that the school has an active trial or paid subscription.
 // Super admin bypasses this check entirely.
 async function requireActiveSubscription(req, res, next) {
@@ -172,4 +181,4 @@ async function requireActiveSubscription(req, res, next) {
   }
 }
 
-module.exports = { authenticate, adminOnly, superAdminOnly, managementOnly, requireActiveSubscription };
+module.exports = { authenticate, adminOnly, superAdminOnly, managementOnly, adminOrManagement, requireActiveSubscription };
