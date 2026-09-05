@@ -139,13 +139,62 @@ function fmt(d?: string) {
 
 interface ChatMsg { role: 'user' | 'assistant'; content: string; }
 
-type GroundingClause = { section_ref: string; document_title: string };
+// Unified grounding clause — same shape returned by /start for both RAG chunks and manual clauses.
+type GroundingClause = { section_ref: string | null; document_title: string; chunk_preview?: string };
 
-function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onUseDraft, onClose, groundingClauses }: {
+function GroundingPanel({ clauses, sessionStarted }: { clauses: GroundingClause[]; sessionStarted: boolean }) {
+  const [expanded, setExpanded] = useState(true);
+  if (!sessionStarted) return null;
+  const isRag = clauses.some(c => c.chunk_preview != null);
+
+  if (clauses.length === 0) {
+    return (
+      <div style={{ background: C.warningBg, borderBottom: `1px solid #FCD34D`, padding: '7px 12px' }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: C.warning, margin: 0 }}>
+          No matching policy clauses found — AI is responding without policy grounding
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: '#E8F4EE', borderBottom: `1px solid #B7DFC9` }}>
+      <div
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 12px', cursor: 'pointer', userSelect: 'none' }}
+        onClick={() => setExpanded(e => !e)}
+      >
+        <p style={{ fontSize: 10, fontWeight: 800, color: C.forest, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {isRag
+            ? `${clauses.length} policy passage${clauses.length !== 1 ? 's' : ''} retrieved`
+            : 'Policy grounding active'}
+        </p>
+        <span style={{ fontSize: 9, color: C.mid2 }}>{expanded ? '▲' : '▼'}</span>
+      </div>
+      {expanded && (
+        <div style={{ padding: '0 12px 7px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {clauses.map((c, i) => (
+            <div key={i} style={{ borderTop: i > 0 ? `1px solid #C7E8D6` : 'none', paddingTop: i > 0 ? 5 : 0 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: C.forest, margin: '0 0 2px' }}>
+                {c.section_ref ?? '§'} — <span style={{ fontWeight: 400, fontStyle: 'italic' }}>{c.document_title}</span>
+              </p>
+              {c.chunk_preview && (
+                <p style={{ fontSize: 10, color: C.mid2, margin: 0, lineHeight: 1.5 }}>
+                  {c.chunk_preview}{c.chunk_preview.length >= 200 ? '…' : ''}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onUseDraft, onClose, groundingClauses, sessionStarted }: {
   messages: ChatMsg[]; input: string; onInputChange: (v: string) => void;
   onSend: () => void; loading: boolean; error: string;
   onUseDraft: (text: string) => void; onClose: () => void;
-  groundingClauses?: GroundingClause[];
+  groundingClauses: GroundingClause[]; sessionStarted: boolean;
 }) {
   const endRef = { current: null as HTMLDivElement | null };
   useEffect(() => {
@@ -159,19 +208,8 @@ function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onU
         <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>AI Draft Assistant</span>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 13, padding: 0 }}>✕ close</button>
       </div>
-      {/* Grounding disclosure — shown only when policy clauses are active */}
-      {groundingClauses && groundingClauses.length > 0 && (
-        <div style={{ background: '#E8F4EE', borderBottom: `1px solid #B7DFC9`, padding: '5px 12px' }}>
-          <p style={{ fontSize: 10, fontWeight: 800, color: C.forest, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Policy grounding active
-          </p>
-          {groundingClauses.map((c, i) => (
-            <p key={i} style={{ fontSize: 10, color: C.mid2, margin: '1px 0' }}>
-              {c.section_ref} — <span style={{ fontStyle: 'italic' }}>{c.document_title}</span>
-            </p>
-          ))}
-        </div>
-      )}
+      {/* Grounding disclosure — visible before AI's first draft message */}
+      <GroundingPanel clauses={groundingClauses} sessionStarted={sessionStarted} />
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: C.bg }}>
         {messages.map((m, i) => (
@@ -243,6 +281,7 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
   const [chatError, setChatError] = useState('');
   const [startingChat, setStartingChat] = useState(false);
   const [groundingClauses, setGroundingClauses] = useState<GroundingClause[]>([]);
+  const [sessionStarted, setSessionStarted] = useState(false);
 
   const filteredTeachers = useMemo(() =>
     teachers.filter(t => t.name.toLowerCase().includes(teacherSearch.toLowerCase()) ||
@@ -264,6 +303,7 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
       setChatSessionId(data.session_id);
       setChatMessages([{ role: 'assistant', content: data.opening_message }]);
       setGroundingClauses(data.grounding_clauses ?? []);
+      setSessionStarted(true);
       setShowChat(true);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
@@ -389,9 +429,10 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
                 messages={chatMessages} input={chatInput}
                 onInputChange={setChatInput} onSend={sendQueryChatMessage}
                 loading={chatLoading} error={chatError}
-                onUseDraft={text => { setBody(text); setShowChat(false); }}
-                onClose={() => setShowChat(false)}
+                onUseDraft={text => { setBody(text); setShowChat(false); setSessionStarted(false); }}
+                onClose={() => { setShowChat(false); setSessionStarted(false); }}
                 groundingClauses={groundingClauses}
+                sessionStarted={sessionStarted}
               />
             ) : (
               <textarea value={body} onChange={e => setBody(e.target.value)} rows={5}
@@ -471,6 +512,7 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
   const [chatError, setChatError] = useState('');
   const [startingChat, setStartingChat] = useState(false);
   const [groundingClauses, setGroundingClauses] = useState<GroundingClause[]>([]);
+  const [sessionStarted, setSessionStarted] = useState(false);
   const needsApproval = APPROVAL_REQUIRED_TYPES.has(letterType);
 
   const filteredStudents = useMemo(() =>
@@ -508,6 +550,7 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
       setChatSessionId(data.session_id);
       setChatMessages([{ role: 'assistant', content: data.opening_message }]);
       setGroundingClauses(data.grounding_clauses ?? []);
+      setSessionStarted(true);
       setShowChat(true);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string; blocked?: boolean } } };
@@ -668,9 +711,10 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
                 messages={chatMessages} input={chatInput}
                 onInputChange={setChatInput} onSend={sendLetterChatMessage}
                 loading={chatLoading} error={chatError}
-                onUseDraft={text => { setBody(text); setShowChat(false); }}
-                onClose={() => setShowChat(false)}
+                onUseDraft={text => { setBody(text); setShowChat(false); setSessionStarted(false); }}
+                onClose={() => { setShowChat(false); setSessionStarted(false); }}
                 groundingClauses={groundingClauses}
+                sessionStarted={sessionStarted}
               />
             ) : (
               <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
