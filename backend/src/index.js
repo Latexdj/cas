@@ -165,6 +165,7 @@ app.use('/api/ai',                    aiRemarksRoutes);
 app.use(errorHandler);
 
 async function runMigrations() {
+  let _migFailures = 0;
   try {
     const pool = require('./config/db');
 
@@ -2077,10 +2078,11 @@ async function runMigrations() {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_invigilation_duties_session ON invigilation_duties(exam_session_id)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_invigilation_duties_teacher ON invigilation_duties(school_id, teacher_id)`);
     } catch (e) {
-      console.error('Invigilation migration error:', e.message);
+      _migFailures++; console.error('[MIGRATION FAILED] invigilation_duties:', e.message);
     }
 
     // ── Vacation periods ──────────────────────────────────────────────────────
+    try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS school_vacation_periods (
         id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2099,8 +2101,10 @@ async function runMigrations() {
         ALTER TABLE school_vacation_periods ADD CONSTRAINT svp_kind_check CHECK (kind IN ('vacation','exam'));
       EXCEPTION WHEN duplicate_object THEN NULL; END $$
     `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] school_vacation_periods:', e.message); }
 
     // Invigilation attendance tables
+    try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS invigilation_check_ins (
         id                            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2133,12 +2137,16 @@ async function runMigrations() {
         UNIQUE (exam_session_id, student_id)
       )
     `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] invigilation_check_ins/exam_student_attendance:', e.message); }
 
     // Academic year date range
+    try {
     await pool.query(`ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS start_date DATE`);
     await pool.query(`ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS end_date DATE`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] academic_years date columns:', e.message); }
 
     // Semester date ranges
+    try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS semesters (
         id               UUID     PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2153,8 +2161,10 @@ async function runMigrations() {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_semesters_year ON semesters(academic_year_id)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] semesters:', e.message); }
 
     // ── Discipline & Conduct module ───────────────────────────────────────────
+    try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS teacher_queries (
         id                         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2183,7 +2193,9 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_teacher_queries_school  ON teacher_queries(school_id, created_at DESC)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_teacher_queries_teacher ON teacher_queries(teacher_id)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] teacher_queries:', e.message); }
 
+    try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS student_disciplinary_letters (
         id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2211,8 +2223,10 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_disc_letters_school   ON student_disciplinary_letters(school_id, created_at DESC)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_disc_letters_student  ON student_disciplinary_letters(student_id)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] student_disciplinary_letters:', e.message); }
 
     // Letterhead + ref-number system for discipline letters
+    try {
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS letterhead_url TEXT`);
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS letterhead_filename TEXT`);
     await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS letter_ref_prefix TEXT DEFAULT ''`);
@@ -2221,6 +2235,7 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE teacher_queries ADD COLUMN IF NOT EXISTS issued_by_signature_url TEXT`);
     await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS ref_number TEXT`);
     await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS issued_by_signature_url TEXT`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] letterhead/ref-number columns:', e.message); }
 
     // ── Resumption Attendance ─────────────────────────────────────────────────
     try {
@@ -2272,7 +2287,7 @@ async function runMigrations() {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_resumption_flags_school ON resumption_flags(school_id, resolved_at)`);
-    } catch (e) { console.error('Resumption migration error:', e.message); }
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] resumption_attendance:', e.message); }
 
     // ── Roll Call ─────────────────────────────────────────────────────────────
     // Separate try-catch so resumption_flags failures (e.g. missing FK table)
@@ -2307,7 +2322,7 @@ async function runMigrations() {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_roll_call_entries_roll_call ON roll_call_entries(roll_call_id)`);
-    } catch (e) { console.error('RollCall migration error:', e.message); }
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] roll_calls:', e.message); }
 
     // ── AI Remarks (Phase 1) ──────────────────────────────────────────────────
     try {
@@ -2322,12 +2337,12 @@ async function runMigrations() {
           created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
         )
       `);
-    } catch (e) { console.error('AI remarks migration error:', e.message); }
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] ai_remarks_phase1:', e.message); }
 
     // ── AI Remarks (Phase 2 - Primary) ───────────────────────────────────────
     try {
       await pool.query(`ALTER TABLE primary_report_remarks ADD COLUMN IF NOT EXISTS ai_drafted BOOLEAN DEFAULT false`);
-    } catch (e) { console.error('AI remarks phase 2 migration error:', e.message); }
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] ai_remarks_phase2:', e.message); }
 
     // ── Discipline Phase 4 (chat drafting + PDF) ─────────────────────────────
     try {
@@ -2349,7 +2364,7 @@ async function runMigrations() {
       `);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_letter_draft_sessions_school ON letter_draft_sessions(school_id, created_at DESC)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_letter_draft_sessions_expires ON letter_draft_sessions(expires_at)`);
-    } catch (e) { console.error('Discipline phase 4 migration error:', e.message); }
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] discipline_phase4 (letter_draft_sessions):', e.message); }
 
     // ── Discipline Phase 3 (approval workflow) ────────────────────────────────
     try {
@@ -2388,7 +2403,7 @@ async function runMigrations() {
           END IF;
         END $$
       `);
-    } catch (e) { console.error('Discipline phase 3 migration error:', e.message); }
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] discipline_phase3 (approval workflow):', e.message); }
 
     // ── Phase 5a: Policy Documents ────────────────────────────────────────────
     try {
@@ -2422,11 +2437,17 @@ async function runMigrations() {
       `);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_policy_clauses_categories ON policy_clauses USING GIN(categories)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_policy_clauses_document   ON policy_clauses(document_id)`);
-    } catch (e) { console.error('Phase 5a migration error:', e.message); }
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] phase5a (policy_documents/clauses):', e.message); }
 
-    console.log('Migrations OK');
+    if (_migFailures > 0) {
+      console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
+    } else {
+      console.log('[MIGRATION SUMMARY] All migrations OK');
+    }
   } catch (err) {
-    console.error('Migration error:', err.message);
+    _migFailures++;
+    console.error('[MIGRATION CRITICAL] Unhandled error in base migration sequence:', err.message);
+    console.error('[MIGRATION CRITICAL] Stack:', err.stack);
   }
 }
 
