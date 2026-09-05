@@ -62,6 +62,7 @@ const examsRoutes             = require('./routes/exams');
 const noticesRoutes           = require('./routes/notices');
 const disciplineRoutes        = require('./routes/discipline');
 const letterChatRoutes        = require('./routes/letter-chat');
+const policyDocumentsRoutes   = require('./routes/policy-documents');
 const resumptionRoutes        = require('./routes/resumption');
 const rollCallRoutes          = require('./routes/roll-call');
 const aiRemarksRoutes         = require('./routes/ai-remarks');
@@ -156,6 +157,7 @@ app.use('/api/exams',                 examsRoutes);
 app.use('/api/notices',               noticesRoutes);
 app.use('/api/discipline',            disciplineRoutes);
 app.use('/api/letter-chat',           letterChatRoutes);
+app.use('/api/policy-documents',      policyDocumentsRoutes);
 app.use('/api/resumption',            resumptionRoutes);
 app.use('/api/roll-call',             rollCallRoutes);
 app.use('/api/ai',                    aiRemarksRoutes);
@@ -2387,6 +2389,40 @@ async function runMigrations() {
         END $$
       `);
     } catch (e) { console.error('Discipline phase 3 migration error:', e.message); }
+
+    // ── Phase 5a: Policy Documents ────────────────────────────────────────────
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS policy_documents (
+          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id     UUID REFERENCES schools(id) ON DELETE CASCADE,
+          title         TEXT NOT NULL,
+          document_type TEXT NOT NULL
+            CHECK (document_type IN ('ges_teacher_code','ges_student_code','school_rules')),
+          source_url    TEXT,
+          is_active     BOOLEAN NOT NULL DEFAULT true,
+          created_by    UUID REFERENCES teachers(id) ON DELETE SET NULL,
+          created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_policy_documents_school ON policy_documents(school_id)`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS policy_clauses (
+          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          document_id   UUID NOT NULL REFERENCES policy_documents(id) ON DELETE CASCADE,
+          section_ref   TEXT NOT NULL,
+          clause_text   TEXT NOT NULL,
+          applicable_to TEXT[] NOT NULL DEFAULT '{}',
+          categories    TEXT[] NOT NULL DEFAULT '{}',
+          display_order INTEGER NOT NULL DEFAULT 0,
+          created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_policy_clauses_categories ON policy_clauses USING GIN(categories)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_policy_clauses_document   ON policy_clauses(document_id)`);
+    } catch (e) { console.error('Phase 5a migration error:', e.message); }
 
     console.log('Migrations OK');
   } catch (err) {
