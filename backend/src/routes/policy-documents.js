@@ -294,8 +294,26 @@ router.post('/:id/process-rag', upload.single('pdf'), async (req, res, next) => 
       return res.status(422).json({ error: 'No content chunks could be extracted from this PDF' });
     }
 
-    // Embed all chunks via Voyage AI (voyage-4, default 1024 dims)
-    const embeddings = await embedTexts(rawChunks.map(c => c.chunk_text));
+    // Embed all chunks via Voyage AI
+    let embeddings;
+    try {
+      embeddings = await embedTexts(rawChunks.map(c => c.chunk_text));
+    } catch (e) {
+      const msg = e.message ?? String(e);
+      if (msg.startsWith('Voyage AI error')) {
+        return res.status(502).json({ error: `Embedding service error: ${msg}` });
+      }
+      throw e;
+    }
+
+    // Verify dimension matches the vector(1024) column before inserting
+    const dim = embeddings[0]?.length;
+    if (dim !== 1024) {
+      return res.status(422).json({
+        error: `Embedding dimension mismatch: model returned ${dim} dims but column expects 1024. ` +
+               `Update the voyage model or re-run the migrate-6a.sql with vector(${dim}).`,
+      });
+    }
 
     // Replace existing chunks in a transaction (all inactive by default — admin must activate)
     const client = await pool.connect();
