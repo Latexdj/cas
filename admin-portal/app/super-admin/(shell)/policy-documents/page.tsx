@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { saApi } from '@/lib/super-admin-api';
 
 interface PolicyDocument {
@@ -126,13 +126,13 @@ function SCheck({ checked, onChange, label }: { checked: boolean; onChange: () =
   );
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
   return (
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.6)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ background: '#132B1C', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '90vh', overflow: 'auto', border: `1px solid ${C.border}`, boxShadow: '0 24px 80px rgba(0,0,0,0.5)' }}>
+      <div style={{ background: '#132B1C', borderRadius: 16, width: '100%', maxWidth: wide ? 820 : 560, maxHeight: '90vh', overflow: 'auto', border: `1px solid ${C.border}`, boxShadow: '0 24px 80px rgba(0,0,0,0.5)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px 14px', borderBottom: `1px solid ${C.border}` }}>
           <p style={{ fontWeight: 800, fontSize: 15, color: '#fff', margin: 0 }}>{title}</p>
           <button onClick={onClose} style={{ width: 30, height: 30, border: `1px solid ${C.border}`, borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: C.muted, cursor: 'pointer', fontSize: 14 }}>✕</button>
@@ -190,6 +190,13 @@ export default function SAGESPolicyDocsPage() {
   // Delete clause
   const [delClId, setDelClId]       = useState<string | null>(null);
   const [deletingCl, setDeletingCl] = useState(false);
+
+  // PDF import
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfText, setPdfText]           = useState('');
+  const [pdfUploading, setPdfUploading] = useState(false);
+  const [pdfErr, setPdfErr]             = useState('');
+  const pdfTextareaRef                  = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     saApi.get<PolicyDocument[]>('/api/policy-documents')
@@ -307,6 +314,30 @@ export default function SAGESPolicyDocsPage() {
     } catch { /* ignore */ } finally { setDeletingCl(false); }
   }
 
+  async function handlePdfFile(file: File) {
+    if (!sel) return;
+    setPdfUploading(true); setPdfErr(''); setPdfText('');
+    try {
+      const fd = new FormData();
+      fd.append('pdf', file);
+      const { data } = await saApi.post<{ text: string; pages: number }>(
+        `/api/policy-documents/${sel.id}/extract-pdf`, fd
+      );
+      setPdfText(data.text);
+    } catch (e: unknown) {
+      setPdfErr((e as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'PDF extraction failed');
+    } finally { setPdfUploading(false); }
+  }
+
+  function prefillClauseFromPdf() {
+    const ta = pdfTextareaRef.current;
+    const selected = ta ? ta.value.substring(ta.selectionStart, ta.selectionEnd).trim() : '';
+    const text = selected || (ta?.value.trim() ?? '');
+    setShowPdfModal(false); setPdfText('');
+    setClForm({ ...blankClause(), clause_text: text });
+    setClErr(''); setClModal({ mode: 'create' });
+  }
+
   const cats = availableCats(clForm.applicable_to);
 
   return (
@@ -386,7 +417,10 @@ export default function SAGESPolicyDocsPage() {
                     {!sel.is_active && <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, background: 'rgba(255,255,255,0.05)', borderRadius: 5, padding: '2px 7px' }}>Inactive</span>}
                   </div>
                 </div>
-                <Btn label="+ Add Clause" onClick={openClCreate} small />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Btn label="Import from PDF" onClick={() => { setShowPdfModal(true); setPdfText(''); setPdfErr(''); }} variant="ghost" small />
+                  <Btn label="+ Add Clause" onClick={openClCreate} small />
+                </div>
               </div>
               <div style={{ padding: '12px 20px 20px' }}>
                 {clausesLoading ? (
@@ -519,6 +553,66 @@ export default function SAGESPolicyDocsPage() {
             <Btn label="Cancel" onClick={() => setDelClId(null)} variant="ghost" />
             <Btn label={deletingCl ? 'Deleting…' : 'Delete'} onClick={deleteClause} disabled={deletingCl} variant="danger" />
           </div>
+        </Modal>
+      )}
+
+      {/* ── PDF Import Modal ── */}
+      {showPdfModal && sel && (
+        <Modal title="Import from PDF" onClose={() => { setShowPdfModal(false); setPdfText(''); }} wide>
+          <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.7 }}>
+            Upload a PDF to extract its text. Highlight the relevant passage, then click{' '}
+            <strong style={{ color: '#fff' }}>Pre-fill Clause Form</strong> to copy it into the clause editor.
+            The raw text is never saved; only the clause record you confirm through the form.
+          </p>
+          <div>
+            <SLabel>PDF File</SLabel>
+            <input
+              type="file"
+              accept=".pdf"
+              disabled={pdfUploading}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handlePdfFile(f); }}
+              style={{ fontSize: 13, color: C.mid, cursor: 'pointer' }}
+            />
+          </div>
+          {pdfUploading && (
+            <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', padding: '8px 0' }}>Extracting text…</p>
+          )}
+          {pdfErr && (
+            <p style={{ fontSize: 12, color: C.danger, background: C.dangerBg, borderRadius: 8, padding: '8px 12px', margin: 0 }}>{pdfErr}</p>
+          )}
+          {pdfText && (
+            <>
+              <div>
+                <SLabel>{`Extracted text — ${pdfText.length.toLocaleString()} characters. Select the relevant passage, then pre-fill.`}</SLabel>
+                <textarea
+                  ref={pdfTextareaRef}
+                  value={pdfText}
+                  onChange={e => setPdfText(e.target.value)}
+                  rows={18}
+                  spellCheck={false}
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: 8, fontSize: 12,
+                    fontFamily: 'ui-monospace, monospace', lineHeight: 1.7, color: '#fff',
+                    background: C.inputBg, border: `1px solid ${C.inputBorder}`,
+                    boxSizing: 'border-box', resize: 'vertical', outline: 'none',
+                  }}
+                />
+              </div>
+              <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>
+                Tip: highlight just the clause text (excluding section headings if you prefer), then click the button.
+                If nothing is selected, the entire extracted text is pre-filled.
+              </p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <Btn label="Cancel" onClick={() => { setShowPdfModal(false); setPdfText(''); }} variant="ghost" />
+                <Btn label="Pre-fill Clause Form" onClick={prefillClauseFromPdf} />
+              </div>
+            </>
+          )}
+          {!pdfText && !pdfUploading && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Btn label="Cancel" onClick={() => setShowPdfModal(false)} variant="ghost" />
+            </div>
+          )}
         </Modal>
       )}
     </div>
