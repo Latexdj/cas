@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
+import { PrintLetterModal } from '@/components/PrintLetterModal';
 
 type ChatMsg = { role: 'user' | 'assistant'; content: string; };
 type GroundingClause = { section_ref: string | null; document_title: string; chunk_preview?: string };
@@ -17,11 +18,19 @@ const C = {
 type Letter = {
   id: string; ref_number: string; classification: string;
   recipient_type: string; ext_recipient_name: string | null;
-  ext_recipient_org: string | null; internal_recipient_id: string | null;
-  internal_recipient_table: string | null; subject: string;
+  ext_recipient_org: string | null; ext_recipient_address: string | null;
+  internal_recipient_id: string | null;
+  internal_recipient_table: string | null;
+  // Resolved by GET /:id JOIN (not present on list rows)
+  internal_recipient_name?: string | null;
+  student_code?: string | null; class_name?: string | null;
+  department?: string | null;
+  issued_by_signature_url?: string | null;
+  subject: string;
   is_sensitive: boolean; issued_date: string; status: string;
   requires_approval: boolean; approved_by_name: string | null;
-  approved_at: string | null; issued_by_name: string; body?: string; created_at: string;
+  approved_at: string | null; issued_by_name: string; body?: string;
+  pdf_url?: string | null; created_at: string;
 };
 
 type Contact = { id: string; name: string; organization: string | null; address: string | null; };
@@ -198,9 +207,12 @@ export default function GeneralLettersPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterClass, setFilterClass]   = useState('');
 
-  const [createOpen, setCreateOpen]   = useState(false);
-  const [viewLetter, setViewLetter]   = useState<Letter | null>(null);
+  const [createOpen, setCreateOpen]     = useState(false);
+  const [viewLetter, setViewLetter]     = useState<Letter | null>(null);
   const [contactsOpen, setContactsOpen] = useState(false);
+  const [showPrint, setShowPrint]       = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [school, setSchool]             = useState<Record<string, string> | null>(null);
 
   const [form, setForm]         = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving]     = useState(false);
@@ -259,7 +271,10 @@ export default function GeneralLettersPage() {
   };
 
   useEffect(() => { load(); }, [filterStatus, filterClass]);
-  useEffect(() => { loadContacts(); }, []);
+  useEffect(() => {
+    loadContacts();
+    api.get('/api/admin/settings').then(r => setSchool(r.data)).catch(() => {});
+  }, []);
 
   // Load teachers/students when relevant recipient type chosen
   useEffect(() => {
@@ -453,12 +468,28 @@ export default function GeneralLettersPage() {
   }
 
   async function openView(letter: Letter) {
+    setShowPrint(false);
     try {
       const r = await api.get(`/api/general-letters/${letter.id}`);
       setViewLetter(r.data);
     } catch {
       setViewLetter(letter);
     }
+  }
+
+  async function generatePdf(id: string) {
+    setGeneratingPdf(true);
+    try {
+      const { data } = await api.post<{ pdf_url: string }>(`/api/general-letters/${id}/pdf`);
+      setViewLetter(prev => prev ? { ...prev, pdf_url: data.pdf_url } : prev);
+    } catch { /* non-fatal; user can retry */ }
+    finally { setGeneratingPdf(false); }
+  }
+
+  function printRecipientType(l: Letter): 'student' | 'teacher' | 'external' {
+    if (l.recipient_type === 'student') return 'student';
+    if (l.recipient_type === 'teacher') return 'teacher';
+    return 'external'; // parent + external
   }
 
   async function approve(id: string) {
@@ -1096,6 +1127,67 @@ export default function GeneralLettersPage() {
               </div>
             )}
 
+            {/* PDF section */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
+              {viewLetter.pdf_url && (
+                <a
+                  href={viewLetter.pdf_url} target="_blank" rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '5px 12px', borderRadius: 7,
+                    border: `1px solid ${C.mid}`, background: '#E8F4EE',
+                    color: C.mid, fontSize: 12, fontWeight: 600, textDecoration: 'none',
+                  }}
+                >
+                  <svg viewBox="0 0 16 16" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M3 4a1 1 0 011-1h5l4 4v6a1 1 0 01-1 1H4a1 1 0 01-1-1V4z"/>
+                    <path d="M9 3v4h4"/>
+                  </svg>
+                  {viewLetter.status === 'pending_approval' ? 'Download Draft PDF (Watermarked)' : 'Download PDF'}
+                </a>
+              )}
+              <button
+                onClick={() => generatePdf(viewLetter.id)}
+                disabled={generatingPdf}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '5px 12px', borderRadius: 7,
+                  border: `1px solid ${C.border}`, background: C.bg,
+                  color: C.mid2, fontSize: 12, fontWeight: 600,
+                  cursor: generatingPdf ? 'not-allowed' : 'pointer',
+                  opacity: generatingPdf ? 0.6 : 1,
+                }}
+              >
+                <svg viewBox="0 0 16 16" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M8 1v8M5 6l3 3 3-3M2 12v2h12v-2"/>
+                </svg>
+                {generatingPdf ? 'Generating…' : viewLetter.pdf_url ? 'Regenerate PDF' : 'Generate PDF'}
+              </button>
+              {school && (
+                <button
+                  onClick={() => setShowPrint(true)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    padding: '5px 12px', borderRadius: 7,
+                    border: `1.5px solid ${C.mid}`, background: 'white',
+                    color: C.mid, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+                    <polyline points="6 9 6 2 18 2 18 9"/>
+                    <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+                    <rect x="6" y="14" width="12" height="8"/>
+                  </svg>
+                  Print Preview
+                </button>
+              )}
+              {viewLetter.status === 'pending_approval' && !viewLetter.pdf_url && (
+                <span style={{ fontSize: 11, color: C.muted }}>
+                  Generate the draft PDF for the principal to review before approval.
+                </span>
+              )}
+            </div>
+
             {/* Actions */}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button
@@ -1117,6 +1209,36 @@ export default function GeneralLettersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── PRINT PREVIEW MODAL ──────────────────────────────────────────────── */}
+      {showPrint && viewLetter && school && (
+        <PrintLetterModal
+          open={true}
+          onClose={() => setShowPrint(false)}
+          recipientType={printRecipientType(viewLetter)}
+          school={school}
+          letter={{
+            ref_number:              viewLetter.ref_number,
+            issued_date:             viewLetter.issued_date,
+            subject:                 viewLetter.subject,
+            body:                    viewLetter.body ?? '',
+            issued_by_name:          viewLetter.issued_by_name,
+            issued_by_signature_url: viewLetter.issued_by_signature_url ?? undefined,
+            // External
+            ext_recipient_name:    viewLetter.ext_recipient_name    ?? undefined,
+            ext_recipient_org:     viewLetter.ext_recipient_org     ?? undefined,
+            ext_recipient_address: viewLetter.ext_recipient_address ?? undefined,
+            // Internal — resolved by GET /:id JOIN
+            student_name: viewLetter.internal_recipient_table === 'students'
+              ? viewLetter.internal_recipient_name ?? undefined : undefined,
+            student_code: viewLetter.student_code ?? undefined,
+            class_name:   viewLetter.class_name   ?? undefined,
+            teacher_name: viewLetter.internal_recipient_table === 'teachers'
+              ? viewLetter.internal_recipient_name ?? undefined : undefined,
+            department:   viewLetter.department   ?? undefined,
+          }}
+        />
       )}
 
       {/* ── CONTACTS MODAL ────────────────────────────────────────────────────── */}
