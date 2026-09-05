@@ -170,6 +170,10 @@ async function runMigrations() {
   try {
     const pool = require('./config/db');
 
+    // ── BASE MIGRATION BLOCK ─────────────────────────────────────────────────
+    // Wrapped so one failing step here never skips the individually-wrapped newer
+    // migrations (exam_sessions, teacher_queries, general_letters, etc.) below.
+    try {
     // Ensure plans table exists and has all required columns
     await pool.query(`
       CREATE TABLE IF NOT EXISTS plans (
@@ -1909,12 +1913,20 @@ async function runMigrations() {
     await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_assessments_lms_quiz ON assessments(lms_quiz_id) WHERE lms_quiz_id IS NOT NULL`);
     await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_assessments_lms_asgn ON assessments(lms_assignment_id) WHERE lms_assignment_id IS NOT NULL`);
     // Migrate selected_option from INTEGER to TEXT (was declared INTEGER but stores letter strings a/b/c/d)
-    await pool.query(`ALTER TABLE lms_quiz_answers ALTER COLUMN selected_option TYPE TEXT USING selected_option::text`);
-    // Add unique constraint on quiz answers so ON CONFLICT DO NOTHING is meaningful
     await pool.query(`
       DO $$ BEGIN
-        ALTER TABLE lms_quiz_answers ADD CONSTRAINT uq_lms_quiz_answers_attempt_question UNIQUE (attempt_id, question_id);
-      EXCEPTION WHEN duplicate_object THEN NULL;
+        ALTER TABLE lms_quiz_answers ALTER COLUMN selected_option TYPE TEXT USING selected_option::text;
+      EXCEPTION WHEN OTHERS THEN NULL;
+      END $$
+    `);
+    // Add unique constraint on quiz answers so ON CONFLICT DO NOTHING is meaningful
+    // Uses a pg_constraint existence check instead of EXCEPTION WHEN duplicate_object because
+    // the actual PG error class for "relation already exists" is 42P07 (duplicate_table), not 42710.
+    await pool.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_lms_quiz_answers_attempt_question') THEN
+          ALTER TABLE lms_quiz_answers ADD CONSTRAINT uq_lms_quiz_answers_attempt_question UNIQUE (attempt_id, question_id);
+        END IF;
       END $$
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_lms_lessons_course        ON lms_lessons(course_id)`);
@@ -2028,6 +2040,10 @@ async function runMigrations() {
         AND year_of_admission IS NOT NULL
         AND year_of_admission = EXTRACT(year FROM created_at)::smallint
     `);
+    } catch (e) {
+      _migFailures++;
+      console.error('[MIGRATION FAILED] base-migration-block:', e.message);
+    }
 
     // ── Invigilation / Exam management ───────────────────────────────────────
     // Isolated try/catch so a failure in earlier migration steps never prevents
