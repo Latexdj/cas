@@ -2370,7 +2370,7 @@ async function runMigrations() {
           id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
           school_id     UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
           created_by    UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
-          document_type TEXT        NOT NULL CHECK (document_type IN ('teacher_query','student_letter')),
+          document_type TEXT        NOT NULL CHECK (document_type IN ('teacher_query','student_letter','general_letter')),
           metadata      JSONB       NOT NULL DEFAULT '{}',
           messages      JSONB       NOT NULL DEFAULT '[]',
           finalized_at  TIMESTAMPTZ,
