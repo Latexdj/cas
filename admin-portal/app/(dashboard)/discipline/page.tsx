@@ -480,7 +480,7 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
     [students, search]
   );
 
-  const SENSITIVE_OFFENSE_CATS = new Set(['exam_malpractice','substance_use','fighting_assault','bullying_harassment','indecent_behavior','other']);
+  const SENSITIVE_OFFENSE_CATS = new Set(['other']);
   const SENSITIVE_LETTER_TYPES = new Set(['suspension','dismissal']);
 
   async function startLetterChat() {
