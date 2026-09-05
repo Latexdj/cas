@@ -232,7 +232,8 @@ router.post('/:id/extract-pdf', upload.single('pdf'), async (req, res, next) => 
     if (!canModify(req, rows[0].school_id)) {
       return res.status(403).json({ error: 'Cannot extract from GES-level documents' });
     }
-    const parsed = await pdfParse(req.file.buffer);
+    // pdf-parse/PDF.js fails with Node's Buffer type on Node ≥24 — Uint8Array works on all versions
+    const parsed = await pdfParse(new Uint8Array(req.file.buffer));
     res.json({ text: parsed.text, pages: parsed.numpages });
   } catch (err) { next(err); }
 });
