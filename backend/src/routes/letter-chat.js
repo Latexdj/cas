@@ -8,12 +8,10 @@ router.use(authenticate, requireActiveSubscription);
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// These categories are too sensitive for AI narrative drafting.
-// For student letters: both the offense_category AND letter_type are checked.
-const SENSITIVE_OFFENSE_CATS  = new Set([
-  'exam_malpractice', 'substance_use', 'fighting_assault',
-  'bullying_harassment', 'indecent_behavior', 'other',
-]);
+// 'other' is too vague for grounded AI drafting.
+// suspension/dismissal carry legal weight — AI never produces those.
+// All other offense categories are now permitted for AI drafting.
+const SENSITIVE_OFFENSE_CATS  = new Set(['other']);
 const SENSITIVE_LETTER_TYPES = new Set(['suspension', 'dismissal']);
 
 function isBlocked(documentType, metadata) {
@@ -80,6 +78,13 @@ CITATION INSTRUCTIONS:
 // so edits to policy_clauses are reflected in subsequent turns of open sessions.
 function buildSystemPrompt(schoolName, documentType, metadata, clauses = []) {
   let base;
+  const sanctionRule = `
+SANCTION RULE (strictly enforced):
+- Do NOT originate, suggest, or imply any disciplinary sanction, punishment, or consequence unless ONE of the following applies:
+  a) The user explicitly states the sanction in this conversation (e.g. "two-day suspension", "detention"), in which case you may incorporate exactly what they stated — do not alter, escalate, or soften it.
+  b) A policy clause in the APPLICABLE RULES block below explicitly specifies a fixed sanction for this scenario, in which case you may reference only what that clause states — nothing beyond it.
+- If neither applies, leave any consequence/sanction section as a clear placeholder (e.g. "[sanction to be specified by school administration]") rather than inventing or implying an outcome.`;
+
   if (documentType === 'student_letter') {
     base = `You are assisting an admin at ${schoolName} in drafting a formal disciplinary letter to a student.
 
@@ -92,10 +97,11 @@ Context:
 Your role:
 - Help draft the BODY of the letter only — the paragraphs between "Dear [Name]," and "Yours faithfully,"
 - Do NOT include the date, ref number, recipient address block, salutation, or signature block (the system handles those)
-- Ask for the specific incident facts before producing a full draft
-- Present a complete draft when you have enough information; revise based on feedback
+- Before producing a full draft, ask for: (1) exactly what happened, (2) when it occurred, (3) who was involved, (4) any prior warnings or relevant history — do not draft without these facts
+- Present a complete draft once you have the incident details; revise based on feedback
 - Keep the tone firm, professional, and fair; use formal English appropriate for an official school document
-- Write in third-person institutional voice ("The school notes that…", "You are directed to…")`;
+- Write in third-person institutional voice ("The school notes that…", "You are hereby directed to…")
+${sanctionRule}`;
   } else {
     base = `You are assisting an admin at ${schoolName} in drafting a formal query letter to a teacher.
 
@@ -107,9 +113,10 @@ Context:
 Your role:
 - Help draft the BODY of the query letter — the paragraphs between "Dear [Name]," and "Yours faithfully,"
 - Do NOT include the date, ref number, recipient address, salutation, or signature block
-- Ask for the specific incident facts and concerns before drafting
-- Present a complete draft when you have enough information; revise based on feedback
-- Keep the tone formal and fair; use professional language appropriate for an official school query`;
+- Before producing a full draft, ask for: (1) the specific concern or incident, (2) when it occurred, (3) any relevant context or prior discussions, (4) what response is expected and by when — do not draft without these facts
+- Present a complete draft once you have the details; revise based on feedback
+- Keep the tone formal and fair; use professional language appropriate for an official school query
+${sanctionRule}`;
   }
   return base + buildGroundingBlock(clauses);
 }
