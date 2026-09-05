@@ -23,9 +23,65 @@ function isBlocked(documentType, metadata) {
   return false;
 }
 
-function buildSystemPrompt(schoolName, documentType, metadata) {
+// Fetch up to 6 applicable policy clauses for this session's category.
+// GES clauses (school_id IS NULL) come first, school-specific clauses after.
+// Returns [] on any error so clause retrieval never breaks the main chat flow.
+async function fetchClauses(schoolId, documentType, metadata) {
+  const category = documentType === 'teacher_query'
+    ? metadata?.category
+    : metadata?.offense_category;
+  if (!category) return [];
+  try {
+    const { rows } = await pool.query(
+      `SELECT pc.section_ref, pc.clause_text, pd.title AS document_title
+       FROM policy_clauses pc
+       JOIN policy_documents pd ON pd.id = pc.document_id
+       WHERE pd.is_active = true
+         AND (pd.school_id IS NULL OR pd.school_id = $1)
+         AND pc.applicable_to @> ARRAY[$2]::TEXT[]
+         AND pc.categories    @> ARRAY[$3]::TEXT[]
+       ORDER BY pd.school_id NULLS FIRST, pc.display_order ASC
+       LIMIT 6`,
+      [schoolId, documentType, category]
+    );
+    return rows;
+  } catch (e) {
+    console.error('fetchClauses error:', e.message);
+    return [];
+  }
+}
+
+// Build the grounded-rules block to append to the system prompt.
+// Omitted entirely when clauses is empty — no "no rules found" instruction
+// is added, so the model drafts normally without citation.
+function buildGroundingBlock(clauses) {
+  if (!clauses.length) return '';
+  const byDoc = new Map();
+  for (const c of clauses) {
+    if (!byDoc.has(c.document_title)) byDoc.set(c.document_title, []);
+    byDoc.get(c.document_title).push(c);
+  }
+  const sections = [...byDoc.entries()].map(([title, cs]) => {
+    const lines = cs.map(c => `• ${c.section_ref}: "${c.clause_text}"`).join('\n');
+    return `[${title}]\n${lines}`;
+  }).join('\n\n');
+  return `\n\nAPPLICABLE RULES — CITE ONLY FROM THESE:
+────────────────────────────────────────
+${sections}
+────────────────────────────────────────
+CITATION INSTRUCTIONS:
+- You may cite or closely paraphrase the clauses above, referencing their section numbers exactly as written.
+- Do NOT cite, quote, or reference any rule, section number, or policy that is not in the block above — even if you believe it exists.
+- GES clauses take precedence; school-specific clauses supplement GES rules and do not override or contradict them.
+- If no relevant rule is listed above, draft the letter without a citation. Do not invent a section reference.`;
+}
+
+// clauses are re-queried live at each turn (not frozen into session messages)
+// so edits to policy_clauses are reflected in subsequent turns of open sessions.
+function buildSystemPrompt(schoolName, documentType, metadata, clauses = []) {
+  let base;
   if (documentType === 'student_letter') {
-    return `You are assisting an admin at ${schoolName} in drafting a formal disciplinary letter to a student.
+    base = `You are assisting an admin at ${schoolName} in drafting a formal disciplinary letter to a student.
 
 Context:
 - Student: ${metadata.student_name ?? ''}${metadata.class_name ? ` (${metadata.class_name})` : ''}
@@ -40,10 +96,8 @@ Your role:
 - Present a complete draft when you have enough information; revise based on feedback
 - Keep the tone firm, professional, and fair; use formal English appropriate for an official school document
 - Write in third-person institutional voice ("The school notes that…", "You are directed to…")`;
-  }
-
-  // teacher_query
-  return `You are assisting an admin at ${schoolName} in drafting a formal query letter to a teacher.
+  } else {
+    base = `You are assisting an admin at ${schoolName} in drafting a formal query letter to a teacher.
 
 Context:
 - Teacher: ${metadata.teacher_name ?? ''}${metadata.department ? ` (${metadata.department})` : ''}
@@ -56,6 +110,8 @@ Your role:
 - Ask for the specific incident facts and concerns before drafting
 - Present a complete draft when you have enough information; revise based on feedback
 - Keep the tone formal and fair; use professional language appropriate for an official school query`;
+  }
+  return base + buildGroundingBlock(clauses);
 }
 
 function openingMessage(documentType, metadata) {
@@ -67,7 +123,7 @@ function openingMessage(documentType, metadata) {
 
 // POST /api/letter-chat/start
 // Body: { document_type: 'teacher_query'|'student_letter', metadata: { ... } }
-// Returns: { session_id, opening_message }
+// Returns: { session_id, opening_message, grounding_clauses }
 router.post('/start', adminOnly, async (req, res, next) => {
   try {
     const { document_type, metadata } = req.body;
@@ -86,16 +142,24 @@ router.post('/start', adminOnly, async (req, res, next) => {
       });
     }
 
+    // Retrieve applicable policy clauses for this category (fail-open: [] on error)
+    const clauses = await fetchClauses(req.schoolId, document_type, metadata);
+
+    // Store clause count in session metadata for audit trail
+    const enrichedMetadata = { ...metadata, _clause_count: clauses.length };
+
     const { rows } = await pool.query(
       `INSERT INTO letter_draft_sessions (school_id, created_by, document_type, metadata, messages)
        VALUES ($1, $2, $3, $4, '[]')
        RETURNING id`,
-      [req.schoolId, req.user.id, document_type, JSON.stringify(metadata)]
+      [req.schoolId, req.user.id, document_type, JSON.stringify(enrichedMetadata)]
     );
 
     res.status(201).json({
-      session_id:      rows[0].id,
-      opening_message: openingMessage(document_type, metadata),
+      session_id:       rows[0].id,
+      opening_message:  openingMessage(document_type, metadata),
+      // section_ref + document_title only — for frontend disclosure panel
+      grounding_clauses: clauses.map(c => ({ section_ref: c.section_ref, document_title: c.document_title })),
     });
   } catch (err) { next(err); }
 });
@@ -124,7 +188,9 @@ router.post('/:session_id/message', adminOnly, async (req, res, next) => {
     const { rows: schRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.schoolId]);
     const schoolName = schRows[0]?.name ?? 'the school';
 
-    const systemPrompt = buildSystemPrompt(schoolName, session.document_type, session.metadata);
+    // Re-query clauses live each turn so edits to policy_clauses are reflected immediately
+    const clauses = await fetchClauses(req.schoolId, session.document_type, session.metadata);
+    const systemPrompt = buildSystemPrompt(schoolName, session.document_type, session.metadata, clauses);
 
     // Append user message and call Claude
     const updatedMessages = [...(session.messages ?? []), { role: 'user', content: content.trim() }];
