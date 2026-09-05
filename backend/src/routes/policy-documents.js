@@ -1,7 +1,11 @@
 'use strict';
-const router = require('express').Router();
-const pool   = require('../config/db');
+const router   = require('express').Router();
+const multer   = require('multer');
+const pdfParse = require('pdf-parse');
+const pool     = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 router.use(authenticate, adminOnly, requireActiveSubscription);
 
@@ -209,6 +213,27 @@ router.delete('/:id/clauses/:clauseId', async (req, res, next) => {
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Clause not found' });
     res.status(204).end();
+  } catch (err) { next(err); }
+});
+
+// POST /api/policy-documents/:id/extract-pdf
+// Accepts a PDF upload, extracts full text with pdf-parse, returns it.
+// Nothing is persisted — this is a convenience tool for the clause-entry UI.
+router.post('/:id/extract-pdf', upload.single('pdf'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No PDF file uploaded' });
+    if (req.file.mimetype !== 'application/pdf') {
+      return res.status(400).json({ error: 'Uploaded file must be a PDF' });
+    }
+    const { rows } = await pool.query(
+      'SELECT school_id FROM policy_documents WHERE id = $1', [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Document not found' });
+    if (!canModify(req, rows[0].school_id)) {
+      return res.status(403).json({ error: 'Cannot extract from GES-level documents' });
+    }
+    const parsed = await pdfParse(req.file.buffer);
+    res.json({ text: parsed.text, pages: parsed.numpages });
   } catch (err) { next(err); }
 });
 
