@@ -1100,26 +1100,27 @@ export default function DisciplinePage() {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      try {
-        const [qRes, qsRes, lRes, lsRes, tRes, sRes, ayRes, schRes] = await Promise.all([
-          api.get<TeacherQuery[]>('/api/discipline/queries'),
-          api.get<QueryStats>('/api/discipline/queries/stats'),
-          api.get<DisciplinaryLetter[]>('/api/discipline/letters'),
-          api.get<LetterStats>('/api/discipline/letters/stats'),
-          api.get<Teacher[]>('/api/teachers?status=Active&limit=500'),
-          api.get<Student[]>('/api/students?limit=1000'),
-          api.get<AcademicYear[]>('/api/academic-years'),
-          api.get('/api/admin/settings'),
-        ]);
-        setQueries(qRes.data);
-        setQueryStats(qsRes.data);
-        setLetters(lRes.data);
-        setLetterStats(lsRes.data);
-        setTeachers(tRes.data);
-        setStudents(Array.isArray(sRes.data) ? sRes.data : (sRes.data as { data?: Student[] }).data ?? []);
-        setAcademicYears(ayRes.data);
-        setSchoolInfo(schRes.data);
-      } catch { /* ignore */ }
+      const [qRes, qsRes, lRes, lsRes, tRes, sRes, ayRes, schRes] = await Promise.allSettled([
+        api.get<TeacherQuery[]>('/api/discipline/queries'),
+        api.get<QueryStats>('/api/discipline/queries/stats'),
+        api.get<DisciplinaryLetter[]>('/api/discipline/letters'),
+        api.get<LetterStats>('/api/discipline/letters/stats'),
+        api.get<Teacher[]>('/api/teachers'),
+        api.get<Student[]>('/api/students?limit=1000'),
+        api.get<AcademicYear[]>('/api/academic-years'),
+        api.get('/api/admin/settings'),
+      ]);
+      if (qRes.status === 'fulfilled')   setQueries(qRes.value.data);
+      if (qsRes.status === 'fulfilled')  setQueryStats(qsRes.value.data);
+      if (lRes.status === 'fulfilled')   setLetters(lRes.value.data);
+      if (lsRes.status === 'fulfilled')  setLetterStats(lsRes.value.data);
+      if (tRes.status === 'fulfilled')   setTeachers(Array.isArray(tRes.value.data) ? tRes.value.data : []);
+      if (sRes.status === 'fulfilled') {
+        const d = sRes.value.data;
+        setStudents(Array.isArray(d) ? d : (d as { data?: Student[] }).data ?? []);
+      }
+      if (ayRes.status === 'fulfilled')  setAcademicYears(ayRes.value.data);
+      if (schRes.status === 'fulfilled') setSchoolInfo(schRes.value.data);
       setLoading(false);
     }
     load();
