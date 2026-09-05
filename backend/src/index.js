@@ -156,6 +156,7 @@ app.use('/api/inventory',             inventoryRoutes);
 app.use('/api/exams',                 examsRoutes);
 app.use('/api/notices',               noticesRoutes);
 app.use('/api/discipline',            disciplineRoutes);
+app.use('/api/general-letters',       require('./routes/general-letters'));
 app.use('/api/letter-chat',           letterChatRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
 app.use('/api/resumption',            resumptionRoutes);
@@ -2438,6 +2439,59 @@ async function runMigrations() {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_policy_clauses_categories ON policy_clauses USING GIN(categories)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_policy_clauses_document   ON policy_clauses(document_id)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] phase5a (policy_documents/clauses):', e.message); }
+
+    // ── General Correspondence ────────────────────────────────────────────────
+    try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS external_contacts (
+        id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id    UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name         TEXT        NOT NULL,
+        organization TEXT,
+        address      TEXT,
+        created_by   UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_external_contacts_school ON external_contacts(school_id)`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS general_letters (
+        id                       UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id                UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        issued_by_id             UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        issued_by_name           TEXT        NOT NULL DEFAULT '',
+        issued_by_signature_url  TEXT,
+        classification           TEXT        NOT NULL CHECK (classification IN (
+                                   'parent_communication','external_official',
+                                   'internal_administrative','other')),
+        recipient_type           TEXT        NOT NULL CHECK (recipient_type IN (
+                                   'student','teacher','parent','external')),
+        internal_recipient_id    UUID,
+        internal_recipient_table TEXT,
+        ext_recipient_name       TEXT,
+        ext_recipient_org        TEXT,
+        ext_recipient_address    TEXT,
+        subject                  TEXT        NOT NULL,
+        body                     TEXT        NOT NULL,
+        is_sensitive             BOOLEAN     NOT NULL DEFAULT false,
+        issued_date              DATE        NOT NULL DEFAULT CURRENT_DATE,
+        academic_year_id         UUID        REFERENCES academic_years(id) ON DELETE SET NULL,
+        ref_number               TEXT,
+        status                   TEXT        NOT NULL DEFAULT 'issued',
+        requires_approval        BOOLEAN     NOT NULL DEFAULT false,
+        approved_by              UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+        approved_by_name         TEXT,
+        approved_at              TIMESTAMPTZ,
+        pdf_url                  TEXT,
+        created_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
+        CONSTRAINT general_letter_external_check CHECK (
+          recipient_type != 'external' OR ext_recipient_name IS NOT NULL
+        )
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_general_letters_school ON general_letters(school_id, created_at DESC)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] general_letters + external_contacts:', e.message); }
 
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
