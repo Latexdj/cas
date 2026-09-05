@@ -73,14 +73,28 @@ async function embedTexts(texts) {
   const results = [];
   for (let i = 0; i < texts.length; i += VOYAGE_BATCH) {
     const batch = texts.slice(i, i + VOYAGE_BATCH);
-    const res = await fetch('https://api.voyageai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.VOYAGE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ input: batch, model: 'voyage-4' }),
-    });
+    // Retry up to 3 times on 429 (rate limit) with backoff
+    let attempt = 0;
+    let res;
+    while (true) {
+      res = await fetch('https://api.voyageai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.VOYAGE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ input: batch, model: 'voyage-3' }),
+      });
+      if (res.status === 429 && attempt < 3) {
+        const retryAfter = parseInt(res.headers.get('retry-after') ?? '0', 10);
+        const waitMs = retryAfter > 0 ? retryAfter * 1000 : Math.min(20000 * 2 ** attempt, 120000);
+        console.warn(`[RAG] Voyage 429 rate limit — waiting ${waitMs / 1000}s (attempt ${attempt + 1}/3)`);
+        await new Promise(r => setTimeout(r, waitMs));
+        attempt++;
+        continue;
+      }
+      break;
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(`Voyage AI error ${res.status}: ${err.detail ?? err.message ?? res.statusText}`);
