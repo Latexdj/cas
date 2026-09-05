@@ -60,6 +60,10 @@ const sections: Section[] = [
         href: '/discipline', label: 'Discipline',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
       },
+      {
+        href: '/general-letters', label: 'Correspondence',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
+      },
     ],
   },
   {
