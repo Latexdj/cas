@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { PrintLetterModal } from '@/components/PrintLetterModal';
+import { StructuredIntake } from '@/components/StructuredIntake';
+import { INTAKE_FIELDS } from '@/lib/intake-fields';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -137,7 +139,7 @@ function fmt(d?: string) {
 
 // ─── AI Chat Panel ────────────────────────────────────────────────────────────
 
-interface ChatMsg { role: 'user' | 'assistant'; content: string; }
+interface ChatMsg { role: 'user' | 'assistant'; content: string; intakeCard?: boolean; }
 
 // Unified grounding clause — same shape returned by /start for both RAG chunks and manual clauses.
 type GroundingClause = { section_ref: string | null; document_title: string; chunk_preview?: string };
@@ -190,11 +192,17 @@ function GroundingPanel({ clauses, sessionStarted }: { clauses: GroundingClause[
   );
 }
 
-function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onUseDraft, onClose, groundingClauses, sessionStarted }: {
+function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onUseDraft, onClose, groundingClauses, sessionStarted,
+  intakeSubmitted, onIntakeSubmit, onSkipIntake, documentType, sessionId }: {
   messages: ChatMsg[]; input: string; onInputChange: (v: string) => void;
   onSend: () => void; loading: boolean; error: string;
   onUseDraft: (text: string) => void; onClose: () => void;
   groundingClauses: GroundingClause[]; sessionStarted: boolean;
+  intakeSubmitted: boolean;
+  onIntakeSubmit: (assembled: string) => void;
+  onSkipIntake: () => void;
+  documentType: 'student_letter' | 'teacher_query';
+  sessionId: string;
 }) {
   const endRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -203,7 +211,6 @@ function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onU
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto-grow the input textarea as the user types
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
@@ -211,62 +218,79 @@ function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onU
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
   }, [input]);
 
-  // "Use this draft" only appears after the user has sent at least one message
-  // (i.e. the AI has produced an actual draft, not just the opening question).
   const hasUserMessage = messages.some(m => m.role === 'user');
 
   return (
     <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 380 }}>
-      {/* Header */}
       <div style={{ background: C.mid, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px' }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>AI Draft Assistant</span>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 13, padding: 0 }}>✕ close</button>
       </div>
-      {/* Grounding disclosure */}
       <GroundingPanel clauses={groundingClauses} sessionStarted={sessionStarted} />
-      {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: C.bg }}>
-        {messages.map((m, i) => (
-          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 4 }}>
-            <div style={{
-              maxWidth: '85%', padding: '8px 11px', borderRadius: 10, fontSize: 12, lineHeight: 1.6,
-              background: m.role === 'user' ? C.mid : '#fff',
-              color: m.role === 'user' ? '#fff' : C.dark,
-              border: m.role === 'assistant' ? `1px solid ${C.border}` : 'none',
-              whiteSpace: 'pre-wrap',
-            }}>{m.content}</div>
-            {m.role === 'assistant' && i === messages.length - 1 && hasUserMessage && (
-              <button onClick={() => onUseDraft(m.content)}
-                style={{ fontSize: 11, fontWeight: 700, color: C.forest, background: '#D1EAD9', border: `1px solid #B7DFC9`, borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}>
-                Use this draft
-              </button>
-            )}
-          </div>
-        ))}
-        {loading && (
-          <div style={{ alignSelf: 'flex-start', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 12px', fontSize: 12, color: C.muted }}>
-            Drafting…
-          </div>
-        )}
-        <div ref={endRef} />
-      </div>
-      {/* Error */}
-      {error && <div style={{ padding: '4px 12px', background: C.dangerBg, fontSize: 11, color: C.danger }}>{error}</div>}
-      {/* Input */}
-      <div style={{ display: 'flex', gap: 6, padding: '8px 10px', borderTop: `1px solid ${C.border}`, background: '#fff', alignItems: 'flex-end' }}>
-        <textarea
-          ref={inputRef}
-          value={input} onChange={e => onInputChange(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
-          placeholder="Add context or ask for changes… (Shift+Enter for new line)"
-          rows={1}
-          style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none', color: C.dark, background: C.bg, resize: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto' }}
+
+      {!intakeSubmitted ? (
+        <StructuredIntake
+          fields={INTAKE_FIELDS[documentType]}
+          sessionId={sessionId}
+          onSubmit={onIntakeSubmit}
+          onSkip={onSkipIntake}
         />
-        <button onClick={onSend} disabled={loading || !input.trim()}
-          style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: (loading || !input.trim()) ? 0.5 : 1, flexShrink: 0 }}>
-          Send
-        </button>
-      </div>
+      ) : (
+        <>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: C.bg }}>
+            {messages.map((m, i) => (
+              m.intakeCard ? (
+                <div key={i} style={{
+                  background: '#FDF6E3', border: `1px solid #E8D9B0`,
+                  borderRadius: 10, padding: '10px 12px', fontSize: 12,
+                }}>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px' }}>Submitted details</p>
+                  <div style={{ color: C.dark, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                    {m.content.replace('Here are the details for this letter:\n\n', '')}
+                  </div>
+                </div>
+              ) : (
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: m.role === 'user' ? 'flex-end' : 'flex-start', gap: 4 }}>
+                  <div style={{
+                    maxWidth: '85%', padding: '8px 11px', borderRadius: 10, fontSize: 12, lineHeight: 1.6,
+                    background: m.role === 'user' ? C.mid : '#fff',
+                    color: m.role === 'user' ? '#fff' : C.dark,
+                    border: m.role === 'assistant' ? `1px solid ${C.border}` : 'none',
+                    whiteSpace: 'pre-wrap',
+                  }}>{m.content}</div>
+                  {m.role === 'assistant' && i === messages.length - 1 && hasUserMessage && (
+                    <button onClick={() => onUseDraft(m.content)}
+                      style={{ fontSize: 11, fontWeight: 700, color: C.forest, background: '#D1EAD9', border: `1px solid #B7DFC9`, borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}>
+                      Use this draft
+                    </button>
+                  )}
+                </div>
+              )
+            ))}
+            {loading && (
+              <div style={{ alignSelf: 'flex-start', background: '#fff', border: `1px solid ${C.border}`, borderRadius: 10, padding: '8px 12px', fontSize: 12, color: C.muted }}>
+                Drafting…
+              </div>
+            )}
+            <div ref={endRef} />
+          </div>
+          {error && <div style={{ padding: '4px 12px', background: C.dangerBg, fontSize: 11, color: C.danger }}>{error}</div>}
+          <div style={{ display: 'flex', gap: 6, padding: '8px 10px', borderTop: `1px solid ${C.border}`, background: '#fff', alignItems: 'flex-end' }}>
+            <textarea
+              ref={inputRef}
+              value={input} onChange={e => onInputChange(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
+              placeholder="Add context or ask for changes… (Shift+Enter for new line)"
+              rows={1}
+              style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none', color: C.dark, background: C.bg, resize: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto' }}
+            />
+            <button onClick={onSend} disabled={loading || !input.trim()}
+              style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: (loading || !input.trim()) ? 0.5 : 1, flexShrink: 0 }}>
+              Send
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -298,6 +322,8 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
   const [startingChat, setStartingChat] = useState(false);
   const [groundingClauses, setGroundingClauses] = useState<GroundingClause[]>([]);
   const [sessionStarted, setSessionStarted] = useState(false);
+  const [chatOpeningMessage, setChatOpeningMessage] = useState('');
+  const [intakeSubmitted, setIntakeSubmitted] = useState(false);
 
   const filteredTeachers = useMemo(() =>
     teachers.filter(t => t.name.toLowerCase().includes(teacherSearch.toLowerCase()) ||
@@ -317,7 +343,9 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
         metadata: { teacher_name: selectedTeacher.name, department: selectedTeacher.department, category, subject },
       });
       setChatSessionId(data.session_id);
-      setChatMessages([{ role: 'assistant', content: data.opening_message }]);
+      setChatMessages([]);
+      setChatOpeningMessage(data.opening_message);
+      setIntakeSubmitted(false);
       setGroundingClauses(data.grounding_clauses ?? []);
       setSessionStarted(true);
       setShowChat(true);
@@ -325,6 +353,27 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
       const err = e as { response?: { data?: { error?: string } } };
       setChatError(err.response?.data?.error ?? 'Failed to start AI session');
     } finally { setStartingChat(false); }
+  }
+
+  async function handleQueryIntakeSubmit(assembled: string) {
+    const userMsg: ChatMsg = { role: 'user', content: assembled, intakeCard: true };
+    setChatMessages(prev => [...prev, userMsg]);
+    setIntakeSubmitted(true);
+    setChatLoading(true); setChatError('');
+    try {
+      const { data } = await api.post<{ role: string; content: string }>(
+        `/api/letter-chat/${chatSessionId}/message`, { content: assembled }
+      );
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setChatError(err.response?.data?.error ?? 'Failed to get draft');
+    } finally { setChatLoading(false); }
+  }
+
+  function handleQueryIntakeSkip() {
+    setChatMessages([{ role: 'assistant', content: chatOpeningMessage }]);
+    setIntakeSubmitted(true);
   }
 
   async function sendQueryChatMessage() {
@@ -446,9 +495,14 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
                 onInputChange={setChatInput} onSend={sendQueryChatMessage}
                 loading={chatLoading} error={chatError}
                 onUseDraft={text => { setBody(text); setShowChat(false); setSessionStarted(false); }}
-                onClose={() => { setShowChat(false); setSessionStarted(false); }}
+                onClose={() => { setShowChat(false); setSessionStarted(false); setIntakeSubmitted(false); }}
                 groundingClauses={groundingClauses}
                 sessionStarted={sessionStarted}
+                intakeSubmitted={intakeSubmitted}
+                onIntakeSubmit={handleQueryIntakeSubmit}
+                onSkipIntake={handleQueryIntakeSkip}
+                documentType="teacher_query"
+                sessionId={chatSessionId}
               />
             ) : (
               <textarea value={body} onChange={e => setBody(e.target.value)} rows={5}
@@ -529,6 +583,8 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
   const [startingChat, setStartingChat] = useState(false);
   const [groundingClauses, setGroundingClauses] = useState<GroundingClause[]>([]);
   const [sessionStarted, setSessionStarted] = useState(false);
+  const [chatOpeningMessage, setChatOpeningMessage] = useState('');
+  const [intakeSubmitted, setIntakeSubmitted] = useState(false);
   const needsApproval = APPROVAL_REQUIRED_TYPES.has(letterType);
 
   const filteredStudents = useMemo(() =>
@@ -564,7 +620,9 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
         return;
       }
       setChatSessionId(data.session_id);
-      setChatMessages([{ role: 'assistant', content: data.opening_message }]);
+      setChatMessages([]);
+      setChatOpeningMessage(data.opening_message);
+      setIntakeSubmitted(false);
       setGroundingClauses(data.grounding_clauses ?? []);
       setSessionStarted(true);
       setShowChat(true);
@@ -576,6 +634,27 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
         setChatError(err.response?.data?.error ?? 'Failed to start AI session');
       }
     } finally { setStartingChat(false); }
+  }
+
+  async function handleLetterIntakeSubmit(assembled: string) {
+    const userMsg: ChatMsg = { role: 'user', content: assembled, intakeCard: true };
+    setChatMessages(prev => [...prev, userMsg]);
+    setIntakeSubmitted(true);
+    setChatLoading(true); setChatError('');
+    try {
+      const { data } = await api.post<{ role: string; content: string }>(
+        `/api/letter-chat/${chatSessionId}/message`, { content: assembled }
+      );
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setChatError(err.response?.data?.error ?? 'Failed to get draft');
+    } finally { setChatLoading(false); }
+  }
+
+  function handleLetterIntakeSkip() {
+    setChatMessages([{ role: 'assistant', content: chatOpeningMessage }]);
+    setIntakeSubmitted(true);
   }
 
   async function sendLetterChatMessage() {
@@ -728,9 +807,14 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
                 onInputChange={setChatInput} onSend={sendLetterChatMessage}
                 loading={chatLoading} error={chatError}
                 onUseDraft={text => { setBody(text); setShowChat(false); setSessionStarted(false); }}
-                onClose={() => { setShowChat(false); setSessionStarted(false); }}
+                onClose={() => { setShowChat(false); setSessionStarted(false); setIntakeSubmitted(false); }}
                 groundingClauses={groundingClauses}
                 sessionStarted={sessionStarted}
+                intakeSubmitted={intakeSubmitted}
+                onIntakeSubmit={handleLetterIntakeSubmit}
+                onSkipIntake={handleLetterIntakeSkip}
+                documentType="student_letter"
+                sessionId={chatSessionId}
               />
             ) : (
               <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
