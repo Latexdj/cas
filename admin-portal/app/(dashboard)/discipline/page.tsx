@@ -221,12 +221,12 @@ function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onU
   const hasUserMessage = messages.some(m => m.role === 'user');
 
   return (
-    <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 380 }}>
+    <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: intakeSubmitted ? 380 : 420 }}>
       <div style={{ background: C.mid, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px' }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>AI Draft Assistant</span>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 13, padding: 0 }}>✕ close</button>
       </div>
-      <GroundingPanel clauses={groundingClauses} sessionStarted={sessionStarted} />
+      {intakeSubmitted && <GroundingPanel clauses={groundingClauses} sessionStarted={sessionStarted} />}
 
       {!intakeSubmitted ? (
         <StructuredIntake
