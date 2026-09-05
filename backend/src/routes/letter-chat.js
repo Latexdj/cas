@@ -3,6 +3,7 @@ const router    = require('express').Router();
 const pool      = require('../config/db');
 const Anthropic = require('@anthropic-ai/sdk');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { fetchChunksRAG } = require('../utils/rag');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -21,9 +22,15 @@ function isBlocked(documentType, metadata) {
   return false;
 }
 
-// Fetch up to 6 applicable policy clauses for this session's category.
-// GES clauses (school_id IS NULL) come first, school-specific clauses after.
-// Returns [] on any error so clause retrieval never breaks the main chat flow.
+// ── Grounding retrieval ───────────────────────────────────────────────────────
+// Strategy: try RAG first (vector similarity, voyage-4); if no active chunks
+// exist or VOYAGE_API_KEY is absent, fall back to manually-tagged clauses.
+// Returns { mode: 'rag'|'clauses'|'none', results: NormalizedResult[] }
+//
+// NormalizedResult: { section_label, text, document_title, chunk_preview? }
+// section_label = section_ref (clauses) or section_hint (chunks), may be null.
+// chunk_preview = first 200 chars of chunk_text — for frontend disclosure only.
+
 async function fetchClauses(schoolId, documentType, metadata) {
   const category = documentType === 'teacher_query'
     ? metadata?.category
@@ -49,18 +56,51 @@ async function fetchClauses(schoolId, documentType, metadata) {
   }
 }
 
-// Build the grounded-rules block to append to the system prompt.
-// Omitted entirely when clauses is empty — no "no rules found" instruction
-// is added, so the model drafts normally without citation.
-function buildGroundingBlock(clauses) {
-  if (!clauses.length) return '';
-  const byDoc = new Map();
-  for (const c of clauses) {
-    if (!byDoc.has(c.document_title)) byDoc.set(c.document_title, []);
-    byDoc.get(c.document_title).push(c);
+async function fetchGrounding(schoolId, documentType, metadata) {
+  // Try RAG (only if VOYAGE_API_KEY configured — otherwise fall through to clauses)
+  const ragRows = await fetchChunksRAG(schoolId, documentType, metadata);
+  if (ragRows.length > 0) {
+    return {
+      mode: 'rag',
+      results: ragRows.map(r => ({
+        section_label: r.section_hint ?? null,
+        text:          r.chunk_text,
+        document_title: r.document_title,
+        chunk_preview: r.chunk_text.slice(0, 200),
+      })),
+    };
   }
-  const sections = [...byDoc.entries()].map(([title, cs]) => {
-    const lines = cs.map(c => `• ${c.section_ref}: "${c.clause_text}"`).join('\n');
+
+  // Fall back to manually-tagged clauses (live re-query each time for clause edit visibility)
+  const clauseRows = await fetchClauses(schoolId, documentType, metadata);
+  if (clauseRows.length > 0) {
+    return {
+      mode: 'clauses',
+      results: clauseRows.map(r => ({
+        section_label:  r.section_ref,
+        text:           r.clause_text,
+        document_title: r.document_title,
+      })),
+    };
+  }
+
+  return { mode: 'none', results: [] };
+}
+
+// Build the grounded-rules block to append to the system prompt.
+// Omitted entirely when results is empty — model drafts normally without citation.
+function buildGroundingBlock(grounding) {
+  if (!grounding.results.length) return '';
+  const byDoc = new Map();
+  for (const r of grounding.results) {
+    if (!byDoc.has(r.document_title)) byDoc.set(r.document_title, []);
+    byDoc.get(r.document_title).push(r);
+  }
+  const sections = [...byDoc.entries()].map(([title, items]) => {
+    const lines = items.map(r => {
+      const label = r.section_label ? `${r.section_label}: ` : '';
+      return `• ${label}"${r.text}"`;
+    }).join('\n');
     return `[${title}]\n${lines}`;
   }).join('\n\n');
   return `\n\nAPPLICABLE RULES — CITE ONLY FROM THESE:
@@ -68,15 +108,14 @@ function buildGroundingBlock(clauses) {
 ${sections}
 ────────────────────────────────────────
 CITATION INSTRUCTIONS:
-- You may cite or closely paraphrase the clauses above, referencing their section numbers exactly as written.
+- You may cite or closely paraphrase the passages above, referencing their section numbers exactly as written.
 - Do NOT cite, quote, or reference any rule, section number, or policy that is not in the block above — even if you believe it exists.
 - GES clauses take precedence; school-specific clauses supplement GES rules and do not override or contradict them.
 - If no relevant rule is listed above, draft the letter without a citation. Do not invent a section reference.`;
 }
 
-// clauses are re-queried live at each turn (not frozen into session messages)
-// so edits to policy_clauses are reflected in subsequent turns of open sessions.
-function buildSystemPrompt(schoolName, documentType, metadata, clauses = []) {
+// grounding is frozen at session start (RAG) or re-queried live (clauses fallback).
+function buildSystemPrompt(schoolName, documentType, metadata, grounding = { mode: 'none', results: [] }) {
   let base;
   const sanctionRule = `
 SANCTION RULE (strictly enforced):
@@ -118,7 +157,7 @@ Your role:
 - Keep the tone formal and fair; use professional language appropriate for an official school query
 ${sanctionRule}`;
   }
-  return base + buildGroundingBlock(clauses);
+  return base + buildGroundingBlock(grounding);
 }
 
 function openingMessage(documentType, metadata) {
@@ -149,11 +188,18 @@ router.post('/start', adminOnly, async (req, res, next) => {
       });
     }
 
-    // Retrieve applicable policy clauses for this category (fail-open: [] on error)
-    const clauses = await fetchClauses(req.schoolId, document_type, metadata);
+    // Retrieve grounding: RAG preferred, clause fallback (fail-open: none on error)
+    const grounding = await fetchGrounding(req.schoolId, document_type, metadata);
 
-    // Store clause count in session metadata for audit trail
-    const enrichedMetadata = { ...metadata, _clause_count: clauses.length };
+    // Freeze grounding in session metadata.
+    // RAG results are stored here to avoid re-embedding each turn.
+    // Clause fallback is re-queried live each turn (supports immediate clause edits).
+    const enrichedMetadata = {
+      ...metadata,
+      _grounding_mode:    grounding.mode,
+      _grounding_results: grounding.mode === 'rag' ? grounding.results : undefined,
+      _clause_count:      grounding.results.length,
+    };
 
     const { rows } = await pool.query(
       `INSERT INTO letter_draft_sessions (school_id, created_by, document_type, metadata, messages)
@@ -163,10 +209,14 @@ router.post('/start', adminOnly, async (req, res, next) => {
     );
 
     res.status(201).json({
-      session_id:       rows[0].id,
-      opening_message:  openingMessage(document_type, metadata),
-      // section_ref + document_title only — for frontend disclosure panel
-      grounding_clauses: clauses.map(c => ({ section_ref: c.section_ref, document_title: c.document_title })),
+      session_id:      rows[0].id,
+      opening_message: openingMessage(document_type, metadata),
+      // Normalized grounding for the disclosure panel — same shape for RAG and clauses.
+      grounding_clauses: grounding.results.map(r => ({
+        section_ref:   r.section_label ?? null,
+        document_title: r.document_title,
+        chunk_preview: r.chunk_preview ?? undefined,
+      })),
     });
   } catch (err) { next(err); }
 });
@@ -195,9 +245,22 @@ router.post('/:session_id/message', adminOnly, async (req, res, next) => {
     const { rows: schRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.schoolId]);
     const schoolName = schRows[0]?.name ?? 'the school';
 
-    // Re-query clauses live each turn so edits to policy_clauses are reflected immediately
-    const clauses = await fetchClauses(req.schoolId, session.document_type, session.metadata);
-    const systemPrompt = buildSystemPrompt(schoolName, session.document_type, session.metadata, clauses);
+    // Grounding at message time:
+    // - RAG mode: use results frozen at session start (avoid re-embedding each turn)
+    // - Clause mode: re-query live so clause edits are reflected immediately
+    // - None: no grounding block in system prompt
+    let grounding;
+    if (session.metadata._grounding_mode === 'rag' && session.metadata._grounding_results?.length) {
+      grounding = { mode: 'rag', results: session.metadata._grounding_results };
+    } else if (session.metadata._grounding_mode === 'clauses') {
+      const clauseRows = await fetchClauses(req.schoolId, session.document_type, session.metadata);
+      grounding = clauseRows.length > 0
+        ? { mode: 'clauses', results: clauseRows.map(r => ({ section_label: r.section_ref, text: r.clause_text, document_title: r.document_title })) }
+        : { mode: 'none', results: [] };
+    } else {
+      grounding = { mode: 'none', results: [] };
+    }
+    const systemPrompt = buildSystemPrompt(schoolName, session.document_type, session.metadata, grounding);
 
     // Append user message and call Claude
     const updatedMessages = [...(session.messages ?? []), { role: 'user', content: content.trim() }];
