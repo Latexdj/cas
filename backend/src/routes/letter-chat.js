@@ -168,6 +168,21 @@ FORMATTING AND TONE (strictly enforced):
   return base + formatAndToneRule + buildGroundingBlock(grounding);
 }
 
+// Strip markdown that the model produces despite being told not to.
+// Targets the constructs Claude Haiku most commonly emits: bold, italic, headers.
+// Hyphens used as list bullets are preserved (valid in formal letters).
+function stripMarkdown(text) {
+  return text
+    .replace(/\*\*\*([^*]+)\*\*\*/g, '$1')   // ***bold-italic***
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')       // **bold**
+    .replace(/\*([^*\n]+)\*/g, '$1')            // *italic*
+    .replace(/__([^_\n]+)__/g, '$1')            // __bold__
+    .replace(/_([^_\n]+)_/g, '$1')              // _italic_
+    .replace(/^#{1,6}\s+/gm, '')               // ## Heading
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')   // [text](url)
+    .trim();
+}
+
 function openingMessage(documentType, metadata) {
   if (documentType === 'student_letter') {
     return `I'm ready to help you draft the body of this ${metadata.letter_type ?? ''} letter for ${metadata.student_name ?? 'the student'}.\n\nTo write this well, please tell me:\n1. What happened — the specific incident or behaviour\n2. When it occurred (date or period)\n3. Any prior warnings or relevant history\n4. What outcome or action you want the letter to communicate\n\nOnce I have these details I will draft the body text for your review.`;
@@ -280,7 +295,7 @@ router.post('/:session_id/message', adminOnly, async (req, res, next) => {
       messages:   updatedMessages,
     });
 
-    const aiContent = response.content[0]?.text ?? '';
+    const aiContent = stripMarkdown(response.content[0]?.text ?? '');
     const finalMessages = [...updatedMessages, { role: 'assistant', content: aiContent }];
 
     await pool.query(

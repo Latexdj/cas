@@ -132,7 +132,7 @@ router.post('/draft-remark', async (req, res, next) => {
         messages:   [{ role: 'user', content: prompt }],
       });
 
-      const draft = message.content?.[0]?.text?.trim() ?? '';
+      const draft = stripMarkdown(message.content?.[0]?.text?.trim() ?? '');
       return res.json({ draft });
     }
 
@@ -249,7 +249,7 @@ router.post('/draft-remark', async (req, res, next) => {
       messages:   [{ role: 'user', content: prompt }],
     });
 
-    const draft = message.content?.[0]?.text?.trim() ?? '';
+    const draft = stripMarkdown(message.content?.[0]?.text?.trim() ?? '');
     res.json({ draft });
   } catch (err) {
     console.error('[ai-remarks] error:', err.message);
@@ -258,6 +258,19 @@ router.post('/draft-remark', async (req, res, next) => {
     releaseSlot(req.schoolId);
   }
 });
+
+// Strip markdown the model emits despite being told not to.
+function stripMarkdown(text) {
+  return text
+    .replace(/\*\*\*([^*]+)\*\*\*/g, '$1')
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    .replace(/__([^_\n]+)__/g, '$1')
+    .replace(/_([^_\n]+)_/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .trim();
+}
 
 // ── Prompt assembly ───────────────────────────────────────────────────────────
 
