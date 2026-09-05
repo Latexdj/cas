@@ -139,10 +139,13 @@ function fmt(d?: string) {
 
 interface ChatMsg { role: 'user' | 'assistant'; content: string; }
 
-function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onUseDraft, onClose }: {
+type GroundingClause = { section_ref: string; document_title: string };
+
+function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onUseDraft, onClose, groundingClauses }: {
   messages: ChatMsg[]; input: string; onInputChange: (v: string) => void;
   onSend: () => void; loading: boolean; error: string;
   onUseDraft: (text: string) => void; onClose: () => void;
+  groundingClauses?: GroundingClause[];
 }) {
   const endRef = { current: null as HTMLDivElement | null };
   useEffect(() => {
@@ -156,6 +159,19 @@ function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onU
         <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>AI Draft Assistant</span>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 13, padding: 0 }}>✕ close</button>
       </div>
+      {/* Grounding disclosure — shown only when policy clauses are active */}
+      {groundingClauses && groundingClauses.length > 0 && (
+        <div style={{ background: '#E8F4EE', borderBottom: `1px solid #B7DFC9`, padding: '5px 12px' }}>
+          <p style={{ fontSize: 10, fontWeight: 800, color: C.forest, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Policy grounding active
+          </p>
+          {groundingClauses.map((c, i) => (
+            <p key={i} style={{ fontSize: 10, color: C.mid2, margin: '1px 0' }}>
+              {c.section_ref} — <span style={{ fontStyle: 'italic' }}>{c.document_title}</span>
+            </p>
+          ))}
+        </div>
+      )}
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: C.bg }}>
         {messages.map((m, i) => (
@@ -226,6 +242,7 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState('');
   const [startingChat, setStartingChat] = useState(false);
+  const [groundingClauses, setGroundingClauses] = useState<GroundingClause[]>([]);
 
   const filteredTeachers = useMemo(() =>
     teachers.filter(t => t.name.toLowerCase().includes(teacherSearch.toLowerCase()) ||
@@ -240,12 +257,13 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
     }
     setStartingChat(true); setChatError(''); setError('');
     try {
-      const { data } = await api.post<{ session_id: string; opening_message: string }>('/api/letter-chat/start', {
+      const { data } = await api.post<{ session_id: string; opening_message: string; grounding_clauses?: GroundingClause[] }>('/api/letter-chat/start', {
         document_type: 'teacher_query',
         metadata: { teacher_name: selectedTeacher.name, department: selectedTeacher.department, category, subject },
       });
       setChatSessionId(data.session_id);
       setChatMessages([{ role: 'assistant', content: data.opening_message }]);
+      setGroundingClauses(data.grounding_clauses ?? []);
       setShowChat(true);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
@@ -260,8 +278,8 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
     setChatInput('');
     setChatLoading(true); setChatError('');
     try {
-      const { data } = await api.post<{ message: string }>(`/api/letter-chat/${chatSessionId}/message`, { content: userMsg.content });
-      setChatMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
+      const { data } = await api.post<{ role: string; content: string }>(`/api/letter-chat/${chatSessionId}/message`, { content: userMsg.content });
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
       setChatError(err.response?.data?.error ?? 'Failed to send message');
@@ -373,6 +391,7 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
                 loading={chatLoading} error={chatError}
                 onUseDraft={text => { setBody(text); setShowChat(false); }}
                 onClose={() => setShowChat(false)}
+                groundingClauses={groundingClauses}
               />
             ) : (
               <textarea value={body} onChange={e => setBody(e.target.value)} rows={5}
@@ -451,6 +470,7 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState('');
   const [startingChat, setStartingChat] = useState(false);
+  const [groundingClauses, setGroundingClauses] = useState<GroundingClause[]>([]);
   const needsApproval = APPROVAL_REQUIRED_TYPES.has(letterType);
 
   const filteredStudents = useMemo(() =>
@@ -474,7 +494,7 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
     }
     setStartingChat(true); setChatError(''); setError('');
     try {
-      const { data } = await api.post<{ session_id: string; opening_message: string; blocked?: boolean }>('/api/letter-chat/start', {
+      const { data } = await api.post<{ session_id: string; opening_message: string; blocked?: boolean; grounding_clauses?: GroundingClause[] }>('/api/letter-chat/start', {
         document_type: 'student_letter',
         metadata: {
           student_name: selectedStudent.name, class_name: selectedStudent.class_name,
@@ -487,6 +507,7 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
       }
       setChatSessionId(data.session_id);
       setChatMessages([{ role: 'assistant', content: data.opening_message }]);
+      setGroundingClauses(data.grounding_clauses ?? []);
       setShowChat(true);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string; blocked?: boolean } } };
@@ -505,8 +526,8 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
     setChatInput('');
     setChatLoading(true); setChatError('');
     try {
-      const { data } = await api.post<{ message: string }>(`/api/letter-chat/${chatSessionId}/message`, { content: userMsg.content });
-      setChatMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
+      const { data } = await api.post<{ role: string; content: string }>(`/api/letter-chat/${chatSessionId}/message`, { content: userMsg.content });
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
       setChatError(err.response?.data?.error ?? 'Failed to send message');
@@ -649,6 +670,7 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
                 loading={chatLoading} error={chatError}
                 onUseDraft={text => { setBody(text); setShowChat(false); }}
                 onClose={() => setShowChat(false)}
+                groundingClauses={groundingClauses}
               />
             ) : (
               <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
