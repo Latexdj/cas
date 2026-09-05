@@ -270,7 +270,9 @@ Rules you must follow exactly:
 - Do not use the words "weak", "poor", "failed", "disappointing", "lazy", or "struggling". Frame all areas for development as forward-looking opportunities.
 - Constructive, formal, encouraging tone appropriate for a Ghanaian secondary school report card read by parents and students.
 - Include attendance commentary only when the student has missed a significant number of days (5 or more absences). When absent days are low, omit attendance entirely — do not praise punctuality for every student.
-- Output only the remark text. No quotation marks. No preamble. No explanation.`;
+- Output only the remark text. No quotation marks. No preamble. No explanation.
+- Do not use markdown formatting of any kind. Write plain text only — no asterisks, no bold, no italics.
+- Do not use em dashes (—). Use a comma or full stop instead.`;
 
 function buildPrompt(track, ctx, examples) {
   const exampleBlock = examples.length
@@ -355,7 +357,9 @@ Rules you must follow exactly:
 - Do not use the words "weak", "poor", "failed", "disappointing", "lazy", or "struggling". Frame all areas for development as forward-looking opportunities.
 - Constructive, warm, encouraging tone appropriate for a Ghanaian primary school report card read by parents and young students.
 - Include attendance commentary only when the student has missed a significant number of days (5 or more absences). When absences are low, omit attendance entirely.
-- Output only the remark text. No quotation marks. No preamble. No explanation.`;
+- Output only the remark text. No quotation marks. No preamble. No explanation.
+- Do not use markdown formatting of any kind. Write plain text only — no asterisks, no bold, no italics.
+- Do not use em dashes (—). Use a comma or full stop instead.`;
 
 function buildPrimaryPrompt(ctx, examples) {
   const {

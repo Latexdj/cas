@@ -23,7 +23,7 @@ function isBlocked(documentType, metadata) {
 }
 
 // ── Grounding retrieval ───────────────────────────────────────────────────────
-// Strategy: try RAG first (vector similarity, voyage-4); if no active chunks
+// Strategy: try RAG first (vector similarity, voyage-3); if no active chunks
 // exist or VOYAGE_API_KEY is absent, fall back to manually-tagged clauses.
 // Returns { mode: 'rag'|'clauses'|'none', results: NormalizedResult[] }
 //
@@ -157,7 +157,15 @@ Your role:
 - Keep the tone formal and fair; use professional language appropriate for an official school query
 ${sanctionRule}`;
   }
-  return base + buildGroundingBlock(grounding);
+  const formatAndToneRule = `
+
+FORMATTING AND TONE (strictly enforced):
+- Write plain text only. Do not use markdown: no asterisks, no bold, no italics, no headers, no bullet symbols.
+- Numbered lists are acceptable (1. 2. 3.) for enumerated items; otherwise use plain paragraph breaks.
+- Do not use em dashes (—). Use a comma, semicolon, or full stop instead.
+- Write in plain, direct sentences as a professional school administrator would. Avoid AI-typical filler phrases such as "it is imperative that", "it is essential that", "it is crucial that", "please note that", "I want to draw your attention to", or "it goes without saying".`;
+
+  return base + formatAndToneRule + buildGroundingBlock(grounding);
 }
 
 function openingMessage(documentType, metadata) {
