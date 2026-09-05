@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { PrintLetterModal } from '@/components/PrintLetterModal';
 
@@ -196,19 +196,33 @@ function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onU
   onUseDraft: (text: string) => void; onClose: () => void;
   groundingClauses: GroundingClause[]; sessionStarted: boolean;
 }) {
-  const endRef = { current: null as HTMLDivElement | null };
+  const endRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Auto-grow the input textarea as the user types
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [input]);
+
+  // "Use this draft" only appears after the user has sent at least one message
+  // (i.e. the AI has produced an actual draft, not just the opening question).
+  const hasUserMessage = messages.some(m => m.role === 'user');
+
   return (
-    <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 340 }}>
+    <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: 380 }}>
       {/* Header */}
       <div style={{ background: C.mid, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px' }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>AI Draft Assistant</span>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: 13, padding: 0 }}>✕ close</button>
       </div>
-      {/* Grounding disclosure — visible before AI's first draft message */}
+      {/* Grounding disclosure */}
       <GroundingPanel clauses={groundingClauses} sessionStarted={sessionStarted} />
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, background: C.bg }}>
@@ -221,7 +235,7 @@ function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onU
               border: m.role === 'assistant' ? `1px solid ${C.border}` : 'none',
               whiteSpace: 'pre-wrap',
             }}>{m.content}</div>
-            {m.role === 'assistant' && i === messages.length - 1 && (
+            {m.role === 'assistant' && i === messages.length - 1 && hasUserMessage && (
               <button onClick={() => onUseDraft(m.content)}
                 style={{ fontSize: 11, fontWeight: 700, color: C.forest, background: '#D1EAD9', border: `1px solid #B7DFC9`, borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}>
                 Use this draft
@@ -234,20 +248,22 @@ function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onU
             Drafting…
           </div>
         )}
-        <div ref={r => { endRef.current = r; }} />
+        <div ref={endRef} />
       </div>
       {/* Error */}
       {error && <div style={{ padding: '4px 12px', background: C.dangerBg, fontSize: 11, color: C.danger }}>{error}</div>}
       {/* Input */}
-      <div style={{ display: 'flex', gap: 6, padding: '8px 10px', borderTop: `1px solid ${C.border}`, background: '#fff' }}>
-        <input
+      <div style={{ display: 'flex', gap: 6, padding: '8px 10px', borderTop: `1px solid ${C.border}`, background: '#fff', alignItems: 'flex-end' }}>
+        <textarea
+          ref={inputRef}
           value={input} onChange={e => onInputChange(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSend(); } }}
-          placeholder="Add context or ask for changes…"
-          style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none', color: C.dark, background: C.bg }}
+          placeholder="Add context or ask for changes… (Shift+Enter for new line)"
+          rows={1}
+          style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', fontSize: 12, outline: 'none', color: C.dark, background: C.bg, resize: 'none', fontFamily: 'inherit', lineHeight: 1.5, maxHeight: 120, overflowY: 'auto' }}
         />
         <button onClick={onSend} disabled={loading || !input.trim()}
-          style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: (loading || !input.trim()) ? 0.5 : 1 }}>
+          style={{ padding: '7px 14px', borderRadius: 8, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: (loading || !input.trim()) ? 0.5 : 1, flexShrink: 0 }}>
           Send
         </button>
       </div>
