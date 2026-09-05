@@ -2,7 +2,8 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, managementOnly, requireActiveSubscription } = require('../middleware/auth');
-const { uploadDocument } = require('../services/storage.service');
+const { uploadDocument }          = require('../services/storage.service');
+const { generateAndUploadPDF }    = require('../services/pdf.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -402,7 +403,41 @@ router.patch('/letters/:id/approve', managementOnly, async (req, res, next) => {
       [req.user.id, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found or not pending approval' });
-    res.json(rows[0]);
+
+    const letter = rows[0];
+
+    // Generate final (non-watermarked) PDF now that the letter is approved
+    try {
+      const { rows: sRows } = await pool.query(
+        `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url
+         FROM schools WHERE id = $1`, [req.schoolId]
+      );
+      const { rows: stRows } = await pool.query(
+        `SELECT name AS student_name, student_code, class_name
+         FROM students WHERE id = $1`, [letter.student_id]
+      );
+      if (sRows.length && stRows.length) {
+        const school  = sRows[0];
+        const student = stRows[0];
+        const pdfUrl  = await generateAndUploadPDF({
+          letter: { ...letter, ...student },
+          school,
+          recipientType: 'student',
+          watermark:     false,
+          pathPrefix:    `discipline/letters/${req.schoolId}`,
+        });
+        await pool.query(
+          `UPDATE student_disciplinary_letters SET pdf_url = $1, updated_at = now() WHERE id = $2`,
+          [pdfUrl, letter.id]
+        );
+        letter.pdf_url = pdfUrl;
+      }
+    } catch (pdfErr) {
+      console.error('Approve: final PDF generation failed:', pdfErr.message);
+      // Non-fatal — letter is approved even if PDF fails
+    }
+
+    res.json(letter);
   } catch (err) { next(err); }
 });
 
@@ -437,6 +472,81 @@ router.patch('/letters/:id/resolve', adminOnly, async (req, res, next) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found or already resolved' });
     res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// POST /api/discipline/letters/:id/pdf — generate (or re-generate) PDF for a disciplinary letter
+// Watermarked if status is pending_approval; final clean PDF otherwise.
+router.post('/letters/:id/pdf', adminOnly, async (req, res, next) => {
+  try {
+    const { rows: lRows } = await pool.query(
+      `SELECT sdl.*, s.name AS student_name, s.student_code, s.class_name
+       FROM student_disciplinary_letters sdl
+       JOIN students s ON s.id = sdl.student_id
+       WHERE sdl.id = $1 AND sdl.school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!lRows.length) return res.status(404).json({ error: 'Letter not found' });
+    const letter = lRows[0];
+
+    const { rows: sRows } = await pool.query(
+      `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url
+       FROM schools WHERE id = $1`, [req.schoolId]
+    );
+    const school = sRows[0];
+
+    const watermark = letter.status === 'pending_approval';
+
+    const pdfUrl = await generateAndUploadPDF({
+      letter,
+      school,
+      recipientType: 'student',
+      watermark,
+      pathPrefix:    `discipline/letters/${req.schoolId}`,
+    });
+
+    await pool.query(
+      `UPDATE student_disciplinary_letters SET pdf_url = $1, updated_at = now() WHERE id = $2`,
+      [pdfUrl, letter.id]
+    );
+
+    res.json({ pdf_url: pdfUrl });
+  } catch (err) { next(err); }
+});
+
+// POST /api/discipline/queries/:id/pdf — generate PDF for a teacher query
+router.post('/queries/:id/pdf', adminOnly, async (req, res, next) => {
+  try {
+    const { rows: qRows } = await pool.query(
+      `SELECT tq.*, t.name AS teacher_name, t.department
+       FROM teacher_queries tq
+       JOIN teachers t ON t.id = tq.teacher_id
+       WHERE tq.id = $1 AND tq.school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!qRows.length) return res.status(404).json({ error: 'Query not found' });
+    const query = qRows[0];
+
+    const { rows: sRows } = await pool.query(
+      `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url
+       FROM schools WHERE id = $1`, [req.schoolId]
+    );
+    const school = sRows[0];
+
+    const pdfUrl = await generateAndUploadPDF({
+      letter:        query,
+      school,
+      recipientType: 'teacher',
+      watermark:     false,
+      pathPrefix:    `discipline/queries/${req.schoolId}`,
+    });
+
+    await pool.query(
+      `UPDATE teacher_queries SET pdf_url = $1, updated_at = now() WHERE id = $2`,
+      [pdfUrl, query.id]
+    );
+
+    res.json({ pdf_url: pdfUrl });
   } catch (err) { next(err); }
 });
 

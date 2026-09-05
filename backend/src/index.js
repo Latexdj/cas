@@ -2323,6 +2323,28 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE primary_report_remarks ADD COLUMN IF NOT EXISTS ai_drafted BOOLEAN DEFAULT false`);
     } catch (e) { console.error('AI remarks phase 2 migration error:', e.message); }
 
+    // ── Discipline Phase 4 (chat drafting + PDF) ─────────────────────────────
+    try {
+      await pool.query(`ALTER TABLE teacher_queries ADD COLUMN IF NOT EXISTS pdf_url TEXT`);
+      await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS pdf_url TEXT`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS letter_draft_sessions (
+          id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id     UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          created_by    UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+          document_type TEXT        NOT NULL CHECK (document_type IN ('teacher_query','student_letter')),
+          metadata      JSONB       NOT NULL DEFAULT '{}',
+          messages      JSONB       NOT NULL DEFAULT '[]',
+          finalized_at  TIMESTAMPTZ,
+          expires_at    TIMESTAMPTZ NOT NULL DEFAULT (now() + INTERVAL '48 hours'),
+          created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_letter_draft_sessions_school ON letter_draft_sessions(school_id, created_at DESC)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_letter_draft_sessions_expires ON letter_draft_sessions(expires_at)`);
+    } catch (e) { console.error('Discipline phase 4 migration error:', e.message); }
+
     // ── Discipline Phase 3 (approval workflow) ────────────────────────────────
     try {
       await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS requires_approval BOOLEAN DEFAULT false`);
