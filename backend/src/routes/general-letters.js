@@ -38,9 +38,8 @@ async function generateRefNumber(schoolId) {
 }
 
 async function resolveIssuedBy(req) {
-  if (req.user?.type === 'management') {
-    return { issued_by_id: null, issued_by_name: req.user?.name ?? req.user?.email ?? 'Management' };
-  }
+  // Management JWT payload: { id, schoolId, role, type } — name is not in the token.
+  // Both admin and management users are rows in teachers; look up by id for both.
   const id = req.user?.id ?? null;
   if (!id) return { issued_by_id: null, issued_by_name: '' };
   const { rows } = await pool.query(`SELECT name FROM teachers WHERE id = $1`, [id]);
@@ -197,7 +196,8 @@ router.get('/:id', adminOrManagement, async (req, res, next) => {
 // PATCH /api/general-letters/:id/approve  — management only
 router.patch('/:id/approve', managementOnly, async (req, res, next) => {
   try {
-    const approver_name = req.user?.name ?? req.user?.email ?? 'Management';
+    const { rows: nameRows } = await pool.query(`SELECT name FROM teachers WHERE id = $1`, [req.user?.id]);
+    const approver_name = nameRows[0]?.name ?? 'Management';
     const { rows } = await pool.query(
       `UPDATE general_letters
        SET status = 'issued', approved_by_name = $1, approved_at = now(), updated_at = now()
