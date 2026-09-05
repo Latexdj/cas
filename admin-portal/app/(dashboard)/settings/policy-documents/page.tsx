@@ -23,6 +23,16 @@ interface PolicyClause {
   display_order: number;
 }
 
+interface ChunkSummary {
+  id: string;
+  chunk_index: number;
+  section_hint: string | null;
+  chunk_preview: string;
+  is_active: boolean;
+}
+
+interface RagStatus { total: number; active: number; chunks: ChunkSummary[] }
+
 const C = {
   forest: '#0B3D2E', bg: '#F5F0E8', card: '#FDFAF5',
   border: '#E2D9CC', dark: '#2C2218', mid: '#4A3F32', muted: '#8C7E6E',
@@ -211,6 +221,14 @@ export default function PolicyDocumentsPage() {
   const [pdfErr, setPdfErr]             = useState('');
   const pdfTextareaRef                  = useRef<HTMLTextAreaElement>(null);
 
+  // RAG grounding
+  const [ragStatus, setRagStatus]         = useState<RagStatus | null>(null);
+  const [ragStatusLoading, setRagSL]      = useState(false);
+  const [showRagModal, setShowRagModal]   = useState(false);
+  const [ragProcessing, setRagProcessing] = useState(false);
+  const [ragErr, setRagErr]               = useState('');
+  const [ragChunks, setRagChunks]         = useState<{ chunk_index: number; section_hint: string | null; chunk_preview: string }[]>([]);
+
   useEffect(() => {
     api.get<PolicyDocument[]>('/api/policy-documents')
       .then(r => setDocs(r.data))
@@ -219,12 +237,13 @@ export default function PolicyDocumentsPage() {
   }, []);
 
   useEffect(() => {
-    if (!sel) { setClauses([]); return; }
+    if (!sel) { setClauses([]); setRagStatus(null); return; }
     setClausesLoading(true);
     api.get<PolicyClause[]>(`/api/policy-documents/${sel.id}/clauses`)
       .then(r => setClauses(r.data))
       .catch(console.error)
       .finally(() => setClausesLoading(false));
+    loadRagStatus(sel.id);
   }, [sel]);
 
   const isGES = (d: PolicyDocument) => d.school_id === null;
@@ -352,6 +371,38 @@ export default function PolicyDocumentsPage() {
     setClErr(''); setClauseModal({ mode: 'create' });
   }
 
+  function loadRagStatus(docId: string) {
+    setRagSL(true);
+    api.get<RagStatus>(`/api/policy-documents/${docId}/chunks`)
+      .then(r => setRagStatus(r.data))
+      .catch(() => setRagStatus(null))
+      .finally(() => setRagSL(false));
+  }
+
+  async function processRag(file: File) {
+    if (!sel) return;
+    setRagProcessing(true); setRagErr(''); setRagChunks([]);
+    try {
+      const fd = new FormData();
+      fd.append('pdf', file);
+      const { data } = await api.post<{ chunks_created: number; chunks: { chunk_index: number; section_hint: string | null; chunk_preview: string }[] }>(
+        `/api/policy-documents/${sel.id}/process-rag`, fd
+      );
+      setRagChunks(data.chunks);
+      loadRagStatus(sel.id);
+    } catch (e: unknown) {
+      setRagErr((e as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Processing failed');
+    } finally { setRagProcessing(false); }
+  }
+
+  async function toggleRagActive(active: boolean) {
+    if (!sel) return;
+    try {
+      await api.patch(`/api/policy-documents/${sel.id}/chunks`, { is_active: active });
+      loadRagStatus(sel.id);
+    } catch { /* ignore */ }
+  }
+
   const gesDocs    = docs.filter(isGES);
   const schoolDocs = docs.filter(d => !isGES(d));
   const cats       = availableCats(clForm.applicable_to);
@@ -433,6 +484,41 @@ export default function PolicyDocumentsPage() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <Btn label="Import from PDF" onClick={() => { setShowPdfModal(true); setPdfText(''); setPdfErr(''); }} variant="ghost" small />
                     <Btn label="+ Add Clause" onClick={openClauseCreate} small />
+                  </div>
+                )}
+              </div>
+
+              {/* RAG Grounding status */}
+              <div style={{ padding: '10px 20px', borderBottom: `1px solid ${C.border}`, background: '#FAFAF8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: C.forest, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 2px' }}>RAG Grounding</p>
+                  {ragStatusLoading ? (
+                    <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>Loading…</p>
+                  ) : ragStatus && ragStatus.total > 0 ? (
+                    <p style={{ fontSize: 11, color: C.mid, margin: 0 }}>
+                      {ragStatus.total} chunks · <strong style={{ color: ragStatus.active > 0 ? C.forest : C.muted }}>{ragStatus.active} active</strong>
+                      {ragStatus.chunks.filter(c => c.section_hint).slice(0, 4).map(c => c.section_hint).join(', ') && (
+                        <span style={{ color: C.muted }}> · §{ragStatus.chunks.filter(c => c.section_hint).slice(0, 4).map(c => c.section_hint).join(', §')}{ragStatus.chunks.filter(c => c.section_hint).length > 4 ? '…' : ''}</span>
+                      )}
+                    </p>
+                  ) : (
+                    <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>No chunks — manual clauses only</p>
+                  )}
+                </div>
+                {canEdit(sel) && (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {ragStatus && ragStatus.total > 0 && (
+                      <Btn
+                        label={ragStatus.active > 0 ? 'Deactivate' : 'Activate'}
+                        onClick={() => toggleRagActive(ragStatus.active === 0)}
+                        variant="ghost" small
+                      />
+                    )}
+                    <Btn
+                      label={ragStatus && ragStatus.total > 0 ? 'Re-process' : 'Process for RAG'}
+                      onClick={() => { setShowRagModal(true); setRagChunks([]); setRagErr(''); }}
+                      variant="ghost" small
+                    />
                   </div>
                 )}
               </div>
@@ -567,6 +653,63 @@ export default function PolicyDocumentsPage() {
             <Btn label="Cancel" onClick={() => setDelClId(null)} variant="ghost" />
             <Btn label={deletingCl ? 'Deleting…' : 'Delete'} onClick={deleteClause} disabled={deletingCl} variant="danger" />
           </div>
+        </ModalShell>
+      )}
+
+      {/* ── RAG Process Modal ── */}
+      {showRagModal && sel && (
+        <ModalShell title="Process Document for RAG" onClose={() => { setShowRagModal(false); setRagChunks([]); setRagErr(''); }} wide>
+          <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.7 }}>
+            Upload a PDF to auto-chunk and embed it with Voyage AI. Chunks are created{' '}
+            <strong style={{ color: C.dark }}>inactive</strong> — review the section hints below, then click{' '}
+            <strong style={{ color: C.dark }}>Activate Chunks</strong> when ready.
+            {ragStatus && ragStatus.total > 0 && ' Existing chunks will be replaced.'}
+          </p>
+          <Field label="PDF File">
+            <input
+              type="file" accept=".pdf" disabled={ragProcessing}
+              onChange={e => { const f = e.target.files?.[0]; if (f) processRag(f); e.target.value = ''; }}
+              style={{ fontSize: 13, color: C.dark, cursor: 'pointer' }}
+            />
+          </Field>
+          {ragProcessing && (
+            <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', padding: '8px 0' }}>
+              Chunking text and generating embeddings…
+            </p>
+          )}
+          {ragErr && (
+            <p style={{ fontSize: 12, color: C.danger, background: C.dangerBg, borderRadius: 8, padding: '8px 12px', margin: 0 }}>{ragErr}</p>
+          )}
+          {ragChunks.length > 0 && (
+            <>
+              <div style={{ background: C.bg, borderRadius: 8, padding: '12px 14px', border: `1px solid ${C.border}` }}>
+                <p style={{ fontWeight: 700, fontSize: 13, color: C.dark, margin: '0 0 10px' }}>
+                  {ragChunks.length} chunks created (inactive) — review:
+                </p>
+                <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {ragChunks.map((c, i) => (
+                    <div key={i} style={{ borderBottom: i < ragChunks.length - 1 ? `1px solid ${C.border}` : 'none', paddingBottom: i < ragChunks.length - 1 ? 10 : 0 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: C.forest, margin: '0 0 3px' }}>
+                        {c.section_hint ? `§ ${c.section_hint}` : `Chunk ${i + 1}`}
+                      </p>
+                      <p style={{ fontSize: 11, color: C.mid, margin: 0, lineHeight: 1.5 }}>
+                        {c.chunk_preview}{c.chunk_preview.length >= 200 ? '…' : ''}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <Btn label="Keep Inactive" onClick={() => { setShowRagModal(false); setRagChunks([]); }} variant="ghost" />
+                <Btn label="Activate Chunks" onClick={async () => { await toggleRagActive(true); setShowRagModal(false); setRagChunks([]); }} />
+              </div>
+            </>
+          )}
+          {ragChunks.length === 0 && !ragProcessing && !ragErr && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Btn label="Cancel" onClick={() => setShowRagModal(false)} variant="ghost" />
+            </div>
+          )}
         </ModalShell>
       )}
 

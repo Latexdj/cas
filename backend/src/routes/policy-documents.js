@@ -4,6 +4,7 @@ const multer   = require('multer');
 const pdfParse = require('pdf-parse');
 const pool     = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { chunkPolicyText, embedTexts } = require('../utils/rag');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -235,6 +236,120 @@ router.post('/:id/extract-pdf', upload.single('pdf'), async (req, res, next) => 
     // pdf-parse/PDF.js fails with Node's Buffer type on Node ≥24 — Uint8Array works on all versions
     const parsed = await pdfParse(new Uint8Array(req.file.buffer));
     res.json({ text: parsed.text, pages: parsed.numpages });
+  } catch (err) { next(err); }
+});
+
+// ── RAG Chunks ────────────────────────────────────────────────────────────────
+
+// GET /api/policy-documents/:id/chunks
+// Returns chunk summary (count + previews) for the admin RAG status panel.
+// Readable by any admin who can see the document (GES docs are readable by school admins).
+router.get('/:id/chunks', async (req, res, next) => {
+  try {
+    const { rows: doc } = await pool.query(
+      `SELECT id FROM policy_documents WHERE id = $1 AND (school_id IS NULL OR school_id = $2)`,
+      [req.params.id, req.schoolId]
+    );
+    if (!doc.length) return res.status(404).json({ error: 'Document not found' });
+    const { rows } = await pool.query(
+      `SELECT id, chunk_index, section_hint, LEFT(chunk_text, 200) AS chunk_preview, is_active
+       FROM policy_chunks WHERE document_id = $1 ORDER BY chunk_index ASC`,
+      [req.params.id]
+    );
+    const total  = rows.length;
+    const active = rows.filter(r => r.is_active).length;
+    res.json({ total, active, chunks: rows });
+  } catch (err) { next(err); }
+});
+
+// POST /api/policy-documents/:id/process-rag
+// Accepts a PDF, chunks + embeds it, stores inactive chunks.
+// Replaces any existing chunks for this document.
+router.post('/:id/process-rag', upload.single('pdf'), async (req, res, next) => {
+  try {
+    const { rows: docRows } = await pool.query(
+      'SELECT school_id FROM policy_documents WHERE id = $1', [req.params.id]
+    );
+    if (!docRows.length) return res.status(404).json({ error: 'Document not found' });
+    if (!canModify(req, docRows[0].school_id)) {
+      return res.status(403).json({ error: 'Cannot modify GES-level documents' });
+    }
+    if (!req.file) return res.status(400).json({ error: 'No PDF file uploaded' });
+    if (req.file.mimetype !== 'application/pdf') {
+      return res.status(400).json({ error: 'Uploaded file must be a PDF' });
+    }
+    if (!process.env.VOYAGE_API_KEY) {
+      return res.status(503).json({ error: 'VOYAGE_API_KEY not configured — RAG processing unavailable' });
+    }
+
+    // Extract text (Node ≥24 compat: pass Uint8Array not Buffer)
+    const parsed = await pdfParse(new Uint8Array(req.file.buffer));
+    if (!parsed.text.trim()) {
+      return res.status(422).json({ error: 'PDF contains no extractable text (scanned image?)' });
+    }
+
+    // Chunk
+    const rawChunks = chunkPolicyText(parsed.text);
+    if (rawChunks.length === 0) {
+      return res.status(422).json({ error: 'No content chunks could be extracted from this PDF' });
+    }
+
+    // Embed all chunks via Voyage AI (voyage-4, default 1024 dims)
+    const embeddings = await embedTexts(rawChunks.map(c => c.chunk_text));
+
+    // Replace existing chunks in a transaction (all inactive by default — admin must activate)
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM policy_chunks WHERE document_id = $1', [req.params.id]);
+      for (let i = 0; i < rawChunks.length; i++) {
+        const c   = rawChunks[i];
+        const emb = embeddings[i];
+        await client.query(
+          `INSERT INTO policy_chunks
+             (document_id, chunk_index, section_hint, chunk_text, token_count, embedding, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6::vector, false)`,
+          [req.params.id, c.chunk_index, c.section_hint, c.chunk_text, c.token_count,
+           `[${emb.join(',')}]`]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    const preview = rawChunks.map(c => ({
+      chunk_index:   c.chunk_index,
+      section_hint:  c.section_hint,
+      chunk_preview: c.chunk_text.slice(0, 200),
+    }));
+    res.status(201).json({ chunks_created: rawChunks.length, chunks: preview });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/policy-documents/:id/chunks
+// Body: { is_active: true|false } — activates or deactivates all chunks for this document.
+router.patch('/:id/chunks', async (req, res, next) => {
+  try {
+    const { rows: docRows } = await pool.query(
+      'SELECT school_id FROM policy_documents WHERE id = $1', [req.params.id]
+    );
+    if (!docRows.length) return res.status(404).json({ error: 'Document not found' });
+    if (!canModify(req, docRows[0].school_id)) {
+      return res.status(403).json({ error: 'Cannot modify GES-level documents' });
+    }
+    const { is_active } = req.body;
+    if (typeof is_active !== 'boolean') {
+      return res.status(400).json({ error: 'is_active (boolean) is required' });
+    }
+    const { rowCount } = await pool.query(
+      'UPDATE policy_chunks SET is_active = $1 WHERE document_id = $2',
+      [is_active, req.params.id]
+    );
+    res.json({ updated: rowCount, is_active });
   } catch (err) { next(err); }
 });
 

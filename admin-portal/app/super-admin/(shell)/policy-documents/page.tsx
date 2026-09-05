@@ -23,6 +23,16 @@ interface PolicyClause {
   display_order: number;
 }
 
+interface ChunkSummary {
+  id: string;
+  chunk_index: number;
+  section_hint: string | null;
+  chunk_preview: string;
+  is_active: boolean;
+}
+
+interface RagStatus { total: number; active: number; chunks: ChunkSummary[] }
+
 const C = {
   forest: '#0B3D2E', bg: '#0E1A0C', card: '#132B1C', border: '#2A3D28',
   dark: '#FFFFFF', mid: 'rgba(255,255,255,0.7)', muted: 'rgba(255,255,255,0.4)',
@@ -198,6 +208,14 @@ export default function SAGESPolicyDocsPage() {
   const [pdfErr, setPdfErr]             = useState('');
   const pdfTextareaRef                  = useRef<HTMLTextAreaElement>(null);
 
+  // RAG grounding
+  const [ragStatus, setRagStatus]         = useState<RagStatus | null>(null);
+  const [ragStatusLoading, setRagSL]      = useState(false);
+  const [showRagModal, setShowRagModal]   = useState(false);
+  const [ragProcessing, setRagProcessing] = useState(false);
+  const [ragErr, setRagErr]               = useState('');
+  const [ragChunks, setRagChunks]         = useState<{ chunk_index: number; section_hint: string | null; chunk_preview: string }[]>([]);
+
   useEffect(() => {
     saApi.get<PolicyDocument[]>('/api/policy-documents')
       .then(r => setDocs(r.data))
@@ -206,12 +224,13 @@ export default function SAGESPolicyDocsPage() {
   }, []);
 
   useEffect(() => {
-    if (!sel) { setClauses([]); return; }
+    if (!sel) { setClauses([]); setRagStatus(null); return; }
     setCL(true);
     saApi.get<PolicyClause[]>(`/api/policy-documents/${sel.id}/clauses`)
       .then(r => setClauses(r.data))
       .catch(console.error)
       .finally(() => setCL(false));
+    loadRagStatus(sel.id);
   }, [sel]);
 
   async function createDoc() {
@@ -338,6 +357,38 @@ export default function SAGESPolicyDocsPage() {
     setClErr(''); setClModal({ mode: 'create' });
   }
 
+  function loadRagStatus(docId: string) {
+    setRagSL(true);
+    saApi.get<RagStatus>(`/api/policy-documents/${docId}/chunks`)
+      .then(r => setRagStatus(r.data))
+      .catch(() => setRagStatus(null))
+      .finally(() => setRagSL(false));
+  }
+
+  async function processRag(file: File) {
+    if (!sel) return;
+    setRagProcessing(true); setRagErr(''); setRagChunks([]);
+    try {
+      const fd = new FormData();
+      fd.append('pdf', file);
+      const { data } = await saApi.post<{ chunks_created: number; chunks: { chunk_index: number; section_hint: string | null; chunk_preview: string }[] }>(
+        `/api/policy-documents/${sel.id}/process-rag`, fd
+      );
+      setRagChunks(data.chunks);
+      loadRagStatus(sel.id);
+    } catch (e: unknown) {
+      setRagErr((e as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Processing failed');
+    } finally { setRagProcessing(false); }
+  }
+
+  async function toggleRagActive(active: boolean) {
+    if (!sel) return;
+    try {
+      await saApi.patch(`/api/policy-documents/${sel.id}/chunks`, { is_active: active });
+      loadRagStatus(sel.id);
+    } catch { /* ignore */ }
+  }
+
   const cats = availableCats(clForm.applicable_to);
 
   return (
@@ -420,6 +471,39 @@ export default function SAGESPolicyDocsPage() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <Btn label="Import from PDF" onClick={() => { setShowPdfModal(true); setPdfText(''); setPdfErr(''); }} variant="ghost" small />
                   <Btn label="+ Add Clause" onClick={openClCreate} small />
+                </div>
+              </div>
+
+              {/* RAG Grounding status */}
+              <div style={{ padding: '10px 20px', borderBottom: `1px solid ${C.border}`, background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 2px' }}>RAG Grounding</p>
+                  {ragStatusLoading ? (
+                    <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>Loading…</p>
+                  ) : ragStatus && ragStatus.total > 0 ? (
+                    <p style={{ fontSize: 11, color: C.mid, margin: 0 }}>
+                      {ragStatus.total} chunks · <strong style={{ color: ragStatus.active > 0 ? '#4ADE80' : C.muted }}>{ragStatus.active} active</strong>
+                      {ragStatus.chunks.filter(c => c.section_hint).length > 0 && (
+                        <span style={{ color: C.muted }}> · §{ragStatus.chunks.filter(c => c.section_hint).slice(0, 4).map(c => c.section_hint).join(', §')}{ragStatus.chunks.filter(c => c.section_hint).length > 4 ? '…' : ''}</span>
+                      )}
+                    </p>
+                  ) : (
+                    <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>No chunks — manual clauses only</p>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {ragStatus && ragStatus.total > 0 && (
+                    <Btn
+                      label={ragStatus.active > 0 ? 'Deactivate' : 'Activate'}
+                      onClick={() => toggleRagActive(ragStatus.active === 0)}
+                      variant="ghost" small
+                    />
+                  )}
+                  <Btn
+                    label={ragStatus && ragStatus.total > 0 ? 'Re-process' : 'Process for RAG'}
+                    onClick={() => { setShowRagModal(true); setRagChunks([]); setRagErr(''); }}
+                    variant="ghost" small
+                  />
                 </div>
               </div>
               <div style={{ padding: '12px 20px 20px' }}>
@@ -553,6 +637,64 @@ export default function SAGESPolicyDocsPage() {
             <Btn label="Cancel" onClick={() => setDelClId(null)} variant="ghost" />
             <Btn label={deletingCl ? 'Deleting…' : 'Delete'} onClick={deleteClause} disabled={deletingCl} variant="danger" />
           </div>
+        </Modal>
+      )}
+
+      {/* ── RAG Process Modal ── */}
+      {showRagModal && sel && (
+        <Modal title="Process Document for RAG" onClose={() => { setShowRagModal(false); setRagChunks([]); setRagErr(''); }} wide>
+          <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.7 }}>
+            Upload a PDF to auto-chunk and embed it with Voyage AI (voyage-4). Chunks are created{' '}
+            <strong style={{ color: '#fff' }}>inactive</strong> — review sections below, then click{' '}
+            <strong style={{ color: '#fff' }}>Activate Chunks</strong> when ready.
+            {ragStatus && ragStatus.total > 0 && ' Existing chunks will be replaced.'}
+          </p>
+          <div>
+            <SLabel>PDF File</SLabel>
+            <input
+              type="file" accept=".pdf" disabled={ragProcessing}
+              onChange={e => { const f = e.target.files?.[0]; if (f) processRag(f); e.target.value = ''; }}
+              style={{ fontSize: 13, color: C.mid, cursor: 'pointer' }}
+            />
+          </div>
+          {ragProcessing && (
+            <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', padding: '8px 0' }}>
+              Chunking text and generating embeddings…
+            </p>
+          )}
+          {ragErr && (
+            <p style={{ fontSize: 12, color: C.danger, background: C.dangerBg, borderRadius: 8, padding: '8px 12px', margin: 0 }}>{ragErr}</p>
+          )}
+          {ragChunks.length > 0 && (
+            <>
+              <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '12px 14px', border: `1px solid ${C.border}` }}>
+                <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', margin: '0 0 10px' }}>
+                  {ragChunks.length} chunks created (inactive) — review:
+                </p>
+                <div style={{ maxHeight: 220, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {ragChunks.map((c, i) => (
+                    <div key={i} style={{ borderBottom: i < ragChunks.length - 1 ? `1px solid ${C.border}` : 'none', paddingBottom: i < ragChunks.length - 1 ? 10 : 0 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: C.gold, margin: '0 0 3px' }}>
+                        {c.section_hint ? `§ ${c.section_hint}` : `Chunk ${i + 1}`}
+                      </p>
+                      <p style={{ fontSize: 11, color: C.mid, margin: 0, lineHeight: 1.5 }}>
+                        {c.chunk_preview}{c.chunk_preview.length >= 200 ? '…' : ''}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <Btn label="Keep Inactive" onClick={() => { setShowRagModal(false); setRagChunks([]); }} variant="ghost" />
+                <Btn label="Activate Chunks" onClick={async () => { await toggleRagActive(true); setShowRagModal(false); setRagChunks([]); }} />
+              </div>
+            </>
+          )}
+          {ragChunks.length === 0 && !ragProcessing && !ragErr && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Btn label="Cancel" onClick={() => setShowRagModal(false)} variant="ghost" />
+            </div>
+          )}
         </Modal>
       )}
 
