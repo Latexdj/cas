@@ -426,10 +426,24 @@ export default function GeneralLettersPage() {
 
   async function submit() {
     setSaveErr('');
+
+    // If the AI chat is still open when Submit is clicked, auto-capture the last
+    // assistant message as the body so the user doesn't need a separate "Use this
+    // draft" click before submitting.
+    let effectiveBody = form.body;
+    if (showChat && draftLetterId) {
+      const lastAI = [...chatMessages].reverse().find(m => m.role === 'assistant');
+      if (lastAI?.content?.trim()) {
+        effectiveBody = lastAI.content;
+        setField('body', effectiveBody);
+        setShowChat(false);
+      }
+    }
+
     if (!form.classification) { setSaveErr('Select a classification.'); return; }
     if (!form.recipient_type) { setSaveErr('Select a recipient type.'); return; }
     if (!form.subject.trim()) { setSaveErr('Subject is required.'); return; }
-    if (!form.body.trim())    { setSaveErr('Body is required.'); return; }
+    if (!effectiveBody.trim()) { setSaveErr('Body is required.'); return; }
 
     const isExternal = form.recipient_type === 'external' || form.recipient_type === 'parent';
     if (isExternal && !form.ext_recipient_name.trim()) {
@@ -443,7 +457,7 @@ export default function GeneralLettersPage() {
     try {
       if (draftLetterId) {
         // Finalize the pre-created draft (AI drafting flow)
-        await api.patch(`/api/general-letters/${draftLetterId}/finalize`, { body: form.body });
+        await api.patch(`/api/general-letters/${draftLetterId}/finalize`, { body: effectiveBody });
       } else {
         await api.post('/api/general-letters', {
           classification:           form.classification,
@@ -454,7 +468,7 @@ export default function GeneralLettersPage() {
           ext_recipient_org:        form.ext_recipient_org || undefined,
           ext_recipient_address:    form.ext_recipient_address || undefined,
           subject:                  form.subject,
-          body:                     form.body,
+          body:                     effectiveBody,
           is_sensitive:             form.is_sensitive,
           issued_date:              form.issued_date,
         });
