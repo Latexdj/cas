@@ -2,6 +2,7 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, managementOnly, requireActiveSubscription } = require('../middleware/auth');
+const { generateAndUploadPDF } = require('../services/pdf.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -236,11 +237,82 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/general-letters/:id
+// POST /api/general-letters/:id/pdf — generate (or re-generate) PDF
+// Watermarked if status is pending_approval; final clean PDF otherwise.
+// Must be registered before GET /:id to prevent Express matching 'pdf' as an id.
+router.post('/:id/pdf', adminOrManagement, async (req, res, next) => {
+  try {
+    const { rows: lRows } = await pool.query(
+      `SELECT gl.*,
+              CASE WHEN gl.internal_recipient_table = 'students' THEN s.name
+                   WHEN gl.internal_recipient_table = 'teachers' THEN t.name
+                   ELSE NULL END AS internal_recipient_name,
+              s.student_code,
+              s.class_name,
+              t.department
+       FROM general_letters gl
+       LEFT JOIN students s
+         ON gl.internal_recipient_table = 'students' AND gl.internal_recipient_id = s.id
+       LEFT JOIN teachers t
+         ON gl.internal_recipient_table = 'teachers' AND gl.internal_recipient_id = t.id
+       WHERE gl.id = $1 AND gl.school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!lRows.length) return res.status(404).json({ error: 'Letter not found' });
+    const raw = lRows[0];
+
+    const { rows: sRows } = await pool.query(
+      `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url
+       FROM schools WHERE id = $1`, [req.schoolId]
+    );
+    const school = sRows[0];
+
+    const isExternal = raw.recipient_type === 'external' || raw.recipient_type === 'parent';
+    const recipientType = isExternal                               ? 'external'
+      : raw.internal_recipient_table === 'students'               ? 'student'
+      :                                                              'teacher';
+
+    // Shape the letter object to match what buildLetterHTML expects
+    const letter = {
+      ...raw,
+      student_name: raw.internal_recipient_table === 'students' ? raw.internal_recipient_name : undefined,
+      teacher_name: raw.internal_recipient_table === 'teachers' ? raw.internal_recipient_name : undefined,
+    };
+
+    const pdfUrl = await generateAndUploadPDF({
+      letter,
+      school,
+      recipientType,
+      watermark:  raw.status === 'pending_approval',
+      pathPrefix: `general-letters/${req.schoolId}`,
+    });
+
+    await pool.query(
+      `UPDATE general_letters SET pdf_url = $1, updated_at = now() WHERE id = $2`,
+      [pdfUrl, raw.id]
+    );
+
+    res.json({ pdf_url: pdfUrl });
+  } catch (err) { next(err); }
+});
+
+// GET /api/general-letters/:id — fetch with resolved internal-recipient name
 router.get('/:id', adminOrManagement, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT * FROM general_letters WHERE id = $1 AND school_id = $2`,
+      `SELECT gl.*,
+              CASE WHEN gl.internal_recipient_table = 'students' THEN s.name
+                   WHEN gl.internal_recipient_table = 'teachers' THEN t.name
+                   ELSE NULL END AS internal_recipient_name,
+              s.student_code,
+              s.class_name,
+              t.department
+       FROM general_letters gl
+       LEFT JOIN students s
+         ON gl.internal_recipient_table = 'students' AND gl.internal_recipient_id = s.id
+       LEFT JOIN teachers t
+         ON gl.internal_recipient_table = 'teachers' AND gl.internal_recipient_id = t.id
+       WHERE gl.id = $1 AND gl.school_id = $2`,
       [req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found' });
