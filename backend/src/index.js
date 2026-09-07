@@ -63,6 +63,7 @@ const examsRoutes             = require('./routes/exams');
 const noticesRoutes           = require('./routes/notices');
 const disciplineRoutes        = require('./routes/discipline');
 const letterChatRoutes        = require('./routes/letter-chat');
+const helpChatRoutes          = require('./routes/help-chat');
 const policyDocumentsRoutes   = require('./routes/policy-documents');
 const resumptionRoutes        = require('./routes/resumption');
 const rollCallRoutes          = require('./routes/roll-call');
@@ -164,6 +165,7 @@ app.use('/api/policy-documents',      policyDocumentsRoutes);
 app.use('/api/resumption',            resumptionRoutes);
 app.use('/api/roll-call',             rollCallRoutes);
 app.use('/api/ai',                    aiRemarksRoutes);
+app.use('/api/help-chat',             helpChatRoutes);
 
 app.use(errorHandler);
 
@@ -2510,6 +2512,37 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_general_letters_school ON general_letters(school_id, created_at DESC)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] general_letters + external_contacts:', e.message); }
+
+    try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS help_entries (
+        id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id        UUID        REFERENCES schools(id) ON DELETE CASCADE,
+        feature_area     TEXT        NOT NULL,
+        applicable_roles TEXT[]      NOT NULL DEFAULT '{}',
+        title            TEXT        NOT NULL,
+        body             TEXT        NOT NULL,
+        is_active        BOOLEAN     NOT NULL DEFAULT true,
+        updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_help_entries_roles ON help_entries USING GIN(applicable_roles)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] help_entries:', e.message); }
+
+    try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS help_chat_sessions (
+        id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id  UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        created_by UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        role       TEXT        NOT NULL,
+        messages   JSONB       NOT NULL DEFAULT '[]',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        expires_at TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '4 hours'
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_help_chat_sessions_school ON help_chat_sessions(school_id, created_at DESC)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] help_chat_sessions:', e.message); }
 
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
