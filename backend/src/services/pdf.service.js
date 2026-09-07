@@ -1,6 +1,7 @@
 'use strict';
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
+const QRCode    = require('qrcode');
 const supabase  = require('../config/supabase');
 
 const BUCKET = process.env.STORAGE_BUCKET || 'attendance-photos';
@@ -172,4 +173,107 @@ async function generateAndUploadPDF({ letter, school, recipientType, watermark =
   return data.publicUrl;
 }
 
-module.exports = { generateAndUploadPDF, buildLetterHTML };
+// ── ID Card ───────────────────────────────────────────────────────────────────
+// CR80 dimensions: 85.6 × 54 mm.
+// Forest green: #1B5635  |  Gold: #C9A227
+
+// Returns an HTML fragment (no doctype/head) for one CR80 card.
+// Phase 3 batch will call this per card and tile them onto an A4 sheet.
+function buildCardMarkup({ student, card, school, qrDataUrl }) {
+  const expires = card.expires_at
+    ? new Date(card.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    : 'No expiry';
+
+  const photoHtml = student.picture_url
+    ? `<img src="${esc(student.picture_url)}" style="width:100%;height:100%;object-fit:cover;display:block;" />`
+    : `<svg viewBox="0 0 40 50" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;fill:#bbb;">
+         <circle cx="20" cy="16" r="10"/>
+         <path d="M0 50 Q0 32 20 32 Q40 32 40 50Z"/>
+       </svg>`;
+
+  const indexRow = student.jhs_index_number
+    ? `<div style="font-size:4pt;color:#333;line-height:1.55;font-family:Arial,sans-serif;">
+         <span style="color:#888;">Index </span>${esc(student.jhs_index_number)}
+       </div>`
+    : '';
+
+  return `<div style="width:85.6mm;height:54mm;display:flex;flex-direction:column;font-family:Georgia,'Times New Roman',serif;background:#fff;overflow:hidden;">
+  <div style="background:#1B5635;padding:1.8mm 2.5mm;display:flex;justify-content:space-between;align-items:center;height:10mm;flex-shrink:0;">
+    <div style="color:#C9A227;font-size:5pt;font-weight:bold;letter-spacing:0.04em;text-transform:uppercase;max-width:63mm;line-height:1.2;font-family:Arial,sans-serif;">${esc(school.name)}</div>
+    <div style="color:#C9A227;font-size:7.5pt;font-weight:bold;font-family:Arial,sans-serif;letter-spacing:0.12em;">CAS</div>
+  </div>
+  <div style="flex:1;display:flex;padding:2mm 2.5mm 1mm;gap:2mm;overflow:hidden;">
+    <div style="width:15.9mm;height:20mm;flex-shrink:0;border:0.3mm solid #ddd;overflow:hidden;background:#f5f5f5;">${photoHtml}</div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:0.4mm;padding-top:0.3mm;overflow:hidden;">
+      <div style="font-size:5.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.02em;color:#111;line-height:1.3;font-family:Georgia,'Times New Roman',serif;margin-bottom:0.8mm;">${esc(student.name)}</div>
+      <div style="font-size:4pt;color:#333;line-height:1.55;font-family:Arial,sans-serif;"><span style="color:#888;">Class </span>${esc(student.class_name ?? '—')}</div>
+      ${indexRow}
+      <div style="font-size:4pt;color:#333;line-height:1.55;font-family:Arial,sans-serif;"><span style="color:#888;">Code  </span>${esc(student.student_code ?? '—')}</div>
+      <div style="font-size:4pt;color:#333;line-height:1.55;font-family:Arial,sans-serif;"><span style="color:#888;">Issue </span>#${card.issue_number}</div>
+    </div>
+    <div style="display:flex;align-items:flex-end;justify-content:flex-end;flex-shrink:0;">
+      <div style="background:#fff;padding:0.5mm;border:0.3mm solid #e0e0e0;">
+        <img src="${qrDataUrl}" style="display:block;width:19mm;height:19mm;" />
+      </div>
+    </div>
+  </div>
+  <div style="background:#1B5635;padding:1mm 2.5mm;display:flex;justify-content:space-between;align-items:center;height:6mm;flex-shrink:0;">
+    <div style="color:rgba(201,162,39,0.9);font-size:3.5pt;font-family:Arial,sans-serif;">Valid to ${expires}</div>
+    <div style="color:rgba(201,162,39,0.9);font-size:3.5pt;font-family:Arial,sans-serif;">Issue #${card.issue_number}</div>
+  </div>
+</div>`;
+}
+
+// Wraps one card markup in a full CR80-sized HTML document for standalone printing.
+function buildCardHTML({ student, card, school, qrDataUrl }) {
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  @page { size: 85.6mm 54mm; margin: 0; }
+  *  { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 85.6mm; height: 54mm; overflow: hidden; }
+</style>
+</head>
+<body>${buildCardMarkup({ student, card, school, qrDataUrl })}</body>
+</html>`;
+}
+
+// Generates a CR80 PDF buffer for a single student card.
+// Does NOT upload to Supabase — caller streams the buffer directly.
+async function generateCardBuffer({ student, card, school }) {
+  const qrDataUrl = await QRCode.toDataURL(card.token, {
+    errorCorrectionLevel: 'M',
+    width: 200,
+    margin: 1,
+    color: { dark: '#000000', light: '#FFFFFF' },
+  });
+
+  const html            = buildCardHTML({ student, card, school, qrDataUrl });
+  const executablePath  = await chromium.executablePath();
+  const browser         = await puppeteer.launch({
+    args:            [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
+    defaultViewport: { width: 323, height: 204 },
+    executablePath,
+    headless:        chromium.headless ?? 'new',
+  });
+
+  let pdfBuffer;
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle2', timeout: 30000 });
+    pdfBuffer = await page.pdf({
+      width:           '85.6mm',
+      height:          '54mm',
+      printBackground: true,
+      margin:          { top: '0', right: '0', bottom: '0', left: '0' },
+    });
+  } finally {
+    await browser.close();
+  }
+
+  return pdfBuffer;
+}
+
+module.exports = { generateAndUploadPDF, buildLetterHTML, buildCardMarkup, buildCardHTML, generateCardBuffer };
