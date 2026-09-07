@@ -27,6 +27,7 @@ const pageTitles: Record<string, string> = {
   '/classroom-qr':       'Classroom QR Codes',
   '/audit-log':          'Audit Log',
   '/settings/policy-documents': 'Policy Documents',
+  '/settings/help-entries': 'Help Entries',
   '/settings':           'Settings',
   '/clearance':          'Student Clearance',
   '/clearance/offices':  'Clearance Offices & Staff',
