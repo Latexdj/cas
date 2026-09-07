@@ -382,7 +382,11 @@ async function generateBatchAndUpload({ entries, schoolId }) {
   let pdfBuffer;
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle2', timeout: 60000 });
+    // 'load' fires when all resources (including images) have been fetched —
+    // correct for PDF generation. 'networkidle2' can stall for minutes when
+    // many external photos are in the document. Timeout is generous for large
+    // whole-school batches (87+ A4 pages on slow hardware).
+    await page.setContent(html, { waitUntil: 'load', timeout: 300000 });
     pdfBuffer = await page.pdf({
       format:          'A4',
       printBackground: true,

@@ -4,8 +4,8 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
   max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 0,       // never evict idle connections — long batch renders need stable pool
+  connectionTimeoutMillis: 10000,
 });
 
 pool.on('error', (err) => {
