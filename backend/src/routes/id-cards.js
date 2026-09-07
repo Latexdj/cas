@@ -55,8 +55,10 @@ async function resolveExpiresAt(schoolId) {
     [schoolId]
   );
   if (!rows.length || !rows[0].end_date) return null;
-  // End of the academic year day (23:59:59 UTC)
-  return new Date(rows[0].end_date + 'T23:59:59Z');
+  // pg returns DATE columns as JS Date objects (midnight UTC); shift to end-of-day.
+  const d = new Date(rows[0].end_date);
+  d.setUTCHours(23, 59, 59, 0);
+  return d;
 }
 
 // ── POST /api/id-cards/generate/:studentId ───────────────────────────────────
@@ -211,7 +213,8 @@ router.get(
 // ── GET /api/verify/:token ────────────────────────────────────────────────────
 // PUBLIC — no auth required. Tiered response based on whether caller is logged in.
 // Logs every request to id_card_scans including invalid tokens.
-router.get('/verify/:token', softAuthenticate, async (req, res, next) => {
+// Router is mounted at /api/verify, so the handler path is just /:token.
+router.get('/:token', softAuthenticate, async (req, res, next) => {
   const tokenParam = req.params.token;
   const ip         = req.ip ?? null;
   const scannedBy  = req.user?.id ?? null;
@@ -292,9 +295,10 @@ router.get('/verify/:token', softAuthenticate, async (req, res, next) => {
     }
 
     // Authenticated tier — add identity details + last 3 scans
+    // token_queried is TEXT, so no ::uuid cast needed here.
     const { rows: scans } = await pool.query(
       `SELECT response_status, scanned_at, ip_address
-       FROM id_card_scans WHERE token_queried = $1::uuid
+       FROM id_card_scans WHERE token_queried = $1
        ORDER BY scanned_at DESC LIMIT 3`,
       [tokenParam]
     );
