@@ -309,7 +309,7 @@ export default function HelpEntriesPage() {
         {[{ value: 'all', label: 'All Roles' }, ...ROLE_OPTS].map(opt => (
           <button key={opt.value} onClick={() => setRoleFilter(opt.value)}
             style={{
-              padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
+              padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
               background: roleFilter === opt.value ? C.forest : C.card,
               color:      roleFilter === opt.value ? '#fff'    : C.muted,
               border: roleFilter === opt.value ? 'none' : `1px solid ${C.border}`,
