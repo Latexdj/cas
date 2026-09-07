@@ -72,6 +72,20 @@ export default function StudentsPage() {
   const [tmplMode,    setTmplMode]    = useState<'empty' | 'populated'>('empty');
   const [tmplClass,   setTmplClass]   = useState('');
   const [tmplStatus,  setTmplStatus]  = useState('Active');
+
+  // Batch ID card generation
+  type BatchJob = {
+    jobId: string; status: 'queued' | 'processing' | 'done' | 'failed';
+    progress: { done: number; total: number };
+    report: { total: number; newly_minted: number; reused: number; no_photo: number } | null;
+    pdfUrl: string | null; error: string | null;
+  };
+  const [batchOpen,    setBatchOpen]    = useState(false);
+  const [batchScope,   setBatchScope]   = useState<'all' | 'class'>('all');
+  const [batchClass,   setBatchClass]   = useState('');
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchJob,     setBatchJob]     = useState<BatchJob | null>(null);
+  const batchPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [tmplLoading, setTmplLoading] = useState(false);
 
   // Form state
@@ -322,6 +336,41 @@ export default function StudentsPage() {
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
     useTableControls(filtered);
 
+  async function startBatchIDCards() {
+    setBatchRunning(true);
+    setBatchJob(null);
+    try {
+      const body = batchScope === 'all' ? { all: true } : { class_name: batchClass };
+      const { data } = await api.post<{ jobId: string }>('/api/id-cards/batch', body);
+      const initial: BatchJob = {
+        jobId: data.jobId, status: 'queued',
+        progress: { done: 0, total: 0 }, report: null, pdfUrl: null, error: null,
+      };
+      setBatchJob(initial);
+      // Poll every 3 s until done/failed.
+      batchPollRef.current = setInterval(async () => {
+        try {
+          const { data: j } = await api.get<BatchJob>(`/api/id-cards/batch/${data.jobId}`);
+          setBatchJob(j);
+          if (j.status === 'done' || j.status === 'failed') {
+            clearInterval(batchPollRef.current!);
+            batchPollRef.current = null;
+            setBatchRunning(false);
+          }
+        } catch { /* keep polling */ }
+      }, 3000);
+    } catch {
+      setBatchRunning(false);
+    }
+  }
+
+  function closeBatchPanel() {
+    if (batchPollRef.current) { clearInterval(batchPollRef.current); batchPollRef.current = null; }
+    setBatchOpen(false);
+    setBatchJob(null);
+    setBatchRunning(false);
+  }
+
   function printStudents() {
     const activeFilters: string[] = [];
     if (filterClass)   activeFilters.push(`Class: ${filterClass}`);
@@ -376,6 +425,7 @@ export default function StudentsPage() {
           <p className="text-sm mt-0.5" style={{ color: '#94A3B8' }}>{filtered.length} student{filtered.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => { setBatchOpen(true); setBatchJob(null); setBatchRunning(false); }}>⬜ ID Cards</Button>
           <Button variant="secondary" size="sm" onClick={printStudents}>⎙ Print List</Button>
           <Button variant="secondary" size="sm" onClick={() => { setFromClass(''); setToClass(''); setActionResult(''); setModal('graduate'); }}>Graduate Class</Button>
           <Button variant="secondary" size="sm" onClick={() => { setFromClass(''); setToClass(''); setActionResult(''); setModal('promote'); }}>Promote Class</Button>
@@ -990,6 +1040,145 @@ export default function StudentsPage() {
                 style={{ backgroundColor: '#145C44' }}>
                 Download
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Batch ID card generation panel */}
+      {batchOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={e => { if (e.target === e.currentTarget) closeBatchPanel(); }}>
+          <div className="rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden"
+            style={{ background: 'var(--bg-card, #fff)', border: '1.5px solid #E2D9CC' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4"
+              style={{ borderBottom: '1px solid #E2D9CC' }}>
+              <h2 className="text-base font-semibold" style={{ color: '#1C1208' }}>Generate ID Cards</h2>
+              <button onClick={closeBatchPanel} className="text-slate-400 hover:text-slate-600 transition-colors text-xl leading-none">×</button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              {/* No job yet — show options */}
+              {!batchJob && (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold block" style={{ color: '#64748B' }}>Scope</label>
+                    <div className="flex gap-3">
+                      {(['all', 'class'] as const).map(s => (
+                        <button key={s} onClick={() => setBatchScope(s)}
+                          className="flex-1 py-2 rounded-lg text-sm font-medium border transition-colors"
+                          style={{
+                            borderColor: batchScope === s ? '#145C44' : '#E2D9CC',
+                            background:  batchScope === s ? '#145C44' : 'transparent',
+                            color:       batchScope === s ? '#fff' : '#4A3F32',
+                          }}>
+                          {s === 'all' ? 'Whole school' : 'One class'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {batchScope === 'class' && (
+                    <div>
+                      <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Class</label>
+                      <select value={batchClass} onChange={e => setBatchClass(e.target.value)}
+                        className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}>
+                        <option value="">Select a class…</option>
+                        {allClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  )}
+
+                  <p className="text-xs" style={{ color: '#94A3B8' }}>
+                    Cards are minted for students without an active card. Students who already have one are not reissued.
+                    A multi-page PDF is generated and uploaded — you'll get a download link when complete.
+                  </p>
+
+                  <div className="flex gap-3 pt-1">
+                    <Button variant="secondary" className="flex-1" onClick={closeBatchPanel}>Cancel</Button>
+                    <Button className="flex-1" style={{ backgroundColor: '#145C44' }}
+                      loading={batchRunning}
+                      disabled={batchScope === 'class' && !batchClass}
+                      onClick={startBatchIDCards}>
+                      Generate
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {/* Job in progress */}
+              {batchJob && (batchJob.status === 'queued' || batchJob.status === 'processing') && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium" style={{ color: '#1C1208' }}>
+                    {batchJob.status === 'queued' ? 'Starting…' : 'Generating cards…'}
+                  </p>
+                  <div className="w-full rounded-full overflow-hidden" style={{ height: 8, background: '#E2D9CC' }}>
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        background: '#145C44',
+                        width: batchJob.progress.total > 0
+                          ? `${Math.round((batchJob.progress.done / batchJob.progress.total) * 100)}%`
+                          : '5%',
+                      }} />
+                  </div>
+                  <p className="text-xs" style={{ color: '#94A3B8' }}>
+                    {batchJob.progress.total > 0
+                      ? `${batchJob.progress.done} / ${batchJob.progress.total} students processed`
+                      : 'Loading student list…'}
+                  </p>
+                </div>
+              )}
+
+              {/* Done */}
+              {batchJob?.status === 'done' && batchJob.report && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Total cards',    value: batchJob.report.total },
+                      { label: 'Newly minted',   value: batchJob.report.newly_minted },
+                      { label: 'Reused',         value: batchJob.report.reused },
+                      { label: 'No photo',       value: batchJob.report.no_photo },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="rounded-xl p-3 text-center"
+                        style={{ background: '#F8F5F0', border: '1px solid #E2D9CC' }}>
+                        <div className="text-2xl font-bold" style={{ color: '#145C44' }}>{value}</div>
+                        <div className="text-xs mt-0.5" style={{ color: '#64748B' }}>{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {batchJob.report.no_photo > 0 && (
+                    <p className="text-xs rounded-lg px-3 py-2" style={{ background: '#FFF7ED', color: '#92400E' }}>
+                      {batchJob.report.no_photo} student{batchJob.report.no_photo !== 1 ? 's have' : ' has'} no photo — a silhouette placeholder was used.
+                    </p>
+                  )}
+                  {batchJob.pdfUrl && (
+                    <a href={batchJob.pdfUrl} target="_blank" rel="noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                      style={{ background: '#145C44', color: '#fff' }}>
+                      ⬇ Download PDF
+                    </a>
+                  )}
+                  <Button variant="secondary" className="w-full" onClick={closeBatchPanel}>Close</Button>
+                </div>
+              )}
+
+              {/* Failed */}
+              {batchJob?.status === 'failed' && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium" style={{ color: '#B91C1C' }}>Generation failed</p>
+                  <p className="text-xs rounded-lg px-3 py-2" style={{ background: '#FEF2F2', color: '#7F1D1D' }}>
+                    {batchJob.error ?? 'Unknown error'}
+                  </p>
+                  <div className="flex gap-3">
+                    <Button variant="secondary" className="flex-1" onClick={closeBatchPanel}>Close</Button>
+                    <Button className="flex-1" style={{ backgroundColor: '#145C44' }}
+                      onClick={() => { setBatchJob(null); setBatchRunning(false); }}>
+                      Retry
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
