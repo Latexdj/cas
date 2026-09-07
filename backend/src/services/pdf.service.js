@@ -1,5 +1,8 @@
 'use strict';
-const chromium = require('@sparticuz/chromium');
+// @sparticuz/chromium v149+ ships as an ES module; require() gives the module
+// wrapper with the real API on .default. Earlier versions exposed it directly.
+const _chromiumPkg = require('@sparticuz/chromium');
+const chromium  = _chromiumPkg.default || _chromiumPkg;
 const puppeteer = require('puppeteer-core');
 const QRCode    = require('qrcode');
 const supabase  = require('../config/supabase');
@@ -139,12 +142,12 @@ function buildLetterHTML({ letter, school, recipientType, watermark = false }) {
 async function generateAndUploadPDF({ letter, school, recipientType, watermark = false, pathPrefix = 'letters' }) {
   const html = buildLetterHTML({ letter, school, recipientType, watermark });
 
-  const executablePath = await chromium.executablePath();
+  const executablePath = await resolveChromePath();
   const browser = await puppeteer.launch({
-    args:            [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
+    args:            [...(chromium.args ?? []), '--no-sandbox', '--disable-setuid-sandbox'],
     defaultViewport: chromium.defaultViewport,
     executablePath,
-    headless:        chromium.headless ?? 'new',
+    headless:        true,
   });
 
   let pdfBuffer;
@@ -240,6 +243,43 @@ function buildCardHTML({ student, card, school, qrDataUrl }) {
 </html>`;
 }
 
+// Resolve a Chromium/Chrome executable.
+// @sparticuz/chromium provides a Linux ELF binary (for AWS Lambda) — it exists
+// on disk on Windows but cannot be spawned. Skip it on non-Linux platforms.
+async function resolveChromePath() {
+  const fs = require('fs');
+
+  if (process.platform !== 'linux') {
+    // Windows / macOS local dev — use installed Chrome directly.
+    const localCandidates = [
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    ];
+    for (const p of localCandidates) {
+      if (fs.existsSync(p)) return p;
+    }
+    throw new Error('No Chrome found. Install Google Chrome for local PDF generation.');
+  }
+
+  // Linux (production / Lambda): use @sparticuz/chromium then fall back to system.
+  try {
+    const p = await chromium.executablePath();
+    if (p && fs.existsSync(p)) return p;
+  } catch { /* fall through */ }
+
+  const linuxCandidates = [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+  ];
+  for (const p of linuxCandidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  throw new Error('No Chrome/Chromium found on Linux. Install chromium-browser or set up @sparticuz/chromium.');
+}
+
 // Generates a CR80 PDF buffer for a single student card.
 // Does NOT upload to Supabase — caller streams the buffer directly.
 async function generateCardBuffer({ student, card, school }) {
@@ -251,12 +291,12 @@ async function generateCardBuffer({ student, card, school }) {
   });
 
   const html            = buildCardHTML({ student, card, school, qrDataUrl });
-  const executablePath  = await chromium.executablePath();
+  const executablePath  = await resolveChromePath();
   const browser         = await puppeteer.launch({
-    args:            [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
+    args:            [...(chromium.args ?? []), '--no-sandbox', '--disable-setuid-sandbox'],
     defaultViewport: { width: 323, height: 204 },
     executablePath,
-    headless:        chromium.headless ?? 'new',
+    headless:        true,
   });
 
   let pdfBuffer;
