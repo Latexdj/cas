@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { getUser } from '@/lib/auth';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
+import { HelpWidget } from '@/components/HelpWidget';
 
 const pageTitles: Record<string, string> = {
   '/dashboard':          'Dashboard',
@@ -83,6 +84,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Header title={title} onMenuClick={() => setSidebarOpen(o => !o)} />
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
+      <HelpWidget />
     </div>
   );
 }
