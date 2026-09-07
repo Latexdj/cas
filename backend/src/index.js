@@ -71,6 +71,7 @@ const aiRemarksRoutes         = require('./routes/ai-remarks');
 const { startAbsenceCheckJob }          = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob }    = require('./jobs/subscriptionExpiry');
 const { startLibraryNotificationJob }   = require('./jobs/libraryNotifications');
+const { startIdCardScanPurgeJob }       = require('./jobs/idCardScanPurge');
 
 const app = express();
 
@@ -167,6 +168,9 @@ app.use('/api/roll-call',             rollCallRoutes);
 app.use('/api/ai',                    aiRemarksRoutes);
 app.use('/api/help-chat',             helpChatRoutes);
 app.use('/api/help-entries',          require('./routes/help-entries'));
+const idCardsRoutes               = require('./routes/id-cards');
+app.use('/api/id-cards',            idCardsRoutes);
+app.use('/api/verify',              idCardsRoutes);
 
 app.use(errorHandler);
 
@@ -2545,6 +2549,41 @@ async function runMigrations() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_help_chat_sessions_school ON help_chat_sessions(school_id, created_at DESC)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] help_chat_sessions:', e.message); }
 
+    // ── ID Card module ────────────────────────────────────────────────────────
+    try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS student_id_cards (
+        id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_id    UUID        NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        school_id     UUID        NOT NULL REFERENCES schools(id)  ON DELETE CASCADE,
+        token         UUID        UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+        issue_number  INTEGER     NOT NULL DEFAULT 1,
+        status        TEXT        NOT NULL DEFAULT 'active'
+                        CHECK (status IN ('active','revoked','expired')),
+        revoked_at    TIMESTAMPTZ,
+        revoke_reason TEXT,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        expires_at    TIMESTAMPTZ
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_id_cards_student    ON student_id_cards(student_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_id_cards_token      ON student_id_cards(token)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_id_cards_student_st ON student_id_cards(student_id, status)`);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS id_card_scans (
+        id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        token_queried   TEXT        NOT NULL,
+        response_status TEXT        NOT NULL,
+        scanned_by      UUID,
+        ip_address      TEXT,
+        scanned_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_id_card_scans_token ON id_card_scans(token_queried)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_id_card_scans_at    ON id_card_scans(scanned_at DESC)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] id_cards:', e.message); }
+
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
     } else {
@@ -2564,4 +2603,5 @@ app.listen(PORT, async () => {
   startAbsenceCheckJob();
   startSubscriptionExpiryJob();
   startLibraryNotificationJob();
+  startIdCardScanPurgeJob();
 });
