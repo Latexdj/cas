@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { getPrincipal, clearPrincipal, getRoleLabel, type PrincipalUser } from '@/lib/principal-auth';
+import { principalApi } from '@/lib/principal-api';
+import { HelpWidget } from '@/components/HelpWidget';
 
 type NavItem = { href: string; label: string; icon: ReactNode };
 type Section = { label: string; items: NavItem[] };
@@ -302,6 +304,7 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
+      <HelpWidget apiClient={principalApi} />
     </div>
   );
 }
