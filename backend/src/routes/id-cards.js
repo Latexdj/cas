@@ -1,8 +1,122 @@
 'use strict';
+const crypto = require('crypto');
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
-const { generateCardBuffer } = require('../services/pdf.service');
+const { generateCardBuffer, generateBatchAndUpload } = require('../services/pdf.service');
+const QRCode = require('qrcode');
+
+// ── In-memory batch job store ─────────────────────────────────────────────────
+// Jobs are kept for the lifetime of the server process.  A whole-school batch
+// for a few hundred students takes ~1–2 min; the admin polls for status.
+const batchJobs = new Map();
+
+function createBatchJob({ schoolId, createdBy, filter }) {
+  const id  = crypto.randomUUID();
+  const job = {
+    id, schoolId, createdBy,
+    filter,                         // { className: string } | { all: true }
+    status:   'queued',             // queued | processing | done | failed
+    progress: { done: 0, total: 0 },
+    report:   null,                 // set on completion
+    pdfUrl:   null,
+    error:    null,
+    createdAt: new Date(),
+  };
+  batchJobs.set(id, job);
+  return job;
+}
+
+// Processes a batch job in the background.  Never throws — marks job failed instead.
+async function processBatchJob(job) {
+  job.status = 'processing';
+  try {
+    const { rows: [school] } = await pool.query(
+      `SELECT name, logo_url FROM schools WHERE id = $1`, [job.schoolId]
+    );
+
+    // Load active students matching the filter
+    let studentRows;
+    if (job.filter.all) {
+      ({ rows: studentRows } = await pool.query(
+        `SELECT id, name, class_name, jhs_index_number, student_code, picture_url
+         FROM students
+         WHERE school_id = $1 AND LOWER(status) = 'active'
+         ORDER BY class_name, name`,
+        [job.schoolId]
+      ));
+    } else {
+      ({ rows: studentRows } = await pool.query(
+        `SELECT id, name, class_name, jhs_index_number, student_code, picture_url
+         FROM students
+         WHERE school_id = $1 AND class_name = $2 AND LOWER(status) = 'active'
+         ORDER BY name`,
+        [job.schoolId, job.filter.className]
+      ));
+    }
+
+    job.progress.total = studentRows.length;
+
+    const expiresAt     = await resolveExpiresAt(job.schoolId);
+    const entries       = [];
+    let newlyMinted = 0, reused = 0, noPhoto = 0;
+
+    // Mint/reuse tokens sequentially — avoids DB contention and memory spikes.
+    for (const student of studentRows) {
+      const { rows: existing } = await pool.query(
+        `SELECT * FROM student_id_cards
+         WHERE student_id = $1 AND status = 'active'
+         ORDER BY created_at DESC LIMIT 1`,
+        [student.id]
+      );
+
+      let card;
+      if (existing.length) {
+        card = existing[0];
+        reused++;
+      } else {
+        const { rows: [numRow] } = await pool.query(
+          `SELECT COALESCE(MAX(issue_number), 0) AS max_num
+           FROM student_id_cards WHERE student_id = $1`,
+          [student.id]
+        );
+        const { rows: [newCard] } = await pool.query(
+          `INSERT INTO student_id_cards (student_id, school_id, issue_number, expires_at)
+           VALUES ($1, $2, $3, $4) RETURNING *`,
+          [student.id, job.schoolId, parseInt(numRow.max_num) + 1, expiresAt]
+        );
+        card = newCard;
+        newlyMinted++;
+      }
+
+      if (!student.picture_url) noPhoto++;
+
+      // Generate QR data URL inline (sequential, not concurrent).
+      const qrDataUrl = await QRCode.toDataURL(card.token, {
+        errorCorrectionLevel: 'M', width: 200, margin: 1,
+        color: { dark: '#000000', light: '#FFFFFF' },
+      });
+
+      entries.push({ student, card, school, qrDataUrl });
+      job.progress.done++;
+    }
+
+    // Render all cards into an A4 batch PDF and upload to Supabase.
+    const pdfUrl = await generateBatchAndUpload({ entries, schoolId: job.schoolId });
+
+    job.report = {
+      total:        studentRows.length,
+      newly_minted: newlyMinted,
+      reused,
+      no_photo:     noPhoto,
+    };
+    job.pdfUrl  = pdfUrl;
+    job.status  = 'done';
+  } catch (err) {
+    job.status = 'failed';
+    job.error  = err.message;
+  }
+}
 
 // ── Soft authenticate — decodes JWT if present, never blocks ─────────────────
 // Used by the verify endpoint to distinguish public vs. authenticated callers.
@@ -327,6 +441,58 @@ router.post(
         'Content-Length':      pdfBuffer.length,
       });
       res.end(pdfBuffer);
+    } catch (err) { next(err); }
+  }
+);
+
+// ── POST /api/id-cards/batch ──────────────────────────────────────────────────
+// Admin only. Starts a background batch job.
+// Body: { class_name: "Form 1A" } — specific class
+//    or { all: true }             — whole school
+// Returns immediately: { jobId }
+router.post(
+  '/batch',
+  authenticate, adminOnly, requireActiveSubscription,
+  async (req, res, next) => {
+    try {
+      const { class_name, all: isAll } = req.body;
+      if (!class_name && !isAll) {
+        return res.status(400).json({ error: 'Provide class_name or all: true' });
+      }
+
+      const filter = isAll ? { all: true } : { className: class_name };
+      const job    = createBatchJob({ schoolId: req.schoolId, createdBy: req.user.id, filter });
+
+      // Fire-and-forget — respond before processing starts.
+      res.status(202).json({ jobId: job.id });
+
+      // Background processing — errors are caught inside processBatchJob.
+      processBatchJob(job).catch(() => { /* already marked failed inside */ });
+    } catch (err) { next(err); }
+  }
+);
+
+// ── GET /api/id-cards/batch/:jobId ───────────────────────────────────────────
+// Admin only. Returns status, progress, report, and download URL when done.
+router.get(
+  '/batch/:jobId',
+  authenticate, adminOnly, requireActiveSubscription,
+  async (req, res, next) => {
+    try {
+      const job = batchJobs.get(req.params.jobId);
+      if (!job) return res.status(404).json({ error: 'Batch job not found' });
+      if (job.schoolId !== req.schoolId) return res.status(403).json({ error: 'Not your job' });
+
+      res.json({
+        jobId:     job.id,
+        status:    job.status,
+        progress:  job.progress,
+        report:    job.report,
+        pdfUrl:    job.pdfUrl,
+        error:     job.error,
+        filter:    job.filter,
+        createdAt: job.createdAt,
+      });
     } catch (err) { next(err); }
   }
 );

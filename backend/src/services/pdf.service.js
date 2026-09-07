@@ -316,4 +316,95 @@ async function generateCardBuffer({ student, card, school }) {
   return pdfBuffer;
 }
 
-module.exports = { generateAndUploadPDF, buildLetterHTML, buildCardMarkup, buildCardHTML, generateCardBuffer };
+// ── Batch card tiling ─────────────────────────────────────────────────────────
+// Tiles an array of { student, card, school, qrDataUrl } objects onto A4 sheets,
+// 8 cards per sheet (2 columns × 4 rows) with thin crop-mark borders.
+// Uses buildCardMarkup() — no duplication of card template.
+function buildBatchHTML(entries) {
+  // Chunk into groups of 8 (one A4 sheet each).
+  const sheets = [];
+  for (let i = 0; i < entries.length; i += 8) {
+    const chunk = entries.slice(i, i + 8);
+    const slots = chunk.map(e => `
+  <div class="crop-slot">${buildCardMarkup(e)}</div>`).join('');
+    sheets.push(`<div class="sheet">${slots}\n</div>`);
+  }
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 210mm; background: #fff; }
+  .sheet {
+    width: 210mm;
+    height: 297mm;
+    display: grid;
+    grid-template-columns: 85.6mm 85.6mm;
+    grid-template-rows: repeat(4, 54mm);
+    gap: 4mm;
+    justify-content: center;
+    align-content: center;
+    page-break-after: always;
+    overflow: hidden;
+  }
+  .sheet:last-child { page-break-after: auto; }
+  .crop-slot {
+    width: 85.6mm;
+    height: 54mm;
+    position: relative;
+    overflow: hidden;
+    /* Thin border serves as cut guide */
+    box-shadow: 0 0 0 0.3mm rgba(140,140,140,0.45);
+  }
+</style>
+</head>
+<body>
+${sheets.join('\n')}
+</body>
+</html>`;
+}
+
+// Generates a multi-page A4 batch PDF, uploads to Supabase, returns public URL.
+// entries: [{ student, card, school, qrDataUrl }]  (qrDataUrl already resolved)
+async function generateBatchAndUpload({ entries, schoolId }) {
+  const html            = buildBatchHTML(entries);
+  const executablePath  = await resolveChromePath();
+  const browser         = await puppeteer.launch({
+    args:            [...(chromium.args ?? []), '--no-sandbox', '--disable-setuid-sandbox'],
+    defaultViewport: null,
+    executablePath,
+    headless:        true,
+  });
+
+  let pdfBuffer;
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle2', timeout: 60000 });
+    pdfBuffer = await page.pdf({
+      format:          'A4',
+      printBackground: true,
+      margin:          { top: '0', right: '0', bottom: '0', left: '0' },
+    });
+  } finally {
+    await browser.close();
+  }
+
+  const filePath = `id-cards/batch-${schoolId}-${Date.now()}.pdf`;
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(filePath, pdfBuffer, { contentType: 'application/pdf', upsert: false });
+
+  if (error) throw new Error(`Batch PDF upload failed: ${error.message}`);
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
+  return data.publicUrl;
+}
+
+module.exports = {
+  generateAndUploadPDF, buildLetterHTML,
+  buildCardMarkup, buildCardHTML, generateCardBuffer,
+  buildBatchHTML, generateBatchAndUpload,
+};
