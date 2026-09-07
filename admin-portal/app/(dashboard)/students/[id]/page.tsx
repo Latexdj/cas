@@ -11,6 +11,15 @@ const GENDERS   = ['Male', 'Female'];
 const RELIGIONS = ['Christianity', 'Islam', 'Traditional', 'Other'];
 const RES_STATUSES = ['Day', 'Boarding'];
 
+interface IdCard {
+  id: string;
+  token: string;
+  issue_number: number;
+  status: 'active' | 'revoked' | 'expired';
+  expires_at: string | null;
+  created_at: string;
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
@@ -87,6 +96,17 @@ export default function StudentProfilePage() {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [uploadErr,      setUploadErr]      = useState('');
 
+  const [activeCard,   setActiveCard]   = useState<IdCard | null | undefined>(undefined); // undefined = not yet loaded
+  const [cardLoading,  setCardLoading]  = useState(false);
+  const [cardErr,      setCardErr]      = useState('');
+
+  const loadCard = useCallback(async () => {
+    try {
+      const { data } = await api.get<{ active_card: IdCard | null }>(`/api/id-cards/student/${id}`);
+      setActiveCard(data.active_card);
+    } catch { setActiveCard(null); }
+  }, [id]);
+
   const load = useCallback(async () => {
     try {
       const [{ data: s }, { data: progs }, { data: hs }] = await Promise.all([
@@ -104,7 +124,7 @@ export default function StudentProfilePage() {
     } finally { setLoading(false); }
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); loadCard(); }, [load, loadCard]);
 
   function toForm(p: StudentProfile): Record<string, string> {
     return {
@@ -154,6 +174,27 @@ export default function StudentProfilePage() {
     } catch (err: unknown) {
       setSaveErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Save failed');
     } finally { setSaving(false); }
+  }
+
+  async function downloadCardPDF(endpoint: string, filename: string) {
+    setCardLoading(true); setCardErr('');
+    try {
+      const response = await api.post(endpoint, {}, { responseType: 'blob' });
+      const blob = response.data as Blob;
+      const url  = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      await loadCard();
+    } catch {
+      setCardErr('Could not generate ID card. Please try again.');
+    } finally {
+      setCardLoading(false);
+    }
   }
 
   async function uploadPhoto(file: File) {
@@ -362,6 +403,99 @@ export default function StudentProfilePage() {
           <div className="p-5">
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)} rows={3}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+          </div>
+        </div>
+      )}
+
+      {/* ID Card */}
+      {!editing && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">ID Card</h3>
+            {activeCard && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium">
+                Issue #{activeCard.issue_number} · Active
+              </span>
+            )}
+          </div>
+          <div className="p-5">
+            {cardErr && (
+              <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{cardErr}</div>
+            )}
+
+            {/* Card info row */}
+            {activeCard === undefined ? (
+              <div className="h-4 w-40 bg-gray-100 rounded animate-pulse mb-4" />
+            ) : activeCard ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-0.5">Issue Number</p>
+                  <p className="text-sm text-gray-800">#{activeCard.issue_number}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-0.5">Issued</p>
+                  <p className="text-sm text-gray-800">
+                    {new Date(activeCard.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-0.5">Valid Until</p>
+                  <p className="text-sm text-gray-800">
+                    {activeCard.expires_at
+                      ? new Date(activeCard.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                      : <span className="text-gray-400 italic">No expiry</span>}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 font-medium mb-0.5">Token</p>
+                  <p className="text-xs text-gray-400 font-mono truncate" title={activeCard.token}>
+                    {activeCard.token.slice(0, 8)}…
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 mb-5">No active card. Click Generate to issue one.</p>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex gap-3">
+              <button
+                disabled={cardLoading}
+                onClick={() => downloadCardPDF(
+                  `/api/id-cards/pdf/${id}`,
+                  `ID_${profile.name.replace(/\s+/g, '_')}_Issue${(activeCard?.issue_number ?? 1)}.pdf`
+                )}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50"
+              >
+                {cardLoading ? (
+                  <span className="block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                )}
+                {activeCard ? 'Download Card' : 'Generate ID Card'}
+              </button>
+
+              {activeCard && (
+                <button
+                  disabled={cardLoading}
+                  onClick={() => {
+                    if (!confirm('Reissue card? The current card will be revoked immediately and a new one generated.')) return;
+                    downloadCardPDF(
+                      `/api/id-cards/reissue-pdf/${id}`,
+                      `ID_${profile.name.replace(/\s+/g, '_')}_Issue${activeCard.issue_number + 1}.pdf`
+                    );
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.7} className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Reissue Card
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
