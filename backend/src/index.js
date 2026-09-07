@@ -166,6 +166,7 @@ app.use('/api/resumption',            resumptionRoutes);
 app.use('/api/roll-call',             rollCallRoutes);
 app.use('/api/ai',                    aiRemarksRoutes);
 app.use('/api/help-chat',             helpChatRoutes);
+app.use('/api/help-entries',          require('./routes/help-entries'));
 
 app.use(errorHandler);
 

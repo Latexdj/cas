@@ -71,7 +71,9 @@ STRICT RULES:
 // Returns: { session_id, welcome_message }
 router.post('/start', async (req, res, next) => {
   try {
-    const role = req.user.role ?? 'admin';
+    // Management JWTs carry type:'management' with role=management_role (e.g. 'principal').
+    // Normalise to 'management' so entries tagged applicable_roles=['management'] match.
+    const role = req.user.type === 'management' ? 'management' : (req.user.role ?? 'admin');
 
     const [entries, schRows] = await Promise.all([
       fetchEntries(role),
