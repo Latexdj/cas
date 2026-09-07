@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { getTeacher, getSchoolCode, getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { HelpWidget } from '@/components/HelpWidget';
 
 interface NavItem {
   href:                    string;
@@ -605,6 +606,8 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       )}
+
+      <HelpWidget apiClient={teacherApi} />
 
       {/* ── Mobile bottom tab bar ── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 flex" style={{ height: 60, backgroundColor: dk.tabBarBg, borderTop: `1px solid ${dk.border}` }}>

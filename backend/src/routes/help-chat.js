@@ -2,7 +2,7 @@
 const router    = require('express').Router();
 const pool      = require('../config/db');
 const Anthropic = require('@anthropic-ai/sdk');
-const { authenticate, adminOrManagement, requireActiveSubscription } = require('../middleware/auth');
+const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -69,7 +69,7 @@ STRICT RULES:
 // POST /api/help-chat/start
 // Body: (none required — role comes from JWT)
 // Returns: { session_id, welcome_message }
-router.post('/start', adminOrManagement, async (req, res, next) => {
+router.post('/start', async (req, res, next) => {
   try {
     const role = req.user.role ?? 'admin';
 
@@ -105,7 +105,7 @@ router.post('/start', adminOrManagement, async (req, res, next) => {
 // POST /api/help-chat/:session_id/message
 // Body: { content }
 // Returns: { role: 'assistant', content }
-router.post('/:session_id/message', adminOrManagement, async (req, res, next) => {
+router.post('/:session_id/message', async (req, res, next) => {
   try {
     const { content } = req.body;
     if (!content?.trim()) return res.status(400).json({ error: 'content is required' });

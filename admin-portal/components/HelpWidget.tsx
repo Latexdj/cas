@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
+import type { AxiosInstance } from 'axios';
 
 type Msg = { role: 'user' | 'assistant'; content: string };
 
@@ -11,7 +12,8 @@ const C = {
   danger: '#B83232',
 };
 
-export function HelpWidget() {
+export function HelpWidget({ apiClient }: { apiClient?: AxiosInstance } = {}) {
+  const client = apiClient ?? api;
   const [open,      setOpen]      = useState(false);
   const [messages,  setMessages]  = useState<Msg[]>([]);
   const [input,     setInput]     = useState('');
@@ -36,13 +38,13 @@ export function HelpWidget() {
     if (sessionId || starting) return;
     setStarting(true); setError('');
     try {
-      const { data } = await api.post('/api/help-chat/start');
+      const { data } = await client.post('/api/help-chat/start');
       setSessionId(data.session_id);
       setMessages([{ role: 'assistant', content: data.welcome_message }]);
     } catch {
       setError('Could not start help session. Please try again.');
     } finally { setStarting(false); }
-  }, [sessionId, starting]);
+  }, [sessionId, starting, client]);
 
   async function openPanel() {
     setOpen(true);
@@ -55,7 +57,7 @@ export function HelpWidget() {
     setMessages(prev => [...prev, { role: 'user', content: userContent }]);
     setInput(''); setLoading(true); setError('');
     try {
-      const { data } = await api.post(`/api/help-chat/${sessionId}/message`, { content: userContent });
+      const { data } = await client.post(`/api/help-chat/${sessionId}/message`, { content: userContent });
       setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string; expired?: boolean } } };
@@ -64,10 +66,10 @@ export function HelpWidget() {
         setSessionId('');
         setMessages([]);
         try {
-          const s = await api.post('/api/help-chat/start');
+          const s = await client.post('/api/help-chat/start');
           setSessionId(s.data.session_id);
           setMessages([{ role: 'assistant', content: s.data.welcome_message }]);
-          const r = await api.post(`/api/help-chat/${s.data.session_id}/message`, { content: userContent });
+          const r = await client.post(`/api/help-chat/${s.data.session_id}/message`, { content: userContent });
           setMessages(prev => [...prev, { role: 'assistant', content: r.data.content }]);
         } catch { setError('Session expired. Please close and reopen Help.'); }
       } else {
