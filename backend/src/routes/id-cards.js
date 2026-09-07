@@ -2,6 +2,7 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { generateCardBuffer } = require('../services/pdf.service');
 
 // ── Soft authenticate — decodes JWT if present, never blocks ─────────────────
 // Used by the verify endpoint to distinguish public vs. authenticated callers.
@@ -206,6 +207,126 @@ router.get(
       }
 
       res.json({ student: sRows[0], active_card: activeCard, card_history: cards, recent_scans: recentScans });
+    } catch (err) { next(err); }
+  }
+);
+
+// ── POST /api/id-cards/pdf/:studentId ────────────────────────────────────────
+// Admin only. Mints or reuses active card, then streams a CR80 PDF as download.
+router.post(
+  '/pdf/:studentId',
+  authenticate, adminOnly, requireActiveSubscription,
+  async (req, res, next) => {
+    try {
+      const { studentId } = req.params;
+
+      const { rows: sRows } = await pool.query(
+        `SELECT id, name, class_name, jhs_index_number, student_code, picture_url
+         FROM students WHERE id = $1 AND school_id = $2`,
+        [studentId, req.schoolId]
+      );
+      if (!sRows.length) return res.status(404).json({ error: 'Student not found' });
+      const student = sRows[0];
+
+      const { rows: schRows } = await pool.query(
+        `SELECT name, logo_url FROM schools WHERE id = $1`, [req.schoolId]
+      );
+      const school = schRows[0] ?? { name: '', logo_url: null };
+
+      // Mint or reuse
+      let card;
+      const { rows: existing } = await pool.query(
+        `SELECT * FROM student_id_cards WHERE student_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+        [studentId]
+      );
+      if (existing.length) {
+        card = existing[0];
+      } else {
+        const expiresAt = await resolveExpiresAt(req.schoolId);
+        const { rows: numRows } = await pool.query(
+          `SELECT COALESCE(MAX(issue_number), 0) AS max_num FROM student_id_cards WHERE student_id = $1`,
+          [studentId]
+        );
+        const { rows: newRows } = await pool.query(
+          `INSERT INTO student_id_cards (student_id, school_id, issue_number, expires_at)
+           VALUES ($1, $2, $3, $4) RETURNING *`,
+          [studentId, req.schoolId, parseInt(numRows[0].max_num) + 1, expiresAt]
+        );
+        card = newRows[0];
+      }
+
+      const pdfBuffer = await generateCardBuffer({ student, card, school });
+      const safe = student.name.replace(/[^A-Za-z0-9]/g, '_');
+      res.set({
+        'Content-Type':        'application/pdf',
+        'Content-Disposition': `attachment; filename="ID_${safe}_Issue${card.issue_number}.pdf"`,
+        'Content-Length':      pdfBuffer.length,
+      });
+      res.end(pdfBuffer);
+    } catch (err) { next(err); }
+  }
+);
+
+// ── POST /api/id-cards/reissue-pdf/:studentId ─────────────────────────────────
+// Admin only. Revokes any active card, mints a replacement with incremented
+// issue_number, and streams the new card PDF as download.
+router.post(
+  '/reissue-pdf/:studentId',
+  authenticate, adminOnly, requireActiveSubscription,
+  async (req, res, next) => {
+    try {
+      const { studentId } = req.params;
+      const { reason = 'Reissued' } = req.body;
+
+      const { rows: sRows } = await pool.query(
+        `SELECT id, name, class_name, jhs_index_number, student_code, picture_url
+         FROM students WHERE id = $1 AND school_id = $2`,
+        [studentId, req.schoolId]
+      );
+      if (!sRows.length) return res.status(404).json({ error: 'Student not found' });
+      const student = sRows[0];
+
+      const { rows: schRows } = await pool.query(
+        `SELECT name, logo_url FROM schools WHERE id = $1`, [req.schoolId]
+      );
+      const school = schRows[0] ?? { name: '', logo_url: null };
+
+      // Revoke existing if any
+      const { rows: active } = await pool.query(
+        `SELECT * FROM student_id_cards WHERE student_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+        [studentId]
+      );
+      let nextIssue = 1;
+      if (active.length) {
+        await pool.query(
+          `UPDATE student_id_cards SET status = 'revoked', revoked_at = now(), revoke_reason = $1 WHERE id = $2`,
+          [reason, active[0].id]
+        );
+        nextIssue = active[0].issue_number + 1;
+      } else {
+        const { rows: numRows } = await pool.query(
+          `SELECT COALESCE(MAX(issue_number), 0) AS max_num FROM student_id_cards WHERE student_id = $1`,
+          [studentId]
+        );
+        nextIssue = parseInt(numRows[0].max_num) + 1;
+      }
+
+      const expiresAt = await resolveExpiresAt(req.schoolId);
+      const { rows: newRows } = await pool.query(
+        `INSERT INTO student_id_cards (student_id, school_id, issue_number, expires_at)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [studentId, req.schoolId, nextIssue, expiresAt]
+      );
+      const card = newRows[0];
+
+      const pdfBuffer = await generateCardBuffer({ student, card, school });
+      const safe = student.name.replace(/[^A-Za-z0-9]/g, '_');
+      res.set({
+        'Content-Type':        'application/pdf',
+        'Content-Disposition': `attachment; filename="ID_${safe}_Issue${card.issue_number}.pdf"`,
+        'Content-Length':      pdfBuffer.length,
+      });
+      res.end(pdfBuffer);
     } catch (err) { next(err); }
   }
 );
