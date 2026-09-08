@@ -205,7 +205,7 @@ function buildCardMarkup({ student, card, school, qrDataUrl }) {
 
   function fieldRow(label, value) {
     return `<div style="display:flex;align-items:baseline;overflow:hidden;line-height:1.3;">
-      <span style="font-size:5.5pt;font-weight:800;color:${accent};text-transform:uppercase;letter-spacing:0.07em;flex-shrink:0;width:13mm;">${label}</span>
+      <span style="font-size:5.5pt;font-weight:900;color:${accent};text-transform:uppercase;letter-spacing:0.07em;flex-shrink:0;width:13mm;">${label}</span>
       <span style="font-size:6pt;color:#1E293B;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${esc(value || '—')}</span>
     </div>`;
   }
