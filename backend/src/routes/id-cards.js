@@ -45,25 +45,35 @@ async function processBatchJob(job) {
 
   try {
     const { rows: [school] } = await batchPool.query(
-      `SELECT name, logo_url FROM schools WHERE id = $1`, [job.schoolId]
+      `SELECT name, logo_url, primary_color, accent_color,
+              vision, mission, core_values,
+              lost_card_contact_1, lost_card_contact_2,
+              headmaster_name, headmaster_signature_url
+       FROM schools WHERE id = $1`, [job.schoolId]
     );
 
     // Load active students matching the filter
     let studentRows;
     if (job.filter.all) {
       ({ rows: studentRows } = await batchPool.query(
-        `SELECT id, name, class_name, jhs_index_number, student_code, picture_url
-         FROM students
-         WHERE school_id = $1 AND LOWER(status) = 'active'
-         ORDER BY class_name, name`,
+        `SELECT s.id, s.name, s.class_name, s.jhs_index_number, s.student_code, s.picture_url,
+                s.gender, s.residential_status, s.house,
+                p.name AS program_name
+         FROM students s
+         LEFT JOIN programs p ON p.id = s.program_id
+         WHERE s.school_id = $1 AND LOWER(s.status) = 'active'
+         ORDER BY s.class_name, s.name`,
         [job.schoolId]
       ));
     } else {
       ({ rows: studentRows } = await batchPool.query(
-        `SELECT id, name, class_name, jhs_index_number, student_code, picture_url
-         FROM students
-         WHERE school_id = $1 AND class_name = $2 AND LOWER(status) = 'active'
-         ORDER BY name`,
+        `SELECT s.id, s.name, s.class_name, s.jhs_index_number, s.student_code, s.picture_url,
+                s.gender, s.residential_status, s.house,
+                p.name AS program_name
+         FROM students s
+         LEFT JOIN programs p ON p.id = s.program_id
+         WHERE s.school_id = $1 AND s.class_name = $2 AND LOWER(s.status) = 'active'
+         ORDER BY s.name`,
         [job.schoolId, job.filter.className]
       ));
     }
@@ -208,8 +218,10 @@ router.post(
 
       // Confirm student belongs to this school
       const { rows: sRows } = await pool.query(
-        `SELECT id, name, class_name, jhs_index_number, student_code, picture_url
-         FROM students WHERE id = $1 AND school_id = $2`,
+        `SELECT s.id, s.name, s.class_name, s.jhs_index_number, s.student_code, s.picture_url,
+                s.gender, s.residential_status, s.house, p.name AS program_name
+         FROM students s LEFT JOIN programs p ON p.id = s.program_id
+         WHERE s.id = $1 AND s.school_id = $2`,
         [studentId, req.schoolId]
       );
       if (!sRows.length) return res.status(404).json({ error: 'Student not found' });
@@ -315,8 +327,10 @@ router.get(
     try {
       const { studentId } = req.params;
       const { rows: sRows } = await pool.query(
-        `SELECT id, name, class_name, jhs_index_number, student_code, picture_url
-         FROM students WHERE id = $1 AND school_id = $2`,
+        `SELECT s.id, s.name, s.class_name, s.jhs_index_number, s.student_code, s.picture_url,
+                s.gender, s.residential_status, s.house, p.name AS program_name
+         FROM students s LEFT JOIN programs p ON p.id = s.program_id
+         WHERE s.id = $1 AND s.school_id = $2`,
         [studentId, req.schoolId]
       );
       if (!sRows.length) return res.status(404).json({ error: 'Student not found' });
@@ -355,15 +369,21 @@ router.post(
       const { studentId } = req.params;
 
       const { rows: sRows } = await pool.query(
-        `SELECT id, name, class_name, jhs_index_number, student_code, picture_url
-         FROM students WHERE id = $1 AND school_id = $2`,
+        `SELECT s.id, s.name, s.class_name, s.jhs_index_number, s.student_code, s.picture_url,
+                s.gender, s.residential_status, s.house, p.name AS program_name
+         FROM students s LEFT JOIN programs p ON p.id = s.program_id
+         WHERE s.id = $1 AND s.school_id = $2`,
         [studentId, req.schoolId]
       );
       if (!sRows.length) return res.status(404).json({ error: 'Student not found' });
       const student = sRows[0];
 
       const { rows: schRows } = await pool.query(
-        `SELECT name, logo_url FROM schools WHERE id = $1`, [req.schoolId]
+        `SELECT name, logo_url, primary_color, accent_color,
+                vision, mission, core_values,
+                lost_card_contact_1, lost_card_contact_2,
+                headmaster_name, headmaster_signature_url
+         FROM schools WHERE id = $1`, [req.schoolId]
       );
       const school = schRows[0] ?? { name: '', logo_url: null };
 
@@ -413,15 +433,21 @@ router.post(
       const { reason = 'Reissued' } = req.body;
 
       const { rows: sRows } = await pool.query(
-        `SELECT id, name, class_name, jhs_index_number, student_code, picture_url
-         FROM students WHERE id = $1 AND school_id = $2`,
+        `SELECT s.id, s.name, s.class_name, s.jhs_index_number, s.student_code, s.picture_url,
+                s.gender, s.residential_status, s.house, p.name AS program_name
+         FROM students s LEFT JOIN programs p ON p.id = s.program_id
+         WHERE s.id = $1 AND s.school_id = $2`,
         [studentId, req.schoolId]
       );
       if (!sRows.length) return res.status(404).json({ error: 'Student not found' });
       const student = sRows[0];
 
       const { rows: schRows } = await pool.query(
-        `SELECT name, logo_url FROM schools WHERE id = $1`, [req.schoolId]
+        `SELECT name, logo_url, primary_color, accent_color,
+                vision, mission, core_values,
+                lost_card_contact_1, lost_card_contact_2,
+                headmaster_name, headmaster_signature_url
+         FROM schools WHERE id = $1`, [req.schoolId]
       );
       const school = schRows[0] ?? { name: '', logo_url: null };
 

@@ -411,7 +411,8 @@ router.get('/settings', async (req, res, next) => {
               school_type, school_category, motto, region, district,
               admission_prefix, admission_year,
               school_latitude, school_longitude, school_gps_radius,
-              vision, mission, core_values
+              vision, mission, core_values,
+              lost_card_contact_1, lost_card_contact_2, headmaster_name
        FROM schools WHERE id = $1`,
       [req.schoolId]
     );
@@ -423,7 +424,7 @@ router.get('/settings', async (req, res, next) => {
 // PATCH /api/admin/settings/info â€” update general school information
 router.patch('/settings/info', adminOnly, async (req, res, next) => {
   try {
-    const { name, address, phone, email, school_type, school_category, motto, region, district, admission_prefix, admission_year, school_latitude, school_longitude, school_gps_radius, vision, mission, core_values, letter_ref_prefix } = req.body;
+    const { name, address, phone, email, school_type, school_category, motto, region, district, admission_prefix, admission_year, school_latitude, school_longitude, school_gps_radius, vision, mission, core_values, letter_ref_prefix, lost_card_contact_1, lost_card_contact_2, headmaster_name } = req.body;
     const fields = [];
     const vals   = [req.schoolId];
     const add    = (col, val) => { if (val !== undefined) { fields.push(`${col}=$${vals.length + 1}`); vals.push(val || null); } };
@@ -438,10 +439,13 @@ router.patch('/settings/info', adminOnly, async (req, res, next) => {
     add('district',          district);
     add('admission_prefix',  admission_prefix);
     add('admission_year',    admission_year);
-    add('vision',            vision);
-    add('mission',           mission);
-    add('core_values',       core_values);
-    add('letter_ref_prefix', letter_ref_prefix);
+    add('vision',               vision);
+    add('mission',              mission);
+    add('core_values',          core_values);
+    add('letter_ref_prefix',    letter_ref_prefix);
+    add('lost_card_contact_1',  lost_card_contact_1);
+    add('lost_card_contact_2',  lost_card_contact_2);
+    add('headmaster_name',      headmaster_name);
     add('school_latitude',   school_latitude  !== undefined ? (school_latitude  === '' ? null : parseFloat(school_latitude))  : undefined);
     add('school_longitude',  school_longitude !== undefined ? (school_longitude === '' ? null : parseFloat(school_longitude)) : undefined);
     add('school_gps_radius', school_gps_radius !== undefined ? (school_gps_radius === '' ? null : parseInt(school_gps_radius, 10)) : undefined);

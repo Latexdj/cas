@@ -2263,6 +2263,13 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS issued_by_signature_url TEXT`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] letterhead/ref-number columns:', e.message); }
 
+    // ── ID Card branding fields ───────────────────────────────────────────────
+    try {
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS lost_card_contact_1 TEXT`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS lost_card_contact_2 TEXT`);
+    await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS headmaster_name TEXT`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] id-card branding columns:', e.message); }
+
     // ── Resumption Attendance ─────────────────────────────────────────────────
     try {
     await pool.query(`
