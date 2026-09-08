@@ -306,12 +306,12 @@ function buildCardBackMarkup({ student, card, school }) {
   const accent  = esc(school.accent_color  || '#B8860B');
 
   const logoHtml = school.logo_url
-    ? `<img src="${esc(school.logo_url)}" style="width:7.5mm;height:7.5mm;object-fit:contain;flex-shrink:0;" />`
+    ? `<img src="${esc(school.logo_url)}" style="width:7mm;height:7mm;object-fit:contain;flex-shrink:0;" />`
     : '';
 
   const sigHtml = school.headmaster_signature_url
-    ? `<img src="${esc(school.headmaster_signature_url)}" style="display:block;max-height:6mm;max-width:18mm;object-fit:contain;" />`
-    : `<div style="height:6mm;"></div>`;
+    ? `<img src="${esc(school.headmaster_signature_url)}" style="display:block;max-height:5.5mm;max-width:18mm;object-fit:contain;" />`
+    : `<div style="height:5.5mm;"></div>`;
 
   const vision  = (school.vision      || '').trim();
   const mission = (school.mission     || '').trim();
@@ -324,50 +324,59 @@ function buildCardBackMarkup({ student, card, school }) {
     ? `If found, contact ${esc(c1)} or ${esc(c2)}`
     : c1 ? `If found, contact ${esc(c1)}` : '';
 
-  // Label stacked above text. flex controls how much body height this block claims.
-  // Text is NOT line-clamped — it flows naturally and the flex container clips overflow.
-  function infoBlock(label, text, flexGrow) {
+  // Each block takes its natural height; space-between distributes remaining
+  // space evenly between them — no proportional flex that creates uneven gaps.
+  function infoBlock(label, text, maxLines) {
     if (!text) return '';
-    return `<div style="flex:${flexGrow};min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:0.35mm;">
-      <div style="font-size:4.5pt;font-weight:900;color:${accent};text-transform:uppercase;letter-spacing:0.09em;line-height:1;flex-shrink:0;">${label}</div>
-      <div style="font-size:5pt;color:#334155;line-height:1.38;overflow:hidden;flex:1;min-height:0;">${esc(text)}</div>
+    return `<div style="overflow:hidden;">
+      <div style="display:flex;align-items:center;gap:1mm;margin-bottom:0.5mm;">
+        <div style="width:2.5mm;height:1.5px;background:${accent};border-radius:1px;flex-shrink:0;"></div>
+        <div style="font-size:4.5pt;font-weight:900;color:${accent};text-transform:uppercase;letter-spacing:0.1em;line-height:1;">${label}</div>
+      </div>
+      <div style="font-size:5pt;color:#334155;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:${maxLines};-webkit-box-orient:vertical;padding-left:3.5mm;">${esc(text)}</div>
     </div>`;
   }
 
-  return `<div style="width:85.6mm;height:54mm;display:flex;background:#F7F9FB;overflow:hidden;font-family:'Helvetica Neue',Arial,Helvetica,sans-serif;">
+  return `<div style="width:85.6mm;height:54mm;display:flex;background:#FFFFFF;overflow:hidden;font-family:'Helvetica Neue',Arial,Helvetica,sans-serif;">
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
 
     <!-- Top strip -->
-    <div style="height:11mm;background:${accent};display:flex;align-items:center;padding:0 2.5mm;gap:1.5mm;flex-shrink:0;">
+    <div style="height:10mm;background:${accent};display:flex;align-items:center;padding:0 2.5mm;gap:1.5mm;flex-shrink:0;">
       ${logoHtml}
       <div style="flex:1;overflow:hidden;">
-        <div style="color:white;font-size:5pt;font-weight:800;letter-spacing:0.09em;text-transform:uppercase;line-height:1.25;">THIS CARD IS THE PROPERTY OF</div>
-        <div style="color:rgba(255,255,255,0.95);font-size:10pt;font-weight:900;text-transform:uppercase;letter-spacing:0.03em;line-height:1.15;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${esc(school.name)}</div>
+        <div style="color:rgba(255,255,255,0.75);font-size:4pt;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;margin-bottom:0.5mm;line-height:1;">THIS CARD IS THE PROPERTY OF</div>
+        <div style="color:#FFFFFF;font-size:10pt;font-weight:900;text-transform:uppercase;letter-spacing:0.02em;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(school.name)}</div>
       </div>
     </div>
 
     <!-- Hairline -->
-    <div style="height:1px;background:${primary};flex-shrink:0;opacity:0.4;"></div>
+    <div style="height:1.5px;background:${primary};flex-shrink:0;opacity:0.2;"></div>
 
-    <!-- Body: flex column; each section grows proportionally to its flex value -->
-    <div style="flex:1;padding:1.5mm 2.5mm 1mm;display:flex;flex-direction:column;gap:1mm;overflow:hidden;min-height:0;">
-      ${infoBlock('Vision', vision, 1)}
-      ${infoBlock('Mission', mission, 2)}
-      ${infoBlock('Values', values, 1.5)}
-      ${contactLine ? `<div style="flex-shrink:0;font-size:4.5pt;font-style:italic;color:#64748B;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${contactLine}</div>` : ''}
+    <!-- Body: space-between distributes identical gaps between the 4 rows -->
+    <div style="flex:1;padding:1.8mm 2.5mm 1.2mm;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;min-height:0;">
+      ${infoBlock('Vision', vision, 2)}
+      ${infoBlock('Mission', mission, 3)}
+      ${infoBlock('Values', values, 2)}
+      ${contactLine
+        ? `<div style="display:flex;align-items:center;gap:1mm;overflow:hidden;">
+             <div style="width:2.5mm;height:1.5px;background:#CBD5E1;flex-shrink:0;"></div>
+             <div style="font-size:4pt;color:#94A3B8;font-style:italic;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${contactLine}</div>
+           </div>`
+        : '<div></div>'}
     </div>
 
     <!-- Footer -->
-    <div style="height:11mm;background:${primary};display:flex;align-items:center;justify-content:space-between;padding:0 2.5mm;flex-shrink:0;overflow:hidden;">
-      <div style="display:flex;flex-direction:column;gap:0.8mm;overflow:hidden;min-width:0;">
+    <div style="height:10mm;background:${primary};display:flex;align-items:center;justify-content:space-between;padding:0 2.5mm;flex-shrink:0;overflow:hidden;">
+      <div style="display:flex;flex-direction:column;justify-content:flex-end;gap:0.7mm;overflow:hidden;min-width:0;height:100%;padding-bottom:1.2mm;">
         ${sigHtml}
-        <div style="width:20mm;height:0.3mm;background:rgba(255,255,255,0.5);flex-shrink:0;"></div>
-        <div style="color:white;font-size:5.5pt;font-weight:700;letter-spacing:0.06em;white-space:nowrap;">${esc(hdmName)}</div>
+        <div style="width:22mm;height:0.3mm;background:rgba(255,255,255,0.45);flex-shrink:0;"></div>
+        <div style="color:rgba(255,255,255,0.9);font-size:5pt;font-weight:600;letter-spacing:0.04em;white-space:nowrap;">${esc(hdmName)}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:1.2mm;flex-shrink:0;">
-        <div style="width:2.5mm;height:2.5mm;border-radius:50%;background:rgba(255,255,255,0.25);"></div>
-        <div style="width:3.5mm;height:3.5mm;border-radius:50%;background:rgba(255,255,255,0.4);"></div>
-        <div style="width:5mm;height:5mm;border-radius:50%;background:rgba(255,255,255,0.55);"></div>
+      <!-- Concentric arc decoration -->
+      <div style="display:flex;align-items:center;gap:1mm;flex-shrink:0;">
+        <div style="width:2mm;height:2mm;border-radius:50%;background:rgba(255,255,255,0.18);"></div>
+        <div style="width:3.5mm;height:3.5mm;border-radius:50%;background:rgba(255,255,255,0.30);"></div>
+        <div style="width:5.5mm;height:5.5mm;border-radius:50%;background:rgba(255,255,255,0.45);"></div>
       </div>
     </div>
   </div>
