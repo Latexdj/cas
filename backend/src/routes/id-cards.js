@@ -28,17 +28,30 @@ function createBatchJob({ schoolId, createdBy, filter }) {
 }
 
 // Processes a batch job in the background.  Never throws — marks job failed instead.
+// Uses a dedicated short-lived pool so the shared app pool's idle-timeout is
+// unaffected, and so the dedicated connections stay alive during the multi-minute
+// Puppeteer rendering phase without touching any other request's pool.
 async function processBatchJob(job) {
   job.status = 'processing';
+
+  const { Pool } = require('pg');
+  const batchPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl:  { rejectUnauthorized: false },
+    max:  3,
+    idleTimeoutMillis:    0,      // never evict — must survive the Puppeteer render phase
+    connectionTimeoutMillis: 10000,
+  });
+
   try {
-    const { rows: [school] } = await pool.query(
+    const { rows: [school] } = await batchPool.query(
       `SELECT name, logo_url FROM schools WHERE id = $1`, [job.schoolId]
     );
 
     // Load active students matching the filter
     let studentRows;
     if (job.filter.all) {
-      ({ rows: studentRows } = await pool.query(
+      ({ rows: studentRows } = await batchPool.query(
         `SELECT id, name, class_name, jhs_index_number, student_code, picture_url
          FROM students
          WHERE school_id = $1 AND LOWER(status) = 'active'
@@ -46,7 +59,7 @@ async function processBatchJob(job) {
         [job.schoolId]
       ));
     } else {
-      ({ rows: studentRows } = await pool.query(
+      ({ rows: studentRows } = await batchPool.query(
         `SELECT id, name, class_name, jhs_index_number, student_code, picture_url
          FROM students
          WHERE school_id = $1 AND class_name = $2 AND LOWER(status) = 'active'
@@ -57,13 +70,13 @@ async function processBatchJob(job) {
 
     job.progress.total = studentRows.length;
 
-    const expiresAt     = await resolveExpiresAt(job.schoolId);
+    const expiresAt     = await resolveExpiresAt(job.schoolId, batchPool);
     const entries       = [];
     let newlyMinted = 0, reused = 0, noPhoto = 0;
 
     // Mint/reuse tokens sequentially — avoids DB contention and memory spikes.
     for (const student of studentRows) {
-      const { rows: existing } = await pool.query(
+      const { rows: existing } = await batchPool.query(
         `SELECT * FROM student_id_cards
          WHERE student_id = $1 AND status = 'active'
          ORDER BY created_at DESC LIMIT 1`,
@@ -75,12 +88,12 @@ async function processBatchJob(job) {
         card = existing[0];
         reused++;
       } else {
-        const { rows: [numRow] } = await pool.query(
+        const { rows: [numRow] } = await batchPool.query(
           `SELECT COALESCE(MAX(issue_number), 0) AS max_num
            FROM student_id_cards WHERE student_id = $1`,
           [student.id]
         );
-        const { rows: [newCard] } = await pool.query(
+        const { rows: [newCard] } = await batchPool.query(
           `INSERT INTO student_id_cards (student_id, school_id, issue_number, expires_at)
            VALUES ($1, $2, $3, $4) RETURNING *`,
           [student.id, job.schoolId, parseInt(numRow.max_num) + 1, expiresAt]
@@ -101,6 +114,10 @@ async function processBatchJob(job) {
       job.progress.done++;
     }
 
+    // All DB work is done — drain the batch pool before the long Puppeteer render
+    // so we hold no connections during that phase either.
+    await batchPool.end();
+
     // Render all cards into an A4 batch PDF and upload to Supabase.
     const pdfUrl = await generateBatchAndUpload({ entries, schoolId: job.schoolId });
 
@@ -115,6 +132,7 @@ async function processBatchJob(job) {
   } catch (err) {
     job.status = 'failed';
     job.error  = err.message;
+    await batchPool.end().catch(() => {});
   }
 }
 
@@ -162,8 +180,10 @@ async function hasActiveExeat(studentId) {
 }
 
 // Get or resolve expires_at from the school's current academic year.
-async function resolveExpiresAt(schoolId) {
-  const { rows } = await pool.query(
+// Accepts an optional db parameter so callers can supply a dedicated pool
+// (e.g. the batch job's own pool) instead of the shared app pool.
+async function resolveExpiresAt(schoolId, db = pool) {
+  const { rows } = await db.query(
     `SELECT end_date FROM academic_years
      WHERE school_id = $1 AND is_current = true
      LIMIT 1`,
