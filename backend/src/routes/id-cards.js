@@ -465,6 +465,130 @@ router.post(
   }
 );
 
+// ── GET /api/id-cards/student/:studentId/scans ───────────────────────────────
+// Admin only. Full scan history for a student across all their cards (newest first).
+// Used by the student profile page audit view.
+router.get(
+  '/student/:studentId/scans',
+  authenticate, adminOnly, requireActiveSubscription,
+  async (req, res, next) => {
+    try {
+      const { studentId } = req.params;
+      const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+
+      const { rows: [student] } = await pool.query(
+        `SELECT id FROM students WHERE id = $1 AND school_id = $2`,
+        [studentId, req.schoolId]
+      );
+      if (!student) return res.status(404).json({ error: 'Student not found' });
+
+      const { rows: scans } = await pool.query(
+        `SELECT s.token_queried, s.response_status, s.scanned_by, s.scanned_at, s.ip_address,
+                c.issue_number, c.status AS card_status,
+                t.name AS scanned_by_name
+         FROM id_card_scans s
+         JOIN student_id_cards c ON c.token::text = s.token_queried
+         LEFT JOIN teachers t ON t.id = s.scanned_by
+         WHERE c.student_id = $1
+         ORDER BY s.scanned_at DESC
+         LIMIT $2`,
+        [studentId, limit]
+      );
+
+      res.json({ scans });
+    } catch (err) { next(err); }
+  }
+);
+
+// ── GET /api/id-cards/anomalies ───────────────────────────────────────────────
+// Admin only. Returns three categories of flagged scan events for review.
+//   revoked_scans  — active scans hitting a revoked card in the last 30 days
+//   multi_ip_events — tokens scanned from 3+ distinct IPs within any 6-hour window
+//   odd_hour_scans  — valid scans before 05:00 or after 23:00 local (Africa/Accra)
+router.get(
+  '/anomalies',
+  authenticate, adminOnly, requireActiveSubscription,
+  async (req, res, next) => {
+    try {
+      // ── (a) Revoked-card scans ──────────────────────────────────────────────
+      const { rows: revokedScans } = await pool.query(
+        `SELECT s.token_queried, s.response_status, s.scanned_at, s.ip_address,
+                c.issue_number, c.revoked_at,
+                st.id AS student_id, st.name AS student_name,
+                st.student_code, st.class_name
+         FROM id_card_scans s
+         JOIN student_id_cards c ON c.token::text = s.token_queried AND c.status = 'revoked'
+         JOIN students st ON st.id = c.student_id AND st.school_id = $1
+         WHERE s.scanned_at >= NOW() - INTERVAL '30 days'
+           AND s.response_status = 'revoked'
+         ORDER BY s.scanned_at DESC
+         LIMIT 200`,
+        [req.schoolId]
+      );
+
+      // ── (b) Multi-IP events (3+ distinct IPs in a 6-hour window) ───────────
+      const { rows: multiIpEvents } = await pool.query(
+        `WITH school_scans AS (
+           SELECT s.token_queried, s.ip_address, s.scanned_at,
+                  c.issue_number, c.status AS card_status,
+                  st.id AS student_id, st.name AS student_name,
+                  st.student_code, st.class_name
+           FROM id_card_scans s
+           JOIN student_id_cards c ON c.token::text = s.token_queried
+           JOIN students st ON st.id = c.student_id AND st.school_id = $1
+           WHERE s.scanned_at >= NOW() - INTERVAL '30 days'
+             AND s.ip_address IS NOT NULL
+         ),
+         windows AS (
+           SELECT a.token_queried, a.scanned_at AS window_start,
+                  a.scanned_at + INTERVAL '6 hours' AS window_end,
+                  COUNT(DISTINCT b.ip_address) AS ip_count
+           FROM school_scans a
+           JOIN school_scans b ON b.token_queried = a.token_queried
+             AND b.scanned_at >= a.scanned_at
+             AND b.scanned_at < a.scanned_at + INTERVAL '6 hours'
+           GROUP BY a.token_queried, a.scanned_at
+           HAVING COUNT(DISTINCT b.ip_address) >= 3
+         )
+         SELECT DISTINCT ON (w.token_queried)
+           w.token_queried, w.window_start, w.window_end, w.ip_count,
+           ss.student_id, ss.student_name, ss.student_code, ss.class_name, ss.card_status
+         FROM windows w
+         JOIN school_scans ss ON ss.token_queried = w.token_queried
+         ORDER BY w.token_queried, w.ip_count DESC
+         LIMIT 50`,
+        [req.schoolId]
+      );
+
+      // ── (c) Off-hours scans (before 05:00 or after 23:00 Africa/Accra) ─────
+      const { rows: oddHourScans } = await pool.query(
+        `SELECT s.token_queried, s.response_status, s.scanned_at, s.ip_address,
+                c.issue_number,
+                st.id AS student_id, st.name AS student_name,
+                st.student_code, st.class_name,
+                EXTRACT(HOUR FROM s.scanned_at AT TIME ZONE 'Africa/Accra')::int AS local_hour
+         FROM id_card_scans s
+         JOIN student_id_cards c ON c.token::text = s.token_queried
+         JOIN students st ON st.id = c.student_id AND st.school_id = $1
+         WHERE s.scanned_at >= NOW() - INTERVAL '30 days'
+           AND s.response_status IN ('valid_auth', 'valid_public')
+           AND (  EXTRACT(HOUR FROM s.scanned_at AT TIME ZONE 'Africa/Accra') < 5
+               OR EXTRACT(HOUR FROM s.scanned_at AT TIME ZONE 'Africa/Accra') >= 23)
+         ORDER BY s.scanned_at DESC
+         LIMIT 200`,
+        [req.schoolId]
+      );
+
+      res.json({
+        revoked_scans:   revokedScans,
+        multi_ip_events: multiIpEvents,
+        odd_hour_scans:  oddHourScans,
+        generated_at:    new Date().toISOString(),
+      });
+    } catch (err) { next(err); }
+  }
+);
+
 // ── GET /api/id-cards/missing-photos ─────────────────────────────────────────
 // Admin only. Returns active students in the given scope who have no photo.
 // Query params: ?class_name=X or ?all=true  (same scoping as the batch endpoint)
