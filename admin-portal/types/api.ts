@@ -81,6 +81,7 @@ export interface ClassItem {
 export interface Program {
   id: string;
   name: string;
+  display_name: string | null;
   notes: string | null;
   exam_body: string;
   student_count: number;

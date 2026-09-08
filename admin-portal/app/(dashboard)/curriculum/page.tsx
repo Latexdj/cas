@@ -366,7 +366,7 @@ function ProgramsTab() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [modal,    setModal]    = useState<'create' | 'edit' | null>(null);
-  const [form,     setForm]     = useState({ name: '', notes: '', exam_body: 'WAEC' as ExamBody });
+  const [form,     setForm]     = useState({ name: '', display_name: '', notes: '', exam_body: 'WAEC' as ExamBody });
   const [editId,   setEditId]   = useState<string | null>(null);
   const [saving,   setSaving]   = useState(false);
   const [error,    setError]    = useState('');
@@ -379,9 +379,9 @@ function ProgramsTab() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  function openCreate() { setForm({ name: '', notes: '', exam_body: 'WAEC' }); setError(''); setEditId(null); setModal('create'); }
+  function openCreate() { setForm({ name: '', display_name: '', notes: '', exam_body: 'WAEC' }); setError(''); setEditId(null); setModal('create'); }
   function openEdit(p: Program) {
-    setForm({ name: p.name, notes: p.notes ?? '', exam_body: (p.exam_body as ExamBody) || 'WAEC' });
+    setForm({ name: p.name, display_name: p.display_name ?? '', notes: p.notes ?? '', exam_body: (p.exam_body as ExamBody) || 'WAEC' });
     setEditId(p.id); setError(''); setModal('edit');
   }
 
@@ -449,7 +449,12 @@ function ProgramsTab() {
               {(programRows as typeof programs).map((p, i) => (
                 <tr key={p.id} className="hover:bg-slate-50 transition-colors"
                   style={{ borderBottom: i < programRows.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
-                  <td className="px-4 py-3 font-medium" style={{ color: '#1C1208' }}>{p.name}</td>
+                  <td className="px-4 py-3 font-medium" style={{ color: '#1C1208' }}>
+                    {p.name}
+                    {p.display_name && (
+                      <span className="ml-2 text-xs font-normal text-slate-400">({p.display_name})</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">{examBodyBadge(p.exam_body || 'WAEC')}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold" style={{ backgroundColor: '#DCFCE7', color: '#145C44' }}>
@@ -481,6 +486,11 @@ function ProgramsTab() {
           <div>
             <label className="text-xs font-semibold font-medium text-slate-500">Program Name *</label>
             <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Science, General Arts" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold font-medium text-slate-500">Card Display Name <span className="text-slate-400 font-normal">(optional override for ID cards)</span></label>
+            <input className={inputCls} value={form.display_name} onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))} placeholder="e.g. Hosp. &amp; Catering Mgt." />
+            <p className="mt-1 text-xs text-slate-400">Shown on ID cards instead of the full program name. Leave blank to use the auto-formatted name.</p>
           </div>
           <div>
             <label className="text-xs font-semibold font-medium text-slate-500">Exam Body *</label>

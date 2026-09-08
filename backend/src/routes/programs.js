@@ -7,7 +7,7 @@ router.use(authenticate, requireActiveSubscription);
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name, notes, exam_body,
+      `SELECT id, name, display_name, notes, exam_body,
               (SELECT COUNT(*)::int FROM students WHERE program_id = programs.id AND status = 'Active') AS student_count
        FROM programs WHERE school_id = $1 ORDER BY name`,
       [req.schoolId]
@@ -18,12 +18,12 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', adminOnly, async (req, res, next) => {
   try {
-    const { name, notes, exam_body } = req.body;
+    const { name, display_name, notes, exam_body } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'name is required' });
     const eb = ['WAEC','CTVET','Both'].includes(exam_body) ? exam_body : 'WAEC';
     const { rows } = await pool.query(
-      `INSERT INTO programs (school_id, name, notes, exam_body) VALUES ($1,$2,$3,$4) RETURNING id, name, notes, exam_body`,
-      [req.schoolId, name.trim(), notes || null, eb]
+      `INSERT INTO programs (school_id, name, display_name, notes, exam_body) VALUES ($1,$2,$3,$4,$5) RETURNING id, name, display_name, notes, exam_body`,
+      [req.schoolId, name.trim(), display_name?.trim() || null, notes || null, eb]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -34,13 +34,13 @@ router.post('/', adminOnly, async (req, res, next) => {
 
 router.put('/:id', adminOnly, async (req, res, next) => {
   try {
-    const { name, notes, exam_body } = req.body;
+    const { name, display_name, notes, exam_body } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'name is required' });
     const eb = ['WAEC','CTVET','Both'].includes(exam_body) ? exam_body : 'WAEC';
     const { rows } = await pool.query(
-      `UPDATE programs SET name = $1, notes = $2, exam_body = $3
-       WHERE id = $4 AND school_id = $5 RETURNING id, name, notes, exam_body`,
-      [name.trim(), notes || null, eb, req.params.id, req.schoolId]
+      `UPDATE programs SET name = $1, display_name = $2, notes = $3, exam_body = $4
+       WHERE id = $5 AND school_id = $6 RETURNING id, name, display_name, notes, exam_body`,
+      [name.trim(), display_name?.trim() || null, notes || null, eb, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Program not found' });
     res.json(rows[0]);

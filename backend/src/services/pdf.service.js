@@ -28,6 +28,15 @@ function firstWord(name) {
   return name ? name.split(' ')[0] : 'Sir/Madam';
 }
 
+function toTitleCase(str) {
+  if (!str) return '';
+  const minors = new Set(['and','of','the','in','for','a','an','to','at','by','with','de']);
+  return str.toLowerCase().replace(/[^\s-]+/g, (word, offset) => {
+    if (offset > 0 && minors.has(word)) return word;
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  });
+}
+
 function buildLetterHTML({ letter, school, recipientType, watermark = false }) {
   const sigUrl = letter.issued_by_signature_url || school.headmaster_signature_url;
 
@@ -201,7 +210,9 @@ function buildCardMarkup({ student, card, school, qrDataUrl }) {
     ? `<img src="${esc(school.logo_url)}" style="width:7mm;height:7mm;object-fit:contain;flex-shrink:0;" />`
     : '';
 
-  const program = student.program_name || student.class_name || '—';
+  const program = student.program_display_name
+    || toTitleCase(student.program_name || student.class_name)
+    || '—';
 
   function fieldRow(label, value) {
     return `<div style="display:flex;align-items:baseline;overflow:hidden;line-height:1.3;">
@@ -210,10 +221,17 @@ function buildCardMarkup({ student, card, school, qrDataUrl }) {
     </div>`;
   }
 
-  return `<div style="width:85.6mm;height:54mm;display:flex;background:#F7F9FB;overflow:hidden;font-family:'Helvetica Neue',Arial,Helvetica,sans-serif;">
+  const watermark = school.logo_url
+    ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:0;">
+         <img src="${esc(school.logo_url)}" style="width:30mm;height:30mm;object-fit:contain;opacity:0.07;" />
+       </div>`
+    : '';
+
+  return `<div style="width:85.6mm;height:54mm;display:flex;background:#F7F9FB;overflow:hidden;font-family:'Helvetica Neue',Arial,Helvetica,sans-serif;position:relative;">
+  ${watermark}
 
   <!-- Card body -->
-  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;z-index:1;">
 
     <!-- Header -->
     <div style="display:flex;align-items:center;gap:1.5mm;padding:1.5mm 2mm 0 1.8mm;flex-shrink:0;">
@@ -559,8 +577,50 @@ async function generateBatchAndUpload({ entries, schoolId }) {
   return data.publicUrl;
 }
 
+// Generates a PNG screenshot of the card front only (648×408 px at 2× DPR).
+async function generateCardPng({ student, card, school }) {
+  const qrDataUrl = await QRCode.toDataURL(card.token, {
+    errorCorrectionLevel: 'M',
+    width: 200,
+    margin: 1,
+    color: { dark: '#000000', light: '#FFFFFF' },
+  });
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 85.6mm; height: 54mm; background: #fff; overflow: hidden; }
+</style>
+</head>
+<body>${buildCardMarkup({ student, card, school, qrDataUrl })}</body>
+</html>`;
+
+  const executablePath = await resolveChromePath();
+  const browser = await puppeteer.launch({
+    args:            [...(chromium.args ?? []), '--no-sandbox', '--disable-setuid-sandbox'],
+    defaultViewport: { width: 324, height: 204, deviceScaleFactor: 2 },
+    executablePath,
+    headless:        true,
+  });
+
+  let pngBuffer;
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle2', timeout: 30000 });
+    pngBuffer = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 324, height: 204 } });
+  } finally {
+    await browser.close();
+  }
+
+  return pngBuffer;
+}
+
 module.exports = {
   generateAndUploadPDF, buildLetterHTML,
   buildCardMarkup, buildCardBackMarkup, buildCardHTML, generateCardBuffer,
   buildBatchHTML, generateBatchAndUpload,
+  generateCardPng,
 };
