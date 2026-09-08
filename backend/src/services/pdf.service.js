@@ -212,9 +212,6 @@ function buildCardMarkup({ student, card, school, qrDataUrl }) {
 
   return `<div style="width:85.6mm;height:54mm;display:flex;background:#F7F9FB;overflow:hidden;font-family:'Helvetica Neue',Arial,Helvetica,sans-serif;">
 
-  <!-- Left accent bar -->
-  <div style="width:3mm;background:${primary};flex-shrink:0;"></div>
-
   <!-- Card body -->
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
 
@@ -279,8 +276,6 @@ function buildCardMarkup({ student, card, school, qrDataUrl }) {
 }
 
 // BACK of card — returns an HTML fragment (no doctype/head).
-// Right 3mm bar = accent_color. After long-edge flip this physically aligns
-// with the front's left primary_color bar — both on the same card edge.
 function buildCardBackMarkup({ student, card, school }) {
   const primary = esc(school.primary_color || '#007A8C');
   const accent  = esc(school.accent_color  || '#B8860B');
@@ -352,9 +347,6 @@ function buildCardBackMarkup({ student, card, school }) {
       </div>
     </div>
   </div>
-
-  <!-- Right accent bar (aligns with front left bar after long-edge duplex flip) -->
-  <div style="width:3mm;background:${accent};flex-shrink:0;"></div>
 </div>`;
 }
 
