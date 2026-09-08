@@ -195,9 +195,15 @@ function buildCardMarkup({ student, card, school, qrDataUrl }) {
   const primary = esc(school.primary_color || '#007A8C');
   const accent  = esc(school.accent_color  || '#B8860B');
 
-  const expires = card.expires_at
-    ? new Date(card.expires_at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }).toUpperCase()
-    : 'NO EXPIRY';
+  function fmtCardDate(d, style) {
+    if (!d) return null;
+    const dt = typeof d === 'string' ? new Date(d + (d.length === 10 ? 'T12:00:00Z' : '')) : new Date(d);
+    if (isNaN(dt)) return null;
+    return dt.toLocaleDateString('en-GB', style).toUpperCase();
+  }
+
+  const expires = fmtCardDate(card.expires_at, { month: 'short', year: 'numeric' }) || 'NO EXPIRY';
+  const issued  = fmtCardDate(card.issued_at,  { day: 'numeric', month: 'short', year: 'numeric' });
 
   const photoContent = student.picture_url
     ? `<img src="${esc(student.picture_url)}" style="width:100%;height:100%;object-fit:cover;display:block;" />`
@@ -270,6 +276,7 @@ function buildCardMarkup({ student, card, school, qrDataUrl }) {
             ${fieldRow('PROG',    program)}
             ${fieldRow('STATUS',  student.residential_status)}
             ${fieldRow('HOUSE',   student.house)}
+            ${issued ? fieldRow('ISSUED',  issued) : ''}
           </div>
           <!-- QR -->
           <div style="display:flex;align-items:flex-end;flex-shrink:0;padding-bottom:0.5mm;">

@@ -399,9 +399,17 @@ router.post(
         [studentId]
       );
       if (existing.length) {
-        card = existing[0];
+        // Always apply the caller-provided dates so the PDF reflects what the admin chose.
+        const expiresAt = expires_at || existing[0].expires_at;
+        const { rows: updated } = await pool.query(
+          `UPDATE student_id_cards
+           SET expires_at = $1, issued_at = COALESCE($2::date, issued_at)
+           WHERE id = $3 RETURNING *`,
+          [expiresAt, issued_at || null, existing[0].id]
+        );
+        card = updated[0];
       } else {
-        const expiresAt = expires_at ? new Date(expires_at) : await resolveExpiresAt(req.schoolId);
+        const expiresAt = expires_at || await resolveExpiresAt(req.schoolId);
         const { rows: numRows } = await pool.query(
           `SELECT COALESCE(MAX(issue_number), 0) AS max_num FROM student_id_cards WHERE student_id = $1`,
           [studentId]

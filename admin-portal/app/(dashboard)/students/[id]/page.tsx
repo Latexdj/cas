@@ -123,6 +123,13 @@ export default function StudentProfilePage() {
     try {
       const { data } = await api.get<{ active_card: IdCard | null }>(`/api/id-cards/student/${id}`);
       setActiveCard(data.active_card);
+      // Prefill date inputs from the card's stored dates so re-downloading preserves them.
+      if (data.active_card) {
+        if (data.active_card.issued_at)
+          setCardIssueDate(String(data.active_card.issued_at).slice(0, 10));
+        if (data.active_card.expires_at)
+          setCardExpiresAt(String(data.active_card.expires_at).slice(0, 10));
+      }
     } catch { setActiveCard(null); }
   }, [id]);
 
