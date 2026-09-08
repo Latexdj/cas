@@ -178,150 +178,183 @@ async function generateAndUploadPDF({ letter, school, recipientType, watermark =
 
 // ── ID Card ───────────────────────────────────────────────────────────────────
 // CR80 dimensions: 85.6 × 54 mm.
-// Front: diagonal banner, circular photo with ring, field block, QR, footer.
-// Back:  property banner, vision/mission/values, contact, headmaster signature.
+// Design language: sleek minimal — vertical color bar, square photo, clean type hierarchy.
+// No clip-path, no diagonal shapes, no circular elements.
 
 // FRONT of card — returns an HTML fragment (no doctype/head).
 function buildCardMarkup({ student, card, school, qrDataUrl }) {
-  const primary = school.primary_color || '#007A8C';
-  const accent  = school.accent_color  || '#1A3A5C';
+  const primary = esc(school.primary_color || '#007A8C');
+  const accent  = esc(school.accent_color  || '#B8860B');
 
   const expires = card.expires_at
-    ? new Date(card.expires_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }).toUpperCase()
+    ? new Date(card.expires_at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }).toUpperCase()
     : 'NO EXPIRY';
 
-  const photoInner = student.picture_url
-    ? `<img src="${esc(student.picture_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`
-    : `<svg viewBox="0 0 60 70" xmlns="http://www.w3.org/2000/svg" style="width:65%;height:65%;fill:rgba(255,255,255,0.5);display:block;margin:17.5% auto 0;">
-         <circle cx="30" cy="22" r="16"/>
-         <path d="M0 70 Q0 44 30 44 Q60 44 60 70Z"/>
+  const photoContent = student.picture_url
+    ? `<img src="${esc(student.picture_url)}" style="width:100%;height:100%;object-fit:cover;display:block;" />`
+    : `<svg viewBox="0 0 60 72" xmlns="http://www.w3.org/2000/svg" style="position:absolute;bottom:0;left:0;width:100%;height:90%;">
+         <circle cx="30" cy="20" r="15" fill="rgba(255,255,255,0.22)"/>
+         <path d="M0 72 Q0 44 30 44 Q60 44 60 72Z" fill="rgba(255,255,255,0.22)"/>
        </svg>`;
 
   const logoHtml = school.logo_url
-    ? `<img src="${esc(school.logo_url)}" style="width:9mm;height:9mm;object-fit:contain;flex-shrink:0;" />`
+    ? `<img src="${esc(school.logo_url)}" style="width:7mm;height:7mm;object-fit:contain;flex-shrink:0;" />`
     : '';
 
-  const program = esc(student.program_name || student.class_name || '—');
+  const program = student.program_name || student.class_name || '—';
 
   function fieldRow(label, value) {
-    return `<div style="display:flex;align-items:baseline;line-height:1.3;">
-      <span style="font-size:4pt;font-weight:800;color:${esc(accent)};text-transform:uppercase;letter-spacing:0.03em;width:14mm;flex-shrink:0;">${label}</span>
-      <span style="font-size:4pt;color:#1a1a1a;font-weight:600;text-transform:uppercase;letter-spacing:0.02em;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">: ${esc(value || '—')}</span>
+    return `<div style="display:flex;align-items:baseline;overflow:hidden;line-height:1.3;">
+      <span style="font-size:5.5pt;font-weight:800;color:${accent};text-transform:uppercase;letter-spacing:0.07em;flex-shrink:0;width:13mm;">${label}</span>
+      <span style="font-size:6pt;color:#1E293B;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${esc(value || '—')}</span>
     </div>`;
   }
 
-  return `<div style="width:85.6mm;height:54mm;display:flex;flex-direction:column;background:#ECF0F4;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
+  return `<div style="width:85.6mm;height:54mm;display:flex;background:#F7F9FB;overflow:hidden;font-family:'Helvetica Neue',Arial,Helvetica,sans-serif;">
 
-  <div style="height:13mm;background:${esc(primary)};clip-path:polygon(0 0,100% 0,88% 100%,0 100%);display:flex;align-items:center;padding:0 4mm 0 2.5mm;gap:2mm;flex-shrink:0;">
-    ${logoHtml}
-    <div style="color:white;font-size:6pt;font-weight:800;letter-spacing:0.07em;text-transform:uppercase;line-height:1.2;overflow:hidden;">${esc(school.name)}</div>
-  </div>
+  <!-- Left accent bar -->
+  <div style="width:3mm;background:${primary};flex-shrink:0;"></div>
 
-  <div style="flex:1;display:flex;padding:2.5mm 2mm 1.5mm 2.5mm;gap:2mm;overflow:hidden;">
+  <!-- Card body -->
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
 
-    <div style="width:22mm;height:22mm;border-radius:50%;background:${esc(primary)};display:flex;align-items:center;justify-content:center;flex-shrink:0;align-self:center;box-shadow:0 0 0 1.2mm rgba(0,0,0,0.12);">
-      <div style="width:18.6mm;height:18.6mm;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;">${photoInner}</div>
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:1.5mm;padding:1.5mm 2mm 0 1.8mm;flex-shrink:0;">
+      ${logoHtml}
+      <div style="flex:1;color:${primary};font-size:11pt;font-weight:900;letter-spacing:0.04em;text-transform:uppercase;line-height:1.15;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${esc(school.name)}</div>
+      <div style="text-align:right;flex-shrink:0;line-height:1.35;">
+        <div style="font-size:5pt;font-weight:800;color:${accent};letter-spacing:0.09em;text-transform:uppercase;">STUDENT</div>
+        <div style="font-size:5pt;font-weight:800;color:${accent};letter-spacing:0.09em;text-transform:uppercase;">ID CARD</div>
+      </div>
     </div>
 
-    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;">
-      <div style="background:${esc(accent)};clip-path:polygon(0 0,100% 0,94% 100%,0 100%);padding:1.5mm 5mm 1.5mm 2mm;margin-bottom:2mm;flex-shrink:0;">
-        <span style="color:white;font-size:5pt;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;">STUDENT ID CARD</span>
+    <!-- Hairline -->
+    <div style="height:0.35mm;background:${accent};margin:1.2mm 2mm;flex-shrink:0;opacity:0.75;"></div>
+
+    <!-- Main body -->
+    <div style="flex:1;display:flex;padding:0 1.8mm 0 1.5mm;gap:2mm;overflow:hidden;min-height:0;">
+
+      <!-- Photo -->
+      <div style="width:21mm;flex-shrink:0;align-self:flex-start;background:${primary};overflow:hidden;position:relative;">
+        <div style="width:21mm;height:27mm;overflow:hidden;position:relative;">${photoContent}</div>
       </div>
-      <div style="flex:1;display:flex;gap:1.5mm;overflow:hidden;">
-        <div style="flex:1;display:flex;flex-direction:column;gap:1.4mm;overflow:hidden;min-width:0;">
-          ${fieldRow('NAME',    student.name)}
-          ${fieldRow('SEX',     student.gender)}
-          ${fieldRow('PROGRAM', program)}
-          ${fieldRow('STATUS',  student.residential_status)}
-          ${fieldRow('HOUSE',   student.house)}
-        </div>
-        <div style="display:flex;align-items:flex-end;flex-shrink:0;">
-          <div style="background:white;padding:0.8mm;border-radius:1mm;box-shadow:0 1px 3px rgba(0,0,0,0.12);">
-            <img src="${qrDataUrl}" style="display:block;width:12.5mm;height:12.5mm;" />
+
+      <!-- Info column -->
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;">
+
+        <!-- Student name -->
+        <div style="font-size:8.5pt;font-weight:900;color:${primary};text-transform:uppercase;letter-spacing:0.02em;line-height:1.2;margin-bottom:1mm;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${esc(student.name)}</div>
+
+        <!-- Rule -->
+        <div style="height:0.35mm;background:${accent};margin-bottom:1.4mm;flex-shrink:0;opacity:0.75;"></div>
+
+        <!-- Fields + QR -->
+        <div style="flex:1;display:flex;gap:1.5mm;overflow:hidden;min-height:0;">
+          <div style="flex:1;display:flex;flex-direction:column;gap:1.5mm;overflow:hidden;min-width:0;">
+            ${fieldRow('SEX',     student.gender)}
+            ${fieldRow('PROG',    program)}
+            ${fieldRow('STATUS',  student.residential_status)}
+            ${fieldRow('HOUSE',   student.house)}
+          </div>
+          <!-- QR -->
+          <div style="display:flex;align-items:flex-end;flex-shrink:0;padding-bottom:0.5mm;">
+            <div style="background:white;border:0.3mm solid #CBD5E1;padding:0.5mm;">
+              <img src="${qrDataUrl}" style="display:block;width:12mm;height:12mm;" />
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <div style="height:10mm;background:${esc(primary)};display:flex;align-items:center;justify-content:space-between;padding:0 3mm;flex-shrink:0;overflow:hidden;position:relative;">
-    <svg style="position:absolute;left:0;top:0;height:100%;width:26mm;opacity:0.18;" viewBox="0 0 98 38" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-      <polygon points="0,0 14,0 0,38" fill="white"/>
-      <polygon points="14,0 30,0 16,38 0,38" fill="white" opacity="0.7"/>
-      <polygon points="30,0 46,0 32,38 16,38" fill="white"/>
-      <polygon points="46,0 62,0 48,38 32,38" fill="white" opacity="0.7"/>
-    </svg>
-    <div style="color:white;font-size:5pt;font-weight:800;font-style:italic;letter-spacing:0.02em;position:relative;">ID NO: ${esc(student.student_code)}</div>
-    <div style="color:rgba(255,255,255,0.85);font-size:4pt;font-weight:600;letter-spacing:0.05em;">VALID THRU: ${expires}</div>
+    <!-- Footer -->
+    <div style="height:11mm;background:${primary};display:flex;align-items:center;justify-content:space-between;padding:0 2.5mm;flex-shrink:0;">
+      <div style="color:white;font-size:7pt;font-weight:800;letter-spacing:0.03em;">ID: ${esc(student.student_code || '—')}</div>
+      <div style="text-align:right;">
+        <div style="color:rgba(255,255,255,0.65);font-size:5pt;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;">Valid Thru</div>
+        <div style="color:white;font-size:6.5pt;font-weight:800;letter-spacing:0.03em;">${expires}</div>
+      </div>
+    </div>
   </div>
 </div>`;
 }
 
 // BACK of card — returns an HTML fragment (no doctype/head).
+// Right 3mm bar = accent_color. After long-edge flip this physically aligns
+// with the front's left primary_color bar — both on the same card edge.
 function buildCardBackMarkup({ student, card, school }) {
-  const primary = school.primary_color || '#007A8C';
-  const accent  = school.accent_color  || '#1A3A5C';
+  const primary = esc(school.primary_color || '#007A8C');
+  const accent  = esc(school.accent_color  || '#B8860B');
 
   const logoHtml = school.logo_url
-    ? `<img src="${esc(school.logo_url)}" style="width:8.5mm;height:8.5mm;object-fit:contain;flex-shrink:0;" />`
+    ? `<img src="${esc(school.logo_url)}" style="width:7.5mm;height:7.5mm;object-fit:contain;flex-shrink:0;" />`
     : '';
 
   const sigHtml = school.headmaster_signature_url
-    ? `<img src="${esc(school.headmaster_signature_url)}" style="display:block;max-height:7.5mm;max-width:20mm;object-fit:contain;" />`
-    : `<div style="height:7.5mm;"></div>`;
+    ? `<img src="${esc(school.headmaster_signature_url)}" style="display:block;max-height:6mm;max-width:18mm;object-fit:contain;" />`
+    : `<div style="height:6mm;"></div>`;
 
-  const vision   = (school.vision      || '').trim();
-  const mission  = (school.mission     || '').trim();
-  const values   = (school.core_values || '').trim();
-  const c1       = (school.lost_card_contact_1 || '').trim();
-  const c2       = (school.lost_card_contact_2 || '').trim();
-  const hdmName  = (school.headmaster_name || 'HEADMASTER').trim();
+  const vision  = (school.vision      || '').trim();
+  const mission = (school.mission     || '').trim();
+  const values  = (school.core_values || '').trim();
+  const c1      = (school.lost_card_contact_1 || '').trim();
+  const c2      = (school.lost_card_contact_2 || '').trim();
+  const hdmName = (school.headmaster_name || 'Headmaster').trim();
 
   const contactLine = c1 && c2
-    ? `If found, please contact ${esc(c1)} or ${esc(c2)}`
-    : c1 ? `If found, please contact ${esc(c1)}` : '';
+    ? `If found, contact ${esc(c1)} or ${esc(c2)}`
+    : c1 ? `If found, contact ${esc(c1)}` : '';
 
   function infoBlock(label, text) {
-    return text ? `<div style="font-size:3.5pt;line-height:1.45;color:#1a2a3a;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;"><span style="font-weight:800;color:${esc(accent)};">${label}: </span>${esc(text)}</div>` : '';
+    if (!text) return '';
+    return `<div style="overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.5;">
+      <span style="font-size:5.5pt;font-weight:800;color:${accent};text-transform:uppercase;letter-spacing:0.06em;">${label} </span>
+      <span style="font-size:5.5pt;color:#334155;">${esc(text)}</span>
+    </div>`;
   }
 
-  return `<div style="width:85.6mm;height:54mm;display:flex;flex-direction:column;background:#ECF0F4;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
+  return `<div style="width:85.6mm;height:54mm;display:flex;background:#F7F9FB;overflow:hidden;font-family:'Helvetica Neue',Arial,Helvetica,sans-serif;">
 
-  <div style="height:12mm;background:${esc(primary)};clip-path:polygon(0 0,100% 0,88% 100%,0 100%);display:flex;align-items:center;padding:0 4mm 0 2.5mm;gap:2mm;flex-shrink:0;">
-    ${logoHtml}
-    <div style="color:rgba(255,255,255,0.92);font-size:5pt;font-weight:800;letter-spacing:0.07em;text-transform:uppercase;line-height:1.2;">THIS CARD IS THE PROPERTY OF</div>
+  <!-- Card body -->
+  <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+
+    <!-- Top strip -->
+    <div style="height:11mm;background:${accent};display:flex;align-items:center;padding:0 2.5mm;gap:1.5mm;flex-shrink:0;">
+      ${logoHtml}
+      <div style="flex:1;overflow:hidden;">
+        <div style="color:white;font-size:5.5pt;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;line-height:1.3;">THIS CARD IS THE PROPERTY OF</div>
+        <div style="color:rgba(255,255,255,0.9);font-size:11pt;font-weight:900;text-transform:uppercase;letter-spacing:0.03em;line-height:1.2;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${esc(school.name)}</div>
+      </div>
+    </div>
+
+    <!-- Hairline -->
+    <div style="height:0.35mm;background:${primary};flex-shrink:0;opacity:0.4;"></div>
+
+    <!-- Body -->
+    <div style="flex:1;padding:1.8mm 2.5mm 1mm;display:flex;flex-direction:column;gap:1.5mm;overflow:hidden;">
+      ${infoBlock('Vision:', vision)}
+      ${infoBlock('Mission:', mission)}
+      ${infoBlock('Values:', values)}
+      ${contactLine ? `<div style="font-size:5pt;font-style:italic;color:#64748B;line-height:1.45;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${contactLine}</div>` : ''}
+    </div>
+
+    <!-- Footer -->
+    <div style="height:11mm;background:${primary};display:flex;align-items:center;justify-content:space-between;padding:0 2.5mm;flex-shrink:0;overflow:hidden;">
+      <div style="display:flex;flex-direction:column;gap:0.8mm;overflow:hidden;min-width:0;">
+        ${sigHtml}
+        <div style="width:20mm;height:0.3mm;background:rgba(255,255,255,0.5);flex-shrink:0;"></div>
+        <div style="color:white;font-size:5.5pt;font-weight:700;letter-spacing:0.06em;white-space:nowrap;">${esc(hdmName)}</div>
+      </div>
+      <!-- Decorative dots -->
+      <div style="display:flex;align-items:center;gap:1.2mm;flex-shrink:0;">
+        <div style="width:2.5mm;height:2.5mm;border-radius:50%;background:rgba(255,255,255,0.25);"></div>
+        <div style="width:3.5mm;height:3.5mm;border-radius:50%;background:rgba(255,255,255,0.4);"></div>
+        <div style="width:5mm;height:5mm;border-radius:50%;background:rgba(255,255,255,0.55);"></div>
+      </div>
+    </div>
   </div>
 
-  <div style="flex:1;padding:2mm 3.5mm 1.5mm;display:flex;flex-direction:column;overflow:hidden;">
-    <div style="text-align:center;margin-bottom:1.5mm;flex-shrink:0;">
-      <span style="font-size:5.5pt;font-weight:800;color:${esc(accent)};text-transform:uppercase;letter-spacing:0.05em;border-bottom:0.5mm solid ${esc(accent)};padding-bottom:0.4mm;">${esc(school.name)}</span>
-    </div>
-    <div style="flex:1;display:flex;flex-direction:column;gap:1.4mm;overflow:hidden;">
-      ${infoBlock('Our Vision',  vision)}
-      ${infoBlock('Our Mission', mission)}
-      ${infoBlock('Our Values',  values)}
-      ${contactLine ? `<div style="font-size:3.5pt;font-style:italic;color:#444;margin-top:0.5mm;line-height:1.4;">${contactLine}</div>` : ''}
-    </div>
-  </div>
-
-  <div style="height:11mm;background:${esc(primary)};display:flex;align-items:center;justify-content:space-between;padding:0 2.5mm 0 3mm;flex-shrink:0;overflow:hidden;position:relative;">
-    <svg style="position:absolute;right:0;top:0;height:100%;width:20mm;opacity:0.18;" viewBox="0 0 76 42" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-      <polygon points="76,0 62,0 76,42" fill="white"/>
-      <polygon points="62,0 46,0 60,42 76,42" fill="white" opacity="0.7"/>
-      <polygon points="46,0 30,0 44,42 60,42" fill="white"/>
-      <polygon points="30,0 14,0 28,42 44,42" fill="white" opacity="0.7"/>
-    </svg>
-    <div style="display:flex;flex-direction:column;align-items:flex-start;position:relative;gap:0.5mm;">
-      ${sigHtml}
-      <div style="width:20mm;border-top:0.35mm solid rgba(255,255,255,0.65);"></div>
-      <div style="color:white;font-size:3.8pt;font-weight:700;letter-spacing:0.07em;">${esc(hdmName)}</div>
-    </div>
-    <svg width="11mm" height="7.5mm" viewBox="0 0 42 28" xmlns="http://www.w3.org/2000/svg" style="position:relative;">
-      <line x1="2" y1="28" x2="12" y2="0" stroke="rgba(255,255,255,0.55)" stroke-width="3.5" stroke-linecap="round"/>
-      <line x1="15" y1="28" x2="25" y2="0" stroke="rgba(255,255,255,0.55)" stroke-width="3.5" stroke-linecap="round"/>
-      <line x1="28" y1="28" x2="38" y2="0" stroke="rgba(255,255,255,0.55)" stroke-width="3.5" stroke-linecap="round"/>
-    </svg>
-  </div>
+  <!-- Right accent bar (aligns with front left bar after long-edge duplex flip) -->
+  <div style="width:3mm;background:${accent};flex-shrink:0;"></div>
 </div>`;
 }
 
