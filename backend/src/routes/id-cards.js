@@ -465,6 +465,45 @@ router.post(
   }
 );
 
+// ── GET /api/id-cards/missing-photos ─────────────────────────────────────────
+// Admin only. Returns active students in the given scope who have no photo.
+// Query params: ?class_name=X or ?all=true  (same scoping as the batch endpoint)
+router.get(
+  '/missing-photos',
+  authenticate, adminOnly, requireActiveSubscription,
+  async (req, res, next) => {
+    try {
+      const { class_name, all: isAll } = req.query;
+      if (!class_name && !isAll) {
+        return res.status(400).json({ error: 'Provide class_name or all=true' });
+      }
+
+      let rows;
+      if (isAll === 'true' || isAll === '1') {
+        ({ rows } = await pool.query(
+          `SELECT id, name, class_name, student_code
+           FROM students
+           WHERE school_id = $1 AND LOWER(status) = 'active'
+             AND (picture_url IS NULL OR picture_url = '')
+           ORDER BY class_name, name`,
+          [req.schoolId]
+        ));
+      } else {
+        ({ rows } = await pool.query(
+          `SELECT id, name, class_name, student_code
+           FROM students
+           WHERE school_id = $1 AND class_name = $2 AND LOWER(status) = 'active'
+             AND (picture_url IS NULL OR picture_url = '')
+           ORDER BY name`,
+          [req.schoolId, class_name]
+        ));
+      }
+
+      res.json({ students: rows, total: rows.length });
+    } catch (err) { next(err); }
+  }
+);
+
 // ── POST /api/id-cards/batch ──────────────────────────────────────────────────
 // Admin only. Starts a background batch job.
 // Body: { class_name: "Form 1A" } — specific class
