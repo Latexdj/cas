@@ -107,6 +107,8 @@ export default function StudentProfilePage() {
   const [activeCard,   setActiveCard]   = useState<IdCard | null | undefined>(undefined); // undefined = not yet loaded
   const [cardLoading,  setCardLoading]  = useState(false);
   const [cardErr,      setCardErr]      = useState('');
+  const [cardIssueDate,  setCardIssueDate]  = useState(() => new Date().toISOString().slice(0, 10));
+  const [cardExpiresAt,  setCardExpiresAt]  = useState(() => `${new Date().getFullYear()}-12-31`);
 
   interface ScanEvent {
     token_queried: string; response_status: string;
@@ -202,12 +204,13 @@ export default function StudentProfilePage() {
     } finally { setSaving(false); }
   }
 
-  async function downloadCardPDF(endpoint: string, filename: string) {
+  async function downloadCard(endpoint: string, filename: string, body: Record<string, unknown> = {}) {
     setCardLoading(true); setCardErr('');
     try {
-      const response = await api.post(endpoint, {}, { responseType: 'blob' });
+      const response = await api.post(endpoint, body, { responseType: 'blob' });
       const blob = response.data as Blob;
-      const url  = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      const mime = filename.endsWith('.png') ? 'image/png' : 'application/pdf';
+      const url  = URL.createObjectURL(new Blob([blob], { type: mime }));
       const a    = document.createElement('a');
       a.href     = url;
       a.download = filename;
@@ -483,13 +486,31 @@ export default function StudentProfilePage() {
               <p className="text-sm text-gray-500 mb-5">No active card. Click Generate to issue one.</p>
             )}
 
+            {/* Date override fields */}
+            <div className="flex gap-3 mb-4">
+              <div className="flex-1">
+                <p className="text-xs text-gray-400 font-medium mb-0.5">Issue Date</p>
+                <input type="date" value={cardIssueDate} onChange={e => setCardIssueDate(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs text-gray-400 font-medium mb-0.5">Valid Until</p>
+                <input type="date" value={cardExpiresAt} onChange={e => setCardExpiresAt(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            {activeCard && (
+              <p className="text-xs text-gray-400 mb-3 -mt-2">Dates apply only if a new card is minted. Existing active cards retain their stored dates.</p>
+            )}
+
             {/* Action buttons */}
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <button
                 disabled={cardLoading}
-                onClick={() => downloadCardPDF(
+                onClick={() => downloadCard(
                   `/api/id-cards/pdf/${id}`,
-                  `ID_${profile.name.replace(/\s+/g, '_')}_Issue${(activeCard?.issue_number ?? 1)}.pdf`
+                  `ID_${profile.name.replace(/\s+/g, '_')}_Issue${(activeCard?.issue_number ?? 1)}.pdf`,
+                  { issued_at: cardIssueDate, expires_at: cardExpiresAt }
                 )}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50"
               >
@@ -500,17 +521,35 @@ export default function StudentProfilePage() {
                     <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 )}
-                {activeCard ? 'Download Card' : 'Generate ID Card'}
+                {activeCard ? 'Download PDF' : 'Generate ID Card'}
               </button>
+
+              {activeCard && (
+                <button
+                  disabled={cardLoading}
+                  onClick={() => downloadCard(
+                    `/api/id-cards/png/${id}`,
+                    `ID_${profile.name.replace(/\s+/g, '_')}_Issue${activeCard.issue_number}.png`,
+                    { issued_at: cardIssueDate, expires_at: cardExpiresAt }
+                  )}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                    <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                  </svg>
+                  Download PNG
+                </button>
+              )}
 
               {activeCard && (
                 <button
                   disabled={cardLoading}
                   onClick={() => {
                     if (!confirm('Reissue card? The current card will be revoked immediately and a new one generated.')) return;
-                    downloadCardPDF(
+                    downloadCard(
                       `/api/id-cards/reissue-pdf/${id}`,
-                      `ID_${profile.name.replace(/\s+/g, '_')}_Issue${activeCard.issue_number + 1}.pdf`
+                      `ID_${profile.name.replace(/\s+/g, '_')}_Issue${activeCard.issue_number + 1}.pdf`,
+                      { issued_at: cardIssueDate, expires_at: cardExpiresAt }
                     );
                   }}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"

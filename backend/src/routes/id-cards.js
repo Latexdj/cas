@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
-const { generateCardBuffer, generateBatchAndUpload } = require('../services/pdf.service');
+const { generateCardBuffer, generateBatchAndUpload, generateCardPng } = require('../services/pdf.service');
 const QRCode = require('qrcode');
 
 // ── In-memory batch job store ─────────────────────────────────────────────────
@@ -11,11 +11,13 @@ const QRCode = require('qrcode');
 // for a few hundred students takes ~1–2 min; the admin polls for status.
 const batchJobs = new Map();
 
-function createBatchJob({ schoolId, createdBy, filter }) {
+function createBatchJob({ schoolId, createdBy, filter, issuedAt, expiresAt }) {
   const id  = crypto.randomUUID();
   const job = {
     id, schoolId, createdBy,
     filter,                         // { className: string } | { all: true }
+    issuedAt:  issuedAt  ?? null,   // explicit issue date for newly minted cards
+    expiresAt: expiresAt ?? null,   // explicit expiry; null → resolveExpiresAt
     status:   'queued',             // queued | processing | done | failed
     progress: { done: 0, total: 0 },
     report:   null,                 // set on completion
@@ -58,7 +60,7 @@ async function processBatchJob(job) {
       ({ rows: studentRows } = await batchPool.query(
         `SELECT s.id, s.name, s.class_name, s.jhs_index_number, s.student_code, s.picture_url,
                 s.gender, s.residential_status, s.house,
-                p.name AS program_name
+                p.name AS program_name, p.display_name AS program_display_name
          FROM students s
          LEFT JOIN programs p ON p.id = s.program_id
          WHERE s.school_id = $1 AND LOWER(s.status) = 'active'
@@ -69,7 +71,7 @@ async function processBatchJob(job) {
       ({ rows: studentRows } = await batchPool.query(
         `SELECT s.id, s.name, s.class_name, s.jhs_index_number, s.student_code, s.picture_url,
                 s.gender, s.residential_status, s.house,
-                p.name AS program_name
+                p.name AS program_name, p.display_name AS program_display_name
          FROM students s
          LEFT JOIN programs p ON p.id = s.program_id
          WHERE s.school_id = $1 AND s.class_name = $2 AND LOWER(s.status) = 'active'
@@ -80,7 +82,8 @@ async function processBatchJob(job) {
 
     job.progress.total = studentRows.length;
 
-    const expiresAt     = await resolveExpiresAt(job.schoolId, batchPool);
+    const expiresAt     = job.expiresAt ?? await resolveExpiresAt(job.schoolId, batchPool);
+    const issuedAt      = job.issuedAt  ?? null;
     const entries       = [];
     let newlyMinted = 0, reused = 0, noPhoto = 0;
 
@@ -104,9 +107,9 @@ async function processBatchJob(job) {
           [student.id]
         );
         const { rows: [newCard] } = await batchPool.query(
-          `INSERT INTO student_id_cards (student_id, school_id, issue_number, expires_at)
-           VALUES ($1, $2, $3, $4) RETURNING *`,
-          [student.id, job.schoolId, parseInt(numRow.max_num) + 1, expiresAt]
+          `INSERT INTO student_id_cards (student_id, school_id, issue_number, expires_at, issued_at)
+           VALUES ($1, $2, $3, $4, COALESCE($5::date, CURRENT_DATE)) RETURNING *`,
+          [student.id, job.schoolId, parseInt(numRow.max_num) + 1, expiresAt, issuedAt]
         );
         card = newCard;
         newlyMinted++;
@@ -387,6 +390,8 @@ router.post(
       );
       const school = schRows[0] ?? { name: '', logo_url: null };
 
+      const { issued_at, expires_at } = req.body ?? {};
+
       // Mint or reuse
       let card;
       const { rows: existing } = await pool.query(
@@ -396,15 +401,15 @@ router.post(
       if (existing.length) {
         card = existing[0];
       } else {
-        const expiresAt = await resolveExpiresAt(req.schoolId);
+        const expiresAt = expires_at ? new Date(expires_at) : await resolveExpiresAt(req.schoolId);
         const { rows: numRows } = await pool.query(
           `SELECT COALESCE(MAX(issue_number), 0) AS max_num FROM student_id_cards WHERE student_id = $1`,
           [studentId]
         );
         const { rows: newRows } = await pool.query(
-          `INSERT INTO student_id_cards (student_id, school_id, issue_number, expires_at)
-           VALUES ($1, $2, $3, $4) RETURNING *`,
-          [studentId, req.schoolId, parseInt(numRows[0].max_num) + 1, expiresAt]
+          `INSERT INTO student_id_cards (student_id, school_id, issue_number, expires_at, issued_at)
+           VALUES ($1, $2, $3, $4, COALESCE($5::date, CURRENT_DATE)) RETURNING *`,
+          [studentId, req.schoolId, parseInt(numRows[0].max_num) + 1, expiresAt, issued_at || null]
         );
         card = newRows[0];
       }
@@ -430,7 +435,7 @@ router.post(
   async (req, res, next) => {
     try {
       const { studentId } = req.params;
-      const { reason = 'Reissued' } = req.body;
+      const { reason = 'Reissued', issued_at, expires_at } = req.body ?? {};
 
       const { rows: sRows } = await pool.query(
         `SELECT s.id, s.name, s.class_name, s.jhs_index_number, s.student_code, s.picture_url,
@@ -471,11 +476,11 @@ router.post(
         nextIssue = parseInt(numRows[0].max_num) + 1;
       }
 
-      const expiresAt = await resolveExpiresAt(req.schoolId);
+      const expiresAt = expires_at ? new Date(expires_at) : await resolveExpiresAt(req.schoolId);
       const { rows: newRows } = await pool.query(
-        `INSERT INTO student_id_cards (student_id, school_id, issue_number, expires_at)
-         VALUES ($1, $2, $3, $4) RETURNING *`,
-        [studentId, req.schoolId, nextIssue, expiresAt]
+        `INSERT INTO student_id_cards (student_id, school_id, issue_number, expires_at, issued_at)
+         VALUES ($1, $2, $3, $4, COALESCE($5::date, CURRENT_DATE)) RETURNING *`,
+        [studentId, req.schoolId, nextIssue, expiresAt, issued_at || null]
       );
       const card = newRows[0];
 
@@ -487,6 +492,64 @@ router.post(
         'Content-Length':      pdfBuffer.length,
       });
       res.end(pdfBuffer);
+    } catch (err) { next(err); }
+  }
+);
+
+// ── POST /api/id-cards/png/:studentId ────────────────────────────────────────
+// Admin only. Returns a 648×408 PNG screenshot of the card front.
+// Uses the active card if one exists; mints a new card only if there is none.
+router.post(
+  '/png/:studentId',
+  authenticate, adminOnly, requireActiveSubscription,
+  async (req, res, next) => {
+    try {
+      const { studentId } = req.params;
+      const { issued_at, expires_at } = req.body ?? {};
+
+      const { rows: sRows } = await pool.query(
+        `SELECT s.id, s.name, s.class_name, s.jhs_index_number, s.student_code, s.picture_url,
+                s.gender, s.residential_status, s.house, p.name AS program_name, p.display_name AS program_display_name
+         FROM students s LEFT JOIN programs p ON p.id = s.program_id
+         WHERE s.id = $1 AND s.school_id = $2`,
+        [studentId, req.schoolId]
+      );
+      if (!sRows.length) return res.status(404).json({ error: 'Student not found' });
+      const student = sRows[0];
+
+      const { rows: schoolRows } = await pool.query(
+        `SELECT name, logo_url, primary_color, accent_color, vision, mission FROM schools WHERE id = $1`,
+        [req.schoolId]
+      );
+      const school = schoolRows[0] ?? {};
+
+      // Use existing active card or mint a new one
+      const { rows: existing } = await pool.query(
+        `SELECT * FROM student_id_cards WHERE student_id = $1 AND status = 'active' ORDER BY issue_number DESC LIMIT 1`,
+        [studentId]
+      );
+
+      let card;
+      if (existing.length) {
+        card = existing[0];
+      } else {
+        const expiresAt = expires_at || resolveExpiresAt();
+        const { rows: newRows } = await pool.query(
+          `INSERT INTO student_id_cards (student_id, school_id, issue_number, expires_at, issued_at)
+           VALUES ($1, $2, 1, $3, COALESCE($4::date, CURRENT_DATE)) RETURNING *`,
+          [studentId, req.schoolId, expiresAt, issued_at || null]
+        );
+        card = newRows[0];
+      }
+
+      const pngBuffer = await generateCardPng({ student, card, school });
+      const safe = student.name.replace(/[^A-Za-z0-9]/g, '_');
+      res.set({
+        'Content-Type':        'image/png',
+        'Content-Disposition': `attachment; filename="ID_${safe}_Issue${card.issue_number}.png"`,
+        'Content-Length':      pngBuffer.length,
+      });
+      res.end(pngBuffer);
     } catch (err) { next(err); }
   }
 );
@@ -664,13 +727,17 @@ router.post(
   authenticate, adminOnly, requireActiveSubscription,
   async (req, res, next) => {
     try {
-      const { class_name, all: isAll } = req.body;
+      const { class_name, all: isAll, issued_at, expires_at } = req.body;
       if (!class_name && !isAll) {
         return res.status(400).json({ error: 'Provide class_name or all: true' });
       }
 
       const filter = isAll ? { all: true } : { className: class_name };
-      const job    = createBatchJob({ schoolId: req.schoolId, createdBy: req.user.id, filter });
+      const job    = createBatchJob({
+        schoolId: req.schoolId, createdBy: req.user.id, filter,
+        issuedAt:  issued_at  || null,
+        expiresAt: expires_at ? new Date(expires_at) : null,
+      });
 
       // Fire-and-forget — respond before processing starts.
       res.status(202).json({ jobId: job.id });

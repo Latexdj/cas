@@ -2591,6 +2591,12 @@ async function runMigrations() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_id_card_scans_at    ON id_card_scans(scanned_at DESC)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] id_cards:', e.message); }
 
+    // ── ID Card: issued_at + program display_name ─────────────────────────────
+    try {
+    await pool.query(`ALTER TABLE student_id_cards ADD COLUMN IF NOT EXISTS issued_at DATE DEFAULT CURRENT_DATE`);
+    await pool.query(`ALTER TABLE programs          ADD COLUMN IF NOT EXISTS display_name TEXT`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] id-card issued_at + program display_name:', e.message); }
+
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
     } else {

@@ -82,11 +82,13 @@ export default function StudentsPage() {
   };
   type MissingStudent = { id: string; name: string; class_name: string; student_code: string };
 
-  const [batchOpen,    setBatchOpen]    = useState(false);
-  const [batchScope,   setBatchScope]   = useState<'all' | 'class'>('all');
-  const [batchClass,   setBatchClass]   = useState('');
-  const [batchRunning, setBatchRunning] = useState(false);
-  const [batchJob,     setBatchJob]     = useState<BatchJob | null>(null);
+  const [batchOpen,      setBatchOpen]      = useState(false);
+  const [batchScope,     setBatchScope]     = useState<'all' | 'class'>('all');
+  const [batchClass,     setBatchClass]     = useState('');
+  const [batchIssueDate, setBatchIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [batchExpiresAt, setBatchExpiresAt] = useState(() => `${new Date().getFullYear()}-12-31`);
+  const [batchRunning,   setBatchRunning]   = useState(false);
+  const [batchJob,       setBatchJob]       = useState<BatchJob | null>(null);
   const batchPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Missing photos state
@@ -383,7 +385,11 @@ export default function StudentsPage() {
     setBatchRunning(true);
     setBatchJob(null);
     try {
-      const body = batchScope === 'all' ? { all: true } : { class_name: batchClass };
+      const body = {
+        ...(batchScope === 'all' ? { all: true } : { class_name: batchClass }),
+        issued_at: batchIssueDate,
+        expires_at: batchExpiresAt,
+      };
       const { data } = await api.post<{ jobId: string }>('/api/id-cards/batch', body);
       const initial: BatchJob = {
         jobId: data.jobId, status: 'queued',
@@ -1184,6 +1190,20 @@ export default function StudentsPage() {
                     Cards are minted for students without an active card. Students who already have one are not reissued.
                     A multi-page PDF is generated and uploaded — you'll get a download link when complete.
                   </p>
+
+                  {/* Batch date overrides */}
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <p className="text-xs font-medium mb-0.5" style={{ color: '#64748B' }}>Issue Date</p>
+                      <input type="date" value={batchIssueDate} onChange={e => setBatchIssueDate(e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-medium mb-0.5" style={{ color: '#64748B' }}>Valid Until</p>
+                      <input type="date" value={batchExpiresAt} onChange={e => setBatchExpiresAt(e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  </div>
 
                   <div className="flex gap-3 pt-1">
                     <Button variant="secondary" className="flex-1" onClick={closeBatchPanel}>Cancel</Button>
