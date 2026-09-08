@@ -71,6 +71,14 @@ function EditField({
   );
 }
 
+const SCAN_STATUS_STYLE: Record<string, { bg: string; color: string; label: string }> = {
+  valid_auth:   { bg: '#DCFCE7', color: '#145C44', label: 'Valid (auth)' },
+  valid_public: { bg: '#DCFCE7', color: '#145C44', label: 'Valid' },
+  revoked:      { bg: '#FEE2E2', color: '#991B1B', label: 'Revoked' },
+  expired:      { bg: '#FEF3C7', color: '#92400E', label: 'Expired' },
+  unknown:      { bg: '#F1F5F9', color: '#64748B', label: 'Unknown token' },
+};
+
 function fmt(iso?: string | null) {
   if (!iso) return null;
   const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
@@ -100,11 +108,29 @@ export default function StudentProfilePage() {
   const [cardLoading,  setCardLoading]  = useState(false);
   const [cardErr,      setCardErr]      = useState('');
 
+  interface ScanEvent {
+    token_queried: string; response_status: string;
+    scanned_at: string; ip_address: string | null;
+    issue_number: number; card_status: string;
+    scanned_by_name: string | null;
+  }
+  const [scanHistory,        setScanHistory]        = useState<ScanEvent[]>([]);
+  const [scanHistoryLoading, setScanHistoryLoading] = useState(false);
+
   const loadCard = useCallback(async () => {
     try {
       const { data } = await api.get<{ active_card: IdCard | null }>(`/api/id-cards/student/${id}`);
       setActiveCard(data.active_card);
     } catch { setActiveCard(null); }
+  }, [id]);
+
+  const loadScanHistory = useCallback(async () => {
+    setScanHistoryLoading(true);
+    try {
+      const { data } = await api.get<{ scans: ScanEvent[] }>(`/api/id-cards/student/${id}/scans`);
+      setScanHistory(data.scans ?? []);
+    } catch { setScanHistory([]); }
+    finally { setScanHistoryLoading(false); }
   }, [id]);
 
   const load = useCallback(async () => {
@@ -124,7 +150,7 @@ export default function StudentProfilePage() {
     } finally { setLoading(false); }
   }, [id]);
 
-  useEffect(() => { load(); loadCard(); }, [load, loadCard]);
+  useEffect(() => { load(); loadCard(); loadScanHistory(); }, [load, loadCard, loadScanHistory]);
 
   function toForm(p: StudentProfile): Record<string, string> {
     return {
@@ -496,6 +522,72 @@ export default function StudentProfilePage() {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scan History */}
+      {!editing && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Scan History</h3>
+            {scanHistory.length > 0 && (
+              <span className="text-xs text-gray-400">{scanHistory.length} event{scanHistory.length !== 1 ? 's' : ''}</span>
+            )}
+          </div>
+          <div className="overflow-x-auto">
+            {scanHistoryLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#145C44', borderTopColor: 'transparent' }} />
+              </div>
+            ) : scanHistory.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">No scans recorded yet.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-400">Time</th>
+                    <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-400">Result</th>
+                    <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-400">Card</th>
+                    <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-400">Scanned by</th>
+                    <th className="px-5 py-2.5 text-left text-xs font-semibold text-gray-400">IP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scanHistory.map((s, i) => {
+                    const style = SCAN_STATUS_STYLE[s.response_status] ?? SCAN_STATUS_STYLE.unknown;
+                    return (
+                      <tr key={i} className="border-b border-gray-50 last:border-0">
+                        <td className="px-5 py-2.5 text-gray-700 whitespace-nowrap">
+                          {new Date(s.scanned_at).toLocaleString('en-GB', {
+                            day: 'numeric', month: 'short', year: 'numeric',
+                            hour: '2-digit', minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="px-5 py-2.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold"
+                            style={{ background: style.bg, color: style.color }}>
+                            {style.label}
+                          </span>
+                        </td>
+                        <td className="px-5 py-2.5 text-gray-500 text-xs">
+                          Issue #{s.issue_number}
+                          {s.card_status !== 'active' && (
+                            <span className="ml-1.5 text-amber-600">({s.card_status})</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-2.5 text-gray-500 text-xs">
+                          {s.scanned_by_name ?? <span className="text-gray-300 italic">public</span>}
+                        </td>
+                        <td className="px-5 py-2.5 text-gray-400 text-xs font-mono">
+                          {s.ip_address ?? <span className="text-gray-300 italic">purged</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}
