@@ -80,12 +80,20 @@ export default function StudentsPage() {
     report: { total: number; newly_minted: number; reused: number; no_photo: number } | null;
     pdfUrl: string | null; error: string | null;
   };
+  type MissingStudent = { id: string; name: string; class_name: string; student_code: string };
+
   const [batchOpen,    setBatchOpen]    = useState(false);
   const [batchScope,   setBatchScope]   = useState<'all' | 'class'>('all');
   const [batchClass,   setBatchClass]   = useState('');
   const [batchRunning, setBatchRunning] = useState(false);
   const [batchJob,     setBatchJob]     = useState<BatchJob | null>(null);
   const batchPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Missing photos state
+  const [missingPhotos,    setMissingPhotos]    = useState<MissingStudent[] | null>(null);
+  const [missingUploading, setMissingUploading] = useState<Set<string>>(new Set());
+  const photoUploadRef       = useRef<HTMLInputElement>(null);
+  const photoUploadTargetRef = useRef<string | null>(null);
   const [tmplLoading, setTmplLoading] = useState(false);
 
   // Form state
@@ -335,6 +343,40 @@ export default function StudentsPage() {
 
   const { displayRows, total, page, setPage, pageSize, setPageSize, sortKey, sortDir, handleSort } =
     useTableControls(filtered);
+
+  // Fetch missing photos whenever scope is fully specified and no job is running
+  useEffect(() => {
+    if (!batchOpen || batchJob) { setMissingPhotos(null); return; }
+    const ready = batchScope === 'all' || (batchScope === 'class' && batchClass);
+    if (!ready) { setMissingPhotos(null); return; }
+
+    setMissingPhotos(null);
+    const params = batchScope === 'all'
+      ? '?all=true'
+      : `?class_name=${encodeURIComponent(batchClass)}`;
+    api.get<{ students: MissingStudent[] }>(`/api/id-cards/missing-photos${params}`)
+      .then(r => setMissingPhotos(r.data.students))
+      .catch(() => setMissingPhotos([]));
+  }, [batchOpen, batchScope, batchClass, batchJob]);
+
+  function handleMissingPhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    const studentId = photoUploadTargetRef.current;
+    if (!file || !studentId) return;
+    e.target.value = '';
+
+    setMissingUploading(prev => new Set([...prev, studentId]));
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const b64 = (reader.result as string).replace(/^data:[^;]+;base64,/, '');
+      try {
+        await api.post(`/api/students/${studentId}/picture`, { imageBase64: b64 });
+        setMissingPhotos(prev => prev ? prev.filter(s => s.id !== studentId) : prev);
+      } catch { /* keep in list — upload failed */ }
+      setMissingUploading(prev => { const n = new Set(prev); n.delete(studentId); return n; });
+    };
+    reader.readAsDataURL(file);
+  }
 
   async function startBatchIDCards() {
     setBatchRunning(true);
@@ -1087,6 +1129,52 @@ export default function StudentsPage() {
                         <option value="">Select a class…</option>
                         {allClasses.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
+                    </div>
+                  )}
+
+                  {/* Missing photos — shown once scope is fully specified */}
+                  {(batchScope === 'all' || (batchScope === 'class' && batchClass)) && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-xs font-semibold" style={{ color: '#64748B' }}>Missing Photos</span>
+                        {missingPhotos !== null && (
+                          <span className="text-xs" style={{ color: '#94A3B8' }}>
+                            ({missingPhotos.length} student{missingPhotos.length !== 1 ? 's' : ''})
+                          </span>
+                        )}
+                      </div>
+                      {missingPhotos === null ? (
+                        <div className="text-xs text-center py-2.5 rounded-lg" style={{ background: '#F5F0E8', color: '#94A3B8' }}>
+                          Checking…
+                        </div>
+                      ) : missingPhotos.length === 0 ? (
+                        <div className="text-xs rounded-lg px-3 py-2" style={{ background: '#F0FDF4', color: '#145C44', border: '1px solid #BBF7D0' }}>
+                          All students have photos.
+                        </div>
+                      ) : (
+                        <div className="rounded-lg divide-y overflow-hidden" style={{ border: '1px solid #E2D9CC', maxHeight: 192, overflowY: 'auto' }}>
+                          {missingPhotos.map(s => (
+                            <div key={s.id} className="flex items-center gap-2.5 px-3 py-2">
+                              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                                style={{ background: '#F1F5F9', color: '#94A3B8' }}>
+                                {s.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium truncate" style={{ color: '#1C1208' }}>{s.name}</div>
+                                <div className="text-xs" style={{ color: '#94A3B8' }}>{s.class_name}</div>
+                              </div>
+                              <button
+                                disabled={missingUploading.has(s.id)}
+                                onClick={() => { photoUploadTargetRef.current = s.id; photoUploadRef.current?.click(); }}
+                                className="text-xs font-semibold px-2 py-1 rounded border transition-colors disabled:opacity-50 shrink-0"
+                                style={{ borderColor: '#C9A227', color: '#C9A227' }}>
+                                {missingUploading.has(s.id) ? 'Uploading…' : 'Upload'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <input ref={photoUploadRef} type="file" accept="image/*" className="hidden" onChange={handleMissingPhotoUpload} />
                     </div>
                   )}
 
