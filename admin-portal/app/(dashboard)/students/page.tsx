@@ -368,9 +368,10 @@ export default function StudentsPage() {
     setMissingUploading(prev => new Set([...prev, studentId]));
     const reader = new FileReader();
     reader.onload = async () => {
-      const b64 = (reader.result as string).replace(/^data:[^;]+;base64,/, '');
+      // uploadFile on the backend expects the full data URI (data:image/...;base64,...)
+      const dataUrl = reader.result as string;
       try {
-        await api.post(`/api/students/${studentId}/picture`, { imageBase64: b64 });
+        await api.post(`/api/students/${studentId}/picture`, { imageBase64: dataUrl });
         setMissingPhotos(prev => prev ? prev.filter(s => s.id !== studentId) : prev);
       } catch { /* keep in list — upload failed */ }
       setMissingUploading(prev => { const n = new Set(prev); n.delete(studentId); return n; });
