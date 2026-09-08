@@ -324,37 +324,37 @@ function buildCardBackMarkup({ student, card, school }) {
     ? `If found, contact ${esc(c1)} or ${esc(c2)}`
     : c1 ? `If found, contact ${esc(c1)}` : '';
 
-  function infoBlock(label, text) {
+  // Label stacked above text. flex controls how much body height this block claims.
+  // Text is NOT line-clamped — it flows naturally and the flex container clips overflow.
+  function infoBlock(label, text, flexGrow) {
     if (!text) return '';
-    return `<div style="overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.5;">
-      <span style="font-size:5.5pt;font-weight:800;color:${accent};text-transform:uppercase;letter-spacing:0.06em;">${label} </span>
-      <span style="font-size:5.5pt;color:#334155;">${esc(text)}</span>
+    return `<div style="flex:${flexGrow};min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:0.35mm;">
+      <div style="font-size:4.5pt;font-weight:900;color:${accent};text-transform:uppercase;letter-spacing:0.09em;line-height:1;flex-shrink:0;">${label}</div>
+      <div style="font-size:5pt;color:#334155;line-height:1.38;overflow:hidden;flex:1;min-height:0;">${esc(text)}</div>
     </div>`;
   }
 
   return `<div style="width:85.6mm;height:54mm;display:flex;background:#F7F9FB;overflow:hidden;font-family:'Helvetica Neue',Arial,Helvetica,sans-serif;">
-
-  <!-- Card body -->
   <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
 
     <!-- Top strip -->
     <div style="height:11mm;background:${accent};display:flex;align-items:center;padding:0 2.5mm;gap:1.5mm;flex-shrink:0;">
       ${logoHtml}
       <div style="flex:1;overflow:hidden;">
-        <div style="color:white;font-size:5.5pt;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;line-height:1.3;">THIS CARD IS THE PROPERTY OF</div>
-        <div style="color:rgba(255,255,255,0.9);font-size:11pt;font-weight:900;text-transform:uppercase;letter-spacing:0.03em;line-height:1.2;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${esc(school.name)}</div>
+        <div style="color:white;font-size:5pt;font-weight:800;letter-spacing:0.09em;text-transform:uppercase;line-height:1.25;">THIS CARD IS THE PROPERTY OF</div>
+        <div style="color:rgba(255,255,255,0.95);font-size:10pt;font-weight:900;text-transform:uppercase;letter-spacing:0.03em;line-height:1.15;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${esc(school.name)}</div>
       </div>
     </div>
 
     <!-- Hairline -->
     <div style="height:1px;background:${primary};flex-shrink:0;opacity:0.4;"></div>
 
-    <!-- Body -->
-    <div style="flex:1;padding:1.8mm 2.5mm 1mm;display:flex;flex-direction:column;gap:1.5mm;overflow:hidden;">
-      ${infoBlock('Vision:', vision)}
-      ${infoBlock('Mission:', mission)}
-      ${infoBlock('Values:', values)}
-      ${contactLine ? `<div style="font-size:5pt;font-style:italic;color:#64748B;line-height:1.45;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${contactLine}</div>` : ''}
+    <!-- Body: flex column; each section grows proportionally to its flex value -->
+    <div style="flex:1;padding:1.5mm 2.5mm 1mm;display:flex;flex-direction:column;gap:1mm;overflow:hidden;min-height:0;">
+      ${infoBlock('Vision', vision, 1)}
+      ${infoBlock('Mission', mission, 2)}
+      ${infoBlock('Values', values, 1.5)}
+      ${contactLine ? `<div style="flex-shrink:0;font-size:4.5pt;font-style:italic;color:#64748B;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">${contactLine}</div>` : ''}
     </div>
 
     <!-- Footer -->
@@ -364,7 +364,6 @@ function buildCardBackMarkup({ student, card, school }) {
         <div style="width:20mm;height:0.3mm;background:rgba(255,255,255,0.5);flex-shrink:0;"></div>
         <div style="color:white;font-size:5.5pt;font-weight:700;letter-spacing:0.06em;white-space:nowrap;">${esc(hdmName)}</div>
       </div>
-      <!-- Decorative dots -->
       <div style="display:flex;align-items:center;gap:1.2mm;flex-shrink:0;">
         <div style="width:2.5mm;height:2.5mm;border-radius:50%;background:rgba(255,255,255,0.25);"></div>
         <div style="width:3.5mm;height:3.5mm;border-radius:50%;background:rgba(255,255,255,0.4);"></div>
