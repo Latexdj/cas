@@ -16,6 +16,7 @@ interface IdCard {
   token: string;
   issue_number: number;
   status: 'active' | 'revoked' | 'expired';
+  issued_at: string | null;
   expires_at: string | null;
   created_at: string;
 }
