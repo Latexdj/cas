@@ -178,56 +178,155 @@ async function generateAndUploadPDF({ letter, school, recipientType, watermark =
 
 // ── ID Card ───────────────────────────────────────────────────────────────────
 // CR80 dimensions: 85.6 × 54 mm.
-// Forest green: #1B5635  |  Gold: #C9A227
+// Front: diagonal banner, circular photo with ring, field block, QR, footer.
+// Back:  property banner, vision/mission/values, contact, headmaster signature.
 
-// Returns an HTML fragment (no doctype/head) for one CR80 card.
-// Phase 3 batch will call this per card and tile them onto an A4 sheet.
+// FRONT of card — returns an HTML fragment (no doctype/head).
 function buildCardMarkup({ student, card, school, qrDataUrl }) {
-  const expires = card.expires_at
-    ? new Date(card.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-    : 'No expiry';
+  const primary = school.primary_color || '#007A8C';
+  const accent  = school.accent_color  || '#1A3A5C';
 
-  const photoHtml = student.picture_url
-    ? `<img src="${esc(student.picture_url)}" style="width:100%;height:100%;object-fit:cover;display:block;" />`
-    : `<svg viewBox="0 0 40 50" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;fill:#bbb;">
-         <circle cx="20" cy="16" r="10"/>
-         <path d="M0 50 Q0 32 20 32 Q40 32 40 50Z"/>
+  const expires = card.expires_at
+    ? new Date(card.expires_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }).toUpperCase()
+    : 'NO EXPIRY';
+
+  const photoInner = student.picture_url
+    ? `<img src="${esc(student.picture_url)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" />`
+    : `<svg viewBox="0 0 60 70" xmlns="http://www.w3.org/2000/svg" style="width:65%;height:65%;fill:rgba(255,255,255,0.5);display:block;margin:17.5% auto 0;">
+         <circle cx="30" cy="22" r="16"/>
+         <path d="M0 70 Q0 44 30 44 Q60 44 60 70Z"/>
        </svg>`;
 
-  const indexRow = student.jhs_index_number
-    ? `<div style="font-size:4pt;color:#333;line-height:1.55;font-family:Arial,sans-serif;">
-         <span style="color:#888;">Index </span>${esc(student.jhs_index_number)}
-       </div>`
+  const logoHtml = school.logo_url
+    ? `<img src="${esc(school.logo_url)}" style="width:9mm;height:9mm;object-fit:contain;flex-shrink:0;" />`
     : '';
 
-  return `<div style="width:85.6mm;height:54mm;display:flex;flex-direction:column;font-family:Georgia,'Times New Roman',serif;background:#fff;overflow:hidden;">
-  <div style="background:#1B5635;padding:1.8mm 2.5mm;display:flex;justify-content:space-between;align-items:center;height:10mm;flex-shrink:0;">
-    <div style="color:#C9A227;font-size:5pt;font-weight:bold;letter-spacing:0.04em;text-transform:uppercase;max-width:63mm;line-height:1.2;font-family:Arial,sans-serif;">${esc(school.name)}</div>
-    <div style="color:#C9A227;font-size:7.5pt;font-weight:bold;font-family:Arial,sans-serif;letter-spacing:0.12em;">CAS</div>
+  const program = esc(student.program_name || student.class_name || '—');
+
+  function fieldRow(label, value) {
+    return `<div style="display:flex;align-items:baseline;line-height:1.3;">
+      <span style="font-size:4pt;font-weight:800;color:${esc(accent)};text-transform:uppercase;letter-spacing:0.03em;width:14mm;flex-shrink:0;">${label}</span>
+      <span style="font-size:4pt;color:#1a1a1a;font-weight:600;text-transform:uppercase;letter-spacing:0.02em;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">: ${esc(value || '—')}</span>
+    </div>`;
+  }
+
+  return `<div style="width:85.6mm;height:54mm;display:flex;flex-direction:column;background:#ECF0F4;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
+
+  <div style="height:13mm;background:${esc(primary)};clip-path:polygon(0 0,100% 0,88% 100%,0 100%);display:flex;align-items:center;padding:0 4mm 0 2.5mm;gap:2mm;flex-shrink:0;">
+    ${logoHtml}
+    <div style="color:white;font-size:6pt;font-weight:800;letter-spacing:0.07em;text-transform:uppercase;line-height:1.2;overflow:hidden;">${esc(school.name)}</div>
   </div>
-  <div style="flex:1;display:flex;padding:2mm 2.5mm 1mm;gap:2mm;overflow:hidden;">
-    <div style="width:15.9mm;height:20mm;flex-shrink:0;border:0.3mm solid #ddd;overflow:hidden;background:#f5f5f5;">${photoHtml}</div>
-    <div style="flex:1;display:flex;flex-direction:column;gap:0.4mm;padding-top:0.3mm;overflow:hidden;">
-      <div style="font-size:5.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.02em;color:#111;line-height:1.3;font-family:Georgia,'Times New Roman',serif;margin-bottom:0.8mm;">${esc(student.name)}</div>
-      <div style="font-size:4pt;color:#333;line-height:1.55;font-family:Arial,sans-serif;"><span style="color:#888;">Class </span>${esc(student.class_name ?? '—')}</div>
-      ${indexRow}
-      <div style="font-size:4pt;color:#333;line-height:1.55;font-family:Arial,sans-serif;"><span style="color:#888;">Code  </span>${esc(student.student_code ?? '—')}</div>
-      <div style="font-size:4pt;color:#333;line-height:1.55;font-family:Arial,sans-serif;"><span style="color:#888;">Issue </span>#${card.issue_number}</div>
+
+  <div style="flex:1;display:flex;padding:2.5mm 2mm 1.5mm 2.5mm;gap:2mm;overflow:hidden;">
+
+    <div style="width:22mm;height:22mm;border-radius:50%;background:${esc(primary)};display:flex;align-items:center;justify-content:center;flex-shrink:0;align-self:center;box-shadow:0 0 0 1.2mm rgba(0,0,0,0.12);">
+      <div style="width:18.6mm;height:18.6mm;border-radius:50%;overflow:hidden;background:rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;">${photoInner}</div>
     </div>
-    <div style="display:flex;align-items:flex-end;justify-content:flex-end;flex-shrink:0;">
-      <div style="background:#fff;padding:0.5mm;border:0.3mm solid #e0e0e0;">
-        <img src="${qrDataUrl}" style="display:block;width:19mm;height:19mm;" />
+
+    <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;">
+      <div style="background:${esc(accent)};clip-path:polygon(0 0,100% 0,94% 100%,0 100%);padding:1.5mm 5mm 1.5mm 2mm;margin-bottom:2mm;flex-shrink:0;">
+        <span style="color:white;font-size:5pt;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;">STUDENT ID CARD</span>
+      </div>
+      <div style="flex:1;display:flex;gap:1.5mm;overflow:hidden;">
+        <div style="flex:1;display:flex;flex-direction:column;gap:1.4mm;overflow:hidden;min-width:0;">
+          ${fieldRow('NAME',    student.name)}
+          ${fieldRow('SEX',     student.gender)}
+          ${fieldRow('PROGRAM', program)}
+          ${fieldRow('STATUS',  student.residential_status)}
+          ${fieldRow('HOUSE',   student.house)}
+        </div>
+        <div style="display:flex;align-items:flex-end;flex-shrink:0;">
+          <div style="background:white;padding:0.8mm;border-radius:1mm;box-shadow:0 1px 3px rgba(0,0,0,0.12);">
+            <img src="${qrDataUrl}" style="display:block;width:12.5mm;height:12.5mm;" />
+          </div>
+        </div>
       </div>
     </div>
   </div>
-  <div style="background:#1B5635;padding:1mm 2.5mm;display:flex;justify-content:space-between;align-items:center;height:6mm;flex-shrink:0;">
-    <div style="color:rgba(201,162,39,0.9);font-size:3.5pt;font-family:Arial,sans-serif;">Valid to ${expires}</div>
-    <div style="color:rgba(201,162,39,0.9);font-size:3.5pt;font-family:Arial,sans-serif;">Issue #${card.issue_number}</div>
+
+  <div style="height:10mm;background:${esc(primary)};display:flex;align-items:center;justify-content:space-between;padding:0 3mm;flex-shrink:0;overflow:hidden;position:relative;">
+    <svg style="position:absolute;left:0;top:0;height:100%;width:26mm;opacity:0.18;" viewBox="0 0 98 38" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="0,0 14,0 0,38" fill="white"/>
+      <polygon points="14,0 30,0 16,38 0,38" fill="white" opacity="0.7"/>
+      <polygon points="30,0 46,0 32,38 16,38" fill="white"/>
+      <polygon points="46,0 62,0 48,38 32,38" fill="white" opacity="0.7"/>
+    </svg>
+    <div style="color:white;font-size:5pt;font-weight:800;font-style:italic;letter-spacing:0.02em;position:relative;">ID NO: ${esc(student.student_code)}</div>
+    <div style="color:rgba(255,255,255,0.85);font-size:4pt;font-weight:600;letter-spacing:0.05em;">VALID THRU: ${expires}</div>
   </div>
 </div>`;
 }
 
-// Wraps one card markup in a full CR80-sized HTML document for standalone printing.
+// BACK of card — returns an HTML fragment (no doctype/head).
+function buildCardBackMarkup({ student, card, school }) {
+  const primary = school.primary_color || '#007A8C';
+  const accent  = school.accent_color  || '#1A3A5C';
+
+  const logoHtml = school.logo_url
+    ? `<img src="${esc(school.logo_url)}" style="width:8.5mm;height:8.5mm;object-fit:contain;flex-shrink:0;" />`
+    : '';
+
+  const sigHtml = school.headmaster_signature_url
+    ? `<img src="${esc(school.headmaster_signature_url)}" style="display:block;max-height:7.5mm;max-width:20mm;object-fit:contain;" />`
+    : `<div style="height:7.5mm;"></div>`;
+
+  const vision   = (school.vision      || '').trim();
+  const mission  = (school.mission     || '').trim();
+  const values   = (school.core_values || '').trim();
+  const c1       = (school.lost_card_contact_1 || '').trim();
+  const c2       = (school.lost_card_contact_2 || '').trim();
+  const hdmName  = (school.headmaster_name || 'HEADMASTER').trim();
+
+  const contactLine = c1 && c2
+    ? `If found, please contact ${esc(c1)} or ${esc(c2)}`
+    : c1 ? `If found, please contact ${esc(c1)}` : '';
+
+  function infoBlock(label, text) {
+    return text ? `<div style="font-size:3.5pt;line-height:1.45;color:#1a2a3a;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;"><span style="font-weight:800;color:${esc(accent)};">${label}: </span>${esc(text)}</div>` : '';
+  }
+
+  return `<div style="width:85.6mm;height:54mm;display:flex;flex-direction:column;background:#ECF0F4;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
+
+  <div style="height:12mm;background:${esc(primary)};clip-path:polygon(0 0,100% 0,88% 100%,0 100%);display:flex;align-items:center;padding:0 4mm 0 2.5mm;gap:2mm;flex-shrink:0;">
+    ${logoHtml}
+    <div style="color:rgba(255,255,255,0.92);font-size:5pt;font-weight:800;letter-spacing:0.07em;text-transform:uppercase;line-height:1.2;">THIS CARD IS THE PROPERTY OF</div>
+  </div>
+
+  <div style="flex:1;padding:2mm 3.5mm 1.5mm;display:flex;flex-direction:column;overflow:hidden;">
+    <div style="text-align:center;margin-bottom:1.5mm;flex-shrink:0;">
+      <span style="font-size:5.5pt;font-weight:800;color:${esc(accent)};text-transform:uppercase;letter-spacing:0.05em;border-bottom:0.5mm solid ${esc(accent)};padding-bottom:0.4mm;">${esc(school.name)}</span>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:1.4mm;overflow:hidden;">
+      ${infoBlock('Our Vision',  vision)}
+      ${infoBlock('Our Mission', mission)}
+      ${infoBlock('Our Values',  values)}
+      ${contactLine ? `<div style="font-size:3.5pt;font-style:italic;color:#444;margin-top:0.5mm;line-height:1.4;">${contactLine}</div>` : ''}
+    </div>
+  </div>
+
+  <div style="height:11mm;background:${esc(primary)};display:flex;align-items:center;justify-content:space-between;padding:0 2.5mm 0 3mm;flex-shrink:0;overflow:hidden;position:relative;">
+    <svg style="position:absolute;right:0;top:0;height:100%;width:20mm;opacity:0.18;" viewBox="0 0 76 42" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="76,0 62,0 76,42" fill="white"/>
+      <polygon points="62,0 46,0 60,42 76,42" fill="white" opacity="0.7"/>
+      <polygon points="46,0 30,0 44,42 60,42" fill="white"/>
+      <polygon points="30,0 14,0 28,42 44,42" fill="white" opacity="0.7"/>
+    </svg>
+    <div style="display:flex;flex-direction:column;align-items:flex-start;position:relative;gap:0.5mm;">
+      ${sigHtml}
+      <div style="width:20mm;border-top:0.35mm solid rgba(255,255,255,0.65);"></div>
+      <div style="color:white;font-size:3.8pt;font-weight:700;letter-spacing:0.07em;">${esc(hdmName)}</div>
+    </div>
+    <svg width="11mm" height="7.5mm" viewBox="0 0 42 28" xmlns="http://www.w3.org/2000/svg" style="position:relative;">
+      <line x1="2" y1="28" x2="12" y2="0" stroke="rgba(255,255,255,0.55)" stroke-width="3.5" stroke-linecap="round"/>
+      <line x1="15" y1="28" x2="25" y2="0" stroke="rgba(255,255,255,0.55)" stroke-width="3.5" stroke-linecap="round"/>
+      <line x1="28" y1="28" x2="38" y2="0" stroke="rgba(255,255,255,0.55)" stroke-width="3.5" stroke-linecap="round"/>
+    </svg>
+  </div>
+</div>`;
+}
+
+// Wraps front + back in a 2-page CR80 PDF document.
+// Page 1: front of card  Page 2: back of card
 function buildCardHTML({ student, card, school, qrDataUrl }) {
   return `<!DOCTYPE html>
 <html>
@@ -235,11 +334,16 @@ function buildCardHTML({ student, card, school, qrDataUrl }) {
 <meta charset="utf-8" />
 <style>
   @page { size: 85.6mm 54mm; margin: 0; }
-  *  { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 85.6mm; height: 54mm; overflow: hidden; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 85.6mm; background: #fff; }
+  .face { width: 85.6mm; height: 54mm; overflow: hidden; page-break-after: always; }
+  .face:last-child { page-break-after: auto; }
 </style>
 </head>
-<body>${buildCardMarkup({ student, card, school, qrDataUrl })}</body>
+<body>
+<div class="face">${buildCardMarkup({ student, card, school, qrDataUrl })}</div>
+<div class="face">${buildCardBackMarkup({ student, card, school })}</div>
+</body>
 </html>`;
 }
 
@@ -280,7 +384,7 @@ async function resolveChromePath() {
   throw new Error('No Chrome/Chromium found on Linux. Install chromium-browser or set up @sparticuz/chromium.');
 }
 
-// Generates a CR80 PDF buffer for a single student card.
+// Generates a 2-page CR80 PDF buffer (front page 1, back page 2).
 // Does NOT upload to Supabase — caller streams the buffer directly.
 async function generateCardBuffer({ student, card, school }) {
   const qrDataUrl = await QRCode.toDataURL(card.token, {
@@ -294,7 +398,7 @@ async function generateCardBuffer({ student, card, school }) {
   const executablePath  = await resolveChromePath();
   const browser         = await puppeteer.launch({
     args:            [...(chromium.args ?? []), '--no-sandbox', '--disable-setuid-sandbox'],
-    defaultViewport: { width: 323, height: 204 },
+    defaultViewport: null,
     executablePath,
     headless:        true,
   });
@@ -303,9 +407,9 @@ async function generateCardBuffer({ student, card, school }) {
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle2', timeout: 30000 });
+    // Let @page { size: 85.6mm 54mm } govern; do not pass width/height here
+    // so Puppeteer produces a 2-page PDF (front + back).
     pdfBuffer = await page.pdf({
-      width:           '85.6mm',
-      height:          '54mm',
       printBackground: true,
       margin:          { top: '0', right: '0', bottom: '0', left: '0' },
     });
@@ -317,17 +421,40 @@ async function generateCardBuffer({ student, card, school }) {
 }
 
 // ── Batch card tiling ─────────────────────────────────────────────────────────
-// Tiles an array of { student, card, school, qrDataUrl } objects onto A4 sheets,
-// 8 cards per sheet (2 columns × 4 rows) with thin crop-mark borders.
-// Uses buildCardMarkup() — no duplication of card template.
+// Produces duplex-ready A4 sheets: for each chunk of 8 cards a FRONT sheet
+// followed immediately by a BACK sheet.
+//
+// Long-edge duplex flip: in a 2-column portrait layout the back sheet must
+// mirror columns per row so card backs align with their fronts when flipped.
+// Given front positions [0,1, 2,3, 4,5, 6,7] (left/right per row),
+// the back DOM order is    [1,0, 3,2, 5,4, 7,6] — swap pairs within each row.
 function buildBatchHTML(entries) {
-  // Chunk into groups of 8 (one A4 sheet each).
-  const sheets = [];
+  const sheetPairs = [];
+
   for (let i = 0; i < entries.length; i += 8) {
     const chunk = entries.slice(i, i + 8);
-    const slots = chunk.map(e => `
-  <div class="crop-slot">${buildCardMarkup(e)}</div>`).join('');
-    sheets.push(`<div class="sheet">${slots}\n</div>`);
+
+    // Front sheet: natural order
+    const frontSlots = chunk.map(e =>
+      `<div class="crop-slot">${buildCardMarkup(e)}</div>`
+    ).join('\n  ');
+
+    // Back sheet: swap pairs within each row for long-edge flip
+    const backOrder = [];
+    for (let r = 0; r < chunk.length; r += 2) {
+      backOrder.push(r + 1 < chunk.length ? chunk[r + 1] : null);
+      backOrder.push(chunk[r]);
+    }
+    const backSlots = backOrder.map(e =>
+      e
+        ? `<div class="crop-slot">${buildCardBackMarkup(e)}</div>`
+        : `<div class="crop-slot empty"></div>`
+    ).join('\n  ');
+
+    sheetPairs.push(
+      `<div class="sheet">\n  ${frontSlots}\n</div>`,
+      `<div class="sheet back">\n  ${backSlots}\n</div>`
+    );
   }
 
   return `<!DOCTYPE html>
@@ -356,13 +483,13 @@ function buildBatchHTML(entries) {
     height: 54mm;
     position: relative;
     overflow: hidden;
-    /* Thin border serves as cut guide */
     box-shadow: 0 0 0 0.3mm rgba(140,140,140,0.45);
   }
+  .crop-slot.empty { background: #fafafa; }
 </style>
 </head>
 <body>
-${sheets.join('\n')}
+${sheetPairs.join('\n')}
 </body>
 </html>`;
 }
@@ -409,6 +536,6 @@ async function generateBatchAndUpload({ entries, schoolId }) {
 
 module.exports = {
   generateAndUploadPDF, buildLetterHTML,
-  buildCardMarkup, buildCardHTML, generateCardBuffer,
+  buildCardMarkup, buildCardBackMarkup, buildCardHTML, generateCardBuffer,
   buildBatchHTML, generateBatchAndUpload,
 };
