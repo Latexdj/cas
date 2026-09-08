@@ -19,6 +19,9 @@ interface SchoolSettings {
   vision?: string | null;
   mission?: string | null;
   core_values?: string | null;
+  headmaster_name?: string | null;
+  lost_card_contact_1?: string | null;
+  lost_card_contact_2?: string | null;
 }
 
 function compressToBase64(file: File): Promise<string> {
@@ -314,6 +317,14 @@ export default function SettingsPage() {
   const [identitySaved,  setIdentitySaved]  = useState(false);
   const [identityError,  setIdentityError]  = useState('');
 
+  // ID Card details state
+  const [headmasterName,    setHeadmasterName]    = useState('');
+  const [lostContact1,      setLostContact1]      = useState('');
+  const [lostContact2,      setLostContact2]      = useState('');
+  const [cardDetailsSaving, setCardDetailsSaving] = useState(false);
+  const [cardDetailsSaved,  setCardDetailsSaved]  = useState(false);
+  const [cardDetailsError,  setCardDetailsError]  = useState('');
+
   useEffect(() => {
     api.get<SchoolSettings>('/api/admin/settings').then(r => {
       setSettings(r.data);
@@ -328,6 +339,9 @@ export default function SettingsPage() {
       setVision(r.data.vision ?? '');
       setMission(r.data.mission ?? '');
       setCoreValues(r.data.core_values ?? '');
+      setHeadmasterName(r.data.headmaster_name ?? '');
+      setLostContact1(r.data.lost_card_contact_1 ?? '');
+      setLostContact2(r.data.lost_card_contact_2 ?? '');
     }).finally(() => setLoading(false));
   }, []);
 
@@ -456,6 +470,22 @@ export default function SettingsPage() {
       const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setIdentityError(msg ?? 'Failed to save.');
     } finally { setIdentitySaving(false); }
+  }
+
+  async function saveCardDetails() {
+    setCardDetailsSaving(true); setCardDetailsError(''); setCardDetailsSaved(false);
+    try {
+      await api.patch('/api/admin/settings/info', {
+        headmaster_name:     headmasterName,
+        lost_card_contact_1: lostContact1,
+        lost_card_contact_2: lostContact2,
+      });
+      setCardDetailsSaved(true);
+      setTimeout(() => setCardDetailsSaved(false), 3000);
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setCardDetailsError(msg ?? 'Failed to save.');
+    } finally { setCardDetailsSaving(false); }
   }
 
   async function save() {
@@ -681,6 +711,37 @@ export default function SettingsPage() {
           {identityError && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>{identityError}</p>}
           {identitySaved && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#F0FDF4', color: '#145C44' }}>✓ School identity saved.</p>}
           <Button onClick={saveIdentity} loading={identitySaving}>Save Identity</Button>
+        </div>
+      </div>
+
+      {/* ID Card Details */}
+      <div className="bg-white rounded-xl p-6" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+        <h2 className="text-sm font-semibold font-medium mb-1" style={{ color: '#64748B' }}>ID Card Details</h2>
+        <p className="text-xs mb-5" style={{ color: '#94A3B8' }}>
+          These details appear on printed student ID cards — the headmaster&apos;s name on the card footer and contact numbers printed on the back for lost-card reports.
+        </p>
+        <div className="max-w-lg space-y-4">
+          <div>
+            <label className="block text-xs font-semibold font-medium mb-1" style={{ color: '#475569' }}>Headmaster&apos;s Name</label>
+            <input type="text" value={headmasterName} onChange={e => setHeadmasterName(e.target.value)}
+              placeholder="e.g. Mr. Kwame Mensah"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold font-medium mb-1" style={{ color: '#475569' }}>Lost Card Contact 1</label>
+            <input type="text" value={lostContact1} onChange={e => setLostContact1(e.target.value)}
+              placeholder="e.g. 0244 000 000 (School Office)"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold font-medium mb-1" style={{ color: '#475569' }}>Lost Card Contact 2</label>
+            <input type="text" value={lostContact2} onChange={e => setLostContact2(e.target.value)}
+              placeholder="e.g. 0201 000 000 (Discipline Master)"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600" />
+          </div>
+          {cardDetailsError && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#FEF2F2', color: '#DC2626' }}>{cardDetailsError}</p>}
+          {cardDetailsSaved && <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: '#F0FDF4', color: '#145C44' }}>✓ ID card details saved.</p>}
+          <Button onClick={saveCardDetails} loading={cardDetailsSaving}>Save ID Card Details</Button>
         </div>
       </div>
 
