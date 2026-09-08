@@ -225,8 +225,8 @@ function buildCardMarkup({ student, card, school, qrDataUrl }) {
       </div>
     </div>
 
-    <!-- Hairline -->
-    <div style="height:0.35mm;background:${accent};margin:1.2mm 2mm;flex-shrink:0;opacity:0.75;"></div>
+    <!-- Hairline (2px — thicker than student-name rule for hierarchy) -->
+    <div style="height:2px;background:${accent};margin:1.2mm 2mm;flex-shrink:0;opacity:0.75;"></div>
 
     <!-- Main body -->
     <div style="flex:1;display:flex;padding:0 1.8mm 0 1.5mm;gap:2mm;overflow:hidden;min-height:0;">
@@ -242,8 +242,8 @@ function buildCardMarkup({ student, card, school, qrDataUrl }) {
         <!-- Student name -->
         <div style="font-size:8.5pt;font-weight:900;color:${primary};text-transform:uppercase;letter-spacing:0.02em;line-height:1.2;margin-bottom:1mm;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${esc(student.name)}</div>
 
-        <!-- Rule -->
-        <div style="height:0.35mm;background:${accent};margin-bottom:1.4mm;flex-shrink:0;opacity:0.75;"></div>
+        <!-- Rule (1px — intentionally thinner than the header hairline) -->
+        <div style="height:1px;background:${accent};margin-bottom:1.4mm;flex-shrink:0;opacity:0.75;"></div>
 
         <!-- Fields + QR -->
         <div style="flex:1;display:flex;gap:1.5mm;overflow:hidden;min-height:0;">
@@ -322,7 +322,7 @@ function buildCardBackMarkup({ student, card, school }) {
     </div>
 
     <!-- Hairline -->
-    <div style="height:0.35mm;background:${primary};flex-shrink:0;opacity:0.4;"></div>
+    <div style="height:1px;background:${primary};flex-shrink:0;opacity:0.4;"></div>
 
     <!-- Body -->
     <div style="flex:1;padding:1.8mm 2.5mm 1mm;display:flex;flex-direction:column;gap:1.5mm;overflow:hidden;">
