@@ -560,61 +560,79 @@ export default function AdmissionSettingsPage() {
                 </div>
 
                 {/* ── Footer (mirrors PDF two-panel footer) ── */}
-                {(vision || mission || settings.contact_email || settings.contact_phone || settings.contact_address || schoolInfo.logo_url) && (
+                {(vision || mission || settings.contact_email || settings.contact_phone || settings.contact_address || schoolInfo.logo_url) && (() => {
+                  const h = primaryColor.replace('#', '');
+                  const r = parseInt(h.slice(0,2),16)||0, g = parseInt(h.slice(2,4),16)||0, b = parseInt(h.slice(4,6),16)||0;
+                  const tint8  = `rgba(${r},${g},${b},0.08)`;
+                  const tint22 = `rgba(${r},${g},${b},0.22)`;
+                  return (
                   <div style={{
                     marginTop: 36, display: 'flex', alignItems: 'stretch',
-                    background: '#f8f9fa', borderTop: `3px solid ${primaryColor}`,
+                    background: '#fafafa', borderTop: `3px solid ${primaryColor}`,
                     fontFamily: 'Arial, Helvetica, sans-serif', overflow: 'hidden',
                   }}>
-                    {/* Left: crest + statements */}
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '9px 18px', gap: 12 }}>
-                      {schoolInfo.logo_url
-                        ? <img src={schoolInfo.logo_url} alt="" style={{ width: 38, height: 38, objectFit: 'contain', flexShrink: 0 }} />
-                        : <svg style={{ width: 38, height: 38, flexShrink: 0 }} viewBox="0 0 24 24" fill={primaryColor}>
-                            <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM3.82 9L12 4.53 20.18 9 12 13.47 3.82 9zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z" />
-                          </svg>
-                      }
-                      <div>
-                        {vision  && <p style={{ margin: '0 0 2px', fontSize: '6.5pt', color: '#333', lineHeight: 1.4 }}><strong style={{ color: primaryColor }}>Our Vision:</strong> {vision}</p>}
-                        {mission && <p style={{ margin: 0, fontSize: '6.5pt', color: '#333', lineHeight: 1.4 }}><strong style={{ color: primaryColor }}>Our Mission:</strong> {mission}</p>}
+                    {/* Left: badge + statements */}
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '10px 20px', gap: 14 }}>
+                      <div style={{
+                        width: 42, height: 42, flexShrink: 0, borderRadius: 9,
+                        background: tint8, border: `1px solid ${tint22}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {schoolInfo.logo_url
+                          ? <img src={schoolInfo.logo_url} alt="" style={{ width: 28, height: 28, objectFit: 'contain' }} />
+                          : <svg style={{ width: 24, height: 24 }} viewBox="0 0 24 24" fill={primaryColor}>
+                              <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM3.82 9L12 4.53 20.18 9 12 13.47 3.82 9zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z" />
+                            </svg>
+                        }
+                      </div>
+                      <div style={{ borderLeft: `2px solid ${tint22}`, paddingLeft: 12, flex: 1 }}>
+                        {vision && <p style={{ margin: '0 0 2px', fontSize: '6.5pt', color: '#444', lineHeight: 1.5 }}>
+                          <span style={{ fontWeight: 700, letterSpacing: '0.04em', color: primaryColor }}>VISION</span>
+                          <span style={{ color: tint22, margin: '0 4px' }}>|</span>{vision}
+                        </p>}
+                        {mission && <p style={{ margin: 0, fontSize: '6.5pt', color: '#444', lineHeight: 1.5 }}>
+                          <span style={{ fontWeight: 700, letterSpacing: '0.04em', color: primaryColor }}>MISSION</span>
+                          <span style={{ color: tint22, margin: '0 4px' }}>|</span>{mission}
+                        </p>}
                       </div>
                     </div>
-                    {/* Right: coloured panel with angled edge */}
+                    {/* Right: gradient panel with angled edge */}
                     <div style={{
-                      background: primaryColor, color: '#fff',
-                      display: 'flex', alignItems: 'center', gap: 14,
-                      padding: '9px 22px 9px 28px',
+                      background: `linear-gradient(to right, ${primaryColor} 0%, rgba(0,0,0,0.14) 100%), ${primaryColor}`,
+                      color: '#fff', display: 'flex', alignItems: 'center', gap: 14,
+                      padding: '10px 22px 10px 30px',
                       clipPath: 'polygon(16px 0, 100% 0, 100% 100%, 0 100%)',
                     }}>
                       <div>
                         {settings.contact_email && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '6.5pt', marginBottom: 3 }}>
-                            <svg style={{ width: 11, height: 11, fill: '#fff', flexShrink: 0 }} viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" /></svg>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '6.5pt', marginBottom: 3, opacity: 0.95 }}>
+                            <svg style={{ width: 10, height: 10, fill: '#fff', flexShrink: 0, opacity: 0.85 }} viewBox="0 0 24 24"><path d="M20 4H4C2.9 4 2 4.9 2 6v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" /></svg>
                             <span>{settings.contact_email}</span>
                           </div>
                         )}
                         {settings.contact_phone && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '6.5pt', marginBottom: 3 }}>
-                            <svg style={{ width: 11, height: 11, fill: '#fff', flexShrink: 0 }} viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" /></svg>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '6.5pt', marginBottom: 3, opacity: 0.95 }}>
+                            <svg style={{ width: 10, height: 10, fill: '#fff', flexShrink: 0, opacity: 0.85 }} viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" /></svg>
                             <span>Tel: {settings.contact_phone}</span>
                           </div>
                         )}
                         {settings.contact_address && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '6.5pt' }}>
-                            <svg style={{ width: 11, height: 11, fill: '#fff', flexShrink: 0 }} viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" /></svg>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '6.5pt', opacity: 0.95 }}>
+                            <svg style={{ width: 10, height: 10, fill: '#fff', flexShrink: 0, opacity: 0.85 }} viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" /></svg>
                             <span>{settings.contact_address}</span>
                           </div>
                         )}
                       </div>
                       <div style={{
-                        background: 'rgba(255,255,255,0.18)', padding: '3px 10px',
-                        borderRadius: 10, fontSize: '6.5pt', fontWeight: 600, whiteSpace: 'nowrap',
-                      }}>
-                        Page 1
-                      </div>
+                        width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+                        background: 'rgba(255,255,255,0.18)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '7pt', fontWeight: 700,
+                      }}>1</div>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 </div>{/* end z-index wrapper */}
               </div>

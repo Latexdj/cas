@@ -11,6 +11,15 @@ const supabase  = require('../config/supabase');
 
 const BUCKET = process.env.STORAGE_BUCKET || 'attendance-photos';
 
+// Converts a hex color to rgba() so we can produce tints without an extra dep.
+function hexRgba(hex, alpha) {
+  const h = (hex || '#0B3D2E').replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16) || 0;
+  const g = parseInt(h.slice(2, 4), 16) || 0;
+  const b = parseInt(h.slice(4, 6), 16) || 0;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 function esc(str) {
   if (str == null) return '';
   return String(str)
@@ -95,58 +104,85 @@ const DEFAULT_ADMISSION_LETTER_TEMPLATE =
 </ul>
 <p style="text-align:justify;">We look forward to welcoming you to our school community.</p>`;
 
-// Puppeteer footerTemplate — two-panel design:
-// Left panel (light bg): school crest + vision/mission with coloured labels.
-// Right panel (primary-colour bg, angled left edge): contact rows + page pill.
+// Puppeteer footerTemplate — modern two-panel design.
+// Left (off-white): logo in tinted badge + vision/mission behind accent left-border.
+// Right (primary gradient, angled edge): icon-led contact rows + circular page badge.
 // Returns null when the school has nothing to show (no footer rendered).
 function buildFooterHtml(school) {
-  const color = esc(school.primary_color || '#0B3D2E');
+  const rawColor  = school.primary_color || '#0B3D2E';
+  const color     = esc(rawColor);
+  const tint8     = hexRgba(rawColor, 0.08);
+  const tint22    = hexRgba(rawColor, 0.22);
 
-  // ── Left panel ────────────────────────────────────────────────────────────
-  const logoHtml = school.logo_url
-    ? `<img src="${esc(school.logo_url)}" style="width:38px;height:38px;object-fit:contain;flex-shrink:0;" />`
-    : `<svg style="width:38px;height:38px;flex-shrink:0;" viewBox="0 0 24 24" fill="${color}">
-         <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM3.82 9L12 4.53 20.18 9 12 13.47 3.82 9zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
+  // ── Left panel: logo badge ────────────────────────────────────────────────
+  const logoInner = school.logo_url
+    ? `<img src="${esc(school.logo_url)}" style="width:28px;height:28px;object-fit:contain;" />`
+    : `<svg style="width:24px;height:24px;" viewBox="0 0 24 24" fill="${color}">
+         <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM3.82 9L12 4.53 20.18 9 12 13.47
+                  3.82 9zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
        </svg>`;
+  const logoBadge = `<div style="
+      width:42px;height:42px;flex-shrink:0;border-radius:9px;
+      background:${tint8};border:1px solid ${tint22};
+      display:flex;align-items:center;justify-content:center;
+      -webkit-print-color-adjust:exact;print-color-adjust:exact;">
+    ${logoInner}
+  </div>`;
 
+  // ── Left panel: statements ────────────────────────────────────────────────
   const stmts = [];
-  if (school.vision)  stmts.push(`<p style="margin:0 0 2px;font-size:6.5pt;color:#333;line-height:1.4;"><span style="font-weight:700;color:${color};">Our Vision:</span> ${esc(school.vision)}</p>`);
-  if (school.mission) stmts.push(`<p style="margin:0;font-size:6.5pt;color:#333;line-height:1.4;"><span style="font-weight:700;color:${color};">Our Mission:</span> ${esc(school.mission)}</p>`);
+  if (school.vision)  stmts.push(`<p style="margin:0 0 2px;font-size:6.5pt;color:#444;line-height:1.5;">
+    <span style="font-weight:700;letter-spacing:0.02em;color:${color};">VISION</span>
+    <span style="color:${tint22};margin:0 4px;">|</span>${esc(school.vision)}</p>`);
+  if (school.mission) stmts.push(`<p style="margin:0;font-size:6.5pt;color:#444;line-height:1.5;">
+    <span style="font-weight:700;letter-spacing:0.02em;color:${color};">MISSION</span>
+    <span style="color:${tint22};margin:0 4px;">|</span>${esc(school.mission)}</p>`);
 
-  // ── Right panel ───────────────────────────────────────────────────────────
-  const emailIcon = `<svg style="width:11px;height:11px;fill:#fff;flex-shrink:0;" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>`;
-  const phoneIcon = `<svg style="width:11px;height:11px;fill:#fff;flex-shrink:0;" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>`;
-  const addrIcon  = `<svg style="width:11px;height:11px;fill:#fff;flex-shrink:0;" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
+  // ── Right panel: contact rows ─────────────────────────────────────────────
+  const emailIcon = `<svg style="width:10px;height:10px;fill:#fff;flex-shrink:0;opacity:0.85;" viewBox="0 0 24 24">
+    <path d="M20 4H4C2.9 4 2 4.9 2 6v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>`;
+  const phoneIcon = `<svg style="width:10px;height:10px;fill:#fff;flex-shrink:0;opacity:0.85;" viewBox="0 0 24 24">
+    <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24
+             1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17
+             0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>`;
+  const addrIcon  = `<svg style="width:10px;height:10px;fill:#fff;flex-shrink:0;opacity:0.85;" viewBox="0 0 24 24">
+    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5
+             c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
 
   const contacts = [];
-  if (school.email)   contacts.push(`<div style="display:flex;align-items:center;gap:5px;font-size:6.5pt;margin-bottom:3px;">${emailIcon}<span>${esc(school.email)}</span></div>`);
-  if (school.phone)   contacts.push(`<div style="display:flex;align-items:center;gap:5px;font-size:6.5pt;margin-bottom:3px;">${phoneIcon}<span>Tel: ${esc(school.phone)}</span></div>`);
-  if (school.address) contacts.push(`<div style="display:flex;align-items:center;gap:5px;font-size:6.5pt;">${addrIcon}<span>${esc(school.address)}</span></div>`);
+  if (school.email)   contacts.push(`<div style="display:flex;align-items:center;gap:5px;font-size:6.5pt;margin-bottom:3px;">${emailIcon}<span style="opacity:0.95;">${esc(school.email)}</span></div>`);
+  if (school.phone)   contacts.push(`<div style="display:flex;align-items:center;gap:5px;font-size:6.5pt;margin-bottom:3px;">${phoneIcon}<span style="opacity:0.95;">Tel: ${esc(school.phone)}</span></div>`);
+  if (school.address) contacts.push(`<div style="display:flex;align-items:center;gap:5px;font-size:6.5pt;">${addrIcon}<span style="opacity:0.95;">${esc(school.address)}</span></div>`);
 
-  const hasLeft  = stmts.length > 0;
-  const hasRight = contacts.length > 0;
-  if (!hasLeft && !hasRight && !school.logo_url) return null;
+  if (!stmts.length && !contacts.length && !school.logo_url) return null;
 
   return `<div style="
       width:100%;display:flex;align-items:stretch;
-      background:#f8f9fa;border-top:3px solid ${color};
+      background:#fafafa;border-top:3px solid ${color};
       font-family:Arial,Helvetica,sans-serif;overflow:hidden;
       -webkit-print-color-adjust:exact;print-color-adjust:exact;">
-    <div style="flex:1;display:flex;align-items:center;padding:9px 18px;gap:12px;">
-      ${logoHtml}
-      <div>${stmts.join('') || '&nbsp;'}</div>
+
+    <div style="flex:1;display:flex;align-items:center;padding:10px 20px;gap:14px;">
+      ${logoBadge}
+      <div style="border-left:2px solid ${tint22};padding-left:12px;flex:1;">
+        ${stmts.join('') || '&nbsp;'}
+      </div>
     </div>
+
     <div style="
-        background:${color};color:#fff;
-        display:flex;align-items:center;gap:14px;
-        padding:9px 22px 9px 28px;
+        background:linear-gradient(to right,${color} 0%,rgba(0,0,0,0.14) 100%),${color};
+        color:#fff;display:flex;align-items:center;gap:14px;
+        padding:10px 22px 10px 30px;
         clip-path:polygon(16px 0,100% 0,100% 100%,0 100%);
         -webkit-print-color-adjust:exact;print-color-adjust:exact;">
       <div>${contacts.join('') || '&nbsp;'}</div>
       <div style="
-          background:rgba(255,255,255,0.18);padding:3px 10px;
-          border-radius:10px;font-size:6.5pt;font-weight:600;white-space:nowrap;">
-        Page <span class="pageNumber"></span>
+          width:28px;height:28px;border-radius:50%;flex-shrink:0;
+          background:rgba(255,255,255,0.18);
+          display:flex;align-items:center;justify-content:center;
+          font-size:7pt;font-weight:700;
+          -webkit-print-color-adjust:exact;print-color-adjust:exact;">
+        <span class="pageNumber"></span>
       </div>
     </div>
   </div>`;
