@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -11,6 +11,11 @@ interface Settings {
   contact_email?: string; contact_phone?: string; contact_address?: string;
   portal_primary_color?: string; portal_accent_color?: string;
   admission_letter_template?: string; admission_reporting_date?: string;
+}
+
+interface SchoolIdentity {
+  name?: string | null;
+  vision?: string | null; mission?: string | null; core_values?: string | null;
 }
 
 const KNOWN_TOKENS = new Set([
@@ -28,13 +33,43 @@ const PLACEHOLDER_REFERENCE = [
   ['{residentialStatus}','Boarding / Day'],
   ['{gender}',           'Male / Female'],
   ['{aggregate}',        'BECE aggregate score'],
-  ['{date}',             'Today\'s date'],
+  ['{date}',             "Today's date"],
   ['{reportingDate}',    'School reporting date (set below)'],
   ['{parentName}',       'Guardian / parent name'],
   ['{parentMobile}',     'Guardian mobile number'],
   ['{schoolName}',       'Your school name'],
   ['{academicYear}',     'e.g. 2025/2026'],
 ] as const;
+
+const DEFAULT_LETTER_TEMPLATE =
+`OFFER OF ADMISSION
+
+Date: {date}
+
+Dear {name},
+
+We are pleased to inform you that you have been offered admission to {schoolName} for the {academicYear} academic year, subject to verification of the information provided.
+
+Your Admission Details
+
+  Admission Number:    {admissionNo}
+  Full Name:           {name}
+  Index Number:        {indexNumber}
+  Programme:           {program}
+  House:               {house}
+  Residential Status:  {residentialStatus}
+  Gender:              {gender}
+  Aggregate:           {aggregate}
+
+Reporting Requirements
+
+  • Report to the school on the designated reporting date with this admission letter.
+  • Bring your original BECE result slip for verification.
+  • Bring your Ghana Card or Birth Certificate (original and photocopy).
+  • Pay the required fees at the Finance Office upon arrival.
+  • Report on the date announced by the school authorities.
+
+We look forward to welcoming you to our school community.`;
 
 function clientValidateTemplate(tpl: string): string[] {
   return [...tpl.matchAll(/\{([^}]+)\}/g)].map(m => m[1]).filter(t => !KNOWN_TOKENS.has(t));
@@ -51,16 +86,16 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-interface SchoolIdentity { vision?: string | null; mission?: string | null; core_values?: string | null; }
-
 export default function AdmissionSettingsPage() {
-  const [settings, setSettings]   = useState<Settings>({});
-  const [saving,       setSaving]      = useState(false);
-  const [saved,        setSaved]       = useState(false);
-  const [error,        setError]       = useState('');
+  const [settings, setSettings]         = useState<Settings>({});
+  const [saving,   setSaving]           = useState(false);
+  const [saved,    setSaved]            = useState(false);
+  const [error,    setError]            = useState('');
   const [unknownTokens, setUnknownTokens] = useState<string[]>([]);
-  const [bannerB64, setBannerB64] = useState('');
-  const [logoB64,   setLogoB64]   = useState('');
+  const [bannerB64, setBannerB64]       = useState('');
+  const [logoB64,   setLogoB64]         = useState('');
+  const [showPreview, setShowPreview]   = useState(false);
+  const [schoolName,  setSchoolName]    = useState('');
   const bannerRef = useRef<HTMLInputElement>(null);
   const logoRef   = useRef<HTMLInputElement>(null);
 
@@ -79,6 +114,7 @@ export default function AdmissionSettingsPage() {
         api.get<SchoolIdentity>('/api/admin/settings'),
       ]);
       setSettings(admRes.data);
+      setSchoolName(schoolRes.data.name ?? '');
       setVision(schoolRes.data.vision ?? '');
       setMission(schoolRes.data.mission ?? '');
       setCoreValues(schoolRes.data.core_values ?? '');
@@ -117,9 +153,36 @@ export default function AdmissionSettingsPage() {
     } finally { setSaving(false); }
   }
 
+  function previewMerge(template: string): string {
+    const yr = 2000 + (settings.admission_year ?? new Date().getFullYear() % 100);
+    const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const sample: Record<string, string> = {
+      name:             'Kofi Mensah',
+      admissionNo:      `${settings.admission_prefix ?? 'STU'}002525`,
+      indexNumber:      '4010101234',
+      program:          'General Science',
+      house:            'St. Augustine House',
+      residentialStatus:'Boarding',
+      gender:           'Male',
+      aggregate:        '8',
+      date:             today,
+      reportingDate:    settings.admission_reporting_date || '14th September 2025',
+      parentName:       'Emmanuel Mensah',
+      parentMobile:     '0244 123 456',
+      schoolName:       schoolName || 'Your School',
+      academicYear:     `${yr}/${yr + 1}`,
+    };
+    return template.replace(/\{([^}]+)\}/g, (_, token: string) => {
+      if (!KNOWN_TOKENS.has(token)) return '';
+      return sample[token] ?? '—';
+    });
+  }
+
   const portalUrl = settings.portal_slug
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/admissions/${settings.portal_slug}`
     : null;
+
+  const primaryColor = settings.portal_primary_color || '#145C44';
 
   return (
     <div className="space-y-8 max-w-2xl">
@@ -274,9 +337,22 @@ export default function AdmissionSettingsPage() {
 
       {/* Admission Letter Template */}
       <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-500">Admission Letter Template</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Customise the body of the admission letter PDF. Use the placeholders below.</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-500">Admission Letter Template</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Customise the body of the admission letter PDF. Use the placeholders below.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowPreview(true)}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+            Preview Letter
+          </button>
         </div>
 
         <div>
@@ -352,6 +428,116 @@ export default function AdmissionSettingsPage() {
       <div className="flex justify-end">
         <Button onClick={save} loading={saving}>Save Settings</Button>
       </div>
+
+      {/* ── Letter Preview Modal ───────────────────────────────────────────────── */}
+      {showPreview && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-8 pb-16"
+          onClick={e => { if (e.target === e.currentTarget) setShowPreview(false); }}
+        >
+          <div className="w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden" style={{ background: '#f1f5f4' }}>
+
+            {/* Modal header */}
+            <div className="bg-white flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h3 className="font-bold text-slate-900">Letter Preview</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Sample student data — font and layout match the generated PDF</p>
+              </div>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Sample data badge */}
+            <div className="flex items-center gap-2 px-6 py-2.5 bg-amber-50 border-b border-amber-100 text-xs text-amber-700">
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Placeholders filled with sample values: Kofi Mensah · {settings.admission_prefix ?? 'STU'}002525 · General Science
+            </div>
+
+            {/* Scrollable paper area */}
+            <div className="p-8 overflow-y-auto" style={{ maxHeight: '78vh' }}>
+              {/* A4-proportioned paper card */}
+              <div
+                className="mx-auto bg-white shadow-lg"
+                style={{
+                  fontFamily: "Georgia, 'Times New Roman', serif",
+                  fontSize: '11pt',
+                  lineHeight: '1.7',
+                  color: '#000',
+                  padding: '48px 56px',
+                  maxWidth: 640,
+                  minHeight: 600,
+                }}
+              >
+                {/* Mock letterhead */}
+                <div style={{ textAlign: 'center', marginBottom: 28, paddingBottom: 16, borderBottom: `3px solid ${primaryColor}` }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '15pt', letterSpacing: '0.05em', color: primaryColor, textTransform: 'uppercase' }}>
+                    {schoolName || 'YOUR SCHOOL NAME'}
+                  </div>
+                  <div style={{ fontSize: '7.5pt', color: '#888', marginTop: 6, fontStyle: 'italic', borderTop: '1px solid #e2e8f0', paddingTop: 6 }}>
+                    School letterhead &amp; seal appear here in the generated PDF
+                  </div>
+                </div>
+
+                {/* Merged letter body */}
+                <div style={{ whiteSpace: 'pre-line' }}>
+                  {previewMerge(settings.admission_letter_template || DEFAULT_LETTER_TEMPLATE)}
+                </div>
+
+                {/* Sign-off */}
+                <div style={{ marginTop: 44 }}>
+                  <p style={{ margin: '0 0 6px', fontSize: '11pt' }}>Yours faithfully,</p>
+                  <div style={{
+                    width: 160, height: 44,
+                    borderBottom: '1px dashed #ccc',
+                    marginBottom: 8,
+                    display: 'flex', alignItems: 'flex-end',
+                  }}>
+                    <span style={{ fontSize: '7.5pt', color: '#bbb', fontStyle: 'italic' }}>headmaster signature</span>
+                  </div>
+                  <div style={{ borderTop: '1px solid #000', width: 220, paddingTop: 8 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '11pt' }}>Admissions Office</div>
+                    <div style={{ fontSize: '10pt', color: '#4A3F32' }}>{schoolName || 'Your School'}</div>
+                  </div>
+                </div>
+
+                {/* Footer band — mirrors the Puppeteer footerTemplate */}
+                {(vision || mission) && (
+                  <div style={{
+                    marginTop: 36,
+                    paddingTop: 6,
+                    borderTop: `1.5px solid ${primaryColor}`,
+                    fontSize: '7.5pt',
+                    color: '#444',
+                    display: 'grid',
+                    gridTemplateColumns: '55% 40% 5%',
+                    gap: 8,
+                    lineHeight: 1.5,
+                  }}>
+                    <div>
+                      {vision  && <div><strong style={{ color: primaryColor }}>Our Vision:</strong> {vision}</div>}
+                      {mission && <div style={{ marginTop: 2 }}><strong style={{ color: primaryColor }}>Our Mission:</strong> {mission}</div>}
+                    </div>
+                    <div style={{ textAlign: 'right', color: '#555' }}>
+                      {settings.contact_address && <div>{settings.contact_address}</div>}
+                      {settings.contact_phone   && <div>Tel: {settings.contact_phone}</div>}
+                      {settings.contact_email   && <div>{settings.contact_email}</div>}
+                    </div>
+                    <div style={{ textAlign: 'right', color: '#888' }}>1</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
