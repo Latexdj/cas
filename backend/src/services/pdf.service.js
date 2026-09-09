@@ -63,6 +63,26 @@ async function fetchAsDataUri(url) {
   });
 }
 
+// Pre-fetches all image URLs on a school object (and optionally a per-letter
+// override signature) as base64 data URIs so Puppeteer never makes outbound
+// network requests during rendering. Supabase URLs without file extensions
+// trigger wrong content-type headers that cause Puppeteer to drop images silently.
+// On fetch failure each field is set to null so renderLetterhead/renderSig
+// fall back to their text/spacer defaults.
+async function resolveImages(school, extraUrls = {}) {
+  const keys = ['letterhead_url', 'headmaster_signature_url', ...Object.keys(extraUrls)];
+  const urls = [school.letterhead_url, school.headmaster_signature_url, ...Object.values(extraUrls)];
+  const results = await Promise.all(urls.map(fetchAsDataUri));
+  const resolvedSchool = {
+    ...school,
+    letterhead_url:           results[0] ?? null,
+    headmaster_signature_url: results[1] ?? null,
+  };
+  const resolvedExtras = {};
+  Object.keys(extraUrls).forEach((k, i) => { resolvedExtras[k] = results[2 + i] ?? null; });
+  return { resolvedSchool, resolvedExtras };
+}
+
 function renderLetterhead(school) {
   const color = esc(school.primary_color || '#0B3D2E');
   return school.letterhead_url
@@ -217,7 +237,11 @@ async function _renderToPDF(html, filePath) {
 
 // Returns the Supabase public URL of the uploaded PDF.
 async function generateAndUploadPDF({ letter, school, recipientType, watermark = false, pathPrefix = 'letters' }) {
-  const html     = buildLetterHTML({ letter, school, recipientType, watermark });
+  const { resolvedSchool, resolvedExtras } = await resolveImages(school, {
+    issued_by_signature_url: letter.issued_by_signature_url,
+  });
+  const resolvedLetter = { ...letter, ...resolvedExtras };
+  const html     = buildLetterHTML({ letter: resolvedLetter, school: resolvedSchool, recipientType, watermark });
   const prefix   = watermark ? 'draft' : 'final';
   const filePath = `${pathPrefix}/${prefix}-${Date.now()}.pdf`;
   return _renderToPDF(html, filePath);
@@ -324,21 +348,8 @@ function buildAdmissionLetterHTML({ application: a, school }) {
 }
 
 async function generateAdmissionLetterPDF({ application, school }) {
-  // Pre-fetch images as data URIs so Puppeteer doesn't make outbound network calls.
-  // Supabase URLs without file extensions can return wrong content-type headers
-  // causing Puppeteer to silently drop them; embedding as base64 avoids this entirely.
-  const [letterheadDataUri, sigDataUri] = await Promise.all([
-    fetchAsDataUri(school.letterhead_url),
-    fetchAsDataUri(school.headmaster_signature_url),
-  ]);
-  // If fetch fails (returns null), set the URL to null so renderLetterhead/renderSig
-  // fall back to the text block / spacer rather than passing a broken external URL to Puppeteer.
-  const schoolWithDataUris = {
-    ...school,
-    letterhead_url:           letterheadDataUri  ?? null,
-    headmaster_signature_url: sigDataUri         ?? null,
-  };
-  const html     = buildAdmissionLetterHTML({ application, school: schoolWithDataUris });
+  const { resolvedSchool } = await resolveImages(school);
+  const html     = buildAdmissionLetterHTML({ application, school: resolvedSchool });
   const filePath = `admissions/letters/letter-${application.id}-${Date.now()}.pdf`;
   return _renderToPDF(html, filePath);
 }
