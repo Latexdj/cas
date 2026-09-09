@@ -221,6 +221,102 @@ router.delete('/applications/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Admission number generation (admin / direct) ──────────────────────────────
+
+async function generateAdmissionNumber(schoolId, client) {
+  const { rows } = await client.query(
+    `UPDATE school_admission_settings
+     SET next_sequence = next_sequence + 1, updated_at = now()
+     WHERE school_id = $1
+     RETURNING next_sequence - 1 AS seq, admission_prefix, admission_year`,
+    [schoolId]
+  );
+  if (!rows.length) throw new Error('Admission settings not configured. Please set up Portal Settings first.');
+  const { seq, admission_prefix, admission_year } = rows[0];
+  return `${admission_prefix}${String(seq).padStart(4,'0')}${String(admission_year).padStart(2,'0')}`;
+}
+
+async function assignHouseAuto(schoolId, gender, residentialStatus, programId) {
+  const { rows: houses } = await pool.query(
+    `SELECT name FROM houses WHERE school_id = $1 ORDER BY name`, [schoolId]
+  );
+  if (!houses.length) return null;
+  const { rows: counts } = await pool.query(
+    `SELECT house,
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE program_id = $4)::int AS prog_count
+     FROM admission_applications
+     WHERE school_id = $1 AND LOWER(gender) = LOWER($2) AND LOWER(residential_status) = LOWER($3)
+       AND status != 'pending' AND house IS NOT NULL
+     GROUP BY house`,
+    [schoolId, gender, residentialStatus, programId]
+  );
+  const total = {}, prog = {};
+  for (const r of counts) { total[r.house] = r.total; prog[r.house] = r.prog_count; }
+  let best = null, bestScore = Infinity;
+  for (const h of houses) {
+    const score = (total[h.name] ?? 0) + 0.3 * (prog[h.name] ?? 0);
+    if (score < bestScore) { bestScore = score; best = h.name; }
+  }
+  return best;
+}
+
+// POST /api/admin/admissions/applications/manual — walk-in / direct admission
+router.post('/applications/manual', async (req, res, next) => {
+  try {
+    const {
+      full_name, date_of_birth, gender, hometown, residential_address,
+      mobile_number, ghana_card_number, nhia_number, religion, religious_denomination,
+      aggregate, residential_status, index_number,
+      program_id, direct_reason,
+      guardian_name, guardian_relationship, guardian_occupation, guardian_mobile,
+    } = req.body;
+
+    if (!full_name?.trim())        return res.status(400).json({ error: 'Full name is required.' });
+    if (!gender)                   return res.status(400).json({ error: 'Gender is required.' });
+    if (!residential_status)       return res.status(400).json({ error: 'Residential status is required.' });
+    if (!program_id)               return res.status(400).json({ error: 'Program is required.' });
+    if (!direct_reason?.trim())    return res.status(400).json({ error: 'Reason for direct admission is required.' });
+
+    const idx = index_number?.trim().toUpperCase() || null;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const admissionNumber = await generateAdmissionNumber(req.schoolId, client);
+      const house = await assignHouseAuto(req.schoolId, gender, residential_status, program_id);
+      const { rows } = await client.query(
+        `INSERT INTO admission_applications
+           (school_id, index_number, admission_number, full_name, date_of_birth, gender,
+            aggregate, residential_status, hometown, residential_address, mobile_number,
+            ghana_card_number, nhia_number, religion, religious_denomination,
+            program_id, house,
+            guardian_name, guardian_relationship, guardian_occupation, guardian_mobile,
+            status, form_step, form_completed_at, admission_type, direct_reason)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::uuid,$17,
+                 $18,$19,$20,$21,'completed',5,now(),'direct',$22)
+         RETURNING *`,
+        [
+          req.schoolId, idx, admissionNumber, full_name.trim(),
+          date_of_birth || null, gender,
+          aggregate != null && aggregate !== '' ? parseInt(aggregate) : null,
+          residential_status,
+          hometown || null, residential_address || null, mobile_number || null,
+          ghana_card_number || null, nhia_number || null,
+          religion || null, religious_denomination || null,
+          program_id || null, house,
+          guardian_name || null, guardian_relationship || null,
+          guardian_occupation || null, guardian_mobile || null,
+          direct_reason.trim(),
+        ]
+      );
+      await client.query('COMMIT');
+      res.status(201).json(rows[0]);
+    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    finally { client.release(); }
+  } catch (err) { next(err); }
+});
+
 // ── Migration ─────────────────────────────────────────────────────────────────
 
 async function migrateOne(client, app, defaultClass, schoolId, admissionYear) {
@@ -317,10 +413,11 @@ router.get('/stats', async (req, res, next) => {
     const [apps, place] = await Promise.all([
       pool.query(
         `SELECT COUNT(*)::int AS total,
-                COUNT(*) FILTER (WHERE status='pending')::int   AS pending,
-                COUNT(*) FILTER (WHERE status='completed')::int AS completed,
-                COUNT(*) FILTER (WHERE status='reported')::int  AS reported,
-                COUNT(*) FILTER (WHERE status='migrated')::int  AS migrated
+                COUNT(*) FILTER (WHERE status='pending')::int          AS pending,
+                COUNT(*) FILTER (WHERE status='completed')::int        AS completed,
+                COUNT(*) FILTER (WHERE status='reported')::int         AS reported,
+                COUNT(*) FILTER (WHERE status='migrated')::int         AS migrated,
+                COUNT(*) FILTER (WHERE admission_type='direct')::int   AS direct
          FROM admission_applications WHERE school_id=$1`, [req.schoolId]
       ),
       pool.query(
