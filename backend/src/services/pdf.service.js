@@ -408,9 +408,12 @@ function buildAdmissionLetterHTML({ application: a, school }) {
     @page { margin: 22mm 20mm 28mm 20mm; }
     body { font-family: Georgia, 'Times New Roman', serif; font-size: 11pt; color: #000; line-height: 1.7; max-width: 720px; margin: 0 auto; position: relative; }
     p { margin: 0 0 12px; }
-    ul, ol { margin: 0 0 12px; padding-left: 24px; }
-    li { margin-bottom: 4px; }
+    ul { margin: 0 0 12px; padding-left: 28px; list-style-type: disc; }
+    ol { margin: 0 0 12px; padding-left: 28px; list-style-type: decimal; }
+    li { margin-bottom: 5px; display: list-item; }
     strong { font-weight: bold; }
+    em { font-style: italic; }
+    u  { text-decoration: underline; }
     img { max-width: 100%; }
     * { box-sizing: border-box; }
   </style>

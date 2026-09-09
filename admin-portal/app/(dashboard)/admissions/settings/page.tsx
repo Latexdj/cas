@@ -528,7 +528,17 @@ export default function AdmissionSettingsPage() {
                 </div>
 
                 {/* ── Merged body ── */}
+                <style>{`
+                  .letter-body p { margin: 0 0 12px; }
+                  .letter-body ul { margin: 0 0 12px; padding-left: 28px; list-style-type: disc; }
+                  .letter-body ol { margin: 0 0 12px; padding-left: 28px; list-style-type: decimal; }
+                  .letter-body li { margin-bottom: 5px; display: list-item; }
+                  .letter-body strong { font-weight: bold; }
+                  .letter-body em { font-style: italic; }
+                  .letter-body u  { text-decoration: underline; }
+                `}</style>
                 <div
+                  className="letter-body"
                   style={{ marginBottom: 32 }}
                   dangerouslySetInnerHTML={{ __html: previewMerge(templateHtml, schoolInfo, settings) }}
                 />
