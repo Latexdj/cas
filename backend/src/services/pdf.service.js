@@ -58,12 +58,11 @@ function validateTemplate(template) {
     .filter(t => !KNOWN_MERGE_FIELDS.has(t));
 }
 
-// HTML-escapes the prose of the template (so an admin typing <script> can't
-// inject markup), substitutes known {tokens}, strips unknown ones, and falls
-// back to "—" for null/empty field values.
+// Template is HTML (from the rich-text editor). Substitute known {tokens} with
+// HTML-escaped field values; strip unknown tokens; null/empty values → "—".
+// The template itself is NOT escaped — it is authored HTML from the admin editor.
 function mergeTemplate(template, fields) {
-  const escaped = esc(template); // escapes < > & " — { } are NOT HTML special
-  return escaped.replace(/\{([^}]+)\}/g, (match, token) => {
+  return template.replace(/\{([^}]+)\}/g, (match, token) => {
     if (!KNOWN_MERGE_FIELDS.has(token)) return '';
     const raw = fields[token];
     if (raw == null || raw === '') return '—';
@@ -71,63 +70,56 @@ function mergeTemplate(template, fields) {
   });
 }
 
+// Default HTML body template. Date and reference number are rendered as
+// structural elements above this block, so they are not repeated here.
 const DEFAULT_ADMISSION_LETTER_TEMPLATE =
-`OFFER OF ADMISSION
+`<p>Dear <strong>{name}</strong>,</p>
+<p style="text-align:justify;">We are pleased to inform you that you have been offered admission to <strong>{schoolName}</strong> for the <strong>{academicYear}</strong> academic year, subject to verification of the information provided.</p>
+<p><strong>Your Admission Details</strong></p>
+<p>
+  Admission Number: <strong>{admissionNo}</strong><br>
+  Full Name: <strong>{name}</strong><br>
+  Index Number: <strong>{indexNumber}</strong><br>
+  Programme: <strong>{program}</strong><br>
+  House: <strong>{house}</strong><br>
+  Residential Status: <strong>{residentialStatus}</strong><br>
+  Gender: <strong>{gender}</strong><br>
+  Aggregate: <strong>{aggregate}</strong>
+</p>
+<p><strong>Reporting Requirements</strong></p>
+<ul>
+  <li>Report to the school on or before <strong>{reportingDate}</strong> with this admission letter.</li>
+  <li>Bring your original BECE result slip for verification.</li>
+  <li>Bring your Ghana Card or Birth Certificate (original and photocopy).</li>
+  <li>Pay the required fees at the Finance Office upon arrival.</li>
+</ul>
+<p style="text-align:justify;">We look forward to welcoming you to our school community.</p>`;
 
-
-Date: {date}
-
-Dear {name},
-
-We are pleased to inform you that you have been offered admission to {schoolName} for the {academicYear} academic year, subject to verification of the information provided.
-
-
-Your Admission Details
-
-  Admission Number:    {admissionNo}
-  Full Name:           {name}
-  Index Number:        {indexNumber}
-  Programme:           {program}
-  House:               {house}
-  Residential Status:  {residentialStatus}
-  Gender:              {gender}
-  Aggregate:           {aggregate}
-
-
-Reporting Requirements
-
-  • Report to the school on the designated reporting date with this admission letter.
-  • Bring your original BECE result slip for verification.
-  • Bring your Ghana Card or Birth Certificate (original and photocopy).
-  • Pay the required fees at the Finance Office upon arrival.
-  • Report on the date announced by the school authorities.
-
-
-We look forward to welcoming you to our school community.`;
-
-// Builds the Puppeteer footerTemplate HTML string for admission letters.
-// Left column: vision + mission. Right column: address/phone/email. Far right: page number.
-// Returns null if the school has no data for either column.
+// Puppeteer footerTemplate: solid primary-colour band, white text.
+// Left: vision/mission. Right: address/phone/email. Far-right cell: page number.
+// Returns null if the school has nothing for either column (no footer rendered).
 function buildFooterHtml(school) {
-  const color = school.primary_color || '#0B3D2E';
+  const color = esc(school.primary_color || '#0B3D2E');
   const left = [
-    school.vision  ? `<div><b style="color:${esc(color)};">Our Vision:</b> ${esc(school.vision)}</div>`   : '',
-    school.mission ? `<div><b style="color:${esc(color)};">Our Mission:</b> ${esc(school.mission)}</div>` : '',
+    school.vision  ? `<div><b>Our Vision:</b> ${esc(school.vision)}</div>`   : '',
+    school.mission ? `<div><b>Our Mission:</b> ${esc(school.mission)}</div>` : '',
   ].filter(Boolean).join('');
   const right = [
-    school.address ? `<div>Address: ${esc(school.address)}</div>` : '',
-    school.phone   ? `<div>Tel: ${esc(school.phone)}</div>`       : '',
-    school.email   ? `<div>Email: ${esc(school.email)}</div>`     : '',
+    school.address ? `<div>${esc(school.address)}</div>`      : '',
+    school.phone   ? `<div>Tel: ${esc(school.phone)}</div>`   : '',
+    school.email   ? `<div>${esc(school.email)}</div>`        : '',
   ].filter(Boolean).join('');
   if (!left && !right) return null;
-  return `<div style="width:100%;font-family:Arial,Helvetica,sans-serif;font-size:7.5pt;
-      color:#444;padding:3px 20mm 0;box-sizing:border-box;
-      border-top:1.5px solid ${esc(color)};">
+  return `<div style="
+      width:100%;background:${color};color:#fff;
+      font-family:Arial,Helvetica,sans-serif;font-size:7pt;line-height:1.55;
+      padding:5px 20mm;box-sizing:border-box;
+      -webkit-print-color-adjust:exact;print-color-adjust:exact;">
     <table style="width:100%;border-collapse:collapse;">
       <tr>
-        <td style="vertical-align:top;width:55%;line-height:1.5;padding-right:8px;">${left || '&nbsp;'}</td>
-        <td style="vertical-align:top;width:40%;text-align:right;line-height:1.5;">${right || '&nbsp;'}</td>
-        <td style="vertical-align:top;width:5%;text-align:right;white-space:nowrap;">
+        <td style="vertical-align:top;width:60%;padding-right:8px;">${left || '&nbsp;'}</td>
+        <td style="vertical-align:top;width:35%;text-align:right;">${right || '&nbsp;'}</td>
+        <td style="vertical-align:middle;width:5%;text-align:right;padding-left:6px;white-space:nowrap;">
           <span class="pageNumber"></span>
         </td>
       </tr>
@@ -366,6 +358,14 @@ function buildAdmissionLetterHTML({ application: a, school }) {
   const year    = 2000 + (school.admission_year || new Date().getFullYear() % 100);
   const today   = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
+  // Reference number: ADM/{prefix}/{2-digit year}/{sequential part of admission number}
+  const admPrefix   = school.admission_prefix || '';
+  const yearStr     = String(year).slice(-2);
+  const rawSeq      = a.admission_number
+    ? a.admission_number.slice(admPrefix.length, admPrefix.length > 0 ? -2 : undefined)
+    : '0001';
+  const refNumber   = `ADM/${admPrefix}/${yearStr}/${rawSeq}`;
+
   const fields = {
     name:             a.full_name,
     admissionNo:      a.admission_number,
@@ -394,13 +394,21 @@ function buildAdmissionLetterHTML({ application: a, school }) {
   <style>
     @page { margin: 22mm 20mm 28mm 20mm; }
     body { font-family: Georgia, 'Times New Roman', serif; font-size: 11pt; color: #000; line-height: 1.7; max-width: 720px; margin: 0 auto; }
+    p { margin: 0 0 12px; }
+    ul, ol { margin: 0 0 12px; padding-left: 24px; }
+    li { margin-bottom: 4px; }
+    strong { font-weight: bold; }
     img { max-width: 100%; }
     * { box-sizing: border-box; }
   </style>
 </head>
 <body>
   ${renderLetterhead(school)}
-  <div style="white-space:pre-line;margin-bottom:32px;">${bodyHtml}</div>
+  <div style="display:flex;justify-content:space-between;align-items:baseline;margin:0 0 24px;font-size:10.5pt;">
+    <div><strong>Ref:</strong> ${esc(refNumber)}</div>
+    <div><strong>Date:</strong> ${esc(today)}</div>
+  </div>
+  <div style="margin-bottom:32px;">${bodyHtml}</div>
   <div style="margin-top:32px;">
     <p style="margin:0 0 4px;">Yours faithfully,</p>
     ${sigHtml}

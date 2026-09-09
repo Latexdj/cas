@@ -251,7 +251,7 @@ router.post('/:slug/apply/:token/letter', async (req, res, next) => {
         [school.school_id]
       ),
       pool.query(
-        `SELECT admission_year, admission_letter_template, admission_reporting_date
+        `SELECT admission_year, admission_prefix, admission_letter_template, admission_reporting_date
          FROM school_admission_settings WHERE school_id = $1`,
         [school.school_id]
       ),
@@ -260,6 +260,7 @@ router.post('/:slug/apply/:token/letter', async (req, res, next) => {
     const schoolData = {
       ...schoolRows[0],
       admission_year:            settingsRows[0]?.admission_year,
+      admission_prefix:          settingsRows[0]?.admission_prefix          || null,
       admission_letter_template: settingsRows[0]?.admission_letter_template || null,
       admission_reporting_date:  settingsRows[0]?.admission_reporting_date  || null,
     };

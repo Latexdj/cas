@@ -215,7 +215,7 @@ router.post('/applications/:id/letter', async (req, res, next) => {
         [req.schoolId]
       ),
       pool.query(
-        `SELECT admission_year, admission_letter_template, admission_reporting_date
+        `SELECT admission_year, admission_prefix, admission_letter_template, admission_reporting_date
          FROM school_admission_settings WHERE school_id=$1`,
         [req.schoolId]
       ),
@@ -225,9 +225,10 @@ router.post('/applications/:id/letter', async (req, res, next) => {
     const app = apps[0];
     const schoolData = {
       ...schoolRows[0],
-      admission_year:             settingsRows[0]?.admission_year,
-      admission_letter_template:  settingsRows[0]?.admission_letter_template || null,
-      admission_reporting_date:   settingsRows[0]?.admission_reporting_date  || null,
+      admission_year:            settingsRows[0]?.admission_year,
+      admission_prefix:          settingsRows[0]?.admission_prefix          || null,
+      admission_letter_template: settingsRows[0]?.admission_letter_template || null,
+      admission_reporting_date:  settingsRows[0]?.admission_reporting_date  || null,
     };
 
     let prospectus_url = null;
