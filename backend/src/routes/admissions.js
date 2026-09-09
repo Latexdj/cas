@@ -1,6 +1,8 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { uploadFile } = require('../services/storage.service');
+const { generateAdmissionNumber, assignHouse } = require('../services/admissions.service');
+const { generateAdmissionLetterPDF } = require('../services/pdf.service');
 
 async function getSchoolBySlug(slug) {
   const { rows } = await pool.query(
@@ -17,51 +19,6 @@ async function getSchoolBySlug(slug) {
     [slug]
   );
   return rows[0] || null;
-}
-
-async function generateAdmissionNumber(schoolId, client) {
-  const { rows } = await client.query(
-    `UPDATE school_admission_settings
-     SET next_sequence = next_sequence + 1, updated_at = now()
-     WHERE school_id = $1
-     RETURNING next_sequence - 1 AS seq, admission_prefix, admission_year`,
-    [schoolId]
-  );
-  if (!rows.length) throw new Error('Admission settings not found');
-  const { seq, admission_prefix, admission_year } = rows[0];
-  return `${admission_prefix}${String(seq).padStart(4,'0')}${String(admission_year).padStart(2,'0')}`;
-}
-
-async function assignHouse(schoolId, gender, residentialStatus, programId) {
-  const { rows: houses } = await pool.query(
-    `SELECT name FROM houses WHERE school_id = $1 ORDER BY name`,
-    [schoolId]
-  );
-  if (!houses.length) return null;
-
-  const { rows: counts } = await pool.query(
-    `SELECT house,
-            COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE program_id = $4)::int AS prog_count
-     FROM admission_applications
-     WHERE school_id = $1
-       AND LOWER(gender) = LOWER($2)
-       AND LOWER(residential_status) = LOWER($3)
-       AND status != 'pending'
-       AND house IS NOT NULL
-     GROUP BY house`,
-    [schoolId, gender, residentialStatus, programId]
-  );
-
-  const total = {}, prog = {};
-  for (const r of counts) { total[r.house] = r.total; prog[r.house] = r.prog_count; }
-
-  let best = null, bestScore = Infinity;
-  for (const h of houses) {
-    const score = (total[h.name] ?? 0) + 0.3 * (prog[h.name] ?? 0);
-    if (score < bestScore) { bestScore = score; best = h.name; }
-  }
-  return best;
 }
 
 // GET /api/admissions/:slug
@@ -265,6 +222,49 @@ router.post('/:slug/apply/:token/upload', async (req, res, next) => {
       await pool.query(`UPDATE admission_applications SET ${setClauses}, updated_at=now() WHERE form_token=$${vals.length}`, vals);
     }
     res.json({ success: true });
+  } catch (err) { next(err); }
+});
+
+// POST /api/admissions/:slug/apply/:token/letter
+router.post('/:slug/apply/:token/letter', async (req, res, next) => {
+  try {
+    const school = await getSchoolBySlug(req.params.slug);
+    if (!school) return res.status(404).json({ error: 'Portal not found' });
+
+    const { rows } = await pool.query(
+      `SELECT a.*, p.name AS program_name
+       FROM admission_applications a LEFT JOIN programs p ON p.id = a.program_id
+       WHERE a.form_token = $1 AND a.school_id = $2`,
+      [req.params.token, school.school_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Application not found' });
+    const app = rows[0];
+    if (!['completed','reported','migrated'].includes(app.status)) {
+      return res.status(400).json({ error: 'Application not yet completed.' });
+    }
+
+    const [{ rows: schoolRows }, { rows: settingsRows }] = await Promise.all([
+      pool.query(
+        `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url,
+                primary_color, accent_color
+         FROM schools WHERE id = $1`,
+        [school.school_id]
+      ),
+      pool.query(
+        `SELECT admission_year, admission_reporting_requirements
+         FROM school_admission_settings WHERE school_id = $1`,
+        [school.school_id]
+      ),
+    ]);
+
+    const schoolData = {
+      ...schoolRows[0],
+      admission_year:                  settingsRows[0]?.admission_year,
+      admission_reporting_requirements: settingsRows[0]?.admission_reporting_requirements || null,
+    };
+
+    const url = await generateAdmissionLetterPDF({ application: app, school: schoolData });
+    res.json({ url });
   } catch (err) { next(err); }
 });
 

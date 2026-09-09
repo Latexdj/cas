@@ -4,6 +4,8 @@ const multer = require('multer');
 const XLSX   = require('xlsx');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { uploadFile } = require('../services/storage.service');
+const { generateAdmissionNumber, assignHouse } = require('../services/admissions.service');
+const { generateAdmissionLetterPDF } = require('../services/pdf.service');
 
 router.use(authenticate, requireActiveSubscription, adminOnly);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -29,6 +31,7 @@ router.patch('/settings', async (req, res, next) => {
       banner_image_data, portal_logo_data,
       contact_email, contact_phone, contact_address,
       portal_primary_color, portal_accent_color,
+      admission_reporting_requirements,
     } = req.body;
 
     let banner_image_url = null;
@@ -41,25 +44,26 @@ router.patch('/settings', async (req, res, next) => {
          (school_id, portal_slug, admission_prefix, admission_year, is_portal_open,
           application_deadline, website_title, website_tagline, welcome_text,
           banner_image_url, portal_logo_url, contact_email, contact_phone, contact_address,
-          portal_primary_color, portal_accent_color, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now())
+          portal_primary_color, portal_accent_color, admission_reporting_requirements, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now())
        ON CONFLICT (school_id) DO UPDATE SET
-         portal_slug          = COALESCE(EXCLUDED.portal_slug,          school_admission_settings.portal_slug),
-         admission_prefix     = COALESCE(EXCLUDED.admission_prefix,     school_admission_settings.admission_prefix),
-         admission_year       = COALESCE(EXCLUDED.admission_year,       school_admission_settings.admission_year),
-         is_portal_open       = COALESCE(EXCLUDED.is_portal_open,       school_admission_settings.is_portal_open),
-         application_deadline = COALESCE(EXCLUDED.application_deadline, school_admission_settings.application_deadline),
-         website_title        = COALESCE(EXCLUDED.website_title,        school_admission_settings.website_title),
-         website_tagline      = COALESCE(EXCLUDED.website_tagline,      school_admission_settings.website_tagline),
-         welcome_text         = COALESCE(EXCLUDED.welcome_text,         school_admission_settings.welcome_text),
-         banner_image_url     = COALESCE(EXCLUDED.banner_image_url,     school_admission_settings.banner_image_url),
-         portal_logo_url      = COALESCE(EXCLUDED.portal_logo_url,      school_admission_settings.portal_logo_url),
-         contact_email        = COALESCE(EXCLUDED.contact_email,        school_admission_settings.contact_email),
-         contact_phone        = COALESCE(EXCLUDED.contact_phone,        school_admission_settings.contact_phone),
-         contact_address      = COALESCE(EXCLUDED.contact_address,      school_admission_settings.contact_address),
-         portal_primary_color = COALESCE(EXCLUDED.portal_primary_color, school_admission_settings.portal_primary_color),
-         portal_accent_color  = COALESCE(EXCLUDED.portal_accent_color,  school_admission_settings.portal_accent_color),
-         updated_at           = now()
+         portal_slug                       = COALESCE(EXCLUDED.portal_slug,                       school_admission_settings.portal_slug),
+         admission_prefix                  = COALESCE(EXCLUDED.admission_prefix,                  school_admission_settings.admission_prefix),
+         admission_year                    = COALESCE(EXCLUDED.admission_year,                    school_admission_settings.admission_year),
+         is_portal_open                    = COALESCE(EXCLUDED.is_portal_open,                    school_admission_settings.is_portal_open),
+         application_deadline              = COALESCE(EXCLUDED.application_deadline,              school_admission_settings.application_deadline),
+         website_title                     = COALESCE(EXCLUDED.website_title,                     school_admission_settings.website_title),
+         website_tagline                   = COALESCE(EXCLUDED.website_tagline,                   school_admission_settings.website_tagline),
+         welcome_text                      = COALESCE(EXCLUDED.welcome_text,                      school_admission_settings.welcome_text),
+         banner_image_url                  = COALESCE(EXCLUDED.banner_image_url,                  school_admission_settings.banner_image_url),
+         portal_logo_url                   = COALESCE(EXCLUDED.portal_logo_url,                   school_admission_settings.portal_logo_url),
+         contact_email                     = COALESCE(EXCLUDED.contact_email,                     school_admission_settings.contact_email),
+         contact_phone                     = COALESCE(EXCLUDED.contact_phone,                     school_admission_settings.contact_phone),
+         contact_address                   = COALESCE(EXCLUDED.contact_address,                   school_admission_settings.contact_address),
+         portal_primary_color              = COALESCE(EXCLUDED.portal_primary_color,              school_admission_settings.portal_primary_color),
+         portal_accent_color               = COALESCE(EXCLUDED.portal_accent_color,               school_admission_settings.portal_accent_color),
+         admission_reporting_requirements  = COALESCE(EXCLUDED.admission_reporting_requirements,  school_admission_settings.admission_reporting_requirements),
+         updated_at                        = now()
        RETURNING *`,
       [req.schoolId, portal_slug||null, admission_prefix||null,
        admission_year ? parseInt(admission_year) : null,
@@ -67,7 +71,8 @@ router.patch('/settings', async (req, res, next) => {
        application_deadline||null, website_title||null, website_tagline||null, welcome_text||null,
        banner_image_url, portal_logo_url,
        contact_email||null, contact_phone||null, contact_address||null,
-       portal_primary_color||null, portal_accent_color||null]
+       portal_primary_color||null, portal_accent_color||null,
+       admission_reporting_requirements||null]
     );
     res.json(rows[0]);
   } catch (err) {
@@ -189,25 +194,34 @@ router.get('/applications/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/applications/:id/letter-data', async (req, res, next) => {
+router.post('/applications/:id/letter', async (req, res, next) => {
   try {
-    const [{ rows: apps }, { rows: settings }, { rows: schools }] = await Promise.all([
+    const [{ rows: apps }, { rows: schoolRows }, { rows: settingsRows }] = await Promise.all([
       pool.query(
         `SELECT a.*, p.name AS program_name FROM admission_applications a
          LEFT JOIN programs p ON p.id = a.program_id WHERE a.id=$1 AND a.school_id=$2`,
         [req.params.id, req.schoolId]
       ),
       pool.query(
-        `SELECT admission_prefix, admission_year, portal_primary_color, portal_accent_color,
-                portal_logo_url, contact_phone, contact_email, contact_address
-         FROM school_admission_settings WHERE school_id=$1`, [req.schoolId]
+        `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url,
+                primary_color, accent_color
+         FROM schools WHERE id=$1`,
+        [req.schoolId]
       ),
-      pool.query(`SELECT name, logo_url FROM schools WHERE id=$1`, [req.schoolId]),
+      pool.query(
+        `SELECT admission_year, admission_reporting_requirements
+         FROM school_admission_settings WHERE school_id=$1`,
+        [req.schoolId]
+      ),
     ]);
     if (!apps.length) return res.status(404).json({ error: 'Not found' });
+
     const app = apps[0];
-    const s   = settings[0] ?? {};
-    const sch = schools[0] ?? {};
+    const schoolData = {
+      ...schoolRows[0],
+      admission_year:                   settingsRows[0]?.admission_year,
+      admission_reporting_requirements:  settingsRows[0]?.admission_reporting_requirements || null,
+    };
 
     let prospectus_url = null;
     if (app.program_id && app.gender && app.residential_status) {
@@ -224,20 +238,8 @@ router.get('/applications/:id/letter-data', async (req, res, next) => {
       if (p.length) prospectus_url = p[0].file_url;
     }
 
-    res.json({
-      application: app,
-      school: {
-        school_name:          sch.name,
-        logo_url:             s.portal_logo_url || sch.logo_url || null,
-        primary_color:        s.portal_primary_color || '#16A34A',
-        accent_color:         s.portal_accent_color  || '#145C44',
-        admission_year:       s.admission_year ?? new Date().getFullYear() % 100,
-        contact_phone:        s.contact_phone  || null,
-        contact_email:        s.contact_email  || null,
-        contact_address:      s.contact_address || null,
-      },
-      prospectus_url,
-    });
+    const url = await generateAdmissionLetterPDF({ application: app, school: schoolData });
+    res.json({ url, prospectus_url });
   } catch (err) { next(err); }
 });
 
@@ -273,46 +275,6 @@ router.delete('/applications/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Admission number generation (admin / direct) ──────────────────────────────
-
-async function generateAdmissionNumber(schoolId, client) {
-  const { rows } = await client.query(
-    `UPDATE school_admission_settings
-     SET next_sequence = next_sequence + 1, updated_at = now()
-     WHERE school_id = $1
-     RETURNING next_sequence - 1 AS seq, admission_prefix, admission_year`,
-    [schoolId]
-  );
-  if (!rows.length) throw new Error('Admission settings not configured. Please set up Portal Settings first.');
-  const { seq, admission_prefix, admission_year } = rows[0];
-  return `${admission_prefix}${String(seq).padStart(4,'0')}${String(admission_year).padStart(2,'0')}`;
-}
-
-async function assignHouseAuto(schoolId, gender, residentialStatus, programId) {
-  const { rows: houses } = await pool.query(
-    `SELECT name FROM houses WHERE school_id = $1 ORDER BY name`, [schoolId]
-  );
-  if (!houses.length) return null;
-  const { rows: counts } = await pool.query(
-    `SELECT house,
-            COUNT(*)::int AS total,
-            COUNT(*) FILTER (WHERE program_id = $4)::int AS prog_count
-     FROM admission_applications
-     WHERE school_id = $1 AND LOWER(gender) = LOWER($2) AND LOWER(residential_status) = LOWER($3)
-       AND status != 'pending' AND house IS NOT NULL
-     GROUP BY house`,
-    [schoolId, gender, residentialStatus, programId]
-  );
-  const total = {}, prog = {};
-  for (const r of counts) { total[r.house] = r.total; prog[r.house] = r.prog_count; }
-  let best = null, bestScore = Infinity;
-  for (const h of houses) {
-    const score = (total[h.name] ?? 0) + 0.3 * (prog[h.name] ?? 0);
-    if (score < bestScore) { bestScore = score; best = h.name; }
-  }
-  return best;
-}
-
 // POST /api/admin/admissions/applications/manual — walk-in / direct admission
 router.post('/applications/manual', async (req, res, next) => {
   try {
@@ -336,7 +298,7 @@ router.post('/applications/manual', async (req, res, next) => {
     try {
       await client.query('BEGIN');
       const admissionNumber = await generateAdmissionNumber(req.schoolId, client);
-      const house = await assignHouseAuto(req.schoolId, gender, residential_status, program_id);
+      const house = await assignHouse(req.schoolId, gender, residential_status, program_id);
       const { rows } = await client.query(
         `INSERT INTO admission_applications
            (school_id, index_number, admission_number, full_name, date_of_birth, gender,
