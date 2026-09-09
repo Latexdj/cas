@@ -24,7 +24,7 @@ interface SchoolInfo {
   vision?: string | null; mission?: string | null; core_values?: string | null;
   letterhead_url?: string | null; headmaster_signature_url?: string | null;
   address?: string | null; phone?: string | null; email?: string | null;
-  primary_color?: string | null;
+  primary_color?: string | null; logo_url?: string | null;
 }
 
 // ── Merge-field validation (mirrors the server) ───────────────────────────────
@@ -479,8 +479,24 @@ export default function AdmissionSettingsPage() {
               <div className="mx-auto bg-white shadow-lg" style={{
                 fontFamily: "Georgia, 'Times New Roman', serif",
                 fontSize: '11pt', lineHeight: '1.7', color: '#000',
-                padding: '40px 52px', maxWidth: 640,
+                padding: '40px 52px', maxWidth: 640, position: 'relative',
               }}>
+
+                {/* ── Watermark crest ── */}
+                {schoolInfo.logo_url && (
+                  <div style={{
+                    position: 'absolute', top: '50%', left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    width: 320, height: 320,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    pointerEvents: 'none', zIndex: 0,
+                  }}>
+                    <img src={schoolInfo.logo_url} alt=""
+                      style={{ width: '100%', height: '100%', objectFit: 'contain', opacity: 0.07 }} />
+                  </div>
+                )}
+
+                <div style={{ position: 'relative', zIndex: 1 }}>
 
                 {/* ── Letterhead ── */}
                 {schoolInfo.letterhead_url
@@ -558,6 +574,8 @@ export default function AdmissionSettingsPage() {
                     <div style={{ textAlign: 'right', paddingLeft: 6 }}>1</div>
                   </div>
                 )}
+
+                </div>{/* end z-index wrapper */}
               </div>
             </div>
           </div>

@@ -210,7 +210,7 @@ router.post('/applications/:id/letter', async (req, res, next) => {
       ),
       pool.query(
         `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url,
-                primary_color, accent_color, vision, mission
+                logo_url, primary_color, accent_color, vision, mission
          FROM schools WHERE id=$1`,
         [req.schoolId]
       ),

@@ -158,16 +158,21 @@ async function fetchAsDataUri(url) {
 // On fetch failure each field is set to null so renderLetterhead/renderSig
 // fall back to their text/spacer defaults.
 async function resolveImages(school, extraUrls = {}) {
-  const keys = ['letterhead_url', 'headmaster_signature_url', ...Object.keys(extraUrls)];
-  const urls = [school.letterhead_url, school.headmaster_signature_url, ...Object.values(extraUrls)];
+  const urls = [
+    school.letterhead_url,
+    school.headmaster_signature_url,
+    school.logo_url,
+    ...Object.values(extraUrls),
+  ];
   const results = await Promise.all(urls.map(fetchAsDataUri));
   const resolvedSchool = {
     ...school,
     letterhead_url:           results[0] ?? null,
     headmaster_signature_url: results[1] ?? null,
+    logo_url:                 results[2] ?? null,
   };
   const resolvedExtras = {};
-  Object.keys(extraUrls).forEach((k, i) => { resolvedExtras[k] = results[2 + i] ?? null; });
+  Object.keys(extraUrls).forEach((k, i) => { resolvedExtras[k] = results[3 + i] ?? null; });
   return { resolvedSchool, resolvedExtras };
 }
 
@@ -386,6 +391,14 @@ function buildAdmissionLetterHTML({ application: a, school }) {
   const template = school.admission_letter_template || DEFAULT_ADMISSION_LETTER_TEMPLATE;
   const bodyHtml = mergeTemplate(template, fields);
 
+  const watermarkHtml = school.logo_url
+    ? `<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+                   width:380px;height:380px;display:flex;align-items:center;justify-content:center;
+                   pointer-events:none;z-index:0;">
+         <img src="${esc(school.logo_url)}" style="width:100%;height:100%;object-fit:contain;opacity:0.07;" />
+       </div>`
+    : '';
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -393,7 +406,7 @@ function buildAdmissionLetterHTML({ application: a, school }) {
   <title>${esc(school.name)} — Offer of Admission</title>
   <style>
     @page { margin: 22mm 20mm 28mm 20mm; }
-    body { font-family: Georgia, 'Times New Roman', serif; font-size: 11pt; color: #000; line-height: 1.7; max-width: 720px; margin: 0 auto; }
+    body { font-family: Georgia, 'Times New Roman', serif; font-size: 11pt; color: #000; line-height: 1.7; max-width: 720px; margin: 0 auto; position: relative; }
     p { margin: 0 0 12px; }
     ul, ol { margin: 0 0 12px; padding-left: 24px; }
     li { margin-bottom: 4px; }
@@ -403,18 +416,21 @@ function buildAdmissionLetterHTML({ application: a, school }) {
   </style>
 </head>
 <body>
-  ${renderLetterhead(school)}
-  <div style="display:flex;justify-content:space-between;align-items:baseline;margin:0 0 24px;font-size:10.5pt;">
-    <div><strong>Ref:</strong> ${esc(refNumber)}</div>
-    <div><strong>Date:</strong> ${esc(today)}</div>
-  </div>
-  <div style="margin-bottom:32px;">${bodyHtml}</div>
-  <div style="margin-top:32px;">
-    <p style="margin:0 0 4px;">Yours faithfully,</p>
-    ${sigHtml}
-    <div style="border-top:1px solid #000;width:220px;margin-top:6px;padding-top:8px;">
-      <div style="font-weight:bold;font-size:11pt;">Admissions Office</div>
-      <div style="font-size:10pt;color:#4A3F32;">${esc(school.name)}</div>
+  ${watermarkHtml}
+  <div style="position:relative;z-index:1;">
+    ${renderLetterhead(school)}
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin:0 0 24px;font-size:10.5pt;">
+      <div><strong>Ref:</strong> ${esc(refNumber)}</div>
+      <div><strong>Date:</strong> ${esc(today)}</div>
+    </div>
+    <div style="margin-bottom:32px;">${bodyHtml}</div>
+    <div style="margin-top:32px;">
+      <p style="margin:0 0 4px;">Yours faithfully,</p>
+      ${sigHtml}
+      <div style="border-top:1px solid #000;width:220px;margin-top:6px;padding-top:8px;">
+        <div style="font-weight:bold;font-size:11pt;">Admissions Office</div>
+        <div style="font-size:10pt;color:#4A3F32;">${esc(school.name)}</div>
+      </div>
     </div>
   </div>
 </body>
