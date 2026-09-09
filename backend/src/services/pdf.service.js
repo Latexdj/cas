@@ -37,13 +37,12 @@ function toTitleCase(str) {
   });
 }
 
-function buildLetterHTML({ letter, school, recipientType, watermark = false }) {
-  const sigUrl = letter.issued_by_signature_url || school.headmaster_signature_url;
-
-  const letterheadHtml = school.letterhead_url
-    ? `<img src="${school.letterhead_url}" style="width:100%;display:block;margin-bottom:24px;" />`
-    : `<div style="text-align:center;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #0B3D2E;">
-         <h2 style="margin:0 0 6px;font-size:18pt;color:#0B3D2E;letter-spacing:0.02em;">${esc(school.name)}</h2>
+function renderLetterhead(school) {
+  const color = esc(school.primary_color || '#0B3D2E');
+  return school.letterhead_url
+    ? `<img src="${esc(school.letterhead_url)}" style="width:100%;display:block;margin-bottom:24px;" />`
+    : `<div style="text-align:center;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid ${color};">
+         <h2 style="margin:0 0 6px;font-size:18pt;color:${color};letter-spacing:0.02em;">${esc(school.name)}</h2>
          ${school.motto ? `<p style="margin:2px 0;font-size:10pt;font-style:italic;color:#4A3F32;">${esc(school.motto)}</p>` : ''}
          <div style="margin-top:8px;font-size:10pt;color:#4A3F32;">
            ${school.address ? `<span>${esc(school.address)}</span>` : ''}
@@ -51,10 +50,20 @@ function buildLetterHTML({ letter, school, recipientType, watermark = false }) {
            ${school.email ? ` &nbsp;·&nbsp; ${esc(school.email)}` : ''}
          </div>
        </div>`;
+}
 
-  const sigHtml = sigUrl
-    ? `<img src="${sigUrl}" style="display:block;max-height:80px;max-width:220px;margin-top:20px;" />`
+function renderSig(sigUrl) {
+  return sigUrl
+    ? `<img src="${esc(sigUrl)}" style="display:block;max-height:80px;max-width:220px;margin-top:20px;" />`
     : `<div style="margin-top:48px;"></div>`;
+}
+
+function buildLetterHTML({ letter, school, recipientType, watermark = false }) {
+  const sigUrl = letter.issued_by_signature_url || school.headmaster_signature_url;
+
+  const letterheadHtml = renderLetterhead(school);
+
+  const sigHtml = renderSig(sigUrl);
 
   const watermarkHtml = watermark
     ? `<div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-45deg);
@@ -147,10 +156,8 @@ function buildLetterHTML({ letter, school, recipientType, watermark = false }) {
 </html>`;
 }
 
-// Returns the Supabase public URL of the uploaded PDF.
-async function generateAndUploadPDF({ letter, school, recipientType, watermark = false, pathPrefix = 'letters' }) {
-  const html = buildLetterHTML({ letter, school, recipientType, watermark });
-
+// Shared Puppeteer render → upload → public URL helper.
+async function _renderToPDF(html, filePath) {
   const executablePath = await resolveChromePath();
   const browser = await puppeteer.launch({
     args:            [...(chromium.args ?? []), '--no-sandbox', '--disable-setuid-sandbox'],
@@ -164,16 +171,13 @@ async function generateAndUploadPDF({ letter, school, recipientType, watermark =
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle2', timeout: 30000 });
     pdfBuffer = await page.pdf({
-      format:           'A4',
-      margin:           { top: '22mm', right: '20mm', bottom: '22mm', left: '20mm' },
-      printBackground:  true,
+      format:          'A4',
+      margin:          { top: '22mm', right: '20mm', bottom: '22mm', left: '20mm' },
+      printBackground: true,
     });
   } finally {
     await browser.close();
   }
-
-  const prefix   = watermark ? 'draft' : 'final';
-  const filePath = `${pathPrefix}/${prefix}-${Date.now()}.pdf`;
 
   const { error } = await supabase.storage
     .from(BUCKET)
@@ -183,6 +187,120 @@ async function generateAndUploadPDF({ letter, school, recipientType, watermark =
 
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(filePath);
   return data.publicUrl;
+}
+
+// Returns the Supabase public URL of the uploaded PDF.
+async function generateAndUploadPDF({ letter, school, recipientType, watermark = false, pathPrefix = 'letters' }) {
+  const html     = buildLetterHTML({ letter, school, recipientType, watermark });
+  const prefix   = watermark ? 'draft' : 'final';
+  const filePath = `${pathPrefix}/${prefix}-${Date.now()}.pdf`;
+  return _renderToPDF(html, filePath);
+}
+
+// ── Admission letter ──────────────────────────────────────────────────────────
+// school fields used: name, address, phone, email, motto, letterhead_url,
+//   headmaster_signature_url, primary_color, accent_color,
+//   admission_year (2-digit int), admission_reporting_requirements (text|null)
+// application fields used: admission_number, full_name, index_number,
+//   admission_type, program_name, house, residential_status, gender, aggregate
+function buildAdmissionLetterHTML({ application: a, school }) {
+  const primary  = esc(school.primary_color || '#0B3D2E');
+  const sigUrl   = school.headmaster_signature_url;
+  const sigHtml  = renderSig(sigUrl);
+
+  const year     = 2000 + (school.admission_year || new Date().getFullYear() % 100);
+  const yearNext = year + 1;
+
+  const indexDisplay = a.index_number
+    ? esc(a.index_number)
+    : (a.admission_type === 'direct' ? 'N/A (Direct Admission)' : '—');
+
+  const infoRows = [
+    ['Admission Number',   esc(a.admission_number)],
+    ['Full Name',          esc(a.full_name)],
+    ['Index Number',       indexDisplay],
+    ['Programme',          esc(a.program_name || '—')],
+    ['House',              esc(a.house || 'To be assigned')],
+    ['Residential Status', esc(a.residential_status || '—')],
+    ['Gender',             esc(a.gender)],
+    ['Aggregate',          esc(String(a.aggregate ?? '—'))],
+  ];
+
+  const tableRows = infoRows.map(([label, value], i) => {
+    const bg = i % 2 === 0 ? '#FFFFFF' : '#F8FAFC';
+    return `<tr>
+      <td style="padding:8px 14px;font-weight:bold;color:#475569;width:42%;background:${bg};border-bottom:1px solid #E2E8F0;font-size:10.5pt;">${label}</td>
+      <td style="padding:8px 14px;color:#0F172A;background:${bg};border-bottom:1px solid #E2E8F0;font-size:10.5pt;">${value}</td>
+    </tr>`;
+  }).join('\n');
+
+  let requirementsHtml;
+  if (school.admission_reporting_requirements) {
+    requirementsHtml = `<p style="margin:0;font-size:11pt;line-height:1.8;white-space:pre-line;">${esc(school.admission_reporting_requirements)}</p>`;
+  } else {
+    const defaults = [
+      'Report to the school on the designated reporting date with this admission letter.',
+      'Bring your original BECE result slip for verification.',
+      'Bring your Ghana Card or Birth Certificate (original and photocopy).',
+      'Pay the required fees at the Finance Office upon arrival.',
+      'Report on the date announced by the school authorities.',
+    ];
+    requirementsHtml = defaults.map(r => `<p style="margin:0 0 8px;font-size:11pt;line-height:1.6;">&#8226;&nbsp; ${esc(r)}</p>`).join('\n');
+  }
+
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${esc(school.name)} — Offer of Admission</title>
+  <style>
+    @page { margin: 22mm 20mm; }
+    body { font-family: Georgia, 'Times New Roman', serif; font-size: 12pt; color: #000; line-height: 1.6; max-width: 720px; margin: 0 auto; }
+    img { max-width: 100%; }
+    * { box-sizing: border-box; }
+  </style>
+</head>
+<body>
+  ${renderLetterhead(school)}
+
+  <div style="text-align:center;margin:20px 0 18px;">
+    <div style="font-size:13pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;color:${primary};">Offer of Admission</div>
+    <div style="height:2px;background:${primary};width:80px;margin:10px auto 0;opacity:0.6;"></div>
+  </div>
+
+  <p style="margin:0 0 20px;font-size:11pt;line-height:1.7;text-align:justify;">
+    This is to certify that the following student has been offered admission to ${esc(school.name)} for the
+    ${year}/${yearNext} academic year, subject to verification of the information provided.
+  </p>
+
+  <table style="width:100%;border-collapse:collapse;border:1px solid #CBD5E1;margin-bottom:28px;">
+    ${tableRows}
+  </table>
+
+  <div style="margin-bottom:32px;">
+    <div style="font-size:12pt;font-weight:bold;color:${primary};text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">Reporting Requirements</div>
+    <div style="height:1px;background:${primary};margin-bottom:14px;opacity:0.4;"></div>
+    ${requirementsHtml}
+  </div>
+
+  <div style="margin-top:40px;">
+    ${sigHtml}
+    <div style="border-top:1px solid #000;width:220px;margin-top:6px;padding-top:8px;">
+      <div style="font-weight:bold;font-size:11pt;">Admissions Office</div>
+      <div style="font-size:10pt;color:#4A3F32;">${esc(school.name)}</div>
+    </div>
+    <div style="font-size:9pt;color:#888;margin-top:10px;">Generated: ${today}</div>
+  </div>
+</body>
+</html>`;
+}
+
+async function generateAdmissionLetterPDF({ application, school }) {
+  const html     = buildAdmissionLetterHTML({ application, school });
+  const filePath = `admissions/letters/letter-${application.id}-${Date.now()}.pdf`;
+  return _renderToPDF(html, filePath);
 }
 
 // ── ID Card ───────────────────────────────────────────────────────────────────
@@ -635,6 +753,7 @@ async function generateCardPng({ student, card, school }) {
 
 module.exports = {
   generateAndUploadPDF, buildLetterHTML,
+  buildAdmissionLetterHTML, generateAdmissionLetterPDF,
   buildCardMarkup, buildCardBackMarkup, buildCardHTML, generateCardBuffer,
   buildBatchHTML, generateBatchAndUpload,
   generateCardPng,
