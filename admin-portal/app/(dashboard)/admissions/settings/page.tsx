@@ -1,8 +1,13 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
-import { RichTextEditor } from '@/components/RichTextEditor';
+
+const RichTextEditor = dynamic(
+  () => import('@/components/RichTextEditor').then(m => m.RichTextEditor),
+  { ssr: false, loading: () => <div className="h-[360px] rounded-lg border border-slate-200 bg-slate-50 animate-pulse" /> },
+);
 
 interface Settings {
   school_id?: string; portal_slug?: string; admission_prefix?: string;
