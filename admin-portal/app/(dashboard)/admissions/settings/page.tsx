@@ -10,6 +10,34 @@ interface Settings {
   banner_image_url?: string; portal_logo_url?: string;
   contact_email?: string; contact_phone?: string; contact_address?: string;
   portal_primary_color?: string; portal_accent_color?: string;
+  admission_letter_template?: string; admission_reporting_date?: string;
+}
+
+const KNOWN_TOKENS = new Set([
+  'name','admissionNo','indexNumber','program','house',
+  'residentialStatus','gender','aggregate',
+  'date','reportingDate','parentName','parentMobile','schoolName','academicYear',
+]);
+
+const PLACEHOLDER_REFERENCE = [
+  ['{name}',             'Student full name'],
+  ['{admissionNo}',      'Admission number'],
+  ['{indexNumber}',      'BECE index number'],
+  ['{program}',          'Admitted programme'],
+  ['{house}',            'Assigned house'],
+  ['{residentialStatus}','Boarding / Day'],
+  ['{gender}',           'Male / Female'],
+  ['{aggregate}',        'BECE aggregate score'],
+  ['{date}',             'Today\'s date'],
+  ['{reportingDate}',    'School reporting date (set below)'],
+  ['{parentName}',       'Guardian / parent name'],
+  ['{parentMobile}',     'Guardian mobile number'],
+  ['{schoolName}',       'Your school name'],
+  ['{academicYear}',     'e.g. 2025/2026'],
+] as const;
+
+function clientValidateTemplate(tpl: string): string[] {
+  return [...tpl.matchAll(/\{([^}]+)\}/g)].map(m => m[1]).filter(t => !KNOWN_TOKENS.has(t));
 }
 
 const inputCls = 'mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
@@ -27,9 +55,10 @@ interface SchoolIdentity { vision?: string | null; mission?: string | null; core
 
 export default function AdmissionSettingsPage() {
   const [settings, setSettings]   = useState<Settings>({});
-  const [saving,   setSaving]     = useState(false);
-  const [saved,    setSaved]      = useState(false);
-  const [error,    setError]      = useState('');
+  const [saving,       setSaving]      = useState(false);
+  const [saved,        setSaved]       = useState(false);
+  const [error,        setError]       = useState('');
+  const [unknownTokens, setUnknownTokens] = useState<string[]>([]);
   const [bannerB64, setBannerB64] = useState('');
   const [logoB64,   setLogoB64]   = useState('');
   const bannerRef = useRef<HTMLInputElement>(null);
@@ -81,6 +110,7 @@ export default function AdmissionSettingsPage() {
       setSettings(data); setBannerB64(''); setLogoB64('');
       if (bannerRef.current) bannerRef.current.value = '';
       if (logoRef.current)   logoRef.current.value   = '';
+      setUnknownTokens(data.unknown_tokens ?? []);
       setSaved(true); setTimeout(() => setSaved(false), 3000);
     } catch (err: unknown) {
       setError((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Save failed');
@@ -240,6 +270,61 @@ export default function AdmissionSettingsPage() {
               onChange={async e => { if (e.target.files?.[0]) setLogoB64(await fileToBase64(e.target.files[0])); }} />
           </div>
         </div>
+      </section>
+
+      {/* Admission Letter Template */}
+      <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-500">Admission Letter Template</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Customise the body of the admission letter PDF. Use the placeholders below.</p>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-500">Reporting Date</label>
+          <input className={inputCls} placeholder="e.g. 14th September 2025"
+            value={settings.admission_reporting_date ?? ''}
+            onChange={set('admission_reporting_date')} />
+          <p className="mt-1 text-xs text-slate-400">Used by the <code className="font-mono bg-slate-100 px-1 rounded">{'{reportingDate}'}</code> placeholder in the template.</p>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-500">Letter Body Template</label>
+          <textarea
+            rows={18}
+            className={`${inputCls} font-mono text-xs resize-y`}
+            placeholder="Leave blank to use the built-in default template."
+            value={settings.admission_letter_template ?? ''}
+            onChange={e => {
+              setSettings(s => ({ ...s, admission_letter_template: e.target.value }));
+              setUnknownTokens(clientValidateTemplate(e.target.value));
+            }}
+          />
+          {unknownTokens.length > 0 && (
+            <div className="mt-2 flex gap-2 items-start rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
+              <span className="mt-0.5 shrink-0">⚠</span>
+              <span>Unknown placeholders will be stripped from the PDF: {unknownTokens.map(t => <code key={t} className="font-mono bg-amber-100 rounded px-1 mx-0.5">{`{${t}}`}</code>)}</span>
+            </div>
+          )}
+        </div>
+
+        <details className="text-xs text-slate-500">
+          <summary className="cursor-pointer font-semibold text-slate-600 hover:text-slate-800">Available placeholders</summary>
+          <table className="mt-2 w-full border-collapse text-left">
+            <thead><tr className="border-b border-slate-200">
+              <th className="py-1 pr-4 font-semibold text-slate-600">Placeholder</th>
+              <th className="py-1 font-semibold text-slate-600">Replaced with</th>
+            </tr></thead>
+            <tbody>
+              {PLACEHOLDER_REFERENCE.map(([ph, desc]) => (
+                <tr key={ph} className="border-b border-slate-100">
+                  <td className="py-1 pr-4 font-mono text-slate-700">{ph}</td>
+                  <td className="py-1 text-slate-500">{desc}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-slate-400">Unknown placeholders are silently removed. Blank fields become —.</p>
+        </details>
       </section>
 
       {/* Contact */}
