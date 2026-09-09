@@ -246,12 +246,12 @@ router.post('/:slug/apply/:token/letter', async (req, res, next) => {
     const [{ rows: schoolRows }, { rows: settingsRows }] = await Promise.all([
       pool.query(
         `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url,
-                primary_color, accent_color
+                primary_color, accent_color, vision, mission
          FROM schools WHERE id = $1`,
         [school.school_id]
       ),
       pool.query(
-        `SELECT admission_year, admission_reporting_requirements
+        `SELECT admission_year, admission_letter_template, admission_reporting_date
          FROM school_admission_settings WHERE school_id = $1`,
         [school.school_id]
       ),
@@ -259,8 +259,9 @@ router.post('/:slug/apply/:token/letter', async (req, res, next) => {
 
     const schoolData = {
       ...schoolRows[0],
-      admission_year:                  settingsRows[0]?.admission_year,
-      admission_reporting_requirements: settingsRows[0]?.admission_reporting_requirements || null,
+      admission_year:            settingsRows[0]?.admission_year,
+      admission_letter_template: settingsRows[0]?.admission_letter_template || null,
+      admission_reporting_date:  settingsRows[0]?.admission_reporting_date  || null,
     };
 
     const url = await generateAdmissionLetterPDF({ application: app, school: schoolData });

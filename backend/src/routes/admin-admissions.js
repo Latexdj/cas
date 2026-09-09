@@ -5,7 +5,7 @@ const XLSX   = require('xlsx');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { uploadFile } = require('../services/storage.service');
 const { generateAdmissionNumber, assignHouse } = require('../services/admissions.service');
-const { generateAdmissionLetterPDF } = require('../services/pdf.service');
+const { generateAdmissionLetterPDF, validateTemplate } = require('../services/pdf.service');
 
 router.use(authenticate, requireActiveSubscription, adminOnly);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -32,6 +32,7 @@ router.patch('/settings', async (req, res, next) => {
       contact_email, contact_phone, contact_address,
       portal_primary_color, portal_accent_color,
       admission_reporting_requirements,
+      admission_letter_template, admission_reporting_date,
     } = req.body;
 
     let banner_image_url = null;
@@ -44,8 +45,9 @@ router.patch('/settings', async (req, res, next) => {
          (school_id, portal_slug, admission_prefix, admission_year, is_portal_open,
           application_deadline, website_title, website_tagline, welcome_text,
           banner_image_url, portal_logo_url, contact_email, contact_phone, contact_address,
-          portal_primary_color, portal_accent_color, admission_reporting_requirements, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now())
+          portal_primary_color, portal_accent_color, admission_reporting_requirements,
+          admission_letter_template, admission_reporting_date, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now())
        ON CONFLICT (school_id) DO UPDATE SET
          portal_slug                       = COALESCE(EXCLUDED.portal_slug,                       school_admission_settings.portal_slug),
          admission_prefix                  = COALESCE(EXCLUDED.admission_prefix,                  school_admission_settings.admission_prefix),
@@ -63,6 +65,8 @@ router.patch('/settings', async (req, res, next) => {
          portal_primary_color              = COALESCE(EXCLUDED.portal_primary_color,              school_admission_settings.portal_primary_color),
          portal_accent_color               = COALESCE(EXCLUDED.portal_accent_color,               school_admission_settings.portal_accent_color),
          admission_reporting_requirements  = COALESCE(EXCLUDED.admission_reporting_requirements,  school_admission_settings.admission_reporting_requirements),
+         admission_letter_template         = EXCLUDED.admission_letter_template,
+         admission_reporting_date          = EXCLUDED.admission_reporting_date,
          updated_at                        = now()
        RETURNING *`,
       [req.schoolId, portal_slug||null, admission_prefix||null,
@@ -72,9 +76,11 @@ router.patch('/settings', async (req, res, next) => {
        banner_image_url, portal_logo_url,
        contact_email||null, contact_phone||null, contact_address||null,
        portal_primary_color||null, portal_accent_color||null,
-       admission_reporting_requirements||null]
+       admission_reporting_requirements||null,
+       admission_letter_template||null, admission_reporting_date||null]
     );
-    res.json(rows[0]);
+    const unknown_tokens = validateTemplate(rows[0].admission_letter_template);
+    res.json({ ...rows[0], ...(unknown_tokens.length ? { unknown_tokens } : {}) });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Portal slug already taken by another school.' });
     next(err);
@@ -204,12 +210,12 @@ router.post('/applications/:id/letter', async (req, res, next) => {
       ),
       pool.query(
         `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url,
-                primary_color, accent_color
+                primary_color, accent_color, vision, mission
          FROM schools WHERE id=$1`,
         [req.schoolId]
       ),
       pool.query(
-        `SELECT admission_year, admission_reporting_requirements
+        `SELECT admission_year, admission_letter_template, admission_reporting_date
          FROM school_admission_settings WHERE school_id=$1`,
         [req.schoolId]
       ),
@@ -219,8 +225,9 @@ router.post('/applications/:id/letter', async (req, res, next) => {
     const app = apps[0];
     const schoolData = {
       ...schoolRows[0],
-      admission_year:                   settingsRows[0]?.admission_year,
-      admission_reporting_requirements:  settingsRows[0]?.admission_reporting_requirements || null,
+      admission_year:             settingsRows[0]?.admission_year,
+      admission_letter_template:  settingsRows[0]?.admission_letter_template || null,
+      admission_reporting_date:   settingsRows[0]?.admission_reporting_date  || null,
     };
 
     let prospectus_url = null;
