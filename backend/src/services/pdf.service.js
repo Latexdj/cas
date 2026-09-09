@@ -95,35 +95,60 @@ const DEFAULT_ADMISSION_LETTER_TEMPLATE =
 </ul>
 <p style="text-align:justify;">We look forward to welcoming you to our school community.</p>`;
 
-// Puppeteer footerTemplate: solid primary-colour band, white text.
-// Left: vision/mission. Right: address/phone/email. Far-right cell: page number.
-// Returns null if the school has nothing for either column (no footer rendered).
+// Puppeteer footerTemplate — two-panel design:
+// Left panel (light bg): school crest + vision/mission with coloured labels.
+// Right panel (primary-colour bg, angled left edge): contact rows + page pill.
+// Returns null when the school has nothing to show (no footer rendered).
 function buildFooterHtml(school) {
   const color = esc(school.primary_color || '#0B3D2E');
-  const left = [
-    school.vision  ? `<div><b>Our Vision:</b> ${esc(school.vision)}</div>`   : '',
-    school.mission ? `<div><b>Our Mission:</b> ${esc(school.mission)}</div>` : '',
-  ].filter(Boolean).join('');
-  const right = [
-    school.address ? `<div>${esc(school.address)}</div>`      : '',
-    school.phone   ? `<div>Tel: ${esc(school.phone)}</div>`   : '',
-    school.email   ? `<div>${esc(school.email)}</div>`        : '',
-  ].filter(Boolean).join('');
-  if (!left && !right) return null;
+
+  // ── Left panel ────────────────────────────────────────────────────────────
+  const logoHtml = school.logo_url
+    ? `<img src="${esc(school.logo_url)}" style="width:38px;height:38px;object-fit:contain;flex-shrink:0;" />`
+    : `<svg style="width:38px;height:38px;flex-shrink:0;" viewBox="0 0 24 24" fill="${color}">
+         <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM3.82 9L12 4.53 20.18 9 12 13.47 3.82 9zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
+       </svg>`;
+
+  const stmts = [];
+  if (school.vision)  stmts.push(`<p style="margin:0 0 2px;font-size:6.5pt;color:#333;line-height:1.4;"><span style="font-weight:700;color:${color};">Our Vision:</span> ${esc(school.vision)}</p>`);
+  if (school.mission) stmts.push(`<p style="margin:0;font-size:6.5pt;color:#333;line-height:1.4;"><span style="font-weight:700;color:${color};">Our Mission:</span> ${esc(school.mission)}</p>`);
+
+  // ── Right panel ───────────────────────────────────────────────────────────
+  const emailIcon = `<svg style="width:11px;height:11px;fill:#fff;flex-shrink:0;" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>`;
+  const phoneIcon = `<svg style="width:11px;height:11px;fill:#fff;flex-shrink:0;" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>`;
+  const addrIcon  = `<svg style="width:11px;height:11px;fill:#fff;flex-shrink:0;" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`;
+
+  const contacts = [];
+  if (school.email)   contacts.push(`<div style="display:flex;align-items:center;gap:5px;font-size:6.5pt;margin-bottom:3px;">${emailIcon}<span>${esc(school.email)}</span></div>`);
+  if (school.phone)   contacts.push(`<div style="display:flex;align-items:center;gap:5px;font-size:6.5pt;margin-bottom:3px;">${phoneIcon}<span>Tel: ${esc(school.phone)}</span></div>`);
+  if (school.address) contacts.push(`<div style="display:flex;align-items:center;gap:5px;font-size:6.5pt;">${addrIcon}<span>${esc(school.address)}</span></div>`);
+
+  const hasLeft  = stmts.length > 0;
+  const hasRight = contacts.length > 0;
+  if (!hasLeft && !hasRight && !school.logo_url) return null;
+
   return `<div style="
-      width:100%;background:${color};color:#fff;
-      font-family:Arial,Helvetica,sans-serif;font-size:7pt;line-height:1.55;
-      padding:5px 20mm;box-sizing:border-box;
+      width:100%;display:flex;align-items:stretch;
+      background:#f8f9fa;border-top:3px solid ${color};
+      font-family:Arial,Helvetica,sans-serif;overflow:hidden;
       -webkit-print-color-adjust:exact;print-color-adjust:exact;">
-    <table style="width:100%;border-collapse:collapse;">
-      <tr>
-        <td style="vertical-align:top;width:60%;padding-right:8px;">${left || '&nbsp;'}</td>
-        <td style="vertical-align:top;width:35%;text-align:right;">${right || '&nbsp;'}</td>
-        <td style="vertical-align:middle;width:5%;text-align:right;padding-left:6px;white-space:nowrap;">
-          <span class="pageNumber"></span>
-        </td>
-      </tr>
-    </table>
+    <div style="flex:1;display:flex;align-items:center;padding:9px 18px;gap:12px;">
+      ${logoHtml}
+      <div>${stmts.join('') || '&nbsp;'}</div>
+    </div>
+    <div style="
+        background:${color};color:#fff;
+        display:flex;align-items:center;gap:14px;
+        padding:9px 22px 9px 28px;
+        clip-path:polygon(16px 0,100% 0,100% 100%,0 100%);
+        -webkit-print-color-adjust:exact;print-color-adjust:exact;">
+      <div>${contacts.join('') || '&nbsp;'}</div>
+      <div style="
+          background:rgba(255,255,255,0.18);padding:3px 10px;
+          border-radius:10px;font-size:6.5pt;font-weight:600;white-space:nowrap;">
+        Page <span class="pageNumber"></span>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -447,7 +472,7 @@ async function generateAdmissionLetterPDF({ application, school }) {
   const filePath     = `admissions/letters/letter-${application.id}-${Date.now()}.pdf`;
   return _renderToPDF(html, filePath, {
     footerTemplate: footerHtml || undefined,
-    bottomMargin:   footerHtml ? '28mm' : '22mm',
+    bottomMargin:   footerHtml ? '34mm' : '22mm',
   });
 }
 

@@ -559,29 +559,60 @@ export default function AdmissionSettingsPage() {
                   </div>
                 </div>
 
-                {/* ── Footer band (mirrors PDF footer) ── */}
-                {(vision || mission || settings.contact_address) && (
+                {/* ── Footer (mirrors PDF two-panel footer) ── */}
+                {(vision || mission || settings.contact_email || settings.contact_phone || settings.contact_address || schoolInfo.logo_url) && (
                   <div style={{
-                    marginTop: 36,
-                    background: primaryColor,
-                    color: '#fff',
-                    padding: '7px 0',
-                    fontSize: '7pt',
-                    lineHeight: '1.55',
-                    display: 'grid',
-                    gridTemplateColumns: '60% 35% 5%',
-                    gap: 8,
+                    marginTop: 36, display: 'flex', alignItems: 'stretch',
+                    background: '#f8f9fa', borderTop: `3px solid ${primaryColor}`,
+                    fontFamily: 'Arial, Helvetica, sans-serif', overflow: 'hidden',
                   }}>
-                    <div>
-                      {vision  && <div><strong>Our Vision:</strong> {vision}</div>}
-                      {mission && <div style={{ marginTop: 2 }}><strong>Our Mission:</strong> {mission}</div>}
+                    {/* Left: crest + statements */}
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', padding: '9px 18px', gap: 12 }}>
+                      {schoolInfo.logo_url
+                        ? <img src={schoolInfo.logo_url} alt="" style={{ width: 38, height: 38, objectFit: 'contain', flexShrink: 0 }} />
+                        : <svg style={{ width: 38, height: 38, flexShrink: 0 }} viewBox="0 0 24 24" fill={primaryColor}>
+                            <path d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3zM3.82 9L12 4.53 20.18 9 12 13.47 3.82 9zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z" />
+                          </svg>
+                      }
+                      <div>
+                        {vision  && <p style={{ margin: '0 0 2px', fontSize: '6.5pt', color: '#333', lineHeight: 1.4 }}><strong style={{ color: primaryColor }}>Our Vision:</strong> {vision}</p>}
+                        {mission && <p style={{ margin: 0, fontSize: '6.5pt', color: '#333', lineHeight: 1.4 }}><strong style={{ color: primaryColor }}>Our Mission:</strong> {mission}</p>}
+                      </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      {settings.contact_address && <div>{settings.contact_address}</div>}
-                      {settings.contact_phone   && <div>Tel: {settings.contact_phone}</div>}
-                      {settings.contact_email   && <div>{settings.contact_email}</div>}
+                    {/* Right: coloured panel with angled edge */}
+                    <div style={{
+                      background: primaryColor, color: '#fff',
+                      display: 'flex', alignItems: 'center', gap: 14,
+                      padding: '9px 22px 9px 28px',
+                      clipPath: 'polygon(16px 0, 100% 0, 100% 100%, 0 100%)',
+                    }}>
+                      <div>
+                        {settings.contact_email && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '6.5pt', marginBottom: 3 }}>
+                            <svg style={{ width: 11, height: 11, fill: '#fff', flexShrink: 0 }} viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" /></svg>
+                            <span>{settings.contact_email}</span>
+                          </div>
+                        )}
+                        {settings.contact_phone && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '6.5pt', marginBottom: 3 }}>
+                            <svg style={{ width: 11, height: 11, fill: '#fff', flexShrink: 0 }} viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" /></svg>
+                            <span>Tel: {settings.contact_phone}</span>
+                          </div>
+                        )}
+                        {settings.contact_address && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '6.5pt' }}>
+                            <svg style={{ width: 11, height: 11, fill: '#fff', flexShrink: 0 }} viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" /></svg>
+                            <span>{settings.contact_address}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div style={{
+                        background: 'rgba(255,255,255,0.18)', padding: '3px 10px',
+                        borderRadius: 10, fontSize: '6.5pt', fontWeight: 600, whiteSpace: 'nowrap',
+                      }}>
+                        Page 1
+                      </div>
                     </div>
-                    <div style={{ textAlign: 'right', paddingLeft: 6 }}>1</div>
                   </div>
                 )}
 
