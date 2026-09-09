@@ -5,6 +5,8 @@ const _chromiumPkg = require('@sparticuz/chromium');
 const chromium  = _chromiumPkg.default || _chromiumPkg;
 const puppeteer = require('puppeteer-core');
 const QRCode    = require('qrcode');
+const https     = require('https');
+const http      = require('http');
 const supabase  = require('../config/supabase');
 
 const BUCKET = process.env.STORAGE_BUCKET || 'attendance-photos';
@@ -34,6 +36,30 @@ function toTitleCase(str) {
   return str.toLowerCase().replace(/[^\s-]+/g, (word, offset) => {
     if (offset > 0 && minors.has(word)) return word;
     return word.charAt(0).toUpperCase() + word.slice(1);
+  });
+}
+
+// Fetches a remote URL and returns a base64 data URI so Puppeteer can render
+// it without making any outbound network requests during PDF generation.
+// Returns null on any error so callers can fall back gracefully.
+async function fetchAsDataUri(url) {
+  if (!url) return null;
+  return new Promise((resolve) => {
+    const lib = url.startsWith('https') ? https : http;
+    const req = lib.get(url, { timeout: 10000 }, (res) => {
+      if (res.statusCode !== 200) { res.resume(); return resolve(null); }
+      const contentType = res.headers['content-type'] || 'image/png';
+      const mime = contentType.split(';')[0].trim();
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        const b64 = Buffer.concat(chunks).toString('base64');
+        resolve(`data:${mime};base64,${b64}`);
+      });
+      res.on('error', () => resolve(null));
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
   });
 }
 
@@ -298,7 +324,21 @@ function buildAdmissionLetterHTML({ application: a, school }) {
 }
 
 async function generateAdmissionLetterPDF({ application, school }) {
-  const html     = buildAdmissionLetterHTML({ application, school });
+  // Pre-fetch images as data URIs so Puppeteer doesn't make outbound network calls.
+  // Supabase URLs without file extensions can return wrong content-type headers
+  // causing Puppeteer to silently drop them; embedding as base64 avoids this entirely.
+  const [letterheadDataUri, sigDataUri] = await Promise.all([
+    fetchAsDataUri(school.letterhead_url),
+    fetchAsDataUri(school.headmaster_signature_url),
+  ]);
+  // If fetch fails (returns null), set the URL to null so renderLetterhead/renderSig
+  // fall back to the text block / spacer rather than passing a broken external URL to Puppeteer.
+  const schoolWithDataUris = {
+    ...school,
+    letterhead_url:           letterheadDataUri  ?? null,
+    headmaster_signature_url: sigDataUri         ?? null,
+  };
+  const html     = buildAdmissionLetterHTML({ application, school: schoolWithDataUris });
   const filePath = `admissions/letters/letter-${application.id}-${Date.now()}.pdf`;
   return _renderToPDF(html, filePath);
 }
