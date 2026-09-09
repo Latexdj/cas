@@ -2,7 +2,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { publicApi } from '@/lib/api';
-import jsPDF from 'jspdf';
 
 interface Application {
   id: string; admission_number: string; status: string;
@@ -15,9 +14,6 @@ interface Application {
   bece_results_url: string | null; form_completed_at: string | null;
   school: {
     school_name: string; portal_primary_color: string; portal_accent_color: string;
-    portal_logo_url: string | null; admission_year: number;
-    contact_phone: string | null; contact_email: string | null;
-    contact_address: string | null;
   };
 }
 
@@ -53,120 +49,17 @@ export default function CompletePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  function generateAdmissionLetter() {
+  async function downloadAdmissionLetter() {
     if (!app) return;
     setDownloading(true);
     try {
-      const doc   = new jsPDF({ unit: 'mm', format: 'a4' });
-      const W     = doc.internal.pageSize.getWidth();
-      const c     = app.school.portal_primary_color || '#16A34A';
-      const { r, g, b } = hexToRgb(c);
-
-      // Header bar
-      doc.setFillColor(r, g, b);
-      doc.rect(0, 0, W, 38, 'F');
-
-      // Logo placeholder + school name
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18); doc.setFont('helvetica', 'bold');
-      doc.text(app.school.school_name.toUpperCase(), W / 2, 18, { align: 'center' });
-      doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-      doc.text('ONLINE ADMISSION PORTAL', W / 2, 28, { align: 'center' });
-
-      // Thin accent line
-      doc.setFillColor(255, 255, 255, 0.3);
-      doc.rect(0, 36, W, 2, 'F');
-
-      doc.setTextColor(30, 30, 30);
-      let y = 52;
-
-      // Title
-      doc.setFontSize(14); doc.setFont('helvetica', 'bold');
-      doc.setTextColor(r, g, b);
-      doc.text('OFFER OF ADMISSION', W / 2, y, { align: 'center' }); y += 3;
-
-      // Divider
-      doc.setDrawColor(r, g, b);
-      doc.setLineWidth(0.5);
-      doc.line(W/2 - 40, y, W/2 + 40, y); y += 10;
-
-      // Intro text
-      doc.setTextColor(80, 80, 80);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
-      const yr = `20${String(app.school.admission_year).padStart(2,'0')}`;
-      const intro = `This is to certify that the following student has been offered admission to ${app.school.school_name} for the ${yr}/${parseInt(yr)+1} academic year, subject to verification of the information provided.`;
-      doc.text(intro, 15, y, { maxWidth: W - 30, align: 'justify' }); y += 18;
-
-      // Info card background
-      doc.setFillColor(248, 250, 252);
-      doc.roundedRect(12, y - 3, W - 24, 68, 3, 3, 'F');
-      doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(12, y - 3, W - 24, 68, 3, 3, 'S');
-
-      const rows: [string, string][] = [
-        ['Admission Number', app.admission_number],
-        ['Full Name',        app.full_name],
-        ['Index Number',     app.index_number],
-        ['Programme',        app.program_name ?? '—'],
-        ['House',            app.house ?? 'To be assigned'],
-        ['Residential Status', app.residential_status ?? '—'],
-        ['Gender',           app.gender],
-        ['Aggregate',        String(app.aggregate ?? '—')],
-      ];
-
-      const col1 = 18, col2 = 85;
-      doc.setFontSize(9);
-      let ry = y + 5;
-      for (let i = 0; i < rows.length; i++) {
-        const [label, value] = rows[i];
-        if (i % 2 === 0 && i > 0) doc.setFillColor(241, 245, 249), doc.rect(12, ry - 3, W - 24, 8, 'F');
-        doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 80, 80);
-        doc.text(label, col1, ry);
-        doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
-        doc.text(value, col2, ry);
-        ry += 8;
-      }
-      y += 72;
-
-      // Requirements
-      doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(r, g, b);
-      doc.text('REPORTING REQUIREMENTS', 15, y); y += 6;
-      doc.setDrawColor(r, g, b); doc.setLineWidth(0.3);
-      doc.line(15, y, W - 15, y); y += 6;
-
-      const reqs = [
-        'Report to the school on the designated reporting date with this admission letter.',
-        'Bring your original BECE result slip for verification.',
-        'Bring your Ghana Card or Birth Certificate (original and photocopy).',
-        'Pay the required fees at the Finance Office upon arrival.',
-        'Report on the date announced by the school authorities.',
-      ];
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(50, 50, 50);
-      for (const req of reqs) {
-        doc.text(`•  ${req}`, 18, y, { maxWidth: W - 33 }); y += 8;
-      }
-
-      y += 4;
-      // Signature line
-      doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3);
-      doc.line(15, y, 80, y);
-      doc.setFontSize(8); doc.setTextColor(120, 120, 120);
-      doc.text('Admissions Office', 15, y + 5);
-      doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')}`, W - 15, y + 5, { align: 'right' });
-
-      // Footer
-      y += 18;
-      doc.setFillColor(r, g, b);
-      doc.rect(0, y, W, 16, 'F');
-      doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-      const contact = [app.school.contact_phone, app.school.contact_email, app.school.contact_address].filter(Boolean).join('   |   ');
-      doc.text(contact || app.school.school_name, W / 2, y + 7, { align: 'center' });
-      doc.setFontSize(7); doc.setTextColor(255,255,255,0.7);
-      doc.text('Powered by CAS School Management System', W / 2, y + 13, { align: 'center' });
-
-      doc.save(`Admission_Letter_${app.admission_number}.pdf`);
-    } finally { setDownloading(false); }
+      const { data } = await publicApi.post(`/api/admissions/${slug}/apply/${token}/letter`);
+      window.open(data.url, '_blank');
+    } catch {
+      alert('Failed to generate admission letter. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
   }
 
   if (loading) return (
@@ -264,7 +157,7 @@ export default function CompletePage() {
 
         {/* Download buttons */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button onClick={generateAdmissionLetter} disabled={downloading}
+          <button onClick={downloadAdmissionLetter} disabled={downloading}
             className="flex items-center gap-3 p-4 rounded-3xl text-white font-bold shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-70"
             style={{ background: `linear-gradient(135deg,${primary},${accent})` }}>
             <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
