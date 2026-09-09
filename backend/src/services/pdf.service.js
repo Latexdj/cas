@@ -215,7 +215,7 @@ async function _renderToPDF(html, filePath) {
   let pdfBuffer;
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle2', timeout: 30000 });
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
     pdfBuffer = await page.pdf({
       format:          'A4',
       margin:          { top: '22mm', right: '20mm', bottom: '22mm', left: '20mm' },
@@ -633,7 +633,7 @@ async function generateCardBuffer({ student, card, school }) {
   let pdfBuffer;
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle2', timeout: 30000 });
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
     // Let @page { size: 85.6mm 54mm } govern; do not pass width/height here
     // so Puppeteer produces a 2-page PDF (front + back).
     pdfBuffer = await page.pdf({
@@ -793,7 +793,7 @@ async function generateCardPng({ student, card, school }) {
   let pngBuffer;
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle2', timeout: 30000 });
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
     pngBuffer = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 324, height: 204 } });
   } finally {
     await browser.close();

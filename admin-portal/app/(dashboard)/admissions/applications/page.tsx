@@ -148,7 +148,7 @@ export default function ApplicationsPage() {
   async function printLetter(appId: string) {
     setPrintingId(appId);
     try {
-      const { data } = await api.post(`/api/admin/admissions/applications/${appId}/letter`);
+      const { data } = await api.post(`/api/admin/admissions/applications/${appId}/letter`, {}, { timeout: 120000 });
       window.open(data.url, '_blank');
       if (data.prospectus_url) window.open(data.prospectus_url, '_blank');
     } catch {

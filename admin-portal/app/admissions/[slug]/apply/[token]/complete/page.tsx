@@ -53,7 +53,7 @@ export default function CompletePage() {
     if (!app) return;
     setDownloading(true);
     try {
-      const { data } = await publicApi.post(`/api/admissions/${slug}/apply/${token}/letter`);
+      const { data } = await publicApi.post(`/api/admissions/${slug}/apply/${token}/letter`, {}, { timeout: 120000 });
       window.open(data.url, '_blank');
     } catch {
       alert('Failed to generate admission letter. Please try again.');
