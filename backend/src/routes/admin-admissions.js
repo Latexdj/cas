@@ -189,6 +189,58 @@ router.get('/applications/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+router.get('/applications/:id/letter-data', async (req, res, next) => {
+  try {
+    const [{ rows: apps }, { rows: settings }, { rows: schools }] = await Promise.all([
+      pool.query(
+        `SELECT a.*, p.name AS program_name FROM admission_applications a
+         LEFT JOIN programs p ON p.id = a.program_id WHERE a.id=$1 AND a.school_id=$2`,
+        [req.params.id, req.schoolId]
+      ),
+      pool.query(
+        `SELECT admission_prefix, admission_year, portal_primary_color, portal_accent_color,
+                portal_logo_url, contact_phone, contact_email, contact_address
+         FROM school_admission_settings WHERE school_id=$1`, [req.schoolId]
+      ),
+      pool.query(`SELECT name, logo_url FROM schools WHERE id=$1`, [req.schoolId]),
+    ]);
+    if (!apps.length) return res.status(404).json({ error: 'Not found' });
+    const app = apps[0];
+    const s   = settings[0] ?? {};
+    const sch = schools[0] ?? {};
+
+    let prospectus_url = null;
+    if (app.program_id && app.gender && app.residential_status) {
+      const { rows: p } = await pool.query(
+        `SELECT file_url FROM admission_prospectus
+         WHERE school_id=$1
+           AND (program_id=$2 OR program_id IS NULL)
+           AND (gender=$3 OR gender='All')
+           AND (residential_status=$4 OR residential_status='All')
+         ORDER BY (program_id=$2)::int DESC,(gender=$3)::int DESC,(residential_status=$4)::int DESC
+         LIMIT 1`,
+        [req.schoolId, app.program_id, app.gender, app.residential_status]
+      );
+      if (p.length) prospectus_url = p[0].file_url;
+    }
+
+    res.json({
+      application: app,
+      school: {
+        school_name:          sch.name,
+        logo_url:             s.portal_logo_url || sch.logo_url || null,
+        primary_color:        s.portal_primary_color || '#16A34A',
+        accent_color:         s.portal_accent_color  || '#145C44',
+        admission_year:       s.admission_year ?? new Date().getFullYear() % 100,
+        contact_phone:        s.contact_phone  || null,
+        contact_email:        s.contact_email  || null,
+        contact_address:      s.contact_address || null,
+      },
+      prospectus_url,
+    });
+  } catch (err) { next(err); }
+});
+
 router.patch('/applications/:id', async (req, res, next) => {
   try {
     const allowed = ['status','house','program_id','full_name','residential_status','gender','mobile_number'];

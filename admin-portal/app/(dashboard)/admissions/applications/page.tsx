@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
+import jsPDF from 'jspdf';
 
 interface Application {
   id: string; index_number: string | null; admission_number: string; form_token: string;
@@ -67,6 +68,8 @@ export default function ApplicationsPage() {
   const [defClass,   setDefClass]   = useState('1');
   const [migrating,  setMigrating]  = useState(false);
   const [migResult,  setMigResult]  = useState<{ migrated: number; skipped: number; errors: { name: string; error: string }[] } | null>(null);
+
+  const [printingId,   setPrintingId]  = useState<string | null>(null);
 
   // Direct admission modal state
   const [directModal, setDirectModal] = useState(false);
@@ -141,6 +144,121 @@ export default function ApplicationsPage() {
 
   function setDF(field: string, value: string) {
     setDirectForm(f => ({ ...f, [field]: value }));
+  }
+
+  async function printLetter(appId: string) {
+    setPrintingId(appId);
+    try {
+      const { data } = await api.get(`/api/admin/admissions/applications/${appId}/letter-data`);
+      const { application: a, school: sch, prospectus_url } = data;
+
+      const hexToRgb = (hex: string) => {
+        const h = (hex || '#16A34A').replace('#', '');
+        return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
+      };
+      const { r, g, b } = hexToRgb(sch.primary_color);
+
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      const W   = doc.internal.pageSize.getWidth();
+
+      // Header bar
+      doc.setFillColor(r, g, b);
+      doc.rect(0, 0, W, 38, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+      doc.text((sch.school_name ?? 'School').toUpperCase(), W / 2, 18, { align: 'center' });
+      doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+      doc.text('ADMISSION OFFICE', W / 2, 28, { align: 'center' });
+
+      doc.setTextColor(30, 30, 30);
+      let y = 52;
+
+      // Title
+      doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+      doc.setTextColor(r, g, b);
+      doc.text('OFFER OF ADMISSION', W / 2, y, { align: 'center' }); y += 3;
+      doc.setDrawColor(r, g, b); doc.setLineWidth(0.5);
+      doc.line(W/2 - 40, y, W/2 + 40, y); y += 10;
+
+      // Intro text
+      doc.setTextColor(80, 80, 80);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+      const yr = `20${String(sch.admission_year).padStart(2,'0')}`;
+      doc.text(
+        `This is to certify that the following student has been offered admission to ${sch.school_name} for the ${yr}/${parseInt(yr)+1} academic year, subject to verification of the information provided.`,
+        15, y, { maxWidth: W - 30, align: 'justify' }
+      ); y += 18;
+
+      // Info card
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(12, y - 3, W - 24, 72, 3, 3, 'F');
+      doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3);
+      doc.roundedRect(12, y - 3, W - 24, 72, 3, 3, 'S');
+
+      const rows: [string, string][] = [
+        ['Admission Number',   a.admission_number],
+        ['Full Name',          a.full_name],
+        ['Index Number',       a.index_number ?? (a.admission_type === 'direct' ? 'N/A (Direct Admission)' : '—')],
+        ['Programme',          a.program_name ?? '—'],
+        ['House',              a.house ?? 'To be assigned'],
+        ['Residential Status', a.residential_status ?? '—'],
+        ['Gender',             a.gender],
+        ['Aggregate',          String(a.aggregate ?? '—')],
+      ];
+      const col1 = 18, col2 = 88;
+      doc.setFontSize(9);
+      let ry = y + 5;
+      for (let i = 0; i < rows.length; i++) {
+        const [label, value] = rows[i];
+        if (i % 2 === 0 && i > 0) { doc.setFillColor(241, 245, 249); doc.rect(12, ry - 3, W - 24, 8, 'F'); }
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 80, 80);
+        doc.text(label, col1, ry);
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
+        doc.text(value, col2, ry);
+        ry += 8;
+      }
+      y += 76;
+
+      // Requirements
+      doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(r, g, b);
+      doc.text('REPORTING REQUIREMENTS', 15, y); y += 6;
+      doc.setDrawColor(r, g, b); doc.setLineWidth(0.3);
+      doc.line(15, y, W - 15, y); y += 6;
+      const reqs = [
+        'Report to the school on the designated reporting date with this admission letter.',
+        'Bring your original BECE result slip for verification.',
+        'Bring your Ghana Card or Birth Certificate (original and photocopy).',
+        'Pay the required fees at the Finance Office upon arrival.',
+        'Report on the date announced by the school authorities.',
+      ];
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(50, 50, 50);
+      for (const req of reqs) { doc.text(`•  ${req}`, 18, y, { maxWidth: W - 33 }); y += 8; }
+
+      y += 4;
+      doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3);
+      doc.line(15, y, 80, y);
+      doc.setFontSize(8); doc.setTextColor(120, 120, 120);
+      doc.text('Admissions Office', 15, y + 5);
+      doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')}`, W - 15, y + 5, { align: 'right' });
+
+      // Footer
+      y += 18;
+      doc.setFillColor(r, g, b);
+      doc.rect(0, y, W, 16, 'F');
+      doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+      const contact = [sch.contact_phone, sch.contact_email, sch.contact_address].filter(Boolean).join('   |   ');
+      doc.text(contact || (sch.school_name ?? ''), W / 2, y + 7, { align: 'center' });
+      doc.setFontSize(7);
+      doc.text('Powered by CAS School Management System', W / 2, y + 13, { align: 'center' });
+
+      doc.save(`Admission_Letter_${a.admission_number}.pdf`);
+
+      if (prospectus_url) window.open(prospectus_url, '_blank');
+    } catch {
+      alert('Failed to load letter data. Please try again.');
+    } finally {
+      setPrintingId(null);
+    }
   }
 
   const pages = Math.ceil(total / 50);
@@ -237,12 +355,15 @@ export default function ApplicationsPage() {
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-400">{fmtDate(r.created_at)}</td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 flex-wrap">
                       {r.status === 'completed' && (
                         <Button size="sm" onClick={() => markReported(r.id)}>Reported</Button>
                       )}
                       {r.status === 'reported' && (
                         <Button size="sm" onClick={() => { setSelected(r); setMigModal(true); }}>Migrate</Button>
+                      )}
+                      {['completed','reported','migrated'].includes(r.status) && (
+                        <Button size="sm" variant="secondary" onClick={() => printLetter(r.id)} loading={printingId === r.id}>Letter</Button>
                       )}
                       <Button variant="danger" size="sm" onClick={() => del(r.id)}>Del</Button>
                     </div>
@@ -321,6 +442,11 @@ export default function ApplicationsPage() {
               )}
               {selected.status === 'reported' && (
                 <Button onClick={() => setMigModal(true)}>Migrate to Students</Button>
+              )}
+              {['completed','reported','migrated'].includes(selected.status) && (
+                <Button variant="secondary" onClick={() => printLetter(selected.id)} loading={printingId === selected.id}>
+                  Print Admission Letter
+                </Button>
               )}
               <Button variant="danger" onClick={() => del(selected.id)}>Delete Application</Button>
               <Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>
