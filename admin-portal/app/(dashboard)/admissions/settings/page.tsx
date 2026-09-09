@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import { RichTextEditor } from '@/components/RichTextEditor';
 
 interface Settings {
   school_id?: string; portal_slug?: string; admission_prefix?: string;
@@ -13,11 +14,15 @@ interface Settings {
   admission_letter_template?: string; admission_reporting_date?: string;
 }
 
-interface SchoolIdentity {
-  name?: string | null;
+interface SchoolInfo {
+  name?: string | null; motto?: string | null;
   vision?: string | null; mission?: string | null; core_values?: string | null;
+  letterhead_url?: string | null; headmaster_signature_url?: string | null;
+  address?: string | null; phone?: string | null; email?: string | null;
+  primary_color?: string | null;
 }
 
+// ── Merge-field validation (mirrors the server) ───────────────────────────────
 const KNOWN_TOKENS = new Set([
   'name','admissionNo','indexNumber','program','house',
   'residentialStatus','gender','aggregate',
@@ -33,7 +38,7 @@ const PLACEHOLDER_REFERENCE = [
   ['{residentialStatus}','Boarding / Day'],
   ['{gender}',           'Male / Female'],
   ['{aggregate}',        'BECE aggregate score'],
-  ['{date}',             "Today's date"],
+  ['{date}',             "Today's date (auto-shown in header row)"],
   ['{reportingDate}',    'School reporting date (set below)'],
   ['{parentName}',       'Guardian / parent name'],
   ['{parentMobile}',     'Guardian mobile number'],
@@ -41,38 +46,32 @@ const PLACEHOLDER_REFERENCE = [
   ['{academicYear}',     'e.g. 2025/2026'],
 ] as const;
 
-const DEFAULT_LETTER_TEMPLATE =
-`OFFER OF ADMISSION
+// Default HTML template (matches the server-side DEFAULT_ADMISSION_LETTER_TEMPLATE)
+const DEFAULT_LETTER_HTML =
+`<p>Dear <strong>{name}</strong>,</p>
+<p style="text-align: justify">We are pleased to inform you that you have been offered admission to <strong>{schoolName}</strong> for the <strong>{academicYear}</strong> academic year, subject to verification of the information provided.</p>
+<p><strong>Your Admission Details</strong></p>
+<p>
+  Admission Number: <strong>{admissionNo}</strong><br>
+  Full Name: <strong>{name}</strong><br>
+  Index Number: <strong>{indexNumber}</strong><br>
+  Programme: <strong>{program}</strong><br>
+  House: <strong>{house}</strong><br>
+  Residential Status: <strong>{residentialStatus}</strong><br>
+  Gender: <strong>{gender}</strong><br>
+  Aggregate: <strong>{aggregate}</strong>
+</p>
+<p><strong>Reporting Requirements</strong></p>
+<ul>
+  <li>Report to the school on or before <strong>{reportingDate}</strong> with this admission letter.</li>
+  <li>Bring your original BECE result slip for verification.</li>
+  <li>Bring your Ghana Card or Birth Certificate (original and photocopy).</li>
+  <li>Pay the required fees at the Finance Office upon arrival.</li>
+</ul>
+<p style="text-align: justify">We look forward to welcoming you to our school community.</p>`;
 
-Date: {date}
-
-Dear {name},
-
-We are pleased to inform you that you have been offered admission to {schoolName} for the {academicYear} academic year, subject to verification of the information provided.
-
-Your Admission Details
-
-  Admission Number:    {admissionNo}
-  Full Name:           {name}
-  Index Number:        {indexNumber}
-  Programme:           {program}
-  House:               {house}
-  Residential Status:  {residentialStatus}
-  Gender:              {gender}
-  Aggregate:           {aggregate}
-
-Reporting Requirements
-
-  • Report to the school on the designated reporting date with this admission letter.
-  • Bring your original BECE result slip for verification.
-  • Bring your Ghana Card or Birth Certificate (original and photocopy).
-  • Pay the required fees at the Finance Office upon arrival.
-  • Report on the date announced by the school authorities.
-
-We look forward to welcoming you to our school community.`;
-
-function clientValidateTemplate(tpl: string): string[] {
-  return [...tpl.matchAll(/\{([^}]+)\}/g)].map(m => m[1]).filter(t => !KNOWN_TOKENS.has(t));
+function clientValidateTemplate(html: string): string[] {
+  return [...html.matchAll(/\{([^}]+)\}/g)].map(m => m[1]).filter(t => !KNOWN_TOKENS.has(t));
 }
 
 const inputCls = 'mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
@@ -86,20 +85,53 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+// ── Preview helpers ───────────────────────────────────────────────────────────
+function previewRefNumber(school: SchoolInfo, settings: Settings): string {
+  const prefix = settings.admission_prefix ?? school.name?.slice(0, 6).toUpperCase() ?? 'SCH';
+  const yr = String(2000 + (settings.admission_year ?? new Date().getFullYear() % 100)).slice(-2);
+  return `ADM/${prefix}/${yr}/0025`;
+}
+
+function previewMerge(html: string, school: SchoolInfo, settings: Settings): string {
+  const yr = 2000 + (settings.admission_year ?? new Date().getFullYear() % 100);
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const sample: Record<string, string> = {
+    name:             'Kofi Mensah',
+    admissionNo:      `${settings.admission_prefix ?? 'STU'}002525`,
+    indexNumber:      '4010101234',
+    program:          'General Science',
+    house:            'St. Augustine House',
+    residentialStatus:'Boarding',
+    gender:           'Male',
+    aggregate:        '8',
+    date:             today,
+    reportingDate:    settings.admission_reporting_date || '14th September 2025',
+    parentName:       'Emmanuel Mensah',
+    parentMobile:     '0244 123 456',
+    schoolName:       school.name || 'Your School',
+    academicYear:     `${yr}/${yr + 1}`,
+  };
+  return html.replace(/\{([^}]+)\}/g, (_, token: string) => {
+    if (!KNOWN_TOKENS.has(token)) return '';
+    return sample[token] ?? '—';
+  });
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 export default function AdmissionSettingsPage() {
-  const [settings, setSettings]         = useState<Settings>({});
-  const [saving,   setSaving]           = useState(false);
-  const [saved,    setSaved]            = useState(false);
-  const [error,    setError]            = useState('');
+  const [settings, setSettings]           = useState<Settings>({});
+  const [saving,   setSaving]             = useState(false);
+  const [saved,    setSaved]              = useState(false);
+  const [error,    setError]              = useState('');
   const [unknownTokens, setUnknownTokens] = useState<string[]>([]);
-  const [bannerB64, setBannerB64]       = useState('');
-  const [logoB64,   setLogoB64]         = useState('');
-  const [showPreview, setShowPreview]   = useState(false);
-  const [schoolName,  setSchoolName]    = useState('');
+  const [bannerB64, setBannerB64]         = useState('');
+  const [logoB64,   setLogoB64]           = useState('');
+  const [showPreview, setShowPreview]     = useState(false);
+  const [schoolInfo, setSchoolInfo]       = useState<SchoolInfo>({});
   const bannerRef = useRef<HTMLInputElement>(null);
   const logoRef   = useRef<HTMLInputElement>(null);
 
-  // School identity (stored in schools table, saved separately)
+  // School identity (saved separately to schools table)
   const [vision,         setVision]         = useState('');
   const [mission,        setMission]        = useState('');
   const [coreValues,     setCoreValues]     = useState('');
@@ -111,10 +143,10 @@ export default function AdmissionSettingsPage() {
     try {
       const [admRes, schoolRes] = await Promise.all([
         api.get('/api/admin/admissions/settings'),
-        api.get<SchoolIdentity>('/api/admin/settings'),
+        api.get<SchoolInfo>('/api/admin/settings'),
       ]);
       setSettings(admRes.data);
-      setSchoolName(schoolRes.data.name ?? '');
+      setSchoolInfo(schoolRes.data);
       setVision(schoolRes.data.vision ?? '');
       setMission(schoolRes.data.mission ?? '');
       setCoreValues(schoolRes.data.core_values ?? '');
@@ -153,36 +185,14 @@ export default function AdmissionSettingsPage() {
     } finally { setSaving(false); }
   }
 
-  function previewMerge(template: string): string {
-    const yr = 2000 + (settings.admission_year ?? new Date().getFullYear() % 100);
-    const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-    const sample: Record<string, string> = {
-      name:             'Kofi Mensah',
-      admissionNo:      `${settings.admission_prefix ?? 'STU'}002525`,
-      indexNumber:      '4010101234',
-      program:          'General Science',
-      house:            'St. Augustine House',
-      residentialStatus:'Boarding',
-      gender:           'Male',
-      aggregate:        '8',
-      date:             today,
-      reportingDate:    settings.admission_reporting_date || '14th September 2025',
-      parentName:       'Emmanuel Mensah',
-      parentMobile:     '0244 123 456',
-      schoolName:       schoolName || 'Your School',
-      academicYear:     `${yr}/${yr + 1}`,
-    };
-    return template.replace(/\{([^}]+)\}/g, (_, token: string) => {
-      if (!KNOWN_TOKENS.has(token)) return '';
-      return sample[token] ?? '—';
-    });
-  }
-
   const portalUrl = settings.portal_slug
     ? `${typeof window !== 'undefined' ? window.location.origin : ''}/admissions/${settings.portal_slug}`
     : null;
 
-  const primaryColor = settings.portal_primary_color || '#145C44';
+  const primaryColor = settings.portal_primary_color || schoolInfo.primary_color || '#145C44';
+
+  const templateHtml = settings.admission_letter_template || DEFAULT_LETTER_HTML;
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
     <div className="space-y-8 max-w-2xl">
@@ -193,7 +203,7 @@ export default function AdmissionSettingsPage() {
 
       {/* Portal Toggle */}
       <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
-        <h2 className="text-sm font-semibold font-medium text-slate-500">Portal Access</h2>
+        <h2 className="text-sm font-semibold text-slate-500">Portal Access</h2>
         <div className="flex items-center justify-between">
           <div>
             <p className="font-medium text-slate-800">Portal is {settings.is_portal_open ? 'Open' : 'Closed'}</p>
@@ -215,51 +225,52 @@ export default function AdmissionSettingsPage() {
 
       {/* Admission Number Config */}
       <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
-        <h2 className="text-sm font-semibold font-medium text-slate-500">Admission Number</h2>
+        <h2 className="text-sm font-semibold text-slate-500">Admission Number</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-semibold font-medium text-slate-500">Portal URL Slug *</label>
+            <label className="text-xs font-semibold text-slate-500">Portal URL Slug *</label>
             <input className={inputCls} placeholder="e.g. st-augustines" value={settings.portal_slug ?? ''} onChange={set('portal_slug')} />
             <p className="mt-1 text-xs text-slate-400">Only letters, numbers and hyphens. Must be unique.</p>
           </div>
           <div>
-            <label className="text-xs font-semibold font-medium text-slate-500">Prefix *</label>
+            <label className="text-xs font-semibold text-slate-500">Prefix *</label>
             <input className={inputCls} placeholder="e.g. SASHTS" value={settings.admission_prefix ?? ''} onChange={set('admission_prefix')} />
           </div>
           <div>
-            <label className="text-xs font-semibold font-medium text-slate-500">Admission Year (2-digit) *</label>
+            <label className="text-xs font-semibold text-slate-500">Admission Year (2-digit) *</label>
             <input className={inputCls} type="number" min="0" max="99" placeholder="25" value={settings.admission_year ?? ''} onChange={set('admission_year')} />
           </div>
           <div>
-            <label className="text-xs font-semibold font-medium text-slate-500">Application Deadline</label>
+            <label className="text-xs font-semibold text-slate-500">Application Deadline</label>
             <input className={inputCls} type="date" value={settings.application_deadline ?? ''} onChange={set('application_deadline')} />
           </div>
         </div>
         {settings.admission_prefix && settings.admission_year !== undefined && (
           <p className="text-xs text-slate-500">
-            Example number: <span className="font-mono font-semibold text-slate-800">{settings.admission_prefix}0001{String(settings.admission_year).padStart(2,'0')}</span>
+            Example admission number: <span className="font-mono font-semibold text-slate-800">{settings.admission_prefix}0001{String(settings.admission_year).padStart(2,'0')}</span>
+            &nbsp;·&nbsp; Letter ref: <span className="font-mono font-semibold text-slate-800">ADM/{settings.admission_prefix}/{String(settings.admission_year).padStart(2,'0')}/0001</span>
           </p>
         )}
       </section>
 
       {/* Website Content */}
       <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
-        <h2 className="text-sm font-semibold font-medium text-slate-500">Website Content</h2>
+        <h2 className="text-sm font-semibold text-slate-500">Website Content</h2>
         <div>
-          <label className="text-xs font-semibold font-medium text-slate-500">Portal Title</label>
+          <label className="text-xs font-semibold text-slate-500">Portal Title</label>
           <input className={inputCls} placeholder="e.g. St. Augustine's College Admissions 2025" value={settings.website_title ?? ''} onChange={set('website_title')} />
         </div>
         <div>
-          <label className="text-xs font-semibold font-medium text-slate-500">Tagline</label>
+          <label className="text-xs font-semibold text-slate-500">Tagline</label>
           <input className={inputCls} placeholder="e.g. Welcome to the gateway of excellence" value={settings.website_tagline ?? ''} onChange={set('website_tagline')} />
         </div>
         <div>
-          <label className="text-xs font-semibold font-medium text-slate-500">Welcome Message</label>
+          <label className="text-xs font-semibold text-slate-500">Welcome Message</label>
           <textarea rows={4} className={`${inputCls} resize-none`} placeholder="Write a welcome message for prospective students..." value={settings.welcome_text ?? ''} onChange={set('welcome_text')} />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-semibold font-medium text-slate-500">Primary Colour</label>
+            <label className="text-xs font-semibold text-slate-500">Primary Colour</label>
             <div className="flex gap-2 mt-1">
               <input type="color" value={settings.portal_primary_color ?? '#16A34A'}
                 onChange={e => setSettings(s => ({ ...s, portal_primary_color: e.target.value }))}
@@ -269,7 +280,7 @@ export default function AdmissionSettingsPage() {
             </div>
           </div>
           <div>
-            <label className="text-xs font-semibold font-medium text-slate-500">Accent Colour</label>
+            <label className="text-xs font-semibold text-slate-500">Accent Colour</label>
             <div className="flex gap-2 mt-1">
               <input type="color" value={settings.portal_accent_color ?? '#145C44'}
                 onChange={e => setSettings(s => ({ ...s, portal_accent_color: e.target.value }))}
@@ -284,23 +295,23 @@ export default function AdmissionSettingsPage() {
       {/* School Identity */}
       <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
         <div>
-          <h2 className="text-sm font-semibold font-medium text-slate-500">School Identity</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Displayed on your school&apos;s admission website. Also appears in report cards and certificates.</p>
+          <h2 className="text-sm font-semibold text-slate-500">School Identity</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Displayed on your school&apos;s admission website. Also appears in report cards and PDF footers.</p>
         </div>
         <div>
-          <label className="text-xs font-semibold font-medium text-slate-500">Vision Statement</label>
+          <label className="text-xs font-semibold text-slate-500">Vision Statement</label>
           <textarea rows={3} className={`${inputCls} resize-y`}
             placeholder="e.g. To be a centre of excellence in holistic education…"
             value={vision} onChange={e => setVision(e.target.value)} />
         </div>
         <div>
-          <label className="text-xs font-semibold font-medium text-slate-500">Mission Statement</label>
+          <label className="text-xs font-semibold text-slate-500">Mission Statement</label>
           <textarea rows={3} className={`${inputCls} resize-y`}
             placeholder="e.g. To nurture confident, creative and responsible learners…"
             value={mission} onChange={e => setMission(e.target.value)} />
         </div>
         <div>
-          <label className="text-xs font-semibold font-medium text-slate-500">Core Values</label>
+          <label className="text-xs font-semibold text-slate-500">Core Values</label>
           <textarea rows={2} className={`${inputCls} resize-y`}
             placeholder="e.g. Integrity, Excellence, Discipline, Respect, Innovation"
             value={coreValues} onChange={e => setCoreValues(e.target.value)} />
@@ -314,10 +325,10 @@ export default function AdmissionSettingsPage() {
 
       {/* Images */}
       <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
-        <h2 className="text-sm font-semibold font-medium text-slate-500">Images</h2>
+        <h2 className="text-sm font-semibold text-slate-500">Images</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-semibold font-medium text-slate-500">Banner Image</label>
+            <label className="text-xs font-semibold text-slate-500">Banner Image</label>
             {settings.banner_image_url && (
               <img src={settings.banner_image_url} alt="Banner" className="mt-1 w-full h-24 object-cover rounded-lg border border-slate-200" />
             )}
@@ -325,7 +336,7 @@ export default function AdmissionSettingsPage() {
               onChange={async e => { if (e.target.files?.[0]) setBannerB64(await fileToBase64(e.target.files[0])); }} />
           </div>
           <div>
-            <label className="text-xs font-semibold font-medium text-slate-500">Portal Logo</label>
+            <label className="text-xs font-semibold text-slate-500">Portal Logo</label>
             {settings.portal_logo_url && (
               <img src={settings.portal_logo_url} alt="Logo" className="mt-1 w-20 h-20 object-contain rounded-lg border border-slate-200" />
             )}
@@ -340,7 +351,7 @@ export default function AdmissionSettingsPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-sm font-semibold text-slate-500">Admission Letter Template</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Customise the body of the admission letter PDF. Use the placeholders below.</p>
+            <p className="text-xs text-slate-400 mt-0.5">Write the body of the admission letter. Use the placeholders listed below.</p>
           </div>
           <button
             type="button"
@@ -360,20 +371,19 @@ export default function AdmissionSettingsPage() {
           <input className={inputCls} placeholder="e.g. 14th September 2025"
             value={settings.admission_reporting_date ?? ''}
             onChange={set('admission_reporting_date')} />
-          <p className="mt-1 text-xs text-slate-400">Used by the <code className="font-mono bg-slate-100 px-1 rounded">{'{reportingDate}'}</code> placeholder in the template.</p>
+          <p className="mt-1 text-xs text-slate-400">Drives the <code className="font-mono bg-slate-100 px-1 rounded">{'{reportingDate}'}</code> placeholder. The reference number and date appear automatically above the letter body.</p>
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-slate-500">Letter Body Template</label>
-          <textarea
-            rows={18}
-            className={`${inputCls} font-mono text-xs resize-y`}
-            placeholder="Leave blank to use the built-in default template."
-            value={settings.admission_letter_template ?? ''}
-            onChange={e => {
-              setSettings(s => ({ ...s, admission_letter_template: e.target.value }));
-              setUnknownTokens(clientValidateTemplate(e.target.value));
+          <label className="text-xs font-semibold text-slate-500 mb-1 block">Letter Body</label>
+          <RichTextEditor
+            value={templateHtml}
+            onChange={html => {
+              setSettings(s => ({ ...s, admission_letter_template: html }));
+              setUnknownTokens(clientValidateTemplate(html));
             }}
+            placeholder="Leave blank to use the built-in default template."
+            minHeight={360}
           />
           {unknownTokens.length > 0 && (
             <div className="mt-2 flex gap-2 items-start rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800">
@@ -405,19 +415,19 @@ export default function AdmissionSettingsPage() {
 
       {/* Contact */}
       <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
-        <h2 className="text-sm font-semibold font-medium text-slate-500">Contact Information</h2>
+        <h2 className="text-sm font-semibold text-slate-500">Contact Information</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-semibold font-medium text-slate-500">Email</label>
+            <label className="text-xs font-semibold text-slate-500">Email</label>
             <input className={inputCls} type="email" value={settings.contact_email ?? ''} onChange={set('contact_email')} />
           </div>
           <div>
-            <label className="text-xs font-semibold font-medium text-slate-500">Phone</label>
+            <label className="text-xs font-semibold text-slate-500">Phone</label>
             <input className={inputCls} value={settings.contact_phone ?? ''} onChange={set('contact_phone')} />
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold font-medium text-slate-500">Address</label>
+          <label className="text-xs font-semibold text-slate-500">Address</label>
           <input className={inputCls} value={settings.contact_address ?? ''} onChange={set('contact_address')} />
         </div>
       </section>
@@ -435,102 +445,112 @@ export default function AdmissionSettingsPage() {
           className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-8 pb-16"
           onClick={e => { if (e.target === e.currentTarget) setShowPreview(false); }}
         >
-          <div className="w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden" style={{ background: '#f1f5f4' }}>
+          <div className="w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden" style={{ background: '#e8ede8' }}>
 
             {/* Modal header */}
             <div className="bg-white flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
                 <h3 className="font-bold text-slate-900">Letter Preview</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Sample student data — font and layout match the generated PDF</p>
+                <p className="text-xs text-slate-400 mt-0.5">Sample student data — layout and fonts match the generated PDF</p>
               </div>
-              <button
-                onClick={() => setShowPreview(false)}
-                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
-              >
+              <button onClick={() => setShowPreview(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            {/* Sample data badge */}
-            <div className="flex items-center gap-2 px-6 py-2.5 bg-amber-50 border-b border-amber-100 text-xs text-amber-700">
+            {/* Sample data notice */}
+            <div className="flex items-center gap-2 px-6 py-2 bg-amber-50 border-b border-amber-100 text-xs text-amber-700">
               <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Placeholders filled with sample values: Kofi Mensah · {settings.admission_prefix ?? 'STU'}002525 · General Science
+              Sample values: Kofi Mensah · {settings.admission_prefix ?? 'STU'}002525 · General Science
             </div>
 
-            {/* Scrollable paper area */}
-            <div className="p-8 overflow-y-auto" style={{ maxHeight: '78vh' }}>
-              {/* A4-proportioned paper card */}
-              <div
-                className="mx-auto bg-white shadow-lg"
-                style={{
-                  fontFamily: "Georgia, 'Times New Roman', serif",
-                  fontSize: '11pt',
-                  lineHeight: '1.7',
-                  color: '#000',
-                  padding: '48px 56px',
-                  maxWidth: 640,
-                  minHeight: 600,
-                }}
-              >
-                {/* Mock letterhead */}
-                <div style={{ textAlign: 'center', marginBottom: 28, paddingBottom: 16, borderBottom: `3px solid ${primaryColor}` }}>
-                  <div style={{ fontWeight: 'bold', fontSize: '15pt', letterSpacing: '0.05em', color: primaryColor, textTransform: 'uppercase' }}>
-                    {schoolName || 'YOUR SCHOOL NAME'}
-                  </div>
-                  <div style={{ fontSize: '7.5pt', color: '#888', marginTop: 6, fontStyle: 'italic', borderTop: '1px solid #e2e8f0', paddingTop: 6 }}>
-                    School letterhead &amp; seal appear here in the generated PDF
-                  </div>
+            {/* Paper */}
+            <div className="p-8 overflow-y-auto" style={{ maxHeight: '82vh' }}>
+              <div className="mx-auto bg-white shadow-lg" style={{
+                fontFamily: "Georgia, 'Times New Roman', serif",
+                fontSize: '11pt', lineHeight: '1.7', color: '#000',
+                padding: '40px 52px', maxWidth: 640,
+              }}>
+
+                {/* ── Letterhead ── */}
+                {schoolInfo.letterhead_url
+                  ? <img src={schoolInfo.letterhead_url} alt="Letterhead"
+                      style={{ width: '100%', display: 'block', marginBottom: 24 }} />
+                  : <div style={{
+                      textAlign: 'center', marginBottom: 24, paddingBottom: 16,
+                      borderBottom: `3px solid ${primaryColor}`,
+                    }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '15pt', color: primaryColor, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                        {schoolInfo.name || 'YOUR SCHOOL NAME'}
+                      </div>
+                      {schoolInfo.motto && (
+                        <div style={{ fontSize: '10pt', fontStyle: 'italic', color: '#4A3F32', marginTop: 4 }}>
+                          {schoolInfo.motto}
+                        </div>
+                      )}
+                      <div style={{ fontSize: '9pt', color: '#666', marginTop: 6 }}>
+                        {[schoolInfo.address, schoolInfo.phone && `Tel: ${schoolInfo.phone}`, schoolInfo.email]
+                          .filter(Boolean).join('  ·  ')}
+                      </div>
+                    </div>
+                }
+
+                {/* ── Ref / Date row ── */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, fontSize: '10.5pt' }}>
+                  <div><strong>Ref:</strong> {previewRefNumber(schoolInfo, settings)}</div>
+                  <div><strong>Date:</strong> {today}</div>
                 </div>
 
-                {/* Merged letter body */}
-                <div style={{ whiteSpace: 'pre-line' }}>
-                  {previewMerge(settings.admission_letter_template || DEFAULT_LETTER_TEMPLATE)}
-                </div>
+                {/* ── Merged body ── */}
+                <div
+                  style={{ marginBottom: 32 }}
+                  dangerouslySetInnerHTML={{ __html: previewMerge(templateHtml, schoolInfo, settings) }}
+                />
 
-                {/* Sign-off */}
-                <div style={{ marginTop: 44 }}>
+                {/* ── Sign-off ── */}
+                <div style={{ marginTop: 32 }}>
                   <p style={{ margin: '0 0 6px', fontSize: '11pt' }}>Yours faithfully,</p>
-                  <div style={{
-                    width: 160, height: 44,
-                    borderBottom: '1px dashed #ccc',
-                    marginBottom: 8,
-                    display: 'flex', alignItems: 'flex-end',
-                  }}>
-                    <span style={{ fontSize: '7.5pt', color: '#bbb', fontStyle: 'italic' }}>headmaster signature</span>
-                  </div>
+                  {schoolInfo.headmaster_signature_url
+                    ? <img src={schoolInfo.headmaster_signature_url} alt="Signature"
+                        style={{ display: 'block', maxHeight: 72, maxWidth: 200, marginBottom: 8 }} />
+                    : <div style={{ width: 160, height: 44, borderBottom: '1px dashed #ccc', marginBottom: 8, display: 'flex', alignItems: 'flex-end' }}>
+                        <span style={{ fontSize: '7.5pt', color: '#bbb', fontStyle: 'italic' }}>headmaster signature</span>
+                      </div>
+                  }
                   <div style={{ borderTop: '1px solid #000', width: 220, paddingTop: 8 }}>
                     <div style={{ fontWeight: 'bold', fontSize: '11pt' }}>Admissions Office</div>
-                    <div style={{ fontSize: '10pt', color: '#4A3F32' }}>{schoolName || 'Your School'}</div>
+                    <div style={{ fontSize: '10pt', color: '#4A3F32' }}>{schoolInfo.name || 'Your School'}</div>
                   </div>
                 </div>
 
-                {/* Footer band — mirrors the Puppeteer footerTemplate */}
-                {(vision || mission) && (
+                {/* ── Footer band (mirrors PDF footer) ── */}
+                {(vision || mission || settings.contact_address) && (
                   <div style={{
                     marginTop: 36,
-                    paddingTop: 6,
-                    borderTop: `1.5px solid ${primaryColor}`,
-                    fontSize: '7.5pt',
-                    color: '#444',
+                    background: primaryColor,
+                    color: '#fff',
+                    padding: '7px 0',
+                    fontSize: '7pt',
+                    lineHeight: '1.55',
                     display: 'grid',
-                    gridTemplateColumns: '55% 40% 5%',
+                    gridTemplateColumns: '60% 35% 5%',
                     gap: 8,
-                    lineHeight: 1.5,
                   }}>
                     <div>
-                      {vision  && <div><strong style={{ color: primaryColor }}>Our Vision:</strong> {vision}</div>}
-                      {mission && <div style={{ marginTop: 2 }}><strong style={{ color: primaryColor }}>Our Mission:</strong> {mission}</div>}
+                      {vision  && <div><strong>Our Vision:</strong> {vision}</div>}
+                      {mission && <div style={{ marginTop: 2 }}><strong>Our Mission:</strong> {mission}</div>}
                     </div>
-                    <div style={{ textAlign: 'right', color: '#555' }}>
+                    <div style={{ textAlign: 'right' }}>
                       {settings.contact_address && <div>{settings.contact_address}</div>}
                       {settings.contact_phone   && <div>Tel: {settings.contact_phone}</div>}
                       {settings.contact_email   && <div>{settings.contact_email}</div>}
                     </div>
-                    <div style={{ textAlign: 'right', color: '#888' }}>1</div>
+                    <div style={{ textAlign: 'right', paddingLeft: 6 }}>1</div>
                   </div>
                 )}
               </div>
