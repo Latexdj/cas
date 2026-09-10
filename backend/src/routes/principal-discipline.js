@@ -2,6 +2,7 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, managementOnly, requireActiveSubscription } = require('../middleware/auth');
+const { queryFlaggedStudents, queryFlaggedTeachers, queryThresholds } = require('../utils/discipline-flags');
 
 router.use(authenticate, managementOnly, requireActiveSubscription);
 
@@ -50,6 +51,31 @@ router.get('/letters/:id', async (req, res, next) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found' });
     res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// GET /api/principal/discipline/flagged-students
+// principal/vice_principal: all student flags + teacher flags.
+// headmaster: only severity_score >= 2 (stale_serious_case + escalation_trajectory).
+// Teacher flags: principal/HOD only — not exposed to headmaster in this endpoint.
+router.get('/flagged-students', async (req, res, next) => {
+  try {
+    const isHeadmaster = req.user.role === 'headmaster';
+
+    let [students, teachers, thresholds] = await Promise.all([
+      queryFlaggedStudents(pool, req.schoolId),
+      isHeadmaster ? Promise.resolve([]) : queryFlaggedTeachers(pool, req.schoolId),
+      queryThresholds(pool, req.schoolId),
+    ]);
+
+    if (isHeadmaster) {
+      // Headmaster: only stale_serious_case (high) and escalation_trajectory (medium-elevated)
+      students = students.filter(s =>
+        s.flags.some(f => f.type === 'stale_serious_case' || f.type === 'escalation_trajectory')
+      );
+    }
+
+    res.json({ students, teachers, thresholds });
   } catch (err) { next(err); }
 });
 

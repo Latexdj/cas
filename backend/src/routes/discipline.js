@@ -4,6 +4,7 @@ const pool   = require('../config/db');
 const { authenticate, adminOnly, managementOnly, requireActiveSubscription } = require('../middleware/auth');
 const { uploadDocument }          = require('../services/storage.service');
 const { generateAndUploadPDF }    = require('../services/pdf.service');
+const { queryFlaggedStudents, queryFlaggedTeachers, queryThresholds } = require('../utils/discipline-flags');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -547,6 +548,78 @@ router.post('/queries/:id/pdf', adminOnly, async (req, res, next) => {
     );
 
     res.json({ pdf_url: pdfUrl });
+  } catch (err) { next(err); }
+});
+
+// ─── PATTERN FLAG DETECTION ───────────────────────────────────────────────────
+
+// GET /api/discipline/flagged-students (admin)
+// Returns all flagged students + flagged teachers for this school.
+// Computed on request — no stored flag records.
+router.get('/flagged-students', adminOnly, async (req, res, next) => {
+  try {
+    const [students, teachers, thresholds] = await Promise.all([
+      queryFlaggedStudents(pool, req.schoolId),
+      queryFlaggedTeachers(pool, req.schoolId),
+      queryThresholds(pool, req.schoolId),
+    ]);
+    res.json({ students, teachers, thresholds });
+  } catch (err) { next(err); }
+});
+
+// GET /api/discipline/thresholds (admin)
+router.get('/thresholds', adminOnly, async (req, res, next) => {
+  try {
+    res.json(await queryThresholds(pool, req.schoolId));
+  } catch (err) { next(err); }
+});
+
+// PUT /api/discipline/thresholds (admin)
+router.put('/thresholds', adminOnly, async (req, res, next) => {
+  try {
+    const {
+      repeat_offense_count, category_concentration_count,
+      time_density_count, time_density_days, stale_case_days,
+    } = req.body;
+
+    const VALID_KEYS = {
+      repeat_offense_count, category_concentration_count,
+      time_density_count, time_density_days, stale_case_days,
+    };
+    for (const [k, v] of Object.entries(VALID_KEYS)) {
+      if (v !== undefined) {
+        const n = Number(v);
+        if (!Number.isInteger(n) || n < 1 || n > 999)
+          return res.status(400).json({ error: `${k} must be an integer between 1 and 999` });
+      }
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO discipline_flag_thresholds
+         (school_id, repeat_offense_count, category_concentration_count,
+          time_density_count, time_density_days, stale_case_days, updated_at)
+       VALUES ($1,
+         COALESCE($2, 3), COALESCE($3, 3), COALESCE($4, 2), COALESCE($5, 30), COALESCE($6, 30),
+         now())
+       ON CONFLICT (school_id) DO UPDATE SET
+         repeat_offense_count         = COALESCE($2, discipline_flag_thresholds.repeat_offense_count),
+         category_concentration_count = COALESCE($3, discipline_flag_thresholds.category_concentration_count),
+         time_density_count           = COALESCE($4, discipline_flag_thresholds.time_density_count),
+         time_density_days            = COALESCE($5, discipline_flag_thresholds.time_density_days),
+         stale_case_days              = COALESCE($6, discipline_flag_thresholds.stale_case_days),
+         updated_at                   = now()
+       RETURNING repeat_offense_count, category_concentration_count,
+                 time_density_count, time_density_days, stale_case_days`,
+      [
+        req.schoolId,
+        repeat_offense_count         != null ? Number(repeat_offense_count)         : null,
+        category_concentration_count != null ? Number(category_concentration_count) : null,
+        time_density_count           != null ? Number(time_density_count)           : null,
+        time_density_days            != null ? Number(time_density_days)            : null,
+        stale_case_days              != null ? Number(stale_case_days)              : null,
+      ]
+    );
+    res.json(rows[0]);
   } catch (err) { next(err); }
 });
 

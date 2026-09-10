@@ -1,6 +1,7 @@
 ﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription, adminOnly } = require('../middleware/auth');
+const { queryFlaggedStudents } = require('../utils/discipline-flags');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -308,6 +309,71 @@ router.delete('/admin/assignments/:id', adminOnly, async (req, res, next) => {
     );
     if (!rowCount) return res.status(404).json({ error: 'Assignment not found' });
     res.json({ deleted: true });
+  } catch (err) { next(err); }
+});
+
+// GET /api/form-teacher/flagged-students
+// Returns flagged students in this teacher's form class for the current year.
+// Low + medium + high flags all visible (form master needs the full picture for their class).
+router.get('/flagged-students', async (req, res, next) => {
+  try {
+    if (req.user.role !== 'teacher') return res.status(403).json({ error: 'Teacher access only' });
+
+    const { rows: ayRows } = await pool.query(
+      `SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
+      [req.schoolId]
+    );
+    const ayId = ayRows[0]?.id;
+    if (!ayId) return res.json({ students: [], class_name: null });
+
+    const assignment = await getFormClass(req.schoolId, req.user.id, ayId);
+    if (!assignment) return res.json({ students: [], class_name: null });
+
+    const students = await queryFlaggedStudents(pool, req.schoolId, assignment.class_name);
+    res.json({ students, class_name: assignment.class_name });
+  } catch (err) { next(err); }
+});
+
+// GET /api/form-teacher/student-letters/:student_id
+// Returns discipline letters for a student in this teacher's form class.
+// Scoped: only students in the teacher's current-year form class. Excludes pending_approval letters.
+router.get('/student-letters/:student_id', async (req, res, next) => {
+  try {
+    if (req.user.role !== 'teacher') return res.status(403).json({ error: 'Teacher access only' });
+
+    const { rows: ayRows } = await pool.query(
+      `SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
+      [req.schoolId]
+    );
+    const ayId = ayRows[0]?.id;
+    if (!ayId) return res.status(400).json({ error: 'No current academic year' });
+
+    const assignment = await getFormClass(req.schoolId, req.user.id, ayId);
+    if (!assignment) return res.status(403).json({ error: 'No form class assignment for this year' });
+
+    const { rows: sRows } = await pool.query(
+      `SELECT id, class_name, name FROM students WHERE id = $1 AND school_id = $2`,
+      [req.params.student_id, req.schoolId]
+    );
+    if (!sRows.length) return res.status(404).json({ error: 'Student not found' });
+    if (sRows[0].class_name.toLowerCase() !== assignment.class_name.toLowerCase())
+      return res.status(403).json({ error: 'Student is not in your form class' });
+
+    const { rows } = await pool.query(
+      `SELECT sdl.id, sdl.ref_number, sdl.letter_type, sdl.offense_category, sdl.offense_other,
+              sdl.subject, sdl.issued_date::text, sdl.status, sdl.created_at,
+              sdl.acknowledged_at, sdl.resolved_at, sdl.resolution_notes,
+              sdl.issued_by_name, sdl.semester,
+              ay.name AS academic_year_name
+       FROM student_disciplinary_letters sdl
+       LEFT JOIN academic_years ay ON ay.id = sdl.academic_year_id
+       WHERE sdl.student_id = $1
+         AND sdl.school_id  = $2
+         AND sdl.status    != 'pending_approval'
+       ORDER BY sdl.issued_date DESC`,
+      [req.params.student_id, req.schoolId]
+    );
+    res.json({ student_name: sRows[0].name, class_name: sRows[0].class_name, letters: rows });
   } catch (err) { next(err); }
 });
 
