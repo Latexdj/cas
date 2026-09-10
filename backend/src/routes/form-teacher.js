@@ -257,6 +257,48 @@ router.post('/admin/assignments', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/form-teacher/admin/assignments/copy-from-year
+// Body: { from_year_id, to_year_id }
+// Copies assignments from one year to another. Skips classes already assigned in
+// the target year (preserves any manual edits already made) and skips inactive teachers.
+router.post('/admin/assignments/copy-from-year', adminOnly, async (req, res, next) => {
+  try {
+    const { from_year_id, to_year_id } = req.body;
+    if (!from_year_id || !to_year_id) return res.status(400).json({ error: 'from_year_id and to_year_id required' });
+    if (from_year_id === to_year_id) return res.status(400).json({ error: 'Cannot copy to the same year' });
+
+    const { rows: source } = await pool.query(
+      `SELECT fta.class_name, fta.teacher_id, t.status AS teacher_status
+       FROM form_teacher_assignments fta
+       JOIN teachers t ON t.id = fta.teacher_id AND t.school_id = fta.school_id
+       WHERE fta.school_id = $1 AND fta.academic_year_id = $2`,
+      [req.schoolId, from_year_id]
+    );
+
+    const { rows: existing } = await pool.query(
+      `SELECT class_name FROM form_teacher_assignments WHERE school_id = $1 AND academic_year_id = $2`,
+      [req.schoolId, to_year_id]
+    );
+    const existingClasses = new Set(existing.map(r => r.class_name));
+
+    let copied = 0, skipped_existing = 0, skipped_inactive = 0;
+
+    for (const row of source) {
+      if (existingClasses.has(row.class_name)) { skipped_existing++; continue; }
+      if (row.teacher_status !== 'Active') { skipped_inactive++; continue; }
+      await pool.query(
+        `INSERT INTO form_teacher_assignments (school_id, teacher_id, class_name, academic_year_id)
+         VALUES ($1,$2,$3,$4)
+         ON CONFLICT (school_id, class_name, academic_year_id) DO NOTHING`,
+        [req.schoolId, row.teacher_id, row.class_name, to_year_id]
+      );
+      copied++;
+    }
+
+    res.json({ copied, skipped_existing, skipped_inactive });
+  } catch (err) { next(err); }
+});
+
 // DELETE /api/form-teacher/admin/assignments/:id
 router.delete('/admin/assignments/:id', adminOnly, async (req, res, next) => {
   try {

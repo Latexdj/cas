@@ -121,6 +121,37 @@ function AssignModal({ className, yearId, teachers, existing, onSave, onDelete, 
   );
 }
 
+function CopyModal({ fromYear, toYear, onConfirm, onClose, copying }: {
+  fromYear: string; toYear: string;
+  onConfirm: () => void; onClose: () => void; copying: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 bg-[#0B3D2E]/45 flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+        <div className="px-6 py-5 border-b border-slate-100">
+          <p className="font-bold text-slate-800">Copy Form Teacher Assignments</p>
+          <p className="text-sm text-slate-500 mt-0.5">From <span className="font-semibold">{fromYear}</span> → <span className="font-semibold">{toYear}</span></p>
+        </div>
+        <div className="p-6 space-y-3 text-sm text-slate-600">
+          <p>All assignments from <span className="font-semibold">{fromYear}</span> will be copied to <span className="font-semibold">{toYear}</span>.</p>
+          <ul className="list-disc pl-5 space-y-1 text-slate-500">
+            <li>Classes already assigned in {toYear} are left untouched.</li>
+            <li>Teachers who are no longer active are skipped.</li>
+            <li>After copying, use <span className="font-semibold">Change</span> on individual rows to update whoever moved class.</li>
+          </ul>
+        </div>
+        <div className="px-6 pb-6 flex items-center justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200">Cancel</button>
+          <button onClick={onConfirm} disabled={copying}
+            className="px-5 py-2 rounded-lg text-sm font-semibold bg-[#145C44] text-white hover:bg-[#0f4a36] disabled:opacity-50">
+            {copying ? 'Copying…' : 'Copy Assignments'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FormTeachersPage() {
   const [years,       setYears]       = useState<AcademicYear[]>([]);
   const [yearId,      setYearId]      = useState('');
@@ -129,6 +160,8 @@ export default function FormTeachersPage() {
   const [assignments, setAssignments] = useState<FormTeacherAssignment[]>([]);
   const [loading,     setLoading]     = useState(false);
   const [modal,       setModal]       = useState<string | null>(null); // class_name being assigned
+  const [copyModal,   setCopyModal]   = useState(false);
+  const [copying,     setCopying]     = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -161,6 +194,31 @@ export default function FormTeachersPage() {
   const modalClass   = modal ?? '';
   const modalExisting = modal ? assignmentMap[modal] ?? null : null;
 
+  // Previous year = the year just before the selected one in the sorted list
+  const sortedYears  = [...years].sort((a, b) => a.name < b.name ? 1 : -1);
+  const selectedIdx  = sortedYears.findIndex(y => y.id === yearId);
+  const previousYear = selectedIdx >= 0 && selectedIdx < sortedYears.length - 1
+    ? sortedYears[selectedIdx + 1] : null;
+
+  async function handleCopy() {
+    if (!previousYear) return;
+    setCopying(true);
+    try {
+      const { data } = await api.post('/api/form-teacher/admin/assignments/copy-from-year', {
+        from_year_id: previousYear.id, to_year_id: yearId,
+      });
+      // Refresh assignments for the selected year
+      const { data: refreshed } = await api.get(`/api/form-teacher/admin/assignments?academic_year_id=${yearId}`);
+      setAssignments(refreshed);
+      const parts: string[] = [`${data.copied} assignment${data.copied !== 1 ? 's' : ''} copied.`];
+      if (data.skipped_inactive) parts.push(`${data.skipped_inactive} skipped (teacher inactive).`);
+      if (data.skipped_existing) parts.push(`${data.skipped_existing} already assigned — left unchanged.`);
+      alert(parts.join(' '));
+    } catch { /* silent */ }
+    setCopying(false);
+    setCopyModal(false);
+  }
+
   const assigned   = classes.filter(c => assignmentMap[c]);
   const unassigned = classes.filter(c => !assignmentMap[c]);
 
@@ -179,9 +237,20 @@ export default function FormTeachersPage() {
             {years.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' ✦' : ''}</option>)}
           </select>
         </div>
-        <div className="ml-auto text-sm text-slate-500">
-          <span className="font-semibold text-[#145C44]">{assigned.length}</span> of{' '}
-          <span className="font-semibold text-slate-700">{classes.length}</span> classes assigned
+        <div className="ml-auto flex items-center gap-4">
+          {previousYear && (
+            <button onClick={() => setCopyModal(true)}
+              className="flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-lg border border-[#145C44] text-[#145C44] hover:bg-[#E8F4EE] transition-colors">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+                <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+              </svg>
+              Copy from {previousYear.name}
+            </button>
+          )}
+          <div className="text-sm text-slate-500">
+            <span className="font-semibold text-[#145C44]">{assigned.length}</span> of{' '}
+            <span className="font-semibold text-slate-700">{classes.length}</span> classes assigned
+          </div>
         </div>
       </div>
 
@@ -255,6 +324,17 @@ export default function FormTeachersPage() {
         </div>
       )}
       <Pagination page={page} pageSize={pageSize} total={total} onPage={setPage} onPageSize={(s) => { setPageSize(s); setPage(1); }} />
+
+      {/* Copy-from-year modal */}
+      {copyModal && previousYear && (
+        <CopyModal
+          fromYear={previousYear.name}
+          toYear={selectedYear?.name ?? ''}
+          onConfirm={handleCopy}
+          onClose={() => setCopyModal(false)}
+          copying={copying}
+        />
+      )}
 
       {/* Assign modal */}
       {modal && (
