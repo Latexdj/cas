@@ -107,7 +107,7 @@ router.get('/overview', hodOnly, async (req, res, next) => {
 
     // Class + student count differs by HOD type
     const classStudentQuery = req.isSubjectHod
-      // Subject HOD: classes that any teacher in this department teaches
+      // Subject HOD: classes this department teaches in the current year+semester
       ? pool.query(
           `SELECT
              COUNT(DISTINCT LOWER(TRIM(cls)))::int AS class_count,
@@ -120,8 +120,10 @@ router.get('/overview', hodOnly, async (req, res, next) => {
              AND LOWER(s.class_name) = LOWER(TRIM(cls))
              AND s.status = 'Active'
            WHERE tt.school_id = $1
-             AND LOWER(te.department) = LOWER($2)`,
-          [req.schoolId, dept]
+             AND LOWER(te.department) = LOWER($2)
+             AND tt.academic_year_id = $3
+             AND tt.semester         = $4`,
+          [req.schoolId, dept, ay?.id ?? '00000000-0000-0000-0000-000000000000', ay?.current_semester ?? 1]
         )
       // Programme HOD: students with matching program_id
       : pool.query(
@@ -206,7 +208,7 @@ router.get('/classes', hodOnly, async (req, res, next) => {
     const ay   = await getCurrentYear(req.schoolId);
 
     if (req.isSubjectHod) {
-      // Subject HOD: derive classes from timetable â€” one row per class showing the subject teacher
+      // Subject HOD: classes this department teaches in the current year+semester
       const { rows } = await pool.query(
         `SELECT
            TRIM(cls)               AS class_name,
@@ -224,9 +226,11 @@ router.get('/classes', hodOnly, async (req, res, next) => {
            AND s.status = 'Active'
          WHERE tt.school_id = $1
            AND LOWER(te.department) = LOWER($2)
+           AND tt.academic_year_id = $3
+           AND tt.semester         = $4
          GROUP BY TRIM(cls), te.id, te.name, te.phone, te.email
          ORDER BY TRIM(cls)`,
-        [req.schoolId, dept]
+        [req.schoolId, dept, ay?.id ?? '00000000-0000-0000-0000-000000000000', ay?.current_semester ?? 1]
       );
       return res.json(rows);
     }

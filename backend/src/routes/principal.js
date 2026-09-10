@@ -31,19 +31,33 @@ router.get('/snapshot', async (req, res, next) => {
     const date = today();
     const dow  = new Date().getDay(); // 0=Sun
 
+    // Pre-flight: skip timetable-based counts on holidays/vacations — same logic
+    // as /occupancy. On a non-school day scheduled=0 and rate=null are correct.
+    const { rows: calRows } = await pool.query(`
+      SELECT 1 FROM school_calendar
+      WHERE school_id = $1 AND date = $2 AND start_time IS NULL AND type IN ('Holiday','Closed Day')
+      UNION ALL
+      SELECT 1 FROM school_vacation_periods
+      WHERE school_id = $1 AND start_date <= $2 AND end_date >= $2
+      LIMIT 1
+    `, [sid, date]);
+    const isNonSchoolDay = calRows.length > 0;
+
     const [teacherRes, absenceRes, leaveRes, exeatRes, studentRes] = await Promise.all([
-      // Teachers with a slot today
-      pool.query(`
-        SELECT COUNT(DISTINCT t.id)::int AS total,
-               COUNT(DISTINCT CASE WHEN a.id IS NOT NULL THEN t.id END)::int AS submitted
-        FROM teachers t
-        JOIN timetable tt ON tt.teacher_id = t.id AND tt.school_id = $1
-          AND tt.day_of_week = $2
-          AND tt.academic_year_id = (SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
-          AND tt.semester = (SELECT current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
-        LEFT JOIN attendance a ON a.teacher_id = t.id AND a.school_id = $1 AND a.date = $3
-        WHERE t.school_id = $1 AND t.status = 'Active'
-      `, [sid, dow, date]),
+      // Teachers with a slot today — zero on non-school days so rate shows N/A
+      isNonSchoolDay
+        ? Promise.resolve({ rows: [{ total: 0, submitted: 0 }] })
+        : pool.query(`
+            SELECT COUNT(DISTINCT t.id)::int AS total,
+                   COUNT(DISTINCT CASE WHEN a.id IS NOT NULL THEN t.id END)::int AS submitted
+            FROM teachers t
+            JOIN timetable tt ON tt.teacher_id = t.id AND tt.school_id = $1
+              AND tt.day_of_week = $2
+              AND tt.academic_year_id = (SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
+              AND tt.semester = (SELECT current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
+            LEFT JOIN attendance a ON a.teacher_id = t.id AND a.school_id = $1 AND a.date = $3
+            WHERE t.school_id = $1 AND t.status = 'Active'
+          `, [sid, dow, date]),
 
       // Auto-absences today
       pool.query(`
