@@ -11,7 +11,8 @@ const RichTextEditor = dynamic(
 
 interface Settings {
   school_id?: string; portal_slug?: string; admission_prefix?: string;
-  admission_year?: number; is_portal_open?: boolean; application_deadline?: string;
+  admission_year?: number; next_sequence?: number; is_portal_open?: boolean;
+  application_deadline?: string;
   website_title?: string; website_tagline?: string; welcome_text?: string;
   banner_image_url?: string; portal_logo_url?: string;
   contact_email?: string; contact_phone?: string; contact_address?: string;
@@ -134,6 +135,13 @@ export default function AdmissionSettingsPage() {
   const [logoB64,   setLogoB64]           = useState('');
   const [showPreview, setShowPreview]     = useState(false);
   const [schoolInfo, setSchoolInfo]       = useState<SchoolInfo>({});
+
+  // Sequence reset dialog
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetSeqValue,   setResetSeqValue]   = useState('1');
+  const [resetLoading,    setResetLoading]    = useState(false);
+  const [resetError,      setResetError]      = useState('');
+  const [resetDone,       setResetDone]       = useState(false);
   const bannerRef = useRef<HTMLInputElement>(null);
   const logoRef   = useRef<HTMLInputElement>(null);
 
@@ -172,6 +180,23 @@ export default function AdmissionSettingsPage() {
     } catch (e: unknown) {
       setIdentityError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save.');
     } finally { setIdentitySaving(false); }
+  }
+
+  async function resetSequence() {
+    const seq = parseInt(resetSeqValue, 10);
+    if (!Number.isInteger(seq) || seq < 1) {
+      setResetError('Please enter a whole number ≥ 1.');
+      return;
+    }
+    setResetLoading(true); setResetError(''); setResetDone(false);
+    try {
+      const { data } = await api.post('/api/admin/admissions/settings/reset-sequence', { new_sequence: seq });
+      setSettings(s => ({ ...s, next_sequence: data.next_sequence }));
+      setResetDone(true);
+      setTimeout(() => { setShowResetDialog(false); setResetDone(false); }, 1500);
+    } catch (e: unknown) {
+      setResetError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Reset failed.');
+    } finally { setResetLoading(false); }
   }
 
   async function save() {
@@ -257,7 +282,83 @@ export default function AdmissionSettingsPage() {
             &nbsp;·&nbsp; Letter ref: <span className="font-mono font-semibold text-slate-800">ADM/{settings.admission_prefix}/{String(settings.admission_year).padStart(2,'0')}/0001</span>
           </p>
         )}
+
+        {/* Sequence reset */}
+        <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-slate-700">Admission number counter</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Next number: <span className="font-mono font-semibold text-slate-600">
+                {settings.next_sequence != null ? `#${settings.next_sequence}` : '—'}
+              </span>
+              {' '}· Numbers issued so far: <span className="font-semibold">{settings.next_sequence != null ? settings.next_sequence - 1 : '—'}</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setResetSeqValue('1'); setResetError(''); setResetDone(false); setShowResetDialog(true); }}
+            className="shrink-0 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+          >
+            Reset Counter
+          </button>
+        </div>
       </section>
+
+      {/* ── Reset Sequence Dialog ──────────────────────────────────────────────── */}
+      {showResetDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={e => { if (e.target === e.currentTarget) setShowResetDialog(false); }}
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-6 space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-bold text-slate-900">Reset Admission Counter</h3>
+                <p className="text-xs text-slate-400 mt-0.5">This does not delete any existing records.</p>
+              </div>
+              <button onClick={() => setShowResetDialog(false)}
+                className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-700">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800 space-y-1">
+              <p className="font-semibold">Current counter: #{settings.next_sequence ?? '—'}</p>
+              <p>The next student to register will receive this number. Resetting affects new admissions only — existing admission numbers are unchanged.</p>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-500">Start next sequence from</label>
+              <input
+                type="number" min="1"
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                value={resetSeqValue}
+                onChange={e => setResetSeqValue(e.target.value)}
+                placeholder="1"
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Typically <strong>1</strong> at the start of a new year.
+                The next student gets <span className="font-mono">{settings.admission_prefix ?? 'STU'}{String(parseInt(resetSeqValue) || 1).padStart(4,'0')}{String(settings.admission_year ?? 0).padStart(2,'0')}</span>.
+              </p>
+            </div>
+
+            {resetError && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{resetError}</p>}
+            {resetDone  && <p className="rounded-lg bg-[#E8F4EE] px-3 py-2 text-xs text-[#145C44] font-semibold">✓ Counter reset successfully.</p>}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setShowResetDialog(false)}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <Button onClick={resetSequence} loading={resetLoading}>
+                Confirm Reset
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Website Content */}
       <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">

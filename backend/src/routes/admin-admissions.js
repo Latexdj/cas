@@ -87,6 +87,27 @@ router.patch('/settings', async (req, res, next) => {
   }
 });
 
+// POST /api/admin/admissions/settings/reset-sequence
+router.post('/settings/reset-sequence', async (req, res, next) => {
+  try {
+    const seq = parseInt(req.body.new_sequence, 10);
+    if (!Number.isInteger(seq) || seq < 1) {
+      return res.status(400).json({ error: 'new_sequence must be an integer ≥ 1.' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE school_admission_settings
+          SET next_sequence = $1
+        WHERE school_id = $2
+        RETURNING next_sequence, admission_prefix, admission_year`,
+      [seq, req.schoolId]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Admission settings not found. Save settings first.' });
+    }
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
 // ── Placement list ─────────────────────────────────────────────────────────────
 
 router.get('/placement', async (req, res, next) => {
