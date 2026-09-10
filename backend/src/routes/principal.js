@@ -101,25 +101,12 @@ router.get('/occupancy', async (req, res, next) => {
     const date = req.query.date || today();
     const dow  = new Date(date + 'T12:00:00').getDay();
 
-    // Pre-flight: whole-day school calendar events (holidays, closed days)
-    const { rows: calRows } = await pool.query(`
-      SELECT name, type FROM school_calendar
-      WHERE school_id = $1 AND date = $2 AND start_time IS NULL
-        AND type IN ('Holiday', 'Closed Day', 'School Event')
-      LIMIT 1
-    `, [sid, date]);
-    if (calRows.length) {
-      return res.json({ date, slots: [], reason: 'calendar', label: calRows[0].name, eventType: calRows[0].type });
-    }
+    const ctx = await getCurrentSchoolContext(sid, date);
 
-    // Pre-flight: vacation / term-break periods
-    const { rows: vacRows } = await pool.query(`
-      SELECT kind FROM school_vacation_periods
-      WHERE school_id = $1 AND start_date <= $2 AND end_date >= $2
-      LIMIT 1
-    `, [sid, date]);
-    if (vacRows.length) {
-      return res.json({ date, slots: [], reason: 'vacation', label: vacRows[0].kind });
+    if (ctx.isNonSchoolDay) {
+      const payload = { date, slots: [], reason: ctx.nonSchoolReason, label: ctx.nonSchoolLabel };
+      if (ctx.nonSchoolReason === 'calendar') payload.eventType = ctx.nonSchoolEventType;
+      return res.json(payload);
     }
 
     const [slotRes, attRes, absRes, excRes] = await Promise.all([
@@ -129,10 +116,10 @@ router.get('/occupancy', async (req, res, next) => {
         FROM timetable tt
         JOIN teachers t ON t.id = tt.teacher_id
         WHERE tt.school_id = $1 AND tt.day_of_week = $2 AND t.status = 'Active'
-          AND tt.academic_year_id = (SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
-          AND tt.semester = (SELECT current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
+          AND tt.academic_year_id = $3
+          AND tt.semester = $4
         ORDER BY tt.start_time, tt.class_names
-      `, [sid, dow]),
+      `, [sid, dow, ctx.academicYearId, ctx.semester]),
 
       pool.query(`
         SELECT teacher_id, subject, class_names, submitted_at
