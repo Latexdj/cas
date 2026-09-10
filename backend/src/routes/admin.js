@@ -78,6 +78,7 @@ router.get('/stats', async (req, res, next) => {
 // Real-time classroom occupancy: one entry per distinct class_names in timetable.
 // occupied = scheduled right now AND attendance submitted
 // vacant   = everything else
+// Scoped to the current academic_year_id + semester. Returns all-vacant on holidays/vacations.
 router.get('/classroom-status', async (req, res, next) => {
   try {
     const jsDay     = new Date().getDay();
@@ -86,6 +87,29 @@ router.get('/classroom-status', async (req, res, next) => {
 
     const { rows } = await pool.query(`
       WITH
+      -- Resolve current academic year + semester once
+      current_year AS (
+        SELECT id, current_semester AS semester
+        FROM academic_years
+        WHERE school_id = $1 AND is_current = true
+        ORDER BY name DESC LIMIT 1
+      ),
+      -- Today is a non-school day if it appears in the calendar as Holiday/Closed Day
+      -- or falls within a vacation period — mirrors the day-status endpoint logic.
+      nonschool_today AS (
+        SELECT EXISTS (
+          SELECT 1 FROM school_calendar
+          WHERE school_id = $1
+            AND date = CURRENT_DATE
+            AND start_time IS NULL
+            AND type IN ('Holiday', 'Closed Day')
+          UNION ALL
+          SELECT 1 FROM school_vacation_periods
+          WHERE school_id = $1
+            AND start_date <= CURRENT_DATE
+            AND end_date   >= CURRENT_DATE
+        ) AS is_nonschool
+      ),
       excused_today AS (
         SELECT teacher_id, type AS leave_type
         FROM teacher_excuses
@@ -95,14 +119,16 @@ router.get('/classroom-status', async (req, res, next) => {
           AND date_to   >= CURRENT_DATE
       ),
       all_classrooms AS (
-        -- Split every timetable entry's class_names to get unique individual classrooms
+        -- Unique classrooms from the CURRENT year+semester timetable only
         SELECT DISTINCT TRIM(cls) AS class_name
         FROM timetable,
              LATERAL unnest(string_to_array(class_names, ',')) AS cls
-        WHERE school_id = $1
+        WHERE school_id        = $1
+          AND academic_year_id = (SELECT id      FROM current_year)
+          AND semester         = (SELECT semester FROM current_year)
       ),
       active_now_entries AS (
-        -- Timetable entries running right now, with their attendance status
+        -- Timetable entries running right now; skipped entirely on non-school days
         SELECT DISTINCT ON (tt.id)
           tt.class_names,
           tt.subject,
@@ -122,9 +148,12 @@ router.get('/classroom-status', async (req, res, next) => {
           AND LOWER(a.subject) = LOWER(tt.subject)
           AND LOWER(REPLACE(a.class_names, ' ', '')) = LOWER(REPLACE(tt.class_names, ' ', ''))
         LEFT JOIN excused_today et ON et.teacher_id = tt.teacher_id
-        WHERE tt.school_id  = $1
-          AND tt.day_of_week = $2
+        WHERE tt.school_id        = $1
+          AND tt.academic_year_id = (SELECT id      FROM current_year)
+          AND tt.semester         = (SELECT semester FROM current_year)
+          AND tt.day_of_week      = $2
           AND $3::time BETWEEN tt.start_time AND tt.end_time
+          AND NOT (SELECT is_nonschool FROM nonschool_today)
       ),
       active_now AS (
         -- Explode active entries so each individual classroom gets its own row
