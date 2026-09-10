@@ -66,6 +66,13 @@ async function runAbsenceCheck(schoolId) {
 
   console.log(`[AbsenceCheck] school=${schoolId} date=${today} day=${dayOfWeek} time=${now}`);
 
+  // Current academic year — used to tag absence records
+  const { rows: yearRows } = await pool.query(
+    `SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
+    [schoolId]
+  );
+  const academicYearId = yearRows[0]?.id ?? null;
+
   // Fetch school's period duration for periods_lost calculation
   const { rows: schoolSettingRows } = await pool.query(
     'SELECT period_duration_minutes FROM schools WHERE id = $1', [schoolId]
@@ -164,9 +171,11 @@ async function runAbsenceCheck(schoolId) {
         const { rows: inserted } = await pool.query(`
           INSERT INTO absences
             (school_id, date, detected_at, teacher_id, subject, class_name,
-             scheduled_period, status, is_auto_generated, reason, periods_lost, absence_group_id)
+             scheduled_period, status, is_auto_generated, reason, periods_lost, absence_group_id,
+             academic_year_id)
           VALUES
-            ($1, $2, $3::time, $4, $5, $6, $7, 'Absent', true, 'Daily automated check', $8, $9)
+            ($1, $2, $3::time, $4, $5, $6, $7, 'Absent', true, 'Daily automated check', $8, $9,
+             $10)
           ON CONFLICT (date, teacher_id, subject, class_name)
             WHERE is_auto_generated = true
           DO NOTHING
@@ -176,6 +185,7 @@ async function runAbsenceCheck(schoolId) {
           `${lesson.start_time}–${lesson.end_time}`,
           i === 0 ? periodsLost : 0,
           groupId,
+          academicYearId,
         ]);
 
         if (inserted.length) {
@@ -211,6 +221,13 @@ async function runPerLessonCheck(schoolId) {
   const dayOfWeek = getAccraDayOfWeek();
   const now       = new Date().toTimeString().slice(0, 5);
   const nowMins   = timeToMinutes(now);
+
+  // Current academic year — used to tag absence records
+  const { rows: yearRows } = await pool.query(
+    `SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
+    [schoolId]
+  );
+  const academicYearId = yearRows[0]?.id ?? null;
 
   const { rows: schoolSettingRows } = await pool.query(
     'SELECT period_duration_minutes FROM schools WHERE id = $1', [schoolId]
@@ -276,13 +293,15 @@ async function runPerLessonCheck(schoolId) {
         await pool.query(`
           INSERT INTO absences
             (school_id, date, detected_at, teacher_id, subject, class_name,
-             scheduled_period, status, is_auto_generated, reason, periods_lost, absence_group_id)
-          VALUES ($1,$2,$3::time,$4,$5,$6,$7,'Absent',true,'Grace period expired — no attendance submitted',$8,$9)
+             scheduled_period, status, is_auto_generated, reason, periods_lost, absence_group_id,
+             academic_year_id)
+          VALUES ($1,$2,$3::time,$4,$5,$6,$7,'Absent',true,'Grace period expired — no attendance submitted',$8,$9,$10)
           ON CONFLICT (date, teacher_id, subject, class_name)
             WHERE is_auto_generated = true
           DO NOTHING
         `, [schoolId, today, now, lesson.teacher_id, lesson.subject, className,
-            `${lesson.start_time}–${lesson.end_time}`, i === 0 ? periodsLost : 0, groupId]);
+            `${lesson.start_time}–${lesson.end_time}`, i === 0 ? periodsLost : 0, groupId,
+            academicYearId]);
       } catch (err) {
         console.error(`[PerLessonCheck] Error: ${lesson.teacher_name} / ${className}:`, err.message);
       }

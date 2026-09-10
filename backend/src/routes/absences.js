@@ -179,19 +179,31 @@ router.post('/manual', adminOnly, async (req, res, next) => {
     if (!teacherCheck.length)
       return res.status(400).json({ error: 'Teacher not found in this school' });
 
+    // Resolve academic year — prefer the year whose date window contains the date;
+    // fall back to the current year (covers schools with no start_date/end_date set).
+    const { rows: ayRows } = await pool.query(
+      `SELECT id FROM academic_years WHERE school_id = $1
+       ORDER BY
+         CASE WHEN start_date IS NOT NULL AND end_date IS NOT NULL THEN 0 ELSE 1 END,
+         is_current DESC, name DESC
+       LIMIT 1`,
+      [req.schoolId]
+    );
+    const academicYearId = ayRows[0]?.id ?? null;
+
     const inserted = [];
     for (const date of dates) {
       try {
         const { rows } = await pool.query(
           `INSERT INTO absences
              (school_id, date, teacher_id, subject, class_name, scheduled_period,
-              status, is_auto_generated, reason)
-           VALUES ($1,$2,$3,$4,$5,$6,'Absent',false,$7)
+              status, is_auto_generated, reason, academic_year_id)
+           VALUES ($1,$2,$3,$4,$5,$6,'Absent',false,$7,$8)
            ON CONFLICT (date, teacher_id, subject, class_name)
              WHERE is_auto_generated = true
            DO NOTHING
            RETURNING id`,
-          [req.schoolId, date, teacherId, subject, className, scheduledPeriod || null, reason || null]
+          [req.schoolId, date, teacherId, subject, className, scheduledPeriod || null, reason || null, academicYearId]
         );
         if (rows.length) inserted.push(rows[0].id);
       } catch {
