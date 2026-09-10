@@ -246,7 +246,7 @@ router.post('/:slug/apply/:token/letter', async (req, res, next) => {
     const [{ rows: schoolRows }, { rows: settingsRows }] = await Promise.all([
       pool.query(
         `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url,
-                logo_url, primary_color, accent_color, vision, mission
+                logo_url, primary_color, accent_color, vision, mission, headmaster_name
          FROM schools WHERE id = $1`,
         [school.school_id]
       ),

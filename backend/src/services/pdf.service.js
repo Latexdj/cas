@@ -488,12 +488,18 @@ function buildAdmissionLetterHTML({ application: a, school }) {
       <div><strong>Date:</strong> ${esc(today)}</div>
     </div>
     <div style="margin-bottom:32px;">${bodyHtml}</div>
-    <div style="margin-top:32px;">
-      <p style="margin:0 0 4px;">Yours faithfully,</p>
-      ${sigHtml}
-      <div style="border-top:1px solid #000;width:220px;margin-top:6px;padding-top:8px;">
-        <div style="font-weight:bold;font-size:11pt;">Admissions Office</div>
-        <div style="font-size:10pt;color:#4A3F32;">${esc(school.name)}</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:40px;gap:24px;">
+      <div style="font-size:11pt;line-height:1.8;min-width:180px;">
+        ${a.guardian_name   ? `<div style="font-weight:bold;">${esc(a.guardian_name)}</div>` : ''}
+        ${a.guardian_mobile ? `<div>Tel: ${esc(a.guardian_mobile)}</div>` : ''}
+      </div>
+      <div>
+        <p style="margin:0 0 4px;">Yours faithfully,</p>
+        ${sigHtml}
+        <div style="border-top:1px solid #000;width:220px;margin-top:6px;padding-top:8px;">
+          <div style="font-weight:bold;font-size:11pt;">${esc(school.headmaster_name || 'The Headmaster')}</div>
+          <div style="font-size:10pt;color:#555;">Headmaster</div>
+        </div>
       </div>
     </div>
   </div>

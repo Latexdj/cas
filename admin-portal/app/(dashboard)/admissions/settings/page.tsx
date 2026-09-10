@@ -25,6 +25,7 @@ interface SchoolInfo {
   letterhead_url?: string | null; headmaster_signature_url?: string | null;
   address?: string | null; phone?: string | null; email?: string | null;
   primary_color?: string | null; logo_url?: string | null;
+  headmaster_name?: string | null;
 }
 
 // ── Merge-field validation (mirrors the server) ───────────────────────────────
@@ -543,19 +544,29 @@ export default function AdmissionSettingsPage() {
                   dangerouslySetInnerHTML={{ __html: previewMerge(templateHtml, schoolInfo, settings) }}
                 />
 
-                {/* ── Sign-off ── */}
-                <div style={{ marginTop: 32 }}>
-                  <p style={{ margin: '0 0 6px', fontSize: '11pt' }}>Yours faithfully,</p>
-                  {schoolInfo.headmaster_signature_url
-                    ? <img src={schoolInfo.headmaster_signature_url} alt="Signature"
-                        style={{ display: 'block', maxHeight: 72, maxWidth: 200, marginBottom: 8 }} />
-                    : <div style={{ width: 160, height: 44, borderBottom: '1px dashed #ccc', marginBottom: 8, display: 'flex', alignItems: 'flex-end' }}>
-                        <span style={{ fontSize: '7.5pt', color: '#bbb', fontStyle: 'italic' }}>headmaster signature</span>
+                {/* ── Sign-off: recipient left, signature right ── */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 40, gap: 24 }}>
+                  {/* Left: recipient (sample guardian) */}
+                  <div style={{ fontSize: '11pt', lineHeight: '1.8', minWidth: 180 }}>
+                    <div style={{ fontWeight: 'bold' }}>Emmanuel Mensah</div>
+                    <div>Tel: 0244 123 456</div>
+                  </div>
+                  {/* Right: complimentary close + signature */}
+                  <div>
+                    <p style={{ margin: '0 0 4px' }}>Yours faithfully,</p>
+                    {schoolInfo.headmaster_signature_url
+                      ? <img src={schoolInfo.headmaster_signature_url} alt="Signature"
+                          style={{ display: 'block', maxHeight: 72, maxWidth: 200, marginBottom: 8 }} />
+                      : <div style={{ width: 160, height: 44, borderBottom: '1px dashed #ccc', marginBottom: 8, display: 'flex', alignItems: 'flex-end' }}>
+                          <span style={{ fontSize: '7.5pt', color: '#bbb', fontStyle: 'italic' }}>headmaster signature</span>
+                        </div>
+                    }
+                    <div style={{ borderTop: '1px solid #000', width: 220, paddingTop: 8 }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '11pt' }}>
+                        {schoolInfo.headmaster_name || 'The Headmaster'}
                       </div>
-                  }
-                  <div style={{ borderTop: '1px solid #000', width: 220, paddingTop: 8 }}>
-                    <div style={{ fontWeight: 'bold', fontSize: '11pt' }}>Admissions Office</div>
-                    <div style={{ fontSize: '10pt', color: '#4A3F32' }}>{schoolInfo.name || 'Your School'}</div>
+                      <div style={{ fontSize: '10pt', color: '#555' }}>Headmaster</div>
+                    </div>
                   </div>
                 </div>
 
