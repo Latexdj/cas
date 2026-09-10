@@ -5,6 +5,7 @@ const bcrypt  = require('bcrypt');
 const pool    = require('../config/db');
 const ExcelJS = require('exceljs');
 const { createNotification, sendTeacherEmail } = require('../services/notification.service');
+const { getCurrentSchoolContext } = require('../utils/school-context');
 
 // â”€â”€ Auth middleware â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function auth(req, res, next) {
@@ -31,17 +32,8 @@ router.get('/snapshot', async (req, res, next) => {
     const date = today();
     const dow  = new Date().getDay(); // 0=Sun
 
-    // Pre-flight: skip timetable-based counts on holidays/vacations — same logic
-    // as /occupancy. On a non-school day scheduled=0 and rate=null are correct.
-    const { rows: calRows } = await pool.query(`
-      SELECT 1 FROM school_calendar
-      WHERE school_id = $1 AND date = $2 AND start_time IS NULL AND type IN ('Holiday','Closed Day')
-      UNION ALL
-      SELECT 1 FROM school_vacation_periods
-      WHERE school_id = $1 AND start_date <= $2 AND end_date >= $2
-      LIMIT 1
-    `, [sid, date]);
-    const isNonSchoolDay = calRows.length > 0;
+    const ctx = await getCurrentSchoolContext(sid, date);
+    const { academicYearId, semester, isNonSchoolDay } = ctx;
 
     const [teacherRes, absenceRes, leaveRes, exeatRes, studentRes] = await Promise.all([
       // Teachers with a slot today — zero on non-school days so rate shows N/A
@@ -53,11 +45,11 @@ router.get('/snapshot', async (req, res, next) => {
             FROM teachers t
             JOIN timetable tt ON tt.teacher_id = t.id AND tt.school_id = $1
               AND tt.day_of_week = $2
-              AND tt.academic_year_id = (SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
-              AND tt.semester = (SELECT current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1)
+              AND tt.academic_year_id = $4
+              AND tt.semester = $5
             LEFT JOIN attendance a ON a.teacher_id = t.id AND a.school_id = $1 AND a.date = $3
             WHERE t.school_id = $1 AND t.status = 'Active'
-          `, [sid, dow, date]),
+          `, [sid, dow, date, academicYearId, semester]),
 
       // Auto-absences today
       pool.query(`

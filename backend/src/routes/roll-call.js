@@ -1,6 +1,7 @@
 ﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
+const { getCurrentYearSem } = require('../utils/school-context');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -45,14 +46,6 @@ async function withTables(fn) {
     tablesReady = true;
   }
   return fn();
-}
-
-async function getCurrentYearSem(schoolId) {
-  const { rows } = await pool.query(
-    `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
-    [schoolId]
-  );
-  return { yearId: rows[0]?.id || null, sem: rows[0]?.current_semester || null };
 }
 
 /** GET /api/roll-call */

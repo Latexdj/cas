@@ -84,12 +84,12 @@ async function hodOnly(req, res, next) {
   } catch (err) { next(err); }
 }
 
+const { getCurrentSchoolContext } = require('../utils/school-context');
+
 async function getCurrentYear(schoolId) {
-  const { rows } = await pool.query(
-    `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
-    [schoolId]
-  );
-  return rows[0] ?? null;
+  const ctx = await getCurrentSchoolContext(schoolId);
+  if (!ctx.academicYearId) return null;
+  return { id: ctx.academicYearId, current_semester: ctx.semester };
 }
 
 // â”€â”€ GET /api/hod/check â€” lightweight probe used by the frontend shell â”€â”€â”€â”€â”€â”€â”€â”€
