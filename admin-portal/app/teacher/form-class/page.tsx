@@ -31,7 +31,152 @@ function Avatar({ url, name, gender }: { url?: string | null; name: string; gend
 
 const RATING_OPTS = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor'];
 
-type Tab = 'overview' | 'remarks' | 'attendance' | 'results';
+type Tab = 'overview' | 'remarks' | 'attendance' | 'results' | 'flagged';
+
+// ── Flagged-students section (form-master scoped) ─────────────────────────────
+
+interface FlaggedFlag { type: string; severity: 'high' | 'medium' | 'low'; detail: string; }
+interface FlaggedStudentItem {
+  student_id: string; student_name: string; class_name: string;
+  flags: FlaggedFlag[]; severity_score: number; days_since_last_action: number;
+}
+
+const FLAG_TYPE_LABELS_FM: Record<string, string> = {
+  stale_serious_case: 'Stale serious case', escalation_trajectory: 'Escalating severity',
+  category_concentration: 'Category concentration', time_density: 'Time density',
+  repeat_offense: 'Repeat offense',
+};
+
+function FlagChipFM({ flag }: { flag: FlaggedFlag }) {
+  const { color, bg } =
+    flag.severity === 'high'   ? { color: '#B83232', bg: '#FEF2F2' } :
+    flag.severity === 'medium' ? { color: '#C8780A', bg: '#FFFBEB' } :
+                                 { color: '#2D7A4F', bg: '#E8F4EE' };
+  return (
+    <span title={flag.detail} style={{
+      fontSize: 11, fontWeight: 700, color, background: bg,
+      borderRadius: 5, padding: '2px 7px', whiteSpace: 'nowrap', cursor: 'help',
+    }}>
+      {FLAG_TYPE_LABELS_FM[flag.type] ?? flag.type}
+    </span>
+  );
+}
+
+interface StudentLetterItem {
+  id: string; letter_type: string; offense_category: string; subject: string;
+  issued_date: string; status: string; ref_number?: string; academic_year_name?: string;
+}
+
+function FormMasterFlaggedSection({ className: cls }: { className: string }) {
+  const [students, setStudents]         = useState<FlaggedStudentItem[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState('');
+  const [expandedId, setExpandedId]     = useState<string | null>(null);
+  const [letters, setLetters]           = useState<StudentLetterItem[]>([]);
+  const [lettersLoading, setLettersLoading] = useState(false);
+  const [lettersError, setLettersError] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    teacherApi.get<{ students: FlaggedStudentItem[]; class_name: string }>('/api/form-teacher/flagged-students')
+      .then(r => setStudents(r.data.students))
+      .catch(() => setError('Could not load flagged students.'))
+      .finally(() => setLoading(false));
+  }, [cls]);
+
+  function openHistory(studentId: string) {
+    if (expandedId === studentId) { setExpandedId(null); return; }
+    setExpandedId(studentId); setLetters([]); setLettersError('');
+    setLettersLoading(true);
+    teacherApi.get<{ letters: StudentLetterItem[] }>(`/api/form-teacher/student-letters/${studentId}`)
+      .then(r => setLetters(r.data.letters))
+      .catch(() => setLettersError('Could not load letter history.'))
+      .finally(() => setLettersLoading(false));
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-8">
+        <div className="w-6 h-6 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: '#145C44', borderBottomColor: 'transparent' }} />
+      </div>
+    );
+  }
+  if (error) {
+    return <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</p>;
+  }
+  if (students.length === 0) {
+    return (
+      <div className="text-center py-12 bg-white rounded-xl border border-[#E2D9CC]">
+        <p className="font-semibold text-slate-700 mb-1">No flagged students</p>
+        <p className="text-sm text-slate-400">No students in your class match any detection rules for this school year.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold text-slate-400">
+        {students.length} student{students.length !== 1 ? 's' : ''} flagged in your class
+      </p>
+      {students.map(s => (
+        <div key={s.student_id} className="bg-white rounded-xl border border-[#E2D9CC] overflow-hidden">
+          <button
+            className="w-full text-left px-4 py-3 flex items-start justify-between gap-3 cursor-pointer"
+            onClick={() => openHistory(s.student_id)}
+          >
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-slate-800 text-sm">{s.student_name}</p>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {s.flags.map((f, i) => <FlagChipFM key={i} flag={f} />)}
+              </div>
+              {s.flags.length > 0 && (
+                <p className="text-xs text-slate-400 mt-1">{s.flags[0].detail}</p>
+              )}
+            </div>
+            <div className="flex-shrink-0 text-right">
+              <p className="text-xs text-slate-400">{s.days_since_last_action}d since last letter</p>
+              <p className="text-[10px] text-slate-300 mt-0.5">{expandedId === s.student_id ? '▲ Hide history' : '▼ Show history'}</p>
+            </div>
+          </button>
+
+          {expandedId === s.student_id && (
+            <div className="border-t border-[#F5F0E8] px-4 py-3 bg-[#FDFAF5]">
+              {lettersLoading ? (
+                <div className="flex justify-center py-4">
+                  <div className="w-5 h-5 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: '#145C44', borderBottomColor: 'transparent' }} />
+                </div>
+              ) : lettersError ? (
+                <p className="text-xs text-red-500">{lettersError}</p>
+              ) : letters.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-2">No letters on record.</p>
+              ) : (
+                <div className="space-y-2">
+                  {letters.map(l => (
+                    <div key={l.id} className="bg-white rounded-lg border border-[#E2D9CC] px-3 py-2">
+                      <div className="flex flex-wrap gap-1 mb-1">
+                        <span className="text-[10px] font-bold bg-[#FECACA] text-[#7F1D1D] px-2 py-0.5 rounded">
+                          {l.letter_type.replace(/_/g, ' ')}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+                          {l.status}
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold text-slate-700">{l.subject}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {new Date(l.issued_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        {l.academic_year_name ? ` · ${l.academic_year_name}` : ''}
+                        {l.ref_number ? ` · Ref: ${l.ref_number}` : ''}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // ── Student detail drawer ─────────────────────────────────────────────────────
 function StudentDrawer({
@@ -372,10 +517,10 @@ export default function FormClassPage() {
 
       {/* ── Tabs ── */}
       <div className="bg-white border-b border-[#E2D9CC] px-4 flex gap-0 overflow-x-auto no-scrollbar">
-        {(['overview', 'remarks', 'attendance', 'results'] as Tab[]).map(t => (
+        {(['overview', 'remarks', 'attendance', 'results', 'flagged'] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-3 text-sm font-semibold capitalize whitespace-nowrap border-b-2 transition-colors ${tab === t ? 'border-green-600 text-[#145C44]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-            {t === 'overview' ? 'Overview' : t === 'remarks' ? 'Remarks' : t === 'attendance' ? 'Attendance' : 'Results'}
+            {t === 'overview' ? 'Overview' : t === 'remarks' ? 'Remarks' : t === 'attendance' ? 'Attendance' : t === 'results' ? 'Results' : 'Flagged'}
             {t === 'remarks' && stats && (
               <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${stats.remarksEntered === stats.total ? 'bg-[#D1EAD9] text-[#145C44]' : 'bg-amber-100 text-amber-700'}`}>
                 {stats.remarksEntered}/{stats.total}
@@ -702,6 +847,11 @@ export default function FormClassPage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ── Flagged tab ── */}
+        {tab === 'flagged' && assignment && (
+          <FormMasterFlaggedSection className={assignment.class_name} />
         )}
       </div>
 

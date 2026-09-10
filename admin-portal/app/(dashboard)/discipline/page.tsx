@@ -11,6 +11,51 @@ interface Teacher { id: string; name: string; department?: string; status: strin
 interface Student { id: string; name: string; student_code: string; class_name: string; }
 interface AcademicYear { id: string; name: string; is_current: boolean; }
 
+interface DisciplineFlag {
+  type: 'repeat_offense' | 'escalation_trajectory' | 'category_concentration' | 'time_density' | 'stale_serious_case';
+  severity: 'low' | 'medium' | 'high';
+  detail: string;
+}
+
+interface FlaggedStudent {
+  student_id: string;
+  student_name: string;
+  class_name: string;
+  form_master_id: string | null;
+  form_master_name: string | null;
+  flags: DisciplineFlag[];
+  severity_score: number;
+  days_since_last_action: number;
+}
+
+interface TeacherFlag {
+  type: 'escalated_query' | 'repeat_queries';
+  severity: 'high' | 'medium';
+  detail: string;
+}
+
+interface FlaggedTeacher {
+  teacher_id: string;
+  teacher_name: string;
+  department: string | null;
+  flags: TeacherFlag[];
+  severity_score: number;
+}
+
+interface FlagThresholds {
+  repeat_offense_count: number;
+  category_concentration_count: number;
+  time_density_count: number;
+  time_density_days: number;
+  stale_case_days: number;
+}
+
+interface FlaggedData {
+  students: FlaggedStudent[];
+  teachers: FlaggedTeacher[];
+  thresholds: FlagThresholds;
+}
+
 interface TeacherQuery {
   id: string; category: string; category_other?: string; subject: string; body: string;
   issued_date: string; response_deadline?: string; status: string;
@@ -1228,10 +1273,322 @@ function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
   );
 }
 
+// ─── Flag helpers ─────────────────────────────────────────────────────────────
+
+const FLAG_TYPE_LABELS: Record<string, string> = {
+  stale_serious_case:      'Stale serious case',
+  escalation_trajectory:   'Escalating severity',
+  category_concentration:  'Category concentration',
+  time_density:            'Time density',
+  repeat_offense:          'Repeat offense',
+  escalated_query:         'Query escalated',
+  repeat_queries:          'Repeat queries',
+};
+
+function severityStyle(sev: 'high' | 'medium' | 'low'): { color: string; bg: string } {
+  if (sev === 'high')   return { color: C.danger,  bg: C.dangerBg };
+  if (sev === 'medium') return { color: C.warning, bg: C.warningBg };
+  return { color: C.success, bg: C.successBg };
+}
+
+function FlagChip({ flag }: { flag: { severity: 'high' | 'medium' | 'low'; type: string; detail: string } }) {
+  const { color, bg } = severityStyle(flag.severity);
+  return (
+    <span title={flag.detail} style={{
+      fontSize: 11, fontWeight: 700, color, background: bg,
+      borderRadius: 5, padding: '2px 7px', whiteSpace: 'nowrap',
+      cursor: 'help',
+    }}>
+      {FLAG_TYPE_LABELS[flag.type] ?? flag.type}
+    </span>
+  );
+}
+
+// ─── Student Letter History Modal (form-master safe click-through) ─────────────
+
+function StudentLetterHistoryModal({ studentId, studentName, className: cls, onClose }: {
+  studentId: string; studentName: string; className: string; onClose: () => void;
+}) {
+  const [letters, setLetters] = useState<DisciplinaryLetter[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get<DisciplinaryLetter[]>(`/api/discipline/letters?student_id=${studentId}`)
+      .then(r => setLetters(r.data))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [studentId]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(11,61,46,0.45)' }}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 620, maxHeight: '88vh', overflow: 'auto', padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <p style={{ fontWeight: 800, fontSize: 15, color: C.dark, margin: 0 }}>{studentName}</p>
+            <p style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>Class {cls} — letter history</p>
+          </div>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 7, border: `1px solid ${C.border}`, background: C.bg, color: C.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>
+            <svg viewBox="0 0 14 14" width={12} height={12} fill="none" stroke="currentColor" strokeWidth={2}><path d="M1 1l12 12M13 1L1 13"/></svg>
+          </button>
+        </div>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 32 }}>
+            <div style={{ width: 24, height: 24, margin: '0 auto', borderRadius: '50%', border: `2px solid ${C.mid}`, borderBottomColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+          </div>
+        ) : letters.length === 0 ? (
+          <p style={{ fontSize: 13, color: C.muted, textAlign: 'center', padding: 24 }}>No letters on record.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {letters.map(l => {
+              const tb = letterTypeBadge(l.letter_type);
+              const sb = letterStatusBadge(l.status);
+              return (
+                <div key={l.id} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                    <Badge label={tb.label} color={tb.color} bg={tb.bg} />
+                    <Badge label={sb.label} color={sb.color} bg={sb.bg} />
+                    {l.ref_number && <span style={{ fontSize: 11, color: C.muted }}>Ref: {l.ref_number}</span>}
+                  </div>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: C.dark, margin: 0 }}>{l.subject}</p>
+                  <p style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>
+                    {catLabel(l.offense_category, OFFENSE_CATS)} · Issued {fmt(l.issued_date)}
+                    {l.academic_year_name ? ` · ${l.academic_year_name}` : ''}
+                    {l.semester ? ` · Sem ${l.semester}` : ''}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Flagged Panel ─────────────────────────────────────────────────────────────
+
+function FlaggedPanel() {
+  const [data, setData]               = useState<FlaggedData | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState('');
+  const [historyStudent, setHistoryStudent] = useState<{ id: string; name: string; class_name: string } | null>(null);
+  const [editingThresholds, setEditingThresholds] = useState(false);
+  const [thresholdDraft, setThresholdDraft]     = useState<Partial<FlagThresholds>>({});
+  const [savingThresholds, setSavingThresholds] = useState(false);
+  const [thresholdErr, setThresholdErr]         = useState('');
+
+  function loadData() {
+    setLoading(true); setError('');
+    api.get<FlaggedData>('/api/discipline/flagged-students')
+      .then(r => setData(r.data))
+      .catch(() => setError('Could not load flagged students — check your connection and try again.'))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => { loadData(); }, []);
+
+  async function saveThresholds() {
+    setSavingThresholds(true); setThresholdErr('');
+    try {
+      const { data: updated } = await api.put<FlagThresholds>('/api/discipline/thresholds', thresholdDraft);
+      setData(prev => prev ? { ...prev, thresholds: updated } : prev);
+      setEditingThresholds(false);
+      loadData();
+    } catch {
+      setThresholdErr('Failed to save — check values and try again.');
+    } finally { setSavingThresholds(false); }
+  }
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60 }}>
+        <div style={{ width: 28, height: 28, borderRadius: '50%', border: `3px solid ${C.mid}`, borderBottomColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <p style={{ color: C.danger, background: C.dangerBg, borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>{error}</p>;
+  }
+
+  const students = data?.students ?? [];
+  const teachers = data?.teachers ?? [];
+  const thr      = data?.thresholds;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Thresholds strip */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: editingThresholds ? 14 : 0 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontSize: 12, color: C.muted }}>
+            {thr && !editingThresholds && (
+              <>
+                <span>Repeat offense: <strong style={{ color: C.dark }}>{thr.repeat_offense_count} letters</strong></span>
+                <span>Category concentration: <strong style={{ color: C.dark }}>{thr.category_concentration_count} letters</strong></span>
+                <span>Time density: <strong style={{ color: C.dark }}>{thr.time_density_count} letters/{thr.time_density_days} days</strong></span>
+                <span>Stale case: <strong style={{ color: C.dark }}>{thr.stale_case_days} days</strong></span>
+              </>
+            )}
+          </div>
+          <button onClick={() => { setEditingThresholds(e => !e); setThresholdDraft(thr ?? {}); setThresholdErr(''); }}
+            style={{ fontSize: 11, fontWeight: 700, color: C.mid, background: '#E8F4EE', border: `1px solid #B7DFC9`, borderRadius: 6, padding: '3px 10px', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 12 }}>
+            {editingThresholds ? 'Cancel' : 'Edit thresholds'}
+          </button>
+        </div>
+        {editingThresholds && thr && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px,1fr))', gap: 10 }}>
+              {([
+                ['repeat_offense_count',         'Repeat offense count'],
+                ['category_concentration_count', 'Category concentration count'],
+                ['time_density_count',           'Time density count'],
+                ['time_density_days',            'Time density window (days)'],
+                ['stale_case_days',              'Stale case threshold (days)'],
+              ] as const).map(([key, label]) => (
+                <div key={key}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 4 }}>{label}</label>
+                  <input
+                    type="number" min={1} max={999}
+                    value={(thresholdDraft[key] ?? thr[key]) as number}
+                    onChange={e => setThresholdDraft(d => ({ ...d, [key]: Number(e.target.value) }))}
+                    style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none' }}
+                  />
+                </div>
+              ))}
+            </div>
+            {thresholdErr && <p style={{ fontSize: 12, color: C.danger }}>{thresholdErr}</p>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={saveThresholds} disabled={savingThresholds}
+                style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', opacity: savingThresholds ? 0.6 : 1 }}>
+                {savingThresholds ? 'Saving…' : 'Save thresholds'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Flagged students table */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <p style={{ fontWeight: 700, fontSize: 14, color: C.dark, margin: 0 }}>
+            Flagged students
+            <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 600, color: C.muted }}>({students.length})</span>
+          </p>
+          <button onClick={loadData} style={{ fontSize: 11, color: C.mid, background: '#E8F4EE', border: `1px solid #B7DFC9`, borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontWeight: 700 }}>
+            Refresh
+          </button>
+        </div>
+
+        {students.length === 0 ? (
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '36px 24px', textAlign: 'center' }}>
+            <p style={{ fontWeight: 700, color: C.dark, marginBottom: 4 }}>No flagged students</p>
+            <p style={{ fontSize: 13, color: C.muted }}>No students match the configured detection rules for this school year.</p>
+          </div>
+        ) : (
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
+                    {['Student', 'Class', 'Form master', 'Active flags', 'Days since action'].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '9px 14px', fontWeight: 700, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.map((s, i) => (
+                    <tr key={s.student_id}
+                      onClick={() => setHistoryStudent({ id: s.student_id, name: s.student_name, class_name: s.class_name })}
+                      style={{ borderBottom: `1px solid ${C.bg}`, cursor: 'pointer', background: i % 2 === 0 ? '#fff' : C.card }}>
+                      <td style={{ padding: '11px 14px', fontWeight: 600, color: C.dark }}>{s.student_name}</td>
+                      <td style={{ padding: '11px 14px', color: C.mid2 }}>{s.class_name}</td>
+                      <td style={{ padding: '11px 14px', color: C.muted, fontSize: 12 }}>{s.form_master_name ?? '—'}</td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {s.flags.map((f, fi) => <FlagChip key={fi} flag={f} />)}
+                        </div>
+                        {s.flags.length > 0 && (
+                          <p style={{ fontSize: 11, color: C.muted, marginTop: 4, marginBottom: 0, lineHeight: 1.4 }}>
+                            {s.flags[0].detail}
+                          </p>
+                        )}
+                      </td>
+                      <td style={{ padding: '11px 14px', color: C.muted, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                        {s.days_since_last_action}d
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Flagged teachers table */}
+      <div>
+        <p style={{ fontWeight: 700, fontSize: 14, color: C.dark, margin: '0 0 12px' }}>
+          Flagged teachers
+          <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 600, color: C.muted }}>({teachers.length})</span>
+        </p>
+        {teachers.length === 0 ? (
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '24px', textAlign: 'center' }}>
+            <p style={{ fontSize: 13, color: C.muted }}>No teacher flags for this school year.</p>
+          </div>
+        ) : (
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
+                    {['Teacher', 'Department', 'Active flags'].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '9px 14px', fontWeight: 700, fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {teachers.map((t, i) => (
+                    <tr key={t.teacher_id} style={{ borderBottom: `1px solid ${C.bg}`, background: i % 2 === 0 ? '#fff' : C.card }}>
+                      <td style={{ padding: '11px 14px', fontWeight: 600, color: C.dark }}>{t.teacher_name}</td>
+                      <td style={{ padding: '11px 14px', color: C.muted }}>{t.department ?? '—'}</td>
+                      <td style={{ padding: '11px 14px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {t.flags.map((f, fi) => <FlagChip key={fi} flag={{ ...f, type: f.type as string }} />)}
+                        </div>
+                        {t.flags.length > 0 && (
+                          <p style={{ fontSize: 11, color: C.muted, marginTop: 4, marginBottom: 0 }}>{t.flags[0].detail}</p>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+        Flags are computed from current letter records — they clear automatically when underlying letters are resolved through normal workflow. No flag records are stored.
+      </p>
+
+      {/* Letter history modal */}
+      {historyStudent && (
+        <StudentLetterHistoryModal
+          studentId={historyStudent.id}
+          studentName={historyStudent.name}
+          className={historyStudent.class_name}
+          onClose={() => setHistoryStudent(null)}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DisciplinePage() {
-  const [tab, setTab] = useState<'queries' | 'letters'>('queries');
+  const [tab, setTab] = useState<'queries' | 'letters' | 'flagged'>('queries');
   const [loading, setLoading] = useState(true);
 
   // Shared reference data
@@ -1341,12 +1698,12 @@ export default function DisciplinePage() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 4, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, width: 'fit-content', marginBottom: 24 }}>
-        {(['queries', 'letters'] as const).map(t => (
+        {(['queries', 'letters', 'flagged'] as const).map(t => (
           <button key={t} onClick={() => { setTab(t); setSelectedQuery(null); setSelectedLetter(null); }}
             style={{ padding: '7px 20px', borderRadius: 9, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
               background: tab === t ? C.mid : 'transparent',
               color: tab === t ? '#fff' : C.muted }}>
-            {t === 'queries' ? 'Teacher Queries' : 'Student Letters'}
+            {t === 'queries' ? 'Teacher Queries' : t === 'letters' ? 'Student Letters' : 'Flagged Students'}
           </button>
         ))}
       </div>
@@ -1552,6 +1909,9 @@ export default function DisciplinePage() {
           </div>
         </div>
       )}
+
+      {/* ── Flagged Students Tab ── */}
+      {tab === 'flagged' && <FlaggedPanel />}
 
       {/* Modals */}
       {showIssueQuery && (
