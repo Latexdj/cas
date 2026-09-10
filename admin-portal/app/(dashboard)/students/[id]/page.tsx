@@ -120,6 +120,22 @@ export default function StudentProfilePage() {
   const [scanHistory,        setScanHistory]        = useState<ScanEvent[]>([]);
   const [scanHistoryLoading, setScanHistoryLoading] = useState(false);
 
+  interface AdmissionApp {
+    id: string; full_name: string; admission_number: string | null;
+    letter_url: string | null; letter_generated_at: string | null;
+    status: string;
+  }
+  const [admApp,        setAdmApp]        = useState<AdmissionApp | null | undefined>(undefined);
+  const [letterLoading, setLetterLoading] = useState(false);
+  const [letterErr,     setLetterErr]     = useState('');
+
+  const loadAdmissionApp = useCallback(async () => {
+    try {
+      const { data } = await api.get<AdmissionApp>(`/api/admin/admissions/by-student/${id}`);
+      setAdmApp(data);
+    } catch { setAdmApp(null); }
+  }, [id]);
+
   const loadCard = useCallback(async () => {
     try {
       const { data } = await api.get<{ active_card: IdCard | null }>(`/api/id-cards/student/${id}`);
@@ -160,7 +176,7 @@ export default function StudentProfilePage() {
     } finally { setLoading(false); }
   }, [id]);
 
-  useEffect(() => { load(); loadCard(); loadScanHistory(); }, [load, loadCard, loadScanHistory]);
+  useEffect(() => { load(); loadCard(); loadScanHistory(); loadAdmissionApp(); }, [load, loadCard, loadScanHistory, loadAdmissionApp]);
 
   function toForm(p: StudentProfile): Record<string, string> {
     return {
@@ -232,6 +248,35 @@ export default function StudentProfilePage() {
     } finally {
       setCardLoading(false);
     }
+  }
+
+  async function generateLetter() {
+    if (!admApp) return;
+    setLetterLoading(true); setLetterErr('');
+    try {
+      await api.post(`/api/admin/admissions/applications/${admApp.id}/letter`);
+      await loadAdmissionApp();
+    } catch (err: unknown) {
+      setLetterErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Could not generate letter.');
+    } finally { setLetterLoading(false); }
+  }
+
+  async function downloadLetter() {
+    if (!admApp?.letter_url) return;
+    setLetterLoading(true); setLetterErr('');
+    try {
+      const response = await api.get(`/api/admin/admissions/applications/${admApp.id}/letter/download`, { responseType: 'blob' });
+      const blob = response.data as Blob;
+      const url  = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      const safeName = (admApp.full_name || profile?.name || 'Student').replace(/\s+/g, '_').replace(/[^A-Za-z0-9_]/g, '');
+      const admNo    = (admApp.admission_number || 'UNKNOWN').replace(/[^A-Za-z0-9]/g, '');
+      const a = document.createElement('a');
+      a.href = url; a.download = `${safeName}_${admNo}.pdf`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch {
+      setLetterErr('Could not download letter. Please try again.');
+    } finally { setLetterLoading(false); }
   }
 
   async function uploadPhoto(file: File) {
@@ -634,6 +679,82 @@ export default function StudentProfilePage() {
                   })}
                 </tbody>
               </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Admission Letter */}
+      {!editing && admApp !== undefined && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Admission Letter</h3>
+            {admApp?.letter_generated_at && (
+              <span className="text-xs text-gray-400">
+                Last generated {new Date(admApp.letter_generated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+            )}
+          </div>
+          <div className="p-5">
+            {admApp === null ? (
+              <p className="text-sm text-gray-400">No admission application linked to this student.</p>
+            ) : (
+              <>
+                {admApp.letter_url ? (
+                  <p className="text-sm text-gray-600 mb-4">
+                    A letter has been generated for this student. Use the buttons below to view, download, or regenerate it.
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-400 mb-4">No letter generated yet. Click Generate to create one.</p>
+                )}
+                {letterErr && <p className="text-sm text-red-500 mb-3">{letterErr}</p>}
+                <div className="flex flex-wrap gap-3">
+                  {admApp.letter_url && (
+                    <a
+                      href={admApp.letter_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                    >
+                      <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
+                        <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
+                      </svg>
+                      View Letter
+                    </a>
+                  )}
+                  {admApp.letter_url && (
+                    <button
+                      disabled={letterLoading}
+                      onClick={downloadLetter}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50"
+                    >
+                      {letterLoading ? (
+                        <span className="block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      Download PDF
+                    </button>
+                  )}
+                  <button
+                    disabled={letterLoading}
+                    onClick={generateLetter}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {letterLoading && !admApp.letter_url ? (
+                      <span className="block w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.7} className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    )}
+                    {admApp.letter_url ? 'Regenerate Letter' : 'Generate Letter'}
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>

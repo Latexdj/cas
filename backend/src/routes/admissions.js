@@ -265,7 +265,11 @@ router.post('/:slug/apply/:token/letter', async (req, res, next) => {
       admission_reporting_date:  settingsRows[0]?.admission_reporting_date  || null,
     };
 
-    const url = await generateAdmissionLetterPDF({ application: app, school: schoolData });
+    const { url } = await generateAdmissionLetterPDF({ application: app, school: schoolData });
+    await pool.query(
+      `UPDATE admission_applications SET letter_url=$1, letter_generated_at=now() WHERE id=$2`,
+      [url, app.id]
+    );
     res.json({ url });
   } catch (err) { next(err); }
 });

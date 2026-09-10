@@ -246,8 +246,60 @@ router.post('/applications/:id/letter', async (req, res, next) => {
       if (p.length) prospectus_url = p[0].file_url;
     }
 
-    const url = await generateAdmissionLetterPDF({ application: app, school: schoolData });
+    const { url } = await generateAdmissionLetterPDF({ application: app, school: schoolData });
+    await pool.query(
+      `UPDATE admission_applications SET letter_url=$1, letter_generated_at=now() WHERE id=$2`,
+      [url, req.params.id]
+    );
     res.json({ url, prospectus_url });
+  } catch (err) { next(err); }
+});
+
+// GET /api/admin/admissions/by-student/:studentId — fetch application linked to a student
+router.get('/by-student/:studentId', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT a.*, p.name AS program_name
+       FROM admission_applications a LEFT JOIN programs p ON p.id = a.program_id
+       WHERE a.student_id=$1 AND a.school_id=$2
+       LIMIT 1`,
+      [req.params.studentId, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No application found for this student' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// GET /api/admin/admissions/applications/:id/letter/download — stream PDF with named filename
+router.get('/applications/:id/letter/download', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT a.letter_url, a.full_name, a.admission_number
+       FROM admission_applications a WHERE a.id=$1 AND a.school_id=$2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    const app = rows[0];
+    if (!app.letter_url) return res.status(404).json({ error: 'No letter generated yet' });
+
+    const safeName = (app.full_name || 'Student').replace(/\s+/g, '_').replace(/[^A-Za-z0-9_]/g, '');
+    const admNo    = (app.admission_number || 'UNKNOWN').replace(/[^A-Za-z0-9]/g, '');
+    const filename = `${safeName}_${admNo}.pdf`;
+
+    const https = require('https');
+    const http  = require('http');
+    const urlObj = new URL(app.letter_url);
+    const lib = urlObj.protocol === 'https:' ? https : http;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    lib.get(app.letter_url, (proxyRes) => {
+      if (proxyRes.statusCode !== 200) {
+        res.status(502).json({ error: 'Failed to fetch PDF from storage' });
+        return;
+      }
+      proxyRes.pipe(res);
+    }).on('error', next);
   } catch (err) { next(err); }
 });
 

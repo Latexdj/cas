@@ -390,7 +390,7 @@ async function _renderToPDF(html, filePath, options = {}) {
 
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(filePath, pdfBuffer, { contentType: 'application/pdf', upsert: false });
+    .upload(filePath, pdfBuffer, { contentType: 'application/pdf', upsert: options.upsert ?? false });
 
   if (error) throw new Error(`PDF storage upload failed: ${error.message}`);
 
@@ -513,11 +513,13 @@ async function generateAdmissionLetterPDF({ application, school }) {
   const { resolvedSchool } = await resolveImages(school);
   const html         = buildAdmissionLetterHTML({ application, school: resolvedSchool });
   const footerHtml   = buildFooterHtml(resolvedSchool);
-  const filePath     = `admissions/letters/letter-${application.id}-${Date.now()}.pdf`;
-  return _renderToPDF(html, filePath, {
+  const filePath     = `admissions/letters/letter-${application.id}.pdf`;
+  const url = await _renderToPDF(html, filePath, {
     footerTemplate: footerHtml || undefined,
     bottomMargin:   footerHtml ? '34mm' : '22mm',
+    upsert:         true,
   });
+  return { url, filePath };
 }
 
 // ── ID Card ───────────────────────────────────────────────────────────────────

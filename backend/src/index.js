@@ -2597,6 +2597,12 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE programs          ADD COLUMN IF NOT EXISTS display_name TEXT`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] id-card issued_at + program display_name:', e.message); }
 
+    // ── Admission letter storage ───────────────────────────────────────────────
+    try {
+    await pool.query(`ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS letter_url TEXT`);
+    await pool.query(`ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMPTZ`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admission_applications letter_url:', e.message); }
+
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
     } else {
