@@ -16,6 +16,8 @@ const pool = require('../config/db');
  *   nonSchoolReason: 'calendar'|'vacation'|null,
  *   nonSchoolLabel: string|null,
  *   nonSchoolEventType: string|null,
+ *   nonSchoolVacationName: string|null,
+ *   nonSchoolVacationKind: string|null,
  * }}
  */
 async function getCurrentSchoolContext(schoolId, date = null) {
@@ -27,6 +29,7 @@ async function getCurrentSchoolContext(schoolId, date = null) {
       ay.current_semester AS semester,
       cal.name            AS cal_name,
       cal.type            AS cal_type,
+      vac.name            AS vac_name,
       vac.kind            AS vac_kind
     FROM academic_years ay
     LEFT JOIN LATERAL (
@@ -38,7 +41,7 @@ async function getCurrentSchoolContext(schoolId, date = null) {
       LIMIT 1
     ) cal ON true
     LEFT JOIN LATERAL (
-      SELECT kind FROM school_vacation_periods
+      SELECT name, kind FROM school_vacation_periods
       WHERE school_id  = $1
         AND start_date <= $2::date
         AND end_date   >= $2::date
@@ -51,21 +54,26 @@ async function getCurrentSchoolContext(schoolId, date = null) {
 
   if (!rows.length) {
     return { academicYearId: null, semester: null, isNonSchoolDay: false,
-             nonSchoolReason: null, nonSchoolLabel: null, nonSchoolEventType: null };
+             nonSchoolReason: null, nonSchoolLabel: null, nonSchoolEventType: null,
+             nonSchoolVacationName: null, nonSchoolVacationKind: null };
   }
 
-  const row           = rows[0];
-  const isCalendar    = !!row.cal_name;
-  const isVacation    = !isCalendar && !!row.vac_kind;
+  const row            = rows[0];
+  const isCalendar     = !!row.cal_name;
+  const isVacation     = !isCalendar && !!row.vac_kind;
   const isNonSchoolDay = isCalendar || isVacation;
 
   return {
-    academicYearId:    row.academic_year_id,
-    semester:          row.semester,
+    academicYearId:       row.academic_year_id,
+    semester:             row.semester,
     isNonSchoolDay,
-    nonSchoolReason:    isNonSchoolDay ? (isCalendar ? 'calendar' : 'vacation') : null,
-    nonSchoolLabel:     isCalendar ? row.cal_name : isVacation ? row.vac_kind : null,
-    nonSchoolEventType: isCalendar ? row.cal_type : null,
+    nonSchoolReason:      isNonSchoolDay ? (isCalendar ? 'calendar' : 'vacation') : null,
+    // calendar: human-readable event name; vacation: kind string ('vacation'|'exam')
+    nonSchoolLabel:       isCalendar ? row.cal_name : isVacation ? row.vac_kind : null,
+    nonSchoolEventType:   isCalendar ? row.cal_type : null,
+    // vacation-specific fields for consumers that need both name and kind separately
+    nonSchoolVacationName: isVacation ? row.vac_name : null,
+    nonSchoolVacationKind: isVacation ? row.vac_kind : null,
   };
 }
 
