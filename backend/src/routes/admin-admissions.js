@@ -358,7 +358,7 @@ router.post('/applications/manual', async (req, res, next) => {
     try {
       await client.query('BEGIN');
       const admissionNumber = await generateAdmissionNumber(req.schoolId, client);
-      const house = await assignHouse(req.schoolId, gender, residential_status, program_id);
+      const house = await assignHouse(req.schoolId, gender, residential_status, program_id, client);
       const { rows } = await client.query(
         `INSERT INTO admission_applications
            (school_id, index_number, admission_number, full_name, date_of_birth, gender,

@@ -2603,6 +2603,19 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS letter_generated_at TIMESTAMPTZ`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admission_applications letter_url:', e.message); }
 
+    // ── Admission number uniqueness backstop ──────────────────────────────────
+    // The atomic UPDATE in generateAdmissionNumber prevents collisions in normal
+    // operation, but a DB-level unique index provides a hard guarantee and
+    // surfaces any future bug immediately rather than silently producing duplicates.
+    // Partial index (WHERE admission_number IS NOT NULL) so NULL rows don't conflict.
+    try {
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_admission_applications_adm_no
+      ON admission_applications(school_id, admission_number)
+      WHERE admission_number IS NOT NULL
+    `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admission_applications unique adm_no index:', e.message); }
+
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
     } else {

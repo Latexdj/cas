@@ -177,18 +177,30 @@ router.post('/:slug/apply/:token/submit', async (req, res, next) => {
       return res.status(400).json({ error: 'Please complete all required fields before submitting.' });
     }
 
-    const house = await assignHouse(school.school_id, app.gender, app.residential_status, app.program_id);
-    await pool.query(
-      `UPDATE admission_applications
-       SET status='completed', house=$1, form_step=5, form_completed_at=now(), updated_at=now()
-       WHERE form_token=$2`,
-      [house, req.params.token]
-    );
-    const { rows: updated } = await pool.query(
-      `SELECT a.*, p.name AS program_name FROM admission_applications a
-       LEFT JOIN programs p ON p.id = a.program_id WHERE a.form_token = $1`,
-      [req.params.token]
-    );
+    const client = await pool.connect();
+    let updated;
+    try {
+      await client.query('BEGIN');
+      const house = await assignHouse(school.school_id, app.gender, app.residential_status, app.program_id, client);
+      await client.query(
+        `UPDATE admission_applications
+         SET status='completed', house=$1, form_step=5, form_completed_at=now(), updated_at=now()
+         WHERE form_token=$2`,
+        [house, req.params.token]
+      );
+      await client.query('COMMIT');
+      const { rows } = await pool.query(
+        `SELECT a.*, p.name AS program_name FROM admission_applications a
+         LEFT JOIN programs p ON p.id = a.program_id WHERE a.form_token = $1`,
+        [req.params.token]
+      );
+      updated = rows;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
     res.json(updated[0]);
   } catch (err) { next(err); }
 });
