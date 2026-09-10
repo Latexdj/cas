@@ -472,47 +472,20 @@ router.get('/summary', adminOnly, async (req, res, next) => {
               SELECT teacher_id, cnt FROM mtg_att) x
         GROUP BY teacher_id
       ),
-      dr AS (
-        SELECT
-          COALESCE(
-            LEAST(
-              (SELECT MIN(date) FROM plc_attendance
-               WHERE school_id = $1
-                 AND ($2::uuid IS NULL OR academic_year_id = $2::uuid OR academic_year_id IS NULL)
-                 AND ($3::int  IS NULL OR semester = $3::int         OR semester          IS NULL)),
-              (SELECT MIN(ma.date) FROM meeting_attendance ma
-               JOIN meetings m ON m.id = ma.meeting_id
-               WHERE ma.school_id = $1 AND m.meeting_type = 'PLC'
-                 AND ($2::uuid IS NULL OR ma.academic_year_id = $2::uuid OR ma.academic_year_id IS NULL)
-                 AND ($3::int  IS NULL OR ma.semester = $3::int         OR ma.semester          IS NULL))
-            ), CURRENT_DATE - INTERVAL '365 days') AS min_date,
-          COALESCE(
-            GREATEST(
-              (SELECT MAX(date) FROM plc_attendance
-               WHERE school_id = $1
-                 AND ($2::uuid IS NULL OR academic_year_id = $2::uuid OR academic_year_id IS NULL)
-                 AND ($3::int  IS NULL OR semester = $3::int         OR semester          IS NULL)),
-              (SELECT MAX(ma.date) FROM meeting_attendance ma
-               JOIN meetings m ON m.id = ma.meeting_id
-               WHERE ma.school_id = $1 AND m.meeting_type = 'PLC'
-                 AND ($2::uuid IS NULL OR ma.academic_year_id = $2::uuid OR ma.academic_year_id IS NULL)
-                 AND ($3::int  IS NULL OR ma.semester = $3::int         OR ma.semester          IS NULL))
-            ), CURRENT_DATE) AS max_date
-      ),
       plc_abs AS (
         SELECT ab.teacher_id, COUNT(*) AS cnt
-        FROM plc_absences ab, dr
+        FROM plc_absences ab
         WHERE ab.school_id = $1
-          AND ab.date >= dr.min_date AND ab.date <= dr.max_date
+          AND ($2::uuid IS NULL OR ab.academic_year_id = $2::uuid)
         GROUP BY ab.teacher_id
       ),
       mtg_abs AS (
         SELECT ab.teacher_id, COUNT(*) AS cnt
         FROM meeting_absences ab
-        JOIN meetings m ON m.id = ab.meeting_id, dr
+        JOIN meetings m ON m.id = ab.meeting_id
         WHERE ab.school_id = $1
           AND m.meeting_type = 'PLC'
-          AND ab.date >= dr.min_date AND ab.date <= dr.max_date
+          AND ($2::uuid IS NULL OR ab.academic_year_id = $2::uuid)
         GROUP BY ab.teacher_id
       ),
       abs AS (
