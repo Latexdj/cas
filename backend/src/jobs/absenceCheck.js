@@ -315,6 +315,13 @@ async function runPlcAbsenceCheck(schoolId) {
   const dayOfWeek = getAccraDayOfWeek();
   const now       = new Date().toTimeString().slice(0, 5);
 
+  // Current academic year — used to tag absence records
+  const { rows: yearRows } = await pool.query(
+    `SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
+    [schoolId]
+  );
+  const academicYearId = yearRows[0]?.id ?? null;
+
   // Skip on school holidays or vacation periods
   const { rows: calRows } = await pool.query(
     'SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 AND start_time IS NULL AND end_time IS NULL LIMIT 1',
@@ -361,10 +368,10 @@ async function runPlcAbsenceCheck(schoolId) {
       try {
         await pool.query(
           `INSERT INTO plc_absences
-             (school_id, session_id, teacher_id, date, status, detected_at, reason)
-           VALUES ($1, $2, $3, $4, 'Absent', $5::time, 'Daily automated check')
+             (school_id, session_id, teacher_id, date, status, detected_at, reason, academic_year_id)
+           VALUES ($1, $2, $3, $4, 'Absent', $5::time, 'Daily automated check', $6)
            ON CONFLICT (session_id, teacher_id, date) DO NOTHING`,
-          [schoolId, session.id, teacher.id, today, now]
+          [schoolId, session.id, teacher.id, today, now, academicYearId]
         );
       } catch (err) {
         console.error(`[PlcAbsenceCheck] Error: ${teacher.name} / ${session.title}:`, err.message);
@@ -378,6 +385,13 @@ async function runPlcAbsenceCheck(schoolId) {
 async function runMeetingAbsenceCheck(schoolId) {
   const today = new Date().toISOString().slice(0, 10);
   const now   = new Date().toTimeString().slice(0, 5);
+
+  // Current academic year — used to tag absence records
+  const { rows: yearRows } = await pool.query(
+    `SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
+    [schoolId]
+  );
+  const academicYearId = yearRows[0]?.id ?? null;
 
   const { rows: calRows } = await pool.query(
     'SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 AND start_time IS NULL AND end_time IS NULL LIMIT 1',
@@ -418,10 +432,10 @@ async function runMeetingAbsenceCheck(schoolId) {
       try {
         await pool.query(
           `INSERT INTO meeting_absences
-             (school_id, meeting_id, teacher_id, date, status, detected_at, reason)
-           VALUES ($1, $2, $3, $4, 'Absent', $5::time, 'Daily automated check')
+             (school_id, meeting_id, teacher_id, date, status, detected_at, reason, academic_year_id)
+           VALUES ($1, $2, $3, $4, 'Absent', $5::time, 'Daily automated check', $6)
            ON CONFLICT (meeting_id, teacher_id, date) DO NOTHING`,
-          [schoolId, meeting.id, teacher.id, today, now]
+          [schoolId, meeting.id, teacher.id, today, now, academicYearId]
         );
       } catch (err) {
         console.error(`[MeetingAbsenceCheck] Error: ${teacher.name} / ${meeting.title}:`, err.message);
