@@ -544,29 +544,29 @@ export default function AdmissionSettingsPage() {
                   dangerouslySetInnerHTML={{ __html: previewMerge(templateHtml, schoolInfo, settings) }}
                 />
 
-                {/* ── Sign-off: recipient left, signature right ── */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 40, gap: 24 }}>
-                  {/* Left: recipient (sample guardian) */}
-                  <div style={{ fontSize: '11pt', lineHeight: '1.8', minWidth: 180 }}>
+                {/* ── Sign-off: signature right, recipient below left ── */}
+                <div style={{ marginTop: 40 }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div>
+                      <p style={{ margin: '0 0 4px' }}>Yours faithfully,</p>
+                      {schoolInfo.headmaster_signature_url
+                        ? <img src={schoolInfo.headmaster_signature_url} alt="Signature"
+                            style={{ display: 'block', maxHeight: 72, maxWidth: 200, marginBottom: 8 }} />
+                        : <div style={{ width: 160, height: 44, borderBottom: '1px dashed #ccc', marginBottom: 8, display: 'flex', alignItems: 'flex-end' }}>
+                            <span style={{ fontSize: '7.5pt', color: '#bbb', fontStyle: 'italic' }}>headmaster signature</span>
+                          </div>
+                      }
+                      <div style={{ borderTop: '1px solid #000', width: 220, paddingTop: 8 }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '11pt' }}>
+                          {schoolInfo.headmaster_name || 'The Headmaster'}
+                        </div>
+                        <div style={{ fontSize: '10pt', color: '#555' }}>Headmaster</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 20, fontSize: '11pt', lineHeight: '1.8' }}>
                     <div style={{ fontWeight: 'bold' }}>Emmanuel Mensah</div>
                     <div>Tel: 0244 123 456</div>
-                  </div>
-                  {/* Right: complimentary close + signature */}
-                  <div>
-                    <p style={{ margin: '0 0 4px' }}>Yours faithfully,</p>
-                    {schoolInfo.headmaster_signature_url
-                      ? <img src={schoolInfo.headmaster_signature_url} alt="Signature"
-                          style={{ display: 'block', maxHeight: 72, maxWidth: 200, marginBottom: 8 }} />
-                      : <div style={{ width: 160, height: 44, borderBottom: '1px dashed #ccc', marginBottom: 8, display: 'flex', alignItems: 'flex-end' }}>
-                          <span style={{ fontSize: '7.5pt', color: '#bbb', fontStyle: 'italic' }}>headmaster signature</span>
-                        </div>
-                    }
-                    <div style={{ borderTop: '1px solid #000', width: 220, paddingTop: 8 }}>
-                      <div style={{ fontWeight: 'bold', fontSize: '11pt' }}>
-                        {schoolInfo.headmaster_name || 'The Headmaster'}
-                      </div>
-                      <div style={{ fontSize: '10pt', color: '#555' }}>Headmaster</div>
-                    </div>
                   </div>
                 </div>
 
