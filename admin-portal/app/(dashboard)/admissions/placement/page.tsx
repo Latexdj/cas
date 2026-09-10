@@ -9,6 +9,7 @@ interface PlacementRow {
   id: string; index_number: string; full_name: string; gender: string;
   aggregate: number | null; programme: string; residential_status: string;
   is_registered: boolean; uploaded_at: string; total_count?: number;
+  admission_year?: number;
 }
 
 export default function PlacementPage() {
@@ -16,16 +17,23 @@ export default function PlacementPage() {
   const [search,   setSearch]   = useState('');
   const [loading,  setLoading]  = useState(true);
   const [uploading,setUploading]= useState(false);
-  const [result,   setResult]   = useState<{ inserted: number; skipped: number; errors: { row: number; message: string }[] } | null>(null);
+  const [result,   setResult]   = useState<{ inserted: number; skipped: number; errors: { row: number; message: string }[]; year?: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Year filter — null means "use server default (current year)"
+  const [yearFilter, setYearFilter] = useState<string>('');
+  const [activeYear, setActiveYear] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/api/admin/admissions/placement', { params: { search } });
+      const params: Record<string, string> = { search };
+      if (yearFilter) params.year = yearFilter;
+      const { data } = await api.get('/api/admin/admissions/placement', { params });
       setRows(data.data);
+      if (data.year != null) setActiveYear(data.year);
     } finally { setLoading(false); }
-  }, [search]);
+  }, [search, yearFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -68,17 +76,36 @@ export default function PlacementPage() {
 
       {result && (
         <div className="rounded-xl border border-[#B8D9C8] bg-[#E8F4EE] px-4 py-3 space-y-1">
-          <p className="text-sm text-[#0B3D2E] font-semibold">{result.inserted} record{result.inserted !== 1 ? 's' : ''} uploaded.</p>
+          <p className="text-sm text-[#0B3D2E] font-semibold">
+            {result.inserted} record{result.inserted !== 1 ? 's' : ''} uploaded
+            {result.year != null ? ` for year '${String(result.year).padStart(2,'0')}'` : ''}.
+          </p>
           {result.skipped > 0 && <p className="text-xs text-amber-700">{result.skipped} row{result.skipped !== 1 ? 's' : ''} skipped.</p>}
           {result.errors.map((e, i) => <p key={i} className="text-xs text-red-600">Row {e.row}: {e.message}</p>)}
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
           placeholder="Search by index or name…"
           className="w-64 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600" />
-        <span className="text-xs text-slate-400">{total} student{total !== 1 ? 's' : ''} on placement list</span>
+        <div className="flex items-center gap-1.5">
+          <label className="text-xs text-slate-500 font-semibold">Year</label>
+          <input
+            type="number" min="0" max="99" placeholder={activeYear != null ? String(activeYear) : 'current'}
+            value={yearFilter}
+            onChange={e => { setYearFilter(e.target.value); setPage(1); }}
+            className="w-20 rounded-lg border border-slate-200 px-2 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-green-600"
+          />
+          {yearFilter && (
+            <button onClick={() => { setYearFilter(''); setPage(1); }}
+              className="text-xs text-slate-400 hover:text-slate-700 px-1">✕</button>
+          )}
+        </div>
+        <span className="text-xs text-slate-400">
+          {total} student{total !== 1 ? 's' : ''}
+          {activeYear != null ? ` · year '${String(activeYear).padStart(2,'0')}'` : ''}
+        </span>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">

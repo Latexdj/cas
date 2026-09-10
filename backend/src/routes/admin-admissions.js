@@ -116,19 +116,37 @@ router.get('/placement', async (req, res, next) => {
     const limit = 50, offset = (parseInt(page) - 1) * limit;
     const params = [req.schoolId];
     let where = 'WHERE school_id = $1';
+
+    // Year filter: default to current admission_year from settings
+    let yearFilter = req.query.year ? parseInt(req.query.year) : null;
+    if (yearFilter == null) {
+      const { rows: s } = await pool.query(
+        `SELECT admission_year FROM school_admission_settings WHERE school_id = $1`, [req.schoolId]
+      );
+      yearFilter = s[0]?.admission_year ?? null;
+    }
+    if (yearFilter != null) { params.push(yearFilter); where += ` AND admission_year = $${params.length}`; }
+
     if (search) { params.push(`%${search}%`); where += ` AND (index_number ILIKE $${params.length} OR full_name ILIKE $${params.length})`; }
     const { rows } = await pool.query(
       `SELECT *, COUNT(*) OVER()::int AS total_count FROM admission_placement ${where}
        ORDER BY is_registered, uploaded_at DESC LIMIT $${params.length+1} OFFSET $${params.length+2}`,
       [...params, limit, offset]
     );
-    res.json({ data: rows, total: rows[0]?.total_count ?? 0 });
+    res.json({ data: rows, total: rows[0]?.total_count ?? 0, year: yearFilter });
   } catch (err) { next(err); }
 });
 
 router.post('/placement/upload', upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    // Fetch current admission year to tag uploaded rows
+    const { rows: settingsRows } = await pool.query(
+      `SELECT admission_year FROM school_admission_settings WHERE school_id = $1`, [req.schoolId]
+    );
+    const admissionYear = settingsRows[0]?.admission_year ?? 0;
+
     const wb   = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
     const ws   = wb.Sheets[wb.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
@@ -153,18 +171,18 @@ router.post('/placement/upload', upload.single('file'), async (req, res, next) =
       }
       try {
         await pool.query(
-          `INSERT INTO admission_placement (school_id,index_number,full_name,date_of_birth,gender,aggregate,programme,residential_status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-           ON CONFLICT (school_id,index_number) DO UPDATE SET
+          `INSERT INTO admission_placement (school_id,index_number,admission_year,full_name,date_of_birth,gender,aggregate,programme,residential_status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+           ON CONFLICT (school_id,index_number,admission_year) DO UPDATE SET
              full_name=EXCLUDED.full_name, date_of_birth=EXCLUDED.date_of_birth,
              gender=EXCLUDED.gender, aggregate=EXCLUDED.aggregate,
              programme=EXCLUDED.programme, residential_status=EXCLUDED.residential_status`,
-          [req.schoolId, idx, name, dob && !isNaN(dob) ? dob : null, gender, agg, prog, res]
+          [req.schoolId, idx, admissionYear, name, dob && !isNaN(dob) ? dob : null, gender, agg, prog, res]
         );
         inserted++;
       } catch (e) { errors.push({ row: i + 2, message: e.message }); skipped++; }
     }
-    res.json({ inserted, skipped, errors });
+    res.json({ inserted, skipped, errors, year: admissionYear });
   } catch (err) { next(err); }
 });
 
@@ -375,6 +393,11 @@ router.post('/applications/manual', async (req, res, next) => {
 
     const idx = index_number?.trim().toUpperCase() || null;
 
+    const { rows: settingsRows } = await pool.query(
+      `SELECT admission_year FROM school_admission_settings WHERE school_id = $1`, [req.schoolId]
+    );
+    const admissionYear = settingsRows[0]?.admission_year ?? null;
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -382,17 +405,17 @@ router.post('/applications/manual', async (req, res, next) => {
       const house = await assignHouse(req.schoolId, gender, residential_status, program_id, client);
       const { rows } = await client.query(
         `INSERT INTO admission_applications
-           (school_id, index_number, admission_number, full_name, date_of_birth, gender,
+           (school_id, index_number, admission_number, admission_year, full_name, date_of_birth, gender,
             aggregate, residential_status, hometown, residential_address, mobile_number,
             ghana_card_number, nhia_number, religion, religious_denomination,
             program_id, house,
             guardian_name, guardian_relationship, guardian_occupation, guardian_mobile,
             status, form_step, form_completed_at, admission_type, direct_reason)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::uuid,$17,
-                 $18,$19,$20,$21,'completed',5,now(),'direct',$22)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::uuid,$18,
+                 $19,$20,$21,$22,'completed',5,now(),'direct',$23)
          RETURNING *`,
         [
-          req.schoolId, idx, admissionNumber, full_name.trim(),
+          req.schoolId, idx, admissionNumber, admissionYear, full_name.trim(),
           date_of_birth || null, gender,
           aggregate != null && aggregate !== '' ? parseInt(aggregate) : null,
           residential_status,
@@ -505,6 +528,11 @@ router.post('/applications/:id/migrate', async (req, res, next) => {
 
 router.get('/stats', async (req, res, next) => {
   try {
+    const { rows: settingsRows } = await pool.query(
+      `SELECT admission_year FROM school_admission_settings WHERE school_id = $1`, [req.schoolId]
+    );
+    const admissionYear = settingsRows[0]?.admission_year ?? null;
+
     const [apps, place] = await Promise.all([
       pool.query(
         `SELECT COUNT(*)::int AS total,
@@ -515,11 +543,18 @@ router.get('/stats', async (req, res, next) => {
                 COUNT(*) FILTER (WHERE admission_type='direct')::int   AS direct
          FROM admission_applications WHERE school_id=$1`, [req.schoolId]
       ),
-      pool.query(
-        `SELECT COUNT(*)::int AS total_placed,
-                COUNT(*) FILTER (WHERE is_registered)::int AS total_registered
-         FROM admission_placement WHERE school_id=$1`, [req.schoolId]
-      ),
+      admissionYear != null
+        ? pool.query(
+            `SELECT COUNT(*)::int AS total_placed,
+                    COUNT(*) FILTER (WHERE is_registered)::int AS total_registered
+             FROM admission_placement WHERE school_id=$1 AND admission_year=$2`,
+            [req.schoolId, admissionYear]
+          )
+        : pool.query(
+            `SELECT COUNT(*)::int AS total_placed,
+                    COUNT(*) FILTER (WHERE is_registered)::int AS total_registered
+             FROM admission_placement WHERE school_id=$1`, [req.schoolId]
+          ),
     ]);
     res.json({ ...apps.rows[0], ...place.rows[0] });
   } catch (err) { next(err); }

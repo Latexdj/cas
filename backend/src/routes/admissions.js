@@ -44,17 +44,22 @@ router.post('/:slug/check', async (req, res, next) => {
     const idx = String(req.body.index_number ?? '').trim().toUpperCase();
     if (idx.length !== 12) return res.status(400).json({ error: 'Index number must be exactly 12 characters.' });
 
+    // Lookup placement filtered by current admission year so last year's list
+    // doesn't accept this year's portal traffic (year-scoped placement, 2024+)
     const { rows: placed } = await pool.query(
-      `SELECT * FROM admission_placement WHERE school_id = $1 AND index_number = $2`,
-      [school.school_id, idx]
+      `SELECT * FROM admission_placement
+        WHERE school_id = $1 AND index_number = $2 AND admission_year = $3`,
+      [school.school_id, idx, school.admission_year]
     );
     if (!placed.length) {
       return res.status(404).json({ error: 'Your index number was not found on the placement list. Please contact the school admissions office.' });
     }
 
+    // Resume / dedup check scoped to current year
     const { rows: existing } = await pool.query(
-      `SELECT form_token, status, form_step FROM admission_applications WHERE school_id = $1 AND index_number = $2`,
-      [school.school_id, idx]
+      `SELECT form_token, status, form_step FROM admission_applications
+        WHERE school_id = $1 AND index_number = $2 AND admission_year = $3`,
+      [school.school_id, idx, school.admission_year]
     );
     if (existing.length) {
       const app = existing[0];
@@ -71,16 +76,18 @@ router.post('/:slug/check', async (req, res, next) => {
       const placement = placed[0];
       const { rows } = await client.query(
         `INSERT INTO admission_applications
-           (school_id, index_number, admission_number, full_name, date_of_birth, gender, aggregate, residential_status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+           (school_id, index_number, admission_number, admission_year,
+            full_name, date_of_birth, gender, aggregate, residential_status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
          RETURNING form_token, form_step`,
-        [school.school_id, idx, admissionNumber,
+        [school.school_id, idx, admissionNumber, school.admission_year,
          placement.full_name, placement.date_of_birth,
          placement.gender, placement.aggregate, placement.residential_status]
       );
       await client.query(
-        `UPDATE admission_placement SET is_registered = true WHERE school_id = $1 AND index_number = $2`,
-        [school.school_id, idx]
+        `UPDATE admission_placement SET is_registered = true
+          WHERE school_id = $1 AND index_number = $2 AND admission_year = $3`,
+        [school.school_id, idx, school.admission_year]
       );
       await client.query('COMMIT');
       res.json({ token: rows[0].form_token, form_step: rows[0].form_step, placement });

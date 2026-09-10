@@ -2616,6 +2616,37 @@ async function runMigrations() {
     `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admission_applications unique adm_no index:', e.message); }
 
+    // ── Year-scoped placement ─────────────────────────────────────────────────
+    try {
+    await pool.query(`ALTER TABLE admission_placement ADD COLUMN IF NOT EXISTS admission_year SMALLINT NOT NULL DEFAULT 0`);
+    // Backfill from each school's current settings (0 stays for schools without settings)
+    await pool.query(`
+      UPDATE admission_placement ap
+         SET admission_year = COALESCE(
+               (SELECT sas.admission_year FROM school_admission_settings sas WHERE sas.school_id = ap.school_id),
+               0)
+       WHERE ap.admission_year = 0
+    `);
+    // Remove old single-year unique constraint; new year-scoped index replaces it
+    await pool.query(`ALTER TABLE admission_placement DROP CONSTRAINT IF EXISTS admission_placement_school_id_index_number_key`);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_admission_placement_school_idx_yr
+        ON admission_placement(school_id, index_number, admission_year)
+    `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admission_placement year scope:', e.message); }
+
+    // ── Year column on admission_applications ─────────────────────────────────
+    try {
+    await pool.query(`ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS admission_year SMALLINT`);
+    // Backfill NULL rows from each school's settings
+    await pool.query(`
+      UPDATE admission_applications aa
+         SET admission_year = (
+               SELECT sas.admission_year FROM school_admission_settings sas WHERE sas.school_id = aa.school_id)
+       WHERE aa.admission_year IS NULL
+    `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admission_applications year scope:', e.message); }
+
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
     } else {
