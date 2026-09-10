@@ -251,29 +251,15 @@ router.get('/teacher-attendance', async (req, res, next) => {
           AND ($3::int  IS NULL OR semester = $3::int)
         GROUP BY teacher_id
       ),
-      dr AS (
-        -- Use plain MIN/MAX â€” no fallback. When no attendance records exist yet
-        -- for this period, min_date/max_date will be NULL and the abs CTE below
-        -- is skipped entirely, preventing phantom absent counts.
-        SELECT
-          MIN(date) AS min_date,
-          MAX(date) AS max_date
-        FROM attendance
-        WHERE school_id = $1
-          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
-          AND ($3::int  IS NULL OR semester = $3::int)
-      ),
       abs AS (
         SELECT
           ab.teacher_id,
           COUNT(*) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')) AS absent_periods,
           COUNT(*) FILTER (WHERE ab.status  = 'Excused')                            AS excused_periods,
           COUNT(*) FILTER (WHERE ab.status IN ('Made Up','Verified'))               AS made_up_periods
-        FROM absences ab, dr
+        FROM absences ab
         WHERE ab.school_id = $1
-          AND dr.min_date IS NOT NULL
-          AND ab.date >= dr.min_date
-          AND ab.date <= dr.max_date
+          AND ($2::uuid IS NULL OR ab.academic_year_id = $2::uuid)
         GROUP BY ab.teacher_id
       )
       SELECT

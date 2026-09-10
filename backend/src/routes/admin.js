@@ -602,25 +602,14 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
           AND ($3::int  IS NULL OR semester = $3::int)
         GROUP BY teacher_id
       ),
-      dr AS (
-        SELECT
-          MIN(date) AS min_date,
-          MAX(date) AS max_date
-        FROM attendance
-        WHERE school_id = $1
-          AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
-          AND ($3::int  IS NULL OR semester = $3::int)
-      ),
       abs AS (
         SELECT
           ab.teacher_id,
           COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')), 0) AS absent_periods,
           COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status = 'Excused'), 0)                             AS excused_periods
-        FROM absences ab, dr
+        FROM absences ab
         WHERE ab.school_id = $1
-          AND dr.min_date IS NOT NULL
-          AND ab.date >= dr.min_date
-          AND ab.date <= dr.max_date
+          AND ($2::uuid IS NULL OR ab.academic_year_id = $2::uuid)
         GROUP BY ab.teacher_id
       ),
       made AS (
@@ -629,11 +618,8 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
           COALESCE(SUM(COALESCE(rl.duration_periods, 1)), 0) AS made_up_periods
         FROM absences ab
         JOIN remedial_lessons rl ON rl.absence_id = ab.id
-        , dr
         WHERE ab.school_id = $1
-          AND dr.min_date IS NOT NULL
-          AND ab.date >= dr.min_date
-          AND ab.date <= dr.max_date
+          AND ($2::uuid IS NULL OR ab.academic_year_id = $2::uuid)
           AND ab.status IN ('Made Up','Verified')
         GROUP BY ab.teacher_id
       )

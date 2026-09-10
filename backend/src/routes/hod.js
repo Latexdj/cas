@@ -144,8 +144,9 @@ router.get('/overview', hodOnly, async (req, res, next) => {
        JOIN teachers t ON t.id = ab.teacher_id
        WHERE ab.school_id = $1
          AND ${deptMember}
-         AND ab.status NOT IN ('Made Up','Cleared','Verified','Excused')`,
-      [req.schoolId, dept]
+         AND ab.status NOT IN ('Made Up','Cleared','Verified','Excused')
+         AND ($3::uuid IS NULL OR ab.academic_year_id = $3::uuid)`,
+      [req.schoolId, dept, ay?.id ?? null]
     );
 
     const remedialQuery = pool.query(
@@ -279,6 +280,7 @@ router.get('/teachers', hodOnly, async (req, res, next) => {
        FROM teachers t
        LEFT JOIN absences ab
          ON ab.teacher_id = t.id AND ab.school_id = t.school_id
+         AND ($3::uuid IS NULL OR ab.academic_year_id = $3::uuid)
        LEFT JOIN remedial_lessons rl
          ON rl.teacher_id = t.id AND rl.school_id = t.school_id
        LEFT JOIN attendance a
@@ -306,11 +308,12 @@ router.get('/teachers', hodOnly, async (req, res, next) => {
 router.get('/absences', hodOnly, async (req, res, next) => {
   try {
     if (!req.hodDept) return res.json([]);
+    const ay = await getCurrentYear(req.schoolId);
     const { teacherId, status } = req.query;
-    const params  = [req.schoolId, req.hodDept];
+    const params  = [req.schoolId, req.hodDept, ay?.id ?? null];
     const filters = [];
 
-    // Absences are scoped to the department via the teachers JOIN below
+    // Absences are scoped to the department via the teachers JOIN and to the current year
     if (teacherId) { params.push(teacherId); filters.push(`ab.teacher_id = $${params.length}`); }
     if (status)    { params.push(status);    filters.push(`ab.status = $${params.length}`); }
 
@@ -321,6 +324,7 @@ router.get('/absences', hodOnly, async (req, res, next) => {
        FROM absences ab
        JOIN teachers t ON t.id = ab.teacher_id
        WHERE ab.school_id = $1
+         AND ($3::uuid IS NULL OR ab.academic_year_id = $3::uuid)
          AND (
            LOWER(t.department) = LOWER($2)
            OR EXISTS (SELECT 1 FROM departments d WHERE d.school_id = $1 AND LOWER(d.name) = LOWER($2) AND d.head_teacher_id = t.id)
