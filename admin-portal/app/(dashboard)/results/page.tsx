@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
@@ -567,7 +567,44 @@ export default function ResultsPage() {
   const [school,        setSchool]        = useState<SchoolProfile>({ name: '', address: null, logo_url: null, headmaster_signature_url: null });
   const [remarksMap,    setRemarksMap]    = useState<Record<string, ReportRemark>>({});
   const [printTarget,   setPrintTarget]   = useState<'all' | StudentResult | null>(null);
+  const [exportSubject, setExportSubject] = useState('');
+  const [exportProgram, setExportProgram] = useState('');
+  const [exporting,     setExporting]     = useState(false);
 
+  // Derived lists for the export filters — populated once results load
+  const availableSubjects = useMemo(() =>
+    [...new Set(results.flatMap(r => r.subjects.map(s => s.subject)))].sort(),
+    [results]);
+  const availablePrograms = useMemo(() =>
+    [...new Set(results.map(r => r.program_name).filter((p): p is string => !!p))].sort(),
+    [results]);
+
+  // Reset export filters when the main class/year/semester selection changes
+  useEffect(() => { setExportSubject(''); setExportProgram(''); }, [yearId, semester, className]);
+
+  async function handleExport() {
+    if (!yearId || !semester || !className) return;
+    setExporting(true);
+    try {
+      const token = localStorage.getItem('cas_token');
+      const base  = process.env.NEXT_PUBLIC_API_URL ?? '';
+      const params = new URLSearchParams({ academic_year_id: yearId, semester, class_name: className });
+      if (exportSubject) params.set('subject', exportSubject);
+      if (exportProgram) params.set('program_name', exportProgram);
+      const r = await fetch(`${base}/api/results/export?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error('Export failed');
+      const blob = await r.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `results_${className.replace(/\s+/g, '_')}_sem${semester}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { setError('Export failed. Please try again.'); }
+    finally { setExporting(false); }
+  }
 
   useEffect(() => {
     api.get<SchoolProfile>('/api/admin/school-profile').then(r => setSchool(r.data)).catch(() => {});
@@ -740,6 +777,43 @@ export default function ResultsPage() {
 
         {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>}
 
+        {/* Export panel — appears once a class is selected */}
+        {className && (
+          <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap gap-3 items-end">
+            <div className="flex items-center gap-2 mr-1">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-[#145C44]">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              </svg>
+              <span className="text-xs font-semibold text-slate-500">Export Excel</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-slate-400">Subject</label>
+              <select value={exportSubject} onChange={e => setExportSubject(e.target.value)} className={selectStyle} disabled={results.length === 0}>
+                <option value="">All subjects</option>
+                {availableSubjects.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-slate-400">Program</label>
+              <select value={exportProgram} onChange={e => setExportProgram(e.target.value)} className={selectStyle} disabled={results.length === 0 || availablePrograms.length === 0}>
+                <option value="">All programs</option>
+                {availablePrograms.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <button
+              onClick={handleExport}
+              disabled={exporting || !className}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-[#145C44] text-white hover:bg-green-900 disabled:opacity-50"
+            >
+              {exporting
+                ? <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M16 12l-4 4-4-4M12 4v12" /></svg>
+              }
+              {exporting ? 'Exporting…' : 'Download .xlsx'}
+            </button>
+            <p className="text-xs text-slate-400 self-center ml-1">Column layout is a placeholder pending the government upload template.</p>
+          </div>
+        )}
 
         {!className ? (
           <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
