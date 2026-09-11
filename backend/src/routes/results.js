@@ -1,8 +1,267 @@
-const router = require('express').Router();
-const pool   = require('../config/db');
+const router  = require('express').Router();
+const pool    = require('../config/db');
+const ExcelJS = require('exceljs');
 const { authenticate, requireActiveSubscription, adminOnly } = require('../middleware/auth');
 
 router.use(authenticate, requireActiveSubscription);
+
+// ── Grade function factory ────────────────────────────────────────────────────
+// Returns getGrade(total, examBody) using school-configured boundaries with
+// built-in defaults as fallback. Used by the class results endpoint, the
+// transcript endpoint, and the export endpoint.
+function buildGradeFn(boundaries) {
+  return function getGrade(total, examBody) {
+    const body = examBody || 'WAEC';
+    const bodyBounds = boundaries
+      .filter(b => b.exam_body === body)
+      .sort((a, b) => parseFloat(b.min_pct) - parseFloat(a.min_pct));
+
+    if (bodyBounds.length > 0) {
+      for (const b of bodyBounds) {
+        if (total >= parseFloat(b.min_pct)) return { grade: b.grade, remark: b.remark };
+      }
+    }
+
+    if (body === 'CTVET') {
+      const grade  = total >= 75 ? 'A' : total >= 70 ? 'B+' : total >= 65 ? 'B-' : total >= 55 ? 'C+' : total >= 50 ? 'C-' : total >= 45 ? 'D' : total >= 40 ? 'E' : 'F';
+      const remark = total >= 75 ? 'DISTINCTION' : total >= 65 ? 'UPPER CREDIT' : total >= 55 ? 'CREDIT' : total >= 50 ? 'LOWER CREDIT' : total >= 40 ? 'PASS' : 'FAIL';
+      return { grade, remark };
+    }
+
+    const grade  = total >= 75 ? 'A1' : total >= 70 ? 'B2' : total >= 65 ? 'B3' : total >= 60 ? 'C4' : total >= 55 ? 'C5' : total >= 50 ? 'C6' : total >= 45 ? 'D7' : total >= 40 ? 'E8' : 'F9';
+    const remark = total >= 75 ? 'EXCELLENT' : total >= 70 ? 'VERY GOOD' : total >= 65 ? 'GOOD' : total >= 50 ? 'CREDIT' : total >= 40 ? 'PASS' : 'FAIL';
+    return { grade, remark };
+  };
+}
+
+// ── Shared results assembly ───────────────────────────────────────────────────
+// Computes per-student, per-subject results (CA + exam + imported fallback)
+// for one class / year / semester. Returns results with class positions but
+// without attendance — callers append that separately as needed.
+async function assembleResults(schoolId, academic_year_id, semester, class_name) {
+  const semInt = parseInt(semester);
+
+  const [schoolRow, modesRow, boundariesRow, studentsRow] = await Promise.all([
+    pool.query(`SELECT ca_percentage FROM schools WHERE id = $1`, [schoolId]),
+    pool.query(`SELECT id, name, ca_contribution FROM assessment_modes WHERE school_id = $1`, [schoolId]),
+    pool.query(
+      `SELECT exam_body, grade, min_pct, max_pct, remark
+       FROM grade_boundaries WHERE school_id = $1 ORDER BY exam_body, sort_order DESC`,
+      [schoolId]
+    ),
+    pool.query(
+      `SELECT s.id, s.name, s.student_code, s.jhs_index_number,
+              s.picture_url, s.gender, p.exam_body, p.name AS program_name
+       FROM students s
+       LEFT JOIN programs p ON p.id = s.program_id
+       WHERE s.school_id = $1 AND s.status = 'Active'
+         AND LOWER(s.class_name) = LOWER($2)
+       ORDER BY s.name`,
+      [schoolId, class_name]
+    ),
+  ]);
+
+  const caPercentage      = parseFloat(schoolRow.rows[0]?.ca_percentage) || 30;
+  const examPercentage    = 100 - caPercentage;
+  const modes             = modesRow.rows;
+  const boundaries        = boundariesRow.rows;
+  const students          = studentsRow.rows;
+  const totalConfiguredCA = modes.reduce((s, m) => s + parseFloat(m.ca_contribution), 0) || caPercentage;
+  const getGrade          = buildGradeFn(boundaries);
+
+  const [{ rows: assessments }, { rows: examScores }] = await Promise.all([
+    pool.query(
+      `SELECT a.id, a.subject, a.mode_id, a.max_score, sc.student_id, sc.score, sc.absent
+       FROM assessments a
+       JOIN assessment_scores sc ON sc.assessment_id = a.id
+       WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.semester = $3
+         AND LOWER(a.class_name) = LOWER($4)
+         AND sc.score IS NOT NULL AND sc.absent = false`,
+      [schoolId, academic_year_id, semInt, class_name]
+    ),
+    pool.query(
+      `SELECT student_id, subject, score, max_score
+       FROM exam_scores
+       WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
+         AND LOWER(class_name) = LOWER($4) AND score IS NOT NULL`,
+      [schoolId, academic_year_id, semInt, class_name]
+    ),
+  ]);
+
+  const studentIds = students.map(s => s.id);
+  let importedRows = [];
+  if (studentIds.length > 0) {
+    const { rows } = await pool.query(
+      `SELECT student_id, subject, class_score, exam_score, total_score, grade, remarks
+       FROM results_import
+       WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
+         AND student_id = ANY($4)`,
+      [schoolId, academic_year_id, semInt, studentIds]
+    );
+    importedRows = rows;
+  }
+
+  // importedData[studentId][subject]
+  const importedData = {};
+  for (const r of importedRows) {
+    if (!importedData[r.student_id]) importedData[r.student_id] = {};
+    importedData[r.student_id][r.subject] = {
+      class_score: r.class_score != null ? parseFloat(r.class_score) : null,
+      exam_score:  r.exam_score  != null ? parseFloat(r.exam_score)  : null,
+      total_score: r.total_score != null ? parseFloat(r.total_score) : null,
+      grade: r.grade || '-', remarks: r.remarks || '-',
+    };
+  }
+
+  // caData[studentId][subject][modeId] = [{score, max_score}]
+  const caData = {};
+  for (const a of assessments) {
+    if (!caData[a.student_id]) caData[a.student_id] = {};
+    if (!caData[a.student_id][a.subject]) caData[a.student_id][a.subject] = {};
+    if (!caData[a.student_id][a.subject][a.mode_id]) caData[a.student_id][a.subject][a.mode_id] = [];
+    caData[a.student_id][a.subject][a.mode_id].push({ score: parseFloat(a.score), max_score: parseFloat(a.max_score) });
+  }
+
+  // examData[studentId][subject]
+  const examData = {};
+  for (const e of examScores) {
+    if (!examData[e.student_id]) examData[e.student_id] = {};
+    examData[e.student_id][e.subject] = { score: parseFloat(e.score), max_score: parseFloat(e.max_score) };
+  }
+
+  const allSubjects = new Set();
+  for (const a of assessments) allSubjects.add(a.subject);
+  for (const e of examScores) allSubjects.add(e.subject);
+  for (const r of importedRows) allSubjects.add(r.subject);
+
+  // Per-subject results with subject-level positions
+  const subjectResults = {};
+  for (const subject of allSubjects) {
+    subjectResults[subject] = [];
+    for (const st of students) {
+      const hasLiveCA   = !!(caData[st.id]?.[subject]);
+      const hasLiveExam = !!(examData[st.id]?.[subject]);
+      const hasImport   = !!(importedData[st.id]?.[subject]);
+
+      if (!hasLiveCA && !hasLiveExam && hasImport) {
+        const imp = importedData[st.id][subject];
+        subjectResults[subject].push({
+          student_id: st.id, ca_score: imp.class_score, exam_score: imp.exam_score,
+          total: imp.total_score, grade: imp.grade, remark: imp.remarks, is_imported: true,
+        });
+      } else {
+        let caScore = 0;
+        const studentSubjectModes = caData[st.id]?.[subject] || {};
+        for (const mode of modes) {
+          const modeScores = studentSubjectModes[mode.id] || [];
+          if (!modeScores.length) continue;
+          const avgPct = modeScores.reduce((sum, s) => sum + Math.min(100, s.score / s.max_score * 100), 0) / modeScores.length;
+          caScore += (avgPct * parseFloat(mode.ca_contribution)) / 100;
+        }
+        const scaledCA  = totalConfiguredCA > 0 ? (caScore / totalConfiguredCA) * caPercentage : caScore;
+        const examEntry = examData[st.id]?.[subject];
+        const examScore = examEntry ? Math.min(1, examEntry.score / examEntry.max_score) * examPercentage : null;
+        const total     = examScore != null ? Math.round(scaledCA + examScore) : null;
+        subjectResults[subject].push({
+          student_id: st.id,
+          ca_score:   Math.round(scaledCA * 10) / 10,
+          exam_score: examScore != null ? Math.round(examScore * 10) / 10 : null,
+          total, is_imported: false,
+        });
+      }
+    }
+
+    // Assign subject positions
+    const ranked = subjectResults[subject].filter(r => r.total != null).sort((a, b) => b.total - a.total);
+    let pos = 1;
+    for (let i = 0; i < ranked.length; i++) {
+      if (i > 0 && ranked[i].total < ranked[i - 1].total) pos = i + 1;
+      ranked[i].subject_position = pos;
+      ranked[i].class_size = ranked.length;
+    }
+    for (const r of subjectResults[subject]) {
+      if (r.subject_position == null) { r.subject_position = null; r.class_size = ranked.length; }
+    }
+  }
+
+  // Per-student result objects
+  const results = students.map(st => {
+    const subjectRows = [];
+    let totalSum = 0, subjectCount = 0;
+
+    for (const subject of allSubjects) {
+      const row = subjectResults[subject].find(r => r.student_id === st.id);
+      if (!row) continue;
+
+      const gradeInfo = row.is_imported
+        ? { grade: row.grade, remark: row.remark }
+        : (row.total != null ? getGrade(row.total, st.exam_body) : { grade: '-', remark: '-' });
+
+      subjectRows.push({
+        subject,
+        ca_score:         row.ca_score,
+        exam_score:       row.exam_score,
+        total:            row.total,
+        grade:            gradeInfo.grade,
+        remark:           gradeInfo.remark,
+        subject_position: row.subject_position,
+        class_size:       row.class_size,
+        is_imported:      row.is_imported,
+      });
+      if (row.total != null) { totalSum += row.total; subjectCount++; }
+    }
+
+    const average      = subjectCount > 0 ? Math.round((totalSum / subjectCount) * 10) / 10 : null;
+    const overallGrade = average != null ? getGrade(average, st.exam_body) : { grade: '-', remark: '-' };
+
+    return {
+      student_id:       st.id,
+      student_code:     st.student_code,
+      name:             st.name,
+      jhs_index_number: st.jhs_index_number ?? null,
+      exam_body:        st.exam_body,
+      program_name:     st.program_name ?? null,
+      picture_url:      st.picture_url ?? null,
+      gender:           st.gender ?? null,
+      subjects:         subjectRows.sort((a, b) => a.subject.localeCompare(b.subject)),
+      average,
+      overall_grade:    overallGrade.grade,
+      ca_percentage:    caPercentage,
+      exam_percentage:  examPercentage,
+    };
+  });
+
+  // Class positions
+  const rankedStudents = results.filter(r => r.average != null).sort((a, b) => b.average - a.average);
+  let classPos = 1;
+  for (let i = 0; i < rankedStudents.length; i++) {
+    if (i > 0 && rankedStudents[i].average < rankedStudents[i - 1].average) classPos = i + 1;
+    rankedStudents[i].class_position = classPos;
+    rankedStudents[i].class_total = rankedStudents.length;
+  }
+
+  return { results, caPercentage, examPercentage };
+}
+
+// ── Export column config ──────────────────────────────────────────────────────
+// TO BE CONFIRMED against government template.
+// This is a placeholder layout. When the real GES upload template is supplied,
+// update the header text, column order, key names, and width values here.
+// Nothing else needs to change — all layout decisions are isolated in this block.
+// ─────────────────────────────────────────────────────────────────────────────
+const EXPORT_COLUMNS = [
+  { header: 'Student Name',      key: 'student_name',      width: 32 },
+  { header: 'BECE Index Number', key: 'jhs_index_number',  width: 22 },
+  { header: 'Student ID',        key: 'student_code',      width: 14 },
+  { header: 'Class',             key: 'class_name',        width: 14 },
+  { header: 'Program',           key: 'program_name',      width: 24 },
+  { header: 'Subject',           key: 'subject',           width: 28 },
+  { header: 'CA Score',          key: 'ca_score',          width: 10 },
+  { header: 'Exam Score',        key: 'exam_score',        width: 10 },
+  { header: 'Total',             key: 'total',             width: 10 },
+  { header: 'Grade',             key: 'grade',             width: 10 },
+  { header: 'Remark',            key: 'remark',            width: 22 },
+];
 
 // GET /api/results?academic_year_id=&semester=&class_name=
 // Returns calculated results (CA, exam, total, grade, position) for all students in a class.
@@ -15,289 +274,7 @@ router.get('/', async (req, res, next) => {
       return res.status(400).json({ error: 'academic_year_id, semester, class_name are required' });
     }
 
-    const [schoolRow, modesRow, boundariesRow, studentsRow] = await Promise.all([
-      pool.query(`SELECT ca_percentage FROM schools WHERE id = $1`, [req.schoolId]),
-      pool.query(
-        `SELECT id, name, ca_contribution FROM assessment_modes WHERE school_id = $1`,
-        [req.schoolId]
-      ),
-      pool.query(
-        `SELECT exam_body, grade, min_pct, max_pct, remark
-         FROM grade_boundaries WHERE school_id = $1 ORDER BY exam_body, sort_order DESC`,
-        [req.schoolId]
-      ),
-      pool.query(
-        `SELECT s.id, s.name, s.student_code, s.picture_url, s.gender, p.exam_body, p.name AS program_name
-         FROM students s
-         LEFT JOIN programs p ON p.id = s.program_id
-         WHERE s.school_id = $1 AND s.status = 'Active'
-           AND LOWER(s.class_name) = LOWER($2)
-         ORDER BY s.name`,
-        [req.schoolId, class_name]
-      ),
-    ]);
-
-    const caPercentage = parseFloat(schoolRow.rows[0]?.ca_percentage) || 30;
-    const examPercentage = 100 - caPercentage;
-    const modes = modesRow.rows;
-    const boundaries = boundariesRow.rows;
-    const students = studentsRow.rows;
-
-    // Total configured CA contribution across all modes
-    const totalConfiguredCA = modes.reduce((s, m) => s + parseFloat(m.ca_contribution), 0) || caPercentage;
-
-    // Get all CA assessments for this class/year/semester
-    const { rows: assessments } = await pool.query(
-      `SELECT a.id, a.subject, a.mode_id, a.max_score,
-              sc.student_id, sc.score, sc.absent
-       FROM assessments a
-       JOIN assessment_scores sc ON sc.assessment_id = a.id
-       WHERE a.school_id = $1
-         AND a.academic_year_id = $2
-         AND a.semester = $3
-         AND LOWER(a.class_name) = LOWER($4)
-         AND sc.score IS NOT NULL
-         AND sc.absent = false`,
-      [req.schoolId, academic_year_id, parseInt(semester), class_name]
-    );
-
-    // Get all exam scores for this class/year/semester
-    const { rows: examScores } = await pool.query(
-      `SELECT student_id, subject, score, max_score
-       FROM exam_scores
-       WHERE school_id = $1
-         AND academic_year_id = $2
-         AND semester = $3
-         AND LOWER(class_name) = LOWER($4)
-         AND score IS NOT NULL`,
-      [req.schoolId, academic_year_id, parseInt(semester), class_name]
-    );
-
-    // Get imported results for this year/semester for students in this class
-    const studentIds = students.map(s => s.id);
-    let importedRows = [];
-    if (studentIds.length > 0) {
-      const { rows } = await pool.query(
-        `SELECT student_id, subject, class_score, exam_score, total_score, grade, remarks
-         FROM results_import
-         WHERE school_id = $1
-           AND academic_year_id = $2
-           AND semester = $3
-           AND student_id = ANY($4)`,
-        [req.schoolId, academic_year_id, parseInt(semester), studentIds]
-      );
-      importedRows = rows;
-    }
-
-    // importedData[studentId][subject] = { class_score, exam_score, total_score, grade, remarks }
-    const importedData = {};
-    for (const r of importedRows) {
-      if (!importedData[r.student_id]) importedData[r.student_id] = {};
-      importedData[r.student_id][r.subject] = {
-        class_score: r.class_score != null ? parseFloat(r.class_score) : null,
-        exam_score:  r.exam_score  != null ? parseFloat(r.exam_score)  : null,
-        total_score: r.total_score != null ? parseFloat(r.total_score) : null,
-        grade:       r.grade   || '-',
-        remarks:     r.remarks || '-',
-      };
-    }
-
-    // Group assessments by student → subject → mode → [scores]
-    const caData = {};
-    for (const a of assessments) {
-      if (!caData[a.student_id]) caData[a.student_id] = {};
-      if (!caData[a.student_id][a.subject]) caData[a.student_id][a.subject] = {};
-      if (!caData[a.student_id][a.subject][a.mode_id]) caData[a.student_id][a.subject][a.mode_id] = [];
-      caData[a.student_id][a.subject][a.mode_id].push({ score: parseFloat(a.score), max_score: parseFloat(a.max_score) });
-    }
-
-    // Group exam scores by student → subject
-    const examData = {};
-    for (const e of examScores) {
-      if (!examData[e.student_id]) examData[e.student_id] = {};
-      examData[e.student_id][e.subject] = { score: parseFloat(e.score), max_score: parseFloat(e.max_score) };
-    }
-
-    // Collect all subjects (live + imported)
-    const allSubjects = new Set();
-    for (const a of assessments) allSubjects.add(a.subject);
-    for (const e of examScores) allSubjects.add(e.subject);
-    for (const r of importedRows) allSubjects.add(r.subject);
-
-    // Grade lookup — uses DB boundaries if configured, falls back to built-in defaults
-    function getGrade(total, examBody) {
-      const body = examBody || 'WAEC';
-      const bodyBounds = boundaries
-        .filter(b => b.exam_body === body)
-        .sort((a, b) => parseFloat(b.min_pct) - parseFloat(a.min_pct));
-
-      if (bodyBounds.length > 0) {
-        for (const b of bodyBounds) {
-          if (total >= parseFloat(b.min_pct)) {
-            return { grade: b.grade, remark: b.remark };
-          }
-        }
-        // Score is below the lowest configured boundary — fall through to defaults
-      }
-
-      // Built-in defaults when no boundaries have been configured
-      if (body === 'CTVET') {
-        const grade =
-          total >= 75 ? 'A'  :
-          total >= 70 ? 'B+' :
-          total >= 65 ? 'B-' :
-          total >= 55 ? 'C+' :
-          total >= 50 ? 'C-' :
-          total >= 45 ? 'D'  :
-          total >= 40 ? 'E'  : 'F';
-        const remark =
-          total >= 75 ? 'DISTINCTION'  :
-          total >= 65 ? 'UPPER CREDIT' :
-          total >= 55 ? 'CREDIT'       :
-          total >= 50 ? 'LOWER CREDIT' :
-          total >= 40 ? 'PASS'         : 'FAIL';
-        return { grade, remark };
-      }
-
-      // WAEC / WASSCE
-      const grade =
-        total >= 75 ? 'A1' :
-        total >= 70 ? 'B2' :
-        total >= 65 ? 'B3' :
-        total >= 60 ? 'C4' :
-        total >= 55 ? 'C5' :
-        total >= 50 ? 'C6' :
-        total >= 45 ? 'D7' :
-        total >= 40 ? 'E8' : 'F9';
-      const remark =
-        total >= 75 ? 'EXCELLENT' :
-        total >= 70 ? 'VERY GOOD' :
-        total >= 65 ? 'GOOD'      :
-        total >= 50 ? 'CREDIT'    :
-        total >= 40 ? 'PASS'      : 'FAIL';
-      return { grade, remark };
-    }
-
-    // Calculate per-student, per-subject results
-    const subjectResults = {};
-    for (const subject of allSubjects) {
-      subjectResults[subject] = [];
-      for (const st of students) {
-        const hasLiveCA   = !!(caData[st.id]?.[subject]);
-        const hasLiveExam = !!(examData[st.id]?.[subject]);
-        const hasImport   = !!(importedData[st.id]?.[subject]);
-
-        if (!hasLiveCA && !hasLiveExam && hasImport) {
-          // Use imported data directly
-          const imp = importedData[st.id][subject];
-          subjectResults[subject].push({
-            student_id:  st.id,
-            ca_score:    imp.class_score,
-            exam_score:  imp.exam_score,
-            total:       imp.total_score,
-            grade:       imp.grade,
-            remark:      imp.remarks,
-            is_imported: true,
-          });
-        } else {
-          // Live calculation
-          let caScore = 0;
-          const studentSubjectModes = caData[st.id]?.[subject] || {};
-          for (const mode of modes) {
-            const modeScores = studentSubjectModes[mode.id] || [];
-            if (modeScores.length === 0) continue;
-            const avgPct = modeScores.reduce((sum, s) => sum + Math.min(100, s.score / s.max_score * 100), 0) / modeScores.length;
-            caScore += (avgPct * parseFloat(mode.ca_contribution)) / 100;
-          }
-          const scaledCA = totalConfiguredCA > 0 ? (caScore / totalConfiguredCA) * caPercentage : caScore;
-
-          const examEntry = examData[st.id]?.[subject];
-          const examScore = examEntry ? Math.min(1, examEntry.score / examEntry.max_score) * examPercentage : null;
-          const total = (examScore != null) ? Math.round(scaledCA + examScore) : null;
-
-          subjectResults[subject].push({
-            student_id:  st.id,
-            ca_score:    Math.round(scaledCA * 10) / 10,
-            exam_score:  examScore != null ? Math.round(examScore * 10) / 10 : null,
-            total,
-            is_imported: false,
-          });
-        }
-      }
-
-      // Assign subject positions (rank by total, descending)
-      const ranked = subjectResults[subject]
-        .filter(r => r.total != null)
-        .sort((a, b) => b.total - a.total);
-      let pos = 1;
-      for (let i = 0; i < ranked.length; i++) {
-        if (i > 0 && ranked[i].total < ranked[i - 1].total) pos = i + 1;
-        ranked[i].subject_position = pos;
-        ranked[i].class_size = ranked.length;
-      }
-      for (const r of subjectResults[subject]) {
-        if (r.subject_position == null) { r.subject_position = null; r.class_size = ranked.length; }
-      }
-    }
-
-    // Build final result per student
-    const results = students.map(st => {
-      const subjectRows = [];
-      let totalSum = 0;
-      let subjectCount = 0;
-
-      for (const subject of allSubjects) {
-        const row = subjectResults[subject].find(r => r.student_id === st.id);
-        if (!row) continue;
-
-        let gradeInfo;
-        if (row.is_imported) {
-          gradeInfo = { grade: row.grade, remark: row.remark };
-        } else {
-          gradeInfo = row.total != null ? getGrade(row.total, st.exam_body) : { grade: '-', remark: '-' };
-        }
-
-        subjectRows.push({
-          subject,
-          ca_score:         row.ca_score,
-          exam_score:       row.exam_score,
-          total:            row.total,
-          grade:            gradeInfo.grade,
-          remark:           gradeInfo.remark,
-          subject_position: row.subject_position,
-          class_size:       row.class_size,
-          is_imported:      row.is_imported,
-        });
-        if (row.total != null) { totalSum += row.total; subjectCount++; }
-      }
-
-      const average = subjectCount > 0 ? Math.round((totalSum / subjectCount) * 10) / 10 : null;
-      const overallGrade = average != null ? getGrade(average, st.exam_body) : { grade: '-', remark: '-' };
-
-      return {
-        student_id:      st.id,
-        student_code:    st.student_code,
-        name:            st.name,
-        exam_body:       st.exam_body,
-        program_name:    st.program_name ?? null,
-        picture_url:     st.picture_url ?? null,
-        gender:          st.gender ?? null,
-        subjects:        subjectRows.sort((a, b) => a.subject.localeCompare(b.subject)),
-        average,
-        overall_grade:   overallGrade.grade,
-        ca_percentage:   caPercentage,
-        exam_percentage: examPercentage,
-      };
-    });
-
-    // Assign class positions
-    const rankedStudents = results.filter(r => r.average != null).sort((a, b) => b.average - a.average);
-    let classPos = 1;
-    for (let i = 0; i < rankedStudents.length; i++) {
-      if (i > 0 && rankedStudents[i].average < rankedStudents[i - 1].average) classPos = i + 1;
-      rankedStudents[i].class_position = classPos;
-      rankedStudents[i].class_total = rankedStudents.length;
-    }
+    const { results } = await assembleResults(req.schoolId, academic_year_id, semester, class_name);
 
     // Attendance per student for this class / year / semester
     const { rows: attRows } = await pool.query(
@@ -320,6 +297,58 @@ router.get('/', async (req, res, next) => {
     for (const r of results) r.attendance = attMap[r.student_id] ?? null;
 
     res.json(results);
+  } catch (err) { next(err); }
+});
+
+// GET /api/results/export  (admin only)
+// Produces a downloadable .xlsx file with one row per student per subject.
+// Accepts optional filters: subject (single subject name) and program_name.
+// Column layout is defined in EXPORT_COLUMNS above — update that block when
+// the real government template is confirmed.
+router.get('/export', adminOnly, async (req, res, next) => {
+  try {
+    const { academic_year_id, semester, class_name, subject: subjectFilter, program_name: programFilter } = req.query;
+    if (!academic_year_id || !semester || !class_name) {
+      return res.status(400).json({ error: 'academic_year_id, semester, class_name are required' });
+    }
+
+    const { results } = await assembleResults(req.schoolId, academic_year_id, semester, class_name);
+
+    // Flatten to one row per student per subject, applying optional filters
+    const rows = [];
+    for (const student of results) {
+      if (programFilter && (student.program_name || '').toLowerCase() !== programFilter.toLowerCase()) continue;
+      for (const subj of student.subjects) {
+        if (subjectFilter && subj.subject.toLowerCase() !== subjectFilter.toLowerCase()) continue;
+        rows.push({
+          student_name:     student.name,
+          jhs_index_number: student.jhs_index_number ?? '',
+          student_code:     student.student_code,
+          class_name,
+          program_name:     student.program_name ?? '',
+          subject:          subj.subject,
+          ca_score:         subj.ca_score,
+          exam_score:       subj.exam_score,
+          total:            subj.total,
+          grade:            subj.grade,
+          remark:           subj.remark,
+        });
+      }
+    }
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Results');
+    ws.columns = EXPORT_COLUMNS;
+    ws.getRow(1).font = { bold: true };
+    ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } };
+    ws.addRows(rows);
+
+    const safeName = class_name.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename  = `results_${safeName}_sem${semester}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    await wb.xlsx.write(res);
+    res.end();
   } catch (err) { next(err); }
 });
 
@@ -523,30 +552,8 @@ router.get('/transcript/:student_id', async (req, res, next) => {
     const caPercentage      = parseFloat(schoolRow.rows[0]?.ca_percentage) || 30;
     const examPercentage    = 100 - caPercentage;
     const modes             = modesRow.rows;
-    const boundaries        = boundariesRow.rows;
     const totalConfiguredCA = modes.reduce((s, m) => s + parseFloat(m.ca_contribution), 0) || caPercentage;
-
-    function getGradeT(total, examBody) {
-      const body = examBody || 'WAEC';
-      const bodyBounds = boundaries
-        .filter(b => b.exam_body === body)
-        .sort((a, b) => parseFloat(b.min_pct) - parseFloat(a.min_pct));
-      if (bodyBounds.length > 0) {
-        for (const b of bodyBounds) {
-          if (total >= parseFloat(b.min_pct))
-            return { grade: b.grade, remark: b.remark };
-        }
-        // Score below lowest configured boundary — fall through to defaults
-      }
-      if (body === 'CTVET') {
-        const grade  = total >= 75 ? 'A' : total >= 70 ? 'B+' : total >= 65 ? 'B-' : total >= 55 ? 'C+' : total >= 50 ? 'C-' : total >= 45 ? 'D' : total >= 40 ? 'E' : 'F';
-        const remark = total >= 75 ? 'DISTINCTION' : total >= 65 ? 'UPPER CREDIT' : total >= 55 ? 'CREDIT' : total >= 50 ? 'LOWER CREDIT' : total >= 40 ? 'PASS' : 'FAIL';
-        return { grade, remark };
-      }
-      const grade  = total >= 75 ? 'A1' : total >= 70 ? 'B2' : total >= 65 ? 'B3' : total >= 60 ? 'C4' : total >= 55 ? 'C5' : total >= 50 ? 'C6' : total >= 45 ? 'D7' : total >= 40 ? 'E8' : 'F9';
-      const remark = total >= 75 ? 'EXCELLENT' : total >= 70 ? 'VERY GOOD' : total >= 65 ? 'GOOD' : total >= 50 ? 'CREDIT' : total >= 40 ? 'PASS' : 'FAIL';
-      return { grade, remark };
-    }
+    const getGrade          = buildGradeFn(boundariesRow.rows);
 
     // Fetch ALL raw data for this student across every year/semester at once
     const [caRes, examRes, importRes] = await Promise.all([
@@ -648,10 +655,10 @@ router.get('/transcript/:student_id', async (req, res, next) => {
           const scaledCA = totalConfiguredCA > 0 ? (caScore / totalConfiguredCA) * caPercentage : caScore;
           const ee = myExam[subject];
           const ev = ee ? Math.min(1, ee.score / ee.max_score) * examPercentage : null;
-          total     = ev != null ? Math.round(scaledCA + ev) : null;
-          ca_score  = Math.round(scaledCA * 10) / 10;
+          total      = ev != null ? Math.round(scaledCA + ev) : null;
+          ca_score   = Math.round(scaledCA * 10) / 10;
           exam_score = ev != null ? Math.round(ev * 10) / 10 : null;
-          const g = total != null ? getGradeT(total, student.exam_body) : { grade: '-', remark: '-' };
+          const g = total != null ? getGrade(total, student.exam_body) : { grade: '-', remark: '-' };
           grade = g.grade; remark = g.remark;
         }
         subjects.push({ subject, ca_score, exam_score, total, grade, remark });
@@ -659,7 +666,7 @@ router.get('/transcript/:student_id', async (req, res, next) => {
       }
 
       const average      = subjectCount > 0 ? Math.round((totalSum / subjectCount) * 10) / 10 : null;
-      const overallGrade = average != null ? getGradeT(average, student.exam_body) : { grade: '-', remark: '-' };
+      const overallGrade = average != null ? getGrade(average, student.exam_body) : { grade: '-', remark: '-' };
 
       // Class position — compare against all classmates for this period
       let class_position = null, class_total = null;
