@@ -78,6 +78,22 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
+function getFieldAppearance(value: string | null | undefined, validator?: (v: string) => string | null, touched = false, required = true) {
+  const text = (value ?? '').trim();
+  if (!text) {
+    return touched && required
+      ? { borderColor: '#FCA5A5', hint: 'This field is required.' }
+      : { borderColor: '#E2D9CC', hint: '' };
+  }
+  if (validator) {
+    const err = validator(text);
+    return err
+      ? { borderColor: '#FCA5A5', hint: err }
+      : { borderColor: '#86EFAC', hint: '' };
+  }
+  return { borderColor: '#86EFAC', hint: '' };
+}
+
 function OptionPicker({
   label,
   value,
@@ -86,6 +102,8 @@ function OptionPicker({
   onSelect,
   otherValue,
   onOtherChange,
+  touched,
+  onBlur,
 }: {
   label: string;
   value: string;
@@ -94,6 +112,8 @@ function OptionPicker({
   onSelect: (value: string) => void;
   otherValue?: string;
   onOtherChange?: (value: string) => void;
+  touched?: boolean;
+  onBlur?: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -104,13 +124,19 @@ function OptionPicker({
         <Text style={[styles.selectText, !value && styles.placeholderText]}>{value || placeholder}</Text>
       </TouchableOpacity>
       {value === 'Other' && onOtherChange ? (
-        <TextInput
-          style={[styles.fieldInput, { marginTop: 8 }]}
-          value={otherValue ?? ''}
-          onChangeText={onOtherChange}
-          placeholder={`Specify ${label.toLowerCase()}`}
-          placeholderTextColor="#B5A898"
-        />
+        <>
+          <TextInput
+            style={[styles.fieldInput, { marginTop: 8, borderColor: getFieldAppearance(otherValue ?? '', undefined, touched ?? false, true).borderColor }]}
+            value={otherValue ?? ''}
+            onChangeText={(v) => { onOtherChange(v); onBlur?.(); }}
+            onBlur={onBlur}
+            placeholder={`Specify ${label.toLowerCase()}`}
+            placeholderTextColor="#B5A898"
+          />
+          {getFieldAppearance(otherValue ?? '', undefined, touched ?? false, true).hint ? (
+            <Text style={styles.fieldErrorText}>{getFieldAppearance(otherValue ?? '', undefined, touched ?? false, true).hint}</Text>
+          ) : null}
+        </>
       ) : null}
       <Modal visible={open} transparent animationType="slide">
         <View style={styles.overlay}>
@@ -151,6 +177,8 @@ export default function ProfileScreen() {
 
   const [showEditModal, setShowEditModal]   = useState(false);
   const [editForm,      setEditForm]        = useState<Record<string, string>>({});
+  const [touchedFields, setTouchedFields]    = useState<Record<string, boolean>>({});
+  const [uploadTouched, setUploadTouched]    = useState(false);
   const [editSaving,    setEditSaving]      = useState(false);
   const [editErr,       setEditErr]         = useState('');
 
@@ -567,7 +595,7 @@ export default function ProfileScreen() {
               <Text style={styles.fieldLabel}>Gov Staff ID</Text>
               <TextInput style={styles.fieldInput} value={officialForm.gov_staff_id ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, gov_staff_id: v }))} placeholder="Gov Staff ID" />
 
-              <OptionPicker label="GES/TVET Rank" value={officialForm.rank ?? ''} options={RANK_OPTIONS} placeholder="Select rank" onSelect={v => setOfficialForm(f => ({ ...f, rank: v, rank_other: v === 'Other' ? f.rank_other ?? '' : '' }))} otherValue={officialForm.rank_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, rank_other: v }))} />
+              <OptionPicker label="GES/TVET Rank" value={officialForm.rank ?? ''} options={RANK_OPTIONS} placeholder="Select rank" onSelect={v => setOfficialForm(f => ({ ...f, rank: v, rank_other: v === 'Other' ? f.rank_other ?? '' : '' }))} otherValue={officialForm.rank_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, rank_other: v }))} touched={touchedFields.rank_other ?? false} onBlur={() => setTouchedFields(prev => ({ ...prev, rank_other: true }))} />
 
               <Text style={styles.fieldLabel}>Date of Birth (YYYY-MM-DD)</Text>
               <TextInput style={styles.fieldInput} value={officialForm.date_of_birth ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, date_of_birth: v }))} placeholder="1990-01-15" maxLength={10} keyboardType="numbers-and-punctuation" />
@@ -576,16 +604,32 @@ export default function ProfileScreen() {
               <TextInput style={styles.fieldInput} value={officialForm.registered_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, registered_number: v }))} placeholder="Registered number" />
 
               <Text style={styles.fieldLabel}>NTC Number</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.ntc_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, ntc_number: v }))} placeholder="PT/000000/0000" />
-              <Text style={styles.fieldHint}>Format: PT/000000/0000</Text>
+              <TextInput
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.ntc_number ?? '', (v) => /^PT\/\d{6}\/\d{4}$/.test(v) ? null : 'Format: PT/000000/0000', touchedFields.ntc_number ?? false, true).borderColor }]}
+                value={officialForm.ntc_number ?? ''}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, ntc_number: v })); setTouchedFields(prev => ({ ...prev, ntc_number: true })); }}
+                onBlur={() => setTouchedFields(prev => ({ ...prev, ntc_number: true }))}
+                placeholder="PT/000000/0000"
+              />
+              {getFieldAppearance(officialForm.ntc_number ?? '', (v) => /^PT\/\d{6}\/\d{4}$/.test(v) ? null : 'Format: PT/000000/0000', touchedFields.ntc_number ?? false, true).hint ? (
+                <Text style={styles.fieldErrorText}>{getFieldAppearance(officialForm.ntc_number ?? '', (v) => /^PT\/\d{6}\/\d{4}$/.test(v) ? null : 'Format: PT/000000/0000', touchedFields.ntc_number ?? false, true).hint}</Text>
+              ) : <Text style={styles.fieldHint}>Format: PT/000000/0000</Text>}
 
               <Text style={styles.fieldLabel}>SSF Number</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.ssf_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, ssf_number: v }))} placeholder="K000000000000" />
-              <Text style={styles.fieldHint}>Format: one letter + 12 digits</Text>
+              <TextInput
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.ssf_number ?? '', (v) => /^[A-Za-z]{2}\d{11}$/.test(v) ? null : 'Format: 2 letters + 11 digits', touchedFields.ssf_number ?? false, true).borderColor }]}
+                value={officialForm.ssf_number ?? ''}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, ssf_number: v })); setTouchedFields(prev => ({ ...prev, ssf_number: true })); }}
+                onBlur={() => setTouchedFields(prev => ({ ...prev, ssf_number: true }))}
+                placeholder="K000000000000"
+              />
+              {getFieldAppearance(officialForm.ssf_number ?? '', (v) => /^[A-Za-z]{2}\d{11}$/.test(v) ? null : 'Format: 2 letters + 11 digits', touchedFields.ssf_number ?? false, true).hint ? (
+                <Text style={styles.fieldErrorText}>{getFieldAppearance(officialForm.ssf_number ?? '', (v) => /^[A-Za-z]{2}\d{11}$/.test(v) ? null : 'Format: 2 letters + 11 digits', touchedFields.ssf_number ?? false, true).hint}</Text>
+              ) : <Text style={styles.fieldHint}>Format: 2 letters + 11 digits</Text>}
 
-              <OptionPicker label="Academic Qualification" value={officialForm.academic_qualification ?? ''} options={ACADEMIC_QUALIFICATION_OPTIONS} placeholder="Select academic qualification" onSelect={v => setOfficialForm(f => ({ ...f, academic_qualification: v, academic_qualification_other: v === 'Other' ? f.academic_qualification_other ?? '' : '' }))} otherValue={officialForm.academic_qualification_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, academic_qualification_other: v }))} />
+              <OptionPicker label="Academic Qualification" value={officialForm.academic_qualification ?? ''} options={ACADEMIC_QUALIFICATION_OPTIONS} placeholder="Select academic qualification" onSelect={v => setOfficialForm(f => ({ ...f, academic_qualification: v, academic_qualification_other: v === 'Other' ? f.academic_qualification_other ?? '' : '' }))} otherValue={officialForm.academic_qualification_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, academic_qualification_other: v }))} touched={touchedFields.academic_qualification_other ?? false} onBlur={() => setTouchedFields(prev => ({ ...prev, academic_qualification_other: true }))} />
 
-              <OptionPicker label="Professional Qualification" value={officialForm.professional_qualification ?? ''} options={PROFESSIONAL_QUALIFICATION_OPTIONS} placeholder="Select professional qualification" onSelect={v => setOfficialForm(f => ({ ...f, professional_qualification: v, professional_qualification_other: v === 'Other' ? f.professional_qualification_other ?? '' : '' }))} otherValue={officialForm.professional_qualification_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, professional_qualification_other: v }))} />
+              <OptionPicker label="Professional Qualification" value={officialForm.professional_qualification ?? ''} options={PROFESSIONAL_QUALIFICATION_OPTIONS} placeholder="Select professional qualification" onSelect={v => setOfficialForm(f => ({ ...f, professional_qualification: v, professional_qualification_other: v === 'Other' ? f.professional_qualification_other ?? '' : '' }))} otherValue={officialForm.professional_qualification_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, professional_qualification_other: v }))} touched={touchedFields.professional_qualification_other ?? false} onBlur={() => setTouchedFields(prev => ({ ...prev, professional_qualification_other: true }))} />
 
               <Text style={styles.fieldLabel}>Bank</Text>
               <TextInput style={styles.fieldInput} value={officialForm.bank ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, bank: v }))} placeholder="Bank name" />
@@ -596,15 +640,24 @@ export default function ProfileScreen() {
               <Text style={styles.fieldLabel}>Account Number</Text>
               <TextInput style={styles.fieldInput} value={officialForm.account_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, account_number: v }))} placeholder="Account number" keyboardType="numeric" />
 
-              <OptionPicker label="Association" value={officialForm.association ?? ''} options={ASSOCIATION_OPTIONS} placeholder="Select association" onSelect={v => setOfficialForm(f => ({ ...f, association: v, association_other: v === 'Other' ? f.association_other ?? '' : '' }))} otherValue={officialForm.association_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, association_other: v }))} />
+              <OptionPicker label="Association" value={officialForm.association ?? ''} options={ASSOCIATION_OPTIONS} placeholder="Select association" onSelect={v => setOfficialForm(f => ({ ...f, association: v, association_other: v === 'Other' ? f.association_other ?? '' : '' }))} otherValue={officialForm.association_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, association_other: v }))} touched={touchedFields.association_other ?? false} onBlur={() => setTouchedFields(prev => ({ ...prev, association_other: true }))} />
 
               <Text style={styles.fieldLabel}>Ghana Card Number</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.ghana_card_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, ghana_card_number: v }))} placeholder="GHA-000000000-0" />
-              <Text style={styles.fieldHint}>Format: GHA-000000000-0</Text>
+              <TextInput
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.ghana_card_number ?? '', (v) => /^GHA-\d{9}-\d$/.test(v) ? null : 'Format: GHA-000000000-0', touchedFields.ghana_card_number ?? false, true).borderColor }]}
+                value={officialForm.ghana_card_number ?? ''}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, ghana_card_number: v })); setTouchedFields(prev => ({ ...prev, ghana_card_number: true })); }}
+                onBlur={() => setTouchedFields(prev => ({ ...prev, ghana_card_number: true }))}
+                placeholder="GHA-000000000-0"
+              />
+              {getFieldAppearance(officialForm.ghana_card_number ?? '', (v) => /^GHA-\d{9}-\d$/.test(v) ? null : 'Format: GHA-000000000-0', touchedFields.ghana_card_number ?? false, true).hint ? (
+                <Text style={styles.fieldErrorText}>{getFieldAppearance(officialForm.ghana_card_number ?? '', (v) => /^GHA-\d{9}-\d$/.test(v) ? null : 'Format: GHA-000000000-0', touchedFields.ghana_card_number ?? false, true).hint}</Text>
+              ) : <Text style={styles.fieldHint}>Format: GHA-000000000-0</Text>}
 
-              <TouchableOpacity onPress={pickOfficialDocument} style={[styles.uploadDocBtn, { borderColor: Colors.primary, marginBottom: 12 }]}>
-                <Text style={[styles.uploadDocBtnText, { color: Colors.primary }]}>{officialDocumentName ? `Attached: ${officialDocumentName}` : 'Attach supporting document'}</Text>
+              <TouchableOpacity onPress={pickOfficialDocument} onBlur={() => setUploadTouched(true)} style={[styles.uploadDocBtn, { borderColor: officialDocumentName ? '#86EFAC' : uploadTouched ? '#FCA5A5' : '#E2D9CC', marginBottom: 12 }]}>
+                <Text style={[styles.uploadDocBtnText, { color: officialDocumentName ? '#145C44' : uploadTouched ? '#B83232' : Colors.primary }]}>{officialDocumentName ? `Attached: ${officialDocumentName}` : 'Attach supporting document'}</Text>
               </TouchableOpacity>
+              {uploadTouched && !officialDocumentName ? <Text style={styles.fieldErrorText}>Supporting document is required.</Text> : null}
 
               <View style={styles.row2}>
                 <Button label="Cancel" variant="secondary" onPress={() => setShowOfficialModal(false)} style={styles.flex1} />
@@ -624,7 +677,16 @@ export default function ProfileScreen() {
               <Text style={styles.sheetSub}>You can update personal and contact information</Text>
 
               <Text style={styles.fieldLabel}>Phone</Text>
-              <TextInput style={styles.fieldInput} value={editForm.phone ?? ''} onChangeText={v => setEditForm(f => ({ ...f, phone: v }))} placeholder="+233..." placeholderTextColor="#B5A898" keyboardType="phone-pad" />
+              <TextInput
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(editForm.phone ?? '', (v) => /^0\d{9}$/.test(v) ? null : 'Phone must be 10 digits starting with 0', touchedFields.phone ?? false, true).borderColor }]}
+                value={editForm.phone ?? ''}
+                onChangeText={v => { setEditForm(f => ({ ...f, phone: v })); setTouchedFields(prev => ({ ...prev, phone: true })); }}
+                onBlur={() => setTouchedFields(prev => ({ ...prev, phone: true }))}
+                placeholder="+233..." placeholderTextColor="#B5A898" keyboardType="phone-pad"
+              />
+              {getFieldAppearance(editForm.phone ?? '', (v) => /^0\d{9}$/.test(v) ? null : 'Phone must be 10 digits starting with 0', touchedFields.phone ?? false, true).hint ? (
+                <Text style={styles.fieldErrorText}>{getFieldAppearance(editForm.phone ?? '', (v) => /^0\d{9}$/.test(v) ? null : 'Phone must be 10 digits starting with 0', touchedFields.phone ?? false, true).hint}</Text>
+              ) : null}
 
               <OptionPicker label="Gender" value={editForm.gender ?? ''} options={GENDERS} placeholder="Select gender" onSelect={v => setEditForm(f => ({ ...f, gender: v }))} />
 
@@ -634,15 +696,24 @@ export default function ProfileScreen() {
               <Text style={styles.fieldLabel}>Residential Address</Text>
               <TextInput style={[styles.fieldInput, { minHeight: 60, textAlignVertical: 'top' }]} value={editForm.residential_address ?? ''} onChangeText={v => setEditForm(f => ({ ...f, residential_address: v }))} placeholder="Your home address" placeholderTextColor="#B5A898" multiline />
 
-              <OptionPicker label="Religion" value={editForm.religion ?? ''} options={RELIGIONS} placeholder="Select religion" onSelect={v => setEditForm(f => ({ ...f, religion: v, religion_other: v === 'Other' ? f.religion_other ?? '' : '' }))} otherValue={editForm.religion_other ?? ''} onOtherChange={v => setEditForm(f => ({ ...f, religion_other: v }))} />
+              <OptionPicker label="Religion" value={editForm.religion ?? ''} options={RELIGIONS} placeholder="Select religion" onSelect={v => setEditForm(f => ({ ...f, religion: v, religion_other: v === 'Other' ? f.religion_other ?? '' : '' }))} otherValue={editForm.religion_other ?? ''} onOtherChange={v => setEditForm(f => ({ ...f, religion_other: v }))} touched={touchedFields.religion_other ?? false} onBlur={() => setTouchedFields(prev => ({ ...prev, religion_other: true }))} />
 
-              <OptionPicker label="Religious Denomination" value={editForm.religious_denomination ?? ''} options={RELIGIOUS_DENOMINATION_OPTIONS} placeholder="Select denomination" onSelect={v => setEditForm(f => ({ ...f, religious_denomination: v, religious_denomination_other: v === 'Other' ? f.religious_denomination_other ?? '' : '' }))} otherValue={editForm.religious_denomination_other ?? ''} onOtherChange={v => setEditForm(f => ({ ...f, religious_denomination_other: v }))} />
+              <OptionPicker label="Religious Denomination" value={editForm.religious_denomination ?? ''} options={RELIGIOUS_DENOMINATION_OPTIONS} placeholder="Select denomination" onSelect={v => setEditForm(f => ({ ...f, religious_denomination: v, religious_denomination_other: v === 'Other' ? f.religious_denomination_other ?? '' : '' }))} otherValue={editForm.religious_denomination_other ?? ''} onOtherChange={v => setEditForm(f => ({ ...f, religious_denomination_other: v }))} touched={touchedFields.religious_denomination_other ?? false} onBlur={() => setTouchedFields(prev => ({ ...prev, religious_denomination_other: true }))} />
 
               <Text style={styles.fieldLabel}>Emergency Contact Name</Text>
               <TextInput style={styles.fieldInput} value={editForm.emergency_contact_name ?? ''} onChangeText={v => setEditForm(f => ({ ...f, emergency_contact_name: v }))} placeholder="Full name" placeholderTextColor="#B5A898" />
 
               <Text style={styles.fieldLabel}>Emergency Contact Phone</Text>
-              <TextInput style={styles.fieldInput} value={editForm.emergency_contact_phone ?? ''} onChangeText={v => setEditForm(f => ({ ...f, emergency_contact_phone: v }))} placeholder="+233..." placeholderTextColor="#B5A898" keyboardType="phone-pad" />
+              <TextInput
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(editForm.emergency_contact_phone ?? '', (v) => /^0\d{9}$/.test(v) ? null : 'Emergency contact phone must be 10 digits starting with 0', touchedFields.emergency_contact_phone ?? false, true).borderColor }]}
+                value={editForm.emergency_contact_phone ?? ''}
+                onChangeText={v => { setEditForm(f => ({ ...f, emergency_contact_phone: v })); setTouchedFields(prev => ({ ...prev, emergency_contact_phone: true })); }}
+                onBlur={() => setTouchedFields(prev => ({ ...prev, emergency_contact_phone: true }))}
+                placeholder="+233..." placeholderTextColor="#B5A898" keyboardType="phone-pad"
+              />
+              {getFieldAppearance(editForm.emergency_contact_phone ?? '', (v) => /^0\d{9}$/.test(v) ? null : 'Emergency contact phone must be 10 digits starting with 0', touchedFields.emergency_contact_phone ?? false, true).hint ? (
+                <Text style={styles.fieldErrorText}>{getFieldAppearance(editForm.emergency_contact_phone ?? '', (v) => /^0\d{9}$/.test(v) ? null : 'Emergency contact phone must be 10 digits starting with 0', touchedFields.emergency_contact_phone ?? false, true).hint}</Text>
+              ) : null}
 
               {editErr ? <Text style={styles.errText}>{editErr}</Text> : null}
 
@@ -713,6 +784,7 @@ const styles = StyleSheet.create({
   fieldLabel:      { fontSize: 11, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 2 },
   fieldInput:      { backgroundColor: '#F4EFE6', borderRadius: 10, padding: 12, fontSize: 15, color: '#1C1208', borderWidth: 1, borderColor: '#E2D9CC', marginBottom: 14 },
   fieldHint:       { fontSize: 11, color: '#8C7E6E', marginTop: -10, marginBottom: 12 },
+  fieldErrorText:  { fontSize: 11, color: '#B83232', marginTop: -10, marginBottom: 12 },
   placeholderText: { color: '#B5A898' },
   selectText:      { fontSize: 15, color: '#1C1208' },
   optionSheet:     { backgroundColor: '#FAFAF8', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTeacher, getTeacherColors, clearTeacher } from '@/lib/teacher-auth';
-import { validatePhone } from '@/lib/validations';
+import { validateGhanaCard, validateNTC, validatePhone, validateSSF } from '@/lib/validations';
 import { teacherApi } from '@/lib/teacher-api';
 
 const GENDERS   = ['Male', 'Female'];
@@ -75,6 +75,22 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
+function getFieldAppearance(value: string | null | undefined, validator?: (v: string) => string | null, touched = false, required = true) {
+  const text = (value ?? '').trim();
+  if (!text) {
+    return touched && required
+      ? { borderColor: '#FCA5A5', hint: 'This field is required.' }
+      : { borderColor: '#E2D9CC', hint: '' };
+  }
+  if (validator) {
+    const err = validator(text);
+    return err
+      ? { borderColor: '#FCA5A5', hint: err }
+      : { borderColor: '#86EFAC', hint: '' };
+  }
+  return { borderColor: '#86EFAC', hint: '' };
+}
+
 export default function ProfilePage() {
   const router  = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -93,6 +109,8 @@ export default function ProfilePage() {
   const [showOfficialRequest, setShowOfficialRequest] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [officialForm, setOfficialForm] = useState<Record<string, string>>({});
+  const [fieldTouched, setFieldTouched] = useState<Record<string, boolean>>({});
+  const [documentTouched, setDocumentTouched] = useState(false);
   const [officialDocName, setOfficialDocName] = useState('');
   const [officialDocBase64, setOfficialDocBase64] = useState('');
   const [editSaving, setEditSaving] = useState(false);
@@ -152,6 +170,10 @@ export default function ProfilePage() {
     finally { setCertLoading(false); if (certRef.current) certRef.current.value = ''; }
   }
 
+  function touchField(field: string) {
+    setFieldTouched(prev => ({ ...prev, [field]: true }));
+  }
+
   function openEdit() {
     if (!profile) return;
     setEditForm({
@@ -195,6 +217,8 @@ export default function ProfilePage() {
     });
     setOfficialDocName('');
     setOfficialDocBase64('');
+    setFieldTouched({});
+    setDocumentTouched(false);
     setOfficialError('');
     setShowOfficialRequest(true);
   }
@@ -289,6 +313,12 @@ export default function ProfilePage() {
   function handleLogout() { clearTeacher(); router.push('/teacher/login'); }
 
   const initials = profile?.name ? profile.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'T';
+  const ntcAppearance = getFieldAppearance(officialForm.ntc_number ?? '', validateNTC, fieldTouched.ntc_number ?? false);
+  const ssfAppearance = getFieldAppearance(officialForm.ssf_number ?? '', validateSSF, fieldTouched.ssf_number ?? false);
+  const ghanaCardAppearance = getFieldAppearance(officialForm.ghana_card_number ?? '', validateGhanaCard, fieldTouched.ghana_card_number ?? false);
+  const phoneAppearance = getFieldAppearance(editForm.phone ?? '', validatePhone, fieldTouched.phone ?? false);
+  const emergencyPhoneAppearance = getFieldAppearance(editForm.emergency_contact_phone ?? '', validatePhone, fieldTouched.emergency_contact_phone ?? false);
+  const documentAppearance = officialDocName ? { borderColor: '#86EFAC', hint: '' } : documentTouched ? { borderColor: '#FCA5A5', hint: 'Supporting document is required.' } : { borderColor: '#E2D9CC', hint: '' };
 
   return (
     <div className="min-h-screen px-4 pt-6 pb-24" style={{ background: '#F4EFE6' }}>
@@ -498,17 +528,37 @@ export default function ProfilePage() {
                       )}
                     </>
                   ) : (
-                    <input type={type || 'text'} value={officialForm[key] ?? ''} onChange={e => setOfficialForm(f => ({ ...f, [key]: e.target.value }))}
-                      className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" />
+                    key === 'ntc_number' ? (
+                      <>
+                        <input type={type || 'text'} value={officialForm[key] ?? ''} onChange={e => { setOfficialForm(f => ({ ...f, [key]: e.target.value })); touchField(key); }} onBlur={() => touchField(key)}
+                          className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" style={{ borderColor: ntcAppearance.borderColor }} />
+                        {ntcAppearance.hint && <p className="text-[11px] text-[#B83232] mt-1">{ntcAppearance.hint}</p>}
+                      </>
+                    ) : key === 'ssf_number' ? (
+                      <>
+                        <input type={type || 'text'} value={officialForm[key] ?? ''} onChange={e => { setOfficialForm(f => ({ ...f, [key]: e.target.value })); touchField(key); }} onBlur={() => touchField(key)}
+                          className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" style={{ borderColor: ssfAppearance.borderColor }} />
+                        {ssfAppearance.hint && <p className="text-[11px] text-[#B83232] mt-1">{ssfAppearance.hint}</p>}
+                      </>
+                    ) : key === 'ghana_card_number' ? (
+                      <>
+                        <input type={type || 'text'} value={officialForm[key] ?? ''} onChange={e => { setOfficialForm(f => ({ ...f, [key]: e.target.value })); touchField(key); }} onBlur={() => touchField(key)}
+                          className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" style={{ borderColor: ghanaCardAppearance.borderColor }} />
+                        {ghanaCardAppearance.hint && <p className="text-[11px] text-[#B83232] mt-1">{ghanaCardAppearance.hint}</p>}
+                      </>
+                    ) : (
+                      <input type={type || 'text'} value={officialForm[key] ?? ''} onChange={e => { setOfficialForm(f => ({ ...f, [key]: e.target.value })); touchField(key); }} onBlur={() => touchField(key)}
+                        className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" />
+                    )
                   )}
-                  {hint && <p className="text-[11px] text-[#8C7E6E] mt-1">{hint}</p>}
+                  {hint && !['ntc_number', 'ssf_number', 'ghana_card_number'].includes(key) && <p className="text-[11px] text-[#8C7E6E] mt-1">{hint}</p>}
                 </div>
               ))}
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Supporting Document</label>
-                <input type="file" accept=".pdf,.doc,.docx" onChange={handleOfficialDocChange}
-                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" />
-                {officialDocName && <p className="text-[11px] text-[#145C44] mt-1">Attached: {officialDocName}</p>}
+                <input type="file" accept=".pdf,.doc,.docx" onChange={e => { handleOfficialDocChange(e); setDocumentTouched(true); }} onBlur={() => setDocumentTouched(true)}
+                  className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" style={{ borderColor: documentAppearance.borderColor }} />
+                {documentAppearance.hint ? <p className="text-[11px] text-[#B83232] mt-1">{documentAppearance.hint}</p> : officialDocName ? <p className="text-[11px] text-[#145C44] mt-1">Attached: {officialDocName}</p> : null}
               </div>
               {officialError && <p className="text-xs text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">{officialError}</p>}
               <div className="flex gap-3 pt-1">
@@ -536,8 +586,9 @@ export default function ProfilePage() {
             <form onSubmit={saveEdit} className="space-y-4">
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Phone</label>
-                <input type="tel" value={editForm.phone ?? ''} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
-                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" placeholder="+233..." />
+                <input type="tel" value={editForm.phone ?? ''} onChange={e => { setEditForm(f => ({ ...f, phone: e.target.value })); touchField('phone'); }} onBlur={() => touchField('phone')}
+                  className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" placeholder="+233..." style={{ borderColor: phoneAppearance.borderColor }} />
+                {phoneAppearance.hint && <p className="text-[11px] text-[#B83232] mt-1">{phoneAppearance.hint}</p>}
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1.5">Gender</label>
@@ -588,8 +639,9 @@ export default function ProfilePage() {
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Emergency Contact Phone</label>
-                <input type="tel" value={editForm.emergency_contact_phone ?? ''} onChange={e => setEditForm(f => ({ ...f, emergency_contact_phone: e.target.value }))}
-                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" placeholder="+233..." />
+                <input type="tel" value={editForm.emergency_contact_phone ?? ''} onChange={e => { setEditForm(f => ({ ...f, emergency_contact_phone: e.target.value })); touchField('emergency_contact_phone'); }} onBlur={() => touchField('emergency_contact_phone')}
+                  className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" placeholder="+233..." style={{ borderColor: emergencyPhoneAppearance.borderColor }} />
+                {emergencyPhoneAppearance.hint && <p className="text-[11px] text-[#B83232] mt-1">{emergencyPhoneAppearance.hint}</p>}
               </div>
               {editError && <p className="text-xs text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">{editError}</p>}
               <div className="flex gap-3 pt-1">
