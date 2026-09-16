@@ -9,6 +9,7 @@ import { HelpWidget } from '@/components/HelpWidget';
 const pageTitles: Record<string, string> = {
   '/dashboard':          'Dashboard',
   '/teachers':           'Teachers',
+  '/teacher-profile-requests': 'Teacher Profile Requests',
   '/students':           'Students',
   '/attendance':         'Teacher Attendance',
   '/meetings':           'Meetings',

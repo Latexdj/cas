@@ -8,6 +8,10 @@ const { uploadFile }      = require('../services/storage.service');
 const { sendTeacherCredentials } = require('../services/email.service');
 const { getEnabledModules } = require('../services/modules.service');
 const { getCurrentSchoolContext } = require('../utils/school-context');
+const {
+  notifyTeacherProfileRequestApproved,
+  notifyTeacherProfileRequestRejected,
+} = require('../services/notification.service');
 
 // Public deployment-check endpoint (no auth needed)
 router.get('/version', (_req, res) => res.json({ version: '2', has_settings: true }));
@@ -24,7 +28,143 @@ router.get('/test-email', authenticate, adminOnly, async (_req, res) => {
 });
 
 router.use(authenticate, requireActiveSubscription, adminOnly);
+// GET /api/admin/teacher-profile-requests — review queue for teacher profile change requests
+router.get('/teacher-profile-requests', async (req, res, next) => {
+  try {
+    const status = ['Pending', 'Approved', 'Rejected'].includes(String(req.query.status || 'Pending'))
+      ? String(req.query.status || 'Pending')
+      : 'Pending';
+    const { teacherId } = req.query;
 
+    let sql = `
+      SELECT r.*, t.name AS teacher_name, t.email AS teacher_email, t.teacher_code
+      FROM teacher_profile_update_requests r
+      JOIN teachers t ON t.id = r.teacher_id
+      WHERE r.school_id = $1 AND r.status = $2
+    `;
+    const params = [req.schoolId, status];
+
+    if (teacherId) {
+      sql += ` AND r.teacher_id = $${params.length + 1}`;
+      params.push(teacherId);
+    }
+
+    sql += ' ORDER BY r.created_at DESC';
+
+    const { rows } = await pool.query(sql, params);
+    res.json(rows.map(row => ({
+      ...row,
+      field_names: Array.isArray(row.field_names) ? row.field_names : [],
+      old_values: row.old_values || {},
+      new_values: row.new_values || {},
+    })));
+  } catch (err) { next(err); }
+});
+
+router.get('/teacher-profile-requests/:id', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT r.*, t.name AS teacher_name, t.email AS teacher_email, t.teacher_code
+      FROM teacher_profile_update_requests r
+      JOIN teachers t ON t.id = r.teacher_id
+      WHERE r.id = $1 AND r.school_id = $2
+    `, [req.params.id, req.schoolId]);
+
+    if (!rows.length) return res.status(404).json({ error: 'Profile request not found' });
+    const row = rows[0];
+    res.json({
+      ...row,
+      field_names: Array.isArray(row.field_names) ? row.field_names : [],
+      old_values: row.old_values || {},
+      new_values: row.new_values || {},
+    });
+  } catch (err) { next(err); }
+});
+
+router.patch('/teacher-profile-requests/:id/approve', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT * FROM teacher_profile_update_requests
+      WHERE id = $1 AND school_id = $2 AND status = 'Pending'
+    `, [req.params.id, req.schoolId]);
+
+    if (!rows.length) return res.status(404).json({ error: 'Pending profile request not found' });
+
+    const request = rows[0];
+    const fieldNames = Array.isArray(request.field_names) ? request.field_names : [];
+    if (!fieldNames.length) {
+      return res.status(400).json({ error: 'This request does not contain any profile field updates.' });
+    }
+
+    const teacherValues = fieldNames.map((field) => request.new_values?.[field] ?? null);
+    const teacherSql = `
+      UPDATE teachers
+      SET ${fieldNames.map((field, index) => `${field} = $${index + 1}`).join(', ')}, updated_at = now()
+      WHERE id = $${fieldNames.length + 1} AND school_id = $${fieldNames.length + 2}
+    `;
+
+    await pool.query(teacherSql, [...teacherValues, request.teacher_id, req.schoolId]);
+
+    const { rows: updatedRows } = await pool.query(`
+      UPDATE teacher_profile_update_requests
+      SET status = 'Approved', reviewed_by = $1, reviewed_at = now(),
+          review_note = COALESCE($2, review_note), updated_at = now()
+      WHERE id = $3 AND school_id = $4
+      RETURNING *
+    `, [req.user.id, req.body.review_note || 'Approved after review.', req.params.id, req.schoolId]);
+
+    const { rows: teacherRows } = await pool.query(`
+      SELECT id, name, email, teacher_code FROM teachers WHERE id = $1 AND school_id = $2
+    `, [request.teacher_id, req.schoolId]);
+
+    const teacher = teacherRows[0] || null;
+    if (teacher) {
+      await notifyTeacherProfileRequestApproved(req.schoolId, teacher, updatedRows[0]);
+    }
+
+    res.json({
+      ...updatedRows[0],
+      field_names: Array.isArray(updatedRows[0].field_names) ? updatedRows[0].field_names : [],
+      old_values: updatedRows[0].old_values || {},
+      new_values: updatedRows[0].new_values || {},
+    });
+  } catch (err) { next(err); }
+});
+
+router.patch('/teacher-profile-requests/:id/reject', async (req, res, next) => {
+  try {
+    const reviewNote = String(req.body?.review_note || '').trim();
+    if (!reviewNote) {
+      return res.status(400).json({ error: 'review_note is required when rejecting a profile change request.' });
+    }
+
+    const { rows } = await pool.query(`
+      UPDATE teacher_profile_update_requests
+      SET status = 'Rejected', reviewed_by = $1, reviewed_at = now(),
+          review_note = $2, updated_at = now()
+      WHERE id = $3 AND school_id = $4 AND status = 'Pending'
+      RETURNING *
+    `, [req.user.id, reviewNote, req.params.id, req.schoolId]);
+
+    if (!rows.length) return res.status(404).json({ error: 'Pending profile request not found' });
+
+    const { rows: teacherRows } = await pool.query(`
+      SELECT id, name, email, teacher_code FROM teachers WHERE id = $1 AND school_id = $2
+    `, [rows[0].teacher_id, req.schoolId]);
+
+    const teacher = teacherRows[0] || null;
+    if (teacher) {
+      await notifyTeacherProfileRequestRejected(req.schoolId, teacher, rows[0], reviewNote);
+    }
+
+    res.json({
+      ...rows[0],
+      field_names: Array.isArray(rows[0].field_names) ? rows[0].field_names : [],
+      old_values: rows[0].old_values || {},
+      new_values: rows[0].new_values || {},
+    });
+  } catch (err) { next(err); }
+});
 // GET /api/admin/modules â€” list enabled module keys for current school
 router.get('/modules', async (req, res, next) => {
   try {

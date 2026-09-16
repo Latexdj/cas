@@ -79,10 +79,68 @@ async function notifyTeacherAbsenceDeleted(schoolId, teacher, absence) {
   ]);
 }
 
+function formatProfileFieldNames(fields = []) {
+  return (Array.isArray(fields) ? fields : []).map((field) => field.replace(/_/g, ' ')).join(', ');
+}
+
+async function notifyTeacherProfileRequestSubmitted(schoolId, teacher, request) {
+  const fieldText = formatProfileFieldNames(request?.field_names || []);
+  const title = 'Profile Change Submitted';
+  const message = fieldText
+    ? `Your requested change to ${fieldText} has been submitted and is awaiting administrative review.`
+    : 'Your official profile change request has been submitted and is awaiting administrative review.';
+
+  await Promise.all([
+    createNotification(schoolId, teacher.id, title, message),
+    sendTeacherEmail(
+      teacher.email,
+      'Profile Change Submitted',
+      `Dear ${teacher.name},\n\nYour request to update ${fieldText || 'your official profile details'} has been submitted successfully and is now pending review by the school administration.\n\nWe will notify you once the request is approved or rejected.\n\n— CAS Administration`
+    )
+  ]);
+}
+
+async function notifyTeacherProfileRequestApproved(schoolId, teacher, request) {
+  const fieldText = formatProfileFieldNames(request?.field_names || []);
+  const title = 'Profile Change Approved';
+  const message = fieldText
+    ? `Your request to update ${fieldText} has been approved and the changes are now live on your profile.`
+    : 'Your official profile change request has been approved and the changes are now live on your profile.';
+
+  await Promise.all([
+    createNotification(schoolId, teacher.id, title, message),
+    sendTeacherEmail(
+      teacher.email,
+      'Profile Change Approved',
+      `Dear ${teacher.name},\n\nYour requested update to ${fieldText || 'your official profile details'} has been approved by the school administrator.\n\nThe updated information is now live on your profile.\n\n— CAS Administration`
+    )
+  ]);
+}
+
+async function notifyTeacherProfileRequestRejected(schoolId, teacher, request, note) {
+  const fieldText = formatProfileFieldNames(request?.field_names || []);
+  const title = 'Profile Change Rejected';
+  const message = note
+    ? `Your request to update ${fieldText || 'your official profile details'} has been rejected. Review note: ${note}`
+    : `Your request to update ${fieldText || 'your official profile details'} has been rejected. Please contact the administration for more information.`;
+
+  await Promise.all([
+    createNotification(schoolId, teacher.id, title, message),
+    sendTeacherEmail(
+      teacher.email,
+      'Profile Change Rejected',
+      `Dear ${teacher.name},\n\nYour request to update ${fieldText || 'your official profile details'} has been rejected by the school administrator.\n\nReview Note: ${note || 'No additional note supplied.'}\n\nIf you need guidance, please contact the school administration.\n\n— CAS Administration`
+    )
+  ]);
+}
+
 module.exports = {
   createNotification,
   sendTeacherEmail,
   notifyTeacherAttendanceRevoked,
   notifyTeacherAttendanceDeleted,
   notifyTeacherAbsenceDeleted,
+  notifyTeacherProfileRequestSubmitted,
+  notifyTeacherProfileRequestApproved,
+  notifyTeacherProfileRequestRejected,
 };

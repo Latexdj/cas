@@ -82,11 +82,28 @@ export default function ProfileScreen() {
   const [changing,         setChanging]         = useState(false);
 
   const [certUploading, setCertUploading] = useState(false);
+  const [pendingRequest, setPendingRequest] = useState<any>(null);
+  const [showOfficialModal, setShowOfficialModal] = useState(false);
+  const [officialForm, setOfficialForm] = useState<Record<string, string>>({});
+  const [officialSaving, setOfficialSaving] = useState(false);
+  const [officialDocumentName, setOfficialDocumentName] = useState('');
+  const [officialDocumentBase64, setOfficialDocumentBase64] = useState('');
 
   useFocusEffect(useCallback(() => {
-    api.get<TeacherProfile>('/api/teachers/me').then(r => {
-      setProfile(r.data);
-    }).catch(() => {});
+    const loadProfile = async () => {
+      try {
+        const profileRes = await api.get<TeacherProfile>('/api/teachers/me');
+        setProfile(profileRes.data);
+
+        const requestsRes = await api.get<any[]>('/api/teachers/me/profile-requests');
+        const nextPending = [...requestsRes.data].find((request) => request.status === 'Pending') ?? null;
+        setPendingRequest(nextPending);
+      } catch {
+        setPendingRequest(null);
+      }
+    };
+
+    loadProfile();
   }, []));
 
   async function openCamera() {
@@ -121,7 +138,6 @@ export default function ProfileScreen() {
     setEditForm({
       phone:                   profile.phone ?? '',
       gender:                  profile.gender ?? '',
-      date_of_birth:           profile.date_of_birth?.slice(0, 10) ?? '',
       religion:                profile.religion ?? '',
       religious_denomination:  profile.religious_denomination ?? '',
       hometown:                profile.hometown ?? '',
@@ -131,6 +147,25 @@ export default function ProfileScreen() {
     });
     setEditErr('');
     setShowEditModal(true);
+  }
+
+  function openOfficialRequestModal() {
+    if (!profile) return;
+    setOfficialForm({
+      name: profile.name ?? '',
+      department: profile.department ?? '',
+      gov_staff_id: profile.gov_staff_id ?? '',
+      rank: profile.rank ?? '',
+      date_of_birth: profile.date_of_birth?.slice(0, 10) ?? '',
+      bank: profile.bank ?? '',
+      bank_branch: profile.bank_branch ?? '',
+      account_number: profile.account_number ?? '',
+      association: profile.association ?? '',
+      ghana_card_number: profile.ghana_card_number ?? '',
+    });
+    setOfficialDocumentName('');
+    setOfficialDocumentBase64('');
+    setShowOfficialModal(true);
   }
 
   async function saveProfile() {
@@ -174,6 +209,49 @@ export default function ProfileScreen() {
     } catch {
       Alert.alert('Error', 'Could not upload certificate.');
     } finally { setCertUploading(false); }
+  }
+
+  async function pickOfficialDocument() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+        const ext = asset.name.slice(asset.name.lastIndexOf('.')).toLowerCase();
+        const mime = ext === '.pdf' ? 'application/pdf' : ext === '.docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/msword';
+        setOfficialDocumentName(asset.name);
+        setOfficialDocumentBase64(`data:${mime};base64,${base64}`);
+      }
+    } catch {
+      Alert.alert('Error', 'Could not attach the supporting document.');
+    }
+  }
+
+  async function submitOfficialRequest() {
+    if (!profile) return;
+    const payload = { ...officialForm };
+    Object.keys(payload).forEach((key) => {
+      if (payload[key] === '') payload[key] = null as any;
+    });
+
+    try {
+      setOfficialSaving(true);
+      const res = await api.post('/api/teachers/me/profile-requests', {
+        ...payload,
+        documentBase64: officialDocumentBase64 || undefined,
+        documentFilename: officialDocumentName || undefined,
+      });
+      setPendingRequest(res.data);
+      setShowOfficialModal(false);
+      Alert.alert('Request Submitted', 'Your official profile change has been sent for administrative review.');
+    } catch (err: any) {
+      Alert.alert('Error', err?.response?.data?.error ?? 'Could not submit profile change request.');
+    } finally {
+      setOfficialSaving(false);
+    }
   }
 
   async function handleChangePassword() {
@@ -241,6 +319,26 @@ export default function ProfileScreen() {
           {profile?.teacher_code ? <Text style={styles.teacherCode}>{profile.teacher_code}</Text> : null}
           <View style={styles.rolePill}>
             <Text style={styles.roleText}>{profile?.rank ?? (user?.role === 'admin' ? 'School Admin' : 'Teacher')}</Text>
+          </View>
+          {pendingRequest ? (
+            <View style={[styles.rolePill, styles.pendingPill, { marginTop: 10 }]}>
+              <Text style={styles.roleText}>Pending approval</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>Official Profile</Text>
+            {!pendingRequest ? (
+              <TouchableOpacity onPress={openOfficialRequestModal} style={[styles.editBtn, { borderColor: Colors.primary }]}>
+                <Text style={[styles.editBtnText, { color: Colors.primary }]}>Request Update</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={[styles.editBtn, { borderColor: '#D5B14A' }]}>
+                <Text style={[styles.editBtnText, { color: '#D5B14A' }]}>Under Review</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -350,6 +448,56 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
 
+      <Modal visible={showOfficialModal} transparent animationType="slide">
+        <View style={styles.overlay}>
+          <ScrollView contentContainerStyle={styles.sheetScroll} keyboardShouldPersistTaps="handled">
+            <View style={styles.sheet}>
+              <Text style={styles.sheetTitle}>Request Official Profile Change</Text>
+              <Text style={styles.sheetSub}>These fields require admin review before they go live.</Text>
+
+              <Text style={styles.fieldLabel}>Full Name</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.name ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, name: v }))} placeholder="Teacher name" />
+
+              <Text style={styles.fieldLabel}>Department</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.department ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, department: v }))} placeholder="Department" />
+
+              <Text style={styles.fieldLabel}>Gov Staff ID</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.gov_staff_id ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, gov_staff_id: v }))} placeholder="Gov Staff ID" />
+
+              <Text style={styles.fieldLabel}>GES Rank</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.rank ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, rank: v }))} placeholder="Rank" />
+
+              <Text style={styles.fieldLabel}>Date of Birth (YYYY-MM-DD)</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.date_of_birth ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, date_of_birth: v }))} placeholder="1990-01-15" maxLength={10} keyboardType="numbers-and-punctuation" />
+
+              <Text style={styles.fieldLabel}>Bank</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.bank ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, bank: v }))} placeholder="Bank name" />
+
+              <Text style={styles.fieldLabel}>Bank Branch</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.bank_branch ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, bank_branch: v }))} placeholder="Branch" />
+
+              <Text style={styles.fieldLabel}>Account Number</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.account_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, account_number: v }))} placeholder="Account number" keyboardType="numeric" />
+
+              <Text style={styles.fieldLabel}>Association</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.association ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, association: v }))} placeholder="GNAT / NAGRAT" />
+
+              <Text style={styles.fieldLabel}>Ghana Card Number</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.ghana_card_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, ghana_card_number: v }))} placeholder="GHA-XXXXXXX-X" />
+
+              <TouchableOpacity onPress={pickOfficialDocument} style={[styles.uploadDocBtn, { borderColor: Colors.primary, marginBottom: 12 }]}>
+                <Text style={[styles.uploadDocBtnText, { color: Colors.primary }]}>{officialDocumentName ? `Attached: ${officialDocumentName}` : 'Attach supporting document'}</Text>
+              </TouchableOpacity>
+
+              <View style={styles.row2}>
+                <Button label="Cancel" variant="secondary" onPress={() => setShowOfficialModal(false)} style={styles.flex1} />
+                <Button label="Submit" onPress={submitOfficialRequest} loading={officialSaving} style={styles.flex1} />
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
       {/* Edit Profile Modal */}
       <Modal visible={showEditModal} transparent animationType="slide">
         <View style={styles.overlay}>
@@ -370,9 +518,6 @@ export default function ProfileScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-
-              <Text style={styles.fieldLabel}>Date of Birth (YYYY-MM-DD)</Text>
-              <TextInput style={styles.fieldInput} value={editForm.date_of_birth ?? ''} onChangeText={v => setEditForm(f => ({ ...f, date_of_birth: v }))} placeholder="1990-01-15" placeholderTextColor="#B5A898" maxLength={10} keyboardType="numbers-and-punctuation" />
 
               <Text style={styles.fieldLabel}>Hometown</Text>
               <TextInput style={styles.fieldInput} value={editForm.hometown ?? ''} onChangeText={v => setEditForm(f => ({ ...f, hometown: v }))} placeholder="Hometown" placeholderTextColor="#B5A898" />
@@ -426,6 +571,7 @@ const styles = StyleSheet.create({
   name:            { fontSize: 22, fontWeight: '800', color: '#fff', letterSpacing: -0.3, marginBottom: 4 },
   teacherCode:     { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '600', marginBottom: 8 },
   rolePill:        { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20 },
+  pendingPill:     { backgroundColor: 'rgba(255,214,102,0.2)', borderWidth: 1, borderColor: 'rgba(255,214,102,0.7)' },
   roleText:        { fontSize: 13, color: 'rgba(255,255,255,0.9)', fontWeight: '600' },
   section:         { paddingHorizontal: 16, marginBottom: 20 },
   sectionHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },

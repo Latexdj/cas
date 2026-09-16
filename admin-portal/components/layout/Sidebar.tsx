@@ -38,6 +38,10 @@ const sections: Section[] = [
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />,
       },
       {
+        href: '/teacher-profile-requests', label: 'Profile Requests',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2zM9 9h3" />,
+      },
+      {
         href: '/students', label: 'Students',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />,
         module: 'student_attendance',
@@ -373,6 +377,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [enabledModules, setEnabledModules] = useState<string[] | null>(null);
+  const [pendingProfileRequests, setPendingProfileRequests] = useState(0);
 
   useEffect(() => {
     api.get('/api/admin/settings').then(r => setLogoUrl(r.data.logo_url ?? null)).catch(() => {});
@@ -380,6 +385,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       // On error, show all items (fail open)
       setEnabledModules(null);
     });
+
+    api.get('/api/admin/teacher-profile-requests', { params: { status: 'Pending' } })
+      .then(r => setPendingProfileRequests(Array.isArray(r.data) ? r.data.length : 0))
+      .catch(() => setPendingProfileRequests(0));
   }, []);
 
   // Filter sections based on enabled modules; null means not yet loaded or error → show all
@@ -432,6 +441,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               const allHrefs = visibleSections.flatMap(s => s.items.map(i => i.href));
               const hasChildNavItem = allHrefs.some(h => h !== href && h.startsWith(href + '/'));
               const active = pathname === href || (!hasChildNavItem && pathname.startsWith(href + '/'));
+              const showPendingBadge = href === '/teacher-profile-requests' && pendingProfileRequests > 0;
               return (
                 <Link
                   key={href}
@@ -447,7 +457,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                     {icon}
                   </svg>
                   <span className="truncate">{label}</span>
-                  {active && (
+                  {showPendingBadge && (
+                    <span className="ml-auto min-w-[1.2rem] h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center"
+                      style={{ backgroundColor: '#F59E0B', color: '#0B3D2E' }}>
+                      {pendingProfileRequests > 99 ? '99+' : pendingProfileRequests}
+                    </span>
+                  )}
+                  {active && !showPendingBadge && (
                     <span className="ml-auto w-1 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#C8973A' }} />
                   )}
                 </Link>

@@ -6,6 +6,7 @@ const ExcelJS  = require('exceljs');
 const pool     = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { uploadFile, uploadDocument } = require('../services/storage.service');
+const { notifyTeacherProfileRequestSubmitted } = require('../services/notification.service');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -28,6 +29,44 @@ function validateTeacherFields(fields) {
     errors.push('SSF Number must be 2 letters followed by 11 digits (e.g. KO18602160034)');
   return errors;
 }
+
+const APPROVAL_REQUIRED_PROFILE_FIELDS = [
+  'name',
+  'department',
+  'gov_staff_id',
+  'rank',
+  'date_of_birth',
+  'registered_number',
+  'ntc_number',
+  'ssf_number',
+  'academic_qualification',
+  'professional_qualification',
+  'additional_responsibility',
+  'bank',
+  'bank_branch',
+  'account_number',
+  'association',
+  'ghana_card_number',
+];
+
+const APPROVAL_DOC_REQUIRED_FIELDS = new Set([
+  'name',
+  'department',
+  'gov_staff_id',
+  'rank',
+  'date_of_birth',
+  'registered_number',
+  'ntc_number',
+  'ssf_number',
+  'academic_qualification',
+  'professional_qualification',
+  'additional_responsibility',
+  'bank',
+  'bank_branch',
+  'account_number',
+  'association',
+  'ghana_card_number',
+]);
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -807,8 +846,15 @@ router.post('/:id/reset-pin', adminOnly, async (req, res, next) => {
 // PATCH /api/teachers/me/profile — teacher self-updates own editable fields
 router.patch('/me/profile', async (req, res, next) => {
   try {
+    const blockedDirectUpdates = APPROVAL_REQUIRED_PROFILE_FIELDS.filter(field => Object.prototype.hasOwnProperty.call(req.body, field));
+    if (blockedDirectUpdates.length) {
+      return res.status(400).json({
+        error: `The following field(s) require admin approval and cannot be edited directly: ${blockedDirectUpdates.join(', ')}`,
+      });
+    }
+
     const {
-      phone, gender, date_of_birth, religion, religious_denomination,
+      phone, gender, religion, religious_denomination,
       hometown, residential_address, emergency_contact_name, emergency_contact_phone,
     } = req.body;
     const valErrors = validateTeacherFields(req.body);
@@ -817,25 +863,146 @@ router.patch('/me/profile', async (req, res, next) => {
       `UPDATE teachers SET
          phone                   = COALESCE($1,  phone),
          gender                  = COALESCE($2,  gender),
-         date_of_birth           = COALESCE($3,  date_of_birth),
-         religion                = COALESCE($4,  religion),
-         religious_denomination  = COALESCE($5,  religious_denomination),
-         hometown                = COALESCE($6,  hometown),
-         residential_address     = COALESCE($7,  residential_address),
-         emergency_contact_name  = COALESCE($8,  emergency_contact_name),
-         emergency_contact_phone = COALESCE($9,  emergency_contact_phone),
+         religion                = COALESCE($3,  religion),
+         religious_denomination  = COALESCE($4,  religious_denomination),
+         hometown                = COALESCE($5,  hometown),
+         residential_address     = COALESCE($6,  residential_address),
+         emergency_contact_name  = COALESCE($7,  emergency_contact_name),
+         emergency_contact_phone = COALESCE($8,  emergency_contact_phone),
          updated_at              = now()
-       WHERE id = $10 AND school_id = $11
+       WHERE id = $9 AND school_id = $10
        RETURNING id, teacher_code, name, email, phone, gender, date_of_birth, religion,
                  religious_denomination, hometown, residential_address,
                  emergency_contact_name, emergency_contact_phone, photo_url`,
-      [phone||null, gender||null, date_of_birth||null,
+      [phone||null, gender||null,
        religion||null, religious_denomination||null,
        hometown||null, residential_address||null,
        emergency_contact_name||null, emergency_contact_phone||null,
        req.user.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// POST /api/teachers/me/profile-requests — create a pending approval request for official profile changes
+router.post('/me/profile-requests', async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const { documentBase64, documentFilename, ...changes } = body;
+    const submittedKeys = Object.keys(changes || {});
+
+    if (!submittedKeys.length) {
+      return res.status(400).json({ error: 'At least one profile field is required' });
+    }
+
+    const invalidKeys = submittedKeys.filter(key => !APPROVAL_REQUIRED_PROFILE_FIELDS.includes(key));
+    if (invalidKeys.length) {
+      return res.status(400).json({ error: `Unsupported profile field(s): ${invalidKeys.join(', ')}` });
+    }
+
+    const pendingRequest = await pool.query(
+      `SELECT id, school_id, name, email, department, gov_staff_id, rank, date_of_birth,
+              registered_number, ntc_number, ssf_number,
+              academic_qualification, professional_qualification, additional_responsibility,
+              bank, bank_branch, account_number, association, ghana_card_number
+       FROM teachers WHERE id = $1 AND school_id = $2`,
+      [req.user.id, req.schoolId]
+    );
+
+    if (!pendingRequest.rows.length) {
+      return res.status(404).json({ error: 'Teacher not found' });
+    }
+
+    const current = pendingRequest.rows[0];
+    const fieldNames = [];
+    const oldValues = {};
+    const newValues = {};
+
+    for (const key of submittedKeys) {
+      const value = changes[key];
+      const cleanValue = value === '' ? null : value;
+      fieldNames.push(key);
+      oldValues[key] = current[key] ?? null;
+      newValues[key] = cleanValue;
+    }
+
+    const requiresDocument = fieldNames.some(key => APPROVAL_DOC_REQUIRED_FIELDS.has(key));
+    if (requiresDocument && (!documentBase64 || !documentFilename)) {
+      return res.status(400).json({
+        error: 'A supporting document is required for official profile changes. Please upload a PDF or Word document.',
+      });
+    }
+
+    const { rows: pendingRows } = await pool.query(
+      `SELECT id FROM teacher_profile_update_requests
+       WHERE teacher_id = $1 AND school_id = $2 AND status = 'Pending'`,
+      [req.user.id, req.schoolId]
+    );
+
+    if (pendingRows.length) {
+      return res.status(409).json({
+        error: 'You already have a pending profile change request. Please wait for it to be reviewed before submitting another.',
+      });
+    }
+
+    let docUrl = null;
+    let docFilename = null;
+
+    if (documentBase64 && documentFilename) {
+      try {
+        const result = await uploadDocument(documentBase64, documentFilename, `teacher-profile-requests/${req.schoolId}`);
+        docUrl = result.url;
+        docFilename = result.filename;
+      } catch (uploadErr) {
+        return res.status(400).json({ error: uploadErr.message });
+      }
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO teacher_profile_update_requests
+         (school_id, teacher_id, field_names, old_values, new_values,
+          supporting_document_url, supporting_document_filename, status, submitted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'Pending', now())
+       RETURNING *`,
+      [req.schoolId, req.user.id, fieldNames, JSON.stringify(oldValues), JSON.stringify(newValues), docUrl, docFilename]
+    );
+
+    await notifyTeacherProfileRequestSubmitted(req.schoolId, {
+      id: req.user.id,
+      name: current.name,
+      email: current.email,
+    }, rows[0]);
+
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// GET /api/teachers/me/profile-requests — list teacher's own profile requests
+router.get('/me/profile-requests', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT *
+       FROM teacher_profile_update_requests
+       WHERE teacher_id = $1 AND school_id = $2
+       ORDER BY created_at DESC`,
+      [req.user.id, req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// GET /api/teachers/me/profile-requests/:id — get one profile request
+router.get('/me/profile-requests/:id', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT *
+       FROM teacher_profile_update_requests
+       WHERE id = $1 AND teacher_id = $2 AND school_id = $3`,
+      [req.params.id, req.user.id, req.schoolId]
+    );
+
+    if (!rows.length) return res.status(404).json({ error: 'Profile request not found' });
     res.json(rows[0]);
   } catch (err) { next(err); }
 });

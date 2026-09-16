@@ -299,6 +299,34 @@ async function runMigrations() {
         ON teacher_notifications(teacher_id, read, created_at DESC)
     `);
     await pool.query(`
+      CREATE TABLE IF NOT EXISTS teacher_profile_update_requests (
+        id                           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id                    UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id                   UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        status                       TEXT NOT NULL DEFAULT 'Pending'
+                                     CHECK (status IN ('Pending', 'Approved', 'Rejected')),
+        field_names                  TEXT[] NOT NULL DEFAULT '{}',
+        old_values                   JSONB NOT NULL DEFAULT '{}',
+        new_values                   JSONB NOT NULL DEFAULT '{}',
+        supporting_document_url      TEXT,
+        supporting_document_filename TEXT,
+        submitted_at                 TIMESTAMPTZ NOT NULL DEFAULT now(),
+        reviewed_by                  UUID REFERENCES teachers(id) ON DELETE SET NULL,
+        reviewed_at                  TIMESTAMPTZ,
+        review_note                  TEXT,
+        created_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at                   TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_teacher_profile_requests_teacher
+        ON teacher_profile_update_requests(teacher_id, status, created_at DESC)
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_teacher_profile_requests_school
+        ON teacher_profile_update_requests(school_id, status, created_at DESC)
+    `);
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         action      TEXT NOT NULL,

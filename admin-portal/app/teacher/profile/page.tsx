@@ -82,11 +82,18 @@ export default function ProfilePage() {
   const [photoLoading, setPhotoLoading] = useState(false);
   const [photoError,   setPhotoError]   = useState('');
   const [certLoading,  setCertLoading]  = useState(false);
+  const [pendingRequest, setPendingRequest] = useState<any>(null);
 
-  const [showEdit, setShowEdit]   = useState(false);
-  const [editForm, setEditForm]   = useState<Record<string, string>>({});
+  const [showEdit, setShowEdit] = useState(false);
+  const [showOfficialRequest, setShowOfficialRequest] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [officialForm, setOfficialForm] = useState<Record<string, string>>({});
+  const [officialDocName, setOfficialDocName] = useState('');
+  const [officialDocBase64, setOfficialDocBase64] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  const [officialSaving, setOfficialSaving] = useState(false);
   const [editError,  setEditError]  = useState('');
+  const [officialError, setOfficialError] = useState('');
 
   const [currentPassword,  setCurrentPassword]  = useState('');
   const [newPassword,      setNewPassword]      = useState('');
@@ -102,7 +109,13 @@ export default function ProfilePage() {
     if (teacher) setRole(teacher.role);
     teacherApi.get<TeacherProfile>('/api/teachers/me').then(r => {
       setProfile(r.data);
-    }).catch(() => {});
+      return teacherApi.get('/api/teachers/me/profile-requests');
+    }).then((reqRes) => {
+      const nextPending = Array.isArray(reqRes.data) ? reqRes.data.find((req: any) => req.status === 'Pending') ?? null : null;
+      setPendingRequest(nextPending);
+    }).catch(() => {
+      setPendingRequest(null);
+    });
   }, []);
 
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -139,7 +152,6 @@ export default function ProfilePage() {
     setEditForm({
       phone:                   profile.phone ?? '',
       gender:                  profile.gender ?? '',
-      date_of_birth:           profile.date_of_birth?.slice(0, 10) ?? '',
       religion:                profile.religion ?? '',
       religious_denomination:  profile.religious_denomination ?? '',
       hometown:                profile.hometown ?? '',
@@ -149,6 +161,26 @@ export default function ProfilePage() {
     });
     setEditError('');
     setShowEdit(true);
+  }
+
+  function openOfficialRequest() {
+    if (!profile) return;
+    setOfficialForm({
+      name: profile.name ?? '',
+      department: profile.department ?? '',
+      gov_staff_id: profile.gov_staff_id ?? '',
+      rank: profile.rank ?? '',
+      date_of_birth: profile.date_of_birth?.slice(0, 10) ?? '',
+      bank: profile.bank ?? '',
+      bank_branch: profile.bank_branch ?? '',
+      account_number: profile.account_number ?? '',
+      association: profile.association ?? '',
+      ghana_card_number: profile.ghana_card_number ?? '',
+    });
+    setOfficialDocName('');
+    setOfficialDocBase64('');
+    setOfficialError('');
+    setShowOfficialRequest(true);
   }
 
   async function saveEdit(e: React.FormEvent) {
@@ -166,6 +198,44 @@ export default function ProfilePage() {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setEditError(msg ?? 'Could not save profile.');
     } finally { setEditSaving(false); }
+  }
+
+  async function handleOfficialDocChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setOfficialDocBase64(String(reader.result ?? ''));
+      setOfficialDocName(file.name);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function submitOfficialRequest(e: React.FormEvent) {
+    e.preventDefault();
+    if (!profile) return;
+    const payload = { ...officialForm };
+    Object.keys(payload).forEach((key) => {
+      if ((payload[key] ?? '') === '') payload[key] = 'null';
+    });
+
+    const cleaned = Object.fromEntries(
+      Object.entries(payload).map(([key, value]) => [key, value === 'null' ? null : value])
+    );
+
+    setOfficialSaving(true); setOfficialError('');
+    try {
+      const res = await teacherApi.post('/api/teachers/me/profile-requests', {
+        ...cleaned,
+        documentBase64: officialDocBase64 || undefined,
+        documentFilename: officialDocName || undefined,
+      });
+      setPendingRequest(res.data);
+      setShowOfficialRequest(false);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setOfficialError(msg ?? 'Could not submit the review request.');
+    } finally { setOfficialSaving(false); }
   }
 
   async function handleChangePassword(e: React.FormEvent) {
@@ -224,12 +294,27 @@ export default function ProfilePage() {
             <p className="text-base font-bold text-[#2C2218]">{profile?.name || 'Teacher'}</p>
             <p className="text-xs text-[#8C7E6E] mt-0.5">{profile?.rank ?? role}</p>
             {profile?.teacher_code && <p className="text-xs font-mono font-bold text-[#2C2218] mt-1">{profile.teacher_code}</p>}
+            {pendingRequest && (
+              <span className="inline-flex items-center mt-2 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+                style={{ borderColor: '#D5B14A', background: '#FFF7D6', color: '#7A5C00' }}>
+                Pending approval
+              </span>
+            )}
           </div>
-          <button onClick={openEdit}
-            className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold border"
-            style={{ borderColor: primary, color: primary }}>
-            Edit
-          </button>
+          <div className="flex gap-2">
+            {!pendingRequest && (
+              <button onClick={openOfficialRequest}
+                className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold border"
+                style={{ borderColor: primary, color: primary }}>
+                Official update
+              </button>
+            )}
+            <button onClick={openEdit}
+              className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold border"
+              style={{ borderColor: primary, color: primary }}>
+              Edit
+            </button>
+          </div>
         </div>
         {photoError && <p className="text-xs text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">{photoError}</p>}
       </div>
@@ -344,6 +429,54 @@ export default function ProfilePage() {
         Sign Out
       </button>
 
+      {/* Official request slide-up */}
+      {showOfficialRequest && (
+        <div className="fixed inset-0 z-50 flex items-end" style={{ backgroundColor: 'rgba(11,61,46,0.55)' }}>
+          <div className="w-full bg-white rounded-t-2xl p-6 max-h-[90vh] overflow-y-auto">
+            <p className="text-base font-bold text-[#1C1208] mb-1">Request Official Profile Change</p>
+            <p className="text-xs text-[#8C7E6E] mb-5">These fields are reviewed by the school before they go live.</p>
+            <form onSubmit={submitOfficialRequest} className="space-y-4">
+              {[
+                { label: 'Full Name', key: 'name' },
+                { label: 'Department', key: 'department' },
+                { label: 'Gov Staff ID', key: 'gov_staff_id' },
+                { label: 'GES Rank', key: 'rank' },
+                { label: 'Date of Birth', key: 'date_of_birth', type: 'date' },
+                { label: 'Bank', key: 'bank' },
+                { label: 'Bank Branch', key: 'bank_branch' },
+                { label: 'Account Number', key: 'account_number' },
+                { label: 'Association', key: 'association' },
+                { label: 'Ghana Card Number', key: 'ghana_card_number' },
+              ].map(({ label, key, type }) => (
+                <div key={key}>
+                  <label className="text-xs text-[#8C7E6E] block mb-1">{label}</label>
+                  <input type={type || 'text'} value={officialForm[key] ?? ''} onChange={e => setOfficialForm(f => ({ ...f, [key]: e.target.value }))}
+                    className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" />
+                </div>
+              ))}
+              <div>
+                <label className="text-xs text-[#8C7E6E] block mb-1">Supporting Document</label>
+                <input type="file" accept=".pdf,.doc,.docx" onChange={handleOfficialDocChange}
+                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" />
+                {officialDocName && <p className="text-[11px] text-[#145C44] mt-1">Attached: {officialDocName}</p>}
+              </div>
+              {officialError && <p className="text-xs text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">{officialError}</p>}
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setShowOfficialRequest(false)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E2D9CC] text-[#8C7E6E] bg-white">
+                  Cancel
+                </button>
+                <button type="submit" disabled={officialSaving}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                  style={{ background: primary }}>
+                  {officialSaving ? 'Submitting…' : 'Submit'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Edit Profile slide-up */}
       {showEdit && (
         <div className="fixed inset-0 z-50 flex items-end" style={{ backgroundColor: 'rgba(11,61,46,0.55)' }}>
@@ -367,11 +500,6 @@ export default function ProfilePage() {
                     </button>
                   ))}
                 </div>
-              </div>
-              <div>
-                <label className="text-xs text-[#8C7E6E] block mb-1">Date of Birth</label>
-                <input type="date" value={editForm.date_of_birth ?? ''} onChange={e => setEditForm(f => ({ ...f, date_of_birth: e.target.value }))}
-                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" />
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Hometown</label>
