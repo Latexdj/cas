@@ -171,6 +171,11 @@ export default function ProfilePage() {
       gov_staff_id: profile.gov_staff_id ?? '',
       rank: profile.rank ?? '',
       date_of_birth: profile.date_of_birth?.slice(0, 10) ?? '',
+      registered_number: profile.registered_number ?? '',
+      ntc_number: profile.ntc_number ?? '',
+      ssf_number: profile.ssf_number ?? '',
+      academic_qualification: profile.academic_qualification ?? '',
+      professional_qualification: profile.professional_qualification ?? '',
       bank: profile.bank ?? '',
       bank_branch: profile.bank_branch ?? '',
       account_number: profile.account_number ?? '',
@@ -349,7 +354,7 @@ export default function ProfilePage() {
           <div className="text-xs font-semibold text-[#2C2218] text-right flex-1">
             {profile?.responsibilities && profile.responsibilities.length > 0
               ? profile.responsibilities.map(r => r.name).join(', ')
-              : <span className="font-normal italic text-[#C0B5A5]">No responsibilities assigned</span>
+              : (profile?.additional_responsibility || <span className="font-normal italic text-[#C0B5A5]">No responsibilities assigned</span>)
             }
           </div>
         </div>
@@ -442,6 +447,11 @@ export default function ProfilePage() {
                 { label: 'Gov Staff ID', key: 'gov_staff_id' },
                 { label: 'GES Rank', key: 'rank' },
                 { label: 'Date of Birth', key: 'date_of_birth', type: 'date' },
+                { label: 'Registered Number', key: 'registered_number' },
+                { label: 'NTC Number', key: 'ntc_number' },
+                { label: 'SSF Number', key: 'ssf_number' },
+                { label: 'Academic Qualification', key: 'academic_qualification' },
+                { label: 'Professional Qualification', key: 'professional_qualification' },
                 { label: 'Bank', key: 'bank' },
                 { label: 'Bank Branch', key: 'bank_branch' },
                 { label: 'Account Number', key: 'account_number' },

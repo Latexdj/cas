@@ -170,6 +170,11 @@ export default function ProfileScreen() {
       gov_staff_id: profile.gov_staff_id ?? '',
       rank: profile.rank ?? '',
       date_of_birth: profile.date_of_birth?.slice(0, 10) ?? '',
+      registered_number: profile.registered_number ?? '',
+      ntc_number: profile.ntc_number ?? '',
+      ssf_number: profile.ssf_number ?? '',
+      academic_qualification: profile.academic_qualification ?? '',
+      professional_qualification: profile.professional_qualification ?? '',
       bank: profile.bank ?? '',
       bank_branch: profile.bank_branch ?? '',
       account_number: profile.account_number ?? '',
@@ -482,6 +487,21 @@ export default function ProfileScreen() {
 
               <Text style={styles.fieldLabel}>Date of Birth (YYYY-MM-DD)</Text>
               <TextInput style={styles.fieldInput} value={officialForm.date_of_birth ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, date_of_birth: v }))} placeholder="1990-01-15" maxLength={10} keyboardType="numbers-and-punctuation" />
+
+              <Text style={styles.fieldLabel}>Registered Number</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.registered_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, registered_number: v }))} placeholder="Registered number" />
+
+              <Text style={styles.fieldLabel}>NTC Number</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.ntc_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, ntc_number: v }))} placeholder="PT/010060/2009" />
+
+              <Text style={styles.fieldLabel}>SSF Number</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.ssf_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, ssf_number: v }))} placeholder="KO18602160034" />
+
+              <Text style={styles.fieldLabel}>Academic Qualification</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.academic_qualification ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, academic_qualification: v }))} placeholder="Academic qualification" />
+
+              <Text style={styles.fieldLabel}>Professional Qualification</Text>
+              <TextInput style={styles.fieldInput} value={officialForm.professional_qualification ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, professional_qualification: v }))} placeholder="Professional qualification" />
 
               <Text style={styles.fieldLabel}>Bank</Text>
               <TextInput style={styles.fieldInput} value={officialForm.bank ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, bank: v }))} placeholder="Bank name" />
