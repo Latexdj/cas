@@ -18,6 +18,12 @@ import { Input } from '@/components/ui/Input';
 const GENDERS   = ['Male', 'Female'];
 const RELIGIONS = ['Christianity', 'Islam', 'Traditional', 'Other'];
 
+interface TeacherResponsibility {
+  id: string;
+  name: string;
+  module_key?: string | null;
+}
+
 interface TeacherProfile {
   id: string;
   teacher_code: string;
@@ -35,6 +41,7 @@ interface TeacherProfile {
   academic_qualification: string | null;
   professional_qualification: string | null;
   additional_responsibility: string | null;
+  responsibilities?: TeacherResponsibility[];
   bank: string | null;
   bank_branch: string | null;
   account_number: string | null;
@@ -49,6 +56,12 @@ interface TeacherProfile {
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   photo_url: string | null;
+}
+
+function formatResponsibilities(profile: TeacherProfile | null) {
+  const names = profile?.responsibilities?.map((item) => item.name).filter(Boolean) ?? [];
+  if (names.length) return names.join(', ');
+  return profile?.additional_responsibility || null;
 }
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
@@ -375,7 +388,7 @@ export default function ProfileScreen() {
             <InfoRow label="SSF Number"          value={profile?.ssf_number} />
             <InfoRow label="Academic Qual."      value={profile?.academic_qualification} />
             <InfoRow label="Professional Qual."  value={profile?.professional_qualification} />
-            <InfoRow label="Responsibility"      value={profile?.additional_responsibility} />
+            <InfoRow label="Responsibility"      value={formatResponsibilities(profile)} />
             <InfoRow label="Association"         value={profile?.association} />
           </View>
         </View>
