@@ -8,6 +8,11 @@ import { teacherApi } from '@/lib/teacher-api';
 
 const GENDERS   = ['Male', 'Female'];
 const RELIGIONS = ['Christianity', 'Islam', 'Traditional', 'Other'];
+const RELIGIOUS_DENOMINATION_OPTIONS = ['Roman Catholic', 'Pentecostal', 'Ahmadiyya', 'Sunni', 'Baptist', 'Methodist', 'SDA', 'Other'];
+const RANK_OPTIONS = ['Director I', 'Director II', 'Deputy Director', 'Assistant Director I', 'Assistant Director II', 'Principal Superintendent', 'Senior Superintendent I', 'Senior Superintendent II', 'Superintendent I', 'Superintendent II', 'Principal (Deputy Director)', 'Vice Principal Academic & Skills Delivery (Principal Manager)', 'Vice Principal Administration & General Services (Principal Manager)', 'Principal Tutor / Senior Manager (ASD)', 'Senior Tutor / Manager (ASD)', 'Tutor / Assistant Manager (ASD)', 'Senior Technical Instructor / Senior Assistant (ASD)', 'Technical Assistant I (ASD)', 'Technical Assistant II (ASD)', 'Technical Assistant III (ASD)', 'Technical Assistant', 'Other'];
+const ACADEMIC_QUALIFICATION_OPTIONS = ['BECE', 'WASSCE / SSSCE', 'Advanced Certificate', 'Diploma', 'HND', 'BTech', 'BEng', 'BBA', 'BSc', 'BEd', 'MTech', 'MEd', 'MBA', 'MSc', 'MA', 'MPhil', 'PhD', 'Other'];
+const PROFESSIONAL_QUALIFICATION_OPTIONS = ['Certificate \'A\'', 'DBE', 'BEd', 'MEd', 'MPhil', 'PhD', 'Other'];
+const ASSOCIATION_OPTIONS = ['GNAT', 'NAGRAT', 'PRETAG', 'TEWU', 'Other'];
 
 interface TeacherProfile {
   id: string;
@@ -153,7 +158,9 @@ export default function ProfilePage() {
       phone:                   profile.phone ?? '',
       gender:                  profile.gender ?? '',
       religion:                profile.religion ?? '',
+      religion_other:          profile.religion === 'Other' ? (profile.religion ?? '') : '',
       religious_denomination:  profile.religious_denomination ?? '',
+      religious_denomination_other: profile.religious_denomination && !RELIGIOUS_DENOMINATION_OPTIONS.includes(profile.religious_denomination) ? profile.religious_denomination : '',
       hometown:                profile.hometown ?? '',
       residential_address:     profile.residential_address ?? '',
       emergency_contact_name:  profile.emergency_contact_name ?? '',
@@ -170,16 +177,20 @@ export default function ProfilePage() {
       department: profile.department ?? '',
       gov_staff_id: profile.gov_staff_id ?? '',
       rank: profile.rank ?? '',
+      rank_other: profile.rank && !RANK_OPTIONS.includes(profile.rank) ? profile.rank : '',
       date_of_birth: profile.date_of_birth?.slice(0, 10) ?? '',
       registered_number: profile.registered_number ?? '',
       ntc_number: profile.ntc_number ?? '',
       ssf_number: profile.ssf_number ?? '',
       academic_qualification: profile.academic_qualification ?? '',
+      academic_qualification_other: profile.academic_qualification && !ACADEMIC_QUALIFICATION_OPTIONS.includes(profile.academic_qualification) ? profile.academic_qualification : '',
       professional_qualification: profile.professional_qualification ?? '',
+      professional_qualification_other: profile.professional_qualification && !PROFESSIONAL_QUALIFICATION_OPTIONS.includes(profile.professional_qualification) ? profile.professional_qualification : '',
       bank: profile.bank ?? '',
       bank_branch: profile.bank_branch ?? '',
       account_number: profile.account_number ?? '',
       association: profile.association ?? '',
+      association_other: profile.association && !ASSOCIATION_OPTIONS.includes(profile.association) ? profile.association : '',
       ghana_card_number: profile.ghana_card_number ?? '',
     });
     setOfficialDocName('');
@@ -194,9 +205,18 @@ export default function ProfilePage() {
     const emrgPhErr   = validatePhone(editForm.emergency_contact_phone);
     if (phoneErr)  { setEditError(`Phone: ${phoneErr}`); return; }
     if (emrgPhErr) { setEditError(`Emergency contact phone: ${emrgPhErr}`); return; }
+    const cleaned = { ...editForm };
+    if (cleaned.religion === 'Other') {
+      cleaned.religion = cleaned.religion_other?.trim() || 'Other';
+    }
+    if (cleaned.religious_denomination === 'Other') {
+      cleaned.religious_denomination = cleaned.religious_denomination_other?.trim() || 'Other';
+    }
+    delete cleaned.religion_other;
+    delete cleaned.religious_denomination_other;
     setEditSaving(true); setEditError('');
     try {
-      const res = await teacherApi.patch('/api/teachers/me/profile', editForm);
+      const res = await teacherApi.patch('/api/teachers/me/profile', cleaned);
       setProfile(p => p ? { ...p, ...res.data } : p);
       setShowEdit(false);
     } catch (err: unknown) {
@@ -220,6 +240,11 @@ export default function ProfilePage() {
     e.preventDefault();
     if (!profile) return;
     const payload = { ...officialForm };
+    for (const field of ['religion', 'religious_denomination', 'rank', 'academic_qualification', 'professional_qualification', 'association']) {
+      if ((payload[field] ?? '') === 'Other' && (payload[`${field}_other`] ?? '').trim()) {
+        payload[field] = payload[`${field}_other`].trim();
+      }
+    }
     Object.keys(payload).forEach((key) => {
       if ((payload[key] ?? '') === '') payload[key] = 'null';
     });
@@ -445,23 +470,38 @@ export default function ProfilePage() {
                 { label: 'Full Name', key: 'name' },
                 { label: 'Department', key: 'department' },
                 { label: 'Gov Staff ID', key: 'gov_staff_id' },
-                { label: 'GES Rank', key: 'rank' },
+                { label: 'GES/TVET Rank', key: 'rank', type: 'select', options: RANK_OPTIONS },
                 { label: 'Date of Birth', key: 'date_of_birth', type: 'date' },
                 { label: 'Registered Number', key: 'registered_number' },
-                { label: 'NTC Number', key: 'ntc_number' },
-                { label: 'SSF Number', key: 'ssf_number' },
-                { label: 'Academic Qualification', key: 'academic_qualification' },
-                { label: 'Professional Qualification', key: 'professional_qualification' },
+                { label: 'NTC Number', key: 'ntc_number', hint: 'Format: PT/000000/0000' },
+                { label: 'SSF Number', key: 'ssf_number', hint: 'Format: K000000000000' },
+                { label: 'Academic Qualification', key: 'academic_qualification', type: 'select', options: ACADEMIC_QUALIFICATION_OPTIONS },
+                { label: 'Professional Qualification', key: 'professional_qualification', type: 'select', options: PROFESSIONAL_QUALIFICATION_OPTIONS },
                 { label: 'Bank', key: 'bank' },
                 { label: 'Bank Branch', key: 'bank_branch' },
                 { label: 'Account Number', key: 'account_number' },
-                { label: 'Association', key: 'association' },
-                { label: 'Ghana Card Number', key: 'ghana_card_number' },
-              ].map(({ label, key, type }) => (
+                { label: 'Association', key: 'association', type: 'select', options: ASSOCIATION_OPTIONS },
+                { label: 'Ghana Card Number', key: 'ghana_card_number', hint: 'Format: GHA-000000000-0' },
+              ].map(({ label, key, type, options, hint }) => (
                 <div key={key}>
                   <label className="text-xs text-[#8C7E6E] block mb-1">{label}</label>
-                  <input type={type || 'text'} value={officialForm[key] ?? ''} onChange={e => setOfficialForm(f => ({ ...f, [key]: e.target.value }))}
-                    className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" />
+                  {type === 'select' ? (
+                    <>
+                      <select value={officialForm[key] ?? ''} onChange={e => setOfficialForm(f => ({ ...f, [key]: e.target.value }))}
+                        className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none bg-white">
+                        <option value="">Select...</option>
+                        {(options ?? []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                      {(officialForm[key] === 'Other' || (key === 'rank' && officialForm.rank === 'Other')) && (
+                        <input type="text" value={officialForm[`${key}_other`] ?? ''} onChange={e => setOfficialForm(f => ({ ...f, [`${key}_other`]: e.target.value }))}
+                          className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none mt-2" placeholder={`Specify ${label}`} />
+                      )}
+                    </>
+                  ) : (
+                    <input type={type || 'text'} value={officialForm[key] ?? ''} onChange={e => setOfficialForm(f => ({ ...f, [key]: e.target.value }))}
+                      className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" />
+                  )}
+                  {hint && <p className="text-[11px] text-[#8C7E6E] mt-1">{hint}</p>}
                 </div>
               ))}
               <div>
@@ -501,15 +541,11 @@ export default function ProfilePage() {
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1.5">Gender</label>
-                <div className="flex flex-wrap gap-2">
-                  {GENDERS.map(g => (
-                    <button key={g} type="button" onClick={() => setEditForm(f => ({ ...f, gender: g }))}
-                      className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-                      style={editForm.gender === g ? { background: primary, borderColor: primary, color: 'white' } : { background: 'white', borderColor: '#E2D9CC', color: '#8C7E6E' }}>
-                      {g}
-                    </button>
-                  ))}
-                </div>
+                <select value={editForm.gender ?? ''} onChange={e => setEditForm(f => ({ ...f, gender: e.target.value }))}
+                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none bg-white">
+                  <option value="">Select gender</option>
+                  {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Hometown</label>
@@ -523,20 +559,27 @@ export default function ProfilePage() {
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1.5">Religion</label>
-                <div className="flex flex-wrap gap-2">
-                  {RELIGIONS.map(r => (
-                    <button key={r} type="button" onClick={() => setEditForm(f => ({ ...f, religion: r }))}
-                      className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-                      style={editForm.religion === r ? { background: primary, borderColor: primary, color: 'white' } : { background: 'white', borderColor: '#E2D9CC', color: '#8C7E6E' }}>
-                      {r}
-                    </button>
-                  ))}
-                </div>
+                <select value={editForm.religion ?? ''} onChange={e => setEditForm(f => ({ ...f, religion: e.target.value }))}
+                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none bg-white">
+                  <option value="">Select religion</option>
+                  {RELIGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+                {editForm.religion === 'Other' && (
+                  <input type="text" value={editForm.religion_other ?? ''} onChange={e => setEditForm(f => ({ ...f, religion_other: e.target.value }))}
+                    className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none mt-2" placeholder="Specify religion" />
+                )}
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Religious Denomination</label>
-                <input type="text" value={editForm.religious_denomination ?? ''} onChange={e => setEditForm(f => ({ ...f, religious_denomination: e.target.value }))}
-                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" placeholder="e.g. Catholic, Methodist" />
+                <select value={editForm.religious_denomination ?? ''} onChange={e => setEditForm(f => ({ ...f, religious_denomination: e.target.value }))}
+                  className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none bg-white">
+                  <option value="">Select denomination</option>
+                  {RELIGIOUS_DENOMINATION_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+                {editForm.religious_denomination === 'Other' && (
+                  <input type="text" value={editForm.religious_denomination_other ?? ''} onChange={e => setEditForm(f => ({ ...f, religious_denomination_other: e.target.value }))}
+                    className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none mt-2" placeholder="Specify denomination" />
+                )}
               </div>
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Emergency Contact Name</label>

@@ -13,7 +13,42 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 const PHONE_RE      = /^0\d{9}$/;
 const GHANA_CARD_RE = /^GHA-\d{9}-\d$/;
 const NTC_RE        = /^PT\/\d{6}\/\d{4}$/;
-const SSF_RE        = /^[A-Za-z]{2}\d{11}$/;
+const SSF_RE        = /^[A-Za-z]\d{12}$/;
+
+const GENDER_OPTIONS = ['Male', 'Female'];
+const RELIGION_OPTIONS = ['Christianity', 'Islam', 'Traditional', 'Other'];
+const RELIGIOUS_DENOMINATION_OPTIONS = [
+  'Roman Catholic', 'Pentecostal', 'Ahmadiyya', 'Sunni', 'Baptist', 'Methodist', 'SDA', 'Other',
+];
+const RANK_OPTIONS = [
+  'Director I', 'Director II', 'Deputy Director', 'Assistant Director I', 'Assistant Director II',
+  'Principal Superintendent', 'Senior Superintendent I', 'Senior Superintendent II', 'Superintendent I',
+  'Superintendent II', 'Principal (Deputy Director)', 'Vice Principal Academic & Skills Delivery (Principal Manager)',
+  'Vice Principal Administration & General Services (Principal Manager)', 'Principal Tutor / Senior Manager (ASD)',
+  'Senior Tutor / Manager (ASD)', 'Tutor / Assistant Manager (ASD)', 'Senior Technical Instructor / Senior Assistant (ASD)',
+  'Technical Assistant I (ASD)', 'Technical Assistant II (ASD)', 'Technical Assistant III (ASD)', 'Technical Assistant', 'Other',
+];
+const ACADEMIC_QUALIFICATION_OPTIONS = [
+  'BECE', 'WASSCE / SSSCE', 'Advanced Certificate', 'Diploma', 'HND', 'BTech', 'BEng', 'BBA', 'BSc', 'BEd',
+  'MTech', 'MEd', 'MBA', 'MSc', 'MA', 'MPhil', 'PhD', 'Other',
+];
+const PROFESSIONAL_QUALIFICATION_OPTIONS = ['Certificate \'A\'', 'DBE', 'BEd', 'MEd', 'MPhil', 'PhD', 'Other'];
+const ASSOCIATION_OPTIONS = ['GNAT', 'NAGRAT', 'PRETAG', 'TEWU', 'Other'];
+
+function normalizeCustomDropdownValue(selected, customValue) {
+  const value = String(selected ?? '').trim();
+  const custom = String(customValue ?? '').trim();
+  if (value === 'Other' && custom) return custom;
+  return value || null;
+}
+
+function validateDropdownOption(value, options, fieldLabel, customValue) {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) return null;
+  if (options.includes(trimmed)) return null;
+  if (trimmed === 'Other' && String(customValue ?? '').trim()) return null;
+  return `${fieldLabel} must be one of: ${options.join(', ')}.`;
+}
 
 function validateTeacherFields(fields) {
   const errors = [];
@@ -21,12 +56,38 @@ function validateTeacherFields(fields) {
     errors.push('Phone must be 10 digits starting with 0 (e.g. 0207440175)');
   if (fields.emergency_contact_phone && !PHONE_RE.test(fields.emergency_contact_phone))
     errors.push('Emergency contact phone must be 10 digits starting with 0');
+  if (fields.gender             && !GENDER_OPTIONS.includes(fields.gender))
+    errors.push('Gender must be either Male or Female');
+  if (fields.religion           && !RELIGION_OPTIONS.includes(fields.religion) && !(fields.religion === 'Other' && String(fields.religion_other ?? '').trim()))
+    errors.push('Religion must be Christianity, Islam, Traditional, or Other');
+  if (fields.religion === 'Other' && !String(fields.religion_other ?? '').trim())
+    errors.push('Please specify the custom religion value when Other is selected');
+  if (fields.religious_denomination) {
+    const val = validateDropdownOption(fields.religious_denomination, RELIGIOUS_DENOMINATION_OPTIONS, 'Religious denomination', fields.religious_denomination_other);
+    if (val) errors.push(val);
+  }
+  if (fields.rank) {
+    const val = validateDropdownOption(fields.rank, RANK_OPTIONS, 'GES/TVET Rank', fields.rank_other);
+    if (val) errors.push(val);
+  }
   if (fields.ghana_card_number  && !GHANA_CARD_RE.test(fields.ghana_card_number))
-    errors.push('Ghana Card must be in the format GHA-XXXXXXXXX-X (e.g. GHA-715422858-2)');
+    errors.push('Ghana Card Number must be in the format GHA-000000000-0 (e.g. GHA-715422858-2)');
   if (fields.ntc_number         && !NTC_RE.test(fields.ntc_number))
-    errors.push('NTC Number must be in the format PT/XXXXXX/XXXX (e.g. PT/010060/2009)');
+    errors.push('NTC Number must be in the format PT/000000/0000 (e.g. PT/010060/2009)');
   if (fields.ssf_number         && !SSF_RE.test(fields.ssf_number))
-    errors.push('SSF Number must be 2 letters followed by 11 digits (e.g. KO18602160034)');
+    errors.push('SSF Number must be 1 letter followed by 12 digits (e.g. K000000000000)');
+  if (fields.academic_qualification) {
+    const val = validateDropdownOption(fields.academic_qualification, ACADEMIC_QUALIFICATION_OPTIONS, 'Academic qualification', fields.academic_qualification_other);
+    if (val) errors.push(val);
+  }
+  if (fields.professional_qualification) {
+    const val = validateDropdownOption(fields.professional_qualification, PROFESSIONAL_QUALIFICATION_OPTIONS, 'Professional qualification', fields.professional_qualification_other);
+    if (val) errors.push(val);
+  }
+  if (fields.association) {
+    const val = validateDropdownOption(fields.association, ASSOCIATION_OPTIONS, 'Association', fields.association_other);
+    if (val) errors.push(val);
+  }
   return errors;
 }
 
@@ -894,7 +955,7 @@ router.post('/me/profile-requests', async (req, res, next) => {
       return res.status(400).json({ error: 'At least one profile field is required' });
     }
 
-    const invalidKeys = submittedKeys.filter(key => !APPROVAL_REQUIRED_PROFILE_FIELDS.includes(key));
+    const invalidKeys = submittedKeys.filter(key => !APPROVAL_REQUIRED_PROFILE_FIELDS.includes(key) && !key.endsWith('_other'));
     if (invalidKeys.length) {
       return res.status(400).json({ error: `Unsupported profile field(s): ${invalidKeys.join(', ')}` });
     }
@@ -913,12 +974,32 @@ router.post('/me/profile-requests', async (req, res, next) => {
     }
 
     const current = pendingRequest.rows[0];
+    const normalizedChanges = { ...changes };
+    for (const field of ['religion', 'religious_denomination', 'rank', 'academic_qualification', 'professional_qualification', 'association']) {
+      const selectedValue = normalizedChanges[field];
+      const customValue = normalizedChanges[`${field}_other`];
+      if (selectedValue === 'Other') {
+        const finalValue = normalizeCustomDropdownValue(selectedValue, customValue);
+        if (!finalValue) {
+          return res.status(400).json({ error: `${field.replace(/_/g, ' ')} requires a custom value when Other is selected.` });
+        }
+        normalizedChanges[field] = finalValue;
+      } else if (selectedValue != null && selectedValue !== '') {
+        normalizedChanges[field] = String(selectedValue).trim();
+      }
+      if (normalizedChanges[`${field}_other`] !== undefined) delete normalizedChanges[`${field}_other`];
+    }
+
+    const validationErrors = validateTeacherFields(normalizedChanges);
+    if (validationErrors.length) {
+      return res.status(400).json({ error: validationErrors.join('; ') });
+    }
+
     const fieldNames = [];
     const oldValues = {};
     const newValues = {};
-
-    for (const key of submittedKeys) {
-      const value = changes[key];
+    for (const key of Object.keys(normalizedChanges)) {
+      const value = normalizedChanges[key];
       const cleanValue = value === '' ? null : value;
       fieldNames.push(key);
       oldValues[key] = current[key] ?? null;

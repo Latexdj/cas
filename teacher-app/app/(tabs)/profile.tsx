@@ -17,6 +17,11 @@ import { Input } from '@/components/ui/Input';
 
 const GENDERS   = ['Male', 'Female'];
 const RELIGIONS = ['Christianity', 'Islam', 'Traditional', 'Other'];
+const RELIGIOUS_DENOMINATION_OPTIONS = ['Roman Catholic', 'Pentecostal', 'Ahmadiyya', 'Sunni', 'Baptist', 'Methodist', 'SDA', 'Other'];
+const RANK_OPTIONS = ['Director I', 'Director II', 'Deputy Director', 'Assistant Director I', 'Assistant Director II', 'Principal Superintendent', 'Senior Superintendent I', 'Senior Superintendent II', 'Superintendent I', 'Superintendent II', 'Principal (Deputy Director)', 'Vice Principal Academic & Skills Delivery (Principal Manager)', 'Vice Principal Administration & General Services (Principal Manager)', 'Principal Tutor / Senior Manager (ASD)', 'Senior Tutor / Manager (ASD)', 'Tutor / Assistant Manager (ASD)', 'Senior Technical Instructor / Senior Assistant (ASD)', 'Technical Assistant I (ASD)', 'Technical Assistant II (ASD)', 'Technical Assistant III (ASD)', 'Technical Assistant', 'Other'];
+const ACADEMIC_QUALIFICATION_OPTIONS = ['BECE', 'WASSCE / SSSCE', 'Advanced Certificate', 'Diploma', 'HND', 'BTech', 'BEng', 'BBA', 'BSc', 'BEd', 'MTech', 'MEd', 'MBA', 'MSc', 'MA', 'MPhil', 'PhD', 'Other'];
+const PROFESSIONAL_QUALIFICATION_OPTIONS = ['Certificate \'A\'', 'DBE', 'BEd', 'MEd', 'MPhil', 'PhD', 'Other'];
+const ASSOCIATION_OPTIONS = ['GNAT', 'NAGRAT', 'PRETAG', 'TEWU', 'Other'];
 
 interface TeacherResponsibility {
   id: string;
@@ -70,6 +75,66 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
       <Text style={styles.infoLabel}>{label}</Text>
       <Text style={styles.infoValue} numberOfLines={2}>{value || '—'}</Text>
     </View>
+  );
+}
+
+function OptionPicker({
+  label,
+  value,
+  options,
+  placeholder,
+  onSelect,
+  otherValue,
+  onOtherChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  placeholder: string;
+  onSelect: (value: string) => void;
+  otherValue?: string;
+  onOtherChange?: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TouchableOpacity style={styles.fieldInput} onPress={() => setOpen(true)}>
+        <Text style={[styles.selectText, !value && styles.placeholderText]}>{value || placeholder}</Text>
+      </TouchableOpacity>
+      {value === 'Other' && onOtherChange ? (
+        <TextInput
+          style={[styles.fieldInput, { marginTop: 8 }]}
+          value={otherValue ?? ''}
+          onChangeText={onOtherChange}
+          placeholder={`Specify ${label.toLowerCase()}`}
+          placeholderTextColor="#B5A898"
+        />
+      ) : null}
+      <Modal visible={open} transparent animationType="slide">
+        <View style={styles.overlay}>
+          <View style={styles.optionSheet}>
+            <Text style={styles.sheetTitle}>{label}</Text>
+            {options.map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={styles.optionRow}
+                onPress={() => {
+                  onSelect(option);
+                  setOpen(false);
+                }}
+              >
+                <Text style={styles.optionText}>{option}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={[styles.cancelButton, { marginTop: 12 }]} onPress={() => setOpen(false)}>
+              <Text style={styles.cancelButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -152,7 +217,9 @@ export default function ProfileScreen() {
       phone:                   profile.phone ?? '',
       gender:                  profile.gender ?? '',
       religion:                profile.religion ?? '',
+      religion_other:          profile.religion && !RELIGIONS.includes(profile.religion) ? profile.religion : '',
       religious_denomination:  profile.religious_denomination ?? '',
+      religious_denomination_other: profile.religious_denomination && !RELIGIOUS_DENOMINATION_OPTIONS.includes(profile.religious_denomination) ? profile.religious_denomination : '',
       hometown:                profile.hometown ?? '',
       residential_address:     profile.residential_address ?? '',
       emergency_contact_name:  profile.emergency_contact_name ?? '',
@@ -169,16 +236,20 @@ export default function ProfileScreen() {
       department: profile.department ?? '',
       gov_staff_id: profile.gov_staff_id ?? '',
       rank: profile.rank ?? '',
+      rank_other: profile.rank && !RANK_OPTIONS.includes(profile.rank) ? profile.rank : '',
       date_of_birth: profile.date_of_birth?.slice(0, 10) ?? '',
       registered_number: profile.registered_number ?? '',
       ntc_number: profile.ntc_number ?? '',
       ssf_number: profile.ssf_number ?? '',
       academic_qualification: profile.academic_qualification ?? '',
+      academic_qualification_other: profile.academic_qualification && !ACADEMIC_QUALIFICATION_OPTIONS.includes(profile.academic_qualification) ? profile.academic_qualification : '',
       professional_qualification: profile.professional_qualification ?? '',
+      professional_qualification_other: profile.professional_qualification && !PROFESSIONAL_QUALIFICATION_OPTIONS.includes(profile.professional_qualification) ? profile.professional_qualification : '',
       bank: profile.bank ?? '',
       bank_branch: profile.bank_branch ?? '',
       account_number: profile.account_number ?? '',
       association: profile.association ?? '',
+      association_other: profile.association && !ASSOCIATION_OPTIONS.includes(profile.association) ? profile.association : '',
       ghana_card_number: profile.ghana_card_number ?? '',
     });
     setOfficialDocumentName('');
@@ -194,9 +265,18 @@ export default function ProfileScreen() {
     if (editForm.emergency_contact_phone && !PHONE_RE.test(editForm.emergency_contact_phone)) {
       setEditErr('Emergency contact phone must be 10 digits starting with 0'); return;
     }
+    const payload = { ...editForm };
+    if (payload.religion === 'Other') {
+      payload.religion = payload.religion_other?.trim() || 'Other';
+    }
+    if (payload.religious_denomination === 'Other') {
+      payload.religious_denomination = payload.religious_denomination_other?.trim() || 'Other';
+    }
+    delete payload.religion_other;
+    delete payload.religious_denomination_other;
     setEditSaving(true); setEditErr('');
     try {
-      const { data } = await api.patch<TeacherProfile>('/api/teachers/me/profile', editForm);
+      const { data } = await api.patch<TeacherProfile>('/api/teachers/me/profile', payload);
       setProfile(p => p ? { ...p, ...data } : p);
       setShowEditModal(false);
     } catch (err: any) {
@@ -251,6 +331,11 @@ export default function ProfileScreen() {
   async function submitOfficialRequest() {
     if (!profile) return;
     const payload = { ...officialForm };
+    ['rank', 'academic_qualification', 'professional_qualification', 'association'].forEach((field) => {
+      if (payload[field] === 'Other' && (payload[`${field}_other`] ?? '').trim()) {
+        payload[field] = payload[`${field}_other`].trim();
+      }
+    });
     Object.keys(payload).forEach((key) => {
       if (payload[key] === '') payload[key] = null as any;
     });
@@ -482,8 +567,7 @@ export default function ProfileScreen() {
               <Text style={styles.fieldLabel}>Gov Staff ID</Text>
               <TextInput style={styles.fieldInput} value={officialForm.gov_staff_id ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, gov_staff_id: v }))} placeholder="Gov Staff ID" />
 
-              <Text style={styles.fieldLabel}>GES Rank</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.rank ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, rank: v }))} placeholder="Rank" />
+              <OptionPicker label="GES/TVET Rank" value={officialForm.rank ?? ''} options={RANK_OPTIONS} placeholder="Select rank" onSelect={v => setOfficialForm(f => ({ ...f, rank: v, rank_other: v === 'Other' ? f.rank_other ?? '' : '' }))} otherValue={officialForm.rank_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, rank_other: v }))} />
 
               <Text style={styles.fieldLabel}>Date of Birth (YYYY-MM-DD)</Text>
               <TextInput style={styles.fieldInput} value={officialForm.date_of_birth ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, date_of_birth: v }))} placeholder="1990-01-15" maxLength={10} keyboardType="numbers-and-punctuation" />
@@ -492,16 +576,16 @@ export default function ProfileScreen() {
               <TextInput style={styles.fieldInput} value={officialForm.registered_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, registered_number: v }))} placeholder="Registered number" />
 
               <Text style={styles.fieldLabel}>NTC Number</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.ntc_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, ntc_number: v }))} placeholder="PT/010060/2009" />
+              <TextInput style={styles.fieldInput} value={officialForm.ntc_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, ntc_number: v }))} placeholder="PT/000000/0000" />
+              <Text style={styles.fieldHint}>Format: PT/000000/0000</Text>
 
               <Text style={styles.fieldLabel}>SSF Number</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.ssf_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, ssf_number: v }))} placeholder="KO18602160034" />
+              <TextInput style={styles.fieldInput} value={officialForm.ssf_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, ssf_number: v }))} placeholder="K000000000000" />
+              <Text style={styles.fieldHint}>Format: one letter + 12 digits</Text>
 
-              <Text style={styles.fieldLabel}>Academic Qualification</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.academic_qualification ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, academic_qualification: v }))} placeholder="Academic qualification" />
+              <OptionPicker label="Academic Qualification" value={officialForm.academic_qualification ?? ''} options={ACADEMIC_QUALIFICATION_OPTIONS} placeholder="Select academic qualification" onSelect={v => setOfficialForm(f => ({ ...f, academic_qualification: v, academic_qualification_other: v === 'Other' ? f.academic_qualification_other ?? '' : '' }))} otherValue={officialForm.academic_qualification_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, academic_qualification_other: v }))} />
 
-              <Text style={styles.fieldLabel}>Professional Qualification</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.professional_qualification ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, professional_qualification: v }))} placeholder="Professional qualification" />
+              <OptionPicker label="Professional Qualification" value={officialForm.professional_qualification ?? ''} options={PROFESSIONAL_QUALIFICATION_OPTIONS} placeholder="Select professional qualification" onSelect={v => setOfficialForm(f => ({ ...f, professional_qualification: v, professional_qualification_other: v === 'Other' ? f.professional_qualification_other ?? '' : '' }))} otherValue={officialForm.professional_qualification_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, professional_qualification_other: v }))} />
 
               <Text style={styles.fieldLabel}>Bank</Text>
               <TextInput style={styles.fieldInput} value={officialForm.bank ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, bank: v }))} placeholder="Bank name" />
@@ -512,11 +596,11 @@ export default function ProfileScreen() {
               <Text style={styles.fieldLabel}>Account Number</Text>
               <TextInput style={styles.fieldInput} value={officialForm.account_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, account_number: v }))} placeholder="Account number" keyboardType="numeric" />
 
-              <Text style={styles.fieldLabel}>Association</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.association ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, association: v }))} placeholder="GNAT / NAGRAT" />
+              <OptionPicker label="Association" value={officialForm.association ?? ''} options={ASSOCIATION_OPTIONS} placeholder="Select association" onSelect={v => setOfficialForm(f => ({ ...f, association: v, association_other: v === 'Other' ? f.association_other ?? '' : '' }))} otherValue={officialForm.association_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, association_other: v }))} />
 
               <Text style={styles.fieldLabel}>Ghana Card Number</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.ghana_card_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, ghana_card_number: v }))} placeholder="GHA-XXXXXXX-X" />
+              <TextInput style={styles.fieldInput} value={officialForm.ghana_card_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, ghana_card_number: v }))} placeholder="GHA-000000000-0" />
+              <Text style={styles.fieldHint}>Format: GHA-000000000-0</Text>
 
               <TouchableOpacity onPress={pickOfficialDocument} style={[styles.uploadDocBtn, { borderColor: Colors.primary, marginBottom: 12 }]}>
                 <Text style={[styles.uploadDocBtnText, { color: Colors.primary }]}>{officialDocumentName ? `Attached: ${officialDocumentName}` : 'Attach supporting document'}</Text>
@@ -542,15 +626,7 @@ export default function ProfileScreen() {
               <Text style={styles.fieldLabel}>Phone</Text>
               <TextInput style={styles.fieldInput} value={editForm.phone ?? ''} onChangeText={v => setEditForm(f => ({ ...f, phone: v }))} placeholder="+233..." placeholderTextColor="#B5A898" keyboardType="phone-pad" />
 
-              <Text style={styles.fieldLabel}>Gender</Text>
-              <View style={styles.chipRow}>
-                {GENDERS.map(g => (
-                  <TouchableOpacity key={g} style={[styles.chip, editForm.gender === g && { backgroundColor: Colors.primary, borderColor: Colors.primary }]}
-                    onPress={() => setEditForm(f => ({ ...f, gender: g }))}>
-                    <Text style={[styles.chipText, editForm.gender === g && { color: '#fff' }]}>{g}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <OptionPicker label="Gender" value={editForm.gender ?? ''} options={GENDERS} placeholder="Select gender" onSelect={v => setEditForm(f => ({ ...f, gender: v }))} />
 
               <Text style={styles.fieldLabel}>Hometown</Text>
               <TextInput style={styles.fieldInput} value={editForm.hometown ?? ''} onChangeText={v => setEditForm(f => ({ ...f, hometown: v }))} placeholder="Hometown" placeholderTextColor="#B5A898" />
@@ -558,18 +634,9 @@ export default function ProfileScreen() {
               <Text style={styles.fieldLabel}>Residential Address</Text>
               <TextInput style={[styles.fieldInput, { minHeight: 60, textAlignVertical: 'top' }]} value={editForm.residential_address ?? ''} onChangeText={v => setEditForm(f => ({ ...f, residential_address: v }))} placeholder="Your home address" placeholderTextColor="#B5A898" multiline />
 
-              <Text style={styles.fieldLabel}>Religion</Text>
-              <View style={styles.chipRow}>
-                {RELIGIONS.map(r => (
-                  <TouchableOpacity key={r} style={[styles.chip, editForm.religion === r && { backgroundColor: Colors.primary, borderColor: Colors.primary }]}
-                    onPress={() => setEditForm(f => ({ ...f, religion: r }))}>
-                    <Text style={[styles.chipText, editForm.religion === r && { color: '#fff' }]}>{r}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <OptionPicker label="Religion" value={editForm.religion ?? ''} options={RELIGIONS} placeholder="Select religion" onSelect={v => setEditForm(f => ({ ...f, religion: v, religion_other: v === 'Other' ? f.religion_other ?? '' : '' }))} otherValue={editForm.religion_other ?? ''} onOtherChange={v => setEditForm(f => ({ ...f, religion_other: v }))} />
 
-              <Text style={styles.fieldLabel}>Religious Denomination</Text>
-              <TextInput style={styles.fieldInput} value={editForm.religious_denomination ?? ''} onChangeText={v => setEditForm(f => ({ ...f, religious_denomination: v }))} placeholder="e.g. Catholic, Methodist" placeholderTextColor="#B5A898" />
+              <OptionPicker label="Religious Denomination" value={editForm.religious_denomination ?? ''} options={RELIGIOUS_DENOMINATION_OPTIONS} placeholder="Select denomination" onSelect={v => setEditForm(f => ({ ...f, religious_denomination: v, religious_denomination_other: v === 'Other' ? f.religious_denomination_other ?? '' : '' }))} otherValue={editForm.religious_denomination_other ?? ''} onOtherChange={v => setEditForm(f => ({ ...f, religious_denomination_other: v }))} />
 
               <Text style={styles.fieldLabel}>Emergency Contact Name</Text>
               <TextInput style={styles.fieldInput} value={editForm.emergency_contact_name ?? ''} onChangeText={v => setEditForm(f => ({ ...f, emergency_contact_name: v }))} placeholder="Full name" placeholderTextColor="#B5A898" />
@@ -645,6 +712,14 @@ const styles = StyleSheet.create({
   sheetSub:        { fontSize: 13, color: '#8C7E6E', marginBottom: 18 },
   fieldLabel:      { fontSize: 11, fontWeight: '700', color: '#8C7E6E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, marginTop: 2 },
   fieldInput:      { backgroundColor: '#F4EFE6', borderRadius: 10, padding: 12, fontSize: 15, color: '#1C1208', borderWidth: 1, borderColor: '#E2D9CC', marginBottom: 14 },
+  fieldHint:       { fontSize: 11, color: '#8C7E6E', marginTop: -10, marginBottom: 12 },
+  placeholderText: { color: '#B5A898' },
+  selectText:      { fontSize: 15, color: '#1C1208' },
+  optionSheet:     { backgroundColor: '#FAFAF8', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 28 },
+  optionRow:       { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F4EFE6' },
+  optionText:      { fontSize: 15, color: '#1C1208' },
+  cancelButton:    { alignItems: 'center', paddingVertical: 12, borderRadius: 10, backgroundColor: '#F4EFE6' },
+  cancelButtonText:{ color: '#1C1208', fontWeight: '700' },
   chipRow:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   chip:            { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#E2D9CC', backgroundColor: '#FDFAF5' },
   chipText:        { fontSize: 13, fontWeight: '600', color: '#4A3F32' },
