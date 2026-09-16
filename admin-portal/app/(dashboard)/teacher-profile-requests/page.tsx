@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { teacherApi } from '@/lib/teacher-api';
+import { api } from '@/lib/api';
 
 const STATUS_OPTIONS = ['Pending', 'Approved', 'Rejected'];
 
@@ -28,7 +28,7 @@ export default function TeacherProfileRequestsPage() {
   async function load() {
     setLoading(true);
     try {
-      const { data } = await teacherApi.get('/api/admin/teacher-profile-requests', {
+      const { data } = await api.get('/api/admin/teacher-profile-requests', {
         params: {
           status,
           teacherId: teacherId || undefined,
@@ -55,7 +55,7 @@ export default function TeacherProfileRequestsPage() {
 
     setBusyId(id);
     try {
-      await teacherApi.patch(`/api/admin/teacher-profile-requests/${id}/${action}`, {
+      await api.patch(`/api/admin/teacher-profile-requests/${id}/${action}`, {
         review_note: note || undefined,
       });
       setReviewNotes((prev) => ({ ...prev, [id]: '' }));
