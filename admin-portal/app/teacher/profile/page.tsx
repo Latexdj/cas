@@ -77,10 +77,13 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
 
 function getFieldAppearance(value: string | null | undefined, validator?: (v: string) => string | null, touched = false, required = true) {
   const text = (value ?? '').trim();
+  if (!touched) {
+    return { borderColor: '#E2D9CC', hint: '' };
+  }
   if (!text) {
-    return touched && required
+    return required
       ? { borderColor: '#FCA5A5', hint: 'This field is required.' }
-      : { borderColor: '#E2D9CC', hint: '' };
+      : { borderColor: '#FCA5A5', hint: 'This field is required.' };
   }
   if (validator) {
     const err = validator(text);
@@ -174,6 +177,21 @@ export default function ProfilePage() {
     setFieldTouched(prev => ({ ...prev, [field]: true }));
   }
 
+  function markAllOfficialFieldsTouched() {
+    const keys = [
+      'name', 'department', 'gov_staff_id', 'rank', 'rank_other', 'date_of_birth', 'registered_number',
+      'ntc_number', 'ssf_number', 'academic_qualification', 'academic_qualification_other',
+      'professional_qualification', 'professional_qualification_other', 'bank', 'bank_branch', 'account_number',
+      'association', 'association_other', 'ghana_card_number'
+    ];
+    setFieldTouched(prev => {
+      const next = { ...prev };
+      for (const key of keys) next[key] = true;
+      return next;
+    });
+    setDocumentTouched(true);
+  }
+
   function openEdit() {
     if (!profile) return;
     setEditForm({
@@ -263,6 +281,7 @@ export default function ProfilePage() {
   async function submitOfficialRequest(e: React.FormEvent) {
     e.preventDefault();
     if (!profile) return;
+    markAllOfficialFieldsTouched();
     const payload = { ...officialForm };
     for (const field of ['religion', 'religious_denomination', 'rank', 'academic_qualification', 'professional_qualification', 'association']) {
       if ((payload[field] ?? '') === 'Other' && (payload[`${field}_other`] ?? '').trim()) {
@@ -503,57 +522,52 @@ export default function ProfilePage() {
                 { label: 'GES/TVET Rank', key: 'rank', type: 'select', options: RANK_OPTIONS },
                 { label: 'Date of Birth', key: 'date_of_birth', type: 'date' },
                 { label: 'Registered Number', key: 'registered_number' },
-                { label: 'NTC Number', key: 'ntc_number', hint: 'Format: PT/000000/0000' },
-                { label: 'SSF Number', key: 'ssf_number', hint: 'Format: K000000000000' },
+                { label: 'NTC Number', key: 'ntc_number', hint: 'Format: PT/000000/0000', validator: validateNTC },
+                { label: 'SSF Number', key: 'ssf_number', hint: 'Format: K000000000000', validator: validateSSF },
                 { label: 'Academic Qualification', key: 'academic_qualification', type: 'select', options: ACADEMIC_QUALIFICATION_OPTIONS },
                 { label: 'Professional Qualification', key: 'professional_qualification', type: 'select', options: PROFESSIONAL_QUALIFICATION_OPTIONS },
                 { label: 'Bank', key: 'bank' },
                 { label: 'Bank Branch', key: 'bank_branch' },
                 { label: 'Account Number', key: 'account_number' },
                 { label: 'Association', key: 'association', type: 'select', options: ASSOCIATION_OPTIONS },
-                { label: 'Ghana Card Number', key: 'ghana_card_number', hint: 'Format: GHA-000000000-0' },
-              ].map(({ label, key, type, options, hint }) => (
-                <div key={key}>
-                  <label className="text-xs text-[#8C7E6E] block mb-1">{label}</label>
-                  {type === 'select' ? (
-                    <>
-                      <select value={officialForm[key] ?? ''} onChange={e => setOfficialForm(f => ({ ...f, [key]: e.target.value }))}
-                        className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none bg-white">
-                        <option value="">Select...</option>
-                        {(options ?? []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      </select>
-                      {(officialForm[key] === 'Other' || (key === 'rank' && officialForm.rank === 'Other')) && (
-                        <input type="text" value={officialForm[`${key}_other`] ?? ''} onChange={e => setOfficialForm(f => ({ ...f, [`${key}_other`]: e.target.value }))}
-                          className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none mt-2" placeholder={`Specify ${label}`} />
-                      )}
-                    </>
-                  ) : (
-                    key === 'ntc_number' ? (
+                { label: 'Ghana Card Number', key: 'ghana_card_number', hint: 'Format: GHA-000000000-0', validator: validateGhanaCard },
+              ].map(({ label, key, type, options, hint, validator }) => {
+                const appearance = getFieldAppearance(officialForm[key] ?? '', validator, fieldTouched[key] ?? false);
+                const otherKey = `${key}_other`;
+                const otherAppearance = (key === 'rank' || key === 'academic_qualification' || key === 'professional_qualification' || key === 'association')
+                  ? getFieldAppearance(officialForm[otherKey] ?? '', undefined, fieldTouched[otherKey] ?? false)
+                  : null;
+
+                return (
+                  <div key={key}>
+                    <label className="text-xs text-[#8C7E6E] block mb-1">{label}</label>
+                    {type === 'select' ? (
                       <>
-                        <input type={type || 'text'} value={officialForm[key] ?? ''} onChange={e => { setOfficialForm(f => ({ ...f, [key]: e.target.value })); touchField(key); }} onBlur={() => touchField(key)}
-                          className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" style={{ borderColor: ntcAppearance.borderColor }} />
-                        {ntcAppearance.hint && <p className="text-[11px] text-[#B83232] mt-1">{ntcAppearance.hint}</p>}
-                      </>
-                    ) : key === 'ssf_number' ? (
-                      <>
-                        <input type={type || 'text'} value={officialForm[key] ?? ''} onChange={e => { setOfficialForm(f => ({ ...f, [key]: e.target.value })); touchField(key); }} onBlur={() => touchField(key)}
-                          className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" style={{ borderColor: ssfAppearance.borderColor }} />
-                        {ssfAppearance.hint && <p className="text-[11px] text-[#B83232] mt-1">{ssfAppearance.hint}</p>}
-                      </>
-                    ) : key === 'ghana_card_number' ? (
-                      <>
-                        <input type={type || 'text'} value={officialForm[key] ?? ''} onChange={e => { setOfficialForm(f => ({ ...f, [key]: e.target.value })); touchField(key); }} onBlur={() => touchField(key)}
-                          className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" style={{ borderColor: ghanaCardAppearance.borderColor }} />
-                        {ghanaCardAppearance.hint && <p className="text-[11px] text-[#B83232] mt-1">{ghanaCardAppearance.hint}</p>}
+                        <select value={officialForm[key] ?? ''} onChange={e => { setOfficialForm(f => ({ ...f, [key]: e.target.value })); touchField(key); }} onBlur={() => touchField(key)}
+                          className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none bg-white" style={{ borderColor: appearance.borderColor }}>
+                          <option value="">Select...</option>
+                          {(options ?? []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                        {appearance.hint && <p className="text-[11px] text-[#B83232] mt-1">{appearance.hint}</p>}
+                        {(officialForm[key] === 'Other' || (key === 'rank' && officialForm.rank === 'Other')) && (
+                          <>
+                            <input type="text" value={officialForm[otherKey] ?? ''} onChange={e => { setOfficialForm(f => ({ ...f, [otherKey]: e.target.value })); touchField(otherKey); }} onBlur={() => touchField(otherKey)}
+                              className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none mt-2" placeholder={`Specify ${label}`} style={{ borderColor: otherAppearance?.borderColor ?? '#E2D9CC' }} />
+                            {otherAppearance?.hint && <p className="text-[11px] text-[#B83232] mt-1">{otherAppearance.hint}</p>}
+                          </>
+                        )}
                       </>
                     ) : (
-                      <input type={type || 'text'} value={officialForm[key] ?? ''} onChange={e => { setOfficialForm(f => ({ ...f, [key]: e.target.value })); touchField(key); }} onBlur={() => touchField(key)}
-                        className="w-full border border-[#E2D9CC] rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" />
-                    )
-                  )}
-                  {hint && !['ntc_number', 'ssf_number', 'ghana_card_number'].includes(key) && <p className="text-[11px] text-[#8C7E6E] mt-1">{hint}</p>}
-                </div>
-              ))}
+                      <>
+                        <input type={type || 'text'} value={officialForm[key] ?? ''} onChange={e => { setOfficialForm(f => ({ ...f, [key]: e.target.value })); touchField(key); }} onBlur={() => touchField(key)}
+                          className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" style={{ borderColor: appearance.borderColor }} />
+                        {appearance.hint && <p className="text-[11px] text-[#B83232] mt-1">{appearance.hint}</p>}
+                      </>
+                    )}
+                    {hint && !validator && type !== 'select' && <p className="text-[11px] text-[#8C7E6E] mt-1">{hint}</p>}
+                  </div>
+                );
+              })}
               <div>
                 <label className="text-xs text-[#8C7E6E] block mb-1">Supporting Document</label>
                 <input type="file" accept=".pdf,.doc,.docx" onChange={e => { handleOfficialDocChange(e); setDocumentTouched(true); }} onBlur={() => setDocumentTouched(true)}

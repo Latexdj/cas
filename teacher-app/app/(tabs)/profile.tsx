@@ -80,10 +80,13 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
 
 function getFieldAppearance(value: string | null | undefined, validator?: (v: string) => string | null, touched = false, required = true) {
   const text = (value ?? '').trim();
+  if (!touched) {
+    return { borderColor: '#E2D9CC', hint: '' };
+  }
   if (!text) {
-    return touched && required
+    return required
       ? { borderColor: '#FCA5A5', hint: 'This field is required.' }
-      : { borderColor: '#E2D9CC', hint: '' };
+      : { borderColor: '#FCA5A5', hint: 'This field is required.' };
   }
   if (validator) {
     const err = validator(text);
@@ -117,10 +120,12 @@ function OptionPicker({
 }) {
   const [open, setOpen] = useState(false);
 
+  const selectAppearance = getFieldAppearance(value ?? '', undefined, touched ?? false, true);
+
   return (
     <>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TouchableOpacity style={styles.fieldInput} onPress={() => setOpen(true)}>
+      <TouchableOpacity style={[styles.fieldInput, { borderColor: selectAppearance.borderColor }]} onPress={() => { setOpen(true); onBlur?.(); }}>
         <Text style={[styles.selectText, !value && styles.placeholderText]}>{value || placeholder}</Text>
       </TouchableOpacity>
       {value === 'Other' && onOtherChange ? (
@@ -407,6 +412,7 @@ export default function ProfileScreen() {
   }
 
   const initial = user?.name?.charAt(0).toUpperCase() ?? '?';
+  const markOfficialFieldTouched = (field: string) => setTouchedFields(prev => ({ ...prev, [field]: true }));
 
   if (showCamera) {
     return (
@@ -587,28 +593,60 @@ export default function ProfileScreen() {
               <Text style={styles.sheetSub}>These fields require admin review before they go live.</Text>
 
               <Text style={styles.fieldLabel}>Full Name</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.name ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, name: v }))} placeholder="Teacher name" />
+              <TextInput
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.name ?? '', undefined, touchedFields.name ?? false, true).borderColor }]}
+                value={officialForm.name ?? ''}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, name: v })); markOfficialFieldTouched('name'); }}
+                onBlur={() => markOfficialFieldTouched('name')}
+                placeholder="Teacher name"
+              />
 
               <Text style={styles.fieldLabel}>Department</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.department ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, department: v }))} placeholder="Department" />
+              <TextInput
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.department ?? '', undefined, touchedFields.department ?? false, true).borderColor }]}
+                value={officialForm.department ?? ''}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, department: v })); markOfficialFieldTouched('department'); }}
+                onBlur={() => markOfficialFieldTouched('department')}
+                placeholder="Department"
+              />
 
               <Text style={styles.fieldLabel}>Gov Staff ID</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.gov_staff_id ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, gov_staff_id: v }))} placeholder="Gov Staff ID" />
+              <TextInput
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.gov_staff_id ?? '', undefined, touchedFields.gov_staff_id ?? false, true).borderColor }]}
+                value={officialForm.gov_staff_id ?? ''}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, gov_staff_id: v })); markOfficialFieldTouched('gov_staff_id'); }}
+                onBlur={() => markOfficialFieldTouched('gov_staff_id')}
+                placeholder="Gov Staff ID"
+              />
 
-              <OptionPicker label="GES/TVET Rank" value={officialForm.rank ?? ''} options={RANK_OPTIONS} placeholder="Select rank" onSelect={v => setOfficialForm(f => ({ ...f, rank: v, rank_other: v === 'Other' ? f.rank_other ?? '' : '' }))} otherValue={officialForm.rank_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, rank_other: v }))} touched={touchedFields.rank_other ?? false} onBlur={() => setTouchedFields(prev => ({ ...prev, rank_other: true }))} />
+              <OptionPicker label="GES/TVET Rank" value={officialForm.rank ?? ''} options={RANK_OPTIONS} placeholder="Select rank" onSelect={v => { setOfficialForm(f => ({ ...f, rank: v, rank_other: v === 'Other' ? f.rank_other ?? '' : '' })); markOfficialFieldTouched('rank'); }} otherValue={officialForm.rank_other ?? ''} onOtherChange={v => { setOfficialForm(f => ({ ...f, rank_other: v })); markOfficialFieldTouched('rank_other'); }} touched={Boolean((touchedFields.rank ?? false) || (touchedFields.rank_other ?? false))} onBlur={() => markOfficialFieldTouched('rank')} />
 
               <Text style={styles.fieldLabel}>Date of Birth (YYYY-MM-DD)</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.date_of_birth ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, date_of_birth: v }))} placeholder="1990-01-15" maxLength={10} keyboardType="numbers-and-punctuation" />
+              <TextInput
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.date_of_birth ?? '', undefined, touchedFields.date_of_birth ?? false, true).borderColor }]}
+                value={officialForm.date_of_birth ?? ''}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, date_of_birth: v })); markOfficialFieldTouched('date_of_birth'); }}
+                onBlur={() => markOfficialFieldTouched('date_of_birth')}
+                placeholder="1990-01-15"
+                maxLength={10}
+                keyboardType="numbers-and-punctuation"
+              />
 
               <Text style={styles.fieldLabel}>Registered Number</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.registered_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, registered_number: v }))} placeholder="Registered number" />
+              <TextInput
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.registered_number ?? '', undefined, touchedFields.registered_number ?? false, true).borderColor }]}
+                value={officialForm.registered_number ?? ''}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, registered_number: v })); markOfficialFieldTouched('registered_number'); }}
+                onBlur={() => markOfficialFieldTouched('registered_number')}
+                placeholder="Registered number"
+              />
 
               <Text style={styles.fieldLabel}>NTC Number</Text>
               <TextInput
                 style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.ntc_number ?? '', (v) => /^PT\/\d{6}\/\d{4}$/.test(v) ? null : 'Format: PT/000000/0000', touchedFields.ntc_number ?? false, true).borderColor }]}
                 value={officialForm.ntc_number ?? ''}
-                onChangeText={v => { setOfficialForm(f => ({ ...f, ntc_number: v })); setTouchedFields(prev => ({ ...prev, ntc_number: true })); }}
-                onBlur={() => setTouchedFields(prev => ({ ...prev, ntc_number: true }))}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, ntc_number: v })); markOfficialFieldTouched('ntc_number'); }}
+                onBlur={() => markOfficialFieldTouched('ntc_number')}
                 placeholder="PT/000000/0000"
               />
               {getFieldAppearance(officialForm.ntc_number ?? '', (v) => /^PT\/\d{6}\/\d{4}$/.test(v) ? null : 'Format: PT/000000/0000', touchedFields.ntc_number ?? false, true).hint ? (
@@ -617,37 +655,56 @@ export default function ProfileScreen() {
 
               <Text style={styles.fieldLabel}>SSF Number</Text>
               <TextInput
-                style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.ssf_number ?? '', (v) => /^[A-Za-z]{2}\d{11}$/.test(v) ? null : 'Format: 2 letters + 11 digits', touchedFields.ssf_number ?? false, true).borderColor }]}
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.ssf_number ?? '', (v) => /^[A-Za-z]\d{12}$/.test(v) ? null : 'Format: 1 letter + 12 digits', touchedFields.ssf_number ?? false, true).borderColor }]}
                 value={officialForm.ssf_number ?? ''}
-                onChangeText={v => { setOfficialForm(f => ({ ...f, ssf_number: v })); setTouchedFields(prev => ({ ...prev, ssf_number: true })); }}
-                onBlur={() => setTouchedFields(prev => ({ ...prev, ssf_number: true }))}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, ssf_number: v })); markOfficialFieldTouched('ssf_number'); }}
+                onBlur={() => markOfficialFieldTouched('ssf_number')}
                 placeholder="K000000000000"
               />
-              {getFieldAppearance(officialForm.ssf_number ?? '', (v) => /^[A-Za-z]{2}\d{11}$/.test(v) ? null : 'Format: 2 letters + 11 digits', touchedFields.ssf_number ?? false, true).hint ? (
-                <Text style={styles.fieldErrorText}>{getFieldAppearance(officialForm.ssf_number ?? '', (v) => /^[A-Za-z]{2}\d{11}$/.test(v) ? null : 'Format: 2 letters + 11 digits', touchedFields.ssf_number ?? false, true).hint}</Text>
-              ) : <Text style={styles.fieldHint}>Format: 2 letters + 11 digits</Text>}
+              {getFieldAppearance(officialForm.ssf_number ?? '', (v) => /^[A-Za-z]\d{12}$/.test(v) ? null : 'Format: 1 letter + 12 digits', touchedFields.ssf_number ?? false, true).hint ? (
+                <Text style={styles.fieldErrorText}>{getFieldAppearance(officialForm.ssf_number ?? '', (v) => /^[A-Za-z]\d{12}$/.test(v) ? null : 'Format: 1 letter + 12 digits', touchedFields.ssf_number ?? false, true).hint}</Text>
+              ) : <Text style={styles.fieldHint}>Format: K000000000000</Text>}
 
-              <OptionPicker label="Academic Qualification" value={officialForm.academic_qualification ?? ''} options={ACADEMIC_QUALIFICATION_OPTIONS} placeholder="Select academic qualification" onSelect={v => setOfficialForm(f => ({ ...f, academic_qualification: v, academic_qualification_other: v === 'Other' ? f.academic_qualification_other ?? '' : '' }))} otherValue={officialForm.academic_qualification_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, academic_qualification_other: v }))} touched={touchedFields.academic_qualification_other ?? false} onBlur={() => setTouchedFields(prev => ({ ...prev, academic_qualification_other: true }))} />
+              <OptionPicker label="Academic Qualification" value={officialForm.academic_qualification ?? ''} options={ACADEMIC_QUALIFICATION_OPTIONS} placeholder="Select academic qualification" onSelect={v => { setOfficialForm(f => ({ ...f, academic_qualification: v, academic_qualification_other: v === 'Other' ? f.academic_qualification_other ?? '' : '' })); markOfficialFieldTouched('academic_qualification'); }} otherValue={officialForm.academic_qualification_other ?? ''} onOtherChange={v => { setOfficialForm(f => ({ ...f, academic_qualification_other: v })); markOfficialFieldTouched('academic_qualification_other'); }} touched={Boolean((touchedFields.academic_qualification ?? false) || (touchedFields.academic_qualification_other ?? false))} onBlur={() => markOfficialFieldTouched('academic_qualification')} />
 
-              <OptionPicker label="Professional Qualification" value={officialForm.professional_qualification ?? ''} options={PROFESSIONAL_QUALIFICATION_OPTIONS} placeholder="Select professional qualification" onSelect={v => setOfficialForm(f => ({ ...f, professional_qualification: v, professional_qualification_other: v === 'Other' ? f.professional_qualification_other ?? '' : '' }))} otherValue={officialForm.professional_qualification_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, professional_qualification_other: v }))} touched={touchedFields.professional_qualification_other ?? false} onBlur={() => setTouchedFields(prev => ({ ...prev, professional_qualification_other: true }))} />
+              <OptionPicker label="Professional Qualification" value={officialForm.professional_qualification ?? ''} options={PROFESSIONAL_QUALIFICATION_OPTIONS} placeholder="Select professional qualification" onSelect={v => { setOfficialForm(f => ({ ...f, professional_qualification: v, professional_qualification_other: v === 'Other' ? f.professional_qualification_other ?? '' : '' })); markOfficialFieldTouched('professional_qualification'); }} otherValue={officialForm.professional_qualification_other ?? ''} onOtherChange={v => { setOfficialForm(f => ({ ...f, professional_qualification_other: v })); markOfficialFieldTouched('professional_qualification_other'); }} touched={Boolean((touchedFields.professional_qualification ?? false) || (touchedFields.professional_qualification_other ?? false))} onBlur={() => markOfficialFieldTouched('professional_qualification')} />
 
               <Text style={styles.fieldLabel}>Bank</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.bank ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, bank: v }))} placeholder="Bank name" />
+              <TextInput
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.bank ?? '', undefined, touchedFields.bank ?? false, true).borderColor }]}
+                value={officialForm.bank ?? ''}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, bank: v })); markOfficialFieldTouched('bank'); }}
+                onBlur={() => markOfficialFieldTouched('bank')}
+                placeholder="Bank name"
+              />
 
               <Text style={styles.fieldLabel}>Bank Branch</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.bank_branch ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, bank_branch: v }))} placeholder="Branch" />
+              <TextInput
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.bank_branch ?? '', undefined, touchedFields.bank_branch ?? false, true).borderColor }]}
+                value={officialForm.bank_branch ?? ''}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, bank_branch: v })); markOfficialFieldTouched('bank_branch'); }}
+                onBlur={() => markOfficialFieldTouched('bank_branch')}
+                placeholder="Branch"
+              />
 
               <Text style={styles.fieldLabel}>Account Number</Text>
-              <TextInput style={styles.fieldInput} value={officialForm.account_number ?? ''} onChangeText={v => setOfficialForm(f => ({ ...f, account_number: v }))} placeholder="Account number" keyboardType="numeric" />
+              <TextInput
+                style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.account_number ?? '', undefined, touchedFields.account_number ?? false, true).borderColor }]}
+                value={officialForm.account_number ?? ''}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, account_number: v })); markOfficialFieldTouched('account_number'); }}
+                onBlur={() => markOfficialFieldTouched('account_number')}
+                placeholder="Account number"
+                keyboardType="numeric"
+              />
 
-              <OptionPicker label="Association" value={officialForm.association ?? ''} options={ASSOCIATION_OPTIONS} placeholder="Select association" onSelect={v => setOfficialForm(f => ({ ...f, association: v, association_other: v === 'Other' ? f.association_other ?? '' : '' }))} otherValue={officialForm.association_other ?? ''} onOtherChange={v => setOfficialForm(f => ({ ...f, association_other: v }))} touched={touchedFields.association_other ?? false} onBlur={() => setTouchedFields(prev => ({ ...prev, association_other: true }))} />
+              <OptionPicker label="Association" value={officialForm.association ?? ''} options={ASSOCIATION_OPTIONS} placeholder="Select association" onSelect={v => { setOfficialForm(f => ({ ...f, association: v, association_other: v === 'Other' ? f.association_other ?? '' : '' })); markOfficialFieldTouched('association'); }} otherValue={officialForm.association_other ?? ''} onOtherChange={v => { setOfficialForm(f => ({ ...f, association_other: v })); markOfficialFieldTouched('association_other'); }} touched={Boolean((touchedFields.association ?? false) || (touchedFields.association_other ?? false))} onBlur={() => markOfficialFieldTouched('association')} />
 
               <Text style={styles.fieldLabel}>Ghana Card Number</Text>
               <TextInput
                 style={[styles.fieldInput, { borderColor: getFieldAppearance(officialForm.ghana_card_number ?? '', (v) => /^GHA-\d{9}-\d$/.test(v) ? null : 'Format: GHA-000000000-0', touchedFields.ghana_card_number ?? false, true).borderColor }]}
                 value={officialForm.ghana_card_number ?? ''}
-                onChangeText={v => { setOfficialForm(f => ({ ...f, ghana_card_number: v })); setTouchedFields(prev => ({ ...prev, ghana_card_number: true })); }}
-                onBlur={() => setTouchedFields(prev => ({ ...prev, ghana_card_number: true }))}
+                onChangeText={v => { setOfficialForm(f => ({ ...f, ghana_card_number: v })); markOfficialFieldTouched('ghana_card_number'); }}
+                onBlur={() => markOfficialFieldTouched('ghana_card_number')}
                 placeholder="GHA-000000000-0"
               />
               {getFieldAppearance(officialForm.ghana_card_number ?? '', (v) => /^GHA-\d{9}-\d$/.test(v) ? null : 'Format: GHA-000000000-0', touchedFields.ghana_card_number ?? false, true).hint ? (
