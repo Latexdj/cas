@@ -438,12 +438,8 @@ router.post('/applications/manual', async (req, res, next) => {
 // ── Migration ─────────────────────────────────────────────────────────────────
 
 async function migrateOne(client, app, defaultClass, schoolId, admissionYear) {
-  const { rows: codeRows } = await client.query(
-    `SELECT COALESCE(MAX(CAST(SUBSTRING(student_code FROM 2) AS INTEGER)), 0) + 1 AS next_num
-     FROM students WHERE school_id = $1 AND student_code ~ '^S[0-9]+$'`,
-    [schoolId]
-  );
-  const studentCode = `S${String(codeRows[0].next_num).padStart(3,'0')}`;
+  if (!app.admission_number) throw new Error('Application has no admission_number — cannot migrate');
+  const studentCode = app.admission_number;
   const { rows } = await client.query(
     `INSERT INTO students (
        school_id, student_code, name, class_name, status, program_id,
