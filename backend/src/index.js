@@ -2693,6 +2693,21 @@ async function runMigrations() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_classes_level ON classes(level_id)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] class_levels:', e.message); }
 
+    // ── Year-scoped index_number on admission_applications ────────────────────
+    // Mirrors the admission_placement widening: a repeat CSSPS index number
+    // showing up in a later admission_year is legitimate (e.g. a BECE repeat),
+    // so uniqueness needs to be scoped per year, not global to the school.
+    try {
+    await pool.query(`ALTER TABLE admission_applications ALTER COLUMN admission_year SET DEFAULT 0`);
+    await pool.query(`UPDATE admission_applications SET admission_year = 0 WHERE admission_year IS NULL`);
+    await pool.query(`ALTER TABLE admission_applications ALTER COLUMN admission_year SET NOT NULL`);
+    await pool.query(`ALTER TABLE admission_applications DROP CONSTRAINT IF EXISTS admission_applications_school_id_index_number_key`);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_admission_applications_school_idx_yr
+        ON admission_applications(school_id, index_number, admission_year)
+    `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admission_applications year-scoped index_number:', e.message); }
+
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
     } else {

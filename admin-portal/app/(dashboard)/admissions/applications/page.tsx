@@ -31,6 +31,7 @@ interface DuplicateMatch {
   date_of_birth: string | null;
   ref_code: string | null;
   status: string;
+  is_prior_year_index_match?: boolean;
 }
 
 const STATUS_CFG: Record<string, { label: string; bg: string; color: string }> = {
@@ -576,7 +577,8 @@ export default function ApplicationsPage() {
           </p>
           <div className="space-y-2">
             {duplicateMatches?.map(m => (
-              <div key={`${m.source}-${m.id}`} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+              <div key={`${m.source}-${m.id}`}
+                className={`rounded-lg border px-3 py-2 text-sm ${m.is_prior_year_index_match ? 'border-slate-200 bg-slate-50' : 'border-amber-200 bg-amber-50'}`}>
                 <p className="font-semibold text-slate-800">{m.full_name}</p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {m.source === 'student' ? 'Existing student' : 'Existing application'}
@@ -584,6 +586,11 @@ export default function ApplicationsPage() {
                   {' · '}{m.ref_code ?? '—'}
                   {' · '}{m.status}
                 </p>
+                {m.is_prior_year_index_match && (
+                  <p className="text-xs text-slate-500 mt-1 italic">
+                    Same index number, but from a prior admission year — this may just be a legitimate repeat placement (e.g. a BECE repeat), not the same submission.
+                  </p>
+                )}
               </div>
             ))}
           </div>

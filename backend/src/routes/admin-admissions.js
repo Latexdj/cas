@@ -383,7 +383,16 @@ router.delete('/applications/:id', async (req, res, next) => {
 // child at the school. Each of the three is checked only when both sides have
 // a value for it; a blank on either side just skips that signal rather than
 // counting as a match.
-async function findPotentialDuplicates(schoolId, { fullName, dateOfBirth, ghanaCardNumber, indexNumber }) {
+//
+// The index_number signal is year-aware: a repeat CSSPS index number showing
+// up in a later admission_year is a legitimate, expected scenario (e.g. a BECE
+// repeat) and is a much weaker duplicate signal than the same index number
+// reappearing within the same cycle. currentAdmissionYear lets us tell the two
+// apart so the warning can say which situation it's looking at; a match from
+// admission_applications carries the year it actually belongs to (is_prior_year),
+// while a match against students (no year concept on that table) is reported
+// without a year distinction.
+async function findPotentialDuplicates(schoolId, { fullName, dateOfBirth, ghanaCardNumber, indexNumber, currentAdmissionYear }) {
   const name = fullName?.trim() || null;
   const dob  = dateOfBirth || null;
   const card = ghanaCardNumber?.trim() || null;
@@ -392,14 +401,16 @@ async function findPotentialDuplicates(schoolId, { fullName, dateOfBirth, ghanaC
   if (!((name && dob) || card || idx)) return [];
 
   const { rows } = await pool.query(
-    `SELECT 'application' AS source, id, full_name, date_of_birth, admission_number AS ref_code, status
+    `SELECT 'application' AS source, id, full_name, date_of_birth, admission_number AS ref_code, status,
+            (CASE WHEN $5::text IS NOT NULL AND index_number = $5 THEN admission_year ELSE NULL END) AS matched_index_year
        FROM admission_applications
       WHERE school_id = $1
         AND ( ($2::text IS NOT NULL AND $3::date IS NOT NULL AND LOWER(TRIM(full_name)) = LOWER($2) AND date_of_birth = $3)
            OR ($4::text IS NOT NULL AND ghana_card_number = $4)
            OR ($5::text IS NOT NULL AND index_number = $5) )
       UNION ALL
-     SELECT 'student' AS source, id, name AS full_name, date_of_birth, student_code AS ref_code, status
+     SELECT 'student' AS source, id, name AS full_name, date_of_birth, student_code AS ref_code, status,
+            NULL AS matched_index_year
        FROM students
       WHERE school_id = $1
         AND ( ($2::text IS NOT NULL AND $3::date IS NOT NULL AND LOWER(TRIM(name)) = LOWER($2) AND date_of_birth = $3)
@@ -407,7 +418,11 @@ async function findPotentialDuplicates(schoolId, { fullName, dateOfBirth, ghanaC
            OR ($5::text IS NOT NULL AND jhs_index_number = $5) )`,
     [schoolId, name, dob, card, idx]
   );
-  return rows;
+
+  return rows.map(r => ({
+    ...r,
+    is_prior_year_index_match: r.matched_index_year != null && r.matched_index_year !== currentAdmissionYear,
+  }));
 }
 
 // POST /api/admin/admissions/applications/manual — walk-in / direct admission
@@ -428,21 +443,25 @@ router.post('/applications/manual', async (req, res, next) => {
     if (!program_id)               return res.status(400).json({ error: 'Program is required.' });
     if (!direct_reason?.trim())    return res.status(400).json({ error: 'Reason for direct admission is required.' });
 
-    if (!confirm_duplicate) {
-      const matches = await findPotentialDuplicates(req.schoolId, {
-        fullName: full_name, dateOfBirth: date_of_birth, ghanaCardNumber: ghana_card_number, indexNumber: index_number,
-      });
-      if (matches.length) {
-        return res.status(409).json({ duplicate: true, matches });
-      }
-    }
-
     const idx = index_number?.trim().toUpperCase() || null;
 
     const { rows: settingsRows } = await pool.query(
       `SELECT admission_year FROM school_admission_settings WHERE school_id = $1`, [req.schoolId]
     );
-    const admissionYear = settingsRows[0]?.admission_year ?? null;
+    // admission_applications.admission_year is NOT NULL (defaults to 0) so
+    // that the year-scoped unique index actually enforces uniqueness for
+    // schools without admission settings configured yet — don't pass JS null.
+    const admissionYear = settingsRows[0]?.admission_year ?? 0;
+
+    if (!confirm_duplicate) {
+      const matches = await findPotentialDuplicates(req.schoolId, {
+        fullName: full_name, dateOfBirth: date_of_birth, ghanaCardNumber: ghana_card_number,
+        indexNumber: index_number, currentAdmissionYear: admissionYear,
+      });
+      if (matches.length) {
+        return res.status(409).json({ duplicate: true, matches });
+      }
+    }
 
     const client = await pool.connect();
     try {
@@ -478,8 +497,8 @@ router.post('/applications/manual', async (req, res, next) => {
       res.status(201).json(rows[0]);
     } catch (e) {
       await client.query('ROLLBACK');
-      if (e.code === '23505' && e.constraint === 'admission_applications_school_id_index_number_key') {
-        return res.status(409).json({ error: `Index number "${idx}" is already used by another application at this school.` });
+      if (e.code === '23505' && e.constraint === 'idx_admission_applications_school_idx_yr') {
+        return res.status(409).json({ error: `Index number "${idx}" is already used by another application in this admission year.` });
       }
       throw e;
     }
