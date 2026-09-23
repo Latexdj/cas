@@ -29,8 +29,17 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
+// Accepts whatever shape a date can arrive in here: a plain "YYYY-MM-DD"
+// string (from an explicit ::text cast in SQL), a raw JS Date object (a
+// DATE column read straight off a pg row, pre-JSON), or missing entirely.
+// Normalises to just the calendar date before parsing, rather than naively
+// concatenating 'T00:00:00' onto whatever was received.
 function fmtDate(d) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', {
+  if (!d) return '—';
+  const isoDatePart = d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
+  const parsed = new Date(isoDatePart + 'T00:00:00');
+  if (isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleDateString('en-GB', {
     day: 'numeric', month: 'long', year: 'numeric',
   });
 }

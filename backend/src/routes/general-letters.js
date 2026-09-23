@@ -111,7 +111,7 @@ router.get('/', adminOrManagement, async (req, res, next) => {
       `SELECT gl.id, gl.ref_number, gl.classification, gl.recipient_type,
               gl.ext_recipient_name, gl.ext_recipient_org,
               gl.internal_recipient_id, gl.internal_recipient_table,
-              gl.subject, gl.is_sensitive, gl.issued_date, gl.status,
+              gl.subject, gl.is_sensitive, gl.issued_date::text, gl.status,
               gl.requires_approval, gl.approved_by_name, gl.approved_at,
               gl.issued_by_name, gl.created_at
        FROM general_letters gl
@@ -186,7 +186,7 @@ router.post('/', adminOrManagement, async (req, res, next) => {
        ) VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
          $12, $13, $14, $15, $16, $17, $18, $19
-       ) RETURNING *`,
+       ) RETURNING *, issued_date::text`,
       [
         req.schoolId, issued_by_id, issued_by_name, signature_url,
         classification, recipient_type,
@@ -230,7 +230,7 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
            issued_by_signature_url = COALESCE(issued_by_signature_url, $3),
            status = $4, requires_approval = $5, updated_at = now()
        WHERE id = $6 AND school_id = $7
-       RETURNING *`,
+       RETURNING *, issued_date::text`,
       [body.trim(), ref_number, signature_url, new_status, requires_approval, req.params.id, req.schoolId]
     );
     res.json(rows[0]);
@@ -243,7 +243,7 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
 router.post('/:id/pdf', adminOrManagement, async (req, res, next) => {
   try {
     const { rows: lRows } = await pool.query(
-      `SELECT gl.*,
+      `SELECT gl.*, gl.issued_date::text,
               CASE WHEN gl.internal_recipient_table = 'students' THEN s.name
                    WHEN gl.internal_recipient_table = 'teachers' THEN t.name
                    ELSE NULL END AS internal_recipient_name,
@@ -300,7 +300,7 @@ router.post('/:id/pdf', adminOrManagement, async (req, res, next) => {
 router.get('/:id', adminOrManagement, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT gl.*,
+      `SELECT gl.*, gl.issued_date::text,
               CASE WHEN gl.internal_recipient_table = 'students' THEN s.name
                    WHEN gl.internal_recipient_table = 'teachers' THEN t.name
                    ELSE NULL END AS internal_recipient_name,
@@ -329,7 +329,7 @@ router.patch('/:id/approve', managementOnly, async (req, res, next) => {
       `UPDATE general_letters
        SET status = 'issued', approved_by_name = $1, approved_at = now(), updated_at = now()
        WHERE id = $2 AND school_id = $3 AND status = 'pending_approval'
-       RETURNING *`,
+       RETURNING *, issued_date::text`,
       [approver_name, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found or not pending approval' });

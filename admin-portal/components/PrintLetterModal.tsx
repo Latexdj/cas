@@ -5,7 +5,7 @@ interface PrintLetterModalProps {
   onClose: () => void;
   letter: {
     ref_number?: string;
-    issued_date: string;
+    issued_date?: string | null;
     subject: string;
     body: string;
     issued_by_name: string;
@@ -35,8 +35,17 @@ interface PrintLetterModalProps {
   recipientType: 'student' | 'teacher' | 'external';
 }
 
-function fmtDate(d: string) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', {
+// Accepts whatever shape a date can arrive in from the API: a plain
+// "YYYY-MM-DD" string, a full ISO datetime string (a DATE column that got
+// JSON-serialized as a Date), or missing entirely (e.g. an unfinished
+// draft). Normalises to just the calendar date before parsing, rather than
+// naively concatenating 'T00:00:00' onto whatever was received.
+function fmtDate(d?: string | null) {
+  if (!d) return '—';
+  const isoDatePart = String(d).slice(0, 10);
+  const parsed = new Date(isoDatePart + 'T00:00:00');
+  if (isNaN(parsed.getTime())) return '—';
+  return parsed.toLocaleDateString('en-GB', {
     day: 'numeric', month: 'long', year: 'numeric',
   });
 }

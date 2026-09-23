@@ -121,7 +121,7 @@ router.post('/queries', adminOnly, async (req, res, next) => {
           issued_date, response_deadline, academic_year_id, status,
           ref_number, issued_by_signature_url)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'issued',$12,$13)
-       RETURNING *`,
+       RETURNING *, issued_date::text, response_deadline::text`,
       [req.schoolId, teacher_id, req.user.id, req.user.name || 'Management',
        category, category_other?.trim() || null, subject.trim(), body.trim(),
        issued_date || new Date().toISOString().slice(0,10),
@@ -174,7 +174,7 @@ router.post('/queries/:id/acknowledge', async (req, res, next) => {
     const { rows } = await pool.query(
       `UPDATE teacher_queries SET status = 'acknowledged', updated_at = now()
        WHERE id = $1 AND school_id = $2 AND teacher_id = $3 AND status = 'issued'
-       RETURNING *`,
+       RETURNING *, issued_date::text, response_deadline::text`,
       [req.params.id, req.schoolId, req.user.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Query not found or already acknowledged' });
@@ -215,7 +215,7 @@ router.post('/queries/:id/respond', async (req, res, next) => {
            teacher_response_file_name = COALESCE($3, teacher_response_file_name),
            response_submitted_at = now(), updated_at = now()
        WHERE id = $4 AND school_id = $5 AND teacher_id = $6
-       RETURNING *`,
+       RETURNING *, issued_date::text, response_deadline::text`,
       [response_text?.trim() || null, fileUrl, fileName, req.params.id, req.schoolId, req.user.id]
     );
     res.json(rows[0]);
@@ -231,7 +231,7 @@ router.patch('/queries/:id/resolve', adminOnly, async (req, res, next) => {
        SET status = 'resolved', resolution_notes = $1,
            resolved_by_name = $2, resolved_at = now(), updated_at = now()
        WHERE id = $3 AND school_id = $4 AND status NOT IN ('resolved','escalated')
-       RETURNING *`,
+       RETURNING *, issued_date::text, response_deadline::text`,
       [resolution_notes?.trim() || null, req.user.name || 'Management', req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Query not found or already closed' });
@@ -248,7 +248,7 @@ router.patch('/queries/:id/escalate', adminOnly, async (req, res, next) => {
        SET status = 'escalated', resolution_notes = $1,
            resolved_by_name = $2, resolved_at = now(), updated_at = now()
        WHERE id = $3 AND school_id = $4 AND status NOT IN ('resolved','escalated')
-       RETURNING *`,
+       RETURNING *, issued_date::text, response_deadline::text`,
       [resolution_notes?.trim() || null, req.user.name || 'Management', req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Query not found or already closed' });
@@ -357,7 +357,7 @@ router.post('/letters', adminOnly, async (req, res, next) => {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
          RETURNING *
        )
-       SELECT ins.*, sch.name AS school_name
+       SELECT ins.*, ins.issued_date::text, sch.name AS school_name
        FROM ins JOIN schools sch ON sch.id = ins.school_id`,
       [req.schoolId, student_id, req.user.id, req.user.name || 'Management',
        letter_type, offense_category, offense_other?.trim() || null,
@@ -400,7 +400,7 @@ router.patch('/letters/:id/approve', managementOnly, async (req, res, next) => {
       `UPDATE student_disciplinary_letters
        SET status = 'issued', approved_by = $1, approved_at = now(), updated_at = now()
        WHERE id = $2 AND school_id = $3 AND status = 'pending_approval'
-       RETURNING *`,
+       RETURNING *, issued_date::text`,
       [req.user.id, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found or not pending approval' });
@@ -451,7 +451,7 @@ router.patch('/letters/:id/acknowledge', adminOnly, async (req, res, next) => {
        SET status = 'acknowledged', acknowledged_at = now(),
            acknowledged_by = $1, updated_at = now()
        WHERE id = $2 AND school_id = $3 AND status = 'issued'
-       RETURNING *`,
+       RETURNING *, issued_date::text`,
       [acknowledged_by || 'admin', req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found or already acknowledged' });
@@ -468,7 +468,7 @@ router.patch('/letters/:id/resolve', adminOnly, async (req, res, next) => {
        SET status = 'resolved', resolution_notes = $1,
            resolved_by_name = $2, resolved_at = now(), updated_at = now()
        WHERE id = $3 AND school_id = $4 AND status != 'resolved'
-       RETURNING *`,
+       RETURNING *, issued_date::text`,
       [resolution_notes?.trim() || null, req.user.name || 'Management', req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found or already resolved' });
@@ -481,7 +481,7 @@ router.patch('/letters/:id/resolve', adminOnly, async (req, res, next) => {
 router.post('/letters/:id/pdf', adminOnly, async (req, res, next) => {
   try {
     const { rows: lRows } = await pool.query(
-      `SELECT sdl.*, s.name AS student_name, s.student_code, s.class_name
+      `SELECT sdl.*, sdl.issued_date::text, s.name AS student_name, s.student_code, s.class_name
        FROM student_disciplinary_letters sdl
        JOIN students s ON s.id = sdl.student_id
        WHERE sdl.id = $1 AND sdl.school_id = $2`,
@@ -519,7 +519,7 @@ router.post('/letters/:id/pdf', adminOnly, async (req, res, next) => {
 router.post('/queries/:id/pdf', adminOnly, async (req, res, next) => {
   try {
     const { rows: qRows } = await pool.query(
-      `SELECT tq.*, t.name AS teacher_name, t.department
+      `SELECT tq.*, tq.issued_date::text, tq.response_deadline::text, t.name AS teacher_name, t.department
        FROM teacher_queries tq
        JOIN teachers t ON t.id = tq.teacher_id
        WHERE tq.id = $1 AND tq.school_id = $2`,
