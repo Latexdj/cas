@@ -29,6 +29,13 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
+// Frontend/backend can't share one module here (separate npm packages,
+// separate runtimes, no monorepo tooling) -- admin-portal/components/
+// PrintLetterModal.tsx has the client-side twin of this exact function, used
+// for the browser print preview of the same letter data. If you fix a
+// date-formatting bug here, fix it there too (that side never receives a raw
+// Date object -- JSON has no Date type -- so it skips the instanceof branch).
+//
 // Accepts whatever shape a date can arrive in here: a plain "YYYY-MM-DD"
 // string (from an explicit ::text cast in SQL), a raw JS Date object (a
 // DATE column read straight off a pg row, pre-JSON), or missing entirely.

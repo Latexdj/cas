@@ -35,6 +35,13 @@ interface PrintLetterModalProps {
   recipientType: 'student' | 'teacher' | 'external';
 }
 
+// Frontend/backend can't share one module here (separate npm packages,
+// separate runtimes, no monorepo tooling) -- backend/src/services/pdf.service.js
+// has the server-side twin of this exact function, used for the PDFs generated
+// from the same letter data. If you fix a date-formatting bug here, fix it
+// there too (it has one extra branch for raw pg Date objects, which this
+// side never receives since JSON has no Date type).
+//
 // Accepts whatever shape a date can arrive in from the API: a plain
 // "YYYY-MM-DD" string, a full ISO datetime string (a DATE column that got
 // JSON-serialized as a Date), or missing entirely (e.g. an unfinished
