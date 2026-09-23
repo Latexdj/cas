@@ -1,6 +1,7 @@
 ﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { fmtDateDefault, parseApiDate } from '@/lib/dates';
 import type { SchoolCalendarEntry } from '@/types/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -19,8 +20,13 @@ interface Period {
 function periodDays(start: string, end: string) {
   return Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1;
 }
-function fmt(d: string) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('default', { day: '2-digit', month: 'short', year: 'numeric' });
+// Identical format spec to fmtDateDefault in lib/dates.ts -- reuse it directly.
+const fmt = fmtDateDefault;
+// Compact table-row display (weekday, no year) -- a genuine format
+// difference from fmt, but shares the same safe parsing.
+function fmtCompact(d: string) {
+  const parsed = parseApiDate(d);
+  return parsed ? parsed.toLocaleDateString('default', { weekday: 'short', day: '2-digit', month: 'short' }) : '—';
 }
 
 const TYPE_STYLES: Record<string, { bg: string; color: string; dot: string }> = {
@@ -301,7 +307,7 @@ function EventsTab({ entries, year, onRefresh }: { entries: SchoolCalendarEntry[
                         <>
                           <tr key={e.id} className={`transition-colors ${editingId === e.id ? 'bg-amber-50 dark:bg-amber-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-700/30'}`}>
                             <td className="px-4 py-3 font-mono text-xs w-28 text-slate-500">
-                              {new Date(e.date + 'T00:00:00').toLocaleDateString('default', { weekday: 'short', day: '2-digit', month: 'short' })}
+                              {fmtCompact(e.date)}
                             </td>
                             <td className="px-4 py-3 font-semibold text-slate-800 dark:text-white">{e.name}</td>
                             <td className="px-4 py-3"><Badge type={e.type} /></td>
