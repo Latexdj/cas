@@ -2675,6 +2675,22 @@ async function runMigrations() {
     `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admission_applications year scope:', e.message); }
 
+    // ── Class levels (secondary schools: Form/Year grouping above classes) ────
+    try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS class_levels (
+        id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id  UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        name       TEXT        NOT NULL,
+        sort_order INT         NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (school_id, name)
+      )
+    `);
+    await pool.query(`ALTER TABLE classes ADD COLUMN IF NOT EXISTS level_id UUID REFERENCES class_levels(id) ON DELETE SET NULL`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_classes_level ON classes(level_id)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] class_levels:', e.message); }
+
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
     } else {
