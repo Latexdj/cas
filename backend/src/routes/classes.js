@@ -7,7 +7,7 @@ router.use(authenticate, requireActiveSubscription);
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, name FROM classes WHERE school_id = $1 ORDER BY name`,
+      `SELECT id, name, level_id FROM classes WHERE school_id = $1 ORDER BY name`,
       [req.schoolId]
     );
     res.json(rows);
@@ -32,10 +32,27 @@ router.post('/', adminOnly, async (req, res, next) => {
 router.put('/:id', adminOnly, async (req, res, next) => {
   try {
     const { name } = req.body;
+    const hasLevel = Object.prototype.hasOwnProperty.call(req.body, 'level_id');
+    const levelId  = req.body.level_id || null;
+
+    if (hasLevel && levelId) {
+      const { rows: lvl } = await pool.query(
+        `SELECT id FROM class_levels WHERE id = $1 AND school_id = $2`,
+        [levelId, req.schoolId]
+      );
+      if (!lvl.length) return res.status(400).json({ error: 'Level not found' });
+    }
+
+    const sets   = ['name = COALESCE($1, name)'];
+    const params = [name?.trim() || null];
+    if (hasLevel) { params.push(levelId); sets.push(`level_id = $${params.length}`); }
+    params.push(req.params.id, req.schoolId);
+
     const { rows } = await pool.query(
-      `UPDATE classes SET name = COALESCE($1, name)
-       WHERE id = $2 AND school_id = $3 RETURNING id, name`,
-      [name?.trim() || null, req.params.id, req.schoolId]
+      `UPDATE classes SET ${sets.join(', ')}
+       WHERE id = $${params.length - 1} AND school_id = $${params.length}
+       RETURNING id, name, level_id`,
+      params
     );
     if (!rows.length) return res.status(404).json({ error: 'Class not found' });
     res.json(rows[0]);

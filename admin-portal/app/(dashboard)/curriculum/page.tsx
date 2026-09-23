@@ -6,18 +6,19 @@ import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import type { Subject, ClassItem, Program, House, AssessmentMode } from '@/types/api';
+import type { Subject, ClassItem, ClassLevel, Program, House, AssessmentMode } from '@/types/api';
 
 /* ── Tab bar ── */
-type Tab = 'subjects' | 'classes' | 'programs' | 'houses' | 'assessment-modes' | 'allocations';
+type Tab = 'subjects' | 'classes' | 'levels' | 'programs' | 'houses' | 'assessment-modes' | 'allocations';
 
-function TabBar({ active, onSelect, subjectCount, classCount, programCount, houseCount, modeCount, gapCount }: {
+function TabBar({ active, onSelect, subjectCount, classCount, levelCount, programCount, houseCount, modeCount, gapCount }: {
   active: Tab; onSelect: (t: Tab) => void;
-  subjectCount: number; classCount: number; programCount: number; houseCount: number; modeCount: number; gapCount: number;
+  subjectCount: number; classCount: number; levelCount: number; programCount: number; houseCount: number; modeCount: number; gapCount: number;
 }) {
   const tabs: { id: Tab; label: string; count: number; alert?: boolean }[] = [
     { id: 'subjects',          label: 'Subjects',     count: subjectCount },
     { id: 'classes',           label: 'Classes',      count: classCount   },
+    { id: 'levels',            label: 'Levels',       count: levelCount   },
     { id: 'programs',          label: 'Programs',     count: programCount },
     { id: 'houses',            label: 'Houses',       count: houseCount   },
     { id: 'assessment-modes',  label: 'CA Modes',     count: modeCount    },
@@ -346,6 +347,218 @@ function ClassesTab() {
           <div>
             <label className="text-xs font-semibold font-medium text-slate-500">Class Name *</label>
             <input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Form 1" maxLength={20} />
+          </div>
+          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
+            <Button onClick={save} loading={saving}>Save</Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/* ── Levels tab ── */
+function LevelsTab() {
+  const [levels,    setLevels]    = useState<ClassLevel[]>([]);
+  const [classes,   setClasses]   = useState<ClassItem[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [detecting, setDetecting] = useState(false);
+  const [modal,     setModal]     = useState<'create' | 'edit' | null>(null);
+  const [name,      setName]      = useState('');
+  const [sortOrder, setSortOrder] = useState('0');
+  const [editId,    setEditId]    = useState<string | null>(null);
+  const [saving,    setSaving]    = useState(false);
+  const [error,     setError]     = useState('');
+  const [reassignError, setReassignError] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      const [lvlRes, clsRes] = await Promise.all([
+        api.get<ClassLevel[]>('/api/class-levels'),
+        api.get<ClassItem[]>('/api/classes'),
+      ]);
+      setLevels(lvlRes.data);
+      setClasses(clsRes.data);
+    } finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  function openCreate() { setName(''); setSortOrder(String(levels.length)); setError(''); setEditId(null); setModal('create'); }
+  function openEdit(l: ClassLevel) { setName(l.name); setSortOrder(String(l.sort_order)); setEditId(l.id); setError(''); setModal('edit'); }
+
+  async function save() {
+    if (!name.trim()) { setError('Level name is required.'); return; }
+    setSaving(true); setError('');
+    try {
+      const body = { name: name.trim(), sort_order: parseInt(sortOrder) || 0 };
+      if (modal === 'create') await api.post('/api/class-levels', body);
+      else                    await api.put(`/api/class-levels/${editId}`, body);
+      setModal(null); await load();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Failed to save.');
+    } finally { setSaving(false); }
+  }
+
+  async function del(l: ClassLevel) {
+    if (!confirm(`Delete level "${l.name}"? Its ${l.class_count} class(es) will become unassigned, not deleted.`)) return;
+    try { await api.delete(`/api/class-levels/${l.id}`); await load(); }
+    catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(msg ?? 'Failed to delete.');
+    }
+  }
+
+  async function runAutoDetect() {
+    setDetecting(true);
+    try {
+      const { data } = await api.post<{ levels_created: number; classes_assigned: number }>('/api/class-levels/auto-detect');
+      await load();
+      alert(`Detected ${data.levels_created} level(s), assigned ${data.classes_assigned} class(es). Review the assignments below and correct anything that's wrong.`);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(msg ?? 'Auto-detect failed.');
+    } finally { setDetecting(false); }
+  }
+
+  async function reassign(classId: string, levelId: string) {
+    setReassignError('');
+    try {
+      await api.put(`/api/classes/${classId}`, { level_id: levelId || null });
+      await load();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setReassignError(msg ?? 'Failed to reassign class.');
+    }
+  }
+
+  const levelName = (id: string | null | undefined) => levels.find(l => l.id === id)?.name ?? null;
+  const unassignedCount = classes.filter(c => !c.level_id).length;
+
+  if (loading) {
+    return <div className="flex justify-center h-32 items-center">
+      <div className="w-6 h-6 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+    </div>;
+  }
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h2 className="font-semibold" style={{ color: '#1C1208' }}>Levels</h2>
+            <p className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>
+              Group classes into Form/Year levels so promotion can run for a whole level at once, instead of class-by-class.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={runAutoDetect} loading={detecting}>Auto-detect from names</Button>
+            <Button onClick={openCreate}>+ Add Level</Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+        <div className="overflow-x-auto">
+          <table className="min-w-[420px] w-full text-sm">
+            <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
+              <tr>
+                {['Level', 'Sort Order', 'Classes', ''].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {levels.map((l, i) => (
+                <tr key={l.id} className="hover:bg-slate-50 transition-colors"
+                  style={{ borderBottom: i < levels.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
+                  <td className="px-4 py-3 font-medium" style={{ color: '#1C1208' }}>{l.name}</td>
+                  <td className="px-4 py-3" style={{ color: '#64748B' }}>{l.sort_order}</td>
+                  <td className="px-4 py-3" style={{ color: '#64748B' }}>{l.class_count}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(l)}>Edit</Button>
+                      <Button variant="danger" size="sm" onClick={() => del(l)}>Del</Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {levels.length === 0 && (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: '#94A3B8' }}>
+                  No levels yet. Click "Auto-detect from names" to group existing classes by their leading digit (e.g. 2A, 2B → level "2"), or add levels manually.
+                </td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+          <h3 className="text-sm font-semibold" style={{ color: '#1C1208' }}>Class → Level Assignment</h3>
+          {unassignedCount > 0 && (
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: '#FEF3C7', color: '#92400E' }}>
+              {unassignedCount} unassigned
+            </span>
+          )}
+        </div>
+        <p className="text-xs mb-2" style={{ color: '#94A3B8' }}>
+          Review every class below. Nothing is guessed silently — correct any class that's in the wrong level, or assign the ones still marked "Unassigned".
+        </p>
+        {reassignError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-2">{reassignError}</p>}
+        <div className="bg-white rounded-xl overflow-hidden" style={{ border: '1px solid #F1F5F9', boxShadow: '0 1px 4px rgba(15,23,42,0.06)' }}>
+          <div className="overflow-x-auto max-h-96 overflow-y-auto">
+            <table className="min-w-[380px] w-full text-sm">
+              <thead style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
+                <tr>
+                  {['Class', 'Level'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {classes.map((c, i) => (
+                  <tr key={c.id} className="hover:bg-slate-50 transition-colors"
+                    style={{ borderBottom: i < classes.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
+                    <td className="px-4 py-3 font-medium" style={{ color: '#1C1208' }}>{c.name}</td>
+                    <td className="px-4 py-3">
+                      <select
+                        className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-600"
+                        value={c.level_id ?? ''}
+                        onChange={e => reassign(c.id, e.target.value)}
+                        style={!c.level_id ? { color: '#92400E', borderColor: '#FCD34D', backgroundColor: '#FFFBEB' } : undefined}
+                      >
+                        <option value="">Unassigned</option>
+                        {levels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                      </select>
+                      {c.level_id && !levelName(c.level_id) && (
+                        <span className="text-xs text-red-600 ml-2">unknown level</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {classes.length === 0 && (
+                  <tr><td colSpan={2} className="px-4 py-8 text-center text-sm" style={{ color: '#94A3B8' }}>No classes yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <Modal open={modal !== null} onClose={() => setModal(null)}
+        title={modal === 'create' ? 'Add Level' : 'Edit Level'} maxWidth="max-w-xs">
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-semibold font-medium text-slate-500">Level Name *</label>
+            <input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Form 1 or 1" maxLength={30} />
+          </div>
+          <div>
+            <label className="text-xs font-semibold font-medium text-slate-500">Sort Order</label>
+            <input type="number" className={inputCls} value={sortOrder} onChange={e => setSortOrder(e.target.value)} />
+            <p className="text-xs mt-1" style={{ color: '#94A3B8' }}>Lower numbers promote into higher numbers (e.g. Form 1 = 1, Form 2 = 2).</p>
           </div>
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
           <div className="flex justify-end gap-2 pt-2">
@@ -1043,6 +1256,7 @@ export default function CurriculumPage() {
   const [tab,          setTab]          = useState<Tab>(initialTab);
   const [subjectCount, setSubjectCount] = useState(0);
   const [classCount,   setClassCount]   = useState(0);
+  const [levelCount,   setLevelCount]   = useState(0);
   const [programCount, setProgramCount] = useState(0);
   const [houseCount,   setHouseCount]   = useState(0);
   const [modeCount,    setModeCount]    = useState(0);
@@ -1052,12 +1266,14 @@ export default function CurriculumPage() {
     Promise.allSettled([
       api.get<Subject[]>('/api/subjects'),
       api.get<ClassItem[]>('/api/classes'),
+      api.get<ClassLevel[]>('/api/class-levels'),
       api.get<Program[]>('/api/programs'),
       api.get<House[]>('/api/houses'),
       api.get<AssessmentMode[]>('/api/assessment-modes'),
-    ]).then(([s, c, p, h, m]) => {
+    ]).then(([s, c, lv, p, h, m]) => {
       if (s.status === 'fulfilled') setSubjectCount(s.value.data.length);
       if (c.status === 'fulfilled') setClassCount(c.value.data.length);
+      if (lv.status === 'fulfilled') setLevelCount(lv.value.data.length);
       if (p.status === 'fulfilled') setProgramCount(p.value.data.length);
       if (h.status === 'fulfilled') setHouseCount(h.value.data.length);
       if (m.status === 'fulfilled') setModeCount(m.value.data.length);
@@ -1072,11 +1288,12 @@ export default function CurriculumPage() {
       </div>
 
       <TabBar active={tab} onSelect={setTab}
-        subjectCount={subjectCount} classCount={classCount}
+        subjectCount={subjectCount} classCount={classCount} levelCount={levelCount}
         programCount={programCount} houseCount={houseCount} modeCount={modeCount} gapCount={gapCount} />
 
       {tab === 'subjects'          && <SubjectsTab         />}
       {tab === 'classes'           && <ClassesTab          />}
+      {tab === 'levels'            && <LevelsTab           />}
       {tab === 'programs'          && <ProgramsTab         />}
       {tab === 'houses'            && <HousesTab           />}
       {tab === 'assessment-modes'  && <AssessmentModesTab  />}

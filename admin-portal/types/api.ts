@@ -23,6 +23,14 @@ export interface TeacherProfile extends Teacher {
   academic_qualification: string | null;
   professional_qualification: string | null;
   additional_responsibility: string | null;
+  area_of_specialization: string | null;
+  date_of_first_appointment: string | null;
+  date_promoted_to_current_rank: string | null;
+  year_posted_to_present_station: number | string | null;
+  currently_teaching_subject_ids?: string[];
+  currently_teaching_subjects?: { id: string; name: string; code?: string | null }[];
+  date_obtained_academic_qualification: string | null;
+  date_obtained_professional_qualification: string | null;
   bank: string | null;
   bank_branch: string | null;
   account_number: string | null;
@@ -76,6 +84,14 @@ export interface Subject {
 export interface ClassItem {
   id: string;
   name: string;
+  level_id?: string | null;
+}
+
+export interface ClassLevel {
+  id: string;
+  name: string;
+  sort_order: number;
+  class_count: number;
 }
 
 export interface Program {
