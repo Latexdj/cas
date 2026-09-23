@@ -23,6 +23,7 @@ interface Stats {
   total_placed: number; total_registered: number; direct: number;
 }
 interface Program { id: string; name: string; }
+interface ClassItem { id: string; name: string; }
 
 const STATUS_CFG: Record<string, { label: string; bg: string; color: string }> = {
   pending:   { label: 'Pending',   bg: '#F1F5F9', color: '#64748B' },
@@ -58,13 +59,14 @@ export default function ApplicationsPage() {
   const [total,      setTotal]      = useState(0);
   const [stats,      setStats]      = useState<Stats | null>(null);
   const [programs,   setPrograms]   = useState<Program[]>([]);
+  const [classes,    setClasses]    = useState<ClassItem[]>([]);
   const [page,       setPage]       = useState(1);
   const [search,     setSearch]     = useState('');
   const [statusF,    setStatusF]    = useState('');
   const [loading,    setLoading]    = useState(true);
   const [selected,   setSelected]   = useState<Application | null>(null);
   const [migModal,   setMigModal]   = useState(false);
-  const [defClass,   setDefClass]   = useState('1');
+  const [defClass,   setDefClass]   = useState('');
   const [migrating,  setMigrating]  = useState(false);
   const [migResult,  setMigResult]  = useState<{ migrated: number; skipped: number; errors: { name: string; error: string }[] } | null>(null);
 
@@ -94,6 +96,7 @@ export default function ApplicationsPage() {
 
   useEffect(() => {
     api.get('/api/programs').then(({ data }) => setPrograms(data)).catch(() => {});
+    api.get('/api/classes').then(({ data }) => setClasses(data)).catch(() => {});
   }, []);
 
   async function markReported(id: string) {
@@ -362,9 +365,11 @@ export default function ApplicationsPage() {
           )}
           <div>
             <label className="text-xs font-semibold font-medium text-slate-500">Default Class Assignment</label>
-            <input value={defClass} onChange={e => setDefClass(e.target.value)}
-              placeholder="e.g. 1A or 1"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600" />
+            <select value={defClass} onChange={e => setDefClass(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600">
+              <option value="">Select class…</option>
+              {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+            </select>
             <p className="mt-1 text-xs text-slate-400">Students can be moved to specific classes in the Student roster afterwards.</p>
           </div>
           {migResult && (
@@ -376,7 +381,7 @@ export default function ApplicationsPage() {
           )}
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" onClick={() => { setMigModal(false); setMigResult(null); }}>Close</Button>
-            <Button onClick={selected?.status === 'reported' ? () => migrateSingle(selected.id) : migrateBulk} loading={migrating}>
+            <Button onClick={selected?.status === 'reported' ? () => migrateSingle(selected.id) : migrateBulk} loading={migrating} disabled={!defClass}>
               {selected?.status === 'reported' ? 'Migrate Student' : 'Migrate All Reported'}
             </Button>
           </div>
