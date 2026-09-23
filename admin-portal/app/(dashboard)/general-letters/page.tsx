@@ -20,6 +20,7 @@ const C = {
 type Letter = {
   id: string; ref_number: string; classification: string;
   recipient_type: string; ext_recipient_name: string | null;
+  ext_recipient_title: string | null;
   ext_recipient_org: string | null; ext_recipient_address: string | null;
   internal_recipient_id: string | null;
   internal_recipient_table: string | null;
@@ -28,6 +29,9 @@ type Letter = {
   student_code?: string | null; class_name?: string | null;
   department?: string | null;
   issued_by_signature_url?: string | null;
+  issued_by_title: string | null;
+  through_office: string | null;
+  cc: string | null;
   subject: string;
   is_sensitive: boolean; issued_date: string; status: string;
   requires_approval: boolean; approved_by_name: string | null;
@@ -42,14 +46,18 @@ type Student = { id: string; student_code: string; name: string; class_name: str
 type FormState = {
   classification: string; recipient_type: string;
   internal_recipient_id: string; internal_recipient_table: string;
-  ext_recipient_name: string; ext_recipient_org: string; ext_recipient_address: string;
+  ext_recipient_name: string; ext_recipient_title: string;
+  ext_recipient_org: string; ext_recipient_address: string;
+  issued_by_title: string; through_office: string; cc: string;
   subject: string; body: string; is_sensitive: boolean; issued_date: string;
 };
 
 const EMPTY_FORM: FormState = {
   classification: '', recipient_type: '',
   internal_recipient_id: '', internal_recipient_table: '',
-  ext_recipient_name: '', ext_recipient_org: '', ext_recipient_address: '',
+  ext_recipient_name: '', ext_recipient_title: '',
+  ext_recipient_org: '', ext_recipient_address: '',
+  issued_by_title: '', through_office: '', cc: '',
   subject: '', body: '', is_sensitive: false,
   issued_date: new Date().toISOString().slice(0, 10),
 };
@@ -387,7 +395,9 @@ export default function GeneralLettersPage() {
     if (!form.recipient_type) { setSaveErr('Select a recipient type before drafting with AI.'); return; }
     if (!form.subject.trim()) { setSaveErr('Enter a subject before drafting with AI.'); return; }
     const isExternal = form.recipient_type === 'external' || form.recipient_type === 'parent';
-    if (isExternal && !form.ext_recipient_name.trim()) { setSaveErr('Enter recipient name before drafting with AI.'); return; }
+    if (isExternal && !form.ext_recipient_name.trim() && !form.ext_recipient_title.trim()) {
+      setSaveErr('Enter a recipient name or title/office before drafting with AI.'); return;
+    }
     if (!isExternal && !form.internal_recipient_id)    { setSaveErr('Select a recipient before drafting with AI.'); return; }
 
     setStartingChat(true); setSaveErr(''); setChatError('');
@@ -400,8 +410,12 @@ export default function GeneralLettersPage() {
         internal_recipient_id:    form.internal_recipient_id || undefined,
         internal_recipient_table: form.internal_recipient_table || undefined,
         ext_recipient_name:       form.ext_recipient_name || undefined,
+        ext_recipient_title:      form.ext_recipient_title || undefined,
         ext_recipient_org:        form.ext_recipient_org || undefined,
         ext_recipient_address:    form.ext_recipient_address || undefined,
+        issued_by_title:          form.issued_by_title || undefined,
+        through_office:           form.through_office || undefined,
+        cc:                       form.cc || undefined,
         subject:                  form.subject,
         body:                     '',
         is_sensitive:             form.is_sensitive,
@@ -420,6 +434,7 @@ export default function GeneralLettersPage() {
       };
       if (selectedRecipientName)      metadata.internal_recipient_name = selectedRecipientName;
       if (form.ext_recipient_name)    metadata.ext_recipient_name      = form.ext_recipient_name;
+      if (form.ext_recipient_title)   metadata.ext_recipient_title     = form.ext_recipient_title;
       if (form.ext_recipient_org)     metadata.ext_recipient_org       = form.ext_recipient_org;
 
       const chatRes = await api.post<{ session_id: string; opening_message: string; grounding_clauses?: GroundingClause[] }>('/api/letter-chat/start', {
@@ -502,8 +517,8 @@ export default function GeneralLettersPage() {
     if (!effectiveBody.trim()) { setSaveErr('Body is required.'); return; }
 
     const isExternal = form.recipient_type === 'external' || form.recipient_type === 'parent';
-    if (isExternal && !form.ext_recipient_name.trim()) {
-      setSaveErr('Recipient name is required.'); return;
+    if (isExternal && !form.ext_recipient_name.trim() && !form.ext_recipient_title.trim()) {
+      setSaveErr('Enter a recipient name or title/office.'); return;
     }
     if (!isExternal && !form.internal_recipient_id) {
       setSaveErr('Select a recipient.'); return;
@@ -521,8 +536,12 @@ export default function GeneralLettersPage() {
           internal_recipient_id:    form.internal_recipient_id || undefined,
           internal_recipient_table: form.internal_recipient_table || undefined,
           ext_recipient_name:       form.ext_recipient_name || undefined,
+          ext_recipient_title:      form.ext_recipient_title || undefined,
           ext_recipient_org:        form.ext_recipient_org || undefined,
           ext_recipient_address:    form.ext_recipient_address || undefined,
+          issued_by_title:          form.issued_by_title || undefined,
+          through_office:           form.through_office || undefined,
+          cc:                       form.cc || undefined,
           subject:                  form.subject,
           body:                     effectiveBody,
           is_sensitive:             form.is_sensitive,
@@ -686,7 +705,7 @@ export default function GeneralLettersPage() {
                   </td>
                   <td style={{ padding: '10px 14px', color: C.mid2, maxWidth: 160 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span>{l.ext_recipient_name ?? recipientLabel(l.recipient_type)}</span>
+                      <span>{l.ext_recipient_name ?? l.ext_recipient_title ?? recipientLabel(l.recipient_type)}</span>
                       {l.ext_recipient_org && (
                         <span style={{ fontSize: 11, color: C.muted }}>{l.ext_recipient_org}</span>
                       )}
@@ -888,15 +907,32 @@ export default function GeneralLettersPage() {
             {/* Recipient picker — external/parent */}
             {(form.recipient_type === 'external' || form.recipient_type === 'parent') && (
               <>
-                <Field label="Recipient Name" required>
+                <Field label="Recipient Name">
                   <input
                     type="text"
                     value={form.ext_recipient_name}
                     onChange={e => setField('ext_recipient_name', e.target.value)}
-                    placeholder="Full name"
+                    placeholder="Full name (leave blank if addressing a title/office only)"
                     style={inputStyle}
                   />
                 </Field>
+
+                {form.recipient_type === 'external' && (
+                  <Field label="Recipient Title / Office">
+                    <input
+                      type="text"
+                      value={form.ext_recipient_title}
+                      onChange={e => setField('ext_recipient_title', e.target.value)}
+                      placeholder="e.g. THE PTA CHAIRMAN"
+                      style={inputStyle}
+                    />
+                  </Field>
+                )}
+                <p style={{ fontSize: 11, color: C.muted, margin: '-8px 0 16px' }}>
+                  Provide a name, a title/office, or both. The salutation ("Dear …,") only appears when a name is given —
+                  a title-only recipient (e.g. &quot;THE PTA CHAIRMAN&quot;) prints with no salutation line, matching formal
+                  addressed-by-office correspondence.
+                </p>
 
                 {form.recipient_type === 'external' && (
                   <>
@@ -1073,6 +1109,36 @@ export default function GeneralLettersPage() {
               />
             </Field>
 
+            <Field label="Your Title / Role (shown under your name in the signature)">
+              <input
+                type="text"
+                value={form.issued_by_title}
+                onChange={e => setField('issued_by_title', e.target.value)}
+                placeholder="e.g. Assistant Headmaster (Academics)"
+                style={inputStyle}
+              />
+            </Field>
+
+            <Field label="Through (optional — routes the letter through another office before the addressee)">
+              <textarea
+                value={form.through_office}
+                onChange={e => setField('through_office', e.target.value)}
+                placeholder={'e.g. THE HEADMASTER\nST. AUGUSTINE’S SHTS\nSAAN.'}
+                rows={3}
+                style={{ ...inputStyle, resize: 'none' }}
+              />
+            </Field>
+
+            <Field label="Copy to / cc (optional)">
+              <textarea
+                value={form.cc}
+                onChange={e => setField('cc', e.target.value)}
+                placeholder="e.g. The District Director of Education"
+                rows={2}
+                style={{ ...inputStyle, resize: 'none' }}
+              />
+            </Field>
+
             {saveErr && (
               <div style={{
                 padding: '10px 14px', borderRadius: 7, marginBottom: 16,
@@ -1147,11 +1213,29 @@ export default function GeneralLettersPage() {
             </div>
 
             {/* Recipient */}
-            {(viewLetter.ext_recipient_name || viewLetter.ext_recipient_org) && (
+            {(viewLetter.ext_recipient_name || viewLetter.ext_recipient_title || viewLetter.ext_recipient_org) && (
               <div style={{ marginBottom: 16, padding: '12px 14px', background: C.bg, borderRadius: 8 }}>
                 <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Recipient</p>
                 {viewLetter.ext_recipient_name && <p style={{ margin: 0, fontWeight: 600, color: C.dark }}>{viewLetter.ext_recipient_name}</p>}
+                {viewLetter.ext_recipient_title && <p style={{ margin: '2px 0 0', fontWeight: 600, color: C.dark }}>{viewLetter.ext_recipient_title}</p>}
                 {viewLetter.ext_recipient_org && <p style={{ margin: '2px 0 0', color: C.muted, fontSize: 13 }}>{viewLetter.ext_recipient_org}</p>}
+              </div>
+            )}
+
+            {(viewLetter.through_office || viewLetter.cc) && (
+              <div style={{ marginBottom: 16, padding: '12px 14px', background: C.bg, borderRadius: 8 }}>
+                {viewLetter.through_office && (
+                  <>
+                    <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Through</p>
+                    <p style={{ margin: '0 0 10px', color: C.dark, whiteSpace: 'pre-line' }}>{viewLetter.through_office}</p>
+                  </>
+                )}
+                {viewLetter.cc && (
+                  <>
+                    <p style={{ margin: '0 0 4px', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>cc</p>
+                    <p style={{ margin: 0, color: C.dark, whiteSpace: 'pre-line' }}>{viewLetter.cc}</p>
+                  </>
+                )}
               </div>
             )}
 
@@ -1291,6 +1375,7 @@ export default function GeneralLettersPage() {
           open={true}
           onClose={() => setShowPrint(false)}
           recipientType={printRecipientType(viewLetter)}
+          letterKind="general"
           school={school}
           letter={{
             ref_number:              viewLetter.ref_number,
@@ -1299,8 +1384,12 @@ export default function GeneralLettersPage() {
             body:                    viewLetter.body ?? '',
             issued_by_name:          viewLetter.issued_by_name,
             issued_by_signature_url: viewLetter.issued_by_signature_url ?? undefined,
+            issued_by_title:         viewLetter.issued_by_title ?? undefined,
+            through_office:          viewLetter.through_office  ?? undefined,
+            cc:                      viewLetter.cc              ?? undefined,
             // External
             ext_recipient_name:    viewLetter.ext_recipient_name    ?? undefined,
+            ext_recipient_title:   viewLetter.ext_recipient_title   ?? undefined,
             ext_recipient_org:     viewLetter.ext_recipient_org     ?? undefined,
             ext_recipient_address: viewLetter.ext_recipient_address ?? undefined,
             // Internal — resolved by GET /:id JOIN

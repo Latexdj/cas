@@ -109,7 +109,7 @@ router.get('/', adminOrManagement, async (req, res, next) => {
 
     const { rows } = await pool.query(
       `SELECT gl.id, gl.ref_number, gl.classification, gl.recipient_type,
-              gl.ext_recipient_name, gl.ext_recipient_org,
+              gl.ext_recipient_name, gl.ext_recipient_title, gl.ext_recipient_org,
               gl.internal_recipient_id, gl.internal_recipient_table,
               gl.subject, gl.is_sensitive, gl.issued_date::text, gl.status,
               gl.requires_approval, gl.approved_by_name, gl.approved_at,
@@ -131,7 +131,8 @@ router.post('/', adminOrManagement, async (req, res, next) => {
     const {
       classification, recipient_type,
       internal_recipient_id, internal_recipient_table,
-      ext_recipient_name, ext_recipient_org, ext_recipient_address,
+      ext_recipient_name, ext_recipient_title, ext_recipient_org, ext_recipient_address,
+      issued_by_title, through_office, cc,
       subject, body, is_sensitive, issued_date, academic_year_id,
       status: requestedStatus,
     } = req.body;
@@ -146,8 +147,11 @@ router.post('/', adminOrManagement, async (req, res, next) => {
     if (!savingAsDraft && !body?.trim()) return res.status(400).json({ error: 'body is required' });
 
     if (recipient_type === 'external' || recipient_type === 'parent') {
-      if (!ext_recipient_name?.trim())
-        return res.status(400).json({ error: 'ext_recipient_name is required for external/parent recipients' });
+      // A named person is not always available -- e.g. "THE PTA CHAIRMAN" with
+      // no individual named -- but the addressee block needs at least one of
+      // a personal name or a title/office to not be blank.
+      if (!ext_recipient_name?.trim() && !ext_recipient_title?.trim())
+        return res.status(400).json({ error: 'Provide a recipient name or a title/office for external/parent recipients' });
     } else {
       // student or teacher — verify FK in this school
       if (!internal_recipient_id || !internal_recipient_table)
@@ -177,21 +181,24 @@ router.post('/', adminOrManagement, async (req, res, next) => {
 
     const { rows } = await pool.query(
       `INSERT INTO general_letters (
-         school_id, issued_by_id, issued_by_name, issued_by_signature_url,
+         school_id, issued_by_id, issued_by_name, issued_by_signature_url, issued_by_title,
          classification, recipient_type,
          internal_recipient_id, internal_recipient_table,
-         ext_recipient_name, ext_recipient_org, ext_recipient_address,
+         ext_recipient_name, ext_recipient_title, ext_recipient_org, ext_recipient_address,
+         through_office, cc,
          subject, body, is_sensitive, issued_date, academic_year_id,
          ref_number, status, requires_approval
        ) VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-         $12, $13, $14, $15, $16, $17, $18, $19
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+         $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
        ) RETURNING *, issued_date::text`,
       [
-        req.schoolId, issued_by_id, issued_by_name, signature_url,
+        req.schoolId, issued_by_id, issued_by_name, signature_url, issued_by_title?.trim() || null,
         classification, recipient_type,
         internal_recipient_id || null, internal_recipient_table || null,
-        ext_recipient_name?.trim() || null, ext_recipient_org?.trim() || null, ext_recipient_address?.trim() || null,
+        ext_recipient_name?.trim() || null, ext_recipient_title?.trim() || null,
+        ext_recipient_org?.trim() || null, ext_recipient_address?.trim() || null,
+        through_office?.trim() || null, cc?.trim() || null,
         subject.trim(), (body?.trim() || ''), sensitive,
         issued_date || null, academic_year_id || null,
         ref_number, computed_status, requires_approval,
@@ -283,6 +290,7 @@ router.post('/:id/pdf', adminOrManagement, async (req, res, next) => {
       letter,
       school,
       recipientType,
+      letterKind: 'general',
       watermark:  raw.status === 'pending_approval',
       pathPrefix: `general-letters/${req.schoolId}`,
     });

@@ -274,7 +274,47 @@ function renderSig(sigUrl) {
     : `<div style="margin-top:48px;"></div>`;
 }
 
-function buildLetterHTML({ letter, school, recipientType, watermark = false }) {
+// letterKind === 'general' gets the reference-matched layout (signature
+// moved right, name + personal title instead of repeating the school name,
+// optional Through/cc blocks below). Anything else (discipline queries and
+// student disciplinary letters, which also render through this same
+// function) keeps the original flush-left, name + school-name layout
+// untouched -- those are a different feature that happens to share this
+// renderer, not something this reference letter is meant to restyle.
+function renderSignoff({ letterKind, sigHtml, issuedByName, issuedByTitle, schoolName, throughOffice, cc }) {
+  if (letterKind !== 'general') {
+    return `
+  <p style="margin:0;font-size:11pt;">Yours faithfully,</p>
+  ${sigHtml}
+  <div style="border-top:1px solid #000;width:240px;margin-top:6px;padding-top:8px;">
+    <div style="font-weight:bold;font-size:11pt;">${esc(issuedByName)}</div>
+    <div style="font-size:10pt;color:#4A3F32;">${esc(schoolName ?? '')}</div>
+  </div>`;
+  }
+
+  const throughHtml = throughOffice ? `
+  <div style="margin-top:40px;font-size:11pt;line-height:1.7;">
+    <div style="font-weight:bold;margin-bottom:4px;">THROUGH:</div>
+    <div style="white-space:pre-line;">${esc(throughOffice)}</div>
+  </div>` : '';
+
+  const ccHtml = cc ? `
+  <div style="margin-top:20px;font-size:10.5pt;line-height:1.6;">
+    <strong>cc:</strong> <span style="white-space:pre-line;">${esc(cc)}</span>
+  </div>` : '';
+
+  return `
+  <div style="margin-left:50%;">
+    <p style="margin:0;font-size:11pt;">Yours faithfully,</p>
+    ${sigHtml}
+    <div style="border-top:1px solid #000;width:240px;margin-top:6px;padding-top:8px;">
+      <div style="font-weight:bold;font-size:11pt;">${esc(issuedByName)}</div>
+      ${issuedByTitle ? `<div style="font-size:10pt;color:#4A3F32;">${esc(issuedByTitle)}</div>` : ''}
+    </div>
+  </div>${throughHtml}${ccHtml}`;
+}
+
+function buildLetterHTML({ letter, school, recipientType, letterKind = 'discipline', watermark = false }) {
   const sigUrl = letter.issued_by_signature_url || school.headmaster_signature_url;
 
   const letterheadHtml = renderLetterhead(school);
@@ -312,31 +352,34 @@ function buildLetterHTML({ letter, school, recipientType, watermark = false }) {
 
   // ── External / parent recipients — formal business-letter format ──────────
   if (recipientType === 'external') {
-    const extName = letter.ext_recipient_name || '';
-    const extOrg  = letter.ext_recipient_org  || '';
-    const extAddr = letter.ext_recipient_address || '';
-    const salutation = extName ? `Dear ${esc(extName)},` : 'Dear Sir/Madam,';
+    const extName  = letter.ext_recipient_name  || '';
+    const extTitle = letter.ext_recipient_title || '';
+    const extOrg   = letter.ext_recipient_org   || '';
+    const extAddr  = letter.ext_recipient_address || '';
+    // No fallback to "Dear Sir/Madam," -- when there's no personal name (e.g.
+    // addressed to "THE PTA CHAIRMAN" by title only), the reference format
+    // omits the salutation line entirely rather than guessing one.
+    const salutation = extName ? `<p style="margin:0 0 16px;font-size:11pt;">Dear ${esc(extName)},</p>` : '';
     return `${pageHead}
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin:0 0 28px;font-size:11pt;">
     <div>${letter.ref_number ? `<strong>Ref:</strong> ${esc(letter.ref_number)}` : ''}</div>
     <div><strong>Date:</strong> ${fmtDate(letter.issued_date)}</div>
   </div>
   <div style="margin:0 0 28px;font-size:11pt;line-height:1.9;">
-    ${extName ? `<div style="font-weight:bold;">${esc(extName)}</div>` : ''}
-    ${extOrg ? `<div>${esc(extOrg)}</div>` : ''}
-    ${extAddr ? `<div style="white-space:pre-line;">${esc(extAddr)}</div>` : ''}
+    ${extName  ? `<div style="font-weight:bold;">${esc(extName)}</div>` : ''}
+    ${extTitle ? `<div style="font-weight:bold;">${esc(extTitle)}</div>` : ''}
+    ${extOrg   ? `<div>${esc(extOrg)}</div>` : ''}
+    ${extAddr  ? `<div style="white-space:pre-line;">${esc(extAddr)}</div>` : ''}
   </div>
   <div style="margin:0 0 24px;font-size:13pt;font-weight:bold;text-decoration:underline;text-transform:uppercase;">
     RE: ${esc(letter.subject)}
   </div>
-  <p style="margin:0 0 16px;font-size:11pt;">${salutation}</p>
+  ${salutation}
   <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;">${esc(letter.body)}</div>
-  <p style="margin:0;font-size:11pt;">Yours faithfully,</p>
-  ${sigHtml}
-  <div style="border-top:1px solid #000;width:240px;margin-top:6px;padding-top:8px;">
-    <div style="font-weight:bold;font-size:11pt;">${esc(letter.issued_by_name)}</div>
-    <div style="font-size:10pt;color:#4A3F32;">${esc(school.name ?? '')}</div>
-  </div>
+  ${renderSignoff({
+    letterKind, sigHtml, issuedByName: letter.issued_by_name, issuedByTitle: letter.issued_by_title,
+    schoolName: school.name, throughOffice: letter.through_office, cc: letter.cc,
+  })}
 </body>
 </html>`;
   }
@@ -362,12 +405,10 @@ function buildLetterHTML({ letter, school, recipientType, watermark = false }) {
   </div>
   <p style="margin:0 0 16px;font-size:11pt;">Dear ${esc(firstWord(recipientName))},</p>
   <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;">${esc(letter.body)}</div>
-  <p style="margin:0;font-size:11pt;">Yours faithfully,</p>
-  ${sigHtml}
-  <div style="border-top:1px solid #000;width:240px;margin-top:6px;padding-top:8px;">
-    <div style="font-weight:bold;font-size:11pt;">${esc(letter.issued_by_name)}</div>
-    <div style="font-size:10pt;color:#4A3F32;">${esc(school.name ?? '')}</div>
-  </div>
+  ${renderSignoff({
+    letterKind, sigHtml, issuedByName: letter.issued_by_name, issuedByTitle: letter.issued_by_title,
+    schoolName: school.name, throughOffice: letter.through_office, cc: letter.cc,
+  })}
 </body>
 </html>`;
 }
@@ -415,12 +456,12 @@ async function _renderToPDF(html, filePath, options = {}) {
 }
 
 // Returns the Supabase public URL of the uploaded PDF.
-async function generateAndUploadPDF({ letter, school, recipientType, watermark = false, pathPrefix = 'letters' }) {
+async function generateAndUploadPDF({ letter, school, recipientType, letterKind = 'discipline', watermark = false, pathPrefix = 'letters' }) {
   const { resolvedSchool, resolvedExtras } = await resolveImages(school, {
     issued_by_signature_url: letter.issued_by_signature_url,
   });
   const resolvedLetter = { ...letter, ...resolvedExtras };
-  const html     = buildLetterHTML({ letter: resolvedLetter, school: resolvedSchool, recipientType, watermark });
+  const html     = buildLetterHTML({ letter: resolvedLetter, school: resolvedSchool, recipientType, letterKind, watermark });
   const prefix   = watermark ? 'draft' : 'final';
   const filePath = `${pathPrefix}/${prefix}-${Date.now()}.pdf`;
   return _renderToPDF(html, filePath);

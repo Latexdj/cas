@@ -2708,6 +2708,21 @@ async function runMigrations() {
     `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admission_applications year-scoped index_number:', e.message); }
 
+    // ── General letters: title-only recipient, signer title, Through, cc ──────
+    try {
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS ext_recipient_title TEXT`);
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS issued_by_title TEXT`);
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS through_office TEXT`);
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS cc TEXT`);
+    // Widen the old "external recipients must have a name" check: a title/
+    // office alone (e.g. "THE PTA CHAIRMAN") is now a valid addressee too.
+    await pool.query(`ALTER TABLE general_letters DROP CONSTRAINT IF EXISTS general_letter_external_check`);
+    await pool.query(`
+      ALTER TABLE general_letters ADD CONSTRAINT general_letter_external_check
+        CHECK (recipient_type <> 'external' OR ext_recipient_name IS NOT NULL OR ext_recipient_title IS NOT NULL)
+    `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] general_letters title/through/cc fields:', e.message); }
+
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
     } else {

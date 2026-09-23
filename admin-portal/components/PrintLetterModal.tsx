@@ -10,6 +10,9 @@ interface PrintLetterModalProps {
     body: string;
     issued_by_name: string;
     issued_by_signature_url?: string;
+    issued_by_title?: string;
+    through_office?: string;
+    cc?: string;
     // Internal recipients
     student_name?: string;
     student_code?: string;
@@ -19,6 +22,7 @@ interface PrintLetterModalProps {
     department?: string;
     // External recipients
     ext_recipient_name?: string;
+    ext_recipient_title?: string;
     ext_recipient_org?: string;
     ext_recipient_address?: string;
   };
@@ -33,6 +37,13 @@ interface PrintLetterModalProps {
     motto?: string;
   };
   recipientType: 'student' | 'teacher' | 'external';
+  // 'general' gets the reference-matched layout (signature moved right, name
+  // + personal title instead of repeating the school name, optional
+  // Through/cc blocks). Discipline queries/letters (the default) keep the
+  // original layout untouched -- see the matching gate in
+  // backend/src/services/pdf.service.js's renderSignoff, which must stay in
+  // sync with this component.
+  letterKind?: 'general' | 'discipline';
 }
 
 // Frontend/backend can't share one module here (separate npm packages,
@@ -61,7 +72,47 @@ function firstName(name?: string) {
   return name ? name.split(' ')[0] : 'Sir/Madam';
 }
 
-export function PrintLetterModal({ open, onClose, letter, school, recipientType }: PrintLetterModalProps) {
+// letterKind === 'general' gets the reference-matched layout; anything else
+// (discipline queries/letters, the default) keeps the original layout --
+// see the matching gate in backend/src/services/pdf.service.js's
+// renderSignoff, which must stay in sync with this one.
+function renderSignoff({ letterKind, sigHtml, issuedByName, issuedByTitle, schoolName, throughOffice, cc }: {
+  letterKind?: 'general' | 'discipline'; sigHtml: string; issuedByName: string;
+  issuedByTitle?: string; schoolName?: string; throughOffice?: string; cc?: string;
+}) {
+  if (letterKind !== 'general') {
+    return `
+      <p style="margin:0;font-size:11pt;">Yours faithfully,</p>
+      ${sigHtml}
+      <div style="border-top:1px solid #000;width:240px;margin-top:6px;padding-top:8px;">
+        <div style="font-weight:bold;font-size:11pt;">${issuedByName}</div>
+        <div style="font-size:10pt;color:#4A3F32;">${schoolName ?? ''}</div>
+      </div>`;
+  }
+
+  const throughHtml = throughOffice ? `
+      <div style="margin-top:40px;font-size:11pt;line-height:1.7;">
+        <div style="font-weight:bold;margin-bottom:4px;">THROUGH:</div>
+        <div style="white-space:pre-line;">${throughOffice}</div>
+      </div>` : '';
+
+  const ccHtml = cc ? `
+      <div style="margin-top:20px;font-size:10.5pt;line-height:1.6;">
+        <strong>cc:</strong> <span style="white-space:pre-line;">${cc}</span>
+      </div>` : '';
+
+  return `
+      <div style="margin-left:50%;">
+        <p style="margin:0;font-size:11pt;">Yours faithfully,</p>
+        ${sigHtml}
+        <div style="border-top:1px solid #000;width:240px;margin-top:6px;padding-top:8px;">
+          <div style="font-weight:bold;font-size:11pt;">${issuedByName}</div>
+          ${issuedByTitle ? `<div style="font-size:10pt;color:#4A3F32;">${issuedByTitle}</div>` : ''}
+        </div>
+      </div>${throughHtml}${ccHtml}`;
+}
+
+export function PrintLetterModal({ open, onClose, letter, school, recipientType, letterKind = 'discipline' }: PrintLetterModalProps) {
   const sigUrl = letter.issued_by_signature_url || school.headmaster_signature_url;
 
   function buildLetterHTML() {
@@ -81,34 +132,36 @@ export function PrintLetterModal({ open, onClose, letter, school, recipientType 
       ? `<img src="${sigUrl}" style="display:block;max-height:80px;max-width:220px;margin-top:20px;" />`
       : `<div style="margin-top:48px;"></div>`;
 
-    const signoff = `
-      <p style="margin:0;font-size:11pt;">Yours faithfully,</p>
-      ${sigHtml}
-      <div style="border-top:1px solid #000;width:240px;margin-top:6px;padding-top:8px;">
-        <div style="font-weight:bold;font-size:11pt;">${letter.issued_by_name}</div>
-        <div style="font-size:10pt;color:#4A3F32;">${school.name ?? ''}</div>
-      </div>`;
+    const signoff = renderSignoff({
+      letterKind, sigHtml, issuedByName: letter.issued_by_name, issuedByTitle: letter.issued_by_title,
+      schoolName: school.name, throughOffice: letter.through_office, cc: letter.cc,
+    });
 
     // ── External / parent recipients — formal business-letter format ─────────
     if (recipientType === 'external') {
-      const extName    = letter.ext_recipient_name ?? '';
-      const extOrg     = letter.ext_recipient_org  ?? '';
-      const extAddr    = letter.ext_recipient_address ?? '';
-      const salutation = extName ? `Dear ${extName},` : 'Dear Sir/Madam,';
+      const extName  = letter.ext_recipient_name  ?? '';
+      const extTitle = letter.ext_recipient_title ?? '';
+      const extOrg   = letter.ext_recipient_org   ?? '';
+      const extAddr  = letter.ext_recipient_address ?? '';
+      // No fallback to "Dear Sir/Madam," -- when there's no personal name
+      // (e.g. addressed to "THE PTA CHAIRMAN" by title only), the salutation
+      // line is omitted entirely rather than guessed.
+      const salutation = extName ? `<p style="margin:0 0 16px;font-size:11pt;">Dear ${extName},</p>` : '';
       return `${letterheadHtml}
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin:0 0 28px;font-size:11pt;">
           <div>${letter.ref_number ? `<strong>Ref:</strong> ${letter.ref_number}` : ''}</div>
           <div><strong>Date:</strong> ${fmtDate(letter.issued_date)}</div>
         </div>
         <div style="margin:0 0 28px;font-size:11pt;line-height:1.9;">
-          ${extName ? `<div style="font-weight:bold;">${extName}</div>` : ''}
-          ${extOrg  ? `<div>${extOrg}</div>` : ''}
-          ${extAddr ? `<div style="white-space:pre-line;">${extAddr}</div>` : ''}
+          ${extName  ? `<div style="font-weight:bold;">${extName}</div>` : ''}
+          ${extTitle ? `<div style="font-weight:bold;">${extTitle}</div>` : ''}
+          ${extOrg   ? `<div>${extOrg}</div>` : ''}
+          ${extAddr  ? `<div style="white-space:pre-line;">${extAddr}</div>` : ''}
         </div>
         <div style="margin:0 0 24px;font-size:13pt;font-weight:bold;text-decoration:underline;text-transform:uppercase;">
           RE: ${letter.subject}
         </div>
-        <p style="margin:0 0 16px;font-size:11pt;">${salutation}</p>
+        ${salutation}
         <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;">${letter.body}</div>
         ${signoff}`;
     }
