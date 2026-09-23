@@ -203,7 +203,15 @@ FORMATTING AND TONE (strictly enforced):
 - Write plain text only. Do not use markdown: no asterisks, no bold, no italics, no headers, no bullet symbols.
 - Numbered lists are acceptable (1. 2. 3.) for enumerated items; otherwise use plain paragraph breaks.
 - Do not use em dashes (—). Use a comma, semicolon, or full stop instead.
-- Write in plain, direct sentences as a professional school administrator would. Avoid AI-typical filler phrases such as "it is imperative that", "it is essential that", "it is crucial that", "please note that", "I want to draw your attention to", or "it goes without saying".`;
+- Write in plain, direct sentences as a professional school administrator would. Avoid AI-typical filler phrases such as "it is imperative that", "it is essential that", "it is crucial that", "please note that", "I want to draw your attention to", or "it goes without saying".
+
+OUTPUT DISCIPLINE (strictly enforced on every message you send, including the
+first draft and every revision after it — not just the opening turn):
+- When you provide a draft or a revised draft, that message must contain ONLY the letter body text. Nothing before it, nothing after it.
+- Never begin a draft or revision with framing such as "Here is the draft,", "Here's the revised version,", "Here is the complete draft:", "Below is...", or any similar lead-in. Start directly with the first word of the letter body itself.
+- Never end a draft or revision with a question or invitation for feedback such as "Does this look good?", "Is this version satisfactory?", "Let me know if you'd like any changes.", "I hope this helps.", or similar. End with the letter's own last sentence and nothing more.
+- This applies even after several revisions in the same conversation — do not become more conversational as the conversation goes on.
+- Clarifying questions (when you still need information before drafting) are a separate kind of message and may be written conversationally — just never mix a clarifying question and a draft in the same message.`;
 
   return base + formatAndToneRule + buildGroundingBlock(grounding);
 }
@@ -221,6 +229,34 @@ function stripMarkdown(text) {
     .replace(/^#{1,6}\s+/gm, '')               // ## Heading
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')   // [text](url)
     .trim();
+}
+
+// Defense in depth, not the real fix (that's the OUTPUT DISCIPLINE prompt
+// rule above) — strips a small, known set of conversational scaffolding the
+// model may still slip in, particularly on refinement turns ("make it more
+// formal", "shorten this"), e.g. "Here is the revised draft:" before the
+// body or "Does this look good?" after it. Only trims from the very start/
+// end of the message so it can never eat into the actual letter content;
+// it will not catch every possible phrasing, which is why the prompt fix is
+// what actually matters here.
+function stripConversationalFraming(text) {
+  let t = text.trim();
+
+  const leadingPatterns = [
+    // "Here is/here's the (complete/revised/updated/final) draft/version/body (of the letter):"
+    /^(?:here(?:'s| is)|below is|this is)\s+(?:the\s+)?(?:complete\s+|full\s+|revised\s+|updated\s+|final\s+|new\s+)*(?:draft|version|body|letter)(?:\s+of the letter)?(?:\s+with[^\n]*)?[:,]?\s*\n*/i,
+    // "Okay/Sure/Certainly/Thank you, here is..." lead-ins, incl. a standalone
+    // acknowledgement sentence before "Here is..." on its own line.
+    /^(?:okay|ok|sure|certainly|thank you\.?|thanks\.?)[,.]?\s*(?:i (?:now have|have) (?:sufficient|enough) information[^.\n]*\.\s*)?(?:here(?:'s| is)[^\n]*[:,]\s*\n*)?/i,
+  ];
+  for (const re of leadingPatterns) t = t.replace(re, '');
+
+  const trailingPatterns = [
+    /\n+\s*(?:does this (?:look|sound|read) (?:good|okay|alright)\??|is this (?:version )?(?:satisfactory|okay|acceptable|good)\??|let me know if you(?:'d| would)? (?:like|want|need)[^\n]*[.?]?|feel free to (?:let me know|ask|reach out)[^\n]*[.?]?|i hope this helps[.!]?|please let me know[^\n]*[.?]?|what do you think\??)\s*$/i,
+  ];
+  for (const re of trailingPatterns) t = t.replace(re, '');
+
+  return t.trim();
 }
 
 function openingMessage(documentType, metadata) {
@@ -374,7 +410,7 @@ router.post('/:session_id/message', adminOrManagement, async (req, res, next) =>
       messages:   updatedMessages,
     });
 
-    const aiContent = stripMarkdown(response.content[0]?.text ?? '');
+    const aiContent = stripConversationalFraming(stripMarkdown(response.content[0]?.text ?? ''));
     const finalMessages = [...updatedMessages, { role: 'assistant', content: aiContent }];
 
     await pool.query(
