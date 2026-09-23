@@ -24,6 +24,14 @@ interface Stats {
 }
 interface Program { id: string; name: string; }
 interface ClassItem { id: string; name: string; }
+interface DuplicateMatch {
+  source: 'application' | 'student';
+  id: string;
+  full_name: string;
+  date_of_birth: string | null;
+  ref_code: string | null;
+  status: string;
+}
 
 const STATUS_CFG: Record<string, { label: string; bg: string; color: string }> = {
   pending:   { label: 'Pending',   bg: '#F1F5F9', color: '#64748B' },
@@ -77,6 +85,7 @@ export default function ApplicationsPage() {
   const [directForm,  setDirectForm]  = useState(BLANK_FORM);
   const [directSaving, setDirectSaving] = useState(false);
   const [directError,  setDirectError]  = useState('');
+  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[] | null>(null);
 
   const loadStats = useCallback(async () => {
     try { const { data } = await api.get('/api/admin/admissions/stats'); setStats(data); } catch {}
@@ -131,16 +140,22 @@ export default function ApplicationsPage() {
     } finally { setMigrating(false); }
   }
 
-  async function submitDirect() {
+  async function submitDirect(confirmDuplicate = false) {
     setDirectError('');
     setDirectSaving(true);
     try {
-      await api.post('/api/admin/admissions/applications/manual', directForm);
+      await api.post('/api/admin/admissions/applications/manual', { ...directForm, confirm_duplicate: confirmDuplicate });
       setDirectModal(false);
       setDirectForm(BLANK_FORM);
+      setDuplicateMatches(null);
       load(); loadStats();
     } catch (err: unknown) {
-      setDirectError((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save admission.');
+      const resp = (err as { response?: { status?: number; data?: { error?: string; duplicate?: boolean; matches?: DuplicateMatch[] } } })?.response;
+      if (resp?.status === 409 && resp.data?.duplicate) {
+        setDuplicateMatches(resp.data.matches ?? []);
+      } else {
+        setDirectError(resp?.data?.error ?? 'Failed to save admission.');
+      }
     } finally { setDirectSaving(false); }
   }
 
@@ -543,12 +558,38 @@ export default function ApplicationsPage() {
           <div className="flex gap-2 justify-end pt-1">
             <Button variant="secondary" onClick={() => setDirectModal(false)}>Cancel</Button>
             <button
-              onClick={submitDirect}
+              onClick={() => submitDirect()}
               disabled={directSaving}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
             >
               {directSaving ? 'Saving…' : 'Create Admission'}
             </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Possible-duplicate warning — soft check, admin decides */}
+      <Modal open={duplicateMatches !== null} onClose={() => setDuplicateMatches(null)} title="Possible duplicate found" maxWidth="max-w-md">
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600">
+            This looks like it might already be on file — same name and date of birth, or the same Ghana Card number, as an existing record:
+          </p>
+          <div className="space-y-2">
+            {duplicateMatches?.map(m => (
+              <div key={`${m.source}-${m.id}`} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+                <p className="font-semibold text-slate-800">{m.full_name}</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {m.source === 'student' ? 'Existing student' : 'Existing application'}
+                  {' · DOB '}{m.date_of_birth ? fmtDate(m.date_of_birth) : '—'}
+                  {' · '}{m.ref_code ?? '—'}
+                  {' · '}{m.status}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setDuplicateMatches(null)}>Cancel — this looks like a duplicate</Button>
+            <Button loading={directSaving} onClick={() => submitDirect(true)}>This is a different student, proceed anyway</Button>
           </div>
         </div>
       </Modal>

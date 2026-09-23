@@ -374,6 +374,36 @@ router.delete('/applications/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Looks for an existing application or already-migrated student that plausibly
+// is the same person as the one about to be submitted. Two signals only:
+// full_name + date_of_birth (both present, exact match) and ghana_card_number
+// (both present, exact match) — deliberately NOT guardian_mobile, since
+// siblings legitimately share a guardian's phone number and that would throw
+// a false positive on every family with more than one child at the school.
+async function findPotentialDuplicates(schoolId, { fullName, dateOfBirth, ghanaCardNumber }) {
+  const name = fullName?.trim() || null;
+  const dob  = dateOfBirth || null;
+  const card = ghanaCardNumber?.trim() || null;
+
+  if (!((name && dob) || card)) return [];
+
+  const { rows } = await pool.query(
+    `SELECT 'application' AS source, id, full_name, date_of_birth, admission_number AS ref_code, status
+       FROM admission_applications
+      WHERE school_id = $1
+        AND ( ($2::text IS NOT NULL AND $3::date IS NOT NULL AND LOWER(TRIM(full_name)) = LOWER($2) AND date_of_birth = $3)
+           OR ($4::text IS NOT NULL AND ghana_card_number = $4) )
+      UNION ALL
+     SELECT 'student' AS source, id, name AS full_name, date_of_birth, student_code AS ref_code, status
+       FROM students
+      WHERE school_id = $1
+        AND ( ($2::text IS NOT NULL AND $3::date IS NOT NULL AND LOWER(TRIM(name)) = LOWER($2) AND date_of_birth = $3)
+           OR ($4::text IS NOT NULL AND ghana_card_number = $4) )`,
+    [schoolId, name, dob, card]
+  );
+  return rows;
+}
+
 // POST /api/admin/admissions/applications/manual — walk-in / direct admission
 router.post('/applications/manual', async (req, res, next) => {
   try {
@@ -383,6 +413,7 @@ router.post('/applications/manual', async (req, res, next) => {
       aggregate, residential_status, index_number,
       program_id, direct_reason,
       guardian_name, guardian_relationship, guardian_occupation, guardian_mobile,
+      confirm_duplicate,
     } = req.body;
 
     if (!full_name?.trim())        return res.status(400).json({ error: 'Full name is required.' });
@@ -390,6 +421,13 @@ router.post('/applications/manual', async (req, res, next) => {
     if (!residential_status)       return res.status(400).json({ error: 'Residential status is required.' });
     if (!program_id)               return res.status(400).json({ error: 'Program is required.' });
     if (!direct_reason?.trim())    return res.status(400).json({ error: 'Reason for direct admission is required.' });
+
+    if (!confirm_duplicate) {
+      const matches = await findPotentialDuplicates(req.schoolId, { fullName: full_name, dateOfBirth: date_of_birth, ghanaCardNumber: ghana_card_number });
+      if (matches.length) {
+        return res.status(409).json({ duplicate: true, matches });
+      }
+    }
 
     const idx = index_number?.trim().toUpperCase() || null;
 
@@ -430,7 +468,13 @@ router.post('/applications/manual', async (req, res, next) => {
       );
       await client.query('COMMIT');
       res.status(201).json(rows[0]);
-    } catch (e) { await client.query('ROLLBACK'); throw e; }
+    } catch (e) {
+      await client.query('ROLLBACK');
+      if (e.code === '23505' && e.constraint === 'admission_applications_school_id_index_number_key') {
+        return res.status(409).json({ error: `Index number "${idx}" is already used by another application at this school.` });
+      }
+      throw e;
+    }
     finally { client.release(); }
   } catch (err) { next(err); }
 });
