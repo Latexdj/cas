@@ -1,15 +1,10 @@
 ﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { fmtDateShort as fmtDate } from '@/lib/dates';
 import type { StudentAttendanceSession, StudentAttendanceRecord } from '@/types/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
-
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-}
 
 /* ─── Export helpers ─── */
 type Row = (string | number | null)[];
@@ -248,11 +243,11 @@ export default function StudentAttendancePage() {
 
       if (key === 'sess-xlsx') {
         const headers = ['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Total'];
-        const rows: Row[] = sessions.map(s => [s.date, s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.total]);
+        const rows: Row[] = sessions.map(s => [fmtDate(s.date), s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.total]);
         await exportExcel(`student-sessions-${from}-${to}`, headers, rows);
       } else if (key === 'sess-pdf') {
         const head = ['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Total'];
-        const body: Row[] = sessions.map(s => [s.date, s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.total]);
+        const body: Row[] = sessions.map(s => [fmtDate(s.date), s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.total]);
         await exportPdf(`student-sessions-${from}-${to}`, 'Student Attendance Sessions', subtitle, head, body);
       } else if (key === 'rep-xlsx') {
         const headers = ['Student ID', 'Name', 'Class', 'Sessions', 'Present', 'Absent', 'Late', 'Attendance %'];

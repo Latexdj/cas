@@ -163,7 +163,7 @@ router.get('/today/:teacherId', async (req, res, next) => {
 router.get('/session/:sessionId', async (req, res, next) => {
   try {
     const { rows: sess } = await pool.query(
-      `SELECT s.*, te.name AS teacher_name
+      `SELECT s.*, s.date::text, te.name AS teacher_name
        FROM student_attendance_sessions s
        LEFT JOIN teachers te ON te.id = s.teacher_id
        WHERE s.id = $1 AND s.school_id = $2`,
@@ -193,7 +193,7 @@ router.patch('/records/:id', async (req, res, next) => {
     }
 
     const { rows } = await pool.query(
-      `SELECT r.id, r.session_id, s.date, s.lesson_end_time, s.teacher_id
+      `SELECT r.id, r.session_id, s.date::text, s.lesson_end_time, s.teacher_id
        FROM student_attendance_records r
        JOIN student_attendance_sessions s ON s.id = r.session_id
        WHERE r.id = $1 AND r.school_id = $2`,
@@ -235,7 +235,7 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
     if (to)   { params.push(to);   conds.push(`s.date <= $${params.length}`); }
 
     const { rows } = await pool.query(
-      `SELECT s.id, s.date, s.subject, s.class_name, s.lesson_end_time,
+      `SELECT s.id, s.date::text, s.subject, s.class_name, s.lesson_end_time,
               COUNT(r.id)::int                                             AS total,
               SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END)::int  AS present,
               SUM(CASE WHEN r.status = 'Absent'  THEN 1 ELSE 0 END)::int  AS absent,
@@ -336,7 +336,7 @@ router.get('/', adminOnly, async (req, res, next) => {
     if (semester)         { params.push(parseInt(semester)); conds.push(`s.semester = $${params.length}`); }
 
     const { rows } = await pool.query(
-      `SELECT s.id, s.date, s.subject, s.class_name, s.created_at,
+      `SELECT s.id, s.date::text, s.subject, s.class_name, s.created_at,
               te.name AS teacher_name,
               COUNT(r.id)::int                                             AS total,
               SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END)::int  AS present,

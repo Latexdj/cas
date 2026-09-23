@@ -1,18 +1,13 @@
 ﻿'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { fmtDateShort as fmtDate } from '@/lib/dates';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import type { AttendanceRecord, Teacher } from '@/types/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
-
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-}
 
 function PhotoModal({ record, onClose }: { record: AttendanceRecord; onClose: () => void }) {
   const submittedAt = record.submitted_at

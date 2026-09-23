@@ -181,7 +181,7 @@ router.get('/', adminOnly, async (req, res, next) => {
     if (subject)   { params.push(`%${subject}%`); conds.push(`a.subject ILIKE $${params.length}`); }
 
     const { rows } = await pool.query(
-      `SELECT a.id, a.date, a.submitted_at, a.semester, a.subject, a.class_names,
+      `SELECT a.id, a.date::text, a.submitted_at, a.semester, a.subject, a.class_names,
               a.periods, a.topic, a.photo_url, a.week_number,
               a.location_name, a.location_verified, a.gps_coordinates, a.photo_size_kb,
               te.id AS teacher_id, te.name AS teacher_name,
@@ -232,7 +232,7 @@ router.get('/history', async (req, res, next) => {
     if (req.query.semester)      { params.push(parseInt(req.query.semester, 10));    conds.push(`a.semester = $${params.length}`); }
 
     const { rows } = await pool.query(
-      `SELECT a.id, a.date, a.submitted_at, a.subject, a.class_names,
+      `SELECT a.id, a.date::text, a.submitted_at, a.subject, a.class_names,
               a.periods, a.topic, a.location_name, a.location_verified,
               te.name AS teacher_name, ay.name AS academic_year
        FROM attendance a
