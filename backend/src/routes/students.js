@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt');
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { uploadFile } = require('../services/storage.service');
+const { promoteClass } = require('../services/promotion.service');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -488,22 +489,7 @@ router.post('/promote', adminOnly, async (req, res, next) => {
     if (!from_class || !to_class)
       return res.status(400).json({ error: 'from_class and to_class are required' });
 
-    let rowCount;
-    if (Array.isArray(student_ids) && student_ids.length > 0) {
-      const { rowCount: rc } = await pool.query(
-        `UPDATE students SET class_name=$1, updated_at=now()
-         WHERE id=ANY($2::uuid[]) AND school_id=$3 AND status='Active'`,
-        [to_class, student_ids, req.schoolId]
-      );
-      rowCount = rc;
-    } else {
-      const { rowCount: rc } = await pool.query(
-        `UPDATE students SET class_name=$1, updated_at=now()
-         WHERE school_id=$2 AND class_name=$3 AND status='Active'`,
-        [to_class, req.schoolId, from_class]
-      );
-      rowCount = rc;
-    }
+    const rowCount = await promoteClass(pool, { schoolId: req.schoolId, fromClass: from_class, toClass: to_class, studentIds: student_ids });
     res.json({ promoted: rowCount, from_class, to_class });
   } catch (err) { next(err); }
 });
