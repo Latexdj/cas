@@ -1,6 +1,7 @@
 ﻿'use client';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { api } from '@/lib/api';
+import { parseApiDate, fmtDateShort } from '@/lib/dates';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -91,8 +92,13 @@ interface GenerateResult {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const fmt = (d: string) =>
-  new Date(d + 'T00:00:00').toLocaleDateString('default', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+// Two genuinely different display formats (weekday shown vs not) share the
+// same underlying parsing via parseApiDate rather than each re-implementing
+// the Date-object/ISO-string/plain-string handling.
+const fmt = (d: string) => {
+  const parsed = parseApiDate(d);
+  return parsed ? parsed.toLocaleDateString('default', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+};
 const fmtTime = (t: string) => t.slice(0, 5);
 
 const inputCls = 'w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 border-slate-200 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white';
@@ -759,7 +765,8 @@ function ReportTab() {
   }
 
   const fmtT = (t: string) => t.slice(0, 5);
-  const fmtD = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  // Identical format spec to fmtDateShort in lib/dates.ts -- reuse it directly.
+  const fmtD = fmtDateShort;
 
   return (
     <div id="invigilation-report" className="space-y-5">
