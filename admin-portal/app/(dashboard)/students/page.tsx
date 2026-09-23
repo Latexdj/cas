@@ -969,7 +969,7 @@ export default function StudentsPage() {
                 <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>To Class</label>
                 <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}
                   value={toClass} onChange={e => setToClass(e.target.value)} placeholder="e.g. Form 2A" list="class-list-to" />
-                <datalist id="class-list-to">{classes.map(c => <option key={c} value={c} />)}</datalist>
+                <datalist id="class-list-to">{allClasses.map(c => <option key={c} value={c} />)}</datalist>
               </div>
             </div>
             {actionResult && <p className="text-sm mt-3 font-medium" style={{ color: actionResult.startsWith('✓') ? '#145C44' : '#DC2626' }}>{actionResult}</p>}
