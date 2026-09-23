@@ -375,31 +375,37 @@ router.delete('/applications/:id', async (req, res, next) => {
 });
 
 // Looks for an existing application or already-migrated student that plausibly
-// is the same person as the one about to be submitted. Two signals only:
-// full_name + date_of_birth (both present, exact match) and ghana_card_number
-// (both present, exact match) — deliberately NOT guardian_mobile, since
-// siblings legitimately share a guardian's phone number and that would throw
-// a false positive on every family with more than one child at the school.
-async function findPotentialDuplicates(schoolId, { fullName, dateOfBirth, ghanaCardNumber }) {
+// is the same person as the one about to be submitted. Three signals: full_name
+// + date_of_birth (both present, exact match), ghana_card_number (both present,
+// exact match), and index_number (both present, exact match) — deliberately NOT
+// guardian_mobile, since siblings legitimately share a guardian's phone number
+// and that would throw a false positive on every family with more than one
+// child at the school. Each of the three is checked only when both sides have
+// a value for it; a blank on either side just skips that signal rather than
+// counting as a match.
+async function findPotentialDuplicates(schoolId, { fullName, dateOfBirth, ghanaCardNumber, indexNumber }) {
   const name = fullName?.trim() || null;
   const dob  = dateOfBirth || null;
   const card = ghanaCardNumber?.trim() || null;
+  const idx  = indexNumber?.trim().toUpperCase() || null;
 
-  if (!((name && dob) || card)) return [];
+  if (!((name && dob) || card || idx)) return [];
 
   const { rows } = await pool.query(
     `SELECT 'application' AS source, id, full_name, date_of_birth, admission_number AS ref_code, status
        FROM admission_applications
       WHERE school_id = $1
         AND ( ($2::text IS NOT NULL AND $3::date IS NOT NULL AND LOWER(TRIM(full_name)) = LOWER($2) AND date_of_birth = $3)
-           OR ($4::text IS NOT NULL AND ghana_card_number = $4) )
+           OR ($4::text IS NOT NULL AND ghana_card_number = $4)
+           OR ($5::text IS NOT NULL AND index_number = $5) )
       UNION ALL
      SELECT 'student' AS source, id, name AS full_name, date_of_birth, student_code AS ref_code, status
        FROM students
       WHERE school_id = $1
         AND ( ($2::text IS NOT NULL AND $3::date IS NOT NULL AND LOWER(TRIM(name)) = LOWER($2) AND date_of_birth = $3)
-           OR ($4::text IS NOT NULL AND ghana_card_number = $4) )`,
-    [schoolId, name, dob, card]
+           OR ($4::text IS NOT NULL AND ghana_card_number = $4)
+           OR ($5::text IS NOT NULL AND jhs_index_number = $5) )`,
+    [schoolId, name, dob, card, idx]
   );
   return rows;
 }
@@ -423,7 +429,9 @@ router.post('/applications/manual', async (req, res, next) => {
     if (!direct_reason?.trim())    return res.status(400).json({ error: 'Reason for direct admission is required.' });
 
     if (!confirm_duplicate) {
-      const matches = await findPotentialDuplicates(req.schoolId, { fullName: full_name, dateOfBirth: date_of_birth, ghanaCardNumber: ghana_card_number });
+      const matches = await findPotentialDuplicates(req.schoolId, {
+        fullName: full_name, dateOfBirth: date_of_birth, ghanaCardNumber: ghana_card_number, indexNumber: index_number,
+      });
       if (matches.length) {
         return res.status(409).json({ duplicate: true, matches });
       }
