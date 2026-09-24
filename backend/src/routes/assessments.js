@@ -218,11 +218,7 @@ router.post('/subject-remarks', async (req, res, next) => {
       if (!assigned.length) return res.status(403).json({ error: 'You are not assigned to teach this subject to this class' });
     }
 
-    const { rows: classStudents } = await pool.query(
-      `SELECT id FROM students WHERE school_id=$1 AND LOWER(class_name)=LOWER($2) AND status='Active'`,
-      [req.schoolId, class_name]
-    );
-    const validStudentIds = new Set(classStudents.map(s => s.id));
+    const validStudentIds = new Set(await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester)));
     const safeRemarks = remarks.filter(r => r.student_id && validStudentIds.has(r.student_id));
     if (!safeRemarks.length) return res.json({ message: 'No remarks to save.' });
 
@@ -273,11 +269,12 @@ router.get('/class-template', async (req, res, next) => {
       return res.status(404).json({ error: 'No assessments found for this subject/class/semester' });
     }
 
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester));
     const { rows: students } = await pool.query(
       `SELECT s.id AS student_id, s.student_code, s.name FROM students s
-       WHERE s.school_id = $1 AND s.status = 'Active' AND LOWER(s.class_name) = LOWER($2)
+       WHERE s.school_id = $1 AND s.id = ANY($2::uuid[])
        ORDER BY s.name`,
-      [req.schoolId, class_name]
+      [req.schoolId, roster]
     );
 
     const asmtIds = assessments.map(a => a.id);
@@ -390,11 +387,7 @@ router.post('/class-upload-scores', upload.single('file'), async (req, res, next
       return res.status(409).json({ error: `Scores are locked — submission status is "${subStatus}".` });
     }
 
-    const { rows: students } = await pool.query(
-      `SELECT id FROM students WHERE school_id = $1 AND status = 'Active' AND LOWER(class_name) = LOWER($2)`,
-      [req.schoolId, class_name]
-    );
-    const validIds = new Set(students.map(s => s.id));
+    const validIds = new Set(await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester)));
 
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(req.file.buffer);
@@ -779,15 +772,15 @@ router.get('/:id/score-template', async (req, res, next) => {
       return res.status(403).json({ error: 'You are not the owner of this assessment' });
     }
 
+    const roster = await getClassRoster(req.schoolId, assessment.class_name, assessment.academic_year_id, assessment.semester);
     const { rows: students } = await pool.query(
       `SELECT s.id AS student_id, s.student_code, s.name,
               sc.score, sc.absent
        FROM students s
        LEFT JOIN assessment_scores sc ON sc.assessment_id = $1 AND sc.student_id = s.id
-       WHERE s.school_id = $2 AND s.status = 'Active'
-         AND LOWER(s.class_name) = LOWER($3)
+       WHERE s.id = ANY($2::uuid[])
        ORDER BY s.name`,
-      [req.params.id, req.schoolId, assessment.class_name]
+      [req.params.id, roster]
     );
 
     const wb = new ExcelJS.Workbook();
@@ -884,12 +877,10 @@ router.post('/:id/upload-scores', upload.single('file'), async (req, res, next) 
       return res.status(409).json({ error: `Scores are locked — submission status is "${subStatus}".` });
     }
 
-    // Valid student IDs for this class
-    const { rows: students } = await pool.query(
-      `SELECT id FROM students WHERE school_id = $1 AND status = 'Active' AND LOWER(class_name) = LOWER($2)`,
-      [req.schoolId, assessment.class_name]
-    );
-    const validIds = new Set(students.map(s => s.id));
+    // Valid student IDs for this class, resolved as of this assessment's own
+    // period rather than current class_name — otherwise uploading scores for
+    // an old semester rejects every promoted student with "not found in class".
+    const validIds = new Set(await getClassRoster(req.schoolId, assessment.class_name, assessment.academic_year_id, assessment.semester));
 
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(req.file.buffer);
