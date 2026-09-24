@@ -6,6 +6,7 @@ const pool    = require('../config/db');
 const ExcelJS = require('exceljs');
 const { createNotification, sendTeacherEmail } = require('../services/notification.service');
 const { getCurrentSchoolContext } = require('../utils/school-context');
+const { getClassRoster } = require('../services/classHistory.service');
 
 // â”€â”€ Auth middleware â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function auth(req, res, next) {
@@ -1156,15 +1157,16 @@ router.get('/results', async (req, res, next) => {
     const caPercentage  = schoolRows[0]?.ca_percentage ?? 30;
     const examPercentage = 100 - caPercentage;
 
-    // Get active students in class
+    // Get active students in class, resolved as of this period via class_history
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester));
     const { rows: students } = await pool.query(
       `SELECT s.id, s.student_code, s.name, s.gender, s.picture_url,
               p.name AS program_name, p.exam_body
        FROM students s
        LEFT JOIN programs p ON p.id = s.program_id
-       WHERE s.school_id = $1 AND s.class_name = $2 AND s.status = 'Active'
+       WHERE s.school_id = $1 AND s.id = ANY($2::uuid[])
        ORDER BY s.name`,
-      [req.schoolId, class_name]
+      [req.schoolId, roster]
     );
 
     if (!students.length) return res.json([]);
