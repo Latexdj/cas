@@ -19,6 +19,41 @@ async function attachRosterCounts(schoolId, rows, { classNameKey = 'class_name',
   return rows.map(r => ({ ...r, [outKey]: sizeMap[comboKey(r)] ?? 0 }));
 }
 
+// Resolves scored_count (exam ∪ CA scores, distinct students) per row,
+// bounded to that row's own (class, year, semester) roster — otherwise a
+// currently-inactive student's real historical score can push the count
+// above the roster size, the same asymmetry fixed in assessment-monitoring.js
+// and reports.js. Rosters are cached per (class, year, semester) since
+// several subjects in the same class/period share one.
+async function attachScoredCounts(schoolId, rows) {
+  const classComboKey = r => `${r.class_name.toLowerCase()}|${r.academic_year_id}|${r.semester}`;
+  const subjectComboKey = r => `${r.subject}|${classComboKey(r)}`;
+
+  const distinctClassCombos = [...new Map(rows.map(r => [classComboKey(r), r])).values()];
+  const rosterEntries = await mapWithLimit(distinctClassCombos, 5, async r =>
+    [classComboKey(r), new Set(await getClassRoster(schoolId, r.class_name, r.academic_year_id, r.semester))]
+  );
+  const rosterMap = new Map(rosterEntries);
+
+  const distinctSubjectCombos = [...new Map(rows.map(r => [subjectComboKey(r), r])).values()];
+  const scoredEntries = await mapWithLimit(distinctSubjectCombos, 5, async r => {
+    const { rows: scored } = await pool.query(
+      `SELECT es.student_id FROM exam_scores es
+       WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3 AND es.subject=$4 AND es.class_name=$5
+       UNION
+       SELECT asc2.student_id FROM assessment_scores asc2
+       JOIN assessments a ON a.id = asc2.assessment_id
+       WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3 AND a.subject=$4 AND a.class_name=$5
+         AND asc2.score IS NOT NULL`,
+      [schoolId, r.academic_year_id, r.semester, r.subject, r.class_name]
+    );
+    const roster = rosterMap.get(classComboKey(r)) || new Set();
+    return [subjectComboKey(r), scored.filter(s => roster.has(s.student_id)).length];
+  });
+  const scoredMap = Object.fromEntries(scoredEntries);
+  return rows.map(r => ({ ...r, scored_count: scoredMap[subjectComboKey(r)] ?? 0 }));
+}
+
 router.use(authenticate, requireActiveSubscription);
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -213,18 +248,7 @@ router.get('/hod-queue', async (req, res, next) => {
               rs.hod_comment, rs.rejected_reason,
               rs.academic_year_id,
               t.name AS teacher_name, t.id AS teacher_id,
-              ay.name AS academic_year, rs.semester,
-              (SELECT COUNT(DISTINCT student_id) FROM (
-                SELECT es.student_id FROM exam_scores es
-                WHERE es.academic_year_id = rs.academic_year_id AND es.semester = rs.semester
-                  AND es.subject = rs.subject AND es.class_name = rs.class_name AND es.school_id = rs.school_id
-                UNION
-                SELECT asc2.student_id FROM assessment_scores asc2
-                JOIN assessments a ON a.id = asc2.assessment_id
-                WHERE a.academic_year_id = rs.academic_year_id AND a.semester = rs.semester
-                  AND a.subject = rs.subject AND a.class_name = rs.class_name AND a.school_id = rs.school_id
-                  AND asc2.score IS NOT NULL
-              ) _scored) AS scored_count
+              ay.name AS academic_year, rs.semester
        FROM result_submissions rs
        LEFT JOIN teachers t ON t.id = rs.teacher_id
        LEFT JOIN academic_years ay ON ay.id = rs.academic_year_id
@@ -233,7 +257,8 @@ router.get('/hod-queue', async (req, res, next) => {
        ORDER BY rs.submitted_at ASC`,
       params
     );
-    res.json(await attachRosterCounts(req.schoolId, rows));
+    const withScored = await attachScoredCounts(req.schoolId, rows);
+    res.json(await attachRosterCounts(req.schoolId, withScored));
   } catch (err) { next(err); }
 });
 
