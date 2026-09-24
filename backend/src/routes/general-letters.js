@@ -378,11 +378,47 @@ router.patch('/:id/return', managementOnly, async (req, res, next) => {
 });
 
 // PATCH /api/general-letters/:id/resubmit — issuer (admin or management).
-// Edits the letter and moves it back to pending_approval.
+// Edits the letter (including, optionally, the recipient/organisation — a
+// return for correction may be about who the letter is going to, not just
+// its wording) and moves it back to pending_approval.
 router.patch('/:id/resubmit', adminOrManagement, async (req, res, next) => {
   try {
-    const { subject, body } = req.body;
+    const {
+      subject, body, recipient_type,
+      internal_recipient_id, internal_recipient_table,
+      ext_recipient_name, ext_recipient_title, ext_recipient_org, ext_recipient_address,
+    } = req.body;
     if (!body?.trim()) return res.status(400).json({ error: 'body is required' });
+
+    const extraFields = {};
+    if (recipient_type !== undefined) {
+      if (!VALID_RECIPIENT_TYPES.includes(recipient_type))
+        return res.status(400).json({ error: 'Invalid recipient_type' });
+
+      const isExternal = recipient_type === 'external' || recipient_type === 'parent';
+      if (isExternal) {
+        if (!ext_recipient_name?.trim() && !ext_recipient_title?.trim())
+          return res.status(400).json({ error: 'Provide a recipient name or a title/office for external/parent recipients' });
+      } else {
+        if (!internal_recipient_id || !internal_recipient_table)
+          return res.status(400).json({ error: 'internal_recipient_id and internal_recipient_table are required' });
+        if (!['students', 'teachers'].includes(internal_recipient_table))
+          return res.status(400).json({ error: 'internal_recipient_table must be students or teachers' });
+        const { rows: recRows } = await pool.query(
+          `SELECT id FROM ${internal_recipient_table} WHERE id = $1 AND school_id = $2`,
+          [internal_recipient_id, req.schoolId]
+        );
+        if (!recRows.length) return res.status(404).json({ error: 'Recipient not found in this school' });
+      }
+
+      extraFields.recipient_type           = recipient_type;
+      extraFields.internal_recipient_id    = isExternal ? null : internal_recipient_id;
+      extraFields.internal_recipient_table = isExternal ? null : internal_recipient_table;
+      extraFields.ext_recipient_name       = isExternal ? (ext_recipient_name?.trim() || null) : null;
+      extraFields.ext_recipient_title      = isExternal ? (ext_recipient_title?.trim() || null) : null;
+      extraFields.ext_recipient_org        = isExternal ? (ext_recipient_org?.trim() || null) : null;
+      extraFields.ext_recipient_address    = isExternal ? (ext_recipient_address?.trim() || null) : null;
+    }
 
     const letter = await resubmitLetter({
       table: 'general_letters',
@@ -390,6 +426,7 @@ router.patch('/:id/resubmit', adminOrManagement, async (req, res, next) => {
       schoolId: req.schoolId,
       subject: subject?.trim(),
       body: body.trim(),
+      extraFields,
     });
     if (!letter) return res.status(404).json({ error: 'Letter not found or not in returned status' });
     res.json(letter);

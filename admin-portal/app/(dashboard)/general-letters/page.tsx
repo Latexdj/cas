@@ -266,14 +266,66 @@ export default function GeneralLettersPage() {
   const [returnedChatLoading, setReturnedChatLoading]     = useState(false);
   const [returnedChatErr, setReturnedChatErr]             = useState('');
 
+  // Returned-for-correction editing — recipient/organisation. A return may be
+  // about who the letter is going to, not just its wording, so this is
+  // editable alongside subject/body rather than fixed at creation.
+  const [returnEditRecipientType, setReturnEditRecipientType]                 = useState('');
+  const [returnEditInternalRecipientId, setReturnEditInternalRecipientId]     = useState('');
+  const [returnEditInternalRecipientTable, setReturnEditInternalRecipientTable] = useState('');
+  const [returnEditInternalRecipientName, setReturnEditInternalRecipientName] = useState('');
+  const [returnEditExtName, setReturnEditExtName]       = useState('');
+  const [returnEditExtTitle, setReturnEditExtTitle]     = useState('');
+  const [returnEditExtOrg, setReturnEditExtOrg]         = useState('');
+  const [returnEditExtAddress, setReturnEditExtAddress] = useState('');
+  const [returnRecipientSearch, setReturnRecipientSearch] = useState('');
+
   useEffect(() => {
     if (viewLetter?.status === 'returned') {
       setReturnEditSubject(viewLetter.subject);
       setReturnEditBody(viewLetter.body ?? '');
       setShowReturnedChat(false);
       setResubmitErr('');
+      setReturnEditRecipientType(viewLetter.recipient_type);
+      setReturnEditInternalRecipientId(viewLetter.internal_recipient_id ?? '');
+      setReturnEditInternalRecipientTable(viewLetter.internal_recipient_table ?? '');
+      setReturnEditInternalRecipientName(viewLetter.internal_recipient_name ?? '');
+      setReturnEditExtName(viewLetter.ext_recipient_name ?? '');
+      setReturnEditExtTitle(viewLetter.ext_recipient_title ?? '');
+      setReturnEditExtOrg(viewLetter.ext_recipient_org ?? '');
+      setReturnEditExtAddress(viewLetter.ext_recipient_address ?? '');
+      setReturnRecipientSearch('');
     }
   }, [viewLetter?.id, viewLetter?.status]);
+
+  // Load teachers/students on demand for the returned-editor's internal
+  // recipient picker (shares the same lists the create form uses).
+  useEffect(() => {
+    if (returnEditRecipientType === 'teacher' && teachers.length === 0) {
+      api.get('/api/teachers').then(r => setTeachers(r.data)).catch(() => {});
+    }
+    if (returnEditRecipientType === 'student' && students.length === 0) {
+      api.get('/api/students').then(r => setStudents(r.data)).catch(() => {});
+    }
+  }, [returnEditRecipientType]);
+
+  function onReturnEditRecipientTypeChange(v: string) {
+    setReturnEditRecipientType(v);
+    setReturnEditInternalRecipientId('');
+    setReturnEditInternalRecipientTable(RECIPIENT_TYPES.find(r => r.value === v)?.internal_table ?? '');
+    setReturnEditInternalRecipientName('');
+    setReturnEditExtName('');
+    setReturnEditExtTitle('');
+    setReturnEditExtOrg('');
+    setReturnEditExtAddress('');
+    setReturnRecipientSearch('');
+  }
+
+  function selectReturnEditInternalRecipient(id: string, name: string, table: string) {
+    setReturnEditInternalRecipientId(id);
+    setReturnEditInternalRecipientTable(table);
+    setReturnEditInternalRecipientName(name);
+    setReturnRecipientSearch('');
+  }
 
   async function openReturnedChat() {
     if (!viewLetter?.draft_session_id) return;
@@ -303,9 +355,25 @@ export default function GeneralLettersPage() {
 
   async function resubmitLetter() {
     if (!viewLetter || !returnEditBody.trim()) { setResubmitErr('Body text is required'); return; }
+    const isExternal = returnEditRecipientType === 'external' || returnEditRecipientType === 'parent';
+    if (isExternal && !returnEditExtName.trim() && !returnEditExtTitle.trim()) {
+      setResubmitErr('Provide a recipient name or a title/office'); return;
+    }
+    if (!isExternal && !returnEditInternalRecipientId) {
+      setResubmitErr('Select a recipient'); return;
+    }
     setResubmitting(true); setResubmitErr('');
     try {
-      const { data } = await api.patch(`/api/general-letters/${viewLetter.id}/resubmit`, { subject: returnEditSubject, body: returnEditBody });
+      const { data } = await api.patch(`/api/general-letters/${viewLetter.id}/resubmit`, {
+        subject: returnEditSubject, body: returnEditBody,
+        recipient_type: returnEditRecipientType,
+        internal_recipient_id: isExternal ? undefined : returnEditInternalRecipientId,
+        internal_recipient_table: isExternal ? undefined : returnEditInternalRecipientTable,
+        ext_recipient_name: isExternal ? returnEditExtName : undefined,
+        ext_recipient_title: isExternal ? returnEditExtTitle : undefined,
+        ext_recipient_org: isExternal ? returnEditExtOrg : undefined,
+        ext_recipient_address: isExternal ? returnEditExtAddress : undefined,
+      });
       setViewLetter(data);
       load();
     } catch (e: any) {
@@ -323,6 +391,15 @@ export default function GeneralLettersPage() {
   const [recipientSearch, setRecipientSearch] = useState('');
   const [selectedRecipientName, setSelectedRecipientName] = useState('');
   const [showContactPicker, setShowContactPicker] = useState(false);
+
+  const returnFilteredTeachers = teachers.filter(t =>
+    !returnRecipientSearch || t.name.toLowerCase().includes(returnRecipientSearch.toLowerCase())
+  );
+  const returnFilteredStudents = students.filter(s =>
+    !returnRecipientSearch ||
+    s.name.toLowerCase().includes(returnRecipientSearch.toLowerCase()) ||
+    s.student_code?.toLowerCase().includes(returnRecipientSearch.toLowerCase())
+  );
 
   // New contact form (inside create modal)
   const [newContactName, setNewContactName] = useState('');
@@ -1347,6 +1424,91 @@ export default function GeneralLettersPage() {
                 ))}
 
                 <div style={{ marginTop: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 4 }}>Recipient Type</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                    {RECIPIENT_TYPES.map(rt => (
+                      <label key={rt.value} style={{
+                        display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 6, cursor: 'pointer',
+                        border: `1.5px solid ${returnEditRecipientType === rt.value ? C.mid : C.border}`,
+                        background: returnEditRecipientType === rt.value ? '#E8F4EE' : '#fff',
+                      }}>
+                        <input type="radio" name="return_recipient_type" value={rt.value}
+                          checked={returnEditRecipientType === rt.value}
+                          onChange={() => onReturnEditRecipientTypeChange(rt.value)}
+                          style={{ accentColor: C.forest }} />
+                        <span style={{ fontSize: 12, color: C.dark }}>{rt.label}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  {(returnEditRecipientType === 'student' || returnEditRecipientType === 'teacher') && (
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 4 }}>
+                        {returnEditRecipientType === 'student' ? 'Student' : 'Teacher'}
+                      </label>
+                      {returnEditInternalRecipientName ? (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 6, background: '#E8F4EE', border: `1px solid ${C.mid}44` }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: C.mid }}>{returnEditInternalRecipientName}</span>
+                          <button onClick={() => { setReturnEditInternalRecipientName(''); setReturnEditInternalRecipientId(''); }}
+                            style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 12 }}>Change</button>
+                        </div>
+                      ) : (
+                        <div>
+                          <input type="text" placeholder={`Search ${returnEditRecipientType === 'student' ? 'students' : 'teachers'}…`}
+                            value={returnRecipientSearch} onChange={e => setReturnRecipientSearch(e.target.value)}
+                            style={inputStyle} />
+                          {(returnEditRecipientType === 'teacher' ? returnFilteredTeachers : returnFilteredStudents).length > 0 && (
+                            <div style={{ border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 6px 6px', background: '#fff', maxHeight: 160, overflowY: 'auto' }}>
+                              {returnEditRecipientType === 'teacher'
+                                ? returnFilteredTeachers.map(t => (
+                                    <button key={t.id} onClick={() => selectReturnEditInternalRecipient(t.id, t.name, 'teachers')}
+                                      style={{ width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderBottom: `1px solid ${C.border}`, background: 'none', cursor: 'pointer', fontSize: 13, color: C.dark }}>
+                                      <strong>{t.name}</strong>
+                                      {t.department && <span style={{ color: C.muted, marginLeft: 6 }}>{t.department}</span>}
+                                    </button>
+                                  ))
+                                : returnFilteredStudents.map(s => (
+                                    <button key={s.id} onClick={() => selectReturnEditInternalRecipient(s.id, `${s.name} (${s.student_code})`, 'students')}
+                                      style={{ width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderBottom: `1px solid ${C.border}`, background: 'none', cursor: 'pointer', fontSize: 13, color: C.dark }}>
+                                      <strong>{s.name}</strong>
+                                      <span style={{ color: C.muted, marginLeft: 6 }}>{s.student_code}{s.class_name ? ` · ${s.class_name}` : ''}</span>
+                                    </button>
+                                  ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {(returnEditRecipientType === 'external' || returnEditRecipientType === 'parent') && (
+                    <>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 4 }}>Recipient Name</label>
+                      <input value={returnEditExtName} onChange={e => setReturnEditExtName(e.target.value)}
+                        placeholder="Full name (leave blank if addressing a title/office only)"
+                        style={{ ...inputStyle, marginBottom: 10 }} />
+
+                      {returnEditRecipientType === 'external' && (
+                        <>
+                          <label style={{ fontSize: 11, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 4 }}>Recipient Title / Office</label>
+                          <input value={returnEditExtTitle} onChange={e => setReturnEditExtTitle(e.target.value)}
+                            placeholder="e.g. THE PTA CHAIRMAN"
+                            style={{ ...inputStyle, marginBottom: 10 }} />
+
+                          <label style={{ fontSize: 11, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 4 }}>Organisation / Body</label>
+                          <input value={returnEditExtOrg} onChange={e => setReturnEditExtOrg(e.target.value)}
+                            placeholder="e.g. Ghana Education Service, District Education Office"
+                            style={{ ...inputStyle, marginBottom: 10 }} />
+
+                          <label style={{ fontSize: 11, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 4 }}>Address</label>
+                          <textarea value={returnEditExtAddress} onChange={e => setReturnEditExtAddress(e.target.value)}
+                            placeholder="Postal address (optional)" rows={2}
+                            style={{ ...inputStyle, resize: 'none', marginBottom: 10 }} />
+                        </>
+                      )}
+                    </>
+                  )}
+
                   <label style={{ fontSize: 11, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 4 }}>Subject</label>
                   <input value={returnEditSubject} onChange={e => setReturnEditSubject(e.target.value)}
                     style={{ ...inputStyle, marginBottom: 10 }} />

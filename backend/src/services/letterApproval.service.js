@@ -93,17 +93,34 @@ async function returnLetterForCorrection({ table, documentType, letterId, school
 }
 
 // Moves a 'returned' letter back to pending_approval, applying the issuer's
-// edits. `table` must be a fixed literal, as above.
-async function resubmitLetter({ table, letterId, schoolId, subject, body }) {
+// edits. `table` must be a fixed literal, as above. `extraFields` lets a
+// caller set additional columns unconditionally (not COALESCE'd) — used by
+// general_letters to let the recipient/organisation be corrected too, since
+// unlike subject/body those fields legitimately need to become NULL when the
+// recipient type changes (e.g. switching from external back to internal).
+// Column names in extraFields must come from a fixed allowlist in the
+// caller, never from raw request input.
+async function resubmitLetter({ table, letterId, schoolId, subject, body, extraFields }) {
+  const setClauses = [
+    `status = 'pending_approval'`,
+    `subject = COALESCE($1, subject)`,
+    `body = COALESCE($2, body)`,
+    `updated_at = now()`,
+  ];
+  const params = [subject || null, body || null];
+
+  for (const [column, value] of Object.entries(extraFields || {})) {
+    params.push(value);
+    setClauses.push(`${column} = $${params.length}`);
+  }
+
+  params.push(letterId, schoolId);
   const { rows } = await pool.query(
     `UPDATE ${table}
-     SET status = 'pending_approval',
-         subject = COALESCE($1, subject),
-         body = COALESCE($2, body),
-         updated_at = now()
-     WHERE id = $3 AND school_id = $4 AND status = 'returned'
+     SET ${setClauses.join(', ')}
+     WHERE id = $${params.length - 1} AND school_id = $${params.length} AND status = 'returned'
      RETURNING *`,
-    [subject || null, body || null, letterId, schoolId]
+    params
   );
   return rows[0] || null;
 }
