@@ -394,29 +394,35 @@ async function buildTeacherCompletionRows(schoolId, academicYearId, semester) {
 
   if (timetable.length === 0) return [];
 
-  // Roster size per distinct class, resolved as of this period via
-  // class_history rather than current class_name — see
-  // assessment-monitoring.js for the identical fix to this same bug.
+  // Roster per distinct class, resolved as of this period via class_history
+  // rather than current class_name — also bounds the numerator below (see
+  // assessment-monitoring.js for the identical fix to this same bug: a
+  // student can have a real score yet no longer belong to this period's
+  // resolved roster, e.g. deactivated after being scored).
   const distinctClasses = [...new Set(timetable.map(r => r.class_name))];
-  const rosterCounts = await Promise.all(
-    distinctClasses.map(async cls => [
-      cls.toLowerCase(),
-      (await getClassRoster(schoolId, cls, academicYearId, sem)).length,
-    ])
+  const rosterByClass = await Promise.all(
+    distinctClasses.map(async cls => [cls.toLowerCase(), await getClassRoster(schoolId, cls, academicYearId, sem)])
   );
-  const rosterCountMap = Object.fromEntries(rosterCounts);
+  const rosterCountMap = Object.fromEntries(rosterByClass.map(([key, ids]) => [key, ids.length]));
+  const rosterClassKeys  = [];
+  const rosterStudentIds = [];
+  for (const [key, ids] of rosterByClass) {
+    for (const id of ids) { rosterClassKeys.push(key); rosterStudentIds.push(id); }
+  }
 
   // Per-(teacher, subject, class, mode) assessment + score counts
   const { rows: modeCounts } = await pool.query(
     `SELECT a.teacher_id, LOWER(a.subject) AS subject_key, LOWER(a.class_name) AS class_key,
             a.mode_id,
             COUNT(DISTINCT a.id)::int AS assessments_created,
-            COUNT(DISTINCT CASE WHEN asc2.score IS NOT NULL OR asc2.absent = true THEN asc2.student_id END)::int AS students_scored
+            COUNT(DISTINCT CASE WHEN (asc2.score IS NOT NULL OR asc2.absent = true) AND roster.student_id IS NOT NULL THEN asc2.student_id END)::int AS students_scored
      FROM assessments a
      LEFT JOIN assessment_scores asc2 ON asc2.assessment_id = a.id
+     LEFT JOIN unnest($4::text[], $5::uuid[]) AS roster(class_key, student_id)
+       ON roster.class_key = LOWER(a.class_name) AND roster.student_id = asc2.student_id
      WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
      GROUP BY a.teacher_id, LOWER(a.subject), LOWER(a.class_name), a.mode_id`,
-    [schoolId, academicYearId, sem]
+    [schoolId, academicYearId, sem, rosterClassKeys, rosterStudentIds]
   );
   const modeMap = {};
   for (const mc of modeCounts) {
@@ -425,12 +431,14 @@ async function buildTeacherCompletionRows(schoolId, academicYearId, semester) {
 
   // Per-(teacher, subject, class) exam score counts
   const { rows: examCounts } = await pool.query(
-    `SELECT teacher_id, LOWER(subject) AS subject_key, LOWER(class_name) AS class_key,
-            COUNT(DISTINCT student_id)::int AS students_scored
-     FROM exam_scores
-     WHERE school_id=$1 AND academic_year_id=$2 AND semester=$3
-     GROUP BY teacher_id, LOWER(subject), LOWER(class_name)`,
-    [schoolId, academicYearId, sem]
+    `SELECT es.teacher_id, LOWER(es.subject) AS subject_key, LOWER(es.class_name) AS class_key,
+            COUNT(DISTINCT CASE WHEN roster.student_id IS NOT NULL THEN es.student_id END)::int AS students_scored
+     FROM exam_scores es
+     LEFT JOIN unnest($4::text[], $5::uuid[]) AS roster(class_key, student_id)
+       ON roster.class_key = LOWER(es.class_name) AND roster.student_id = es.student_id
+     WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3
+     GROUP BY es.teacher_id, LOWER(es.subject), LOWER(es.class_name)`,
+    [schoolId, academicYearId, sem, rosterClassKeys, rosterStudentIds]
   );
   const examMap = {};
   for (const ec of examCounts) examMap[`${ec.teacher_id}|${ec.subject_key}|${ec.class_key}`] = ec.students_scored;
