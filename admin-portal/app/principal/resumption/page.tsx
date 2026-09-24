@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { principalApi as api } from '@/lib/principal-api';
@@ -108,9 +108,11 @@ const STYLES = `
   }
   .res-print-title { display: none; }
   @media print {
-    body * { visibility: hidden; }
-    .res-print-area, .res-print-area * { visibility: visible; }
-    .res-print-area { position: fixed; top: 0; left: 0; width: 100%; padding: 24px; }
+    /* display:none (not visibility:hidden) removes chrome from the flow
+       entirely, so .res-print-area can paginate normally across as many
+       printed pages as the table needs — position:fixed here would clip
+       everything after the first page instead. */
+    .res-print-hide { display: none !important; }
     .res-print-title { display: block !important; }
   }
 `;
@@ -333,7 +335,7 @@ export default function ResumptionPage() {
       <div className="res-wrap">
 
         {/* Header */}
-        <div style={{ marginBottom: 20 }}>
+        <div className="res-print-hide" style={{ marginBottom: 20 }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1C1917', margin: 0 }}>Resumption Register</h1>
           <p style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>
             Track boarding student arrivals when school reopens. Flag students in class without an arrival record.
@@ -342,7 +344,7 @@ export default function ResumptionPage() {
 
         {/* Status banner */}
         {config && (
-          <div style={{
+          <div className="res-print-hide" style={{
             background: config.is_open ? '#F0F9F4' : '#FEF2F2',
             border: `1px solid ${config.is_open ? '#BBF7D0' : '#FECACA'}`,
             borderRadius: 10, padding: '10px 16px', marginBottom: 20,
@@ -368,7 +370,7 @@ export default function ResumptionPage() {
         )}
 
         {/* Tabs */}
-        <div className="res-tabs">
+        <div className="res-tabs res-print-hide">
           {tabs.map(t => (
             <button key={t.key} className={`res-tab-btn${tab === t.key ? ' active' : ''}`} onClick={() => setTab(t.key)}>
               {t.label}
@@ -559,7 +561,7 @@ export default function ResumptionPage() {
         {/* ── Late Resumption Tab ── */}
         {tab === 'late' && (
           <div>
-            <div className="res-filters">
+            <div className="res-filters res-print-hide">
               <select value={lateClass} onChange={e => setLateClass(e.target.value)} className="res-input">
                 <option value="">All Classes</option>
                 {allClasses.map(c => <option key={c}>{c}</option>)}
@@ -574,13 +576,13 @@ export default function ResumptionPage() {
             </div>
 
             {lateConfig?.resumption_date && (
-              <p style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
+              <p className="res-print-hide" style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
                 Deadline: resumption date ({new Date(lateConfig.resumption_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}) + {lateConfig.max_days_home} day(s) allowed home.
               </p>
             )}
 
             {lateErr && (
-              <p style={{ color: '#B83232', fontSize: 12, marginBottom: 12, background: '#FEF2F2', padding: '8px 12px', borderRadius: 6 }}>
+              <p className="res-print-hide" style={{ color: '#B83232', fontSize: 12, marginBottom: 12, background: '#FEF2F2', padding: '8px 12px', borderRadius: 6 }}>
                 {lateErr}
               </p>
             )}
@@ -591,9 +593,14 @@ export default function ResumptionPage() {
               !lateErr && <p style={{ color: '#9CA3AF', fontSize: 13 }}>No students reported back after the deadline. Everyone made it in on time.</p>
             ) : (
               <div className="res-print-area">
-                <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }} className="res-print-title">
+                <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }} className="res-print-title">
                   Late Resumption Report
                 </h2>
+                {lateConfig?.resumption_date && (
+                  <p className="res-print-title" style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
+                    Deadline: resumption date ({new Date(lateConfig.resumption_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}) + {lateConfig.max_days_home} day(s) allowed home.
+                  </p>
+                )}
                 {/* Desktop table */}
                 <div className="res-late-table">
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -830,3 +837,4 @@ export default function ResumptionPage() {
     </>
   );
 }
+
