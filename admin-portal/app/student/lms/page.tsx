@@ -32,7 +32,7 @@ export default function LMSCoursesPage() {
   }, []);
 
   useEffect(() => {
-    studentApi.get<AcademicYear[]>('/api/academic-years').then(r => {
+    studentApi.get<AcademicYear[]>('/api/student/academic-years').then(r => {
       setYears(r.data);
       const cur = r.data.find(y => y.is_current) ?? r.data[0];
       if (cur) {

@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 const { getCurrentSchoolContext } = require('../utils/school-context');
-const { getClassRoster, resolveStudentClassAtPeriod } = require('../services/classHistory.service');
+const { getClassRoster, resolveStudentClassAtPeriod, getStudentEnrollmentYears } = require('../services/classHistory.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -609,11 +609,10 @@ router.get('/calendar', async (req, res, next) => {
 
 router.get('/academic-years', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT id, name, is_current, current_semester
-       FROM academic_years WHERE school_id = $1 ORDER BY name DESC`,
-      [req.schoolId]
-    );
+    // Scoped to years this student could plausibly have data in, not every
+    // year the school has ever run — a student who joined last year shouldn't
+    // see (or be able to filter results/attendance by) years before they enrolled.
+    const rows = await getStudentEnrollmentYears(req.schoolId, req.user.id);
     res.json(rows);
   } catch (err) { next(err); }
 });

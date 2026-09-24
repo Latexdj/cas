@@ -76,6 +76,55 @@ async function getNextYearOrdinalMs(schoolId, academicYearId) {
   return rows[0] ? new Date(rows[0].ordinal_date).getTime() : null;
 }
 
+// getStudentEnrollmentYears(schoolId, studentId)
+// Returns the academic_years rows this student could plausibly have data in —
+// for scoping a student-facing "Academic Year" filter down to years they
+// actually attended, instead of every year the school has ever run. A year
+// qualifies if EITHER:
+//  (a) the student was already created by the start of the chronologically
+//      NEXT year — the same existence test getClassRoster's no-history
+//      fallback uses (see getNextYearOrdinalMs above) — and the year has
+//      itself started (so an as-yet-unreached future year, which by
+//      definition has no "next year" cutoff, isn't wrongly included forever);
+//  (b) the student has an actual row in that year regardless of the above —
+//      created_at is only an approximation (a bulk import can post-date a
+//      student's real enrollment; see the same caveat on resolveClassFromHistory
+//      above), so a year with real recorded data must never be hidden just
+//      because the date heuristic alone would have excluded it.
+async function getStudentEnrollmentYears(schoolId, studentId) {
+  const { rows } = await pool.query(
+    `SELECT ay.id, ay.name, ay.is_current, ay.current_semester
+     FROM academic_years ay
+     JOIN students s ON s.id = $2 AND s.school_id = $1
+     WHERE ay.school_id = $1
+       AND (
+         (
+           COALESCE(ay.start_date, ay.created_at) <= now()
+           AND s.created_at < COALESCE(
+             (SELECT COALESCE(next.start_date, next.created_at)
+              FROM academic_years next
+              WHERE next.school_id = $1
+                AND COALESCE(next.start_date, next.created_at) > COALESCE(ay.start_date, ay.created_at)
+              ORDER BY COALESCE(next.start_date, next.created_at) ASC
+              LIMIT 1),
+             'infinity'::timestamptz
+           )
+         )
+         OR EXISTS (SELECT 1 FROM exam_scores es WHERE es.student_id = s.id AND es.academic_year_id = ay.id)
+         OR EXISTS (SELECT 1 FROM student_bills sb WHERE sb.student_id = s.id AND sb.academic_year_id = ay.id)
+         OR EXISTS (SELECT 1 FROM class_history ch WHERE ch.student_id = s.id AND ch.academic_year_id = ay.id)
+         OR EXISTS (
+           SELECT 1 FROM student_attendance_records r
+           JOIN student_attendance_sessions ses ON ses.id = r.session_id
+           WHERE r.student_id = s.id AND ses.academic_year_id = ay.id
+         )
+       )
+     ORDER BY ay.name DESC`,
+    [schoolId, studentId]
+  );
+  return rows;
+}
+
 const comparePeriod = (a, b) => a[0] - b[0] || a[1] - b[1];
 
 // Walks one student's chronologically-ordered class_history rows to find
@@ -230,4 +279,4 @@ async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName
   return resolveClassFromHistory(history, currentClassName, [targetOrdinalMs, targetSemester], createdAtMs, existenceCutoffMs);
 }
 
-module.exports = { recordClassChange, getClassRoster, resolveStudentClassAtPeriod, mapWithLimit };
+module.exports = { recordClassChange, getClassRoster, resolveStudentClassAtPeriod, mapWithLimit, getStudentEnrollmentYears };
