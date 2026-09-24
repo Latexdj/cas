@@ -290,7 +290,7 @@ router.post('/change-pin', require('../middleware/auth').authenticate, async (re
 });
 
 // ── POST /api/auth/staff-login ───────────────────────────────────────────────
-// Unified login for all non-teaching staff (clearance + library)
+// Unified login for all non-teaching staff (clearance, library, inventory, accounts)
 router.post('/staff-login', loginLimiter, async (req, res, next) => {
   try {
     const { email, password, schoolCode } = req.body;

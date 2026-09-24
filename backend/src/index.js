@@ -2058,6 +2058,16 @@ async function runMigrations() {
           CHECK (role IN ('clearance','library','inventory'));
       EXCEPTION WHEN OTHERS THEN NULL; END $$
     `);
+    // Fix school_staff_roles CHECK constraint to allow 'accounts' role
+    // (accounts-office staff — record student bills/payments, see fees.js)
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE school_staff_roles DROP CONSTRAINT IF EXISTS school_staff_roles_role_check;
+        ALTER TABLE school_staff_roles
+          ADD CONSTRAINT school_staff_roles_role_check
+          CHECK (role IN ('clearance','library','inventory','accounts'));
+      EXCEPTION WHEN OTHERS THEN NULL; END $$
+    `);
 
     // ── Year of admission ─────────────────────────────────────────────────────
     await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS year_of_admission SMALLINT`);
@@ -2745,6 +2755,17 @@ async function runMigrations() {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_class_history_student ON class_history(student_id, changed_at)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_class_history_school_class ON class_history(school_id, to_class)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] class_history:', e.message); }
+
+    // ── Teacher professional profile fields ──────────────────────────────────
+    try {
+    await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS area_of_specialization TEXT`);
+    await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS date_of_first_appointment DATE`);
+    await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS date_promoted_to_current_rank DATE`);
+    await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS year_posted_to_present_station INTEGER`);
+    await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS currently_teaching_subject_ids UUID[] NOT NULL DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS date_obtained_academic_qualification DATE`);
+    await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS date_obtained_professional_qualification DATE`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] teacher professional profile fields:', e.message); }
 
     // ── Class levels (secondary schools: Form/Year grouping above classes) ────
     try {
