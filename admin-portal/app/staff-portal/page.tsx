@@ -37,6 +37,27 @@ interface InvStudent {
   id: string; name: string; student_code: string; class_name: string; picture_url: string | null;
 }
 
+// ─── Accounts types ───────────────────────────────────────────────────────────
+interface FeeItem { id: string; name: string; description: string | null; is_active: boolean; }
+interface AcctStudentResult { id: string; name: string; student_code: string; class_name: string; }
+interface AcctBill {
+  id: string; description: string; amount: string; amount_paid: string;
+  due_date: string | null; fee_item_id: string | null; fee_item_name: string | null;
+}
+interface AcctPayment {
+  id: string; amount: string; payment_date: string; payment_method: string;
+  reference: string | null; recorded_by: string | null; receipt_no: string | null;
+}
+interface AcctStudentSummary {
+  student: { id: string; name: string; student_code: string; class_name: string };
+  bills: AcctBill[]; payments: AcctPayment[];
+  total_billed: number; total_paid: number; outstanding: number;
+}
+const PAYMENT_METHODS = ['Cash', 'Mobile Money', 'Bank Transfer', 'Cheque', 'Card', 'Other'];
+function fmtGHS(n: number | string) {
+  return `GH₵ ${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 // ─── Library types ────────────────────────────────────────────────────────────
 interface DashStats { total_books: number; available_copies: number; active_loans: number; overdue_loans: number; returned_today: number; }
 interface Book { id: string; title: string; author: string | null; subject: string | null; available_copies: number; total_copies: number; }
@@ -62,7 +83,7 @@ const STATUS_STYLE = {
   pending:     { badge: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400', label: 'Pending'    },
 };
 
-type Section     = 'clearance' | 'library' | 'inventory';
+type Section     = 'clearance' | 'library' | 'inventory' | 'accounts';
 type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
 type InvTab      = 'items' | 'issue' | 'return' | 'sign-list';
@@ -84,8 +105,9 @@ export default function StaffPortalPage() {
   const hasLib  = staffRoles.includes('library');
   const hasCl   = staffRoles.includes('clearance');
   const hasInv  = staffRoles.includes('inventory');
+  const hasAcc  = staffRoles.includes('accounts');
 
-  const defaultSection: Section = hasCl ? 'clearance' : hasLib ? 'library' : 'inventory';
+  const defaultSection: Section = hasCl ? 'clearance' : hasLib ? 'library' : hasInv ? 'inventory' : 'accounts';
   const [section, setSection] = useState<Section>(defaultSection);
 
   // ── Clearance state ─────────────────────────────────────────────────────────
@@ -182,6 +204,26 @@ export default function StaffPortalPage() {
   const [slError,          setSlError]          = useState('');
   const slDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Accounts state ───────────────────────────────────────────────────────────
+  const [acctItems,      setAcctItems]      = useState<FeeItem[]>([]);
+  const [acctQuery,      setAcctQuery]      = useState('');
+  const [acctResults,    setAcctResults]    = useState<AcctStudentResult[]>([]);
+  const [acctSearching,  setAcctSearching]  = useState(false);
+  const [acctSelected,   setAcctSelected]   = useState<AcctStudentSummary | null>(null);
+  const [acctLoadingSum, setAcctLoadingSum] = useState(false);
+
+  const [showBillModal,  setShowBillModal]  = useState(false);
+  const [billForm,       setBillForm]       = useState({ fee_item_id: '', description: '', amount: '', due_date: '' });
+  const [billSaving,     setBillSaving]     = useState(false);
+  const [billErr,        setBillErr]        = useState('');
+
+  const [showPayModal,   setShowPayModal]   = useState(false);
+  const [payForm,        setPayForm]        = useState({ bill_id: '', fee_item_id: '', amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'Cash', reference: '', notes: '' });
+  const [paySaving,      setPaySaving]      = useState(false);
+  const [payErr,         setPayErr]         = useState('');
+
+  const acctDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ── Initial load ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!hasCl) return;
@@ -202,8 +244,89 @@ export default function StaffPortalPage() {
     if (section === 'library' && libTab === 'overdue') loadOverdue();
     if (section === 'inventory') loadInvItems();
     if (section === 'inventory' && invTab === 'sign-list') loadSlFilters();
+    if (section === 'accounts' && acctItems.length === 0) {
+      api.get<FeeItem[]>('/api/fees/items').then(r => setAcctItems(r.data)).catch(() => {});
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, libTab, invTab]);
+
+  // ── Accounts helpers ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (acctQuery.trim().length < 2) { setAcctResults([]); return; }
+    if (acctDebounceRef.current) clearTimeout(acctDebounceRef.current);
+    acctDebounceRef.current = setTimeout(() => {
+      setAcctSearching(true);
+      api.get<AcctStudentResult[]>('/api/fees/students/search', { params: { q: acctQuery.trim() } })
+        .then(r => setAcctResults(r.data)).catch(() => setAcctResults([])).finally(() => setAcctSearching(false));
+    }, 300);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acctQuery]);
+
+  async function selectAcctStudent(id: string) {
+    setAcctResults([]); setAcctQuery(''); setAcctLoadingSum(true); setAcctSelected(null);
+    try {
+      const r = await api.get<AcctStudentSummary>(`/api/fees/student/${id}/summary`);
+      setAcctSelected(r.data);
+    } catch { alert('Could not load student fee account.'); }
+    finally { setAcctLoadingSum(false); }
+  }
+
+  async function refreshAcctSelected() {
+    if (!acctSelected) return;
+    const r = await api.get<AcctStudentSummary>(`/api/fees/student/${acctSelected.student.id}/summary`);
+    setAcctSelected(r.data);
+  }
+
+  function openBillModal() {
+    setBillForm({ fee_item_id: '', description: '', amount: '', due_date: '' });
+    setBillErr(''); setShowBillModal(true);
+  }
+
+  async function submitBill() {
+    if (!acctSelected) return;
+    if (!billForm.description.trim()) { setBillErr('Description is required.'); return; }
+    if (!billForm.amount || Number(billForm.amount) <= 0) { setBillErr('A valid amount is required.'); return; }
+    setBillSaving(true); setBillErr('');
+    try {
+      await api.post('/api/fees/bills', { student_id: acctSelected.student.id, ...billForm });
+      setShowBillModal(false);
+      await refreshAcctSelected();
+    } catch (e: any) { setBillErr(e?.response?.data?.error ?? 'Failed to record bill.'); }
+    finally { setBillSaving(false); }
+  }
+
+  async function deleteAcctBill(id: string) {
+    if (!confirm('Delete this bill?')) return;
+    try {
+      await api.delete(`/api/fees/bills/${id}`);
+      await refreshAcctSelected();
+    } catch (e: any) { alert(e?.response?.data?.error ?? 'Failed to delete bill.'); }
+  }
+
+  function openPayModal() {
+    setPayForm({ bill_id: '', fee_item_id: '', amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'Cash', reference: '', notes: '' });
+    setPayErr(''); setShowPayModal(true);
+  }
+
+  async function submitPayment() {
+    if (!acctSelected) return;
+    if (!payForm.amount || Number(payForm.amount) <= 0) { setPayErr('A valid amount is required.'); return; }
+    setPaySaving(true); setPayErr('');
+    try {
+      await api.post('/api/fees/payments', { student_id: acctSelected.student.id, ...payForm });
+      setShowPayModal(false);
+      await refreshAcctSelected();
+    } catch (e: any) { setPayErr(e?.response?.data?.error ?? 'Failed to record payment.'); }
+    finally { setPaySaving(false); }
+  }
+
+  async function voidAcctPayment(id: string) {
+    if (!confirm('Void this payment? This cannot be undone.')) return;
+    try {
+      await api.delete(`/api/fees/payments/${id}`);
+      await refreshAcctSelected();
+    } catch { alert('Failed to void payment.'); }
+  }
 
   // ── Clearance helpers ─────────────────────────────────────────────────────────
   async function handleLookup(e: React.FormEvent) {
@@ -472,15 +595,15 @@ export default function StaffPortalPage() {
       </div>
 
       {/* Section switcher (shown when user has more than one role) */}
-      {([hasCl, hasLib, hasInv].filter(Boolean).length > 1) && (
+      {([hasCl, hasLib, hasInv, hasAcc].filter(Boolean).length > 1) && (
         <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-          {([hasCl && 'clearance', hasLib && 'library', hasInv && 'inventory'] as (Section | false)[])
+          {([hasCl && 'clearance', hasLib && 'library', hasInv && 'inventory', hasAcc && 'accounts'] as (Section | false)[])
             .filter((s): s is Section => !!s)
             .map(s => (
               <button key={s} onClick={() => setSection(s)}
                 className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors capitalize ${section === s ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                 style={section === s ? { background: primary } : {}}>
-                {s === 'clearance' ? 'Clearance' : s === 'library' ? 'Library' : 'Inventory'}
+                {s === 'clearance' ? 'Clearance' : s === 'library' ? 'Library' : s === 'inventory' ? 'Inventory' : 'Accounts'}
               </button>
             ))}
         </div>
@@ -1104,6 +1227,241 @@ export default function StaffPortalPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Accounts Section ──────────────────────────────────────────────── */}
+      {hasAcc && section === 'accounts' && (
+        <div className="space-y-4">
+          <div className="relative max-w-md">
+            <input value={acctQuery}
+              onChange={e => setAcctQuery(e.target.value)}
+              placeholder="Search student by name or ID…"
+              className="w-full border border-slate-200 dark:border-slate-600 rounded-xl pl-9 pr-4 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+            <svg className="absolute left-3 top-3 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            {acctSearching && <p className="absolute top-11 left-0 text-xs text-slate-400">Searching…</p>}
+            {acctResults.length > 0 && (
+              <div className="absolute top-11 left-0 right-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-20 overflow-hidden">
+                {acctResults.map(s => (
+                  <div key={s.id} className="px-4 py-2.5 cursor-pointer border-b border-slate-100 dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                    onMouseDown={() => selectAcctStudent(s.id)}>
+                    <span className="font-semibold text-slate-800 dark:text-white text-sm">{s.name}</span>
+                    <span className="text-slate-400 text-xs ml-2">{s.student_code} · {s.class_name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {acctLoadingSum && <div className="flex justify-center py-10"><div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} /></div>}
+
+          {!acctSelected && !acctLoadingSum && (
+            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-10 text-center text-slate-400 text-sm">
+              Search for a student above to view or record bills and payments.
+            </div>
+          )}
+
+          {acctSelected && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-3">
+                <div className="flex-1 min-w-[180px] bg-[#F5F0E8] dark:bg-slate-700/50 rounded-xl border border-slate-200 dark:border-slate-600 px-4 py-3">
+                  <p className="font-bold text-slate-800 dark:text-white">{acctSelected.student.name}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{acctSelected.student.student_code} · {acctSelected.student.class_name}</p>
+                </div>
+                {[
+                  { label: 'Total Billed', value: fmtGHS(acctSelected.total_billed), color: '#1e40af' },
+                  { label: 'Total Paid', value: fmtGHS(acctSelected.total_paid), color: '#145C44' },
+                  { label: 'Outstanding', value: fmtGHS(acctSelected.outstanding), color: acctSelected.outstanding > 0 ? '#dc2626' : '#145C44' },
+                ].map(card => (
+                  <div key={card.label} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 min-w-[120px]">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{card.label}</p>
+                    <p className="font-bold text-lg" style={{ color: card.color }}>{card.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={openBillModal} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>+ Add Bill</button>
+                <button onClick={openPayModal} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#145C44]">+ Record Payment</button>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Bills</h3>
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  {acctSelected.bills.length === 0 ? (
+                    <p className="p-5 text-center text-slate-400 text-sm">No bills yet.</p>
+                  ) : (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                      {acctSelected.bills.map(b => {
+                        const paid = Number(b.amount_paid);
+                        const owed = Number(b.amount) - paid;
+                        return (
+                          <div key={b.id} className="flex items-center gap-3 px-4 py-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{b.description}</p>
+                              <p className="text-xs text-slate-400">
+                                {fmtGHS(b.amount)} billed · {fmtGHS(paid)} paid{b.due_date ? ` · Due ${b.due_date.slice(0, 10)}` : ''}
+                              </p>
+                            </div>
+                            <span className="text-sm font-bold shrink-0" style={{ color: owed > 0 ? '#dc2626' : '#145C44' }}>{fmtGHS(owed)}</span>
+                            <button onClick={() => deleteAcctBill(b.id)} className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline shrink-0">Delete</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Payment History</h3>
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  {acctSelected.payments.length === 0 ? (
+                    <p className="p-5 text-center text-slate-400 text-sm">No payments yet.</p>
+                  ) : (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                      {acctSelected.payments.map(p => (
+                        <div key={p.id} className="flex items-center gap-3 px-4 py-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-[#145C44] dark:text-[#2ab289]">{fmtGHS(p.amount)}</p>
+                            <p className="text-xs text-slate-400">
+                              {p.payment_date.slice(0, 10)} · {p.payment_method}{p.receipt_no ? ` · ${p.receipt_no}` : ''}{p.recorded_by ? ` · by ${p.recorded_by}` : ''}
+                            </p>
+                          </div>
+                          <button onClick={() => voidAcctPayment(p.id)} className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline shrink-0">Void</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Add Bill Modal ─────────────────────────────────────────────────── */}
+      {showBillModal && acctSelected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+              <p className="font-bold text-slate-800 dark:text-white">Add Bill — {acctSelected.student.name}</p>
+              <button onClick={() => setShowBillModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Fee Type (optional)</label>
+                <select value={billForm.fee_item_id} onChange={e => setBillForm(f => ({ ...f, fee_item_id: e.target.value }))}
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]">
+                  <option value="">Unspecified</option>
+                  {acctItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Description *</label>
+                <input value={billForm.description} onChange={e => setBillForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="e.g. Lost ID card replacement"
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Amount (GH₵) *</label>
+                <input type="number" min="0" step="0.01" value={billForm.amount} onChange={e => setBillForm(f => ({ ...f, amount: e.target.value }))}
+                  placeholder="0.00"
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Due Date (optional)</label>
+                <input type="date" value={billForm.due_date} onChange={e => setBillForm(f => ({ ...f, due_date: e.target.value }))}
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+              </div>
+              {billErr && <p className="text-sm text-red-600">{billErr}</p>}
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => setShowBillModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300">Cancel</button>
+                <button onClick={submitBill} disabled={billSaving} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
+                  {billSaving ? 'Saving…' : 'Add Bill'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Record Payment Modal ───────────────────────────────────────────── */}
+      {showPayModal && acctSelected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
+              <p className="font-bold text-slate-800 dark:text-white">Record Payment — {acctSelected.student.name}</p>
+              <button onClick={() => setShowPayModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Apply to Bill (optional)</label>
+                <select value={payForm.bill_id} onChange={e => {
+                  const bill = acctSelected.bills.find(b => b.id === e.target.value);
+                  const owed = bill ? (Number(bill.amount) - Number(bill.amount_paid)).toFixed(2) : '';
+                  setPayForm(f => ({ ...f, bill_id: e.target.value, amount: owed || f.amount, fee_item_id: bill?.fee_item_id ?? '' }));
+                }}
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]">
+                  <option value="">General Payment</option>
+                  {acctSelected.bills.filter(b => Number(b.amount) - Number(b.amount_paid) > 0).map(b => (
+                    <option key={b.id} value={b.id}>{b.description} (owing {fmtGHS(Number(b.amount) - Number(b.amount_paid))})</option>
+                  ))}
+                </select>
+              </div>
+              {!payForm.bill_id && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Fee Type (optional)</label>
+                  <select value={payForm.fee_item_id} onChange={e => setPayForm(f => ({ ...f, fee_item_id: e.target.value }))}
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]">
+                    <option value="">Unspecified</option>
+                    {acctItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Amount (GH₵) *</label>
+                <input type="number" min="0" step="0.01" value={payForm.amount} onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
+                  placeholder="0.00"
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Payment Date *</label>
+                <input type="date" value={payForm.payment_date} onChange={e => setPayForm(f => ({ ...f, payment_date: e.target.value }))}
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Payment Method *</label>
+                <select value={payForm.payment_method} onChange={e => setPayForm(f => ({ ...f, payment_method: e.target.value }))}
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]">
+                  {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Reference / Transaction ID</label>
+                <input value={payForm.reference} onChange={e => setPayForm(f => ({ ...f, reference: e.target.value }))} placeholder="Optional"
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Notes</label>
+                <input value={payForm.notes} onChange={e => setPayForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional"
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+              </div>
+              {payErr && <p className="text-sm text-red-600">{payErr}</p>}
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => setShowPayModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300">Cancel</button>
+                <button onClick={submitPayment} disabled={paySaving} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 bg-[#145C44]">
+                  {paySaving ? 'Saving…' : 'Record Payment'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
