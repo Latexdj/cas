@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface AttRow {
@@ -29,9 +30,9 @@ const STATUS_STYLE: Record<Status, string> = {
 function today() { return new Date().toISOString().slice(0, 10); }
 
 export default function PrimaryStudentAttendancePage() {
-  const [tab,       setTab]       = useState<'daily'|'summary'>('daily');
+  const [tab,       setTab]       = useSessionFilter<'daily'|'summary'>('primary-admin-student-attendance:tab', 'daily');
   const [classes,   setClasses]   = useState<ClassItem[]>([]);
-  const [className, setClassName] = useState('');
+  const [className, setClassName] = useSessionFilter('primary-admin-student-attendance:className', '');
 
   // Daily
   const [date,    setDate]    = useState(today());
@@ -44,17 +45,23 @@ export default function PrimaryStudentAttendancePage() {
 
   // Summary
   const [terms,    setTerms]    = useState<Term[]>([]);
-  const [termId,   setTermId]   = useState('');
+  const [termId,   setTermId]   = useSessionFilter('primary-admin-student-attendance:termId', '');
   const [summary,  setSummary]  = useState<SummaryRow[]>([]);
   const [sumLoad,  setSumLoad]  = useState(false);
 
   useEffect(() => {
     api.get<Term[]>('/api/primary/terms').then(r => {
       setTerms(r.data);
-      const cur = r.data.find(t => t.is_current);
-      if (cur) setTermId(cur.id);
+      // Only fall back to "current term" when nothing was restored from a
+      // prior session — otherwise a refresh bounces the admin back to the
+      // current term instead of the one they were reviewing.
+      if (!termId) {
+        const cur = r.data.find(t => t.is_current);
+        if (cur) setTermId(cur.id);
+      }
     }).catch(() => {});
     api.get<ClassItem[]>('/api/primary/classes').then(r => setClasses(r.data)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadDaily = useCallback(async () => {

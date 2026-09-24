@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 interface Stats {
   total_students: number; active_students: number; total_classes: number;
@@ -45,7 +46,7 @@ export default function PrimaryAdminDashboard() {
   const [stats,      setStats]      = useState<Stats | null>(null);
   const [loading,    setLoading]    = useState(true);
   const [terms,      setTerms]      = useState<Term[]>([]);
-  const [termId,     setTermId]     = useState('');
+  const [termId,     setTermId]     = useSessionFilter('primary-admin-dashboard:termId', '');
   const [attReport,  setAttReport]  = useState<AttRow[]>([]);
   const [attLoading, setAttLoading] = useState(false);
 
@@ -56,9 +57,15 @@ export default function PrimaryAdminDashboard() {
       .finally(() => setLoading(false));
     api.get<Term[]>('/api/primary/terms').then(r => {
       setTerms(r.data);
-      const cur = r.data.find(t => t.is_current);
-      if (cur) setTermId(cur.id);
+      // Only fall back to "current term" when nothing was restored from a
+      // prior session — otherwise a refresh bounces the admin back to the
+      // current term instead of the one they were reviewing.
+      if (!termId) {
+        const cur = r.data.find(t => t.is_current);
+        if (cur) setTermId(cur.id);
+      }
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; }
 interface Term {
@@ -12,7 +13,7 @@ interface Term {
 export default function PrimaryTermsPage() {
   const [years,   setYears]   = useState<AcademicYear[]>([]);
   const [terms,   setTerms]   = useState<Term[]>([]);
-  const [yearId,  setYearId]  = useState('');
+  const [yearId,  setYearId]  = useSessionFilter('primary-admin-terms:yearId', '');
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
 
@@ -24,9 +25,15 @@ export default function PrimaryTermsPage() {
   useEffect(() => {
     api.get<AcademicYear[]>('/api/academic-years').then(r => {
       setYears(r.data);
-      const cur = r.data.find(y => y.is_current);
-      if (cur) setYearId(cur.id);
+      // Only fall back to "current year" when nothing was restored from a
+      // prior session — otherwise a refresh bounces the admin back to the
+      // current year instead of the one whose terms they were managing.
+      if (!yearId) {
+        const cur = r.data.find(y => y.is_current);
+        if (cur) setYearId(cur.id);
+      }
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const load = useCallback(async () => {

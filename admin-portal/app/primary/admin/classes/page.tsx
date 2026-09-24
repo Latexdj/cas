@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination } from '@/components/ui/Pagination';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -329,7 +330,7 @@ function AssignTeacherModal({ cls, yearId, teachers, onClose, onSaved }: {
 
 export default function PrimaryClassesPage() {
   const [years,       setYears]       = useState<AcademicYear[]>([]);
-  const [yearId,      setYearId]      = useState('');
+  const [yearId,      setYearId]      = useSessionFilter('primary-admin-classes:yearId', '');
   const [classes,     setClasses]     = useState<ClassItem[]>([]);
   const [teachers,    setTeachers]    = useState<Teacher[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -355,9 +356,15 @@ export default function PrimaryClassesPage() {
       api.get<Teacher[]>('/api/teachers'),
     ]).then(([yr, tch]) => {
       setYears(yr.data); setTeachers(tch.data);
-      const cur = yr.data.find(y => y.is_current);
-      if (cur) setYearId(cur.id);
+      // Only fall back to "current year" when nothing was restored from a
+      // prior session — otherwise a refresh bounces the admin back to the
+      // current year instead of the one they were managing.
+      if (!yearId) {
+        const cur = yr.data.find(y => y.is_current);
+        if (cur) setYearId(cur.id);
+      }
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadClasses = useCallback(async () => {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface AttRecord {
@@ -36,7 +37,7 @@ function statusChip(status: string, isAuto: boolean) {
 }
 
 export default function PrimaryTeacherAttendancePage() {
-  const [tab, setTab] = useState<'log' | 'report'>('log');
+  const [tab, setTab] = useSessionFilter<'log' | 'report'>('primary-admin-teacher-attendance:tab', 'log');
 
   // Log tab
   const [date,      setDate]      = useState(new Date().toISOString().slice(0, 10));
@@ -57,7 +58,7 @@ export default function PrimaryTeacherAttendancePage() {
 
   // Report tab
   const [terms,        setTerms]        = useState<Term[]>([]);
-  const [termId,       setTermId]       = useState('');
+  const [termId,       setTermId]       = useSessionFilter('primary-admin-teacher-attendance:termId', '');
   const [report,       setReport]       = useState<ReportRow[]>([]);
   const [reportLoad,   setReportLoad]   = useState(false);
 
@@ -86,9 +87,15 @@ export default function PrimaryTeacherAttendancePage() {
     api.get<Teacher[]>('/api/teachers').then(r => setTeachers(Array.isArray(r.data) ? r.data : [])).catch(() => {});
     api.get<Term[]>('/api/primary/terms').then(r => {
       setTerms(r.data);
-      const cur = r.data.find((t: Term & { is_current?: boolean }) => (t as unknown as { is_current: boolean }).is_current);
-      if (cur) setTermId(cur.id);
+      // Only fall back to "current term" when nothing was restored from a
+      // prior session — otherwise a refresh bounces the admin back to the
+      // current term instead of the one they were reviewing.
+      if (!termId) {
+        const cur = r.data.find((t: Term & { is_current?: boolean }) => (t as unknown as { is_current: boolean }).is_current);
+        if (cur) setTermId(cur.id);
+      }
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function submitManual() {

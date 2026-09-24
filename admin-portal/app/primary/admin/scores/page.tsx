@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination } from '@/components/ui/Pagination';
 
 interface Term    { id: string; name: string; is_current: boolean; }
@@ -16,12 +17,12 @@ interface ClassItem  { id: string; class_name: string; }
 export default function PrimaryScoresAdminPage() {
   const [terms,      setTerms]      = useState<Term[]>([]);
   const [classes,    setClasses]    = useState<ClassItem[]>([]);
-  const [termId,     setTermId]     = useState('');
-  const [className,  setClassName]  = useState('');
+  const [termId,     setTermId]     = useSessionFilter('primary-admin-scores:termId', '');
+  const [className,  setClassName]  = useSessionFilter('primary-admin-scores:className', '');
   const [subjects,   setSubjects]   = useState<Subject[]>([]);
   const [students,   setStudents]   = useState<Student[]>([]);
   const [scoreMap,   setScoreMap]   = useState<ScoresData['scoreMap']>({});
-  const [selSubject, setSelSubject] = useState('');
+  const [selSubject, setSelSubject] = useSessionFilter('primary-admin-scores:selSubject', '');
   const [draft,      setDraft]      = useState<Record<string, { cs: string; ex: string }>>({});
   const [loading,    setLoading]    = useState(false);
   const [saving,     setSaving]     = useState(false);
@@ -38,10 +39,16 @@ export default function PrimaryScoresAdminPage() {
   useEffect(() => {
     api.get<Term[]>('/api/primary/terms').then(r => {
       setTerms(r.data);
-      const cur = r.data.find(t => t.is_current);
-      if (cur) setTermId(cur.id);
+      // Only fall back to "current term" when nothing was restored from a
+      // prior session — otherwise a refresh bounces the admin back to the
+      // current term instead of the one they were entering scores for.
+      if (!termId) {
+        const cur = r.data.find(t => t.is_current);
+        if (cur) setTermId(cur.id);
+      }
     }).catch(() => {});
     api.get<ClassItem[]>('/api/primary/classes').then(r => setClasses(r.data)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const load = useCallback(async () => {
