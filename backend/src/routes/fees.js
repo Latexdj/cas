@@ -2,11 +2,23 @@ const router = require('express').Router();
 const pool = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 
-router.use(authenticate, requireActiveSubscription, adminOnly);
+router.use(authenticate, requireActiveSubscription);
+
+// Day-to-day bill/payment recording — open to admins and to school_staff
+// accounts explicitly given the 'accounts' role (Settings > Staff Accounts).
+// Fee structure config (items CUD, schedules, bulk generate), expenditure,
+// and financial reports stay adminOnly below — an accounts clerk records
+// transactions, they don't redefine what's chargeable or see net position.
+function accountsAccess(req, res, next) {
+  const role = req.user?.role;
+  if (role === 'admin' || role === 'super_admin') return next();
+  if (role === 'staff' && req.staffRoles?.includes('accounts')) return next();
+  return res.status(403).json({ error: 'Accounts staff access only' });
+}
 
 // ── Fee Items ─────────────────────────────────────────────────────────────────
 
-router.get('/items', async (req, res, next) => {
+router.get('/items', accountsAccess, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT id, name, description, is_active, created_at
@@ -17,7 +29,7 @@ router.get('/items', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/items', async (req, res, next) => {
+router.post('/items', adminOnly, async (req, res, next) => {
   try {
     const { name, description } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'Name is required.' });
@@ -30,7 +42,7 @@ router.post('/items', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/items/:id', async (req, res, next) => {
+router.put('/items/:id', adminOnly, async (req, res, next) => {
   try {
     const { name, description, is_active } = req.body;
     if (!name?.trim()) return res.status(400).json({ error: 'Name is required.' });
@@ -44,7 +56,7 @@ router.put('/items/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/items/:id', async (req, res, next) => {
+router.delete('/items/:id', adminOnly, async (req, res, next) => {
   try {
     const { rows: bills } = await pool.query(
       `SELECT 1 FROM student_bills WHERE fee_item_id=$1 AND school_id=$2 LIMIT 1`,
@@ -60,7 +72,7 @@ router.delete('/items/:id', async (req, res, next) => {
 
 // ── Fee Schedules ─────────────────────────────────────────────────────────────
 
-router.get('/schedules', async (req, res, next) => {
+router.get('/schedules', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT fs.*, fi.name AS fee_item_name, ay.name AS academic_year_name
@@ -75,7 +87,7 @@ router.get('/schedules', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/schedules', async (req, res, next) => {
+router.post('/schedules', adminOnly, async (req, res, next) => {
   try {
     const { fee_item_id, academic_year_id, semester, class_name, amount, due_date } = req.body;
     if (!fee_item_id) return res.status(400).json({ error: 'Fee item is required.' });
@@ -90,7 +102,7 @@ router.post('/schedules', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/schedules/:id', async (req, res, next) => {
+router.put('/schedules/:id', adminOnly, async (req, res, next) => {
   try {
     const { fee_item_id, academic_year_id, semester, class_name, amount, due_date } = req.body;
     if (!fee_item_id) return res.status(400).json({ error: 'Fee item is required.' });
@@ -107,7 +119,7 @@ router.put('/schedules/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/schedules/:id', async (req, res, next) => {
+router.delete('/schedules/:id', adminOnly, async (req, res, next) => {
   try {
     await pool.query(`DELETE FROM fee_schedules WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]);
     res.json({ message: 'Deleted.' });
@@ -115,7 +127,7 @@ router.delete('/schedules/:id', async (req, res, next) => {
 });
 
 // POST /api/fees/schedules/:id/generate — bulk-create bills for matching students
-router.post('/schedules/:id/generate', async (req, res, next) => {
+router.post('/schedules/:id/generate', adminOnly, async (req, res, next) => {
   try {
     const { rows: [schedule] } = await pool.query(
       `SELECT fs.*, fi.name AS fee_item_name, ay.name AS academic_year_name
@@ -170,7 +182,7 @@ router.post('/schedules/:id/generate', async (req, res, next) => {
 
 // ── Student Bills ─────────────────────────────────────────────────────────────
 
-router.get('/bills', async (req, res, next) => {
+router.get('/bills', accountsAccess, async (req, res, next) => {
   try {
     const { student_id, class_name, year_id, semester } = req.query;
     const conditions = ['sb.school_id = $1'];
@@ -197,7 +209,7 @@ router.get('/bills', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/bills', async (req, res, next) => {
+router.post('/bills', accountsAccess, async (req, res, next) => {
   try {
     const { student_id, fee_item_id, academic_year_id, semester, description, amount, due_date } = req.body;
     if (!student_id) return res.status(400).json({ error: 'Student is required.' });
@@ -213,7 +225,7 @@ router.post('/bills', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/bills/:id', async (req, res, next) => {
+router.delete('/bills/:id', accountsAccess, async (req, res, next) => {
   try {
     const { rows: payments } = await pool.query(
       `SELECT 1 FROM fee_payments WHERE bill_id=$1 AND school_id=$2 LIMIT 1`,
@@ -229,7 +241,7 @@ router.delete('/bills/:id', async (req, res, next) => {
 
 // ── Payments ──────────────────────────────────────────────────────────────────
 
-router.get('/payments', async (req, res, next) => {
+router.get('/payments', accountsAccess, async (req, res, next) => {
   try {
     const { student_id, class_name, from, to } = req.query;
     const conditions = ['fp.school_id = $1'];
@@ -256,7 +268,7 @@ router.get('/payments', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/payments', async (req, res, next) => {
+router.post('/payments', accountsAccess, async (req, res, next) => {
   try {
     const { student_id, bill_id, fee_item_id, amount, payment_date, payment_method, reference, notes } = req.body;
     if (!student_id) return res.status(400).json({ error: 'Student is required.' });
@@ -280,7 +292,7 @@ router.post('/payments', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/payments/:id', async (req, res, next) => {
+router.delete('/payments/:id', accountsAccess, async (req, res, next) => {
   try {
     await pool.query(`DELETE FROM fee_payments WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]);
     res.json({ message: 'Voided.' });
@@ -289,7 +301,7 @@ router.delete('/payments/:id', async (req, res, next) => {
 
 // ── Student Summary ───────────────────────────────────────────────────────────
 
-router.get('/student/:id/summary', async (req, res, next) => {
+router.get('/student/:id/summary', accountsAccess, async (req, res, next) => {
   try {
     const { rows: studentRows } = await pool.query(
       `SELECT id, name, student_code, class_name FROM students WHERE id=$1 AND school_id=$2`,
@@ -327,7 +339,7 @@ router.get('/student/:id/summary', async (req, res, next) => {
 
 // ── Reports ───────────────────────────────────────────────────────────────────
 
-router.get('/reports/arrears', async (req, res, next) => {
+router.get('/reports/arrears', adminOnly, async (req, res, next) => {
   try {
     const { year_id, semester, class_name } = req.query;
     const conditions = ['sb.school_id = $1'];
@@ -357,7 +369,7 @@ router.get('/reports/arrears', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/reports/collections', async (req, res, next) => {
+router.get('/reports/collections', adminOnly, async (req, res, next) => {
   try {
     const { from, to, class_name } = req.query;
     const conditions = ['fp.school_id = $1'];
@@ -383,7 +395,7 @@ router.get('/reports/collections', async (req, res, next) => {
 });
 
 // GET /api/fees/students/search?q= — fast student search for Collections tab
-router.get('/students/search', async (req, res, next) => {
+router.get('/students/search', accountsAccess, async (req, res, next) => {
   try {
     const { q } = req.query;
     if (!q || String(q).length < 2) return res.json([]);
@@ -400,7 +412,7 @@ router.get('/students/search', async (req, res, next) => {
 });
 
 // GET /api/fees/classes — distinct class names that have students with bills
-router.get('/classes', async (req, res, next) => {
+router.get('/classes', accountsAccess, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT DISTINCT s.class_name
@@ -412,8 +424,10 @@ router.get('/classes', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/fees/stats — summary counts for dashboard header
-router.get('/stats', async (req, res, next) => {
+// GET /api/fees/stats — summary counts for dashboard header. Admin-only: it
+// includes total_expenses/net_position, which is expenditure-domain data an
+// accounts clerk recording bills/payments doesn't need visibility into.
+router.get('/stats', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT
@@ -446,7 +460,7 @@ const EXPENSE_CATEGORIES = [
   'Petty Cash', 'Other',
 ];
 
-router.get('/expenses', async (req, res, next) => {
+router.get('/expenses', adminOnly, async (req, res, next) => {
   try {
     const { from, to, category } = req.query;
     const conditions = ['se.school_id = $1'];
@@ -466,7 +480,7 @@ router.get('/expenses', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/expenses', async (req, res, next) => {
+router.post('/expenses', adminOnly, async (req, res, next) => {
   try {
     const { category, description, amount, expense_date, payment_method, paid_to, reference, notes } = req.body;
     if (!category?.trim())    return res.status(400).json({ error: 'Category is required.' });
@@ -485,7 +499,7 @@ router.post('/expenses', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.put('/expenses/:id', async (req, res, next) => {
+router.put('/expenses/:id', adminOnly, async (req, res, next) => {
   try {
     const { category, description, amount, expense_date, payment_method, paid_to, reference, notes } = req.body;
     if (!category?.trim())    return res.status(400).json({ error: 'Category is required.' });
@@ -506,14 +520,14 @@ router.put('/expenses/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/expenses/:id', async (req, res, next) => {
+router.delete('/expenses/:id', adminOnly, async (req, res, next) => {
   try {
     await pool.query(`DELETE FROM school_expenses WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]);
     res.json({ message: 'Deleted.' });
   } catch (err) { next(err); }
 });
 
-router.get('/reports/income-vs-expenditure', async (req, res, next) => {
+router.get('/reports/income-vs-expenditure', adminOnly, async (req, res, next) => {
   try {
     const { from, to } = req.query;
     const incomeParams  = [req.schoolId];
