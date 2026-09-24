@@ -2,6 +2,7 @@ const router  = require('express').Router();
 const pool    = require('../config/db');
 const ExcelJS = require('exceljs');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { getClassRoster } = require('../services/classHistory.service');
 
 router.use(authenticate, requireActiveSubscription, adminOnly);
 
@@ -385,16 +386,25 @@ async function buildTeacherCompletionRows(schoolId, academicYearId, semester) {
       WHERE t.school_id=$1 AND t.academic_year_id=$2 AND t.semester=$3
     )
     SELECT e.teacher_id, te.name AS teacher_name, te.department,
-           e.subject, e.class_name,
-           (SELECT COUNT(*)::int FROM students s
-            WHERE s.school_id=$1 AND LOWER(s.class_name)=LOWER(e.class_name)
-              AND s.status='Active') AS total_students
+           e.subject, e.class_name
     FROM expanded e
     JOIN teachers te ON te.id=e.teacher_id AND te.school_id=$1
     ORDER BY te.name, e.subject, e.class_name
   `, [schoolId, academicYearId, sem]);
 
   if (timetable.length === 0) return [];
+
+  // Roster size per distinct class, resolved as of this period via
+  // class_history rather than current class_name — see
+  // assessment-monitoring.js for the identical fix to this same bug.
+  const distinctClasses = [...new Set(timetable.map(r => r.class_name))];
+  const rosterCounts = await Promise.all(
+    distinctClasses.map(async cls => [
+      cls.toLowerCase(),
+      (await getClassRoster(schoolId, cls, academicYearId, sem)).length,
+    ])
+  );
+  const rosterCountMap = Object.fromEntries(rosterCounts);
 
   // Per-(teacher, subject, class, mode) assessment + score counts
   const { rows: modeCounts } = await pool.query(
@@ -426,9 +436,9 @@ async function buildTeacherCompletionRows(schoolId, academicYearId, semester) {
   for (const ec of examCounts) examMap[`${ec.teacher_id}|${ec.subject_key}|${ec.class_key}`] = ec.students_scored;
 
   return timetable.map(r => {
-    const total    = r.total_students || 0;
     const subjKey  = r.subject.toLowerCase();
     const clsKey   = r.class_name.toLowerCase();
+    const total    = rosterCountMap[clsKey] ?? 0;
     const baseKey  = `${r.teacher_id}|${subjKey}|${clsKey}`;
 
     // Outstanding CA modes
