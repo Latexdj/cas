@@ -3,7 +3,7 @@ const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const multer = require('multer');
 const ExcelJS = require('exceljs');
-const { getClassRoster } = require('../services/classHistory.service');
+const { getClassRoster, mapWithLimit } = require('../services/classHistory.service');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -333,8 +333,8 @@ router.get('/admin-list', adminOnly, async (req, res, next) => {
     // computed per distinct combo rather than a single roster call.
     const comboKey = r => `${r.class_name.toLowerCase()}|${r.academic_year_id}|${r.semester}`;
     const distinctCombos = [...new Map(rows.map(r => [comboKey(r), r])).values()];
-    const sizeEntries = await Promise.all(
-      distinctCombos.map(async r => [comboKey(r), (await getClassRoster(req.schoolId, r.class_name, r.academic_year_id, r.semester)).length])
+    const sizeEntries = await mapWithLimit(distinctCombos, 5, async r =>
+      [comboKey(r), (await getClassRoster(req.schoolId, r.class_name, r.academic_year_id, r.semester)).length]
     );
     const sizeMap = Object.fromEntries(sizeEntries);
     res.json(rows.map(r => ({ ...r, class_size: sizeMap[comboKey(r)] ?? 0 })));
