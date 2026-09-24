@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { getClassRoster } = require('../services/classHistory.service');
 
 router.use(authenticate, requireActiveSubscription, adminOnly);
 
@@ -46,10 +47,6 @@ router.get('/', async (req, res, next) => {
         te.department,
         e.subject,
         e.class_name,
-        (SELECT COUNT(*)::int FROM students s
-         WHERE s.school_id=$1 AND LOWER(s.class_name)=LOWER(e.class_name)
-           AND s.status='Active'
-        ) AS total_students,
         (SELECT rs.status FROM result_submissions rs
          WHERE rs.school_id=$1 AND rs.teacher_id=e.teacher_id
            AND rs.academic_year_id=$2 AND rs.semester=$3
@@ -62,6 +59,18 @@ router.get('/', async (req, res, next) => {
       WHERE TRUE ${extraWhere}
       ORDER BY te.name, e.subject, e.class_name
     `, params);
+
+    // ── 3b. Roster size per distinct class, resolved as of this period via
+    //        class_history rather than current class_name — this is what
+    //        keeps the completion % denominator correct after promotion.
+    const distinctClasses = [...new Set(rows.map(r => r.class_name))];
+    const rosterCounts = await Promise.all(
+      distinctClasses.map(async cls => [
+        cls.toLowerCase(),
+        (await getClassRoster(req.schoolId, cls, academic_year_id, semInt)).length,
+      ])
+    );
+    const rosterCountMap = Object.fromEntries(rosterCounts);
 
     // ── 4. Per-(teacher, subject, class, mode) assessment + score counts ───────
     const { rows: modeCounts } = await pool.query(
@@ -106,10 +115,10 @@ router.get('/', async (req, res, next) => {
 
     // ── 6. Assemble final rows ─────────────────────────────────────────────────
     const withStatus = rows.map(r => {
-      const total    = r.total_students || 0;
-      const sub      = r.submission_status ?? null;
       const subjKey  = r.subject.toLowerCase();
       const classKey = r.class_name.toLowerCase();
+      const total    = rosterCountMap[classKey] ?? 0;
+      const sub      = r.submission_status ?? null;
       const baseKey  = `${r.teacher_id}|${subjKey}|${classKey}`;
 
       // Build mode_breakdown for every CA mode
