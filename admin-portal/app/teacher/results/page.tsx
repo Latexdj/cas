@@ -6,6 +6,7 @@ import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
 import type { AcademicYear, StudentResult } from '@/types/api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination } from '@/components/ui/Pagination';
 
 function ordinal(n: number) {
@@ -20,9 +21,9 @@ function ResultsContent() {
 
   const [years,     setYears]     = useState<AcademicYear[]>([]);
   const [classes,   setClasses]   = useState<string[]>([]);
-  const [yearId,    setYearId]    = useState('');
-  const [semester,  setSemester]  = useState('1');
-  const [className, setClassName] = useState('');
+  const [yearId,    setYearId]    = useSessionFilter('teacher-results:yearId', '');
+  const [semester,  setSemester]  = useSessionFilter('teacher-results:semester', '1');
+  const [className, setClassName] = useSessionFilter('teacher-results:className', '');
   const [results,   setResults]   = useState<StudentResult[]>([]);
   const [loading,   setLoading]   = useState(false);
   const [loadingMeta, setLoadingMeta] = useState(true);
@@ -40,18 +41,24 @@ function ResultsContent() {
     ]).then(([yRes, cRes]) => {
       setYears(yRes.data ?? []);
       const current = (yRes.data ?? []).find((y: AcademicYear) => y.is_current);
-      const activeYear  = current ?? yRes.data?.[0];
-      const activeSem   = String(current?.current_semester ?? 1);
-      if (activeYear) { setYearId(activeYear.id); setSemester(activeSem); }
+      const fallbackYear = current ?? yRes.data?.[0];
+      const fallbackSem  = String(current?.current_semester ?? 1);
+      // Only fall back to "current year" when nothing was restored from a
+      // prior session (e.g. an accidental refresh) — otherwise a teacher
+      // filtering a past semester gets bounced back to the current one.
+      if (!yearId && fallbackYear) { setYearId(fallbackYear.id); setSemester(fallbackSem); }
       setClasses(cRes.data ?? []);
-      if (activeYear) {
+      const effectiveYearId = yearId || fallbackYear?.id;
+      const effectiveSem    = semester || fallbackSem;
+      if (effectiveYearId) {
         teacherApi.get<Array<{ subject: string; class_name: string; status: string; rejected_reason: string | null; hod_comment: string | null }>>(
-          `/api/result-submissions/my-status?academic_year_id=${activeYear.id}&semester=${activeSem}`
+          `/api/result-submissions/my-status?academic_year_id=${effectiveYearId}&semester=${effectiveSem}`
         ).then(sRes => {
           setRejections((sRes.data ?? []).filter(s => s.status === 'rejected'));
         }).catch(() => {});
       }
     }).catch(() => setError('Could not load filters.')).finally(() => setLoadingMeta(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const load = useCallback(async () => {

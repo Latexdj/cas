@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 /* ─── Types ─── */
 interface AttendanceRecord {
@@ -48,7 +49,7 @@ function formatDate(iso: string) {
 /* ─── Component ─── */
 export default function HistoryPage() {
   const [primary, setPrimary] = useState('#2ab289');
-  const [tab, setTab]         = useState<'my' | 'meetings'>('my');
+  const [tab, setTab]         = useSessionFilter<'my' | 'meetings'>('teacher-history:tab', 'my');
 
   /* ── My Attendance state ── */
   const [records,      setRecords]      = useState<AttendanceRecord[]>([]);
@@ -58,8 +59,8 @@ export default function HistoryPage() {
   const [hasMore,      setHasMore]      = useState(true);
   const [error,        setError]        = useState('');
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
-  const [filterYear,   setFilterYear]   = useState('');
-  const [filterSem,    setFilterSem]    = useState('');
+  const [filterYear,   setFilterYear]   = useSessionFilter('teacher-history:filterYear', '');
+  const [filterSem,    setFilterSem]    = useSessionFilter('teacher-history:filterSem', '');
 
   /* ── Meetings state ── */
   const [plcRecords,     setPlcRecords]     = useState<MeetingRecord[]>([]);
@@ -68,8 +69,8 @@ export default function HistoryPage() {
   const [plcOffset,      setPlcOffset]      = useState(0);
   const [plcHasMore,     setPlcHasMore]     = useState(true);
   const [plcError,       setPlcError]       = useState('');
-  const [plcFilterYear,  setPlcFilterYear]  = useState('');
-  const [plcFilterSem,   setPlcFilterSem]   = useState('');
+  const [plcFilterYear,  setPlcFilterYear]  = useSessionFilter('teacher-history:plcFilterYear', '');
+  const [plcFilterSem,   setPlcFilterSem]   = useSessionFilter('teacher-history:plcFilterSem', '');
 
   /* ─── My Attendance load ─── */
   const fetchPage = useCallback(async (
@@ -137,17 +138,22 @@ export default function HistoryPage() {
       const years = r.data ?? [];
       setAcademicYears(years);
       const current = years.find(y => y.is_current);
-      const yearId = current?.id ?? '';
-      const sem    = current?.current_semester ? String(current.current_semester) : '';
-      setFilterYear(yearId);
-      setFilterSem(sem);
+      const fallbackYearId = current?.id ?? '';
+      const fallbackSem    = current?.current_semester ? String(current.current_semester) : '';
+      // Only fall back to "current year" for whichever filter group wasn't
+      // already restored from a prior session — otherwise refreshing mid
+      // past-semester lookup bounces the teacher back to the current one.
+      const yearId    = filterYear    || fallbackYearId;
+      const sem       = filterSem     || fallbackSem;
+      const plcYearId = plcFilterYear || fallbackYearId;
+      const plcSem    = plcFilterSem  || fallbackSem;
+      if (!filterYear)    { setFilterYear(yearId); setFilterSem(sem); }
+      if (!plcFilterYear) { setPlcFilterYear(plcYearId); setPlcFilterSem(plcSem); }
       fetchPage(0, false, yearId, sem);
-      setPlcFilterYear(yearId);
-      setPlcFilterSem(sem);
-      fetchPlcPage(0, false, yearId, sem);
+      fetchPlcPage(0, false, plcYearId, plcSem);
     }).catch(() => {
-      fetchPage(0, false, '', '');
-      fetchPlcPage(0, false, '', '');
+      fetchPage(0, false, filterYear, filterSem);
+      fetchPlcPage(0, false, plcFilterYear, plcFilterSem);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
