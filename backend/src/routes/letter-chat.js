@@ -4,23 +4,11 @@ const pool      = require('../config/db');
 const Anthropic = require('@anthropic-ai/sdk');
 const { authenticate, adminOrManagement, requireActiveSubscription } = require('../middleware/auth');
 const { fetchChunksRAG } = require('../utils/rag');
+const { isBlocked } = require('../utils/letterSensitivity');
 
 router.use(authenticate, requireActiveSubscription);
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-// 'other' is too vague for grounded AI drafting.
-// suspension/dismissal carry legal weight — AI never produces those.
-// All other offense categories are now permitted for AI drafting.
-const SENSITIVE_OFFENSE_CATS  = new Set(['other']);
-const SENSITIVE_LETTER_TYPES = new Set(['suspension', 'dismissal']);
-
-function isBlocked(documentType, metadata) {
-  if (documentType !== 'student_letter') return false;
-  if (SENSITIVE_OFFENSE_CATS.has(metadata?.offense_category))  return true;
-  if (SENSITIVE_LETTER_TYPES.has(metadata?.letter_type))        return true;
-  return false;
-}
 
 // ── Grounding retrieval ───────────────────────────────────────────────────────
 // Strategy: try RAG first (vector similarity, voyage-3); if no active chunks
@@ -197,6 +185,17 @@ Your role:
 ${sanctionRule}`;
   }
 
+  // Shared across all document types: when a letter was returned by the
+  // approving authority and its session is being continued, the reason must
+  // be visible to the model itself — not just displayed in the UI — so
+  // revisions actually address what was flagged.
+  const returnReasonBlock = metadata?.return_reason ? `
+
+LETTER RETURNED FOR CORRECTION:
+This letter was returned by the approving authority for revision, with this reason:
+"${metadata.return_reason}"
+Address this concern directly in the revised draft.` : '';
+
   const formatAndToneRule = `
 
 FORMATTING AND TONE (strictly enforced):
@@ -213,7 +212,7 @@ first draft and every revision after it — not just the opening turn):
 - This applies even after several revisions in the same conversation — do not become more conversational as the conversation goes on.
 - Clarifying questions (when you still need information before drafting) are a separate kind of message and may be written conversationally — just never mix a clarifying question and a draft in the same message.`;
 
-  return base + formatAndToneRule + buildGroundingBlock(grounding);
+  return base + returnReasonBlock + formatAndToneRule + buildGroundingBlock(grounding);
 }
 
 // Strip markdown that the model produces despite being told not to.
@@ -344,6 +343,17 @@ router.post('/start', adminOrManagement, async (req, res, next) => {
        RETURNING id`,
       [req.schoolId, req.user.id, document_type, JSON.stringify(enrichedMetadata)]
     );
+
+    // general_letter rows are pre-created before the chat starts, so the
+    // link back can be set immediately (student_letter has no letter row
+    // yet — it's created only once the chat finishes, at which point the
+    // frontend passes this session's id in explicitly).
+    if (document_type === 'general_letter') {
+      await pool.query(
+        `UPDATE general_letters SET draft_session_id = $1 WHERE id = $2 AND school_id = $3`,
+        [rows[0].id, metadata.letter_id, req.schoolId]
+      );
+    }
 
     res.status(201).json({
       session_id:      rows[0].id,
