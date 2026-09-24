@@ -3,6 +3,7 @@ const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const multer = require('multer');
 const ExcelJS = require('exceljs');
+const { getClassRoster } = require('../services/classHistory.service');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -70,16 +71,17 @@ router.get('/', async (req, res, next) => {
     let teacherFilter = '';
     if (!isAdmin) { params.push(req.user.id); teacherFilter = `AND a.teacher_id = $${params.length}`; }
 
+    // All rows here share this one (class_name, academic_year_id, semester),
+    // so a single period-resolved roster count covers all of them.
+    const totalStudents = (await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester))).length;
+
     const { rows } = await pool.query(
       `SELECT a.id, a.mode_id, m.name AS mode_name, m.ca_contribution,
               a.title, a.date, a.max_score,
               a.subject, a.class_name,
               a.academic_year_id, a.semester, a.created_at,
               t.name AS teacher_name,
-              COUNT(CASE WHEN sc.score IS NOT NULL OR sc.absent = true THEN sc.id END)::int AS score_count,
-              (SELECT COUNT(*)::int FROM students s
-               WHERE s.school_id = a.school_id AND LOWER(s.class_name) = LOWER(a.class_name) AND s.status = 'Active'
-              ) AS total_students
+              COUNT(CASE WHEN sc.score IS NOT NULL OR sc.absent = true THEN sc.id END)::int AS score_count
        FROM assessments a
        JOIN assessment_modes m ON m.id = a.mode_id
        LEFT JOIN teachers t ON t.id = a.teacher_id
@@ -94,7 +96,7 @@ router.get('/', async (req, res, next) => {
        ORDER BY a.date NULLS LAST, m.name, a.title`,
       params
     );
-    res.json(rows);
+    res.json(rows.map(r => ({ ...r, total_students: totalStudents })));
   } catch (err) { next(err); }
 });
 
@@ -687,16 +689,18 @@ router.get('/:id/scores', async (req, res, next) => {
       return res.status(403).json({ error: 'You are not the owner of this assessment' });
     }
 
-    // Get all active students in this class
+    // Roster as of this assessment's own period, not current class_name —
+    // otherwise editing an old assessment shows the wrong/empty roster once
+    // students have since been promoted.
+    const roster = await getClassRoster(req.schoolId, assessment.class_name, assessment.academic_year_id, assessment.semester);
     const { rows } = await pool.query(
       `SELECT s.id AS student_id, s.student_code, s.name,
               sc.id AS score_id, sc.score, sc.absent
        FROM students s
        LEFT JOIN assessment_scores sc ON sc.assessment_id = $1 AND sc.student_id = s.id
-       WHERE s.school_id = $2 AND s.status = 'Active'
-         AND LOWER(s.class_name) = LOWER($3)
+       WHERE s.id = ANY($2::uuid[])
        ORDER BY s.name`,
-      [req.params.id, req.schoolId, assessment.class_name]
+      [req.params.id, roster]
     );
     res.json({ assessment, scores: rows });
   } catch (err) { next(err); }
