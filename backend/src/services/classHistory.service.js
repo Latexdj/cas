@@ -35,11 +35,28 @@ const comparePeriod = (a, b) => a[0] - b[0] || a[1] - b[1];
 // their class as of targetPeriod — the shared core of both getClassRoster()
 // (many candidates, one target class) and resolveStudentClassAtPeriod() (one
 // student, any class). See CAS-CLASS-HISTORY-DESIGN.md Section 4.
+//
+// The boundary (row.period == targetPeriod exactly) is source-dependent, not
+// a single fixed rule, because 'promotion'/'manual_edit'/'bulk_import' rows
+// and 'backfill' rows anchor their period to opposite ends of the
+// transition: a live row's period is the *new* period as of the change
+// (getCurrentYearSem at the moment of the call — often a fresh term with no
+// scores yet, which must resolve to the new class immediately), while a
+// backfill row's period is the *last period with direct evidence in the old
+// class* (Section 3 — there's no real "transition moment" to anchor to, so
+// it's approximated from the newest surviving proof of the old class).
+// Treating both as inclusive would make a backfilled student's own
+// evidence-bearing period resolve to their *new* class, hiding the very
+// scores that period's evidence came from — confirmed against Kyebambo
+// Cynthia, who has real assessment/exam data in 2A for the exact period her
+// backfilled row anchors to.
 function resolveClassFromHistory(historyRows, currentClassName, targetPeriod) {
   if (!historyRows || historyRows.length === 0) return currentClassName;
   let resolved = null;
   for (const row of historyRows) {
-    if (comparePeriod(row.period, targetPeriod) <= 0) resolved = row.toClass;
+    const cmp = comparePeriod(row.period, targetPeriod);
+    const alreadyTransitioned = row.source === 'backfill' ? cmp < 0 : cmp <= 0;
+    if (alreadyTransitioned) resolved = row.toClass;
     else { resolved = row.fromClass; break; }
   }
   return resolved;
@@ -77,7 +94,7 @@ async function getClassRoster(schoolId, className, academicYearId, semester) {
   const candidateIds = candidateRows.map(r => r.id);
   const [{ rows: historyRows }, targetOrdinalMs] = await Promise.all([
     pool.query(
-      `SELECT ch.student_id, ch.from_class, ch.to_class, ch.semester,
+      `SELECT ch.student_id, ch.from_class, ch.to_class, ch.semester, ch.source,
               COALESCE(ay.start_date, ay.created_at) AS ordinal_date
        FROM class_history ch
        JOIN academic_years ay ON ay.id = ch.academic_year_id
@@ -96,6 +113,7 @@ async function getClassRoster(schoolId, className, academicYearId, semester) {
     historyByStudent.get(r.student_id).push({
       fromClass: r.from_class,
       toClass: r.to_class,
+      source: r.source,
       period: [new Date(r.ordinal_date).getTime(), r.semester],
     });
   }
@@ -118,7 +136,7 @@ async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName
   const targetSemester = parseInt(semester);
   const [{ rows: historyRows }, targetOrdinalMs] = await Promise.all([
     pool.query(
-      `SELECT ch.from_class, ch.to_class, ch.semester,
+      `SELECT ch.from_class, ch.to_class, ch.semester, ch.source,
               COALESCE(ay.start_date, ay.created_at) AS ordinal_date
        FROM class_history ch
        JOIN academic_years ay ON ay.id = ch.academic_year_id
@@ -132,6 +150,7 @@ async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName
   const history = historyRows.map(r => ({
     fromClass: r.from_class,
     toClass: r.to_class,
+    source: r.source,
     period: [new Date(r.ordinal_date).getTime(), r.semester],
   }));
 
