@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 interface AcademicYear {
   id: string;
@@ -172,8 +173,8 @@ function NewCourseModal({
 function CoursesContent() {
   const [primary, setPrimary] = useState('#2ab289');
   const [years, setYears] = useState<AcademicYear[]>([]);
-  const [yearId, setYearId] = useState('');
-  const [semester, setSemester] = useState('');
+  const [yearId, setYearId] = useSessionFilter('teacher-lms:yearId', '');
+  const [semester, setSemester] = useSessionFilter('teacher-lms:semester', '');
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -202,10 +203,15 @@ function CoursesContent() {
     teacherApi.get<AcademicYear[]>('/api/academic-years').then(({ data }) => {
       setYears(data ?? []);
       const current = data?.find(y => y.is_current) ?? data?.[0];
-      if (!current) { setLoading(false); return; }
-      setYearId(current.id);
-      loadCourses(current.id, '');
+      if (!current && !yearId) { setLoading(false); return; }
+      // Only fall back to "current year" when nothing was restored from a
+      // prior session — otherwise a refresh bounces the teacher back to
+      // the current year instead of the one they were browsing.
+      const effectiveYearId = yearId || current?.id || '';
+      if (!yearId && current) setYearId(current.id);
+      loadCourses(effectiveYearId, semester);
     }).catch(() => { setError('Could not load academic years.'); setLoading(false); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadCourses]);
 
   async function toggleStatus(course: Course) {

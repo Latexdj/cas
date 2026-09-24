@@ -5,6 +5,7 @@ import { teacherApi } from '@/lib/teacher-api';
 import { getTeacher, getTeacherColors } from '@/lib/teacher-auth';
 import type { AcademicYear, FormTeacherAssignment, FormTeacherStudent, ReportRemark, StudentResult } from '@/types/api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination } from '@/components/ui/Pagination';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -288,8 +289,8 @@ export default function FormClassPage() {
   const { primary } = getTeacherColors();
 
   const [years,      setYears]      = useState<AcademicYear[]>([]);
-  const [yearId,     setYearId]     = useState('');
-  const [semester,   setSemester]   = useState('1');
+  const [yearId,     setYearId]     = useSessionFilter('teacher-form-class:yearId', '');
+  const [semester,   setSemester]   = useSessionFilter('teacher-form-class:semester', '1');
   const [assignment, setAssignment] = useState<FormTeacherAssignment | null | undefined>(undefined); // undefined = loading
   const [students,   setStudents]   = useState<FormTeacherStudent[]>([]);
   const [attData,    setAttData]    = useState<Record<string, { present: number; absent: number; late: number; total: number; pct: number | null }>>({});
@@ -300,7 +301,7 @@ export default function FormClassPage() {
   const [aiLoading,      setAiLoading]      = useState<Record<string, boolean>>({});
   const [aiError,        setAiError]        = useState<Record<string, string>>({});
   const [aiAcceptedIds,  setAiAcceptedIds]  = useState<Set<string>>(new Set());
-  const [tab,         setTab]         = useState<Tab>('overview');
+  const [tab,         setTab]         = useSessionFilter<Tab>('teacher-form-class:tab', 'overview');
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [loadingTab,      setLoadingTab]      = useState(false);
   const [saving,          setSaving]          = useState(false);
@@ -320,8 +321,12 @@ export default function FormClassPage() {
     teacherApi.get('/api/academic-years').then(r => {
       setYears(r.data);
       const cur = r.data.find((y: AcademicYear) => y.is_current) ?? r.data[0];
-      if (cur) { setYearId(cur.id); setSemester(String(cur.current_semester ?? 1)); }
+      // Only fall back to "current year" when nothing was restored from a
+      // prior session — otherwise a refresh bounces the teacher back to
+      // the current year instead of the one they were reviewing.
+      if (cur && !yearId) { setYearId(cur.id); setSemester(String(cur.current_semester ?? 1)); }
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load assignment when year changes

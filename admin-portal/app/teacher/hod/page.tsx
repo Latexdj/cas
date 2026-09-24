@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination } from '@/components/ui/Pagination';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -150,7 +151,7 @@ export default function HodPage() {
 
   // Multi-dept switcher
   const [depts,         setDepts]         = useState<{ id: string; name: string }[]>([]);
-  const [selectedDeptId, setSelectedDeptId] = useState('');
+  const [selectedDeptId, setSelectedDeptId] = useSessionFilter('teacher-hod:selectedDeptId', '');
 
   const [overview,  setOverview]  = useState<Overview | null>(null);
   const [classes,   setClasses]   = useState<ClassRow[]>([]);
@@ -186,9 +187,9 @@ export default function HodPage() {
   // ── Results state ──
   const [academicYears,   setAcademicYears]   = useState<Array<{id:string; name:string; is_current:boolean; current_semester:number}>>([]);
   const [hodClasses,      setHodClasses]      = useState<HodClass[]>([]);
-  const [resultsClass,    setResultsClass]    = useState('');
-  const [resultsYear,     setResultsYear]     = useState('');
-  const [resultsSem,      setResultsSem]      = useState<1|2>(1);
+  const [resultsClass,    setResultsClass]    = useSessionFilter('teacher-hod:resultsClass', '');
+  const [resultsYear,     setResultsYear]     = useSessionFilter('teacher-hod:resultsYear', '');
+  const [resultsSem,      setResultsSem]      = useSessionFilter<1|2>('teacher-hod:resultsSem', 1);
   const [hodResults,      setHodResults]      = useState<HodStudentResult[]>([]);
   const [resultsLoading,  setResultsLoading]  = useState(false);
   const [resultsError,    setResultsError]    = useState('');
@@ -202,12 +203,16 @@ export default function HodPage() {
       .then(r => {
         const d = r.data.depts ?? [];
         setDepts(d);
-        setSelectedDeptId(d.length ? d[0].id : '__legacy__');
+        // Only fall back to the first department when nothing was restored
+        // from a prior session — otherwise a refresh bounces the HOD back
+        // to their first-listed department instead of the one they were on.
+        if (!selectedDeptId) setSelectedDeptId(d.length ? d[0].id : '__legacy__');
       })
       .catch(() => {
         setError('Could not load HOD data. Make sure you are assigned as an HOD.');
         setLoadingOv(false);
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Reload overview (and reset lazy tabs) whenever the selected dept changes
