@@ -12,7 +12,7 @@ const { getClassRoster, mapWithLimit } = require('../services/classHistory.servi
 async function attachRosterCounts(schoolId, rows, { classNameKey = 'class_name', yearKey = 'academic_year_id', semesterKey = 'semester', outKey = 'student_count' } = {}) {
   const comboKey = r => `${r[classNameKey].toLowerCase()}|${r[yearKey]}|${r[semesterKey]}`;
   const distinctCombos = [...new Map(rows.map(r => [comboKey(r), r])).values()];
-  const entries = await mapWithLimit(distinctCombos, 5, async r =>
+  const entries = await mapWithLimit(distinctCombos, 3, async r =>
     [comboKey(r), (await getClassRoster(schoolId, r[classNameKey], r[yearKey], r[semesterKey])).length]
   );
   const sizeMap = Object.fromEntries(entries);
@@ -30,13 +30,13 @@ async function attachScoredCounts(schoolId, rows) {
   const subjectComboKey = r => `${r.subject}|${classComboKey(r)}`;
 
   const distinctClassCombos = [...new Map(rows.map(r => [classComboKey(r), r])).values()];
-  const rosterEntries = await mapWithLimit(distinctClassCombos, 5, async r =>
+  const rosterEntries = await mapWithLimit(distinctClassCombos, 3, async r =>
     [classComboKey(r), new Set(await getClassRoster(schoolId, r.class_name, r.academic_year_id, r.semester))]
   );
   const rosterMap = new Map(rosterEntries);
 
   const distinctSubjectCombos = [...new Map(rows.map(r => [subjectComboKey(r), r])).values()];
-  const scoredEntries = await mapWithLimit(distinctSubjectCombos, 5, async r => {
+  const scoredEntries = await mapWithLimit(distinctSubjectCombos, 3, async r => {
     const { rows: scored } = await pool.query(
       `SELECT es.student_id FROM exam_scores es
        WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3 AND es.subject=$4 AND es.class_name=$5
