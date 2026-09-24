@@ -203,10 +203,17 @@ export default function HodPage() {
       .then(r => {
         const d = r.data.depts ?? [];
         setDepts(d);
-        // Only fall back to the first department when nothing was restored
-        // from a prior session — otherwise a refresh bounces the HOD back
-        // to their first-listed department instead of the one they were on.
-        if (!selectedDeptId) setSelectedDeptId(d.length ? d[0].id : '__legacy__');
+        // Only fall back to a default when the restored selection is no
+        // longer valid against the FRESH department list — a bare "only if
+        // empty" check would let a stale '__legacy__' sentinel (cached from
+        // before this teacher had any real department) survive forever once
+        // an admin actually assigns them one, since '__legacy__' is truthy
+        // and would never get overwritten. Also covers a previously-selected
+        // real department that no longer exists (e.g. reassigned away).
+        const cachedIsValid = selectedDeptId
+          ? (selectedDeptId === '__legacy__' ? d.length === 0 : d.some(x => x.id === selectedDeptId))
+          : false;
+        if (!cachedIsValid) setSelectedDeptId(d.length ? d[0].id : '__legacy__');
       })
       .catch(() => {
         setError('Could not load HOD data. Make sure you are assigned as an HOD.');
