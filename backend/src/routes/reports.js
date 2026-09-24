@@ -2,7 +2,7 @@ const router  = require('express').Router();
 const pool    = require('../config/db');
 const ExcelJS = require('exceljs');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
-const { getClassRoster } = require('../services/classHistory.service');
+const { getClassRoster, mapWithLimit } = require('../services/classHistory.service');
 
 router.use(authenticate, requireActiveSubscription, adminOnly);
 
@@ -400,8 +400,8 @@ async function buildTeacherCompletionRows(schoolId, academicYearId, semester) {
   // student can have a real score yet no longer belong to this period's
   // resolved roster, e.g. deactivated after being scored).
   const distinctClasses = [...new Set(timetable.map(r => r.class_name))];
-  const rosterByClass = await Promise.all(
-    distinctClasses.map(async cls => [cls.toLowerCase(), await getClassRoster(schoolId, cls, academicYearId, sem)])
+  const rosterByClass = await mapWithLimit(distinctClasses, 5, async cls =>
+    [cls.toLowerCase(), await getClassRoster(schoolId, cls, academicYearId, sem)]
   );
   const rosterCountMap = Object.fromEntries(rosterByClass.map(([key, ids]) => [key, ids.length]));
   const rosterClassKeys  = [];
