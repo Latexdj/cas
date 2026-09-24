@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination } from '@/components/ui/Pagination';
 import type { AcademicYear, StudentResult } from '@/types/api';
 
@@ -50,15 +51,15 @@ const selectStyle: React.CSSProperties = {
 
 export default function ResultApprovalsPage() {
   const [years,       setYears]       = useState<AcademicYear[]>([]);
-  const [yearId,      setYearId]      = useState('');
-  const [semester,    setSemester]    = useState('1');
+  const [yearId,      setYearId]      = useSessionFilter('admin-result-approvals:yearId', '');
+  const [semester,    setSemester]    = useSessionFilter('admin-result-approvals:semester', '1');
   const [loadingMeta, setLoadingMeta] = useState(true);
 
   const [queue,          setQueue]          = useState<FinalQueueItem[]>([]);
   const [queueLoading,   setQueueLoading]   = useState(false);
-  const [statusFilter,   setStatusFilter]   = useState<'all' | 'submitted' | 'hod_approved' | 'final_approved' | 'published'>('all');
-  const [classFilter,    setClassFilter]    = useState('');
-  const [subjectFilter,  setSubjectFilter]  = useState('');
+  const [statusFilter,   setStatusFilter]   = useSessionFilter<'all' | 'submitted' | 'hod_approved' | 'final_approved' | 'published'>('admin-result-approvals:statusFilter', 'all');
+  const [classFilter,    setClassFilter]    = useSessionFilter('admin-result-approvals:classFilter', '');
+  const [subjectFilter,  setSubjectFilter]  = useSessionFilter('admin-result-approvals:subjectFilter', '');
 
   const [target,          setTarget]          = useState<FinalQueueItem | null>(null);
   const [action,          setAction]          = useState<'hod_approve' | 'hod_reject' | 'approve' | 'reject' | 'publish' | 'unlock'>('approve');
@@ -75,10 +76,16 @@ export default function ResultApprovalsPage() {
   useEffect(() => {
     api.get<AcademicYear[]>('/api/academic-years').then(r => {
       setYears(r.data);
-      const current = r.data.find(y => y.is_current);
-      if (current) { setYearId(current.id); setSemester(String(current.current_semester ?? 1)); }
-      else if (r.data[0]) setYearId(r.data[0].id);
+      // Only fall back to "current year" when nothing was restored from a
+      // prior session — otherwise a refresh bounces the admin back to the
+      // current semester instead of the one they were reviewing.
+      if (!yearId) {
+        const current = r.data.find(y => y.is_current);
+        if (current) { setYearId(current.id); setSemester(String(current.current_semester ?? 1)); }
+        else if (r.data[0]) setYearId(r.data[0].id);
+      }
     }).catch(() => {}).finally(() => setLoadingMeta(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadQueue = useCallback(async () => {

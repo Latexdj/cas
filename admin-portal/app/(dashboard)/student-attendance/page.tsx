@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { fmtDateShort as fmtDate } from '@/lib/dates';
 import type { StudentAttendanceSession, StudentAttendanceRecord } from '@/types/api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination, Th } from '@/components/ui/Pagination';
 
 /* ─── Export helpers ─── */
@@ -112,7 +113,7 @@ function pctColor(pct: number | null) {
 
 /* ─── Page ─── */
 export default function StudentAttendancePage() {
-  const [tab, setTab] = useState<'sessions' | 'report'>('sessions');
+  const [tab, setTab] = useSessionFilter<'sessions' | 'report'>('admin-student-attendance:tab', 'sessions');
 
   /* Academic years (shared) */
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
@@ -127,19 +128,19 @@ export default function StudentAttendancePage() {
   const [editError,   setEditError]   = useState('');
   const [from,        setFrom]        = useState(today);
   const [to,          setTo]          = useState(today);
-  const [filterClass, setFilterClass] = useState('');
-  const [sessYear,    setSessYear]    = useState('');
-  const [sessSem,     setSessSem]     = useState('');
+  const [filterClass, setFilterClass] = useSessionFilter('admin-student-attendance:filterClass', '');
+  const [sessYear,    setSessYear]    = useSessionFilter('admin-student-attendance:sessYear', '');
+  const [sessSem,     setSessSem]     = useSessionFilter('admin-student-attendance:sessSem', '');
 
   /* Report tab state */
   const [report,        setReport]        = useState<StudentReport[]>([]);
   const [reportLoading, setReportLoading] = useState(false);
-  const [reportClass,   setReportClass]   = useState('');
+  const [reportClass,   setReportClass]   = useSessionFilter('admin-student-attendance:reportClass', '');
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
   const [reportFrom, setReportFrom] = useState(thirtyDaysAgo);
   const [reportTo,   setReportTo]   = useState(today);
-  const [repYear,    setRepYear]    = useState('');
-  const [repSem,     setRepSem]     = useState('');
+  const [repYear,    setRepYear]    = useSessionFilter('admin-student-attendance:repYear', '');
+  const [repSem,     setRepSem]     = useSessionFilter('admin-student-attendance:repSem', '');
   const LOW_THRESHOLD = 75;
   const [exporting, setExporting] = useState<string | null>(null);
 
@@ -182,14 +183,17 @@ export default function StudentAttendancePage() {
       const years = r.data ?? [];
       setAcademicYears(years);
       const current = years.find(y => y.is_current);
+      // Only fall back to "current year" for whichever filter group wasn't
+      // already restored from a prior session — otherwise a refresh bounces
+      // the admin back to the current semester instead of the one they were
+      // reviewing (the session log and report filters are independent).
       if (current) {
-        setSessYear(current.id);
-        setRepYear(current.id);
         const sem = current.current_semester ? String(current.current_semester) : '';
-        setSessSem(sem);
-        setRepSem(sem);
+        if (!sessYear) { setSessYear(current.id); setSessSem(sem); }
+        if (!repYear)  { setRepYear(current.id);  setRepSem(sem); }
       }
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ─── Session detail ─── */

@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import type { TimetableEntry, Teacher, Subject, ClassItem } from '@/types/api';
 
 const DAYS = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -149,16 +150,16 @@ export default function TimetablePage() {
   const [editId,    setEditId]    = useState<string | null>(null);
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState('');
-  const [filterDay, setFilterDay] = useState('0');
-  const [filterTch, setFilterTch] = useState('');
-  const [filterCls, setFilterCls] = useState('');
-  const [filterSub, setFilterSub] = useState('');
+  const [filterDay, setFilterDay] = useSessionFilter('admin-timetable:filterDay', '0');
+  const [filterTch, setFilterTch] = useSessionFilter('admin-timetable:filterTch', '');
+  const [filterCls, setFilterCls] = useSessionFilter('admin-timetable:filterCls', '');
+  const [filterSub, setFilterSub] = useSessionFilter('admin-timetable:filterSub', '');
 
   // Academic year / semester state
   const [years,       setYears]       = useState<AcademicYear[]>([]);
-  const [selYearId,   setSelYearId]   = useState('');
-  const [selYearName, setSelYearName] = useState('');
-  const [selSemester, setSelSemester] = useState<1|2>(1);
+  const [selYearId,   setSelYearId]   = useSessionFilter('admin-timetable:selYearId', '');
+  const [selSemester, setSelSemester] = useSessionFilter<1|2>('admin-timetable:selSemester', 1);
+  const selYearName = years.find(y => y.id === selYearId)?.name ?? '';
 
   // Upload state
   const fileRef                   = useRef<HTMLInputElement>(null);
@@ -188,14 +189,16 @@ export default function TimetablePage() {
   }, []);
 
   useEffect(() => {
-    // Run once on mount — fetch academic years then load timetable for current year/semester
+    // Run once on mount — fetch academic years then load timetable for the
+    // restored year/semester (if any), else the current year/semester.
     api.get<AcademicYear[]>('/api/academic-years').then(r => {
       setYears(r.data);
       const cur = r.data.find(y => y.is_current) ?? r.data[0];
-      if (cur) {
-        setSelYearId(cur.id);
-        setSelYearName(cur.name);
+      if (selYearId) {
+        load(selYearId, selSemester);
+      } else if (cur) {
         const sem = (cur.current_semester ?? 1) as 1|2;
+        setSelYearId(cur.id);
         setSelSemester(sem);
         load(cur.id, sem);
       } else {
@@ -337,7 +340,7 @@ export default function TimetablePage() {
           onChange={e => {
             const y = years.find(y => y.id === e.target.value);
             if (!y) return;
-            setSelYearId(y.id); setSelYearName(y.name);
+            setSelYearId(y.id);
             setLoading(true);
             load(y.id, selSemester);
           }}

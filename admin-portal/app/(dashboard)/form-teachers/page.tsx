@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination, Th } from '@/components/ui/Pagination';
 import type { AcademicYear, FormTeacherAssignment, Teacher } from '@/types/api';
 
@@ -154,7 +155,7 @@ function CopyModal({ fromYear, toYear, onConfirm, onClose, copying }: {
 
 export default function FormTeachersPage() {
   const [years,       setYears]       = useState<AcademicYear[]>([]);
-  const [yearId,      setYearId]      = useState('');
+  const [yearId,      setYearId]      = useSessionFilter('admin-form-teachers:yearId', '');
   const [classes,     setClasses]     = useState<string[]>([]);
   const [teachers,    setTeachers]    = useState<Teacher[]>([]);
   const [assignments, setAssignments] = useState<FormTeacherAssignment[]>([]);
@@ -167,12 +168,18 @@ export default function FormTeachersPage() {
     Promise.all([
       api.get('/api/academic-years').then(r => {
         setYears(r.data);
-        const cur = r.data.find((y: AcademicYear) => y.is_current) ?? r.data[0];
-        if (cur) setYearId(cur.id);
+        // Only fall back to "current year" when nothing was restored from a
+        // prior session — otherwise a refresh bounces the admin back to the
+        // current year instead of the one they were reviewing.
+        if (!yearId) {
+          const cur = r.data.find((y: AcademicYear) => y.is_current) ?? r.data[0];
+          if (cur) setYearId(cur.id);
+        }
       }),
       api.get('/api/students/classes').then(r => setClasses(r.data)),
       api.get('/api/teachers').then(r => setTeachers(r.data.filter((t: Teacher) => t.status === 'Active'))),
     ]).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

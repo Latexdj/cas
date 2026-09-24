@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination } from '@/components/ui/Pagination';
 import type { AcademicYear, ReportRemark, StudentResult } from '@/types/api';
 
@@ -554,9 +555,9 @@ interface SchoolProfile { name: string; address: string | null; logo_url: string
 export default function ResultsPage() {
   const [years,         setYears]         = useState<AcademicYear[]>([]);
   const [classes,       setClasses]       = useState<string[]>([]);
-  const [yearId,        setYearId]        = useState('');
-  const [semester,      setSemester]      = useState('1');
-  const [className,     setClassName]     = useState('');
+  const [yearId,        setYearId]        = useSessionFilter('admin-results:yearId', '');
+  const [semester,      setSemester]      = useSessionFilter('admin-results:semester', '1');
+  const [className,     setClassName]     = useSessionFilter('admin-results:className', '');
   const [results,       setResults]       = useState<StudentResult[]>([]);
   const [loading,       setLoading]       = useState(false);
   const [loadingMeta,   setLoadingMeta]   = useState(true);
@@ -616,11 +617,17 @@ export default function ResultsPage() {
       api.get<string[]>('/api/students/classes'),
     ]).then(([yRes, cRes]) => {
       setYears(yRes.data);
-      const current = yRes.data.find(y => y.is_current);
-      if (current) { setYearId(current.id); setSemester(String(current.current_semester ?? 1)); }
-      else if (yRes.data[0]) setYearId(yRes.data[0].id);
+      // Only fall back to "current year" when nothing was restored from a
+      // prior session — otherwise a refresh bounces the admin back to the
+      // current semester instead of the one they were reviewing.
+      if (!yearId) {
+        const current = yRes.data.find(y => y.is_current);
+        if (current) { setYearId(current.id); setSemester(String(current.current_semester ?? 1)); }
+        else if (yRes.data[0]) setYearId(yRes.data[0].id);
+      }
       setClasses(cRes.data);
     }).catch(() => setError('Could not load filters.')).finally(() => setLoadingMeta(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const load = useCallback(async () => {

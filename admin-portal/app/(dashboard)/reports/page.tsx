@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 // ── Report catalogue ──────────────────────────────────────────────────────────
 
@@ -200,15 +201,15 @@ function SidebarContent({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ReportsPage() {
-  const [reportMode,    setReportMode]    = useState<'students' | 'teachers' | 'academic'>('students');
+  const [reportMode,    setReportMode]    = useSessionFilter<'students' | 'teachers' | 'academic'>('admin-reports:reportMode', 'students');
   const [selected,      setSelected]      = useState<ReportDef>(STUDENT_REPORTS[0]);
   const [academicType,  setAcademicType]  = useState<AcademicReportDef>(ACADEMIC_REPORTS[0]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
-  const [acadYearId,    setAcadYearId]    = useState('');
-  const [acadSem,       setAcadSem]       = useState<1 | 2>(1);
-  const [acadClass,     setAcadClass]     = useState('');
-  const [classInput,    setClassInput]    = useState('');
-  const [status,        setStatus]        = useState<'active' | 'all'>('active');
+  const [acadYearId,    setAcadYearId]    = useSessionFilter('admin-reports:acadYearId', '');
+  const [acadSem,       setAcadSem]       = useSessionFilter<1 | 2>('admin-reports:acadSem', 1);
+  const [acadClass,     setAcadClass]     = useSessionFilter('admin-reports:acadClass', '');
+  const [classInput,    setClassInput]    = useSessionFilter('admin-reports:classInput', '');
+  const [status,        setStatus]        = useSessionFilter<'active' | 'all'>('admin-reports:status', 'active');
   const [data,          setData]          = useState<ReportData | null>(null);
   const [loading,       setLoading]       = useState(false);
   const [error,         setError]         = useState('');
@@ -220,9 +221,13 @@ export default function ReportsPage() {
       .then(r => {
         setAcademicYears(r.data);
         const cur = r.data.find(y => y.is_current);
-        if (cur) { setAcadYearId(cur.id); setAcadSem(cur.current_semester as 1 | 2); }
+        // Only fall back to "current year" when nothing was restored from a
+        // prior session — otherwise a refresh bounces the admin back to the
+        // current semester instead of the one they were reporting on.
+        if (cur && !acadYearId) { setAcadYearId(cur.id); setAcadSem(cur.current_semester as 1 | 2); }
       })
       .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const load = useCallback(async () => {
