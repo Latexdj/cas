@@ -25,10 +25,14 @@ async function recordClassChange(db, { schoolId, studentId, fromClass, toClass, 
 // concurrency. Callers that resolve a roster per distinct class (assessment
 // tracker, reports, exam-scores admin views) can have dozens of distinct
 // (class, year, semester) combos in one request; an unbounded Promise.all
-// fan-out — each getClassRoster() call opening its own couple of queries —
-// can exceed a pooled connection limit (hit in practice: Supabase's
-// session-mode pooler at 15 concurrent clients) well before it exceeds
-// anything CPU-bound.
+// fan-out — each getClassRoster() call opening its own query — can exceed a
+// pooled connection limit well before it exceeds anything CPU-bound. Two
+// distinct limits were hit in practice: Supabase's session-mode pooler
+// rejecting outright past 15 concurrent clients, and this app's own local
+// pg Pool (config/db.js, max: 10) queuing checkouts past its cap until they
+// time out under concurrent requests. Callers should keep `limit` low (2-3)
+// relative to that pool size — it bounds one call's own fan-out, not how
+// many *other* requests are running against the same shared pool at once.
 async function mapWithLimit(items, limit, fn) {
   const results = new Array(items.length);
   let next = 0;
@@ -112,19 +116,22 @@ async function getClassRoster(schoolId, className, academicYearId, semester) {
   );
   if (candidateRows.length === 0) return [];
 
+  // Sequential, not Promise.all: each getClassRoster() call can be one of
+  // many fired concurrently by a fan-out caller (mapWithLimit), and this
+  // codebase's local pg Pool is small (max: 10) — halving each call's
+  // simultaneous connection draw matters more here than the small latency
+  // cost of not overlapping these two queries.
   const candidateIds = candidateRows.map(r => r.id);
-  const [{ rows: historyRows }, targetOrdinalMs] = await Promise.all([
-    pool.query(
-      `SELECT ch.student_id, ch.from_class, ch.to_class, ch.semester, ch.source,
-              COALESCE(ay.start_date, ay.created_at) AS ordinal_date
-       FROM class_history ch
-       JOIN academic_years ay ON ay.id = ch.academic_year_id
-       WHERE ch.student_id = ANY($1::uuid[])
-       ORDER BY ch.student_id, ordinal_date, ch.semester`,
-      [candidateIds]
-    ),
-    getPeriodOrdinalMs(academicYearId),
-  ]);
+  const { rows: historyRows } = await pool.query(
+    `SELECT ch.student_id, ch.from_class, ch.to_class, ch.semester, ch.source,
+            COALESCE(ay.start_date, ay.created_at) AS ordinal_date
+     FROM class_history ch
+     JOIN academic_years ay ON ay.id = ch.academic_year_id
+     WHERE ch.student_id = ANY($1::uuid[])
+     ORDER BY ch.student_id, ordinal_date, ch.semester`,
+    [candidateIds]
+  );
+  const targetOrdinalMs = await getPeriodOrdinalMs(academicYearId);
 
   const targetPeriod = [targetOrdinalMs, targetSemester];
 
@@ -155,18 +162,16 @@ async function getClassRoster(schoolId, className, academicYearId, semester) {
 // handed a class_name by the caller.
 async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName, academicYearId, semester) {
   const targetSemester = parseInt(semester);
-  const [{ rows: historyRows }, targetOrdinalMs] = await Promise.all([
-    pool.query(
-      `SELECT ch.from_class, ch.to_class, ch.semester, ch.source,
-              COALESCE(ay.start_date, ay.created_at) AS ordinal_date
-       FROM class_history ch
-       JOIN academic_years ay ON ay.id = ch.academic_year_id
-       WHERE ch.student_id = $1 AND ch.school_id = $2
-       ORDER BY ordinal_date, ch.semester`,
-      [studentId, schoolId]
-    ),
-    getPeriodOrdinalMs(academicYearId),
-  ]);
+  const { rows: historyRows } = await pool.query(
+    `SELECT ch.from_class, ch.to_class, ch.semester, ch.source,
+            COALESCE(ay.start_date, ay.created_at) AS ordinal_date
+     FROM class_history ch
+     JOIN academic_years ay ON ay.id = ch.academic_year_id
+     WHERE ch.student_id = $1 AND ch.school_id = $2
+     ORDER BY ordinal_date, ch.semester`,
+    [studentId, schoolId]
+  );
+  const targetOrdinalMs = await getPeriodOrdinalMs(academicYearId);
 
   const history = historyRows.map(r => ({
     fromClass: r.from_class,
