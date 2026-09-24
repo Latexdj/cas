@@ -60,17 +60,26 @@ router.get('/', async (req, res, next) => {
       ORDER BY te.name, e.subject, e.class_name
     `, params);
 
-    // ── 3b. Roster size per distinct class, resolved as of this period via
+    // ── 3b. Roster per distinct class, resolved as of this period via
     //        class_history rather than current class_name — this is what
     //        keeps the completion % denominator correct after promotion.
+    //        The same roster also bounds the *numerator* below: a student
+    //        can have a real score yet no longer belong to this period's
+    //        resolved roster (e.g. they were deactivated after being
+    //        scored), and without this, students_scored could exceed
+    //        total_students — a number that's visibly nonsensical wherever
+    //        it's displayed as "N / total", most noticeably once a filter
+    //        narrows the view down to one teacher's few rows.
     const distinctClasses = [...new Set(rows.map(r => r.class_name))];
-    const rosterCounts = await Promise.all(
-      distinctClasses.map(async cls => [
-        cls.toLowerCase(),
-        (await getClassRoster(req.schoolId, cls, academic_year_id, semInt)).length,
-      ])
+    const rosterByClass = await Promise.all(
+      distinctClasses.map(async cls => [cls.toLowerCase(), await getClassRoster(req.schoolId, cls, academic_year_id, semInt)])
     );
-    const rosterCountMap = Object.fromEntries(rosterCounts);
+    const rosterCountMap = Object.fromEntries(rosterByClass.map(([key, ids]) => [key, ids.length]));
+    const rosterClassKeys  = [];
+    const rosterStudentIds = [];
+    for (const [key, ids] of rosterByClass) {
+      for (const id of ids) { rosterClassKeys.push(key); rosterStudentIds.push(id); }
+    }
 
     // ── 4. Per-(teacher, subject, class, mode) assessment + score counts ───────
     const { rows: modeCounts } = await pool.query(
@@ -79,13 +88,15 @@ router.get('/', async (req, res, next) => {
          LOWER(a.subject)     AS subject_key,
          LOWER(a.class_name)  AS class_key,
          a.mode_id,
-         COUNT(DISTINCT a.id)::int                                                                              AS assessments_created,
-         COUNT(DISTINCT CASE WHEN asc2.score IS NOT NULL OR asc2.absent = true THEN asc2.student_id END)::int  AS students_scored
+         COUNT(DISTINCT a.id)::int                                                                                                       AS assessments_created,
+         COUNT(DISTINCT CASE WHEN (asc2.score IS NOT NULL OR asc2.absent = true) AND roster.student_id IS NOT NULL THEN asc2.student_id END)::int AS students_scored
        FROM assessments a
        LEFT JOIN assessment_scores asc2 ON asc2.assessment_id = a.id
+       LEFT JOIN unnest($4::text[], $5::uuid[]) AS roster(class_key, student_id)
+         ON roster.class_key = LOWER(a.class_name) AND roster.student_id = asc2.student_id
        WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.semester = $3
        GROUP BY a.teacher_id, LOWER(a.subject), LOWER(a.class_name), a.mode_id`,
-      [req.schoolId, academic_year_id, semInt]
+      [req.schoolId, academic_year_id, semInt, rosterClassKeys, rosterStudentIds]
     );
 
     // Index modeCounts by "teacherId|subjectKey|classKey|modeId"
@@ -98,14 +109,16 @@ router.get('/', async (req, res, next) => {
     // ── 5. Per-(teacher, subject, class) exam score counts ────────────────────
     const { rows: examCounts } = await pool.query(
       `SELECT
-         teacher_id,
-         LOWER(subject)     AS subject_key,
-         LOWER(class_name)  AS class_key,
-         COUNT(DISTINCT student_id)::int AS students_scored
-       FROM exam_scores
-       WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
-       GROUP BY teacher_id, LOWER(subject), LOWER(class_name)`,
-      [req.schoolId, academic_year_id, semInt]
+         es.teacher_id,
+         LOWER(es.subject)     AS subject_key,
+         LOWER(es.class_name)  AS class_key,
+         COUNT(DISTINCT CASE WHEN roster.student_id IS NOT NULL THEN es.student_id END)::int AS students_scored
+       FROM exam_scores es
+       LEFT JOIN unnest($4::text[], $5::uuid[]) AS roster(class_key, student_id)
+         ON roster.class_key = LOWER(es.class_name) AND roster.student_id = es.student_id
+       WHERE es.school_id = $1 AND es.academic_year_id = $2 AND es.semester = $3
+       GROUP BY es.teacher_id, LOWER(es.subject), LOWER(es.class_name)`,
+      [req.schoolId, academic_year_id, semInt, rosterClassKeys, rosterStudentIds]
     );
 
     const examMap = {};
