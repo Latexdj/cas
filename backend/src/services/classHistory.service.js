@@ -21,6 +21,27 @@ async function recordClassChange(db, { schoolId, studentId, fromClass, toClass, 
   );
 }
 
+// mapWithLimit(items, limit, fn): like Promise.all(items.map(fn)) but caps
+// concurrency. Callers that resolve a roster per distinct class (assessment
+// tracker, reports, exam-scores admin views) can have dozens of distinct
+// (class, year, semester) combos in one request; an unbounded Promise.all
+// fan-out — each getClassRoster() call opening its own couple of queries —
+// can exceed a pooled connection limit (hit in practice: Supabase's
+// session-mode pooler at 15 concurrent clients) well before it exceeds
+// anything CPU-bound.
+async function mapWithLimit(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 async function getPeriodOrdinalMs(academicYearId) {
   const { rows } = await pool.query(
     `SELECT COALESCE(start_date, created_at) AS ordinal_date FROM academic_years WHERE id = $1`,
@@ -157,4 +178,4 @@ async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName
   return resolveClassFromHistory(history, currentClassName, [targetOrdinalMs, targetSemester]);
 }
 
-module.exports = { recordClassChange, getClassRoster, resolveStudentClassAtPeriod };
+module.exports = { recordClassChange, getClassRoster, resolveStudentClassAtPeriod, mapWithLimit };
