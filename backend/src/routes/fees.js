@@ -1,6 +1,8 @@
 const router = require('express').Router();
 const pool = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { getClassRoster, resolveStudentClassAtPeriod, mapWithLimit } = require('../services/classHistory.service');
+const { getCurrentYearSem } = require('../utils/school-context');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -157,8 +159,24 @@ router.post('/schedules/:id/generate', adminOnly, async (req, res, next) => {
     ];
     let classClause = '';
     if (schedule.class_name) {
-      classClause = 'AND s.class_name = $9';
-      params.push(schedule.class_name);
+      if (schedule.academic_year_id) {
+        // Targets a specific term — resolve who was actually in this class
+        // during that term via class_history, not who is in it right now.
+        // Otherwise a student promoted out of the targeted class between the
+        // schedule's own term and whenever "Generate" is clicked would be
+        // silently skipped forever (no later schedule targets their new class).
+        const roster = await getClassRoster(req.schoolId, schedule.class_name, schedule.academic_year_id, schedule.semester);
+        if (roster.length === 0) {
+          return res.json({ message: 'No students were in that class during that term. Nothing to generate.', inserted: 0, skipped: 0 });
+        }
+        classClause = 'AND s.id = ANY($9::uuid[])';
+        params.push(roster);
+      } else {
+        // "Any Year" recurring schedule — no fixed term to resolve against,
+        // so it intentionally targets whoever is currently in the class.
+        classClause = 'AND s.class_name = $9';
+        params.push(schedule.class_name);
+      }
     }
 
     const { rowCount } = await pool.query(
@@ -189,7 +207,6 @@ router.get('/bills', accountsAccess, async (req, res, next) => {
     const params = [req.schoolId];
     let i = 2;
     if (student_id) { conditions.push(`sb.student_id = $${i++}`); params.push(student_id); }
-    if (class_name)  { conditions.push(`s.class_name = $${i++}`); params.push(class_name); }
     if (year_id)     { conditions.push(`sb.academic_year_id = $${i++}`); params.push(year_id); }
     if (semester)    { conditions.push(`sb.semester = $${i++}`); params.push(Number(semester)); }
 
@@ -205,16 +222,39 @@ router.get('/bills', accountsAccess, async (req, res, next) => {
        ORDER BY sb.created_at DESC`,
       params
     );
-    res.json(rows);
+
+    if (!class_name) return res.json(rows);
+
+    // A student's current class_name only reflects who they are *now* — a
+    // bill created while they were in class X must still show under X even
+    // after they're promoted. Resolve each bill's class as of its own
+    // (academic_year_id, semester); bills predating that tracking (no
+    // year/semester recorded) fall back to the student's current class.
+    const filtered = await mapWithLimit(rows, 3, async (r) => {
+      let resolvedClass = r.class_name;
+      if (r.academic_year_id != null && r.semester != null) {
+        resolvedClass = await resolveStudentClassAtPeriod(req.schoolId, r.student_id, r.class_name, r.academic_year_id, r.semester);
+      }
+      return resolvedClass?.toLowerCase() === class_name.toLowerCase() ? r : null;
+    });
+    res.json(filtered.filter(Boolean));
   } catch (err) { next(err); }
 });
 
 router.post('/bills', accountsAccess, async (req, res, next) => {
   try {
-    const { student_id, fee_item_id, academic_year_id, semester, description, amount, due_date } = req.body;
+    let { student_id, fee_item_id, academic_year_id, semester, description, amount, due_date } = req.body;
     if (!student_id) return res.status(400).json({ error: 'Student is required.' });
     if (!description?.trim()) return res.status(400).json({ error: 'Description is required.' });
     if (!amount || isNaN(amount) || Number(amount) <= 0) return res.status(400).json({ error: 'A valid amount is required.' });
+    // An ad-hoc bill with no year/semester is permanently un-attributable to
+    // any term — it never shows up in a term-scoped report or arrears filter.
+    // Default to the school's current term when the caller doesn't specify one.
+    if (!academic_year_id || !semester) {
+      const current = await getCurrentYearSem(req.schoolId);
+      academic_year_id = academic_year_id || current.yearId;
+      semester = semester || current.sem;
+    }
     const { rows } = await pool.query(
       `INSERT INTO student_bills (school_id, student_id, fee_item_id, academic_year_id, semester, description, amount, due_date)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
@@ -248,23 +288,36 @@ router.get('/payments', accountsAccess, async (req, res, next) => {
     const params = [req.schoolId];
     let i = 2;
     if (student_id) { conditions.push(`fp.student_id = $${i++}`); params.push(student_id); }
-    if (class_name)  { conditions.push(`s.class_name = $${i++}`); params.push(class_name); }
     if (from)        { conditions.push(`fp.payment_date >= $${i++}`); params.push(from); }
     if (to)          { conditions.push(`fp.payment_date <= $${i++}`); params.push(to); }
 
     const { rows } = await pool.query(
       `SELECT fp.*,
               s.name AS student_name, s.student_code, s.class_name,
-              fi.name AS fee_item_name
+              fi.name AS fee_item_name,
+              sb.academic_year_id AS bill_academic_year_id, sb.semester AS bill_semester
        FROM fee_payments fp
        JOIN students s ON s.id = fp.student_id
        LEFT JOIN fee_items fi ON fi.id = fp.fee_item_id
+       LEFT JOIN student_bills sb ON sb.id = fp.bill_id
        WHERE ${conditions.join(' AND ')}
        ORDER BY fp.payment_date DESC, fp.created_at DESC
        LIMIT 200`,
       params
     );
-    res.json(rows);
+
+    if (!class_name) return res.json(rows);
+
+    // Same reasoning as GET /bills: resolve via the linked bill's own term
+    // when one exists; an ad-hoc payment with no bill falls back to current class.
+    const filtered = await mapWithLimit(rows, 3, async (r) => {
+      let resolvedClass = r.class_name;
+      if (r.bill_academic_year_id != null && r.bill_semester != null) {
+        resolvedClass = await resolveStudentClassAtPeriod(req.schoolId, r.student_id, r.class_name, r.bill_academic_year_id, r.bill_semester);
+      }
+      return resolvedClass?.toLowerCase() === class_name.toLowerCase() ? r : null;
+    });
+    res.json(filtered.filter(Boolean));
   } catch (err) { next(err); }
 });
 
@@ -342,12 +395,18 @@ router.get('/student/:id/summary', accountsAccess, async (req, res, next) => {
 router.get('/reports/arrears', adminOnly, async (req, res, next) => {
   try {
     const { year_id, semester, class_name } = req.query;
+    // A specific (year_id, semester) pins every aggregated bill in a group to
+    // that one term, so the student's class *as of that term* is well-defined
+    // and resolvable via class_history. Without both, arrears aggregates
+    // across potentially many terms — there's no single period to resolve
+    // against, so class_name there can only mean "currently in this class".
+    const canResolveHistorically = !!(year_id && semester && class_name);
     const conditions = ['sb.school_id = $1'];
     const params = [req.schoolId];
     let i = 2;
     if (year_id)    { conditions.push(`sb.academic_year_id = $${i++}`); params.push(year_id); }
     if (semester)   { conditions.push(`sb.semester = $${i++}`); params.push(Number(semester)); }
-    if (class_name) { conditions.push(`s.class_name = $${i++}`); params.push(class_name); }
+    if (class_name && !canResolveHistorically) { conditions.push(`s.class_name = $${i++}`); params.push(class_name); }
 
     const { rows } = await pool.query(
       `SELECT s.id AS student_id, s.name AS student_name, s.student_code, s.class_name,
@@ -365,7 +424,14 @@ router.get('/reports/arrears', adminOnly, async (req, res, next) => {
        ORDER BY s.class_name, outstanding DESC`,
       params
     );
-    res.json(rows);
+
+    if (!canResolveHistorically) return res.json(rows);
+
+    const filtered = await mapWithLimit(rows, 3, async (r) => {
+      const resolvedClass = await resolveStudentClassAtPeriod(req.schoolId, r.student_id, r.class_name, year_id, semester);
+      return resolvedClass?.toLowerCase() === class_name.toLowerCase() ? r : null;
+    });
+    res.json(filtered.filter(Boolean));
   } catch (err) { next(err); }
 });
 
@@ -399,12 +465,15 @@ router.get('/students/search', accountsAccess, async (req, res, next) => {
   try {
     const { q } = req.query;
     if (!q || String(q).length < 2) return res.json([]);
+    // Inactive/withdrawn students are included (not just Active) — an accounts
+    // clerk still needs to find a transferred or dropped-out student to record
+    // a final payment or check an outstanding balance on the way out.
     const { rows } = await pool.query(
-      `SELECT id, name, student_code, class_name
+      `SELECT id, name, student_code, class_name, status
        FROM students
-       WHERE school_id = $1 AND status = 'Active'
+       WHERE school_id = $1 AND status != 'Graduated'
          AND (name ILIKE $2 OR student_code ILIKE $2)
-       ORDER BY name LIMIT 15`,
+       ORDER BY (status = 'Active') DESC, name LIMIT 15`,
       [req.schoolId, `%${q}%`]
     );
     res.json(rows);

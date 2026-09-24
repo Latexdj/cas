@@ -39,7 +39,7 @@ interface InvStudent {
 
 // ─── Accounts types ───────────────────────────────────────────────────────────
 interface FeeItem { id: string; name: string; description: string | null; is_active: boolean; }
-interface AcctStudentResult { id: string; name: string; student_code: string; class_name: string; }
+interface AcctStudentResult { id: string; name: string; student_code: string; class_name: string; status: string; }
 interface AcctBill {
   id: string; description: string; amount: string; amount_paid: string;
   due_date: string | null; fee_item_id: string | null; fee_item_name: string | null;
@@ -1249,6 +1249,9 @@ export default function StaffPortalPage() {
                     onMouseDown={() => selectAcctStudent(s.id)}>
                     <span className="font-semibold text-slate-800 dark:text-white text-sm">{s.name}</span>
                     <span className="text-slate-400 text-xs ml-2">{s.student_code} · {s.class_name}</span>
+                    {s.status !== 'Active' && (
+                      <span className="text-amber-600 dark:text-amber-400 text-xs ml-2 font-semibold">({s.status})</span>
+                    )}
                   </div>
                 ))}
               </div>
