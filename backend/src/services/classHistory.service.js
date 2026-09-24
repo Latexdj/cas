@@ -54,6 +54,28 @@ async function getPeriodOrdinalMs(academicYearId) {
   return rows[0] ? new Date(rows[0].ordinal_date).getTime() : 0;
 }
 
+// The exclusive cutoff for "could this student plausibly have existed during
+// targetYear": the start of the chronologically NEXT academic year at this
+// school, if one exists. Comparing a no-history candidate's created_at
+// against the target year's own start (rather than the next year's) is too
+// strict — real admissions trickle in for days/weeks after a year's nominal
+// start_date, and would be wrongly excluded even from their own, current
+// year's roster. If targetYear is the school's latest/ongoing year, there's
+// no cutoff: any created_at up to now is valid.
+async function getNextYearOrdinalMs(schoolId, academicYearId) {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(next.start_date, next.created_at) AS ordinal_date
+     FROM academic_years next, academic_years target
+     WHERE target.id = $2
+       AND next.school_id = $1
+       AND COALESCE(next.start_date, next.created_at) > COALESCE(target.start_date, target.created_at)
+     ORDER BY ordinal_date ASC
+     LIMIT 1`,
+    [schoolId, academicYearId]
+  );
+  return rows[0] ? new Date(rows[0].ordinal_date).getTime() : null;
+}
+
 const comparePeriod = (a, b) => a[0] - b[0] || a[1] - b[1];
 
 // Walks one student's chronologically-ordered class_history rows to find
@@ -75,8 +97,28 @@ const comparePeriod = (a, b) => a[0] - b[0] || a[1] - b[1];
 // scores that period's evidence came from — confirmed against Kyebambo
 // Cynthia, who has real assessment/exam data in 2A for the exact period her
 // backfilled row anchors to.
-function resolveClassFromHistory(historyRows, currentClassName, targetPeriod) {
-  if (!historyRows || historyRows.length === 0) return currentClassName;
+// createdAtMs/existenceCutoffMs guard the no-history fallback: a student
+// with no class_history hasn't necessarily "always" been in their current
+// class — they may simply not have existed yet during targetYear (a fresh
+// admission for a new academic year, added to the system days before this
+// call). Confirmed via a real regression: every class in the school showed
+// inflated historical rosters and correspondingly wrong completion
+// percentages, because this year's brand-new intake — no class_history,
+// current class_name matching whatever label they were assigned — was being
+// silently counted as part of EVERY past year's roster for that same class
+// name. existenceCutoffMs is the start of the chronologically NEXT academic
+// year (see getNextYearOrdinalMs) — not targetPeriod's own start, which
+// would wrongly exclude a student admitted days after their own year's
+// nominal start_date. created_at is the only universally-populated proxy
+// for "existed in the system by this point"; it's an approximation (a bulk
+// data migration could set it later than a student's real enrollment), but
+// a large, systematic error is worse than this smaller one.
+function resolveClassFromHistory(historyRows, currentClassName, targetPeriod, createdAtMs, existenceCutoffMs) {
+  if (!historyRows || historyRows.length === 0) {
+    return createdAtMs != null && existenceCutoffMs != null && createdAtMs >= existenceCutoffMs
+      ? null
+      : currentClassName;
+  }
   let resolved = null;
   for (const row of historyRows) {
     const cmp = comparePeriod(row.period, targetPeriod);
@@ -101,7 +143,7 @@ async function getClassRoster(schoolId, className, academicYearId, semester) {
   // transition) — this catches students who've since moved on, and
   // students newly in the class who came from elsewhere.
   const { rows: candidateRows } = await pool.query(
-    `SELECT DISTINCT s.id, s.class_name
+    `SELECT DISTINCT s.id, s.class_name, s.created_at
      FROM students s
      WHERE s.school_id = $1 AND s.status = 'Active'
        AND (
@@ -132,6 +174,7 @@ async function getClassRoster(schoolId, className, academicYearId, semester) {
     [candidateIds]
   );
   const targetOrdinalMs = await getPeriodOrdinalMs(academicYearId);
+  const existenceCutoffMs = await getNextYearOrdinalMs(schoolId, academicYearId);
 
   const targetPeriod = [targetOrdinalMs, targetSemester];
 
@@ -148,7 +191,8 @@ async function getClassRoster(schoolId, className, academicYearId, semester) {
 
   const roster = [];
   for (const candidate of candidateRows) {
-    const resolved = resolveClassFromHistory(historyByStudent.get(candidate.id), candidate.class_name, targetPeriod);
+    const createdAtMs = candidate.created_at ? new Date(candidate.created_at).getTime() : null;
+    const resolved = resolveClassFromHistory(historyByStudent.get(candidate.id), candidate.class_name, targetPeriod, createdAtMs, existenceCutoffMs);
     if (resolved && resolved.toLowerCase() === className.toLowerCase()) roster.push(candidate.id);
   }
   return roster;
@@ -171,7 +215,10 @@ async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName
      ORDER BY ordinal_date, ch.semester`,
     [studentId, schoolId]
   );
+  const { rows: studentRows } = await pool.query(`SELECT created_at FROM students WHERE id = $1`, [studentId]);
   const targetOrdinalMs = await getPeriodOrdinalMs(academicYearId);
+  const existenceCutoffMs = await getNextYearOrdinalMs(schoolId, academicYearId);
+  const createdAtMs = studentRows[0]?.created_at ? new Date(studentRows[0].created_at).getTime() : null;
 
   const history = historyRows.map(r => ({
     fromClass: r.from_class,
@@ -180,7 +227,7 @@ async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName
     period: [new Date(r.ordinal_date).getTime(), r.semester],
   }));
 
-  return resolveClassFromHistory(history, currentClassName, [targetOrdinalMs, targetSemester]);
+  return resolveClassFromHistory(history, currentClassName, [targetOrdinalMs, targetSemester], createdAtMs, existenceCutoffMs);
 }
 
 module.exports = { recordClassChange, getClassRoster, resolveStudentClassAtPeriod, mapWithLimit };
