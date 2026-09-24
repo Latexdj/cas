@@ -333,7 +333,7 @@ router.get('/admin-list', adminOnly, async (req, res, next) => {
     // computed per distinct combo rather than a single roster call.
     const comboKey = r => `${r.class_name.toLowerCase()}|${r.academic_year_id}|${r.semester}`;
     const distinctCombos = [...new Map(rows.map(r => [comboKey(r), r])).values()];
-    const sizeEntries = await mapWithLimit(distinctCombos, 5, async r =>
+    const sizeEntries = await mapWithLimit(distinctCombos, 3, async r =>
       [comboKey(r), (await getClassRoster(req.schoolId, r.class_name, r.academic_year_id, r.semester)).length]
     );
     const sizeMap = Object.fromEntries(sizeEntries);
