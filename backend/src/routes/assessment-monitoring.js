@@ -71,7 +71,7 @@ router.get('/', async (req, res, next) => {
     //        it's displayed as "N / total", most noticeably once a filter
     //        narrows the view down to one teacher's few rows.
     const distinctClasses = [...new Set(rows.map(r => r.class_name))];
-    const rosterByClass = await mapWithLimit(distinctClasses, 5, async cls =>
+    const rosterByClass = await mapWithLimit(distinctClasses, 3, async cls =>
       [cls.toLowerCase(), await getClassRoster(req.schoolId, cls, academic_year_id, semInt)]
     );
     const rosterCountMap = Object.fromEntries(rosterByClass.map(([key, ids]) => [key, ids.length]));
