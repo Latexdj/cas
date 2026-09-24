@@ -269,8 +269,11 @@ function renderLetterhead(school) {
 }
 
 function renderSig(sigUrl) {
+  // Negative margin-bottom pulls the signature-line div (rendered right
+  // after this) up underneath the lower portion of the image, so the
+  // signature reads as sitting on the line rather than floating above it.
   return sigUrl
-    ? `<img src="${esc(sigUrl)}" style="display:block;max-height:80px;max-width:220px;margin-top:20px;" />`
+    ? `<img src="${esc(sigUrl)}" style="display:block;max-height:130px;max-width:280px;margin-top:12px;margin-bottom:-30px;position:relative;z-index:1;" />`
     : `<div style="margin-top:48px;"></div>`;
 }
 
@@ -286,7 +289,7 @@ function renderSignoff({ letterKind, sigHtml, issuedByName, issuedByTitle, schoo
     return `
   <p style="margin:0;font-size:11pt;">Yours faithfully,</p>
   ${sigHtml}
-  <div style="border-top:1px solid #000;width:240px;margin-top:6px;padding-top:8px;">
+  <div style="border-top:1px solid #000;width:240px;padding-top:8px;position:relative;z-index:0;">
     <div style="font-weight:bold;font-size:11pt;">${esc(issuedByName)}</div>
     <div style="font-size:10pt;color:#4A3F32;">${esc(schoolName ?? '')}</div>
   </div>`;
@@ -307,7 +310,7 @@ function renderSignoff({ letterKind, sigHtml, issuedByName, issuedByTitle, schoo
   <div style="margin-left:50%;">
     <p style="margin:0;font-size:11pt;">Yours faithfully,</p>
     ${sigHtml}
-    <div style="border-top:1px solid #000;width:240px;margin-top:6px;padding-top:8px;">
+    <div style="border-top:1px solid #000;width:240px;padding-top:8px;position:relative;z-index:0;">
       <div style="font-weight:bold;font-size:11pt;">${esc(issuedByName)}</div>
       ${issuedByTitle ? `<div style="font-size:10pt;color:#4A3F32;">${esc(issuedByTitle)}</div>` : ''}
     </div>
@@ -379,11 +382,11 @@ function buildLetterHTML({ letter, school, recipientType, letterKind = 'discipli
     ${extOrg   ? `<div>${esc(extOrg)}</div>` : ''}
     ${extAddr  ? `<div style="white-space:pre-line;">${esc(extAddr)}</div>` : ''}
   </div>
-  <div style="margin:0 0 24px;font-size:13pt;font-weight:bold;text-decoration:underline;text-transform:uppercase;">
+  <div style="margin:0 0 24px;font-size:13pt;font-weight:bold;text-decoration:underline;text-transform:uppercase;text-align:center;">
     RE: ${esc(letter.subject)}
   </div>
   ${salutation}
-  <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;">${esc(letter.body)}</div>
+  <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;text-align:justify;">${esc(letter.body)}</div>
   ${renderSignoff({
     letterKind, sigHtml, issuedByName: signatoryName, issuedByTitle: letter.issued_by_title,
     schoolName: school.name, throughOffice: letter.through_office, cc: letter.cc,
@@ -408,11 +411,11 @@ function buildLetterHTML({ letter, school, recipientType, letterKind = 'discipli
     <div style="font-weight:bold;">${esc(recipientName ?? '')}</div>
     ${recipientSub ? `<div style="color:#4A3F32;">${esc(recipientSub)}</div>` : ''}
   </div>
-  <div style="margin:0 0 24px;font-size:13pt;font-weight:bold;text-decoration:underline;text-transform:uppercase;">
+  <div style="margin:0 0 24px;font-size:13pt;font-weight:bold;text-decoration:underline;text-transform:uppercase;text-align:center;">
     ${esc(letter.subject)}
   </div>
   <p style="margin:0 0 16px;font-size:11pt;">Dear ${esc(firstWord(recipientName))},</p>
-  <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;">${esc(letter.body)}</div>
+  <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;text-align:justify;">${esc(letter.body)}</div>
   ${renderSignoff({
     letterKind, sigHtml, issuedByName: signatoryName, issuedByTitle: letter.issued_by_title,
     schoolName: school.name, throughOffice: letter.through_office, cc: letter.cc,
