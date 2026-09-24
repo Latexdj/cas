@@ -3,6 +3,7 @@ const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const multer = require('multer');
 const ExcelJS = require('exceljs');
+const { getClassRoster } = require('../services/classHistory.service');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -34,6 +35,9 @@ router.get('/template', async (req, res, next) => {
     let teacherFilter = '';
     if (!isAdmin) { params.push(req.user.id); teacherFilter = `AND e.teacher_id = $${params.length}`; }
 
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester));
+    params.push(roster);
+    const rosterParam = `$${params.length}`;
     const { rows: students } = await pool.query(
       `SELECT s.id AS student_id, s.student_code, s.name, e.score, e.max_score
        FROM students s
@@ -42,7 +46,7 @@ router.get('/template', async (req, res, next) => {
          AND e.academic_year_id = $2 AND e.semester = $3
          AND LOWER(e.subject) = LOWER($4) AND LOWER(e.class_name) = LOWER($5)
          ${teacherFilter}
-       WHERE s.school_id = $1 AND s.status = 'Active' AND LOWER(s.class_name) = LOWER($5)
+       WHERE s.school_id = $1 AND s.id = ANY(${rosterParam}::uuid[])
        ORDER BY s.name`,
       params
     );
@@ -124,11 +128,7 @@ router.post('/upload-scores', upload.single('file'), async (req, res, next) => {
       return res.status(409).json({ error: `Scores are locked — submission status is "${subStatus}".` });
     }
 
-    const { rows: students } = await pool.query(
-      `SELECT id FROM students WHERE school_id = $1 AND status = 'Active' AND LOWER(class_name) = LOWER($2)`,
-      [req.schoolId, class_name]
-    );
-    const validIds = new Set(students.map(s => s.id));
+    const validIds = new Set(await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester)));
 
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(req.file.buffer);
@@ -213,6 +213,9 @@ router.get('/', async (req, res, next) => {
     let teacherFilter = '';
     if (!isAdmin) { params.push(req.user.id); teacherFilter = `AND e.teacher_id = $${params.length}`; }
 
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester));
+    params.push(roster);
+    const rosterParam = `$${params.length}`;
     const { rows } = await pool.query(
       `SELECT s.id AS student_id, s.student_code, s.name,
               e.id AS exam_id, e.score, e.max_score
@@ -225,8 +228,7 @@ router.get('/', async (req, res, next) => {
          AND LOWER(e.subject)  = LOWER($4)
          AND LOWER(e.class_name) = LOWER($5)
          ${teacherFilter}
-       WHERE s.school_id = $1 AND s.status = 'Active'
-         AND LOWER(s.class_name) = LOWER($5)
+       WHERE s.school_id = $1 AND s.id = ANY(${rosterParam}::uuid[])
        ORDER BY s.name`,
       params
     );
@@ -315,10 +317,7 @@ router.get('/admin-list', adminOnly, async (req, res, next) => {
          MAX(e.max_score)                AS max_score,
          COUNT(e.score)::int             AS score_count,
          COUNT(*)::int                   AS row_count,
-         MAX(e.submitted_at)             AS submitted_at,
-         (SELECT COUNT(*)::int FROM students s
-          WHERE s.school_id = $1 AND LOWER(s.class_name) = LOWER(e.class_name)
-            AND s.status = 'Active')     AS class_size
+         MAX(e.submitted_at)             AS submitted_at
        FROM exam_scores e
        JOIN academic_years ay ON ay.id = e.academic_year_id AND ay.school_id = $1
        LEFT JOIN teachers t  ON t.id  = e.teacher_id AND t.school_id = $1
@@ -328,7 +327,17 @@ router.get('/admin-list', adminOnly, async (req, res, next) => {
        ORDER BY MAX(e.submitted_at) DESC NULLS LAST, e.class_name, e.subject`,
       params
     );
-    res.json(rows);
+
+    // class_size resolved per (class, year, semester) as of that period —
+    // batches can span many different periods, not just one, so this is
+    // computed per distinct combo rather than a single roster call.
+    const comboKey = r => `${r.class_name.toLowerCase()}|${r.academic_year_id}|${r.semester}`;
+    const distinctCombos = [...new Map(rows.map(r => [comboKey(r), r])).values()];
+    const sizeEntries = await Promise.all(
+      distinctCombos.map(async r => [comboKey(r), (await getClassRoster(req.schoolId, r.class_name, r.academic_year_id, r.semester)).length])
+    );
+    const sizeMap = Object.fromEntries(sizeEntries);
+    res.json(rows.map(r => ({ ...r, class_size: sizeMap[comboKey(r)] ?? 0 })));
   } catch (err) { next(err); }
 });
 
