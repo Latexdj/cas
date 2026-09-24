@@ -209,11 +209,58 @@ router.post('/change-password', require('../middleware/auth').authenticate, asyn
     // Accept both new and legacy field names
     const currentPassword = req.body.currentPassword || req.body.currentPin;
     const newPassword     = req.body.newPassword     || req.body.newPin;
+    const newEmail        = req.body.newEmail;
 
-    if (!currentPassword || !newPassword)
-      return res.status(400).json({ error: 'currentPassword and newPassword required' });
+    if (!currentPassword)
+      return res.status(400).json({ error: 'currentPassword required' });
     if (req.user.role === 'super_admin')
       return res.status(400).json({ error: 'Super admin cannot use this endpoint' });
+
+    // Non-teaching staff (clearance/library/inventory/accounts): unlike the
+    // other roles, they can also change their own login email, and a
+    // password change isn't mandatory on every call — so newPassword is
+    // optional here as long as at least one of the two is being changed.
+    if (req.user.role === 'staff') {
+      if (!newPassword && !newEmail)
+        return res.status(400).json({ error: 'Provide a new password and/or a new email.' });
+      if (newPassword && String(newPassword).length < 6)
+        return res.status(400).json({ error: 'Password must be at least 6 characters' });
+
+      const { rows } = await pool.query(
+        `SELECT password_hash FROM school_staff WHERE id = $1 AND school_id = $2`,
+        [req.user.id, req.schoolId]
+      );
+      if (!rows.length) return res.status(404).json({ error: 'Staff account not found' });
+
+      const valid = await bcrypt.compare(String(currentPassword), rows[0].password_hash);
+      if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
+
+      const sets = [];
+      const vals = [];
+      if (newPassword) {
+        const newHash = await bcrypt.hash(String(newPassword), 12);
+        vals.push(newHash);
+        sets.push(`password_hash = $${vals.length}`);
+      }
+      if (newEmail?.trim()) {
+        vals.push(newEmail.trim().toLowerCase());
+        sets.push(`email = $${vals.length}`);
+      }
+      vals.push(req.user.id, req.schoolId);
+      try {
+        const { rows: updated } = await pool.query(
+          `UPDATE school_staff SET ${sets.join(', ')} WHERE id = $${vals.length - 1} AND school_id = $${vals.length} RETURNING email`,
+          vals
+        );
+        return res.json({ message: 'Credentials updated successfully', email: updated[0].email });
+      } catch (e) {
+        if (e.code === '23505') return res.status(409).json({ error: 'That email is already in use by another staff account.' });
+        throw e;
+      }
+    }
+
+    if (!newPassword)
+      return res.status(400).json({ error: 'newPassword required' });
     if (String(newPassword).length < 4)
       return res.status(400).json({ error: 'Password must be at least 4 characters' });
 
@@ -330,7 +377,7 @@ router.post('/staff-login', loginLimiter, async (req, res, next) => {
     );
     res.json({
       token, role: 'staff', staffRoles,
-      id: staff.id, name: staff.name, schoolId: school.id,
+      id: staff.id, name: staff.name, email: staff.email, schoolId: school.id,
       primary_color: school.primary_color,
       accent_color:  school.accent_color,
       logo_url:      school.logo_url,
