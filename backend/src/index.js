@@ -2813,6 +2813,26 @@ async function runMigrations() {
     `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] general_letters title/through/cc fields:', e.message); }
 
+    // ── Fees: stop student deletion from silently destroying financial records ──
+    // student_bills.student_id and fee_payments.student_id were ON DELETE CASCADE,
+    // so DELETE /api/students/:id (students.js) would wipe a student's entire
+    // billing/payment history with no warning. Financial records must outlive the
+    // student row — deactivate (status = 'Inactive'), don't delete, once billed.
+    // The app-level guard in students.js is the primary defense; this is the
+    // DB-level backstop for any other path that might delete a student row.
+    try {
+    await pool.query(`ALTER TABLE student_bills DROP CONSTRAINT IF EXISTS student_bills_student_id_fkey`);
+    await pool.query(`
+      ALTER TABLE student_bills ADD CONSTRAINT student_bills_student_id_fkey
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE RESTRICT
+    `);
+    await pool.query(`ALTER TABLE fee_payments DROP CONSTRAINT IF EXISTS fee_payments_student_id_fkey`);
+    await pool.query(`
+      ALTER TABLE fee_payments ADD CONSTRAINT fee_payments_student_id_fkey
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE RESTRICT
+    `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] student_bills/fee_payments RESTRICT on student delete:', e.message); }
+
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
     } else {

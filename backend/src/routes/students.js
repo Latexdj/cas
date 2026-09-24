@@ -795,13 +795,33 @@ router.put('/:id', adminOnly, async (req, res, next) => {
 /** DELETE /api/students/:id */
 router.delete('/:id', adminOnly, async (req, res, next) => {
   try {
+    // Deleting a student with billing history would cascade-destroy their
+    // student_bills/fee_payments rows (real financial records). A transferred
+    // or withdrawn student should be marked Inactive instead, which preserves
+    // those records — deletion is only for students who never had one.
+    const { rows: financial } = await pool.query(
+      `SELECT
+         EXISTS (SELECT 1 FROM student_bills WHERE student_id = $1) AS has_bills,
+         EXISTS (SELECT 1 FROM fee_payments WHERE student_id = $1) AS has_payments`,
+      [req.params.id]
+    );
+    if (financial[0]?.has_bills || financial[0]?.has_payments) {
+      return res.status(400).json({
+        error: 'Cannot delete this student: they have bills or payments on record. Mark them Inactive instead to preserve financial records.',
+      });
+    }
     const { rowCount } = await pool.query(
       `DELETE FROM students WHERE id = $1 AND school_id = $2`,
       [req.params.id, req.schoolId]
     );
     if (!rowCount) return res.status(404).json({ error: 'Student not found' });
     res.json({ message: 'Student deleted' });
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.code === '23503') {
+      return res.status(400).json({ error: 'Cannot delete this student: related records exist. Mark them Inactive instead.' });
+    }
+    next(err);
+  }
 });
 
 /** POST /api/students/:id/picture — upload student profile photo */

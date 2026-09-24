@@ -236,8 +236,13 @@ export default function StudentsPage() {
 
   async function handleDelete(s: Student) {
     if (!confirm(`Delete ${s.name}? This cannot be undone.`)) return;
-    await api.delete(`/api/students/${s.id}`);
-    await load();
+    try {
+      await api.delete(`/api/students/${s.id}`);
+      await load();
+    } catch (err) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      alert(msg ?? 'Failed to delete student.');
+    }
   }
 
   function openTemplateModal() {
