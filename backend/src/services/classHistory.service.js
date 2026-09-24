@@ -21,6 +21,30 @@ async function recordClassChange(db, { schoolId, studentId, fromClass, toClass, 
   );
 }
 
+async function getPeriodOrdinalMs(academicYearId) {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(start_date, created_at) AS ordinal_date FROM academic_years WHERE id = $1`,
+    [academicYearId]
+  );
+  return rows[0] ? new Date(rows[0].ordinal_date).getTime() : 0;
+}
+
+const comparePeriod = (a, b) => a[0] - b[0] || a[1] - b[1];
+
+// Walks one student's chronologically-ordered class_history rows to find
+// their class as of targetPeriod — the shared core of both getClassRoster()
+// (many candidates, one target class) and resolveStudentClassAtPeriod() (one
+// student, any class). See CAS-CLASS-HISTORY-DESIGN.md Section 4.
+function resolveClassFromHistory(historyRows, currentClassName, targetPeriod) {
+  if (!historyRows || historyRows.length === 0) return currentClassName;
+  let resolved = null;
+  for (const row of historyRows) {
+    if (comparePeriod(row.period, targetPeriod) <= 0) resolved = row.toClass;
+    else { resolved = row.fromClass; break; }
+  }
+  return resolved;
+}
+
 // getClassRoster(schoolId, className, academicYearId, semester)
 // Returns the array of student_ids enrolled in className during that
 // specific (academicYearId, semester) period — resolving each candidate's
@@ -51,7 +75,7 @@ async function getClassRoster(schoolId, className, academicYearId, semester) {
   if (candidateRows.length === 0) return [];
 
   const candidateIds = candidateRows.map(r => r.id);
-  const [{ rows: historyRows }, { rows: targetYearRows }] = await Promise.all([
+  const [{ rows: historyRows }, targetOrdinalMs] = await Promise.all([
     pool.query(
       `SELECT ch.student_id, ch.from_class, ch.to_class, ch.semester,
               COALESCE(ay.start_date, ay.created_at) AS ordinal_date
@@ -61,12 +85,10 @@ async function getClassRoster(schoolId, className, academicYearId, semester) {
        ORDER BY ch.student_id, ordinal_date, ch.semester`,
       [candidateIds]
     ),
-    pool.query(`SELECT COALESCE(start_date, created_at) AS ordinal_date FROM academic_years WHERE id = $1`, [academicYearId]),
+    getPeriodOrdinalMs(academicYearId),
   ]);
 
-  const targetOrdinalMs = targetYearRows[0] ? new Date(targetYearRows[0].ordinal_date).getTime() : 0;
   const targetPeriod = [targetOrdinalMs, targetSemester];
-  const comparePeriod = (a, b) => a[0] - b[0] || a[1] - b[1];
 
   const historyByStudent = new Map();
   for (const r of historyRows) {
@@ -80,20 +102,40 @@ async function getClassRoster(schoolId, className, academicYearId, semester) {
 
   const roster = [];
   for (const candidate of candidateRows) {
-    const history = historyByStudent.get(candidate.id);
-    let resolved;
-    if (!history || history.length === 0) {
-      resolved = candidate.class_name;
-    } else {
-      resolved = null;
-      for (const row of history) {
-        if (comparePeriod(row.period, targetPeriod) <= 0) resolved = row.toClass;
-        else { resolved = row.fromClass; break; }
-      }
-    }
+    const resolved = resolveClassFromHistory(historyByStudent.get(candidate.id), candidate.class_name, targetPeriod);
     if (resolved && resolved.toLowerCase() === className.toLowerCase()) roster.push(candidate.id);
   }
   return roster;
 }
 
-module.exports = { recordClassChange, getClassRoster };
+// resolveStudentClassAtPeriod(schoolId, studentId, currentClassName, academicYearId, semester)
+// The single-student inverse of getClassRoster(): what class was THIS
+// student in as of that period? Needed by call sites that derive their
+// target class_name from the student's own (current) record — e.g. a
+// promoted student viewing their own past results — rather than being
+// handed a class_name by the caller.
+async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName, academicYearId, semester) {
+  const targetSemester = parseInt(semester);
+  const [{ rows: historyRows }, targetOrdinalMs] = await Promise.all([
+    pool.query(
+      `SELECT ch.from_class, ch.to_class, ch.semester,
+              COALESCE(ay.start_date, ay.created_at) AS ordinal_date
+       FROM class_history ch
+       JOIN academic_years ay ON ay.id = ch.academic_year_id
+       WHERE ch.student_id = $1 AND ch.school_id = $2
+       ORDER BY ordinal_date, ch.semester`,
+      [studentId, schoolId]
+    ),
+    getPeriodOrdinalMs(academicYearId),
+  ]);
+
+  const history = historyRows.map(r => ({
+    fromClass: r.from_class,
+    toClass: r.to_class,
+    period: [new Date(r.ordinal_date).getTime(), r.semester],
+  }));
+
+  return resolveClassFromHistory(history, currentClassName, [targetOrdinalMs, targetSemester]);
+}
+
+module.exports = { recordClassChange, getClassRoster, resolveStudentClassAtPeriod };
