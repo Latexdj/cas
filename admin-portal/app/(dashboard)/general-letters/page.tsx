@@ -36,7 +36,8 @@ type Letter = {
   is_sensitive: boolean; issued_date: string; status: string;
   requires_approval: boolean; approved_by_name: string | null;
   approved_at: string | null; issued_by_name: string; body?: string;
-  pdf_url?: string | null; created_at: string;
+  pdf_url?: string | null; created_at: string; draft_session_id?: string | null;
+  return_history?: { id: string; reason: string; returned_by_name?: string; returned_at: string }[];
 };
 
 type Contact = { id: string; name: string; organization: string | null; address: string | null; };
@@ -90,6 +91,7 @@ function statusPill(status: string) {
     pending_approval: { label: 'Pending Approval', color: C.warning, bg: C.warningBg },
     issued:           { label: 'Issued',           color: C.success, bg: C.successBg },
     archived:         { label: 'Archived',         color: C.muted,   bg: '#EDE8DF' },
+    returned:         { label: 'Returned for Correction', color: C.danger, bg: C.dangerBg },
   };
   const s = map[status] ?? { label: status, color: C.muted, bg: '#EDE8DF' };
   return (
@@ -251,6 +253,65 @@ export default function GeneralLettersPage() {
   const [showPrint, setShowPrint]       = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [school, setSchool]             = useState<Record<string, string> | null>(null);
+
+  // Returned-for-correction editing (issuer side)
+  const [returnEditSubject, setReturnEditSubject] = useState('');
+  const [returnEditBody, setReturnEditBody]       = useState('');
+  const [resubmitting, setResubmitting]           = useState(false);
+  const [resubmitErr, setResubmitErr]             = useState('');
+  const [showReturnedChat, setShowReturnedChat]           = useState(false);
+  const [loadingReturnedSession, setLoadingReturnedSession] = useState(false);
+  const [returnedChatMessages, setReturnedChatMessages]   = useState<ChatMsg[]>([]);
+  const [returnedChatInput, setReturnedChatInput]         = useState('');
+  const [returnedChatLoading, setReturnedChatLoading]     = useState(false);
+  const [returnedChatErr, setReturnedChatErr]             = useState('');
+
+  useEffect(() => {
+    if (viewLetter?.status === 'returned') {
+      setReturnEditSubject(viewLetter.subject);
+      setReturnEditBody(viewLetter.body ?? '');
+      setShowReturnedChat(false);
+      setResubmitErr('');
+    }
+  }, [viewLetter?.id, viewLetter?.status]);
+
+  async function openReturnedChat() {
+    if (!viewLetter?.draft_session_id) return;
+    setLoadingReturnedSession(true); setResubmitErr('');
+    try {
+      const { data } = await api.get<{ messages: ChatMsg[] }>(`/api/letter-chat/${viewLetter.draft_session_id}`);
+      setReturnedChatMessages(data.messages ?? []);
+      setShowReturnedChat(true);
+    } catch (e: any) {
+      setResubmitErr(e.response?.data?.error ?? 'Failed to load draft session');
+    } finally { setLoadingReturnedSession(false); }
+  }
+
+  async function sendReturnedChatMessage() {
+    if (!returnedChatInput.trim() || returnedChatLoading || !viewLetter?.draft_session_id) return;
+    const userMsg: ChatMsg = { role: 'user', content: returnedChatInput.trim() };
+    setReturnedChatMessages(prev => [...prev, userMsg]);
+    setReturnedChatInput('');
+    setReturnedChatLoading(true); setReturnedChatErr('');
+    try {
+      const { data } = await api.post<{ role: string; content: string }>(`/api/letter-chat/${viewLetter.draft_session_id}/message`, { content: userMsg.content });
+      setReturnedChatMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
+    } catch (e: any) {
+      setReturnedChatErr(e.response?.data?.error ?? 'Failed to send message');
+    } finally { setReturnedChatLoading(false); }
+  }
+
+  async function resubmitLetter() {
+    if (!viewLetter || !returnEditBody.trim()) { setResubmitErr('Body text is required'); return; }
+    setResubmitting(true); setResubmitErr('');
+    try {
+      const { data } = await api.patch(`/api/general-letters/${viewLetter.id}/resubmit`, { subject: returnEditSubject, body: returnEditBody });
+      setViewLetter(data);
+      load();
+    } catch (e: any) {
+      setResubmitErr(e.response?.data?.error ?? 'Failed to resubmit letter');
+    } finally { setResubmitting(false); }
+  }
 
   const [form, setForm]         = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving]     = useState(false);
@@ -652,6 +713,7 @@ export default function GeneralLettersPage() {
           <option value="">All Statuses</option>
           <option value="draft">Draft</option>
           <option value="pending_approval">Pending Approval</option>
+          <option value="returned">Returned for Correction</option>
           <option value="issued">Issued</option>
           <option value="archived">Archived</option>
         </select>
@@ -1271,8 +1333,62 @@ export default function GeneralLettersPage() {
               </div>
             )}
 
+            {/* Returned for correction — reason history + editable resubmit surface */}
+            {viewLetter.status === 'returned' && (
+              <div style={{ background: C.dangerBg, border: `1px solid ${C.danger}44`, borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: C.danger, marginBottom: 10 }}>Returned for Correction</p>
+                {(viewLetter.return_history ?? []).map((r, i) => (
+                  <div key={r.id} style={{ marginBottom: 8, opacity: i === 0 ? 1 : 0.65 }}>
+                    <p style={{ fontSize: 12, color: C.dark, margin: 0, whiteSpace: 'pre-wrap' }}>{r.reason}</p>
+                    <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>
+                      {i === 0 ? 'Latest — ' : ''}By {r.returned_by_name ?? 'Management'} on {new Date(r.returned_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))}
+
+                <div style={{ marginTop: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 4 }}>Subject</label>
+                  <input value={returnEditSubject} onChange={e => setReturnEditSubject(e.target.value)}
+                    style={{ ...inputStyle, marginBottom: 10 }} />
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: C.mid2 }}>Letter Body</label>
+                    {viewLetter.draft_session_id && !showReturnedChat && (
+                      <button onClick={openReturnedChat} disabled={loadingReturnedSession}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 6, border: `1px solid ${C.mid}`, background: '#E8F4EE', color: C.mid, fontWeight: 700, fontSize: 11, cursor: 'pointer', opacity: loadingReturnedSession ? 0.6 : 1 }}>
+                        {loadingReturnedSession ? 'Loading…' : 'Continue drafting with AI'}
+                      </button>
+                    )}
+                  </div>
+
+                  {showReturnedChat ? (
+                    <ChatPanel
+                      messages={returnedChatMessages} input={returnedChatInput}
+                      onInputChange={setReturnedChatInput} onSend={sendReturnedChatMessage}
+                      loading={returnedChatLoading} error={returnedChatErr}
+                      onUseDraft={text => { setReturnEditBody(text); setShowReturnedChat(false); }}
+                      onClose={() => setShowReturnedChat(false)}
+                      intakeSubmitted={true}
+                      onIntakeSubmit={() => {}}
+                      onSkipIntake={() => {}}
+                      sessionId={viewLetter.draft_session_id ?? ''}
+                    />
+                  ) : (
+                    <textarea value={returnEditBody} onChange={e => setReturnEditBody(e.target.value)} rows={6}
+                      style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
+                  )}
+                </div>
+
+                {resubmitErr && <p style={{ fontSize: 12, color: C.danger, marginTop: 8 }}>{resubmitErr}</p>}
+                <button onClick={resubmitLetter} disabled={resubmitting}
+                  style={{ marginTop: 12, width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: resubmitting ? 0.6 : 1 }}>
+                  {resubmitting ? 'Resubmitting…' : 'Resubmit for Approval'}
+                </button>
+              </div>
+            )}
+
             {/* Body */}
-            {viewLetter.body && (
+            {viewLetter.body && viewLetter.status !== 'returned' && (
               <div style={{ marginBottom: 20 }}>
                 <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Letter Body</p>
                 <div style={{

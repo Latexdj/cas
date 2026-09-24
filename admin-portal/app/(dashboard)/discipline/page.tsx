@@ -76,7 +76,8 @@ interface DisciplinaryLetter {
   student_id: string; student_name: string; student_code: string; class_name: string; academic_year_name?: string;
   ref_number?: string; issued_by_signature_url?: string;
   requires_approval?: boolean; approved_by?: string; approved_by_name?: string; approved_at?: string;
-  school_name?: string; pdf_url?: string;
+  school_name?: string; pdf_url?: string; draft_session_id?: string;
+  return_history?: { id: string; reason: string; returned_by_name?: string; returned_at: string }[];
 }
 
 interface LetterStats { total: string; active: string; pending_approval: string; resolved: string; warning: string; final_warning: string; suspension: string; dismissal: string; }
@@ -122,6 +123,7 @@ function letterStatusBadge(status: string): { label: string; color: string; bg: 
     issued:           { label: 'Issued',            color: C.warning,  bg: C.warningBg },
     acknowledged:     { label: 'Acknowledged',      color: C.mid,      bg: '#E8F4EE' },
     resolved:         { label: 'Resolved',           color: C.success,  bg: '#DCFCE7' },
+    returned:         { label: 'Returned for Correction', color: C.danger, bg: C.dangerBg },
   };
   return map[status] ?? { label: status, color: C.muted, bg: C.bg };
 }
@@ -731,6 +733,7 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
         subject, body, issued_date: issuedDate,
         academic_year_id: ayId || undefined,
         semester: semester ? Number(semester) : undefined,
+        draft_session_id: chatSessionId || undefined,
       });
       onCreated(data);
     } catch (e: unknown) {
@@ -1102,6 +1105,58 @@ function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
   const statusBadge = letterStatusBadge(letter.status);
   const isClosed = letter.status === 'resolved';
   const isPendingApproval = letter.status === 'pending_approval';
+  const isReturned = letter.status === 'returned';
+
+  const [editSubject, setEditSubject] = useState(letter.subject);
+  const [editBody, setEditBody] = useState(letter.body);
+  const [resubmitting, setResubmitting] = useState(false);
+  const [resubmitError, setResubmitError] = useState('');
+  const [showReturnedChat, setShowReturnedChat] = useState(false);
+  const [loadingSession, setLoadingSession] = useState(false);
+  const [returnedChatMessages, setReturnedChatMessages] = useState<ChatMsg[]>([]);
+  const [returnedChatInput, setReturnedChatInput] = useState('');
+  const [returnedChatLoading, setReturnedChatLoading] = useState(false);
+  const [returnedChatError, setReturnedChatError] = useState('');
+
+  async function openReturnedChat() {
+    if (!letter.draft_session_id) return;
+    setLoadingSession(true); setResubmitError('');
+    try {
+      const { data } = await api.get<{ messages: ChatMsg[] }>(`/api/letter-chat/${letter.draft_session_id}`);
+      setReturnedChatMessages(data.messages ?? []);
+      setShowReturnedChat(true);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setResubmitError(err.response?.data?.error ?? 'Failed to load draft session');
+    } finally { setLoadingSession(false); }
+  }
+
+  async function sendReturnedChatMessage() {
+    if (!returnedChatInput.trim() || returnedChatLoading || !letter.draft_session_id) return;
+    const userMsg: ChatMsg = { role: 'user', content: returnedChatInput.trim() };
+    setReturnedChatMessages(prev => [...prev, userMsg]);
+    setReturnedChatInput('');
+    setReturnedChatLoading(true); setReturnedChatError('');
+    try {
+      const { data } = await api.post<{ role: string; content: string }>(`/api/letter-chat/${letter.draft_session_id}/message`, { content: userMsg.content });
+      setReturnedChatMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setReturnedChatError(err.response?.data?.error ?? 'Failed to send message');
+    } finally { setReturnedChatLoading(false); }
+  }
+
+  async function resubmit() {
+    if (!editBody.trim()) { setResubmitError('Body text is required'); return; }
+    setResubmitting(true); setResubmitError('');
+    try {
+      const { data } = await api.patch<DisciplinaryLetter>(`/api/discipline/letters/${letter.id}/resubmit`, { subject: editSubject, body: editBody });
+      onUpdate(data);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setResubmitError(err.response?.data?.error ?? 'Failed to resubmit letter');
+    } finally { setResubmitting(false); }
+  }
 
   async function generatePdf() {
     setGeneratingPdf(true);
@@ -1238,7 +1293,62 @@ function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
           </button>
         </div>
       )}
-      {!isClosed && !isPendingApproval && (
+      {isReturned && (
+        <div style={{ background: C.dangerBg, border: '1px solid #FECACA', borderRadius: 12, padding: 16, marginTop: 4 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: C.danger, marginBottom: 10 }}>Returned for Correction</p>
+          {(letter.return_history ?? []).map((r, i) => (
+            <div key={r.id} style={{ marginBottom: 8, opacity: i === 0 ? 1 : 0.65 }}>
+              <p style={{ fontSize: 12, color: C.dark, margin: 0, whiteSpace: 'pre-wrap' }}>{r.reason}</p>
+              <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>
+                {i === 0 ? 'Latest — ' : ''}By {r.returned_by_name ?? 'Management'} on {fmt(r.returned_at)}
+              </p>
+            </div>
+          ))}
+
+          <div style={{ marginTop: 12 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 4 }}>Subject</label>
+            <input value={editSubject} onChange={e => setEditSubject(e.target.value)}
+              style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none', marginBottom: 10, boxSizing: 'border-box' }} />
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.mid2 }}>Letter Body</label>
+              {letter.draft_session_id && !showReturnedChat && (
+                <button onClick={openReturnedChat} disabled={loadingSession}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 6, border: `1px solid ${C.mid}`, background: '#E8F4EE', color: C.mid, fontWeight: 700, fontSize: 11, cursor: 'pointer', opacity: loadingSession ? 0.6 : 1 }}>
+                  {loadingSession ? 'Loading…' : 'Continue drafting with AI'}
+                </button>
+              )}
+            </div>
+
+            {showReturnedChat ? (
+              <ChatPanel
+                messages={returnedChatMessages} input={returnedChatInput}
+                onInputChange={setReturnedChatInput} onSend={sendReturnedChatMessage}
+                loading={returnedChatLoading} error={returnedChatError}
+                onUseDraft={text => { setEditBody(text); setShowReturnedChat(false); }}
+                onClose={() => setShowReturnedChat(false)}
+                groundingClauses={[]}
+                sessionStarted={true}
+                intakeSubmitted={true}
+                onIntakeSubmit={() => {}}
+                onSkipIntake={() => {}}
+                documentType="student_letter"
+                sessionId={letter.draft_session_id ?? ''}
+              />
+            ) : (
+              <textarea value={editBody} onChange={e => setEditBody(e.target.value)} rows={6}
+                style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+            )}
+          </div>
+
+          {resubmitError && <p style={{ fontSize: 12, color: C.danger, marginTop: 8 }}>{resubmitError}</p>}
+          <button onClick={resubmit} disabled={resubmitting}
+            style={{ marginTop: 12, width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: resubmitting ? 0.6 : 1 }}>
+            {resubmitting ? 'Resubmitting…' : 'Resubmit for Approval'}
+          </button>
+        </div>
+      )}
+      {!isClosed && !isPendingApproval && !isReturned && (
         <div style={{ display: 'grid', gridTemplateColumns: letter.status === 'issued' ? '1fr 1fr' : '1fr', gap: 12, marginTop: 4 }}>
           {letter.status === 'issued' && (
             <div style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
@@ -1836,6 +1946,7 @@ export default function DisciplinePage() {
             <select value={lStatusFilter} onChange={e => setLStatusFilter(e.target.value)} style={{ ...selectStyle, minWidth: 160 }}>
               <option value="">All statuses</option>
               <option value="pending_approval">Pending Approval</option>
+              <option value="returned">Returned for Correction</option>
               {['issued','acknowledged','resolved'].map(s => (
                 <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
               ))}
