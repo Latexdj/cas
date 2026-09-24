@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
-const { getClassRoster } = require('../services/classHistory.service');
+const { getClassRoster, mapWithLimit } = require('../services/classHistory.service');
 
 router.use(authenticate, requireActiveSubscription, adminOnly);
 
@@ -71,8 +71,8 @@ router.get('/', async (req, res, next) => {
     //        it's displayed as "N / total", most noticeably once a filter
     //        narrows the view down to one teacher's few rows.
     const distinctClasses = [...new Set(rows.map(r => r.class_name))];
-    const rosterByClass = await Promise.all(
-      distinctClasses.map(async cls => [cls.toLowerCase(), await getClassRoster(req.schoolId, cls, academic_year_id, semInt)])
+    const rosterByClass = await mapWithLimit(distinctClasses, 5, async cls =>
+      [cls.toLowerCase(), await getClassRoster(req.schoolId, cls, academic_year_id, semInt)]
     );
     const rosterCountMap = Object.fromEntries(rosterByClass.map(([key, ids]) => [key, ids.length]));
     const rosterClassKeys  = [];
