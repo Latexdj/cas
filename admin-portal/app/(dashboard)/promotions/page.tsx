@@ -40,6 +40,7 @@ export default function PromotionsPage() {
   const [loadingRoster, setLoadingRoster] = useState(false);
 
   const [refreshingClasses, setRefreshingClasses] = useState(false);
+  const [reason, setReason] = useState('');
   const [promoting, setPromoting] = useState(false);
   const [result,    setResult]    = useState<{ promoted_total: number; results: PromoteResult[] } | null>(null);
   const [runError,  setRunError]  = useState('');
@@ -107,7 +108,7 @@ export default function PromotionsPage() {
     if (!mapping || !allMapped) return;
     setPromoting(true); setRunError(''); setResult(null);
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         to_level_id: toLevel,
         mappings: mapping.map(m => ({
           from_class_id: m.from_class_id,
@@ -115,11 +116,13 @@ export default function PromotionsPage() {
           excluded_student_ids: Array.from(excluded[m.from_class_id] ?? []),
         })),
       };
+      if (reason.trim()) body.reason = reason.trim();
       const { data } = await api.post<{ promoted_total: number; results: PromoteResult[] }>(
         `/api/class-levels/${fromLevel}/promote`, body
       );
       setResult(data);
       setMapping(null);
+      setReason('');
       loadLevels();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -231,7 +234,9 @@ export default function PromotionsPage() {
 
           {runError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2 mx-4 my-2">{runError}</p>}
 
-          <div className="px-5 py-3.5 border-t border-slate-100 flex justify-end">
+          <div className="px-5 py-3.5 border-t border-slate-100 flex items-center gap-3">
+            <input className={`${inputCls} flex-1`} value={reason} onChange={e => setReason(e.target.value)}
+              placeholder="Reason (optional) — e.g. End of year promotion" />
             <Button onClick={confirmPromote} disabled={!allMapped} loading={promoting}>
               Promote {mapping.length} class{mapping.length !== 1 ? 'es' : ''}
             </Button>

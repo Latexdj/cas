@@ -178,7 +178,7 @@ router.get('/:id/promotion-preview', adminOnly, async (req, res, next) => {
 // rejected before anything is written — no partial/silent skips.
 router.post('/:id/promote', adminOnly, async (req, res, next) => {
   const fromLevelId = req.params.id;
-  const { to_level_id: toLevelId, mappings } = req.body;
+  const { to_level_id: toLevelId, mappings, reason } = req.body;
   if (!toLevelId) return res.status(400).json({ error: 'to_level_id is required' });
   if (fromLevelId === toLevelId) return res.status(400).json({ error: 'Source and destination levels must differ' });
   if (!Array.isArray(mappings) || !mappings.length) return res.status(400).json({ error: 'mappings are required' });
@@ -241,6 +241,7 @@ router.post('/:id/promote', adminOnly, async (req, res, next) => {
       if (includeIds.length > 0) {
         promoted = await promoteClass(client, {
           schoolId: req.schoolId, fromClass: from.name, toClass: to.name, studentIds: includeIds,
+          reason: reason?.trim() || null, changedBy: req.user.id,
         });
       }
       results.push({ from_class: from.name, to_class: to.name, promoted, held_back: excluded.size });

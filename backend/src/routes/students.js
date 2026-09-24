@@ -6,6 +6,8 @@ const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { uploadFile } = require('../services/storage.service');
 const { promoteClass } = require('../services/promotion.service');
+const { recordClassChange } = require('../services/classHistory.service');
+const { getCurrentYearSem } = require('../utils/school-context');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -392,11 +394,13 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
 
     const [{ rows: programRows }, { rows: studentRows }] = await Promise.all([
       pool.query(`SELECT id, LOWER(TRIM(name)) AS name_lower FROM programs WHERE school_id = $1`, [req.schoolId]),
-      pool.query(`SELECT id, student_code FROM students WHERE school_id = $1`, [req.schoolId]),
+      pool.query(`SELECT id, student_code, class_name FROM students WHERE school_id = $1`, [req.schoolId]),
     ]);
-    const programByName = new Map(programRows.map(p => [p.name_lower, p.id]));
-    const studentById   = new Map(studentRows.map(s => [s.student_code, s.id]));
-    const validStatuses = ['Active', 'Graduated', 'Inactive'];
+    const programByName    = new Map(programRows.map(p => [p.name_lower, p.id]));
+    const studentById      = new Map(studentRows.map(s => [s.student_code, s.id]));
+    const studentClassById = new Map(studentRows.map(s => [s.id, s.class_name]));
+    const validStatuses    = ['Active', 'Graduated', 'Inactive'];
+    const { yearId: importAcademicYearId, sem: importSemester } = await getCurrentYearSem(req.schoolId);
 
     const errors   = [];
     const notFound = [];
@@ -475,6 +479,15 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
          WHERE school_id = $${params.length - 1} AND id = $${params.length}`,
         params
       );
+
+      const priorClassName = studentClassById.get(studentId);
+      if (className && priorClassName && className !== priorClassName) {
+        await recordClassChange(pool, {
+          schoolId: req.schoolId, studentId, fromClass: priorClassName, toClass: className,
+          academicYearId: importAcademicYearId, semester: importSemester, source: 'bulk_import',
+          changedBy: req.user.id,
+        });
+      }
       updated++;
     }
 
@@ -485,11 +498,14 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
 /** POST /api/students/promote — bulk or selective class promotion */
 router.post('/promote', adminOnly, async (req, res, next) => {
   try {
-    const { from_class, to_class, student_ids } = req.body;
+    const { from_class, to_class, student_ids, reason } = req.body;
     if (!from_class || !to_class)
       return res.status(400).json({ error: 'from_class and to_class are required' });
 
-    const rowCount = await promoteClass(pool, { schoolId: req.schoolId, fromClass: from_class, toClass: to_class, studentIds: student_ids });
+    const rowCount = await promoteClass(pool, {
+      schoolId: req.schoolId, fromClass: from_class, toClass: to_class, studentIds: student_ids,
+      reason: reason?.trim() || null, changedBy: req.user.id,
+    });
     res.json({ promoted: rowCount, from_class, to_class });
   } catch (err) { next(err); }
 });
@@ -710,10 +726,13 @@ router.put('/:id', adminOnly, async (req, res, next) => {
     const valErrors = validateStudentFields(req.body);
     if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
     const { rows } = await pool.query(
-      `UPDATE students SET
+      `WITH old AS (
+         SELECT class_name FROM students WHERE id = $24 AND school_id = $25 FOR UPDATE
+       )
+       UPDATE students SET
          student_code           = COALESCE($1,  student_code),
          name                   = COALESCE($2,  name),
-         class_name             = COALESCE($3,  class_name),
+         class_name             = COALESCE($3,  students.class_name),
          status                 = COALESCE($4,  status),
          notes                  = COALESCE($5,  notes),
          program_id             = COALESCE($6,  program_id),
@@ -735,12 +754,14 @@ router.put('/:id', adminOnly, async (req, res, next) => {
          guardian_mobile        = COALESCE($22, guardian_mobile),
          year_of_admission      = COALESCE($23, year_of_admission),
          updated_at             = now()
-       WHERE id = $24 AND school_id = $25
-       RETURNING id, student_code, name, class_name, status, notes, program_id,
-                 jhs_index_number, date_of_birth, gender, hometown, residential_address,
-                 ghana_card_number, nhia_number, mobile_number, aggregate, house,
-                 residential_status, religion, religious_denomination,
-                 guardian_name, guardian_occupation, guardian_mobile, picture_url, year_of_admission`,
+       FROM old
+       WHERE students.id = $24 AND students.school_id = $25
+       RETURNING students.id, students.student_code, students.name, students.class_name, students.status, students.notes, students.program_id,
+                 students.jhs_index_number, students.date_of_birth, students.gender, students.hometown, students.residential_address,
+                 students.ghana_card_number, students.nhia_number, students.mobile_number, students.aggregate, students.house,
+                 students.residential_status, students.religion, students.religious_denomination,
+                 students.guardian_name, students.guardian_occupation, students.guardian_mobile, students.picture_url, students.year_of_admission,
+                 old.class_name AS prior_class_name`,
       [student_code?.trim() || null, name || null, class_name?.trim() || null,
        status || null, notes !== undefined ? (notes || null) : undefined,
        program_id || null,
@@ -753,7 +774,18 @@ router.put('/:id', adminOnly, async (req, res, next) => {
        req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Student not found' });
-    res.json(rows[0]);
+
+    const updated = rows[0];
+    if (updated.prior_class_name && updated.class_name !== updated.prior_class_name) {
+      const { yearId: academicYearId, sem: semester } = await getCurrentYearSem(req.schoolId);
+      await recordClassChange(pool, {
+        schoolId: req.schoolId, studentId: updated.id,
+        fromClass: updated.prior_class_name, toClass: updated.class_name,
+        academicYearId, semester, source: 'manual_edit', changedBy: req.user.id,
+      });
+    }
+    delete updated.prior_class_name;
+    res.json(updated);
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'That Student ID is already in use' });
     next(err);

@@ -108,6 +108,7 @@ export default function StudentsPage() {
   // Promote / Graduate state
   const [fromClass,      setFromClass]      = useState('');
   const [toClass,        setToClass]        = useState('');
+  const [promoteReason,  setPromoteReason]  = useState('');
   const [actionResult,   setActionResult]   = useState('');
   const [rosterStudents, setRosterStudents] = useState<Student[]>([]);
   const [rosterSelected, setRosterSelected] = useState<Set<string>>(new Set());
@@ -313,8 +314,10 @@ export default function StudentsPage() {
       const ids = [...rosterSelected];
       const body: Record<string, unknown> = { from_class: fromClass, to_class: toClass };
       if (ids.length < rosterStudents.length) body.student_ids = ids;
+      if (promoteReason.trim()) body.reason = promoteReason.trim();
       const res = await api.post<{ promoted: number }>('/api/students/promote', body);
       setActionResult(`✓ ${res.data.promoted} student(s) moved from ${fromClass} to ${toClass}`);
+      setPromoteReason('');
       await load();
     } catch (e: any) {
       setActionResult(e?.response?.data?.error || 'Promote failed');
@@ -971,10 +974,15 @@ export default function StudentsPage() {
                   value={toClass} onChange={e => setToClass(e.target.value)} placeholder="e.g. Form 2A" list="class-list-to" />
                 <datalist id="class-list-to">{allClasses.map(c => <option key={c} value={c} />)}</datalist>
               </div>
+              <div>
+                <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Reason (optional)</label>
+                <input className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }}
+                  value={promoteReason} onChange={e => setPromoteReason(e.target.value)} placeholder="e.g. End of year promotion" />
+              </div>
             </div>
             {actionResult && <p className="text-sm mt-3 font-medium" style={{ color: actionResult.startsWith('✓') ? '#145C44' : '#DC2626' }}>{actionResult}</p>}
             <div className="flex gap-3 mt-6">
-              <Button variant="secondary" className="flex-1" onClick={() => setModal(null)}>Close</Button>
+              <Button variant="secondary" className="flex-1" onClick={() => { setModal(null); setPromoteReason(''); }}>Close</Button>
               <Button className="flex-1" loading={saving} onClick={handlePromote} disabled={rosterSelected.size === 0}>
                 Promote{rosterSelected.size > 0 ? ` (${rosterSelected.size})` : ''}
               </Button>
