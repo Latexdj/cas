@@ -2720,6 +2720,32 @@ async function runMigrations() {
     `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admission_applications year scope:', e.message); }
 
+    // ── Class history (fixes results/tracker breakage after promotion) ───────
+    // Logs every time a student's class_name changes, from whatever path
+    // changes it (promotion, manual edit, bulk import) — see
+    // CAS-CLASS-HISTORY-DESIGN.md. Phase 1 only: this table is written to but
+    // not yet read by any call site.
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS class_history (
+          id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id        UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          student_id       UUID        NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+          from_class       TEXT,
+          to_class         TEXT        NOT NULL,
+          academic_year_id UUID        REFERENCES academic_years(id) ON DELETE SET NULL,
+          semester         SMALLINT,
+          reason           TEXT,
+          source           TEXT        NOT NULL CHECK (source IN ('promotion', 'manual_edit', 'bulk_import', 'backfill')),
+          changed_by       UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+          changed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+          created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_class_history_student ON class_history(student_id, changed_at)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_class_history_school_class ON class_history(school_id, to_class)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] class_history:', e.message); }
+
     // ── Class levels (secondary schools: Form/Year grouping above classes) ────
     try {
     await pool.query(`
