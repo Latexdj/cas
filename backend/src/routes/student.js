@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 const { getCurrentSchoolContext } = require('../utils/school-context');
+const { getClassRoster, resolveStudentClassAtPeriod } = require('../services/classHistory.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -90,7 +91,10 @@ router.get('/results', async (req, res, next) => {
     if (!student) return res.status(404).json({ error: 'Student not found' });
 
     const semInt = parseInt(semester);
-    const className = student.class_name;
+    // The class this student was actually in during this period, not their
+    // current class — a promoted student's historical scores are tagged
+    // with their old class (see CAS-CLASS-HISTORY-DESIGN.md Section 4).
+    const className = await resolveStudentClassAtPeriod(req.schoolId, student.id, student.class_name, academic_year_id, semInt);
 
     const [schoolRow, modesRow, boundariesRow] = await Promise.all([
       pool.query(`SELECT ca_percentage FROM schools WHERE id = $1`, [req.schoolId]),
@@ -224,10 +228,8 @@ router.get('/results', async (req, res, next) => {
     // Class position
     let class_position = null, class_total = null;
     if (average !== null) {
-      const { rows: classmates } = await pool.query(
-        `SELECT id FROM students WHERE school_id = $1 AND LOWER(class_name) = LOWER($2) AND status = 'Active'`,
-        [req.schoolId, className]
-      );
+      const rosterIds = await getClassRoster(req.schoolId, className, academic_year_id, semInt);
+      const classmates = rosterIds.map(id => ({ id }));
       class_total = classmates.length;
 
       const peerResults = await Promise.all(classmates.map(async (cm) => {
