@@ -88,7 +88,7 @@ async function notifyTeacher(schoolId, teacherId, title, message, emailBody = nu
 // Returns null if not a HOD (and not admin).
 async function resolveHodContext(req) {
   if (req.user.role === 'admin') {
-    return { isHod: true, hodDept: null, programmeId: null, isSubjectHod: false };
+    return { isHod: true, hodDept: null, hodDepts: [], programmeId: null, isSubjectHod: false };
   }
 
   const [
@@ -96,10 +96,14 @@ async function resolveHodContext(req) {
     { rows: officeRows },
     { rows: respRows },
   ] = await Promise.all([
-    // Path 1: departments.head_teacher_id (set via Departments admin page)
+    // Path 1: departments.head_teacher_id (set via Departments admin page).
+    // A teacher can head more than one department — collect all of them
+    // (no LIMIT 1) so /hod-queue can show submissions from every department
+    // they head, not just whichever one Postgres happens to return first.
     pool.query(
       `SELECT d.name AS dept_name FROM departments d
-       WHERE d.school_id = $1 AND d.head_teacher_id = $2 LIMIT 1`,
+       WHERE d.school_id = $1 AND d.head_teacher_id = $2
+       ORDER BY d.name`,
       [req.schoolId, req.user.id]
     ),
     // Path 2: clearance_office_staff (supports programme HODs with linked_programme_id)
@@ -127,7 +131,13 @@ async function resolveHodContext(req) {
 
   // Path 1: Departments page HOD — always a subject HOD; never look up programme by name
   if (deptRows.length) {
-    return { isHod: true, hodDept: deptRows[0].dept_name, programmeId: null, isSubjectHod: true };
+    return {
+      isHod: true,
+      hodDept: deptRows[0].dept_name,
+      hodDepts: deptRows.map(r => r.dept_name),
+      programmeId: null,
+      isSubjectHod: true,
+    };
   }
 
   // Paths 2 & 3 need the teacher's department field
@@ -148,11 +158,11 @@ async function resolveHodContext(req) {
       );
       if (pRows.length) programmeId = pRows[0].id;
     }
-    return { isHod: true, hodDept, programmeId, isSubjectHod: !programmeId };
+    return { isHod: true, hodDept, hodDepts: hodDept ? [hodDept] : [], programmeId, isSubjectHod: !programmeId };
   }
 
   // Path 3: responsibility assignment — always a subject HOD
-  return { isHod: true, hodDept, programmeId: null, isSubjectHod: true };
+  return { isHod: true, hodDept, hodDepts: hodDept ? [hodDept] : [], programmeId: null, isSubjectHod: true };
 }
 
 // ── GET /my-status — teacher sees submission status for all their subjects this semester ─────
@@ -222,18 +232,22 @@ router.get('/hod-queue', async (req, res, next) => {
         // Programme HOD: filter by students' program_id
         params.push(hod.programmeId);
         deptFilter = `AND s.program_id = $${params.length}`;
-      } else if (hod.hodDept) {
-        // Subject HOD: show submissions from teachers whose department matches,
-        // OR whose teacher record IS the head_teacher_id of the HOD's department
-        // (covers the case where the HOD's own teachers.department differs from departments.name)
-        params.push(hod.hodDept);
+      } else if (hod.hodDepts?.length) {
+        // Subject HOD: show submissions from teachers whose department matches
+        // ANY department this HOD heads (a teacher can head more than one —
+        // e.g. both ICT and Languages — and must see both queues, not just
+        // whichever one resolveHodContext happened to return first), OR
+        // whose teacher record IS the head_teacher_id of one of those
+        // departments (covers the case where the HOD's own teachers.department
+        // differs from departments.name).
+        params.push(hod.hodDepts);
         const deptParam = params.length;
         deptFilter = `AND (
-          LOWER(t.department) = LOWER($${deptParam})
+          LOWER(t.department) = ANY(SELECT LOWER(x) FROM unnest($${deptParam}::text[]) AS x)
           OR EXISTS (
             SELECT 1 FROM departments d
             WHERE d.school_id = $1
-              AND LOWER(d.name) = LOWER($${deptParam})
+              AND LOWER(d.name) = ANY(SELECT LOWER(x) FROM unnest($${deptParam}::text[]) AS x)
               AND d.head_teacher_id = t.id
           )
         )`;
@@ -496,16 +510,25 @@ router.get('/final-queue', adminOnly, async (req, res, next) => {
               rs.academic_year_id,
               t.name AS teacher_name,
               hod.name AS hod_name,
+              assigned_hod.name AS assigned_hod_name,
               ay.name AS academic_year, rs.semester
        FROM result_submissions rs
        LEFT JOIN teachers t   ON t.id = rs.teacher_id
        LEFT JOIN teachers hod ON hod.id = rs.hod_reviewed_by
        LEFT JOIN academic_years ay ON ay.id = rs.academic_year_id
+       LEFT JOIN department_subjects ds ON ds.school_id = rs.school_id AND LOWER(ds.subject) = LOWER(rs.subject)
+       LEFT JOIN departments dept ON dept.id = ds.department_id
+       LEFT JOIN teachers assigned_hod ON assigned_hod.id = dept.head_teacher_id
        WHERE rs.school_id = $1 AND rs.status IN ('submitted','hod_approved','final_approved','published') ${filter}
        ORDER BY rs.submitted_at ASC`,
       params
     );
-    res.json(await attachRosterCounts(req.schoolId, rows));
+    // hod_name is who actually reviewed (null until that happens); for rows
+    // still awaiting review, show who the row is actually waiting ON — the
+    // subject's assigned department head — so the admin isn't staring at a
+    // blank "HOD" column with no way to tell who's supposed to act.
+    const withHod = rows.map(r => ({ ...r, hod_name: r.hod_name ?? r.assigned_hod_name }));
+    res.json(await attachRosterCounts(req.schoolId, withHod));
   } catch (err) { next(err); }
 });
 
