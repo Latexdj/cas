@@ -212,11 +212,6 @@ export default function StaffPortalPage() {
   const [acctSelected,   setAcctSelected]   = useState<AcctStudentSummary | null>(null);
   const [acctLoadingSum, setAcctLoadingSum] = useState(false);
 
-  const [showBillModal,  setShowBillModal]  = useState(false);
-  const [billForm,       setBillForm]       = useState({ fee_item_id: '', description: '', amount: '', due_date: '' });
-  const [billSaving,     setBillSaving]     = useState(false);
-  const [billErr,        setBillErr]        = useState('');
-
   const [showPayModal,   setShowPayModal]   = useState(false);
   const [payForm,        setPayForm]        = useState({ bill_id: '', fee_item_id: '', amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'Cash', reference: '', notes: '' });
   const [paySaving,      setPaySaving]      = useState(false);
@@ -275,32 +270,6 @@ export default function StaffPortalPage() {
     if (!acctSelected) return;
     const r = await api.get<AcctStudentSummary>(`/api/fees/student/${acctSelected.student.id}/summary`);
     setAcctSelected(r.data);
-  }
-
-  function openBillModal() {
-    setBillForm({ fee_item_id: '', description: '', amount: '', due_date: '' });
-    setBillErr(''); setShowBillModal(true);
-  }
-
-  async function submitBill() {
-    if (!acctSelected) return;
-    if (!billForm.description.trim()) { setBillErr('Description is required.'); return; }
-    if (!billForm.amount || Number(billForm.amount) <= 0) { setBillErr('A valid amount is required.'); return; }
-    setBillSaving(true); setBillErr('');
-    try {
-      await api.post('/api/fees/bills', { student_id: acctSelected.student.id, ...billForm });
-      setShowBillModal(false);
-      await refreshAcctSelected();
-    } catch (e: any) { setBillErr(e?.response?.data?.error ?? 'Failed to record bill.'); }
-    finally { setBillSaving(false); }
-  }
-
-  async function deleteAcctBill(id: string) {
-    if (!confirm('Delete this bill?')) return;
-    try {
-      await api.delete(`/api/fees/bills/${id}`);
-      await refreshAcctSelected();
-    } catch (e: any) { alert(e?.response?.data?.error ?? 'Failed to delete bill.'); }
   }
 
   function openPayModal() {
@@ -1262,7 +1231,7 @@ export default function StaffPortalPage() {
 
           {!acctSelected && !acctLoadingSum && (
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-10 text-center text-slate-400 text-sm">
-              Search for a student above to view or record bills and payments.
+              Search for a student above to view their bills and record payments.
             </div>
           )}
 
@@ -1286,7 +1255,6 @@ export default function StaffPortalPage() {
               </div>
 
               <div className="flex gap-2">
-                <button onClick={openBillModal} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: primary }}>+ Add Bill</button>
                 <button onClick={openPayModal} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#145C44]">+ Record Payment</button>
               </div>
 
@@ -1309,7 +1277,6 @@ export default function StaffPortalPage() {
                               </p>
                             </div>
                             <span className="text-sm font-bold shrink-0" style={{ color: owed > 0 ? '#dc2626' : '#145C44' }}>{fmtGHS(owed)}</span>
-                            <button onClick={() => deleteAcctBill(b.id)} className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline shrink-0">Delete</button>
                           </div>
                         );
                       })}
@@ -1342,54 +1309,6 @@ export default function StaffPortalPage() {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* ── Add Bill Modal ─────────────────────────────────────────────────── */}
-      {showBillModal && acctSelected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/55 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-700">
-              <p className="font-bold text-slate-800 dark:text-white">Add Bill — {acctSelected.student.name}</p>
-              <button onClick={() => setShowBillModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </button>
-            </div>
-            <div className="px-5 py-4 space-y-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Fee Type (optional)</label>
-                <select value={billForm.fee_item_id} onChange={e => setBillForm(f => ({ ...f, fee_item_id: e.target.value }))}
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]">
-                  <option value="">Unspecified</option>
-                  {acctItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Description *</label>
-                <input value={billForm.description} onChange={e => setBillForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="e.g. Lost ID card replacement"
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Amount (GH₵) *</label>
-                <input type="number" min="0" step="0.01" value={billForm.amount} onChange={e => setBillForm(f => ({ ...f, amount: e.target.value }))}
-                  placeholder="0.00"
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Due Date (optional)</label>
-                <input type="date" value={billForm.due_date} onChange={e => setBillForm(f => ({ ...f, due_date: e.target.value }))}
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
-              </div>
-              {billErr && <p className="text-sm text-red-600">{billErr}</p>}
-              <div className="flex gap-3 pt-1">
-                <button onClick={() => setShowBillModal(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300">Cancel</button>
-                <button onClick={submitBill} disabled={billSaving} className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
-                  {billSaving ? 'Saving…' : 'Add Bill'}
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 

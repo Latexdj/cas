@@ -6,11 +6,13 @@ const { getCurrentYearSem } = require('../utils/school-context');
 
 router.use(authenticate, requireActiveSubscription);
 
-// Day-to-day bill/payment recording — open to admins and to school_staff
-// accounts explicitly given the 'accounts' role (Settings > Staff Accounts).
-// Fee structure config (items CUD, schedules, bulk generate), expenditure,
-// and financial reports stay adminOnly below — an accounts clerk records
-// transactions, they don't redefine what's chargeable or see net position.
+// Day-to-day payment recording, and read-only visibility of bills — open to
+// admins and to school_staff accounts explicitly given the 'accounts' role
+// (Settings > Staff Accounts). Creating/deleting an ad-hoc bill (POST/DELETE
+// /bills) is adminOnly below, alongside fee structure config (items CUD,
+// schedules, bulk generate), expenditure, and financial reports — an
+// accounts clerk collects against bills that already exist and voids their
+// own payment mistakes, they don't decide what a student owes.
 function accountsAccess(req, res, next) {
   const role = req.user?.role;
   if (role === 'admin' || role === 'super_admin') return next();
@@ -248,7 +250,7 @@ router.get('/bills', accountsAccess, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/bills', accountsAccess, async (req, res, next) => {
+router.post('/bills', adminOnly, async (req, res, next) => {
   try {
     let { student_id, fee_item_id, academic_year_id, semester, description, amount, due_date } = req.body;
     if (!student_id) return res.status(400).json({ error: 'Student is required.' });
@@ -272,7 +274,7 @@ router.post('/bills', accountsAccess, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.delete('/bills/:id', accountsAccess, async (req, res, next) => {
+router.delete('/bills/:id', adminOnly, async (req, res, next) => {
   try {
     const { rows: payments } = await pool.query(
       `SELECT 1 FROM fee_payments WHERE bill_id=$1 AND school_id=$2 LIMIT 1`,

@@ -392,6 +392,10 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
   const [payForm, setPayForm] = useState({ bill_id: '', fee_item_id: '', amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'Cash', reference: '', notes: '' });
   const [paying, setPaying] = useState(false);
   const [payErr, setPayErr] = useState('');
+  const [showBillModal, setShowBillModal] = useState(false);
+  const [billForm, setBillForm] = useState({ fee_item_id: '', description: '', amount: '', due_date: '' });
+  const [billSaving, setBillSaving] = useState(false);
+  const [billErr, setBillErr] = useState('');
 
   const searchStudents = useCallback(async (q: string) => {
     if (q.length < 2) { setResults([]); return; }
@@ -451,6 +455,27 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
     }
   }
 
+  function openBillModal() {
+    setBillForm({ fee_item_id: '', description: '', amount: '', due_date: '' });
+    setBillErr(''); setShowBillModal(true);
+  }
+
+  async function addBill() {
+    if (!selected) return;
+    if (!billForm.description.trim()) { setBillErr('Description is required.'); return; }
+    if (!billForm.amount || Number(billForm.amount) <= 0) { setBillErr('A valid amount is required.'); return; }
+    setBillSaving(true); setBillErr('');
+    try {
+      await api.post('/api/fees/bills', { student_id: selected.student.id, ...billForm });
+      setShowBillModal(false);
+      const r = await api.get(`/api/fees/student/${selected.student.id}/summary`);
+      setSelected(r.data);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setBillErr(err?.response?.data?.error ?? 'Failed to add bill.');
+    } finally { setBillSaving(false); }
+  }
+
   return (
     <div>
       {/* Student Search */}
@@ -501,7 +526,10 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
                 <p style={{ fontWeight: 700, fontSize: 18, color: card.color }}>{card.value}</p>
               </div>
             ))}
-            <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button style={btnSecondary} onClick={openBillModal}>
+                + Add Bill
+              </button>
               <button style={btnPrimary} onClick={() => { setPayForm({ bill_id: '', fee_item_id: '', amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'Cash', reference: '', notes: '' }); setPayErr(''); setShowPayModal(true); }}>
                 + Record Payment
               </button>
@@ -571,6 +599,37 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
 
       {!selected && !loadingSummary && (
         <p style={{ color: '#94a3b8', textAlign: 'center', padding: 40, fontSize: 14 }}>Search for a student above to view their fee account.</p>
+      )}
+
+      {showBillModal && selected && (
+        <Modal title={`Add Bill — ${selected.student.name}`} onClose={() => setShowBillModal(false)}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={labelStyle}>Fee Type (optional)</label>
+              <select style={inputStyle} value={billForm.fee_item_id} onChange={e => setBillForm(f => ({ ...f, fee_item_id: e.target.value }))}>
+                <option value="">Unspecified</option>
+                {items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Description *</label>
+              <input style={inputStyle} value={billForm.description} onChange={e => setBillForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. Lost ID card replacement" />
+            </div>
+            <div>
+              <label style={labelStyle}>Amount (GH₵) *</label>
+              <input style={inputStyle} type="number" min="0" step="0.01" value={billForm.amount} onChange={e => setBillForm(f => ({ ...f, amount: e.target.value }))} placeholder="0.00" />
+            </div>
+            <div>
+              <label style={labelStyle}>Due Date (optional)</label>
+              <input style={inputStyle} type="date" value={billForm.due_date} onChange={e => setBillForm(f => ({ ...f, due_date: e.target.value }))} />
+            </div>
+            {billErr && <p style={{ color: '#dc2626', fontSize: 13 }}>{billErr}</p>}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button style={btnSecondary} onClick={() => setShowBillModal(false)}>Cancel</button>
+              <button style={btnPrimary} onClick={addBill} disabled={billSaving}>{billSaving ? 'Saving…' : 'Add Bill'}</button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {showPayModal && selected && (
