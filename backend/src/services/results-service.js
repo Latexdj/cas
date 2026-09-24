@@ -1,6 +1,7 @@
 // Shared class-results computation extracted from results.js for reuse by ai-remarks.js.
 // Returns the same result shape as GET /api/results, scoped to one class.
 const pool = require('../config/db');
+const { getClassRoster, resolveStudentClassAtPeriod } = require('./classHistory.service');
 
 async function computeClassResults(schoolId, academicYearId, semester) {
   const sem = parseInt(semester);
@@ -25,7 +26,12 @@ async function computeStudentResult(schoolId, studentId, academicYearId, semeste
     [studentId, schoolId]
   );
   if (!stMeta.length) return null;
-  const { class_name, name: student_name, exam_body: studentExamBody } = stMeta[0];
+  const { class_name: currentClassName, name: student_name, exam_body: studentExamBody } = stMeta[0];
+
+  // The student's class AS OF this period, not their current class_name —
+  // a promoted student's historical scores are tagged with their old class.
+  const class_name = await resolveStudentClassAtPeriod(schoolId, studentId, currentClassName, academicYearId, sem);
+  const roster = await getClassRoster(schoolId, class_name, academicYearId, sem);
 
   // Fetch all class-level data in parallel
   const [schoolRow, modesRow, boundariesRow, studentsRow, assessmentsRow, examScoresRow, importedRes, attRes] =
@@ -41,9 +47,9 @@ async function computeStudentResult(schoolId, studentId, academicYearId, semeste
         `SELECT s.id, s.name, p.exam_body
          FROM students s
          LEFT JOIN programs p ON p.id = s.program_id
-         WHERE s.school_id = $1 AND s.status = 'Active' AND LOWER(s.class_name) = LOWER($2)
+         WHERE s.school_id = $1 AND s.id = ANY($2::uuid[])
          ORDER BY s.name`,
-        [schoolId, class_name]
+        [schoolId, roster]
       ),
       pool.query(
         `SELECT a.subject, a.mode_id, a.max_score, sc.student_id, sc.score
@@ -60,20 +66,14 @@ async function computeStudentResult(schoolId, studentId, academicYearId, semeste
            AND LOWER(class_name) = LOWER($4) AND score IS NOT NULL`,
         [schoolId, academicYearId, sem, class_name]
       ),
-      pool.query(
-        `SELECT s.id FROM students s
-         WHERE s.school_id = $1 AND s.status = 'Active' AND LOWER(s.class_name) = LOWER($2)`,
-        [schoolId, class_name]
-      ).then(async ({ rows: classRows }) => {
-        const ids = classRows.map(r => r.id);
-        if (!ids.length) return { rows: [] };
-        return pool.query(
-          `SELECT student_id, subject, class_score, exam_score, total_score, grade, remarks
-           FROM results_import
-           WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3 AND student_id = ANY($4)`,
-          [schoolId, academicYearId, sem, ids]
-        );
-      }),
+      roster.length
+        ? pool.query(
+            `SELECT student_id, subject, class_score, exam_score, total_score, grade, remarks
+             FROM results_import
+             WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3 AND student_id = ANY($4)`,
+            [schoolId, academicYearId, sem, roster]
+          )
+        : Promise.resolve({ rows: [] }),
       pool.query(
         `SELECT sar.student_id,
                 COUNT(*)::int                                         AS total,
