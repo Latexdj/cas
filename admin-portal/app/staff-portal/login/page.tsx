@@ -27,7 +27,7 @@ export default function StaffLoginPage() {
       const data = res.data;
       localStorage.setItem('cas_st_token', data.token);
       localStorage.setItem('cas_st_user', JSON.stringify({
-        id: data.id, name: data.name, role: data.role,
+        id: data.id, name: data.name, email: data.email, role: data.role,
         staffRoles: data.staffRoles, schoolId: data.schoolId,
       }));
       if (data.primary_color) localStorage.setItem('cas_st_primary', data.primary_color);
@@ -50,7 +50,7 @@ export default function StaffLoginPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Staff Portal</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Sign in to manage clearance and library</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Sign in to manage clearance, library, inventory, and accounts</p>
         </div>
 
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-6">
