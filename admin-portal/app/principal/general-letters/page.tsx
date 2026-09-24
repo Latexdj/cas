@@ -56,6 +56,11 @@ export default function PrincipalGeneralLettersPage() {
   const [approving, setApproving]   = useState(false);
   const [approveErr, setApproveErr] = useState('');
   const [approveOk, setApproveOk]   = useState(false);
+  const [showReturnForm, setShowReturnForm] = useState(false);
+  const [returnReason, setReturnReason]     = useState('');
+  const [returning, setReturning]           = useState(false);
+  const [returnErr, setReturnErr]           = useState('');
+  const [returnOk, setReturnOk]             = useState(false);
 
   useEffect(() => {
     principalApi.get<PendingLetter[]>('/api/principal/general-letters')
@@ -75,6 +80,20 @@ export default function PrincipalGeneralLettersPage() {
       const err = e as { response?: { data?: { error?: string } } };
       setApproveErr(err.response?.data?.error ?? 'Approval failed');
     } finally { setApproving(false); }
+  }
+
+  async function returnForCorrection(id: string) {
+    if (!returnReason.trim()) { setReturnErr('A reason is required to return this letter'); return; }
+    setReturning(true); setReturnErr(''); setReturnOk(false);
+    try {
+      await principalApi.patch(`/api/general-letters/${id}/return`, { reason: returnReason.trim() });
+      setLetters(prev => prev.filter(l => l.id !== id));
+      setReturnOk(true);
+      setTimeout(() => { setSelected(null); setReturnOk(false); setShowReturnForm(false); setReturnReason(''); }, 1800);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setReturnErr(err.response?.data?.error ?? 'Return failed');
+    } finally { setReturning(false); }
   }
 
   return (
@@ -103,7 +122,7 @@ export default function PrincipalGeneralLettersPage() {
           {letters.map(l => (
             <button
               key={l.id}
-              onClick={() => { setSelected(l); setApproveErr(''); setApproveOk(false); }}
+              onClick={() => { setSelected(l); setApproveErr(''); setApproveOk(false); setShowReturnForm(false); setReturnReason(''); setReturnErr(''); setReturnOk(false); }}
               style={{
                 textAlign: 'left', width: '100%', background: selected?.id === l.id ? '#EDE9FE' : C.card,
                 border: `1px solid ${selected?.id === l.id ? C.purple : C.border}`,
@@ -224,10 +243,14 @@ export default function PrincipalGeneralLettersPage() {
                 </div>
               )}
 
-              {/* Approve action */}
+              {/* Approve / Return action */}
               {approveOk ? (
                 <div style={{ background: '#DCFCE7', border: '1px solid #86EFAC', borderRadius: 10, padding: '14px 18px', textAlign: 'center' }}>
                   <p style={{ fontWeight: 700, color: '#14532D', margin: 0 }}>Letter approved and issued.</p>
+                </div>
+              ) : returnOk ? (
+                <div style={{ background: C.dangerBg, border: '1px solid #FECACA', borderRadius: 10, padding: '14px 18px', textAlign: 'center' }}>
+                  <p style={{ fontWeight: 700, color: C.danger, margin: 0 }}>Letter returned for correction.</p>
                 </div>
               ) : (
                 <div style={{ background: C.purpleBg, border: `1px solid #C4B5FD`, borderRadius: 12, padding: '16px 18px' }}>
@@ -240,7 +263,7 @@ export default function PrincipalGeneralLettersPage() {
                   )}
                   <button
                     onClick={() => approve(selected.id)}
-                    disabled={approving}
+                    disabled={approving || returning}
                     style={{
                       width: '100%', padding: '12px', borderRadius: 10, border: 'none',
                       background: C.purple, color: '#fff', fontWeight: 800, fontSize: 14,
@@ -249,6 +272,50 @@ export default function PrincipalGeneralLettersPage() {
                   >
                     {approving ? 'Approving…' : 'Approve & Issue Letter'}
                   </button>
+
+                  {!showReturnForm ? (
+                    <button
+                      onClick={() => { setShowReturnForm(true); setReturnErr(''); }}
+                      disabled={approving || returning}
+                      style={{
+                        width: '100%', padding: '10px', borderRadius: 10, marginTop: 10,
+                        border: `1.5px solid ${C.danger}`, background: 'transparent', color: C.danger,
+                        fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                      }}
+                    >
+                      Return for Correction
+                    </button>
+                  ) : (
+                    <div style={{ marginTop: 12, borderTop: `1px solid #C4B5FD`, paddingTop: 12 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: C.danger, marginBottom: 6 }}>Reason for return (required)</p>
+                      <textarea
+                        value={returnReason}
+                        onChange={e => setReturnReason(e.target.value)}
+                        rows={3}
+                        placeholder="Explain what needs to be fixed before this letter can be approved…"
+                        style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', fontSize: 13, resize: 'vertical', fontFamily: 'inherit', outline: 'none', color: C.dark, background: '#fff', boxSizing: 'border-box', marginBottom: 8 }}
+                      />
+                      {returnErr && (
+                        <p style={{ fontSize: 12, color: C.danger, background: C.dangerBg, borderRadius: 8, padding: '8px 12px', marginBottom: 8 }}>{returnErr}</p>
+                      )}
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => { setShowReturnForm(false); setReturnReason(''); setReturnErr(''); }}
+                          disabled={returning}
+                          style={{ flex: 1, padding: '9px 0', borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.muted, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => returnForCorrection(selected.id)}
+                          disabled={returning}
+                          style={{ flex: 2, padding: '9px 0', borderRadius: 8, border: 'none', background: C.danger, color: '#fff', fontWeight: 800, fontSize: 12, cursor: returning ? 'not-allowed' : 'pointer', opacity: returning ? 0.6 : 1 }}
+                        >
+                          {returning ? 'Returning…' : 'Confirm Return for Correction'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
