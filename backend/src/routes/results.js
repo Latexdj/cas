@@ -669,13 +669,14 @@ router.get('/transcript/:student_id', async (req, res, next) => {
       const average      = subjectCount > 0 ? Math.round((totalSum / subjectCount) * 10) / 10 : null;
       const overallGrade = average != null ? getGrade(average, student.exam_body) : { grade: '-', remark: '-' };
 
-      // Class position — compare against all classmates for this period
+      // Class position — compare against all classmates for this period,
+      // resolved via class_history rather than current class_name (a
+      // promoted classmate would otherwise silently drop out of every past
+      // semester's ranking).
       let class_position = null, class_total = null;
       try {
-        const { rows: classmates } = await pool.query(
-          `SELECT id FROM students WHERE school_id = $1 AND LOWER(class_name) = LOWER($2) AND status = 'Active'`,
-          [req.schoolId, ec]
-        );
+        const rosterIds = await getClassRoster(req.schoolId, ec, yearId, semester);
+        const classmates = rosterIds.map(id => ({ id }));
         if (classmates.length > 1 && average != null) {
           const ids = classmates.map(c => c.id);
           const [cmCA, cmExam, cmImp] = await Promise.all([
