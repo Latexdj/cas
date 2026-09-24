@@ -12,11 +12,12 @@ interface Staff {
   created_at: string; roles: string[];
 }
 
-const ROLE_LABELS: Record<string, string> = { clearance: 'Clearance', library: 'Library', inventory: 'Inventory' };
+const ROLE_LABELS: Record<string, string> = { clearance: 'Clearance', library: 'Library', inventory: 'Inventory', accounts: 'Accounts' };
 const ROLE_COLORS: Record<string, string> = {
   clearance: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   library:   'bg-[#E8F4EE] text-[#145C44] dark:bg-green-900/30 dark:text-[#2ab289]',
   inventory: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  accounts:  'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 };
 
 const emptyForm = { id: '', name: '', email: '', password: '', roles: [] as string[] };
@@ -101,7 +102,7 @@ export default function SupportStaffPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">Support Staff</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Non-teaching staff who log in via the Staff Portal (clearance officers, librarians, store officers)
+            Non-teaching staff who log in via the Staff Portal (clearance officers, librarians, store officers, accounts clerks)
           </p>
         </div>
         <Button size="sm" onClick={openAdd}>+ Add Staff</Button>
@@ -173,7 +174,7 @@ export default function SupportStaffPage() {
           <div>
             <label className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400 block mb-2">Roles *</label>
             <div className="flex gap-3 flex-wrap">
-              {(['clearance', 'library', 'inventory'] as const).map(role => (
+              {(['clearance', 'library', 'inventory', 'accounts'] as const).map(role => (
                 <label key={role} className="flex items-center gap-2 cursor-pointer select-none">
                   <input type="checkbox" checked={form.roles.includes(role)}
                     onChange={() => toggleRole(role)}
