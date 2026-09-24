@@ -3,6 +3,7 @@ const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, managementOnly, requireActiveSubscription } = require('../middleware/auth');
 const { generateAndUploadPDF } = require('../services/pdf.service');
+const { returnLetterForCorrection, resubmitLetter, getReturnHistory } = require('../services/letterApproval.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -324,7 +325,13 @@ router.get('/:id', adminOrManagement, async (req, res, next) => {
       [req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found' });
-    res.json(rows[0]);
+    const letter = rows[0];
+    letter.return_history = await getReturnHistory({
+      documentType: 'general_letter',
+      letterId: letter.id,
+      schoolId: req.schoolId,
+    });
+    res.json(letter);
   } catch (err) { next(err); }
 });
 
@@ -342,6 +349,50 @@ router.patch('/:id/approve', managementOnly, async (req, res, next) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found or not pending approval' });
     res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/general-letters/:id/return — management only. Requires a
+// reason; moves the letter to 'returned' and revives its draft session (if
+// any) so the issuer has somewhere live to continue drafting.
+router.patch('/:id/return', managementOnly, async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    if (!reason?.trim()) return res.status(400).json({ error: 'A reason is required to return a letter for correction' });
+
+    const { rows: nameRows } = await pool.query(`SELECT name FROM teachers WHERE id = $1`, [req.user?.id]);
+    const returned_by_name = nameRows[0]?.name ?? 'Management';
+
+    const letter = await returnLetterForCorrection({
+      table: 'general_letters',
+      documentType: 'general_letter',
+      letterId: req.params.id,
+      schoolId: req.schoolId,
+      reason: reason.trim(),
+      returnedById: req.user.id,
+      returnedByName: returned_by_name,
+    });
+    if (!letter) return res.status(404).json({ error: 'Letter not found or not pending approval' });
+    res.json(letter);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/general-letters/:id/resubmit — issuer (admin or management).
+// Edits the letter and moves it back to pending_approval.
+router.patch('/:id/resubmit', adminOrManagement, async (req, res, next) => {
+  try {
+    const { subject, body } = req.body;
+    if (!body?.trim()) return res.status(400).json({ error: 'body is required' });
+
+    const letter = await resubmitLetter({
+      table: 'general_letters',
+      letterId: req.params.id,
+      schoolId: req.schoolId,
+      subject: subject?.trim(),
+      body: body.trim(),
+    });
+    if (!letter) return res.status(404).json({ error: 'Letter not found or not in returned status' });
+    res.json(letter);
   } catch (err) { next(err); }
 });
 

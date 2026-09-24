@@ -2468,6 +2468,49 @@ async function runMigrations() {
       `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] discipline_phase3 (approval workflow):', e.message); }
 
+    // ── Return for Correction (principal approval workflow) ──────────────────
+    try {
+      // Widen student_disciplinary_letters status CHECK to include 'returned'.
+      await pool.query(`ALTER TABLE student_disciplinary_letters DROP CONSTRAINT IF EXISTS sdl_status_check`);
+      await pool.query(`
+        ALTER TABLE student_disciplinary_letters
+        ADD CONSTRAINT sdl_status_check
+        CHECK (status IN ('pending_approval','issued','acknowledged','resolved','returned'))
+      `);
+
+      // general_letters had no status CHECK constraint at all — add one now
+      // covering every value actually in use, plus 'returned'.
+      await pool.query(`ALTER TABLE general_letters DROP CONSTRAINT IF EXISTS general_letters_status_check`);
+      await pool.query(`
+        ALTER TABLE general_letters
+        ADD CONSTRAINT general_letters_status_check
+        CHECK (status IN ('draft','pending_approval','issued','returned'))
+      `);
+
+      // Formal link from a letter back to the AI chat session that drafted
+      // it — previously only an informal metadata.letter_id link existed for
+      // general_letters, and no link at all for disciplinary letters.
+      await pool.query(`ALTER TABLE student_disciplinary_letters ADD COLUMN IF NOT EXISTS draft_session_id UUID REFERENCES letter_draft_sessions(id) ON DELETE SET NULL`);
+      await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS draft_session_id UUID REFERENCES letter_draft_sessions(id) ON DELETE SET NULL`);
+
+      // Shared return-reason history across both letter types — one row per
+      // return, so a letter returned more than once keeps a full audit trail.
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS letter_returns (
+          id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id        UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          document_type    TEXT        NOT NULL CHECK (document_type IN ('student_letter','general_letter')),
+          letter_id        UUID        NOT NULL,
+          reason           TEXT        NOT NULL,
+          returned_by      UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+          returned_by_name TEXT,
+          returned_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+          created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_letter_returns_letter ON letter_returns(document_type, letter_id, returned_at DESC)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] return_for_correction:', e.message); }
+
     // ── Phase 5a: Policy Documents ────────────────────────────────────────────
     try {
       await pool.query(`

@@ -5,6 +5,7 @@ const { authenticate, adminOnly, managementOnly, requireActiveSubscription } = r
 const { uploadDocument }          = require('../services/storage.service');
 const { generateAndUploadPDF }    = require('../services/pdf.service');
 const { queryFlaggedStudents, queryFlaggedTeachers, queryThresholds } = require('../utils/discipline-flags');
+const { returnLetterForCorrection, resubmitLetter, getReturnHistory } = require('../services/letterApproval.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -323,7 +324,7 @@ const APPROVAL_REQUIRED_TYPES = new Set(['suspension', 'dismissal', 'final_warni
 router.post('/letters', adminOnly, async (req, res, next) => {
   try {
     const { student_id, letter_type, offense_category, offense_other,
-            subject, body, issued_date, academic_year_id, semester } = req.body;
+            subject, body, issued_date, academic_year_id, semester, draft_session_id } = req.body;
 
     const VALID_TYPES = ['warning','final_warning','suspension','dismissal','other'];
     const VALID_CATS  = ['lateness_absenteeism','fighting_assault','exam_malpractice',
@@ -353,8 +354,8 @@ router.post('/letters', adminOnly, async (req, res, next) => {
            (school_id, student_id, issued_by_id, issued_by_name,
             letter_type, offense_category, offense_other,
             subject, body, issued_date, academic_year_id, semester, status,
-            requires_approval, ref_number, issued_by_signature_url)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+            requires_approval, ref_number, issued_by_signature_url, draft_session_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
          RETURNING *
        )
        SELECT ins.*, ins.issued_date::text, sch.name AS school_name
@@ -365,7 +366,7 @@ router.post('/letters', adminOnly, async (req, res, next) => {
        issued_date || new Date().toISOString().slice(0,10),
        academic_year_id || null, semester ? Number(semester) : null,
        initialStatus, requiresApproval,
-       ref_number, signature_url]
+       ref_number, signature_url, draft_session_id || null]
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
@@ -389,7 +390,13 @@ router.get('/letters/:id', adminOnly, async (req, res, next) => {
       [req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found' });
-    res.json(rows[0]);
+    const letter = rows[0];
+    letter.return_history = await getReturnHistory({
+      documentType: 'student_letter',
+      letterId: letter.id,
+      schoolId: req.schoolId,
+    });
+    res.json(letter);
   } catch (err) { next(err); }
 });
 
@@ -438,6 +445,50 @@ router.patch('/letters/:id/approve', managementOnly, async (req, res, next) => {
       // Non-fatal — letter is approved even if PDF fails
     }
 
+    res.json(letter);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/discipline/letters/:id/return — management portal only. Requires
+// a reason; moves the letter to 'returned' and revives its draft session
+// (if any) so the issuer has somewhere live to continue drafting.
+router.patch('/letters/:id/return', managementOnly, async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    if (!reason?.trim()) return res.status(400).json({ error: 'A reason is required to return a letter for correction' });
+
+    const { rows: nameRows } = await pool.query(`SELECT name FROM teachers WHERE id = $1`, [req.user?.id]);
+    const returned_by_name = nameRows[0]?.name ?? 'Management';
+
+    const letter = await returnLetterForCorrection({
+      table: 'student_disciplinary_letters',
+      documentType: 'student_letter',
+      letterId: req.params.id,
+      schoolId: req.schoolId,
+      reason: reason.trim(),
+      returnedById: req.user.id,
+      returnedByName: returned_by_name,
+    });
+    if (!letter) return res.status(404).json({ error: 'Letter not found or not pending approval' });
+    res.json(letter);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/discipline/letters/:id/resubmit — admin only (issuer). Edits the
+// letter and moves it back to pending_approval.
+router.patch('/letters/:id/resubmit', adminOnly, async (req, res, next) => {
+  try {
+    const { subject, body } = req.body;
+    if (!body?.trim()) return res.status(400).json({ error: 'body is required' });
+
+    const letter = await resubmitLetter({
+      table: 'student_disciplinary_letters',
+      letterId: req.params.id,
+      schoolId: req.schoolId,
+      subject: subject?.trim(),
+      body: body.trim(),
+    });
+    if (!letter) return res.status(404).json({ error: 'Letter not found or not in returned status' });
     res.json(letter);
   } catch (err) { next(err); }
 });
