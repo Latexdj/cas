@@ -1248,12 +1248,12 @@ export default function GeneralLettersPage() {
               />
             </Field>
 
-            <Field label="Your Title / Role (shown under your name in the signature)">
+            <Field label="Headmaster's Title (shown under their name in the signature — the signature is always the headmaster's)">
               <input
                 type="text"
                 value={form.issued_by_title}
                 onChange={e => setField('issued_by_title', e.target.value)}
-                placeholder="e.g. Assistant Headmaster (Academics)"
+                placeholder="e.g. Headmaster"
                 style={inputStyle}
               />
             </Field>

@@ -316,6 +316,14 @@ function renderSignoff({ letterKind, sigHtml, issuedByName, issuedByTitle, schoo
 
 function buildLetterHTML({ letter, school, recipientType, letterKind = 'discipline', watermark = false }) {
   const sigUrl = letter.issued_by_signature_url || school.headmaster_signature_url;
+  // The signature image is always the headmaster's (issued_by_signature_url
+  // is itself set to headmaster_signature_url at creation, never a distinct
+  // per-issuer signature — see generateRefNumber() in general-letters.js and
+  // discipline.js) — so the printed name under it must be the headmaster's
+  // name too, not whichever staff member drafted/issued the letter in the
+  // system (that person is still tracked separately as issued_by_name, shown
+  // in the admin UI's "Issued by" field, just not printed on the letter).
+  const signatoryName = school.headmaster_name || 'The Headmaster';
 
   const letterheadHtml = renderLetterhead(school);
 
@@ -377,7 +385,7 @@ function buildLetterHTML({ letter, school, recipientType, letterKind = 'discipli
   ${salutation}
   <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;">${esc(letter.body)}</div>
   ${renderSignoff({
-    letterKind, sigHtml, issuedByName: letter.issued_by_name, issuedByTitle: letter.issued_by_title,
+    letterKind, sigHtml, issuedByName: signatoryName, issuedByTitle: letter.issued_by_title,
     schoolName: school.name, throughOffice: letter.through_office, cc: letter.cc,
   })}
 </body>
@@ -406,7 +414,7 @@ function buildLetterHTML({ letter, school, recipientType, letterKind = 'discipli
   <p style="margin:0 0 16px;font-size:11pt;">Dear ${esc(firstWord(recipientName))},</p>
   <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;">${esc(letter.body)}</div>
   ${renderSignoff({
-    letterKind, sigHtml, issuedByName: letter.issued_by_name, issuedByTitle: letter.issued_by_title,
+    letterKind, sigHtml, issuedByName: signatoryName, issuedByTitle: letter.issued_by_title,
     schoolName: school.name, throughOffice: letter.through_office, cc: letter.cc,
   })}
 </body>

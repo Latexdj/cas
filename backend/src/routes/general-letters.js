@@ -270,7 +270,7 @@ router.post('/:id/pdf', adminOrManagement, async (req, res, next) => {
     const raw = lRows[0];
 
     const { rows: sRows } = await pool.query(
-      `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url
+      `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url, headmaster_name
        FROM schools WHERE id = $1`, [req.schoolId]
     );
     const school = sRows[0];

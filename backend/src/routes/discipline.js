@@ -417,7 +417,7 @@ router.patch('/letters/:id/approve', managementOnly, async (req, res, next) => {
     // Generate final (non-watermarked) PDF now that the letter is approved
     try {
       const { rows: sRows } = await pool.query(
-        `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url
+        `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url, headmaster_name
          FROM schools WHERE id = $1`, [req.schoolId]
       );
       const { rows: stRows } = await pool.query(
@@ -542,7 +542,7 @@ router.post('/letters/:id/pdf', adminOnly, async (req, res, next) => {
     const letter = lRows[0];
 
     const { rows: sRows } = await pool.query(
-      `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url
+      `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url, headmaster_name
        FROM schools WHERE id = $1`, [req.schoolId]
     );
     const school = sRows[0];
@@ -580,7 +580,7 @@ router.post('/queries/:id/pdf', adminOnly, async (req, res, next) => {
     const query = qRows[0];
 
     const { rows: sRows } = await pool.query(
-      `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url
+      `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url, headmaster_name
        FROM schools WHERE id = $1`, [req.schoolId]
     );
     const school = sRows[0];
