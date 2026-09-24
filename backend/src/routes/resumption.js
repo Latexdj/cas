@@ -1,5 +1,6 @@
-﻿const router = require('express').Router();
-const pool   = require('../config/db');
+﻿const router  = require('express').Router();
+const pool    = require('../config/db');
+const ExcelJS = require('exceljs');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 const { getCurrentYearSem } = require('../utils/school-context');
 
@@ -259,6 +260,119 @@ router.get('/missing', async (req, res, next) => {
       q += ` ORDER BY s.class_name, s.name`;
       const { rows } = await pool.query(q, params);
       res.json({ students: rows, yearId, sem });
+    });
+  } catch (err) { next(err); }
+});
+
+// Shared by GET /late and GET /late/excel — students whose recorded arrival
+// fell after resumption_date + max_days_home (the school's configured grace
+// period). Returns null instead of rows when no resumption_date is set yet,
+// since "late" is meaningless without a deadline to measure against.
+async function queryLateArrivals(schoolId, { class_name, house } = {}) {
+  const { yearId, sem } = await getCurrentYearSem(schoolId);
+  if (!yearId) return { students: [], config: null };
+
+  const { rows: configRows } = await pool.query(
+    `SELECT resumption_date, max_days_home FROM semester_config
+     WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3`,
+    [schoolId, yearId, sem]
+  );
+  const config = configRows[0] || null;
+  if (!config?.resumption_date) return { students: [], config };
+
+  let q = `
+    WITH cfg AS (
+      SELECT ($4::date + make_interval(days => $5::int))::date AS deadline
+    )
+    SELECT a.id AS arrival_id, a.arrival_date, a.notes,
+           s.id AS student_id, s.name AS student_name, s.student_code,
+           s.class_name, s.house, s.residential_status,
+           t.name AS recorded_by_name,
+           cfg.deadline, (a.arrival_date - cfg.deadline) AS days_late
+    FROM student_arrivals a
+    JOIN students s ON s.id = a.student_id
+    LEFT JOIN teachers t ON t.id = a.recorded_by
+    CROSS JOIN cfg
+    WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.semester = $3
+      AND a.arrival_date > cfg.deadline
+  `;
+  const params = [schoolId, yearId, sem, config.resumption_date, config.max_days_home];
+  if (class_name) { params.push(class_name); q += ` AND s.class_name = $${params.length}`; }
+  if (house)      { params.push(house);       q += ` AND s.house = $${params.length}`; }
+  q += ` ORDER BY days_late DESC, s.name`;
+
+  const { rows } = await pool.query(q, params);
+  return { students: rows, config, yearId, sem };
+}
+
+/** GET /api/resumption/late — students who reported back after the deadline */
+router.get('/late', async (req, res, next) => {
+  try {
+    await withTables(async () => {
+      const { class_name, house } = req.query;
+      const result = await queryLateArrivals(req.schoolId, { class_name, house });
+      res.json(result);
+    });
+  } catch (err) { next(err); }
+});
+
+/** GET /api/resumption/late/excel — downloadable version of the same list */
+router.get('/late/excel', async (req, res, next) => {
+  try {
+    await withTables(async () => {
+      const { class_name, house } = req.query;
+      const { students, config } = await queryLateArrivals(req.schoolId, { class_name, house });
+
+      const GREEN_DARK = '0F4C35', GREEN_MID = '1A6B45', GREEN_SEP = '2A8A5A', WHITE = 'FFFFFF', GREY_ALT = 'F2F8F5';
+      const columns = ['Student', 'Student Code', 'Class', 'House', 'Arrival Date', 'Deadline', 'Days Late', 'Recorded By'];
+
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'CAS';
+      wb.created = new Date();
+      const ws = wb.addWorksheet('Late Resumption', {
+        pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1 },
+        views:     [{ state: 'frozen', ySplit: 2 }],
+      });
+      ws.columns = columns.map(col => ({ width: Math.max(col.length + 6, 16) }));
+
+      ws.mergeCells(1, 1, 1, columns.length);
+      const title = ws.getRow(1).getCell(1);
+      title.value = config?.resumption_date
+        ? `Late Resumption Report — deadline ${new Date(config.resumption_date).toISOString().slice(0,10)} + ${config.max_days_home} day(s)`
+        : 'Late Resumption Report';
+      title.font = { bold: true, size: 13, color: { argb: WHITE }, name: 'Calibri' };
+      title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_DARK } };
+      title.alignment = { vertical: 'middle', horizontal: 'center' };
+      ws.getRow(1).height = 28;
+
+      const hdr = ws.getRow(2);
+      hdr.height = 22;
+      columns.forEach((col, i) => {
+        const c = hdr.getCell(i + 1);
+        c.value = col;
+        c.font = { bold: true, color: { argb: WHITE }, size: 10, name: 'Calibri' };
+        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN_MID } };
+        c.alignment = { vertical: 'middle', horizontal: i === 0 ? 'left' : 'center' };
+        c.border = { right: { style: 'thin', color: { argb: GREEN_SEP } } };
+      });
+
+      students.forEach((s, ri) => {
+        const row = ws.getRow(ri + 3);
+        row.values = [
+          s.student_name, s.student_code, s.class_name, s.house ?? '—',
+          s.arrival_date ? new Date(s.arrival_date).toISOString().slice(0,10) : '',
+          s.deadline ? new Date(s.deadline).toISOString().slice(0,10) : '',
+          s.days_late, s.recorded_by_name ?? '—',
+        ];
+        row.font = { size: 10, name: 'Calibri' };
+        row.alignment = { vertical: 'middle' };
+        if (ri % 2 === 1) row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREY_ALT } };
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="Late_Resumption_Report.xlsx"');
+      await wb.xlsx.write(res);
+      res.end();
     });
   } catch (err) { next(err); }
 });

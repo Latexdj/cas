@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { teacherApi as api } from '@/lib/teacher-api';
@@ -23,7 +23,13 @@ interface Flag {
   resolved_by_name: string | null; subject: string | null; session_date: string | null;
 }
 interface KitchenCount { total: number; by_class: { class_name: string; count: number }[]; }
-type Tab = 'config' | 'arrivals' | 'missing' | 'flags' | 'kitchen';
+interface LateStudent {
+  arrival_id: string; arrival_date: string; notes: string | null;
+  student_id: string; student_name: string; student_code: string;
+  class_name: string; house: string | null; residential_status: string;
+  recorded_by_name: string | null; deadline: string; days_late: number;
+}
+type Tab = 'config' | 'arrivals' | 'missing' | 'flags' | 'kitchen' | 'late';
 
 const STYLES = `
   .res-wrap { padding: 20px 16px; max-width: 1100px; margin: 0 auto; }
@@ -92,7 +98,20 @@ const STYLES = `
     .res-missing-table { display: block; overflow-x: auto; }
     .res-arrivals-table { display: block; overflow-x: auto; }
     .res-flags-table { display: block; overflow-x: auto; }
+    .res-late-table { display: block; overflow-x: auto; }
     .res-mobile-fab { display: none !important; }
+  }
+  .res-late-cards { display: none; }
+  @media (max-width: 767px) {
+    .res-late-table { display: none !important; }
+    .res-late-cards { display: flex; flex-direction: column; border: 1px solid #E5E0D8; border-radius: 12px; overflow: hidden; }
+  }
+  .res-print-title { display: none; }
+  @media print {
+    body * { visibility: hidden; }
+    .res-print-area, .res-print-area * { visibility: visible; }
+    .res-print-area { position: fixed; top: 0; left: 0; width: 100%; padding: 24px; }
+    .res-print-title { display: block !important; }
   }
 `;
 
@@ -126,6 +145,13 @@ export default function ResumptionPage() {
   const [kitchenLoading, setKitchenLoading] = useState(false);
 
   const [boardingStudents, setBoardingStudents] = useState<{ id: string; class_name: string; house: string | null }[]>([]);
+
+  const [late, setLate]             = useState<LateStudent[]>([]);
+  const [lateLoading, setLateLoading] = useState(false);
+  const [lateErr, setLateErr]       = useState<string | null>(null);
+  const [lateClass, setLateClass]   = useState('');
+  const [lateHouse, setLateHouse]   = useState('');
+  const [lateConfig, setLateConfig] = useState<{ resumption_date: string | null; max_days_home: number } | null>(null);
 
   const loadBoardingStudents = useCallback(async () => {
     try {
@@ -198,6 +224,21 @@ export default function ResumptionPage() {
     } catch { setKitchen(null); } finally { setKitchenLoading(false); }
   }, []);
 
+  const loadLate = useCallback(async () => {
+    setLateLoading(true); setLateErr(null);
+    try {
+      const params: Record<string, string> = {};
+      if (lateClass) params.class_name = lateClass;
+      if (lateHouse) params.house = lateHouse;
+      const r = await api.get('/api/resumption/late', { params });
+      setLate(r.data.students || []);
+      setLateConfig(r.data.config ?? null);
+      if (!r.data.config?.resumption_date) {
+        setLateErr('Set a resumption date in the Configuration tab before running this report.');
+      }
+    } catch { setLate([]); setLateErr('Failed to load the late resumption report.'); } finally { setLateLoading(false); }
+  }, [lateClass, lateHouse]);
+
   useEffect(() => { loadBoardingStudents(); }, [loadBoardingStudents]);
   useEffect(() => { loadConfig(); }, [loadConfig]);
   useEffect(() => { loadMissing(); }, [loadMissing]);
@@ -206,6 +247,7 @@ export default function ResumptionPage() {
   useEffect(() => { if (tab === 'missing') loadMissing(); }, [tab, loadMissing]);
   useEffect(() => { if (tab === 'flags') loadFlags(); }, [tab, loadFlags]);
   useEffect(() => { if (tab === 'kitchen') loadKitchen(); }, [tab, loadKitchen]);
+  useEffect(() => { if (tab === 'late') loadLate(); }, [tab, loadLate]);
 
   async function saveConfig() {
     setConfigSaving(true); setConfigErr(null);
@@ -262,10 +304,28 @@ export default function ResumptionPage() {
   const tabs: { key: Tab; label: string }[] = [
     { key: 'arrivals', label: 'Arrivals' },
     { key: 'missing',  label: `Missing (${missing.length})` },
+    { key: 'late',     label: `Late (${late.length})` },
     { key: 'flags',    label: `Flags (${activeFlags})` },
     { key: 'kitchen',  label: 'Kitchen Count' },
     { key: 'config',   label: 'Configuration' },
   ];
+
+  function downloadLateExcel() {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('cas_token') : null;
+    const base  = process.env.NEXT_PUBLIC_API_URL ?? '';
+    const params = new URLSearchParams();
+    if (lateClass) params.set('class_name', lateClass);
+    if (lateHouse) params.set('house', lateHouse);
+    const url = `${base}/api/resumption/late/excel?${params}`;
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.blob())
+      .then(blob => {
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objUrl; a.download = 'Late_Resumption_Report.xlsx'; a.click();
+        URL.revokeObjectURL(objUrl);
+      });
+  }
 
   return (
     <>
@@ -496,6 +556,97 @@ export default function ResumptionPage() {
           </div>
         )}
 
+        {/* ── Late Resumption Tab ── */}
+        {tab === 'late' && (
+          <div>
+            <div className="res-filters">
+              <select value={lateClass} onChange={e => setLateClass(e.target.value)} className="res-input">
+                <option value="">All Classes</option>
+                {allClasses.map(c => <option key={c}>{c}</option>)}
+              </select>
+              <select value={lateHouse} onChange={e => setLateHouse(e.target.value)} className="res-input">
+                <option value="">All Houses</option>
+                {allHouses.map(h => <option key={h}>{h}</option>)}
+              </select>
+              <button onClick={loadLate} className="res-btn res-btn-ghost res-btn-sm">Search</button>
+              <button onClick={() => window.print()} className="res-btn res-btn-ghost res-btn-sm" disabled={!late.length}>Print</button>
+              <button onClick={downloadLateExcel} className="res-btn res-btn-primary res-btn-sm" disabled={!late.length}>Download Excel</button>
+            </div>
+
+            {lateConfig?.resumption_date && (
+              <p style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
+                Deadline: resumption date ({new Date(lateConfig.resumption_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}) + {lateConfig.max_days_home} day(s) allowed home.
+              </p>
+            )}
+
+            {lateErr && (
+              <p style={{ color: '#B83232', fontSize: 12, marginBottom: 12, background: '#FEF2F2', padding: '8px 12px', borderRadius: 6 }}>
+                {lateErr}
+              </p>
+            )}
+
+            {lateLoading ? (
+              <p style={{ color: '#9CA3AF', fontSize: 13 }}>Loading…</p>
+            ) : late.length === 0 ? (
+              !lateErr && <p style={{ color: '#9CA3AF', fontSize: 13 }}>No students reported back after the deadline. Everyone made it in on time.</p>
+            ) : (
+              <div className="res-print-area">
+                <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }} className="res-print-title">
+                  Late Resumption Report
+                </h2>
+                {/* Desktop table */}
+                <div className="res-late-table">
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        {['Student', 'ID', 'Class', 'House', 'Arrival Date', 'Deadline', 'Days Late', 'Recorded By'].map(h => (
+                          <th key={h} className="res-th">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {late.map(s => (
+                        <tr key={s.arrival_id} style={{ background: '#fff' }}>
+                          <td className="res-td">{s.student_name}</td>
+                          <td className="res-td">{s.student_code}</td>
+                          <td className="res-td">{s.class_name}</td>
+                          <td className="res-td">{s.house || '—'}</td>
+                          <td className="res-td">{new Date(s.arrival_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                          <td className="res-td">{new Date(s.deadline).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                          <td className="res-td" style={{ color: '#B83232', fontWeight: 700 }}>{s.days_late}</td>
+                          <td className="res-td">{s.recorded_by_name || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile cards */}
+                <div className="res-late-cards">
+                  {late.map(s => (
+                    <div key={s.arrival_id} className="res-ac-row">
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p className="res-ac-name">{s.student_name}</p>
+                        <p className="res-ac-meta">
+                          {s.student_code}, {s.class_name}{s.house ? `, ${s.house}` : ''}
+                        </p>
+                        <p className="res-ac-meta" style={{ marginTop: 2 }}>
+                          Arrived {new Date(s.arrival_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          {s.recorded_by_name ? ` — ${s.recorded_by_name}` : ''}
+                        </p>
+                      </div>
+                      <span style={{ color: '#B83232', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{s.days_late}d late</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 12 }}>
+              {late.length} student{late.length !== 1 ? 's' : ''} reported after the deadline.
+            </p>
+          </div>
+        )}
+
         {/* ── Flags Tab ── */}
         {tab === 'flags' && (
           <div>
@@ -679,3 +830,4 @@ export default function ResumptionPage() {
     </>
   );
 }
+
