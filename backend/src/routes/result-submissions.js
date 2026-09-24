@@ -3,6 +3,21 @@ const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { logAudit } = require('../services/audit.service');
 const { createNotification, sendTeacherEmail } = require('../services/notification.service');
+const { getClassRoster, mapWithLimit } = require('../services/classHistory.service');
+
+// Resolves student_count/class_size per distinct (class_name, academic_year_id,
+// semester) combo in a result set via getClassRoster(), since a response can
+// span many different batches/periods rather than just one. Mutates nothing;
+// returns rows with the given key set to the resolved roster size.
+async function attachRosterCounts(schoolId, rows, { classNameKey = 'class_name', yearKey = 'academic_year_id', semesterKey = 'semester', outKey = 'student_count' } = {}) {
+  const comboKey = r => `${r[classNameKey].toLowerCase()}|${r[yearKey]}|${r[semesterKey]}`;
+  const distinctCombos = [...new Map(rows.map(r => [comboKey(r), r])).values()];
+  const entries = await mapWithLimit(distinctCombos, 5, async r =>
+    [comboKey(r), (await getClassRoster(schoolId, r[classNameKey], r[yearKey], r[semesterKey])).length]
+  );
+  const sizeMap = Object.fromEntries(entries);
+  return rows.map(r => ({ ...r, [outKey]: sizeMap[comboKey(r)] ?? 0 }));
+}
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -199,7 +214,6 @@ router.get('/hod-queue', async (req, res, next) => {
               rs.academic_year_id,
               t.name AS teacher_name, t.id AS teacher_id,
               ay.name AS academic_year, rs.semester,
-              (SELECT COUNT(*) FROM students st WHERE st.class_name = rs.class_name AND st.school_id = rs.school_id AND st.status = 'Active') AS student_count,
               (SELECT COUNT(DISTINCT student_id) FROM (
                 SELECT es.student_id FROM exam_scores es
                 WHERE es.academic_year_id = rs.academic_year_id AND es.semester = rs.semester
@@ -219,7 +233,7 @@ router.get('/hod-queue', async (req, res, next) => {
        ORDER BY rs.submitted_at ASC`,
       params
     );
-    res.json(rows);
+    res.json(await attachRosterCounts(req.schoolId, rows));
   } catch (err) { next(err); }
 });
 
@@ -457,8 +471,7 @@ router.get('/final-queue', adminOnly, async (req, res, next) => {
               rs.academic_year_id,
               t.name AS teacher_name,
               hod.name AS hod_name,
-              ay.name AS academic_year, rs.semester,
-              (SELECT COUNT(*) FROM students st WHERE st.class_name = rs.class_name AND st.school_id = rs.school_id AND st.status = 'Active') AS student_count
+              ay.name AS academic_year, rs.semester
        FROM result_submissions rs
        LEFT JOIN teachers t   ON t.id = rs.teacher_id
        LEFT JOIN teachers hod ON hod.id = rs.hod_reviewed_by
@@ -467,7 +480,7 @@ router.get('/final-queue', adminOnly, async (req, res, next) => {
        ORDER BY rs.submitted_at ASC`,
       params
     );
-    res.json(rows);
+    res.json(await attachRosterCounts(req.schoolId, rows));
   } catch (err) { next(err); }
 });
 
@@ -489,23 +502,19 @@ router.get('/submission-readiness', adminOnly, async (req, res, next) => {
     const sem = parseInt(semester);
     const p   = [req.schoolId, academic_year_id, sem, subject, class_name];
 
-    const [totalRes, examRes, missingModesRes, incompleteRes] = await Promise.all([
-      // total active students in the class
-      pool.query(
-        `SELECT COUNT(*)::int AS cnt FROM students
-         WHERE school_id=$1 AND LOWER(class_name)=LOWER($2) AND status='Active'`,
-        [req.schoolId, class_name]
-      ),
-      // active students with an exam score for this subject
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, sem);
+
+    const [examRes, missingModesRes, incompleteRes] = await Promise.all([
+      // roster students with an exam score for this subject, resolved as of
+      // this submission's own period rather than current class_name/status
       pool.query(
         `SELECT COUNT(DISTINCT es.student_id)::int AS cnt
          FROM exam_scores es
-         JOIN students s ON s.id = es.student_id
          WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3
            AND LOWER(es.subject)=LOWER($4) AND LOWER(es.class_name)=LOWER($5)
            AND es.score IS NOT NULL
-           AND s.status='Active' AND LOWER(s.class_name)=LOWER($5)`,
-        p
+           AND es.student_id = ANY($6::uuid[])`,
+        [...p, roster]
       ),
       // CA modes with ca_contribution > 0 that have no assessment created yet
       pool.query(
@@ -525,18 +534,18 @@ router.get('/submission-readiness', adminOnly, async (req, res, next) => {
         `SELECT a.id,
                 COALESCE(a.title, m.name || ' #' || ROW_NUMBER() OVER (PARTITION BY a.mode_id ORDER BY a.created_at)) AS label,
                 m.name AS mode_name,
-                COUNT(CASE WHEN sc.score IS NOT NULL OR sc.absent = true THEN sc.student_id END)::int AS acted_on
+                COUNT(DISTINCT CASE WHEN (sc.score IS NOT NULL OR sc.absent = true) AND sc.student_id = ANY($6::uuid[]) THEN sc.student_id END)::int AS acted_on
          FROM assessments a
          JOIN assessment_modes m ON m.id = a.mode_id
          LEFT JOIN assessment_scores sc ON sc.assessment_id = a.id
          WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
            AND LOWER(a.subject)=LOWER($4) AND LOWER(a.class_name)=LOWER($5)
          GROUP BY a.id, m.name, m.id`,
-        p
+        [...p, roster]
       ),
     ]);
 
-    const totalStudents  = totalRes.rows[0].cnt;
+    const totalStudents  = roster.length;
     const examScoredCount = examRes.rows[0].cnt;
     const examComplete   = totalStudents > 0 && examScoredCount === totalStudents;
     const missingModes   = missingModesRes.rows.map(r => r.name);
@@ -568,8 +577,9 @@ router.get('/readiness-check', async (req, res, next) => {
     }
     const sem = parseInt(semester);
     const p   = [req.schoolId, academic_year_id, sem, subject, class_name];
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, sem);
 
-    const [examRes, missingRes, totalRes, scoredExamRes, scoredCaRes] = await Promise.all([
+    const [examRes, missingRes, scoredExamRes, scoredCaRes] = await Promise.all([
       // A: any exam score entered?
       pool.query(
         `SELECT COUNT(*) AS cnt FROM exam_scores
@@ -589,20 +599,15 @@ router.get('/readiness-check', async (req, res, next) => {
          ORDER BY m.sort_order`,
         p
       ),
-      // C: total active students in the class
-      pool.query(
-        `SELECT COUNT(*) AS cnt FROM students WHERE school_id=$1 AND class_name=$2 AND status='Active'`,
-        [req.schoolId, class_name]
-      ),
-      // D: ACTIVE students in this class who already have an exam score
+      // D: roster students who already have an exam score, resolved as of
+      // this period rather than current class_name/status
       pool.query(
         `SELECT COUNT(DISTINCT es.student_id) AS cnt
          FROM exam_scores es
-         JOIN students s ON s.id = es.student_id
          WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3
            AND es.subject=$4 AND es.class_name=$5
-           AND s.status='Active' AND LOWER(s.class_name)=LOWER($5)`,
-        p
+           AND es.student_id = ANY($6::uuid[])`,
+        [...p, roster]
       ),
       // E: students who have at least one CA score
       pool.query(
@@ -610,12 +615,13 @@ router.get('/readiness-check', async (req, res, next) => {
          FROM assessment_scores asc2
          JOIN assessments a ON a.id = asc2.assessment_id
          WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
-           AND a.subject=$4 AND a.class_name=$5 AND asc2.score IS NOT NULL`,
-        p
+           AND a.subject=$4 AND a.class_name=$5 AND asc2.score IS NOT NULL
+           AND asc2.student_id = ANY($6::uuid[])`,
+        [...p, roster]
       ),
     ]);
 
-    const totalStudents    = parseInt(totalRes.rows[0].cnt);
+    const totalStudents    = roster.length;
     const examScoredCount  = parseInt(scoredExamRes.rows[0].cnt);
     const examComplete     = totalStudents > 0 && examScoredCount === totalStudents;
     const missingModes     = missingRes.rows.map(r => r.name);
@@ -644,24 +650,20 @@ router.post('/submit', async (req, res, next) => {
     const sem = parseInt(semester);
     const p   = [req.schoolId, academic_year_id, sem, subject, class_name];
 
-    // Pre-fetch total active students in the class (used in multiple checks)
-    const { rows: totalRows } = await pool.query(
-      `SELECT COUNT(*)::int AS total FROM students
-       WHERE school_id=$1 AND LOWER(class_name)=LOWER($2) AND status='Active'`,
-      [req.schoolId, class_name]
-    );
-    const totalStudents = totalRows[0]?.total ?? 0;
+    // Roster resolved as of this submission's own period, not current
+    // class_name/status (used in every check below).
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, sem);
+    const totalStudents = roster.length;
 
-    // Check A: ALL active students must have exam scores entered
+    // Check A: ALL roster students must have exam scores entered
     const { rows: examRows } = await pool.query(
       `SELECT COUNT(DISTINCT es.student_id)::int AS cnt
        FROM exam_scores es
-       JOIN students s ON s.id = es.student_id
        WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3
          AND LOWER(es.subject)=LOWER($4) AND LOWER(es.class_name)=LOWER($5)
          AND es.score IS NOT NULL
-         AND s.status='Active' AND LOWER(s.class_name)=LOWER($5)`,
-      p
+         AND es.student_id = ANY($6::uuid[])`,
+      [...p, roster]
     );
     const examScored = examRows[0]?.cnt ?? 0;
     if (examScored < totalStudents) {
@@ -698,16 +700,16 @@ router.post('/submit', async (req, res, next) => {
     const { rows: incomplete } = await pool.query(
       `SELECT a.id,
               COALESCE(a.title, m.name || ' #' || ROW_NUMBER() OVER (PARTITION BY a.mode_id ORDER BY a.created_at)) AS label,
-              COUNT(CASE WHEN sc.score IS NOT NULL OR sc.absent = true THEN sc.student_id END)::int AS acted_on
+              COUNT(DISTINCT CASE WHEN (sc.score IS NOT NULL OR sc.absent = true) AND sc.student_id = ANY($6::uuid[]) THEN sc.student_id END)::int AS acted_on
        FROM assessments a
        JOIN assessment_modes m ON m.id = a.mode_id
        LEFT JOIN assessment_scores sc ON sc.assessment_id = a.id
        WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
          AND LOWER(a.subject)=LOWER($4) AND LOWER(a.class_name)=LOWER($5)
-         AND a.teacher_id = $7
+         AND a.teacher_id = $8
        GROUP BY a.id, m.name, m.id
-       HAVING COUNT(CASE WHEN sc.score IS NOT NULL OR sc.absent = true THEN sc.student_id END) < $6`,
-      [...p, totalStudents, req.user.id]
+       HAVING COUNT(DISTINCT CASE WHEN (sc.score IS NOT NULL OR sc.absent = true) AND sc.student_id = ANY($6::uuid[]) THEN sc.student_id END) < $7`,
+      [...p, roster, totalStudents, req.user.id]
     );
     if (incomplete.length) {
       const names = incomplete.map(a => `"${a.label}" (${a.acted_on}/${totalStudents})`).join(', ');
