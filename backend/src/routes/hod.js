@@ -1,6 +1,7 @@
 ﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
+const { getClassRoster } = require('../services/classHistory.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -365,12 +366,13 @@ router.get('/results', hodOnly, async (req, res, next) => {
     const caPercentage = schoolRows[0]?.ca_percentage ?? 30;
     const examPercentage = 100 - caPercentage;
 
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester));
     const { rows: students } = await pool.query(
       `SELECT s.id, s.student_code, s.name, s.gender,
               p.name AS program_name, p.exam_body
        FROM students s LEFT JOIN programs p ON p.id=s.program_id
-       WHERE s.school_id=$1 AND s.class_name=$2 AND s.status='Active' ORDER BY s.name`,
-      [req.schoolId, class_name]
+       WHERE s.school_id=$1 AND s.id = ANY($2::uuid[]) ORDER BY s.name`,
+      [req.schoolId, roster]
     );
     if (!students.length) return res.json([]);
 
