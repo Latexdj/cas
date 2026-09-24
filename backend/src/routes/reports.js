@@ -400,7 +400,7 @@ async function buildTeacherCompletionRows(schoolId, academicYearId, semester) {
   // student can have a real score yet no longer belong to this period's
   // resolved roster, e.g. deactivated after being scored).
   const distinctClasses = [...new Set(timetable.map(r => r.class_name))];
-  const rosterByClass = await mapWithLimit(distinctClasses, 5, async cls =>
+  const rosterByClass = await mapWithLimit(distinctClasses, 3, async cls =>
     [cls.toLowerCase(), await getClassRoster(schoolId, cls, academicYearId, sem)]
   );
   const rosterCountMap = Object.fromEntries(rosterByClass.map(([key, ids]) => [key, ids.length]));
