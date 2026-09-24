@@ -2,6 +2,7 @@ const router  = require('express').Router();
 const pool    = require('../config/db');
 const ExcelJS = require('exceljs');
 const { authenticate, requireActiveSubscription, adminOnly } = require('../middleware/auth');
+const { getClassRoster } = require('../services/classHistory.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -40,6 +41,7 @@ function buildGradeFn(boundaries) {
 // without attendance — callers append that separately as needed.
 async function assembleResults(schoolId, academic_year_id, semester, class_name) {
   const semInt = parseInt(semester);
+  const roster = await getClassRoster(schoolId, class_name, academic_year_id, semInt);
 
   const [schoolRow, modesRow, boundariesRow, studentsRow] = await Promise.all([
     pool.query(`SELECT ca_percentage FROM schools WHERE id = $1`, [schoolId]),
@@ -54,10 +56,9 @@ async function assembleResults(schoolId, academic_year_id, semester, class_name)
               s.picture_url, s.gender, p.exam_body, p.name AS program_name
        FROM students s
        LEFT JOIN programs p ON p.id = s.program_id
-       WHERE s.school_id = $1 AND s.status = 'Active'
-         AND LOWER(s.class_name) = LOWER($2)
+       WHERE s.school_id = $1 AND s.id = ANY($2::uuid[])
        ORDER BY s.name`,
-      [schoolId, class_name]
+      [schoolId, roster]
     ),
   ]);
 
