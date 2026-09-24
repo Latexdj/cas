@@ -132,18 +132,25 @@ router.delete('/schedules/:id', adminOnly, async (req, res, next) => {
 router.post('/schedules/:id/generate', adminOnly, async (req, res, next) => {
   try {
     const { rows: [schedule] } = await pool.query(
-      `SELECT fs.*, fi.name AS fee_item_name, ay.name AS academic_year_name
+      `SELECT fs.*, fi.name AS fee_item_name, ay.name AS academic_year_name,
+              sc.school_type, sc.school_level
        FROM fee_schedules fs
        LEFT JOIN fee_items fi ON fi.id = fs.fee_item_id
        LEFT JOIN academic_years ay ON ay.id = fs.academic_year_id
+       JOIN schools sc ON sc.id = fs.school_id
        WHERE fs.id=$1 AND fs.school_id=$2`,
       [req.params.id, req.schoolId]
     );
     if (!schedule) return res.status(404).json({ error: 'Schedule not found.' });
 
+    // Primary schools call their terms "Term 1/2/3"; secondary/SHS schools call
+    // theirs "Semester 1/2" — same derivation auth.js uses for portal routing.
+    const isPrimary = ['Nursery', 'KG', 'Primary'].includes(schedule.school_type) || schedule.school_level === 'primary';
+    const periodLabel = isPrimary ? 'Term' : 'Semester';
+
     const parts = [schedule.fee_item_name];
     if (schedule.academic_year_name) parts.push(schedule.academic_year_name);
-    if (schedule.semester) parts.push(`Term ${schedule.semester}`);
+    if (schedule.semester) parts.push(`${periodLabel} ${schedule.semester}`);
     const description = parts.join(' — ');
 
     // Single bulk INSERT — avoids N+1 timeouts on large student populations
