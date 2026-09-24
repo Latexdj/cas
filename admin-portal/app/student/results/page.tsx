@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { studentApi } from '@/lib/student-api';
 import { getStudentColors } from '@/lib/student-auth';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; current_semester: number; }
 interface SubjectResult { subject: string; ca_score: number | null; exam_score: number | null; total: number | null; grade: string; remark: string; subject_remark?: string | null; }
@@ -293,8 +294,8 @@ function ReportCard({ result, yearName, semester, schoolName, schoolAddress, sch
 export default function StudentResultsPage() {
   const [years,        setYears]        = useState<AcademicYear[]>([]);
   const [yearsReady,   setYearsReady]   = useState(false);
-  const [yearId,       setYearId]       = useState('');
-  const [semester,     setSemester]     = useState('1');
+  const [yearId,       setYearId]       = useSessionFilter('student-results:yearId', '');
+  const [semester,     setSemester]     = useSessionFilter('student-results:semester', '1');
   const [result,       setResult]       = useState<SemesterResult | null>(null);
   const [classStats,   setClassStats]   = useState<ClassStats | null>(null);
   const [history,      setHistory]      = useState<HistoryPoint[]>([]);
@@ -310,10 +311,14 @@ export default function StudentResultsPage() {
     studentApi.get<AcademicYear[]>('/api/student/academic-years').then(r => {
       setYears(r.data);
       const cur = r.data.find(y => y.is_current) ?? r.data[0];
-      if (cur) { setYearId(cur.id); setSemester(String(cur.current_semester ?? 1)); }
+      // Only fall back to "current year/semester" when nothing was restored
+      // from a prior session (e.g. an accidental refresh) — otherwise a
+      // student reviewing a past semester gets bounced back to the current one.
+      if (cur && !yearId) { setYearId(cur.id); setSemester(String(cur.current_semester ?? 1)); }
     }).catch(() => {}).finally(() => setYearsReady(true));
     studentApi.get<HistoryPoint[]>('/api/student/results/history').then(r => setHistory(r.data)).catch(() => {});
     studentApi.get<SchoolProfile>('/api/student/school-profile').then(r => setSchool(r.data)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

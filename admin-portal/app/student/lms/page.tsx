@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { studentApi } from '@/lib/student-api';
 import { getStudentColors } from '@/lib/student-auth';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; current_term?: number; current_semester?: number; }
 interface Course {
@@ -20,8 +21,8 @@ export default function LMSCoursesPage() {
   const router = useRouter();
   const [primary, setPrimary] = useState('#3B82F6');
   const [years, setYears] = useState<AcademicYear[]>([]);
-  const [yearId, setYearId] = useState('');
-  const [semester, setSemester] = useState('1');
+  const [yearId, setYearId] = useSessionFilter('student-lms:yearId', '');
+  const [semester, setSemester] = useSessionFilter('student-lms:semester', '1');
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(false);
   const [yearsLoaded, setYearsLoaded] = useState(false);
@@ -35,11 +36,16 @@ export default function LMSCoursesPage() {
     studentApi.get<AcademicYear[]>('/api/student/academic-years').then(r => {
       setYears(r.data);
       const cur = r.data.find(y => y.is_current) ?? r.data[0];
-      if (cur) {
+      // Only fall back to "current year/semester" when nothing was restored
+      // from a prior session (e.g. an accidental refresh) — otherwise a
+      // student browsing a past semester's courses gets bounced back to the
+      // current one.
+      if (cur && !yearId) {
         setYearId(cur.id);
         setSemester(String(cur.current_semester ?? 1));
       }
     }).catch(() => {}).finally(() => setYearsLoaded(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

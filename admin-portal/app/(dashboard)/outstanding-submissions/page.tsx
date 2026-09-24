@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination } from '@/components/ui/Pagination';
 import type { AcademicYear } from '@/types/api';
 
@@ -38,26 +39,31 @@ const selectStyle: React.CSSProperties = {
 
 export default function OutstandingSubmissionsPage() {
   const [years,       setYears]       = useState<AcademicYear[]>([]);
-  const [yearId,      setYearId]      = useState('');
-  const [semester,    setSemester]    = useState('1');
+  const [yearId,      setYearId]      = useSessionFilter('admin-outstanding-submissions:yearId', '');
+  const [semester,    setSemester]    = useSessionFilter('admin-outstanding-submissions:semester', '1');
   const [loadingMeta, setLoadingMeta] = useState(true);
 
   const [nonSubmitters,        setNonSubmitters]        = useState<NonSubmitter[]>([]);
   const [nonSubmittersLoading, setNonSubmittersLoading] = useState(false);
   const [nsLoadError,          setNsLoadError]          = useState<string | null>(null);
-  const [nsClassFilter,        setNsClassFilter]        = useState('');
-  const [nsSubjectFilter,      setNsSubjectFilter]      = useState('');
-  const [nsDeptFilter,         setNsDeptFilter]         = useState('');
+  const [nsClassFilter,        setNsClassFilter]        = useSessionFilter('admin-outstanding-submissions:nsClassFilter', '');
+  const [nsSubjectFilter,      setNsSubjectFilter]      = useSessionFilter('admin-outstanding-submissions:nsSubjectFilter', '');
+  const [nsDeptFilter,         setNsDeptFilter]         = useSessionFilter('admin-outstanding-submissions:nsDeptFilter', '');
   const [nsDebug,              setNsDebug]              = useState<NsDebug | null>(null);
   const [nsDebugLoading,       setNsDebugLoading]       = useState(false);
 
   useEffect(() => {
     api.get<AcademicYear[]>('/api/academic-years').then(r => {
       setYears(r.data);
-      const current = r.data.find(y => y.is_current);
-      if (current) { setYearId(current.id); setSemester(String(current.current_semester ?? 1)); }
-      else if (r.data[0]) setYearId(r.data[0].id);
+      // Only fall back to "current year" when nothing was restored from a
+      // prior session (e.g. an accidental refresh).
+      if (!yearId) {
+        const current = r.data.find(y => y.is_current);
+        if (current) { setYearId(current.id); setSemester(String(current.current_semester ?? 1)); }
+        else if (r.data[0]) setYearId(r.data[0].id);
+      }
     }).catch(() => {}).finally(() => setLoadingMeta(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadNonSubmitters = useCallback(async () => {

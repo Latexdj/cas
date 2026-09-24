@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { StatCard } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import type { AdminStats, AcademicYear, ClassroomStatus, TeacherAttendanceSummary, PlcAttendanceSummary } from '@/types/api';
 
 // ── Absence Conflicts Modal ───────────────────────────────────────────────────
@@ -415,8 +416,8 @@ export default function DashboardPage() {
   const [summary,        setSummary]        = useState<TeacherAttendanceSummary[]>([]);
   const [plcSummary,     setPlcSummary]     = useState<PlcAttendanceSummary[]>([]);
   const [academicYears,  setAcademicYears]  = useState<AcademicYear[]>([]);
-  const [filterYear,     setFilterYear]     = useState<string>('');
-  const [filterSem,      setFilterSem]      = useState<string>('');
+  const [filterYear,     setFilterYear]     = useSessionFilter<string>('admin-dashboard:filterYear', '');
+  const [filterSem,      setFilterSem]      = useSessionFilter<string>('admin-dashboard:filterSem', '');
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [plcSummaryLoading, setPlcSummaryLoading] = useState(false);
   const [running,        setRunning]        = useState(false);
@@ -426,16 +427,19 @@ export default function DashboardPage() {
   const [timetableGaps,  setTimetableGaps]  = useState<{ unscheduled: number; unteachered: number } | null>(null);
   const [dayStatus,      setDayStatus]      = useState<{ status: string; label: string | null } | null>(null);
 
-  // Load academic years once and set defaults to current year + current semester
+  // Load academic years once and set defaults to current year + current semester.
+  // Only fall back to "current year" when nothing was restored from a prior
+  // session, so refreshing while viewing a past semester doesn't bounce back.
   useEffect(() => {
     api.get<AcademicYear[]>('/api/academic-years').then(r => {
       setAcademicYears(r.data);
       const current = r.data.find(y => y.is_current);
-      if (current) {
+      if (current && !filterYear) {
         setFilterYear(current.id);
         setFilterSem(current.current_semester ? String(current.current_semester) : '');
       }
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadSummary = useCallback(async (yearId: string, sem: string) => {

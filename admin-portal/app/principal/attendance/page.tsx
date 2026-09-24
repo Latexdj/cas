@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useTheme } from 'next-themes';
 import { principalApi } from '@/lib/principal-api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination, Th } from '@/components/ui/Pagination';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -271,11 +272,11 @@ export default function TeacherAttendancePage() {
   const [mounted, setMounted] = useState(false);
   const dark = mounted && theme === 'dark';
 
-  const [tab,          setTab]          = useState<TabKey>('class');
-  const [search,       setSearch]       = useState('');
+  const [tab,          setTab]          = useSessionFilter<TabKey>('principal-attendance:tab', 'class');
+  const [search,       setSearch]       = useSessionFilter('principal-attendance:search', '');
   const [years,        setYears]        = useState<AcademicYear[]>([]);
-  const [filterYear,   setFilterYear]   = useState('');
-  const [filterSem,    setFilterSem]    = useState('');
+  const [filterYear,   setFilterYear]   = useSessionFilter('principal-attendance:filterYear', '');
+  const [filterSem,    setFilterSem]    = useSessionFilter('principal-attendance:filterSem', '');
 
   const [classRows,    setClassRows]    = useState<ClassRow[]>([]);
   const [plcRows,      setPlcRows]      = useState<MeetingRow[]>([]);
@@ -292,11 +293,15 @@ export default function TeacherAttendancePage() {
     principalApi.get('/api/principal/academic-years').then(r => {
       setYears(r.data);
       const current = r.data.find((y: AcademicYear) => y.is_current);
-      if (current) {
+      // Only fall back to "current year/semester" when nothing was restored
+      // from a prior session (e.g. an accidental refresh) — otherwise a
+      // principal reviewing a past semester gets bounced back to the current one.
+      if (current && !filterYear) {
         setFilterYear(current.id);
         setFilterSem(current.current_semester ? String(current.current_semester) : '');
       }
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadAll = useCallback(async (yearId: string, sem: string) => {

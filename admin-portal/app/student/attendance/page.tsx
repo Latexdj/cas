@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { studentApi } from '@/lib/student-api';
 import { getStudentColors } from '@/lib/student-auth';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination } from '@/components/ui/Pagination';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; current_semester: number; }
@@ -19,8 +20,8 @@ const STATUS_STYLE: Record<string, { bg: string; text: string }> = {
 export default function StudentAttendancePage() {
   const [years,      setYears]      = useState<AcademicYear[]>([]);
   const [yearsReady, setYearsReady] = useState(false);
-  const [yearId,     setYearId]     = useState('');
-  const [semester,   setSemester]   = useState('');
+  const [yearId,     setYearId]     = useSessionFilter('student-attendance:yearId', '');
+  const [semester,   setSemester]   = useSessionFilter('student-attendance:semester', '');
   const [summary,    setSummary]    = useState<AttSummary | null>(null);
   const [sessions,   setSessions]   = useState<Session[]>([]);
   const [loading,    setLoading]    = useState(false);
@@ -31,8 +32,12 @@ export default function StudentAttendancePage() {
     studentApi.get<AcademicYear[]>('/api/student/academic-years').then(r => {
       setYears(r.data);
       const cur = r.data.find(y => y.is_current) ?? r.data[0];
-      if (cur) { setYearId(cur.id); setSemester(String(cur.current_semester ?? 1)); }
+      // Only fall back to "current year" when nothing was restored from a
+      // prior session (e.g. an accidental refresh) — otherwise a student
+      // reviewing a past semester gets bounced back to the current one.
+      if (cur && !yearId) { setYearId(cur.id); setSemester(String(cur.current_semester ?? 1)); }
     }).catch(() => {}).finally(() => setYearsReady(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

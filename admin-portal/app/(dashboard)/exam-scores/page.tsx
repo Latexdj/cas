@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; current_semester: number; }
@@ -34,11 +35,11 @@ interface EditForm {
 export default function AdminExamScoresPage() {
   const [years,        setYears]        = useState<AcademicYear[]>([]);
   const [teachers,     setTeachers]     = useState<Teacher[]>([]);
-  const [filterYear,   setFilterYear]   = useState('');
-  const [filterSem,    setFilterSem]    = useState('');
-  const [filterTch,    setFilterTch]    = useState('');
-  const [filterSubj,   setFilterSubj]   = useState('');
-  const [filterClass,  setFilterClass]  = useState('');
+  const [filterYear,   setFilterYear]   = useSessionFilter('admin-exam-scores:filterYear', '');
+  const [filterSem,    setFilterSem]    = useSessionFilter('admin-exam-scores:filterSem', '');
+  const [filterTch,    setFilterTch]    = useSessionFilter('admin-exam-scores:filterTch', '');
+  const [filterSubj,   setFilterSubj]   = useSessionFilter('admin-exam-scores:filterSubj', '');
+  const [filterClass,  setFilterClass]  = useSessionFilter('admin-exam-scores:filterClass', '');
   const [rows,         setRows]         = useState<ExamBatch[]>([]);
   const [loading,      setLoading]      = useState(false);
   const [error,        setError]        = useState('');
@@ -66,8 +67,11 @@ export default function AdminExamScoresPage() {
       setYears(yr.data);
       setTeachers(tch.data);
       const cur = yr.data.find(y => y.is_current);
-      if (cur) { setFilterYear(cur.id); setFilterSem(String(cur.current_semester)); }
+      // Only fall back to "current year" when nothing was restored from a
+      // prior session (e.g. an accidental refresh).
+      if (cur && !filterYear) { setFilterYear(cur.id); setFilterSem(String(cur.current_semester)); }
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const load = useCallback(async () => {

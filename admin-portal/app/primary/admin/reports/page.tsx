@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 interface Term { id: string; name: string; academic_year_id: string; is_current: boolean; }
 interface AcademicYear { id: string; name: string; is_current: boolean; }
@@ -31,8 +32,8 @@ const STATUS_BADGE: Record<string, string> = {
 export default function PrimaryReportsPage() {
   const [years,    setYears]    = useState<AcademicYear[]>([]);
   const [terms,    setTerms]    = useState<Term[]>([]);
-  const [yearId,   setYearId]   = useState('');
-  const [termId,   setTermId]   = useState('');
+  const [yearId,   setYearId]   = useSessionFilter('primary-admin-reports:yearId', '');
+  const [termId,   setTermId]   = useSessionFilter('primary-admin-reports:termId', '');
   const [summary,  setSummary]  = useState<ReportSummary[]>([]);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
@@ -53,8 +54,12 @@ export default function PrimaryReportsPage() {
       .then(([yr]) => {
         setYears(yr.data);
         const cur = yr.data.find(y => y.is_current);
-        if (cur) setYearId(cur.id);
+        // Only fall back to "current year" when nothing was restored from a
+        // prior session — otherwise a refresh bounces the admin back to the
+        // current year instead of the one they were reviewing.
+        if (!yearId && cur) setYearId(cur.id);
       }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -63,8 +68,9 @@ export default function PrimaryReportsPage() {
       .then(r => {
         setTerms(r.data);
         const cur = r.data.find(t => t.is_current);
-        if (cur) setTermId(cur.id);
+        if (!termId && cur) setTermId(cur.id);
       }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [yearId]);
 
   const load = useCallback(async () => {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 interface Term { id: string; name: string; is_current: boolean; }
 interface Subject { id: string; subject_name: string; max_class_score: number; max_exam_score: number; }
@@ -16,11 +17,11 @@ interface ScoresData {
 
 export default function PrimaryScoresPage() {
   const [terms,      setTerms]      = useState<Term[]>([]);
-  const [termId,     setTermId]     = useState('');
+  const [termId,     setTermId]     = useSessionFilter('primary-teacher-scores:termId', '');
   const [subjects,   setSubjects]   = useState<Subject[]>([]);
   const [students,   setStudents]   = useState<Student[]>([]);
   const [scoreMap,   setScoreMap]   = useState<ScoresData['scoreMap']>({});
-  const [selSubject, setSelSubject] = useState('');
+  const [selSubject, setSelSubject] = useSessionFilter('primary-teacher-scores:selSubject', '');
   const [draft,      setDraft]      = useState<ScoreMap>({});
   const [loading,    setLoading]    = useState(false);
   const [saving,     setSaving]     = useState(false);
@@ -31,8 +32,12 @@ export default function PrimaryScoresPage() {
     api.get<Term[]>('/api/primary/terms').then(r => {
       setTerms(r.data);
       const cur = r.data.find(t => t.is_current);
-      if (cur) setTermId(cur.id);
+      // Only fall back to "current term" when nothing was restored from a
+      // prior session — otherwise a refresh bounces the teacher back to
+      // the current term instead of the one they were reviewing.
+      if (!termId && cur) setTermId(cur.id);
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const load = useCallback(async () => {

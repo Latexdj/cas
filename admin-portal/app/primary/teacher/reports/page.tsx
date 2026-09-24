@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 interface Term   { id: string; name: string; is_current: boolean; }
 interface Student { id: string; surname: string; other_names: string | null; admission_number: string; }
@@ -49,7 +50,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function PrimaryTeacherReportsPage() {
   const [terms,    setTerms]    = useState<Term[]>([]);
-  const [termId,   setTermId]   = useState('');
+  const [termId,   setTermId]   = useSessionFilter('primary-teacher-reports:termId', '');
   const [students, setStudents] = useState<ReportStatus[]>([]);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
@@ -76,8 +77,12 @@ export default function PrimaryTeacherReportsPage() {
     api.get<Term[]>('/api/primary/terms').then(r => {
       setTerms(r.data);
       const cur = r.data.find(t => t.is_current);
-      if (cur) setTermId(cur.id);
+      // Only fall back to "current term" when nothing was restored from a
+      // prior session — otherwise a refresh bounces the teacher back to
+      // the current term instead of the one they were reviewing.
+      if (!termId && cur) setTermId(cur.id);
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const load = useCallback(async () => {

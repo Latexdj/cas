@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination } from '@/components/ui/Pagination';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; current_semester: number; }
@@ -162,11 +163,11 @@ function outstandingModes(row: MonitorRow): string {
 export default function AssessmentTrackerPage() {
   const [years,      setYears]      = useState<AcademicYear[]>([]);
   const [teachers,   setTeachers]   = useState<Teacher[]>([]);
-  const [yearId,     setYearId]     = useState('');
-  const [semester,   setSemester]   = useState<1|2>(1);
-  const [filterDept, setFilterDept] = useState('');
-  const [filterTch,  setFilterTch]  = useState('');
-  const [filterStat, setFilterStat] = useState('');
+  const [yearId,     setYearId]     = useSessionFilter('admin-assessment-tracker:yearId', '');
+  const [semester,   setSemester]   = useSessionFilter<1|2>('admin-assessment-tracker:semester', 1);
+  const [filterDept, setFilterDept] = useSessionFilter('admin-assessment-tracker:filterDept', '');
+  const [filterTch,  setFilterTch]  = useSessionFilter('admin-assessment-tracker:filterTch', '');
+  const [filterStat, setFilterStat] = useSessionFilter('admin-assessment-tracker:filterStat', '');
   const [data,       setData]       = useState<MonitorData | null>(null);
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState('');
@@ -182,8 +183,11 @@ export default function AssessmentTrackerPage() {
       setYears(yr.data);
       setTeachers(tch.data);
       const cur = yr.data.find(y => y.is_current);
-      if (cur) { setYearId(cur.id); setSemester(cur.current_semester as 1|2); }
+      // Only fall back to "current year" when nothing was restored from a
+      // prior session (e.g. an accidental refresh).
+      if (cur && !yearId) { setYearId(cur.id); setSemester(cur.current_semester as 1|2); }
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const load = useCallback(async (yId = yearId, sem = semester) => {

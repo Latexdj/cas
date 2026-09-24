@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTeacher, getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 interface AcademicYear {
   id: string;
@@ -21,9 +22,8 @@ function AssessmentsContent() {
   const router = useRouter();
   const [primary, setPrimary] = useState('#2ab289');
   const [years, setYears] = useState<AcademicYear[]>([]);
-  const [yearId, setYearId] = useState('');
-  const [yearName, setYearName] = useState('');
-  const [semester, setSemester] = useState<1 | 2>(1);
+  const [yearId, setYearId] = useSessionFilter('teacher-assessments:yearId', '');
+  const [semester, setSemester] = useSessionFilter<1 | 2>('teacher-assessments:semester', 1);
   const [slots, setSlots] = useState<SubjectSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -54,19 +54,25 @@ function AssessmentsContent() {
     teacherApi.get<AcademicYear[]>('/api/academic-years').then(({ data }) => {
       setYears(data ?? []);
       const current = data?.find(y => y.is_current);
-      const activeYear = current ?? data?.[0];
-      if (!activeYear) { setLoading(false); return; }
-      const sem = (current?.current_semester ?? 1) as 1 | 2;
-      setYearId(activeYear.id);
-      setYearName(activeYear.name);
-      setSemester(sem);
-      loadSlots(activeYear.id, sem);
+      const fallbackYear = current ?? data?.[0];
+      const fallbackSem  = (current?.current_semester ?? 1) as 1 | 2;
+      // Only fall back to "current year" when nothing was restored from a
+      // prior session (e.g. an accidental refresh) — otherwise a teacher
+      // working through a past semester's assessments gets bounced back
+      // to the current one.
+      if (!yearId && fallbackYear) { setYearId(fallbackYear.id); setSemester(fallbackSem); }
+      const effectiveYearId = yearId || fallbackYear?.id;
+      const effectiveSem    = semester || fallbackSem;
+      if (!effectiveYearId) { setLoading(false); return; }
+      loadSlots(effectiveYearId, effectiveSem);
     }).catch(() => { setError('Could not load years.'); setLoading(false); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadSlots]);
+
+  const yearName = years.find(y => y.id === yearId)?.name ?? '';
 
   function changeYear(y: AcademicYear) {
     setYearId(y.id);
-    setYearName(y.name);
     loadSlots(y.id, semester);
   }
 
