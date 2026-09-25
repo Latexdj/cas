@@ -5,14 +5,35 @@ import { api } from '@/lib/api';
 
 const STATUS_OPTIONS = ['Pending', 'Approved', 'Rejected'];
 
+const FIELD_LABELS: Record<string, string> = {
+  area_of_specialization: 'Area of Specialization',
+  date_of_first_appointment: 'Date of First Appointment',
+  date_promoted_to_current_rank: 'Date Promoted to Current Rank',
+  year_posted_to_present_station: 'Year Posted to Present Station',
+  currently_teaching_subject_ids: 'Subject(s) Currently Teaching',
+  currently_teaching_subjects: 'Subject(s) Currently Teaching',
+  date_obtained_academic_qualification: 'Date Obtained Academic Qualification',
+  date_obtained_professional_qualification: 'Date Obtained Professional Qualification',
+};
+
 function labelize(key: string) {
-  return key
+  return FIELD_LABELS[key] || key
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function formatValue(value: unknown) {
   if (value === null || value === undefined || value === '') return '—';
+  if (Array.isArray(value)) {
+    if (!value.length) return '—';
+    return value.map((item) => {
+      if (item && typeof item === 'object' && 'name' in (item as Record<string, unknown>)) {
+        return String((item as { name: string }).name);
+      }
+      return String(item);
+    }).join(', ');
+  }
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
 }

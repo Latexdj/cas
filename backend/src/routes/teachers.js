@@ -13,7 +13,10 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 const PHONE_RE      = /^0\d{9}$/;
 const GHANA_CARD_RE = /^GHA-\d{9}-\d$/;
 const NTC_RE        = /^PT\/\d{6}\/\d{4}$/;
-const SSF_RE        = /^[A-Za-z]\d{12}$/;
+// GES SSF numbers in real use at this school are 2 letters + 11 digits
+// (e.g. KO18602160034); also accept the 1-letter + 12-digit form in case
+// another school's format differs — both are 13 characters total.
+const SSF_RE        = /^([A-Za-z]\d{12}|[A-Za-z]{2}\d{11})$/;
 
 const GENDER_OPTIONS = ['Male', 'Female'];
 const RELIGION_OPTIONS = ['Christianity', 'Islam', 'Traditional', 'Other'];
@@ -75,7 +78,7 @@ function validateTeacherFields(fields) {
   if (fields.ntc_number         && !NTC_RE.test(fields.ntc_number))
     errors.push('NTC Number must be in the format PT/000000/0000 (e.g. PT/010060/2009)');
   if (fields.ssf_number         && !SSF_RE.test(fields.ssf_number))
-    errors.push('SSF Number must be 1 letter followed by 12 digits (e.g. K000000000000)');
+    errors.push('SSF Number must be 13 characters: 2 letters followed by 11 digits (e.g. KO18602160034), or 1 letter followed by 12 digits');
   if (fields.academic_qualification) {
     const val = validateDropdownOption(fields.academic_qualification, ACADEMIC_QUALIFICATION_OPTIONS, 'Academic qualification', fields.academic_qualification_other);
     if (val) errors.push(val);
@@ -107,6 +110,12 @@ const APPROVAL_REQUIRED_PROFILE_FIELDS = [
   'account_number',
   'association',
   'ghana_card_number',
+  'area_of_specialization',
+  'date_of_first_appointment',
+  'date_promoted_to_current_rank',
+  'year_posted_to_present_station',
+  'date_obtained_academic_qualification',
+  'date_obtained_professional_qualification',
 ];
 
 const APPROVAL_DOC_REQUIRED_FIELDS = new Set([
@@ -125,7 +134,73 @@ const APPROVAL_DOC_REQUIRED_FIELDS = new Set([
   'account_number',
   'association',
   'ghana_card_number',
+  'date_of_first_appointment',
+  'date_promoted_to_current_rank',
+  'date_obtained_academic_qualification',
+  'date_obtained_professional_qualification',
 ]);
+
+const TEACHER_PROFILE_COLUMNS = `id, teacher_code, name, email, phone, department, status, is_admin, notes,
+              rank, gov_staff_id, gender, date_of_birth, registered_number, ntc_number, ssf_number,
+              academic_qualification, professional_qualification, additional_responsibility,
+              bank, bank_branch, account_number, religion, religious_denomination,
+              hometown, residential_address, association, ghana_card_number, photo_url,
+              certificate_url, certificate_filename, emergency_contact_name, emergency_contact_phone,
+              area_of_specialization, date_of_first_appointment, date_promoted_to_current_rank,
+              year_posted_to_present_station, currently_teaching_subject_ids,
+              date_obtained_academic_qualification, date_obtained_professional_qualification`;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveTeachingSubjects(teacher, schoolId) {
+  const ids = Array.isArray(teacher.currently_teaching_subject_ids)
+    ? teacher.currently_teaching_subject_ids
+    : [];
+  teacher.currently_teaching_subject_ids = ids;
+  if (!ids.length) {
+    teacher.currently_teaching_subjects = [];
+    return teacher;
+  }
+  const { rows } = await pool.query(
+    `SELECT id, name, code FROM subjects WHERE school_id = $1 AND id = ANY($2::uuid[]) ORDER BY name`,
+    [schoolId, ids]
+  );
+  teacher.currently_teaching_subjects = rows;
+  return teacher;
+}
+
+async function validateTeachingSubjectIds(schoolId, ids) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return 'Select at least one subject currently teaching.';
+  }
+  const unique = [...new Set(ids.map(String))];
+  if (unique.some(id => !UUID_RE.test(id))) {
+    return 'One or more selected subjects are invalid.';
+  }
+  const { rows } = await pool.query(
+    `SELECT id FROM subjects WHERE school_id = $1 AND id = ANY($2::uuid[])`,
+    [schoolId, unique]
+  );
+  if (rows.length !== unique.length) {
+    return 'One or more selected subjects are invalid.';
+  }
+  return null;
+}
+
+function normalizeComparableProfileValue(key, value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const text = String(value).trim();
+  if (!text) return null;
+  if (key.startsWith('date_') && /^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  if (key === 'year_posted_to_present_station') {
+    const year = parseInt(text, 10);
+    return Number.isNaN(year) ? text : String(year);
+  }
+  return text;
+}
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -675,17 +750,12 @@ router.get('/', async (req, res, next) => {
 router.get('/me', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, teacher_code, name, email, phone, department, status, is_admin, notes,
-              rank, gov_staff_id, gender, date_of_birth, registered_number, ntc_number, ssf_number,
-              academic_qualification, professional_qualification, additional_responsibility,
-              bank, bank_branch, account_number, religion, religious_denomination,
-              hometown, residential_address, association, ghana_card_number, photo_url,
-              certificate_url, certificate_filename, emergency_contact_name, emergency_contact_phone
+      `SELECT ${TEACHER_PROFILE_COLUMNS}
        FROM teachers WHERE id = $1 AND school_id = $2`,
       [req.user.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
-    const teacher = rows[0];
+    const teacher = await resolveTeachingSubjects(rows[0], req.schoolId);
     const { rows: responsibilities } = await pool.query(
       `SELECT tr.id, tr.name, tr.module_key
        FROM teacher_responsibility_assignments tra
@@ -702,18 +772,13 @@ router.get('/me', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, teacher_code, name, email, phone, department, status, is_admin, notes,
-              rank, gov_staff_id, gender, date_of_birth, registered_number, ntc_number, ssf_number,
-              academic_qualification, professional_qualification, additional_responsibility,
-              bank, bank_branch, account_number, religion, religious_denomination,
-              hometown, residential_address, association, ghana_card_number, photo_url,
-              certificate_url, certificate_filename, emergency_contact_name, emergency_contact_phone
+      `SELECT ${TEACHER_PROFILE_COLUMNS}
        FROM teachers WHERE id = $1 AND school_id = $2`,
       [req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
 
-    const teacher = rows[0];
+    const teacher = await resolveTeachingSubjects(rows[0], req.schoolId);
     const [{ rows: schedule }, { rows: responsibilities }] = await Promise.all([
       pool.query(
         `SELECT id, day_of_week, start_time, end_time, subject, class_names
@@ -794,10 +859,21 @@ router.put('/:id', adminOnly, async (req, res, next) => {
       bank, bank_branch, account_number, religion, religious_denomination,
       hometown, residential_address, association, ghana_card_number,
       emergency_contact_name, emergency_contact_phone,
+      area_of_specialization, date_of_first_appointment, date_promoted_to_current_rank,
+      year_posted_to_present_station, currently_teaching_subject_ids,
+      date_obtained_academic_qualification, date_obtained_professional_qualification,
       responsibility_ids,
     } = req.body;
     const valErrors = validateTeacherFields(req.body);
     if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
+    const teachingIds = Array.isArray(currently_teaching_subject_ids) ? currently_teaching_subject_ids : null;
+    if (teachingIds) {
+      const subjectErr = await validateTeachingSubjectIds(req.schoolId, teachingIds);
+      if (subjectErr) return res.status(400).json({ error: subjectErr });
+    }
+    const postedYear = year_posted_to_present_station === '' || year_posted_to_present_station == null
+      ? null
+      : parseInt(year_posted_to_present_station, 10);
     const { rows } = await pool.query(
       `UPDATE teachers SET
          teacher_code             = COALESCE($1,  teacher_code),
@@ -829,14 +905,16 @@ router.put('/:id', adminOnly, async (req, res, next) => {
          ghana_card_number        = COALESCE($27, ghana_card_number),
          emergency_contact_name   = COALESCE($28, emergency_contact_name),
          emergency_contact_phone  = COALESCE($29, emergency_contact_phone),
+         area_of_specialization   = COALESCE($30, area_of_specialization),
+         date_of_first_appointment = COALESCE($31, date_of_first_appointment),
+         date_promoted_to_current_rank = COALESCE($32, date_promoted_to_current_rank),
+         year_posted_to_present_station = COALESCE($33, year_posted_to_present_station),
+         currently_teaching_subject_ids = COALESCE($34::uuid[], currently_teaching_subject_ids),
+         date_obtained_academic_qualification = COALESCE($35, date_obtained_academic_qualification),
+         date_obtained_professional_qualification = COALESCE($36, date_obtained_professional_qualification),
          updated_at               = now()
-       WHERE id = $30 AND school_id = $31
-       RETURNING id, teacher_code, name, email, phone, department, status, is_admin, notes,
-                 rank, gov_staff_id, gender, date_of_birth, registered_number, ntc_number, ssf_number,
-                 academic_qualification, professional_qualification, additional_responsibility,
-                 bank, bank_branch, account_number, religion, religious_denomination,
-                 hometown, residential_address, association, ghana_card_number,
-                 emergency_contact_name, emergency_contact_phone, photo_url`,
+       WHERE id = $37 AND school_id = $38
+       RETURNING ${TEACHER_PROFILE_COLUMNS}`,
       [teacher_code?.trim().toUpperCase() || null,
        name||null, email||null, phone||null, department||null, status||null, is_admin??null, notes||null,
        rank||null, gov_staff_id||null, gender||null, date_of_birth||null,
@@ -846,9 +924,14 @@ router.put('/:id', adminOnly, async (req, res, next) => {
        religion||null, religious_denomination||null, hometown||null, residential_address||null,
        association||null, ghana_card_number||null,
        emergency_contact_name||null, emergency_contact_phone||null,
+       area_of_specialization||null, date_of_first_appointment||null, date_promoted_to_current_rank||null,
+       Number.isNaN(postedYear) ? null : postedYear,
+       teachingIds,
+       date_obtained_academic_qualification||null, date_obtained_professional_qualification||null,
        req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
+    await resolveTeachingSubjects(rows[0], req.schoolId);
 
     // Sync responsibility assignments if provided
     if (Array.isArray(responsibility_ids)) {
@@ -915,9 +998,15 @@ router.patch('/me/profile', async (req, res, next) => {
     const {
       phone, gender, religion, religious_denomination,
       hometown, residential_address, emergency_contact_name, emergency_contact_phone,
+      currently_teaching_subject_ids,
     } = req.body;
     const valErrors = validateTeacherFields(req.body);
     if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
+    const teachingIds = Array.isArray(currently_teaching_subject_ids) ? currently_teaching_subject_ids : null;
+    if (teachingIds) {
+      const subjectErr = await validateTeachingSubjectIds(req.schoolId, teachingIds);
+      if (subjectErr) return res.status(400).json({ error: subjectErr });
+    }
     const { rows } = await pool.query(
       `UPDATE teachers SET
          phone                   = COALESCE($1,  phone),
@@ -928,18 +1017,19 @@ router.patch('/me/profile', async (req, res, next) => {
          residential_address     = COALESCE($6,  residential_address),
          emergency_contact_name  = COALESCE($7,  emergency_contact_name),
          emergency_contact_phone = COALESCE($8,  emergency_contact_phone),
+         currently_teaching_subject_ids = COALESCE($9::uuid[], currently_teaching_subject_ids),
          updated_at              = now()
-       WHERE id = $9 AND school_id = $10
-       RETURNING id, teacher_code, name, email, phone, gender, date_of_birth, religion,
-                 religious_denomination, hometown, residential_address,
-                 emergency_contact_name, emergency_contact_phone, photo_url`,
+       WHERE id = $10 AND school_id = $11
+       RETURNING ${TEACHER_PROFILE_COLUMNS}`,
       [phone||null, gender||null,
        religion||null, religious_denomination||null,
        hometown||null, residential_address||null,
        emergency_contact_name||null, emergency_contact_phone||null,
+       teachingIds,
        req.user.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Teacher not found' });
+    await resolveTeachingSubjects(rows[0], req.schoolId);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -961,10 +1051,7 @@ router.post('/me/profile-requests', async (req, res, next) => {
     }
 
     const pendingRequest = await pool.query(
-      `SELECT id, school_id, name, email, department, gov_staff_id, rank, date_of_birth,
-              registered_number, ntc_number, ssf_number,
-              academic_qualification, professional_qualification, additional_responsibility,
-              bank, bank_branch, account_number, association, ghana_card_number
+      `SELECT ${TEACHER_PROFILE_COLUMNS}
        FROM teachers WHERE id = $1 AND school_id = $2`,
       [req.user.id, req.schoolId]
     );
@@ -990,20 +1077,49 @@ router.post('/me/profile-requests', async (req, res, next) => {
       if (normalizedChanges[`${field}_other`] !== undefined) delete normalizedChanges[`${field}_other`];
     }
 
-    const validationErrors = validateTeacherFields(normalizedChanges);
-    if (validationErrors.length) {
-      return res.status(400).json({ error: validationErrors.join('; ') });
-    }
-
+    // Diff against the teacher's current stored values FIRST, using the
+    // resolved (Other -> actual custom text) values. Validation below only
+    // runs on fields that actually changed — a pre-existing, non-conforming
+    // legacy value sitting in a field the teacher isn't touching must never
+    // block an unrelated edit (e.g. a teacher fixing their bank details
+    // shouldn't be blocked by an old free-text academic_qualification value
+    // that predates the current dropdown options).
     const fieldNames = [];
     const oldValues = {};
     const newValues = {};
     for (const key of Object.keys(normalizedChanges)) {
+      if (!APPROVAL_REQUIRED_PROFILE_FIELDS.includes(key)) continue;
       const value = normalizedChanges[key];
-      const cleanValue = value === '' ? null : value;
+      const cleanValue = value === '' || value == null ? null : value;
+      const oldComparable = normalizeComparableProfileValue(key, current[key]);
+      const newComparable = normalizeComparableProfileValue(key, cleanValue);
+      if (oldComparable === newComparable) continue;
       fieldNames.push(key);
-      oldValues[key] = current[key] ?? null;
-      newValues[key] = cleanValue;
+      oldValues[key] = oldComparable;
+      newValues[key] = key === 'year_posted_to_present_station' && newComparable != null
+        ? parseInt(newComparable, 10)
+        : cleanValue;
+    }
+
+    if (!fieldNames.length) {
+      return res.status(400).json({ error: 'No official profile changes were detected.' });
+    }
+
+    // Validate only the changed fields, using their ORIGINAL (pre-merge)
+    // value + _other companion — validateDropdownOption needs to see the
+    // literal 'Other' sentinel alongside its custom text to accept a valid
+    // custom selection. normalizedChanges has already resolved 'Other' into
+    // the plain custom text above, which would otherwise never match either
+    // a known option or the 'Other' check, rejecting every legitimate
+    // custom-value submission for rank/qualifications/association.
+    const changedOriginal = {};
+    for (const key of fieldNames) {
+      changedOriginal[key] = changes[key];
+      if (changes[`${key}_other`] !== undefined) changedOriginal[`${key}_other`] = changes[`${key}_other`];
+    }
+    const validationErrors = validateTeacherFields(changedOriginal);
+    if (validationErrors.length) {
+      return res.status(400).json({ error: validationErrors.join('; ') });
     }
 
     const requiresDocument = fieldNames.some(key => APPROVAL_DOC_REQUIRED_FIELDS.has(key));

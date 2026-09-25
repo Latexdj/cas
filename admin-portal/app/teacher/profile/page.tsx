@@ -66,6 +66,32 @@ function compressToBase64(file: File): Promise<string> {
   });
 }
 
+const DOC_REQUIRED_OFFICIAL_FIELDS = [
+  'name', 'department', 'gov_staff_id', 'rank', 'date_of_birth', 'registered_number',
+  'ntc_number', 'ssf_number', 'academic_qualification', 'professional_qualification',
+  'bank', 'bank_branch', 'account_number', 'association', 'ghana_card_number',
+  'date_of_first_appointment', 'date_promoted_to_current_rank',
+  'date_obtained_academic_qualification', 'date_obtained_professional_qualification',
+];
+
+function formatDateValue(value?: string | number | null) {
+  if (value == null || value === '') return '';
+  return String(value).slice(0, 10);
+}
+
+function comparableOfficialValue(key: string, value?: string | number | null) {
+  const text = value == null ? '' : String(value).trim();
+  if (!text) return '';
+  if (key.startsWith('date_')) return text.slice(0, 10);
+  return text;
+}
+
+function formatTeachingSubjects(profile?: TeacherProfile | null) {
+  const names = profile?.currently_teaching_subjects?.map((item) => item.name).filter(Boolean) ?? [];
+  if (names.length) return names.join(', ');
+  return null;
+}
+
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="flex items-start justify-between py-2 border-b border-[#F4EFE6] last:border-0">
@@ -120,6 +146,8 @@ export default function ProfilePage() {
   const [officialSaving, setOfficialSaving] = useState(false);
   const [editError,  setEditError]  = useState('');
   const [officialError, setOfficialError] = useState('');
+  const [subjects, setSubjects] = useState<{ id: string; name: string }[]>([]);
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState<string[]>([]);
 
   const [currentPassword,  setCurrentPassword]  = useState('');
   const [newPassword,      setNewPassword]      = useState('');
@@ -142,6 +170,9 @@ export default function ProfilePage() {
     }).catch(() => {
       setPendingRequest(null);
     });
+    teacherApi.get<{ id: string; name: string }[]>('/api/subjects').then(r => {
+      setSubjects(Array.isArray(r.data) ? r.data : []);
+    }).catch(() => setSubjects([]));
   }, []);
 
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -182,7 +213,10 @@ export default function ProfilePage() {
       'name', 'department', 'gov_staff_id', 'rank', 'rank_other', 'date_of_birth', 'registered_number',
       'ntc_number', 'ssf_number', 'academic_qualification', 'academic_qualification_other',
       'professional_qualification', 'professional_qualification_other', 'bank', 'bank_branch', 'account_number',
-      'association', 'association_other', 'ghana_card_number'
+      'association', 'association_other', 'ghana_card_number',
+      'area_of_specialization', 'date_of_first_appointment', 'date_promoted_to_current_rank',
+      'year_posted_to_present_station', 'date_obtained_academic_qualification',
+      'date_obtained_professional_qualification',
     ];
     setFieldTouched(prev => {
       const next = { ...prev };
@@ -206,6 +240,7 @@ export default function ProfilePage() {
       emergency_contact_name:  profile.emergency_contact_name ?? '',
       emergency_contact_phone: profile.emergency_contact_phone ?? '',
     });
+    setSelectedSubjectIds(profile.currently_teaching_subject_ids ?? profile.currently_teaching_subjects?.map(s => s.id) ?? []);
     setEditError('');
     setShowEdit(true);
   }
@@ -216,22 +251,34 @@ export default function ProfilePage() {
       name: profile.name ?? '',
       department: profile.department ?? '',
       gov_staff_id: profile.gov_staff_id ?? '',
-      rank: profile.rank ?? '',
+      // A legacy value that predates the current dropdown options must be
+      // routed through the 'Other' sentinel (not left as the raw text in the
+      // main field) — the backend only recognizes a custom value when the
+      // main field is literally 'Other' alongside a filled _other companion;
+      // otherwise it's neither a known option nor 'Other', and submission
+      // is permanently rejected even for an unrelated field edit.
+      rank: profile.rank && !RANK_OPTIONS.includes(profile.rank) ? 'Other' : (profile.rank ?? ''),
       rank_other: profile.rank && !RANK_OPTIONS.includes(profile.rank) ? profile.rank : '',
       date_of_birth: profile.date_of_birth?.slice(0, 10) ?? '',
       registered_number: profile.registered_number ?? '',
       ntc_number: profile.ntc_number ?? '',
       ssf_number: profile.ssf_number ?? '',
-      academic_qualification: profile.academic_qualification ?? '',
+      academic_qualification: profile.academic_qualification && !ACADEMIC_QUALIFICATION_OPTIONS.includes(profile.academic_qualification) ? 'Other' : (profile.academic_qualification ?? ''),
       academic_qualification_other: profile.academic_qualification && !ACADEMIC_QUALIFICATION_OPTIONS.includes(profile.academic_qualification) ? profile.academic_qualification : '',
-      professional_qualification: profile.professional_qualification ?? '',
+      professional_qualification: profile.professional_qualification && !PROFESSIONAL_QUALIFICATION_OPTIONS.includes(profile.professional_qualification) ? 'Other' : (profile.professional_qualification ?? ''),
       professional_qualification_other: profile.professional_qualification && !PROFESSIONAL_QUALIFICATION_OPTIONS.includes(profile.professional_qualification) ? profile.professional_qualification : '',
       bank: profile.bank ?? '',
       bank_branch: profile.bank_branch ?? '',
       account_number: profile.account_number ?? '',
-      association: profile.association ?? '',
+      association: profile.association && !ASSOCIATION_OPTIONS.includes(profile.association) ? 'Other' : (profile.association ?? ''),
       association_other: profile.association && !ASSOCIATION_OPTIONS.includes(profile.association) ? profile.association : '',
       ghana_card_number: profile.ghana_card_number ?? '',
+      area_of_specialization: profile.area_of_specialization ?? '',
+      date_of_first_appointment: formatDateValue(profile.date_of_first_appointment),
+      date_promoted_to_current_rank: formatDateValue(profile.date_promoted_to_current_rank),
+      year_posted_to_present_station: profile.year_posted_to_present_station != null ? String(profile.year_posted_to_present_station) : '',
+      date_obtained_academic_qualification: formatDateValue(profile.date_obtained_academic_qualification),
+      date_obtained_professional_qualification: formatDateValue(profile.date_obtained_professional_qualification),
     });
     setOfficialDocName('');
     setOfficialDocBase64('');
@@ -258,7 +305,10 @@ export default function ProfilePage() {
     delete cleaned.religious_denomination_other;
     setEditSaving(true); setEditError('');
     try {
-      const res = await teacherApi.patch('/api/teachers/me/profile', cleaned);
+      const res = await teacherApi.patch('/api/teachers/me/profile', {
+        ...cleaned,
+        currently_teaching_subject_ids: selectedSubjectIds,
+      });
       setProfile(p => p ? { ...p, ...res.data } : p);
       setShowEdit(false);
     } catch (err: unknown) {
@@ -282,12 +332,13 @@ export default function ProfilePage() {
     e.preventDefault();
     if (!profile) return;
     markAllOfficialFieldsTouched();
+    // Send 'Other' + its _other companion as-is — the backend needs to see
+    // the literal 'Other' sentinel alongside the custom text to validate it
+    // correctly (validateDropdownOption checks for that exact pair). Merging
+    // them into the final custom text here, before the backend ever sees
+    // 'Other', made every custom-value submission indistinguishable from an
+    // unrecognized legacy value and get rejected.
     const payload = { ...officialForm };
-    for (const field of ['religion', 'religious_denomination', 'rank', 'academic_qualification', 'professional_qualification', 'association']) {
-      if ((payload[field] ?? '') === 'Other' && (payload[`${field}_other`] ?? '').trim()) {
-        payload[field] = payload[`${field}_other`].trim();
-      }
-    }
     Object.keys(payload).forEach((key) => {
       if ((payload[key] ?? '') === '') payload[key] = 'null';
     });
@@ -295,6 +346,20 @@ export default function ProfilePage() {
     const cleaned = Object.fromEntries(
       Object.entries(payload).map(([key, value]) => [key, value === 'null' ? null : value])
     );
+
+    const needsDocument = DOC_REQUIRED_OFFICIAL_FIELDS.some((key) => {
+      const current = comparableOfficialValue(key, (profile as Record<string, string | number | null | undefined>)[key]);
+      const next = comparableOfficialValue(key, officialForm[key]);
+      if (key === 'rank' || key === 'academic_qualification' || key === 'professional_qualification' || key === 'association') {
+        const selected = officialForm[key] === 'Other' ? (officialForm[`${key}_other`] ?? '') : officialForm[key];
+        return comparableOfficialValue(key, selected) !== current;
+      }
+      return next !== current;
+    });
+    if (needsDocument && !officialDocBase64) {
+      setOfficialError('A supporting document is required for this change.');
+      return;
+    }
 
     setOfficialSaving(true); setOfficialError('');
     try {
@@ -306,8 +371,15 @@ export default function ProfilePage() {
       setPendingRequest(res.data);
       setShowOfficialRequest(false);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setOfficialError(msg ?? 'Could not submit the review request.');
+      const e = err as { response?: { data?: { error?: string } }; code?: string };
+      const msg = e?.response?.data?.error;
+      // No `response` at all means the request never got a reply — a timeout
+      // or dropped connection, most likely while uploading the supporting
+      // document on a slow connection — not a rejection from the server.
+      const fallback = e?.response
+        ? 'Could not submit the review request.'
+        : 'The upload timed out or your connection dropped. Please check your internet connection and try again — a smaller/clearer scan of the document may also help.';
+      setOfficialError(msg ?? fallback);
     } finally { setOfficialSaving(false); }
   }
 
@@ -337,7 +409,20 @@ export default function ProfilePage() {
   const ghanaCardAppearance = getFieldAppearance(officialForm.ghana_card_number ?? '', validateGhanaCard, fieldTouched.ghana_card_number ?? false);
   const phoneAppearance = getFieldAppearance(editForm.phone ?? '', validatePhone, fieldTouched.phone ?? false);
   const emergencyPhoneAppearance = getFieldAppearance(editForm.emergency_contact_phone ?? '', validatePhone, fieldTouched.emergency_contact_phone ?? false);
-  const documentAppearance = officialDocName ? { borderColor: '#86EFAC', hint: '' } : documentTouched ? { borderColor: '#FCA5A5', hint: 'Supporting document is required.' } : { borderColor: '#E2D9CC', hint: '' };
+  const documentRequired = DOC_REQUIRED_OFFICIAL_FIELDS.some((key) => {
+    const current = comparableOfficialValue(key, (profile as Record<string, string | number | null | undefined> | null)?.[key]);
+    if (key === 'rank' || key === 'academic_qualification' || key === 'professional_qualification' || key === 'association') {
+      const selected = officialForm[key] === 'Other' ? (officialForm[`${key}_other`] ?? '') : officialForm[key];
+      return comparableOfficialValue(key, selected) !== current;
+    }
+    return comparableOfficialValue(key, officialForm[key]) !== current;
+  });
+  const documentAppearance = officialDocName
+    ? { borderColor: '#86EFAC', hint: '' }
+    : documentTouched && documentRequired
+      ? { borderColor: '#FCA5A5', hint: 'Supporting document is required.' }
+      : { borderColor: '#E2D9CC', hint: '' };
+  const subjectsAppearance = getFieldAppearance(selectedSubjectIds.length ? 'selected' : '', undefined, fieldTouched.currently_teaching_subject_ids ?? false);
 
   return (
     <div className="min-h-screen px-4 pt-6 pb-24" style={{ background: '#F4EFE6' }}>
@@ -422,7 +507,14 @@ export default function ProfilePage() {
         <InfoRow label="NTC Number"          value={profile?.ntc_number} />
         <InfoRow label="SSF Number"          value={profile?.ssf_number} />
         <InfoRow label="Academic Qual."      value={profile?.academic_qualification} />
+        <InfoRow label="Date Obtained Academic Qual." value={profile?.date_obtained_academic_qualification?.toString().slice(0, 10)} />
         <InfoRow label="Professional Qual."  value={profile?.professional_qualification} />
+        <InfoRow label="Date Obtained Professional Qual." value={profile?.date_obtained_professional_qualification?.toString().slice(0, 10)} />
+        <InfoRow label="Area of Specialization" value={profile?.area_of_specialization} />
+        <InfoRow label="Date of First Appointment" value={profile?.date_of_first_appointment?.toString().slice(0, 10)} />
+        <InfoRow label="Date Promoted to Current Rank" value={profile?.date_promoted_to_current_rank?.toString().slice(0, 10)} />
+        <InfoRow label="Year Posted to Present Station" value={profile?.year_posted_to_present_station != null ? String(profile.year_posted_to_present_station) : null} />
+        <InfoRow label="Subject(s) Currently Teaching" value={formatTeachingSubjects(profile)} />
         <div className="flex items-start justify-between py-2 border-b border-[#F4EFE6]">
           <p className="text-xs text-[#8C7E6E] shrink-0 w-40">Responsibilities</p>
           <div className="text-xs font-semibold text-[#2C2218] text-right flex-1">
@@ -523,9 +615,15 @@ export default function ProfilePage() {
                 { label: 'Date of Birth', key: 'date_of_birth', type: 'date' },
                 { label: 'Registered Number', key: 'registered_number' },
                 { label: 'NTC Number', key: 'ntc_number', hint: 'Format: PT/000000/0000', validator: validateNTC },
-                { label: 'SSF Number', key: 'ssf_number', hint: 'Format: K000000000000', validator: validateSSF },
+                { label: 'SSF Number', key: 'ssf_number', hint: 'Format: KO18602160034', validator: validateSSF },
                 { label: 'Academic Qualification', key: 'academic_qualification', type: 'select', options: ACADEMIC_QUALIFICATION_OPTIONS },
+                { label: 'Date Obtained Academic Qualification', key: 'date_obtained_academic_qualification', type: 'date' },
                 { label: 'Professional Qualification', key: 'professional_qualification', type: 'select', options: PROFESSIONAL_QUALIFICATION_OPTIONS },
+                { label: 'Date Obtained Professional Qualification', key: 'date_obtained_professional_qualification', type: 'date' },
+                { label: 'Area of Specialization', key: 'area_of_specialization' },
+                { label: 'Date of First Appointment', key: 'date_of_first_appointment', type: 'date' },
+                { label: 'Date Promoted to Current Rank', key: 'date_promoted_to_current_rank', type: 'date' },
+                { label: 'Year Posted to Present Station', key: 'year_posted_to_present_station', type: 'number' },
                 { label: 'Bank', key: 'bank' },
                 { label: 'Bank Branch', key: 'bank_branch' },
                 { label: 'Account Number', key: 'account_number' },
@@ -572,7 +670,7 @@ export default function ProfilePage() {
                 <label className="text-xs text-[#8C7E6E] block mb-1">Supporting Document</label>
                 <input type="file" accept=".pdf,.doc,.docx" onChange={e => { handleOfficialDocChange(e); setDocumentTouched(true); }} onBlur={() => setDocumentTouched(true)}
                   className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" style={{ borderColor: documentAppearance.borderColor }} />
-                {documentAppearance.hint ? <p className="text-[11px] text-[#B83232] mt-1">{documentAppearance.hint}</p> : officialDocName ? <p className="text-[11px] text-[#145C44] mt-1">Attached: {officialDocName}</p> : null}
+                {documentAppearance.hint ? <p className="text-[11px] text-[#B83232] mt-1">{documentAppearance.hint}</p> : officialDocName ? <p className="text-[11px] text-[#145C44] mt-1">Attached: {officialDocName}</p> : <p className="text-[11px] text-[#8C7E6E] mt-1">{documentRequired ? 'Required for appointment, promotion, identity, payroll, and qualification changes. Qualification dates use this same document.' : 'Not required for specialization or year posted to present station only.'}</p>}
               </div>
               {officialError && <p className="text-xs text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">{officialError}</p>}
               <div className="flex gap-3 pt-1">
@@ -656,6 +754,36 @@ export default function ProfilePage() {
                 <input type="tel" value={editForm.emergency_contact_phone ?? ''} onChange={e => { setEditForm(f => ({ ...f, emergency_contact_phone: e.target.value })); touchField('emergency_contact_phone'); }} onBlur={() => touchField('emergency_contact_phone')}
                   className="w-full border rounded-xl px-4 py-2.5 text-sm text-[#2C2218] focus:outline-none" placeholder="+233..." style={{ borderColor: emergencyPhoneAppearance.borderColor }} />
                 {emergencyPhoneAppearance.hint && <p className="text-[11px] text-[#B83232] mt-1">{emergencyPhoneAppearance.hint}</p>}
+              </div>
+              <div>
+                <label className="text-xs text-[#8C7E6E] block mb-1.5">Subject(s) Currently Teaching</label>
+                <div className="rounded-xl border px-3 py-2.5" style={{ borderColor: subjectsAppearance.borderColor }}>
+                  {subjects.length === 0 ? (
+                    <p className="text-xs text-[#C0B5A5] italic">No subjects available</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {subjects.map((subject) => {
+                        const checked = selectedSubjectIds.includes(subject.id);
+                        return (
+                          <label key={subject.id} className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold cursor-pointer"
+                            style={{
+                              borderColor: checked ? '#86EFAC' : '#E2D9CC',
+                              background: checked ? '#E8F4EE' : '#FDFAF5',
+                              color: checked ? '#145C44' : '#4A3F32',
+                            }}>
+                            <input type="checkbox" className="sr-only" checked={checked}
+                              onChange={() => {
+                                touchField('currently_teaching_subject_ids');
+                                setSelectedSubjectIds((prev) => checked ? prev.filter(id => id !== subject.id) : [...prev, subject.id]);
+                              }} />
+                            {subject.name}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                {subjectsAppearance.hint && <p className="text-[11px] text-[#B83232] mt-1">{subjectsAppearance.hint}</p>}
               </div>
               {editError && <p className="text-xs text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-3 py-2">{editError}</p>}
               <div className="flex gap-3 pt-1">

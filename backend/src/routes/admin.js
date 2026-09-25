@@ -91,7 +91,17 @@ router.patch('/teacher-profile-requests/:id/approve', async (req, res, next) => 
     if (!rows.length) return res.status(404).json({ error: 'Pending profile request not found' });
 
     const request = rows[0];
-    const fieldNames = Array.isArray(request.field_names) ? request.field_names : [];
+    const SAFE_TEACHER_COLUMNS = new Set([
+      'name', 'department', 'gov_staff_id', 'rank', 'date_of_birth', 'registered_number',
+      'ntc_number', 'ssf_number', 'academic_qualification', 'professional_qualification',
+      'bank', 'bank_branch', 'account_number', 'association', 'ghana_card_number',
+      'area_of_specialization', 'date_of_first_appointment', 'date_promoted_to_current_rank',
+      'year_posted_to_present_station', 'date_obtained_academic_qualification',
+      'date_obtained_professional_qualification',
+    ]);
+
+    const fieldNames = (Array.isArray(request.field_names) ? request.field_names : [])
+      .filter((field) => SAFE_TEACHER_COLUMNS.has(field));
     if (!fieldNames.length) {
       return res.status(400).json({ error: 'This request does not contain any profile field updates.' });
     }
