@@ -9,6 +9,7 @@ const STUDENT_TYPES = [
   { value: 'program_distribution',   label: 'Program Distribution' },
   { value: 'program_residential',    label: 'Program × Residential Status' },
   { value: 'class_distribution',     label: 'Class Distribution' },
+  { value: 'level_residential',      label: 'Level Distribution by Gender & Residential Status' },
   { value: 'house_distribution',     label: 'House Distribution' },
   { value: 'religion_distribution',      label: 'Religion Distribution' },
   { value: 'denomination_distribution',  label: 'Religious Denomination Distribution' },

@@ -904,6 +904,29 @@ const STUDENT_REPORTS = {
       COUNT(*) FILTER (WHERE s.gender='Female') AS female, COUNT(*) AS total
       FROM students s WHERE s.school_id=$1 ${sc} GROUP BY s.class_name ORDER BY s.class_name`,
   },
+  level_residential: {
+    label: 'Student Distribution by Level, Gender & Residential Status',
+    columns: ['Form','Male - Boarding','Male - Day','Total Male','Female - Boarding','Female - Day','Total Female','Grand Total'],
+    keys:    ['group','male_boarding','male_day','total_male','female_boarding','female_day','total_female','grand_total'],
+    sql: sc => `WITH leveled AS (
+        SELECT s.gender, s.residential_status,
+               COALESCE(cl.name, 'Form ' || COALESCE(substring(s.class_name from '^[0-9]+'), 'Other')) AS level_label,
+               COALESCE(cl.sort_order, NULLIF(substring(s.class_name from '^[0-9]+'), '')::int, 999) AS level_sort
+        FROM students s
+        LEFT JOIN classes c ON c.school_id = s.school_id AND c.name = s.class_name
+        LEFT JOIN class_levels cl ON cl.id = c.level_id
+        WHERE s.school_id = $1 ${sc}
+      )
+      SELECT level_label AS "group",
+             COUNT(*) FILTER (WHERE gender='Male'   AND residential_status='Boarding') AS male_boarding,
+             COUNT(*) FILTER (WHERE gender='Male'   AND residential_status='Day')      AS male_day,
+             COUNT(*) FILTER (WHERE gender='Male')                                      AS total_male,
+             COUNT(*) FILTER (WHERE gender='Female' AND residential_status='Boarding') AS female_boarding,
+             COUNT(*) FILTER (WHERE gender='Female' AND residential_status='Day')      AS female_day,
+             COUNT(*) FILTER (WHERE gender='Female')                                    AS total_female,
+             COUNT(*) AS grand_total
+      FROM leveled GROUP BY level_label, level_sort ORDER BY level_sort, level_label`,
+  },
   house_distribution: {
     label: 'House Distribution',
     columns: ['House','Dayâ€“Male','Dayâ€“Female','Boardingâ€“Male','Boardingâ€“Female','Total'],

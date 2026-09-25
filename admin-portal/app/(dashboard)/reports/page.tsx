@@ -24,6 +24,7 @@ const STUDENT_REPORTS: ReportDef[] = [
   { key: 'program_distribution',      label: 'Program Distribution',                       scope: 'students' },
   { key: 'program_residential',       label: 'Program Distribution by Residential Status', scope: 'students' },
   { key: 'class_distribution',        label: 'Class Distribution',                         scope: 'students' },
+  { key: 'level_residential',         label: 'Level Distribution by Gender & Residential Status', scope: 'students' },
   { key: 'house_distribution',        label: 'House Distribution',                         scope: 'students' },
   { key: 'religion_distribution',     label: 'Religion Distribution',                      scope: 'students' },
   { key: 'denomination_distribution', label: 'Religious Denomination Distribution',        scope: 'students' },
