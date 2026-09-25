@@ -107,13 +107,22 @@ const STYLES = `
     .res-late-cards { display: flex; flex-direction: column; border: 1px solid #E5E0D8; border-radius: 12px; overflow: hidden; }
   }
   .res-print-title { display: none; }
+  .res-print-only  { display: none; }
   @media print {
+    @page { size: A4 portrait; margin: 15mm; }
     /* display:none (not visibility:hidden) removes chrome from the flow
        entirely, so .res-print-area can paginate normally across as many
        printed pages as the table needs — position:fixed here would clip
        everything after the first page instead. */
     .res-print-hide { display: none !important; }
     .res-print-title { display: block !important; }
+    .res-print-only  { display: block !important; }
+    /* The on-screen working table/cards are replaced by the notice-style
+       table below when printing. */
+    .res-late-table, .res-late-cards { display: none !important; }
+    .res-notice-table th, .res-notice-table tr, .res-notice-banner {
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
   }
 `;
 
@@ -245,11 +254,11 @@ export default function ResumptionPage() {
   useEffect(() => { loadConfig(); }, [loadConfig]);
   useEffect(() => { loadMissing(); }, [loadMissing]);
   useEffect(() => { loadFlags(); }, [loadFlags]);
+  useEffect(() => { loadLate(); }, [loadLate]);
   useEffect(() => { if (tab === 'arrivals') loadArrivals(); }, [tab, loadArrivals]);
   useEffect(() => { if (tab === 'missing') loadMissing(); }, [tab, loadMissing]);
   useEffect(() => { if (tab === 'flags') loadFlags(); }, [tab, loadFlags]);
   useEffect(() => { if (tab === 'kitchen') loadKitchen(); }, [tab, loadKitchen]);
-  useEffect(() => { if (tab === 'late') loadLate(); }, [tab, loadLate]);
 
   async function saveConfig() {
     setConfigSaving(true); setConfigErr(null);
@@ -302,6 +311,11 @@ export default function ResumptionPage() {
   const allClasses = [...new Set(boardingStudents.map(s => s.class_name))].sort();
   const allHouses  = [...new Set(boardingStudents.map(s => s.house).filter(Boolean))].sort() as string[];
   const activeFlags = flags.filter(f => !f.resolved_at).length;
+  // Class then name reads far more easily off a notice board than the
+  // severity-first order used for the on-screen working list.
+  const printSorted = [...late].sort((a, b) =>
+    a.class_name.localeCompare(b.class_name) || a.student_name.localeCompare(b.student_name)
+  );
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'arrivals', label: 'Arrivals' },
@@ -593,14 +607,52 @@ export default function ResumptionPage() {
               !lateErr && <p style={{ color: '#9CA3AF', fontSize: 13 }}>No students reported back after the deadline. Everyone made it in on time.</p>
             ) : (
               <div className="res-print-area">
-                <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }} className="res-print-title">
-                  Late Resumption Report
-                </h2>
-                {lateConfig?.resumption_date && (
-                  <p className="res-print-title" style={{ fontSize: 12, color: '#6B7280', marginBottom: 12 }}>
-                    Deadline: resumption date ({new Date(lateConfig.resumption_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}) + {lateConfig.max_days_home} day(s) allowed home.
+                <div className="res-print-title">
+                  <div className="res-notice-banner" style={{ background: '#145C44', color: '#fff', borderRadius: 10, padding: '18px 20px', textAlign: 'center', marginBottom: 14 }}>
+                    <p style={{ fontSize: 24, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', margin: 0 }}>Late Resumption List</p>
+                    <p style={{ fontSize: 13, margin: '6px 0 0', opacity: 0.9 }}>Students who reported after the resumption deadline</p>
+                  </div>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
+                    fontSize: 12, color: '#4B5563', paddingBottom: 10, marginBottom: 18, borderBottom: '2px solid #145C44',
+                  }}>
+                    <span>Deadline: <strong>{late[0] && new Date(late[0].deadline).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</strong></span>
+                    <span><strong>{late.length}</strong> student{late.length !== 1 ? 's' : ''} affected</span>
+                    <span>Generated {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                  </div>
+                </div>
+
+                {/* Notice-board table — print only, sorted class then name for easy scanning */}
+                <div className="res-print-only">
+                  <table className="res-notice-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        {['#', 'Student Name', 'Class', 'House', 'Days Late'].map(h => (
+                          <th key={h} style={{
+                            textAlign: h === 'Days Late' ? 'center' : 'left', padding: '10px 12px', fontSize: 12,
+                            fontWeight: 800, color: '#fff', background: '#145C44', textTransform: 'uppercase',
+                            letterSpacing: 0.5, border: '1px solid #0B3D2E',
+                          }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {printSorted.map((s, i) => (
+                        <tr key={s.arrival_id} style={{ background: i % 2 === 1 ? '#F3F0E8' : '#fff' }}>
+                          <td style={{ padding: '9px 12px', fontSize: 13, border: '1px solid #E2D9CC', color: '#6B7280' }}>{i + 1}</td>
+                          <td style={{ padding: '9px 12px', fontSize: 14, border: '1px solid #E2D9CC', fontWeight: 700, color: '#1C1917' }}>{s.student_name}</td>
+                          <td style={{ padding: '9px 12px', fontSize: 13, border: '1px solid #E2D9CC' }}>{s.class_name}</td>
+                          <td style={{ padding: '9px 12px', fontSize: 13, border: '1px solid #E2D9CC' }}>{s.house || '—'}</td>
+                          <td style={{ padding: '9px 12px', fontSize: 13, border: '1px solid #E2D9CC', textAlign: 'center', fontWeight: 800, color: '#B83232' }}>{s.days_late}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 14, fontStyle: 'italic' }}>
+                    Please report to the House Master/Mistress immediately.
                   </p>
-                )}
+                </div>
+
                 {/* Desktop table */}
                 <div className="res-late-table">
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
