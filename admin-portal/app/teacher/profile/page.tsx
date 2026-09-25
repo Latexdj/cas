@@ -615,7 +615,7 @@ export default function ProfilePage() {
                 { label: 'Date of Birth', key: 'date_of_birth', type: 'date' },
                 { label: 'Registered Number', key: 'registered_number' },
                 { label: 'NTC Number', key: 'ntc_number', hint: 'Format: PT/000000/0000', validator: validateNTC },
-                { label: 'SSF Number', key: 'ssf_number', hint: 'Format: KO18602160034', validator: validateSSF },
+                { label: 'SSF Number', key: 'ssf_number', hint: 'Format: K000000000000', validator: validateSSF },
                 { label: 'Academic Qualification', key: 'academic_qualification', type: 'select', options: ACADEMIC_QUALIFICATION_OPTIONS },
                 { label: 'Date Obtained Academic Qualification', key: 'date_obtained_academic_qualification', type: 'date' },
                 { label: 'Professional Qualification', key: 'professional_qualification', type: 'select', options: PROFESSIONAL_QUALIFICATION_OPTIONS },

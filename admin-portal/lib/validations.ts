@@ -1,15 +1,12 @@
 export const PHONE_RE      = /^0\d{9}$/;
 export const GHANA_CARD_RE = /^GHA-\d{9}-\d$/;
 export const NTC_RE        = /^PT\/\d{6}\/\d{4}$/;
-// GES SSF numbers in real use are 2 letters + 11 digits (e.g. KO18602160034);
-// also accept 1 letter + 12 digits in case another school's format differs —
-// both are 13 characters total. Must stay in sync with backend/src/routes/teachers.js's SSF_RE.
-export const SSF_RE        = /^([A-Za-z]\d{12}|[A-Za-z]{2}\d{11})$/;
+export const SSF_RE        = /^[A-Za-z]\d{12}$/;
 
 export const PHONE_MSG      = 'Must be 10 digits starting with 0 (e.g. 0207440175)';
 export const GHANA_CARD_MSG = 'Format: GHA-XXXXXXXXX-X (e.g. GHA-715422858-2)';
 export const NTC_MSG        = 'Format: PT/XXXXXX/XXXX (e.g. PT/010060/2009)';
-export const SSF_MSG        = '13 characters: 2 letters + 11 digits (e.g. KO18602160034), or 1 letter + 12 digits';
+export const SSF_MSG        = '1 letter + 12 digits, total 13 chars (e.g. K000000000000)';
 
 export function validatePhone(v?: string | null): string | null {
   if (!v) return null;

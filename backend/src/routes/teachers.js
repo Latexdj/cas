@@ -13,10 +13,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 const PHONE_RE      = /^0\d{9}$/;
 const GHANA_CARD_RE = /^GHA-\d{9}-\d$/;
 const NTC_RE        = /^PT\/\d{6}\/\d{4}$/;
-// GES SSF numbers in real use at this school are 2 letters + 11 digits
-// (e.g. KO18602160034); also accept the 1-letter + 12-digit form in case
-// another school's format differs — both are 13 characters total.
-const SSF_RE        = /^([A-Za-z]\d{12}|[A-Za-z]{2}\d{11})$/;
+const SSF_RE        = /^[A-Za-z]\d{12}$/;
 
 const GENDER_OPTIONS = ['Male', 'Female'];
 const RELIGION_OPTIONS = ['Christianity', 'Islam', 'Traditional', 'Other'];
@@ -78,7 +75,7 @@ function validateTeacherFields(fields) {
   if (fields.ntc_number         && !NTC_RE.test(fields.ntc_number))
     errors.push('NTC Number must be in the format PT/000000/0000 (e.g. PT/010060/2009)');
   if (fields.ssf_number         && !SSF_RE.test(fields.ssf_number))
-    errors.push('SSF Number must be 13 characters: 2 letters followed by 11 digits (e.g. KO18602160034), or 1 letter followed by 12 digits');
+    errors.push('SSF Number must be 1 letter followed by 12 digits (e.g. K000000000000)');
   if (fields.academic_qualification) {
     const val = validateDropdownOption(fields.academic_qualification, ACADEMIC_QUALIFICATION_OPTIONS, 'Academic qualification', fields.academic_qualification_other);
     if (val) errors.push(val);
