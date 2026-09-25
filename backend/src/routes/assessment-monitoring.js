@@ -30,6 +30,14 @@ router.get('/', async (req, res, next) => {
     const extraWhere = extraConds.length ? 'AND ' + extraConds.join(' AND ') : '';
 
     // ── 3. Timetable matrix (teacher × subject × class) ───────────────────────
+    // Rows come from the CURRENT timetable, UNIONed with any teacher who
+    // actually has real recorded work (an assessment, exam score, or result
+    // submission) for a subject/class this period — the timetable has no
+    // history/effective-dating, so a mid-semester reassignment would
+    // otherwise make the outgoing teacher's already-completed CA work
+    // silently vanish from this view (looking like it was never started)
+    // the moment an admin edits the slot, while the incoming teacher shows
+    // 0 progress on work they never touched. This keeps both accurate.
     const { rows } = await pool.query(`
       WITH expanded AS (
         SELECT DISTINCT
@@ -40,6 +48,24 @@ router.get('/', async (req, res, next) => {
         FROM timetable t,
              LATERAL unnest(string_to_array(t.class_names, ',')) AS cls
         WHERE t.school_id=$1 AND t.academic_year_id=$2 AND t.semester=$3
+
+        UNION
+
+        SELECT DISTINCT a.teacher_id, LOWER(a.subject) AS subject_key, a.subject, a.class_name
+        FROM assessments a
+        WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
+
+        UNION
+
+        SELECT DISTINCT es.teacher_id, LOWER(es.subject) AS subject_key, es.subject, es.class_name
+        FROM exam_scores es
+        WHERE es.school_id=$1 AND es.academic_year_id=$2 AND es.semester=$3
+
+        UNION
+
+        SELECT DISTINCT rs.teacher_id, LOWER(rs.subject) AS subject_key, rs.subject, rs.class_name
+        FROM result_submissions rs
+        WHERE rs.school_id=$1 AND rs.academic_year_id=$2 AND rs.semester=$3
       )
       SELECT
         e.teacher_id,

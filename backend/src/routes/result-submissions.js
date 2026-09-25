@@ -172,24 +172,52 @@ router.get('/my-status', async (req, res, next) => {
     if (!academic_year_id || !semester) {
       return res.status(400).json({ error: 'academic_year_id and semester are required' });
     }
-    // Find subjects this teacher teaches (from timetable)
+    // Find subjects this teacher teaches (from timetable), UNIONed with any
+    // subject/class they already have real recorded work for this period
+    // (an assessment, exam score, or their own result submission) — the
+    // timetable has no history/effective-dating, so a mid-semester
+    // reassignment would otherwise make this teacher's own past work
+    // disappear from their own status list the moment an admin edits the
+    // timetable, even though they genuinely did the work.
     const { rows: subjects } = await pool.query(
       `SELECT DISTINCT tt.subject, TRIM(cls) AS class_name
        FROM timetable tt,
             LATERAL unnest(string_to_array(tt.class_names, ',')) AS cls
-       WHERE tt.school_id = $1 AND tt.academic_year_id = $2 AND tt.teacher_id = $3`,
+       WHERE tt.school_id = $1 AND tt.academic_year_id = $2 AND tt.teacher_id = $3
+
+       UNION
+
+       SELECT DISTINCT a.subject, a.class_name
+       FROM assessments a
+       WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.teacher_id = $3
+
+       UNION
+
+       SELECT DISTINCT es.subject, es.class_name
+       FROM exam_scores es
+       WHERE es.school_id = $1 AND es.academic_year_id = $2 AND es.teacher_id = $3
+
+       UNION
+
+       SELECT DISTINCT rs.subject, rs.class_name
+       FROM result_submissions rs
+       WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.teacher_id = $3`,
       [req.schoolId, academic_year_id, req.user.id]
     );
     if (!subjects.length) return res.json([]);
 
-    // Get submission records for these subjects
+    // Get submission records for these subjects — scoped to THIS teacher's
+    // own submissions. Matching by subject+class_name alone (with no teacher
+    // filter) meant a newly-assigned teacher would see a slot as "already
+    // submitted" based on the PREVIOUS teacher's real submission, which was
+    // never theirs.
     const { rows: subs } = await pool.query(
       `SELECT rs.subject, rs.class_name, rs.status, rs.submitted_at,
               rs.hod_comment, rs.final_comment, rs.rejected_reason, rs.rejected_at,
               rs.published_at, rs.hod_reviewed_at, rs.final_reviewed_at
        FROM result_submissions rs
-       WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.semester = $3`,
-      [req.schoolId, academic_year_id, parseInt(semester)]
+       WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.semester = $3 AND rs.teacher_id = $4`,
+      [req.schoolId, academic_year_id, parseInt(semester), req.user.id]
     );
 
     const subMap = new Map(subs.map(s => [`${s.subject}||${s.class_name}`, s]));

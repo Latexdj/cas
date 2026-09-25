@@ -23,6 +23,39 @@ async function getSubmissionStatus(schoolId, yearId, semester, subject, classNam
 
 const LOCKED_STATUSES = ['submitted','hod_approved','final_approved','published'];
 
+// A teacher may access a subject/class's remarks if EITHER they're currently
+// timetabled for it, OR they already have real recorded work there this
+// period (an assessment, exam score, or remark they entered earlier). The
+// timetable has no history/effective-dating — a mid-semester reassignment
+// makes the OLD teacher's real past work look, from a pure timetable check,
+// as if it never should have existed. Without the second half of this check,
+// reassigning a slot mid-semester permanently locks the outgoing teacher out
+// of their own already-entered remarks for the weeks they legitimately
+// taught it.
+async function isAssignedOrHasHistory(schoolId, teacherId, yearId, semester, subject, className) {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM timetable
+       WHERE school_id=$1 AND teacher_id=$2 AND academic_year_id=$3 AND semester=$4
+         AND LOWER(subject)=LOWER($5)
+         AND LOWER($6) = ANY(SELECT LOWER(TRIM(cls)) FROM unnest(string_to_array(class_names, ',')) AS cls)
+     UNION
+     SELECT 1 FROM assessments
+       WHERE school_id=$1 AND teacher_id=$2 AND academic_year_id=$3 AND semester=$4
+         AND LOWER(subject)=LOWER($5) AND LOWER(class_name)=LOWER($6)
+     UNION
+     SELECT 1 FROM exam_scores
+       WHERE school_id=$1 AND teacher_id=$2 AND academic_year_id=$3 AND semester=$4
+         AND LOWER(subject)=LOWER($5) AND LOWER(class_name)=LOWER($6)
+     UNION
+     SELECT 1 FROM subject_remarks
+       WHERE school_id=$1 AND teacher_id=$2 AND academic_year_id=$3 AND semester=$4
+         AND LOWER(subject)=LOWER($5) AND LOWER(class_name)=LOWER($6)
+     LIMIT 1`,
+    [schoolId, teacherId, yearId, semester, subject, className]
+  );
+  return rows.length > 0;
+}
+
 // GET /api/assessments/my-subjects?academic_year_id=&semester=
 // Returns subjects + classes the requesting teacher is assigned to in the timetable
 router.get('/my-subjects', async (req, res, next) => {
@@ -169,15 +202,8 @@ router.get('/subject-remarks', async (req, res, next) => {
     }
     const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
     if (!isAdmin) {
-      const { rows: assigned } = await pool.query(
-        `SELECT 1 FROM timetable
-         WHERE school_id=$1 AND teacher_id=$2 AND academic_year_id=$3 AND semester=$4
-           AND LOWER(subject)=LOWER($5)
-           AND LOWER($6) = ANY(SELECT LOWER(TRIM(cls)) FROM unnest(string_to_array(class_names, ',')) AS cls)
-         LIMIT 1`,
-        [req.schoolId, req.user.id, academic_year_id, parseInt(semester), subject, class_name]
-      );
-      if (!assigned.length) return res.status(403).json({ error: 'You are not assigned to teach this subject to this class' });
+      const assigned = await isAssignedOrHasHistory(req.schoolId, req.user.id, academic_year_id, parseInt(semester), subject, class_name);
+      if (!assigned) return res.status(403).json({ error: 'You are not assigned to teach this subject to this class' });
     }
     // Get all active students in class with their remarks (NULL if none yet)
     const { rows } = await pool.query(
@@ -207,15 +233,8 @@ router.post('/subject-remarks', async (req, res, next) => {
 
     const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
     if (!isAdmin) {
-      const { rows: assigned } = await pool.query(
-        `SELECT 1 FROM timetable
-         WHERE school_id=$1 AND teacher_id=$2 AND academic_year_id=$3 AND semester=$4
-           AND LOWER(subject)=LOWER($5)
-           AND LOWER($6) = ANY(SELECT LOWER(TRIM(cls)) FROM unnest(string_to_array(class_names, ',')) AS cls)
-         LIMIT 1`,
-        [req.schoolId, req.user.id, academic_year_id, parseInt(semester), subject, class_name]
-      );
-      if (!assigned.length) return res.status(403).json({ error: 'You are not assigned to teach this subject to this class' });
+      const assigned = await isAssignedOrHasHistory(req.schoolId, req.user.id, academic_year_id, parseInt(semester), subject, class_name);
+      if (!assigned) return res.status(403).json({ error: 'You are not assigned to teach this subject to this class' });
     }
 
     const validStudentIds = new Set(await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester)));
