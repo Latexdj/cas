@@ -200,10 +200,40 @@ router.post('/schedules/:id/generate', adminOnly, async (req, res, next) => {
       params
     );
 
-    if (rowCount === 0) {
-      return res.json({ message: 'All matching students already have a bill for this schedule. Nothing to generate.', inserted: 0, skipped: 0 });
-    }
-    res.json({ message: `Generated ${rowCount} bill(s).`, inserted: rowCount, skipped: 0 });
+    // Sync already-existing bills for this schedule to its current amount/
+    // due_date/description — an admin who edits a schedule and re-runs
+    // Generate expects already-billed students to pick up the new amount
+    // too, not just students who never had a bill. Only touches bills with
+    // no payment recorded yet: a bill someone has already paid against
+    // isn't silently changed underneath them, since retroactively raising
+    // or lowering it would create a confusing under/over-payment with no
+    // admin awareness that it happened.
+    const { rows: updatedRows } = await pool.query(
+      `UPDATE student_bills sb
+       SET amount = $2, due_date = $3, description = $4
+       WHERE sb.fee_schedule_id = $1
+         AND NOT EXISTS (SELECT 1 FROM fee_payments fp WHERE fp.bill_id = sb.id)
+         AND (sb.amount IS DISTINCT FROM $2 OR sb.due_date IS DISTINCT FROM $3 OR sb.description IS DISTINCT FROM $4)
+       RETURNING sb.id`,
+      [schedule.id, schedule.amount, schedule.due_date, description]
+    );
+
+    const { rows: [{ count: skippedPaid }] } = await pool.query(
+      `SELECT COUNT(DISTINCT sb.id)::int AS count
+       FROM student_bills sb
+       WHERE sb.fee_schedule_id = $1
+         AND EXISTS (SELECT 1 FROM fee_payments fp WHERE fp.bill_id = sb.id)
+         AND (sb.amount IS DISTINCT FROM $2 OR sb.due_date IS DISTINCT FROM $3)`,
+      [schedule.id, schedule.amount, schedule.due_date]
+    );
+
+    const parts2 = [];
+    if (rowCount) parts2.push(`${rowCount} new bill(s) generated`);
+    if (updatedRows.length) parts2.push(`${updatedRows.length} existing bill(s) updated to match the current schedule`);
+    if (skippedPaid > 0) parts2.push(`${skippedPaid} bill(s) left unchanged because a payment has already been recorded against them — review these manually if the amount needs correcting`);
+    const message = parts2.length ? parts2.join('; ') + '.' : 'Nothing to generate — everything already matches the current schedule.';
+
+    res.json({ message, inserted: rowCount, updated: updatedRows.length, skipped_paid: skippedPaid });
   } catch (err) { next(err); }
 });
 

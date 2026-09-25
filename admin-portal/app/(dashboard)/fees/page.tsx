@@ -261,7 +261,7 @@ function SchedulesTab({
   }
 
   async function generate(id: string) {
-    if (!confirm('Generate bills for all matching active students? Existing bills for this schedule will be skipped.')) return;
+    if (!confirm('Generate bills for all matching active students? Students who already have a bill for this schedule will have it updated to match the current amount/due date, unless a payment has already been recorded against it.')) return;
     setGenerating(id); setGenMsg(null);
     try {
       const r = await api.post(`/api/fees/schedules/${id}/generate`);
