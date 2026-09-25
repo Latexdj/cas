@@ -46,6 +46,14 @@ interface TeacherProfile {
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   photo_url: string | null;
+  area_of_specialization: string | null;
+  date_of_first_appointment: string | null;
+  date_promoted_to_current_rank: string | null;
+  year_posted_to_present_station: number | null;
+  date_obtained_academic_qualification: string | null;
+  date_obtained_professional_qualification: string | null;
+  currently_teaching_subject_ids?: string[];
+  currently_teaching_subjects?: { id: string; name: string }[];
 }
 
 function compressToBase64(file: File): Promise<string> {
@@ -348,7 +356,7 @@ export default function ProfilePage() {
     );
 
     const needsDocument = DOC_REQUIRED_OFFICIAL_FIELDS.some((key) => {
-      const current = comparableOfficialValue(key, (profile as Record<string, string | number | null | undefined>)[key]);
+      const current = comparableOfficialValue(key, (profile as unknown as Record<string, string | number | null | undefined>)[key]);
       const next = comparableOfficialValue(key, officialForm[key]);
       if (key === 'rank' || key === 'academic_qualification' || key === 'professional_qualification' || key === 'association') {
         const selected = officialForm[key] === 'Other' ? (officialForm[`${key}_other`] ?? '') : officialForm[key];
@@ -410,7 +418,7 @@ export default function ProfilePage() {
   const phoneAppearance = getFieldAppearance(editForm.phone ?? '', validatePhone, fieldTouched.phone ?? false);
   const emergencyPhoneAppearance = getFieldAppearance(editForm.emergency_contact_phone ?? '', validatePhone, fieldTouched.emergency_contact_phone ?? false);
   const documentRequired = DOC_REQUIRED_OFFICIAL_FIELDS.some((key) => {
-    const current = comparableOfficialValue(key, (profile as Record<string, string | number | null | undefined> | null)?.[key]);
+    const current = comparableOfficialValue(key, (profile as unknown as Record<string, string | number | null | undefined> | null)?.[key]);
     if (key === 'rank' || key === 'academic_qualification' || key === 'professional_qualification' || key === 'association') {
       const selected = officialForm[key] === 'Other' ? (officialForm[`${key}_other`] ?? '') : officialForm[key];
       return comparableOfficialValue(key, selected) !== current;
