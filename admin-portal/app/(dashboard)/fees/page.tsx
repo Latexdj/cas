@@ -39,6 +39,9 @@ interface ArrearRow {
   student_id: string; student_name: string; student_code: string; class_name: string;
   total_billed: string; total_paid: string; outstanding: string;
 }
+interface CollectionRow {
+  payment_date: string; payment_method: string; total: string; count: number;
+}
 interface AcademicYear { id: string; name: string; is_current: boolean; }
 interface Stats {
   total_billed: number; total_collected: number; outstanding: number;
@@ -57,7 +60,7 @@ const EXPENSE_CATEGORIES = [
   'Petty Cash', 'Other',
 ];
 
-type Tab = 'items' | 'schedules' | 'collections' | 'expenditure' | 'arrears';
+type Tab = 'items' | 'schedules' | 'collections' | 'expenditure' | 'arrears' | 'payments_report';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -796,6 +799,115 @@ function ArrearTab({ years, classes }: { years: AcademicYear[]; classes: string[
   );
 }
 
+// ── Payments Report Tab ─────────────────────────────────────────────────────────
+
+function PaymentsReportTab({ years, classes }: { years: AcademicYear[]; classes: string[] }) {
+  const [filters, setFilters] = useState({ year_id: '', semester: '', class_name: '', from: '', to: '' });
+  const [rows, setRows] = useState<CollectionRow[]>([]);
+  const [grandTotal, setGrandTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+
+  async function load() {
+    setLoading(true); setSearched(true);
+    try {
+      const r = await api.get('/api/fees/reports/collections', {
+        params: {
+          year_id:    filters.year_id || undefined,
+          semester:   filters.semester || undefined,
+          class_name: filters.class_name || undefined,
+          from:       filters.from || undefined,
+          to:         filters.to || undefined,
+        },
+      });
+      setRows(r.data.rows);
+      setGrandTotal(r.data.grand_total);
+    } catch { setRows([]); setGrandTotal(0); }
+    finally { setLoading(false); }
+  }
+
+  const { displayRows: paymentRows, total: paymentTotal, page: paymentPage, setPage: setPaymentPage, pageSize: paymentPageSize, setPageSize: setPaymentPageSize } = useTableControls(rows);
+  const totalPaymentCount = rows.reduce((s, r) => s + r.count, 0);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'flex-end' }}>
+        <div>
+          <label style={labelStyle}>Academic Year</label>
+          <select style={{ ...inputStyle, width: 'auto' }} value={filters.year_id} onChange={e => setFilters(f => ({ ...f, year_id: e.target.value }))}>
+            <option value="">All Years</option>
+            {years.map(y => <option key={y.id} value={y.id}>{y.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Semester</label>
+          <select style={{ ...inputStyle, width: 'auto' }} value={filters.semester} onChange={e => setFilters(f => ({ ...f, semester: e.target.value }))}>
+            <option value="">All Semesters</option>
+            <option value="1">Semester 1</option>
+            <option value="2">Semester 2</option>
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Class</label>
+          <select style={{ ...inputStyle, width: 'auto' }} value={filters.class_name} onChange={e => setFilters(f => ({ ...f, class_name: e.target.value }))}>
+            <option value="">All Classes</option>
+            {classes.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>From</label>
+          <input type="date" style={{ ...inputStyle, width: 'auto' }} value={filters.from} onChange={e => setFilters(f => ({ ...f, from: e.target.value }))} />
+        </div>
+        <div>
+          <label style={labelStyle}>To</label>
+          <input type="date" style={{ ...inputStyle, width: 'auto' }} value={filters.to} onChange={e => setFilters(f => ({ ...f, to: e.target.value }))} />
+        </div>
+        <button style={btnPrimary} onClick={load} disabled={loading}>{loading ? 'Loading…' : 'Generate Report'}</button>
+      </div>
+
+      {searched && !loading && (
+        <>
+          {paymentRows.length === 0 ? (
+            <p style={{ color: '#94a3b8', textAlign: 'center', padding: 24 }}>No payments found for the selected filters.</p>
+          ) : (
+            <>
+              <div style={{ marginBottom: 16, padding: '12px 16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                <span style={{ fontWeight: 700, color: '#145C44' }}>Total Collected: {fmt(grandTotal)}</span>
+                <span style={{ color: '#64748b', fontSize: 13 }}>{totalPaymentCount} payment(s) across {paymentTotal} day/method group(s)</span>
+              </div>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    {['Date', 'Payment Method', 'No. of Payments', 'Total'].map(h => (
+                      <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {paymentRows.map(r => (
+                    <tr key={`${r.payment_date}-${r.payment_method}`} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '8px 10px', fontWeight: 600 }}>{new Date(r.payment_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                      <td style={{ padding: '8px 10px', color: '#64748b' }}>{r.payment_method}</td>
+                      <td style={{ padding: '8px 10px', color: '#64748b' }}>{r.count}</td>
+                      <td style={{ padding: '8px 10px', fontWeight: 700, color: '#145C44' }}>{fmt(r.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <Pagination page={paymentPage} pageSize={paymentPageSize} total={paymentTotal} onPage={setPaymentPage} onPageSize={(s) => { setPaymentPageSize(s); setPaymentPage(1); }} />
+            </>
+          )}
+        </>
+      )}
+
+      {!searched && (
+        <p style={{ color: '#94a3b8', textAlign: 'center', padding: 40, fontSize: 14 }}>Select filters above and click Generate Report.</p>
+      )}
+    </div>
+  );
+}
+
 // ── Expenditure Tab ───────────────────────────────────────────────────────────
 
 function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
@@ -1076,6 +1188,7 @@ export default function FeesPage() {
     { id: 'collections', label: 'Collections' },
     { id: 'expenditure', label: 'Expenditure' },
     { id: 'arrears',     label: 'Arrears Report' },
+    { id: 'payments_report', label: 'Payments Report' },
   ];
 
   return (
@@ -1125,6 +1238,7 @@ export default function FeesPage() {
       {tab === 'collections'  && <CollectionsTab items={items} />}
       {tab === 'expenditure'  && <ExpenditureTab onExpenseChange={loadStats} />}
       {tab === 'arrears'     && <ArrearTab years={years} classes={classes} />}
+      {tab === 'payments_report' && <PaymentsReportTab years={years} classes={classes} />}
     </div>
   );
 }

@@ -476,19 +476,27 @@ router.get('/reports/arrears', adminOnly, async (req, res, next) => {
 
 router.get('/reports/collections', adminOnly, async (req, res, next) => {
   try {
-    const { from, to, class_name } = req.query;
+    const { from, to, class_name, year_id, semester } = req.query;
     const conditions = ['fp.school_id = $1'];
     const params = [req.schoolId];
     let i = 2;
     if (from)       { conditions.push(`fp.payment_date >= $${i++}`); params.push(from); }
     if (to)         { conditions.push(`fp.payment_date <= $${i++}`); params.push(to); }
     if (class_name) { conditions.push(`s.class_name = $${i++}`); params.push(class_name); }
+    // A payment only carries a period via the bill it's applied against
+    // (fee_payments has no academic_year_id/semester of its own) — an
+    // ad-hoc payment with no linked bill has no reliable period to match,
+    // so it's correctly excluded rather than guessed at when this filter
+    // is used.
+    if (year_id)    { conditions.push(`sb.academic_year_id = $${i++}`); params.push(year_id); }
+    if (semester)   { conditions.push(`sb.semester = $${i++}`); params.push(Number(semester)); }
 
     const { rows } = await pool.query(
       `SELECT fp.payment_date, fp.payment_method,
               SUM(fp.amount) AS total, COUNT(*)::int AS count
        FROM fee_payments fp
        JOIN students s ON s.id = fp.student_id
+       LEFT JOIN student_bills sb ON sb.id = fp.bill_id
        WHERE ${conditions.join(' AND ')}
        GROUP BY fp.payment_date, fp.payment_method
        ORDER BY fp.payment_date DESC`,
