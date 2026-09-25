@@ -413,7 +413,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex" style={{ background: dk.pageBg }}>
 
       {/* ── Desktop sidebar ── */}
-      <aside className="hidden md:flex flex-col w-60 shrink-0 fixed top-0 left-0 h-full z-20 shadow-sm"
+      <aside className="hidden md:flex flex-col w-60 shrink-0 fixed top-0 left-0 h-full z-20 shadow-sm print:hidden"
         style={{ backgroundColor: dk.sidebarBg, borderRight: `1px solid ${dk.border}` }}>
         <div className="px-5 py-4 flex items-center gap-3" style={{ borderBottom: `1px solid ${dk.border}` }}>
           {logoUrl ? (
@@ -527,8 +527,8 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* ── Main content ── */}
-      <div className="flex-1 flex flex-col md:ml-60 min-h-screen">
-        <main className="flex-1 pb-20 md:pb-6">{children}</main>
+      <div className="flex-1 flex flex-col md:ml-60 print:ml-0 min-h-screen">
+        <main className="flex-1 pb-20 md:pb-6 print:pb-0">{children}</main>
       </div>
 
       {/* ── Mobile: More bottom-sheet backdrop ── */}

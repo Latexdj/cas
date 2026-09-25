@@ -414,6 +414,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         open ? 'translate-x-0' : '-translate-x-full',
         // Desktop: static, always visible, original width
         'md:relative md:w-56 md:translate-x-0 md:z-auto',
+        'print:hidden',
       ].join(' ')}
       style={{ backgroundColor: '#0B3D2E' }}
     >

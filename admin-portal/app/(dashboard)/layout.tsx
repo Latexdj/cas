@@ -72,7 +72,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const title = pageTitles[pathname] ?? 'Admin Portal';
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    // print:h-auto + print:overflow-visible: this shell fixes itself to the
+    // viewport height with internal scrolling for the normal app UI, but that
+    // exact structure caps printing at a single page — the browser only ever
+    // renders one viewport-height's worth of a height-constrained, overflow-
+    // hidden container. Printing needs the real, full content height instead.
+    <div className="flex h-screen overflow-hidden print:h-auto print:overflow-visible">
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
@@ -83,9 +88,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--background)' }}>
+      <div className="flex-1 flex flex-col overflow-hidden print:overflow-visible" style={{ backgroundColor: 'var(--background)' }}>
         <Header title={title} onMenuClick={() => setSidebarOpen(o => !o)} />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-6 print:overflow-visible print:h-auto print:p-0">{children}</main>
       </div>
       <HelpWidget />
     </div>

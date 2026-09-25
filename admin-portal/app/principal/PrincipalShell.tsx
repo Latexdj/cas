@@ -171,6 +171,7 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
         'transition-transform duration-300 ease-in-out',
         sideOpen ? 'translate-x-0' : '-translate-x-full',
         'md:relative md:translate-x-0 md:z-auto',
+        'print:hidden',
       ].join(' ')}
       style={{ backgroundColor: '#0B3D2E' }}
     >
@@ -270,7 +271,7 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
       <div className="flex-1 min-w-0 flex flex-col">
         {/* Topbar */}
         <header
-          className="sticky top-0 z-30 h-14 flex items-center gap-3 px-4 border-b"
+          className="sticky top-0 z-30 h-14 flex items-center gap-3 px-4 border-b print:hidden"
           style={{
             background: dark ? '#152210' : '#FDFAF5',
             borderColor: dark ? 'rgba(255,255,255,0.07)' : '#E8E0D4',

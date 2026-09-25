@@ -20,7 +20,7 @@ export function Header({ title, onMenuClick }: Props) {
   }
 
   return (
-    <header className="h-16 flex items-center justify-between px-4 md:px-6 flex-shrink-0" style={{ backgroundColor: '#FDFAF5', borderBottom: '1px solid #E8E0D4' }}>
+    <header className="h-16 flex items-center justify-between px-4 md:px-6 flex-shrink-0 print:hidden" style={{ backgroundColor: '#FDFAF5', borderBottom: '1px solid #E8E0D4' }}>
       <div className="flex items-center gap-3">
         <button
           onClick={onMenuClick}
