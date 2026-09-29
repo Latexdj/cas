@@ -22,6 +22,30 @@ function accountsAccess(req, res, next) {
   return res.status(403).json({ error: 'Accounts staff access only' });
 }
 
+// Finds other active schedules for the same fee item whose scope overlaps
+// with the one being created/edited — a NULL on either side (class_name,
+// academic_year_id, or semester) means "applies to everyone/every year", so
+// it overlaps with anything specific. Two schedules for the same fee item
+// covering the same students is how a school ends up double-billed: Generate
+// Bills only ever checks for duplicates against one schedule's own ID, so it
+// has no way to know a *different* schedule already covers the same fee.
+async function findConflictingSchedules(dbClient, schoolId, { feeItemId, academicYearId, semester, className, excludeId }) {
+  const params = [schoolId, feeItemId, academicYearId || null, semester ?? null, className?.trim() || null];
+  let excludeClause = '';
+  if (excludeId) { params.push(excludeId); excludeClause = `AND fs.id != $${params.length}`; }
+  const { rows } = await dbClient.query(
+    `SELECT fs.id, fs.class_name, fs.amount, fs.semester, ay.name AS academic_year_name
+     FROM fee_schedules fs LEFT JOIN academic_years ay ON ay.id = fs.academic_year_id
+     WHERE fs.school_id = $1 AND fs.fee_item_id = $2
+       AND (fs.academic_year_id IS NOT DISTINCT FROM $3 OR fs.academic_year_id IS NULL OR $3 IS NULL)
+       AND (fs.semester IS NOT DISTINCT FROM $4 OR fs.semester IS NULL OR $4 IS NULL)
+       AND (fs.class_name IS NOT DISTINCT FROM $5 OR fs.class_name IS NULL OR $5 IS NULL)
+       ${excludeClause}`,
+    params
+  );
+  return rows;
+}
+
 // ── Fee Items ─────────────────────────────────────────────────────────────────
 
 router.get('/items', accountsAccess, async (req, res, next) => {
@@ -97,9 +121,23 @@ router.get('/schedules', adminOnly, async (req, res, next) => {
 
 router.post('/schedules', adminOnly, async (req, res, next) => {
   try {
-    const { fee_item_id, academic_year_id, semester, class_name, amount, due_date } = req.body;
+    const { fee_item_id, academic_year_id, semester, class_name, amount, due_date, confirm_duplicate } = req.body;
     if (!fee_item_id) return res.status(400).json({ error: 'Fee item is required.' });
     if (!amount || isNaN(amount) || Number(amount) <= 0) return res.status(400).json({ error: 'A valid amount is required.' });
+
+    if (!confirm_duplicate) {
+      const conflicts = await findConflictingSchedules(pool, req.schoolId, {
+        feeItemId: fee_item_id, academicYearId: academic_year_id, semester, className: class_name,
+      });
+      if (conflicts.length) {
+        return res.status(409).json({
+          error: 'duplicate_schedule',
+          message: 'A schedule for this fee item already covers an overlapping class/year. Creating another risks double-billing the same students — confirm if this is intentional.',
+          conflicting_schedules: conflicts,
+        });
+      }
+    }
+
     const { rows } = await pool.query(
       `INSERT INTO fee_schedules (school_id, fee_item_id, academic_year_id, semester, class_name, amount, due_date)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
@@ -112,9 +150,23 @@ router.post('/schedules', adminOnly, async (req, res, next) => {
 
 router.put('/schedules/:id', adminOnly, async (req, res, next) => {
   try {
-    const { fee_item_id, academic_year_id, semester, class_name, amount, due_date } = req.body;
+    const { fee_item_id, academic_year_id, semester, class_name, amount, due_date, confirm_duplicate } = req.body;
     if (!fee_item_id) return res.status(400).json({ error: 'Fee item is required.' });
     if (!amount || isNaN(amount) || Number(amount) <= 0) return res.status(400).json({ error: 'A valid amount is required.' });
+
+    if (!confirm_duplicate) {
+      const conflicts = await findConflictingSchedules(pool, req.schoolId, {
+        feeItemId: fee_item_id, academicYearId: academic_year_id, semester, className: class_name, excludeId: req.params.id,
+      });
+      if (conflicts.length) {
+        return res.status(409).json({
+          error: 'duplicate_schedule',
+          message: 'Another schedule for this fee item already covers an overlapping class/year. Confirm if this is intentional.',
+          conflicting_schedules: conflicts,
+        });
+      }
+    }
+
     const { rows } = await pool.query(
       `UPDATE fee_schedules SET fee_item_id=$1, academic_year_id=$2, semester=$3,
          class_name=$4, amount=$5, due_date=$6
@@ -124,6 +176,98 @@ router.put('/schedules/:id', adminOnly, async (req, res, next) => {
     );
     if (!rows[0]) return res.status(404).json({ error: 'Not found.' });
     res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// POST /api/fees/schedules/by-level — apply one fee to an entire Form/Level
+// in one action instead of creating a separate schedule per class by hand.
+// A level's classes have no shared row of their own in fee_schedules (a
+// schedule targets one class_name at a time), so this creates or updates one
+// schedule per class under the level: a class that already has an exact
+// (fee_item, class_name, academic_year, semester) match gets its amount/due
+// date updated in place, matching how editing a single schedule works;
+// everything else gets a new schedule. Existing bills aren't touched here —
+// Generate Bills still has to be run per schedule afterward, same as always.
+router.post('/schedules/by-level', adminOnly, async (req, res, next) => {
+  try {
+    const { fee_item_id, level_id, academic_year_id, semester, amount, due_date, confirm_duplicate } = req.body;
+    if (!fee_item_id) return res.status(400).json({ error: 'Fee item is required.' });
+    if (!level_id) return res.status(400).json({ error: 'Level is required.' });
+    if (!amount || isNaN(amount) || Number(amount) <= 0) return res.status(400).json({ error: 'A valid amount is required.' });
+
+    const { rows: levelRows } = await pool.query(`SELECT name FROM class_levels WHERE id=$1 AND school_id=$2`, [level_id, req.schoolId]);
+    if (!levelRows.length) return res.status(404).json({ error: 'Level not found.' });
+    const levelName = levelRows[0].name;
+
+    const { rows: classRows } = await pool.query(
+      `SELECT name FROM classes WHERE school_id=$1 AND level_id=$2 ORDER BY name`,
+      [req.schoolId, level_id]
+    );
+    if (!classRows.length) return res.status(400).json({ error: `No classes are assigned to ${levelName}.` });
+
+    // Pass 1: check every class under the level for a conflict with a
+    // DIFFERENT schedule before writing anything — an exact match on this
+    // same class/item/year/semester isn't a conflict, that's the row we'll
+    // update below.
+    if (!confirm_duplicate) {
+      const externalConflicts = [];
+      for (const c of classRows) {
+        const conflicts = await findConflictingSchedules(pool, req.schoolId, {
+          feeItemId: fee_item_id, academicYearId: academic_year_id, semester, className: c.name,
+        });
+        externalConflicts.push(...conflicts.filter(cf => cf.class_name !== c.name));
+      }
+      if (externalConflicts.length) {
+        return res.status(409).json({
+          error: 'duplicate_schedule',
+          message: `Some classes under ${levelName} are already covered by another schedule for this fee item. Creating this risks double-billing those students — confirm if this is intentional.`,
+          conflicting_schedules: externalConflicts,
+        });
+      }
+    }
+
+    // Pass 2: upsert one schedule per class.
+    const client = await pool.connect();
+    let created = 0, updated = 0;
+    try {
+      await client.query('BEGIN');
+      for (const c of classRows) {
+        const { rows: existing } = await client.query(
+          `SELECT id FROM fee_schedules WHERE school_id=$1 AND fee_item_id=$2 AND class_name=$3
+             AND academic_year_id IS NOT DISTINCT FROM $4 AND semester IS NOT DISTINCT FROM $5`,
+          [req.schoolId, fee_item_id, c.name, academic_year_id || null, semester || null]
+        );
+        if (existing.length) {
+          await client.query(
+            `UPDATE fee_schedules SET amount=$1, due_date=$2 WHERE id=$3`,
+            [Number(amount), due_date || null, existing[0].id]
+          );
+          updated++;
+        } else {
+          await client.query(
+            `INSERT INTO fee_schedules (school_id, fee_item_id, academic_year_id, semester, class_name, amount, due_date)
+             VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+            [req.schoolId, fee_item_id, academic_year_id || null, semester || null, c.name, Number(amount), due_date || null]
+          );
+          created++;
+        }
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    await auditLog('fee_schedule_applied_to_level', 'class_level', level_id, levelName, {
+      applied_by: req.user.name, fee_item_id, amount, due_date, classes: classRows.map(c => c.name), created, updated,
+    });
+
+    res.status(201).json({
+      message: `Applied to ${levelName}: ${created} new schedule(s) created, ${updated} existing schedule(s) updated.`,
+      level_name: levelName, classes: classRows.map(c => c.name), created, updated,
+    });
   } catch (err) { next(err); }
 });
 

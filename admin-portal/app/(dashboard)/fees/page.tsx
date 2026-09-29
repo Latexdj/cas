@@ -48,6 +48,7 @@ interface UnscheduledGroup {
   earliest_created_at: string; latest_created_at: string;
 }
 interface AcademicYear { id: string; name: string; is_current: boolean; }
+interface ClassLevel { id: string; name: string; sort_order: number; class_count: number; }
 interface Stats {
   total_billed: number; total_collected: number; outstanding: number;
   total_expenses: number; net_position: number; students_with_bills: number;
@@ -226,32 +227,78 @@ function ItemsTab({ items, loading, onRefresh }: { items: FeeItem[]; loading: bo
 // ── Schedules Tab ─────────────────────────────────────────────────────────────
 
 function SchedulesTab({
-  schedules, items, years, classes, loading, onRefresh, onBillsGenerated,
+  schedules, items, years, classes, levels, loading, onRefresh, onBillsGenerated,
 }: {
   schedules: FeeSchedule[]; items: FeeItem[]; years: AcademicYear[];
-  classes: string[]; loading: boolean; onRefresh: () => void; onBillsGenerated: () => void;
+  classes: string[]; levels: ClassLevel[]; loading: boolean; onRefresh: () => void; onBillsGenerated: () => void;
 }) {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeeSchedule | null>(null);
   const [form, setForm] = useState({ fee_item_id: '', academic_year_id: '', semester: '', class_name: '', amount: '', due_date: '' });
+  const [targetMode, setTargetMode] = useState<'all' | 'class' | 'level'>('all');
+  const [levelId, setLevelId] = useState('');
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState<string | null>(null);
   const [genMsg, setGenMsg] = useState<string | null>(null);
   const [err, setErr] = useState('');
 
-  function openNew() { setEditing(null); setForm({ fee_item_id: '', academic_year_id: '', semester: '', class_name: '', amount: '', due_date: '' }); setErr(''); setShowModal(true); }
+  function openNew() {
+    setEditing(null);
+    setForm({ fee_item_id: '', academic_year_id: '', semester: '', class_name: '', amount: '', due_date: '' });
+    setTargetMode('all'); setLevelId('');
+    setErr(''); setShowModal(true);
+  }
   function openEdit(s: FeeSchedule) {
     setEditing(s);
     setForm({ fee_item_id: s.fee_item_id, academic_year_id: s.academic_year_id ?? '', semester: s.semester?.toString() ?? '', class_name: s.class_name ?? '', amount: s.amount, due_date: s.due_date ?? '' });
+    setTargetMode(s.class_name ? 'class' : 'all'); setLevelId('');
     setErr(''); setShowModal(true);
+  }
+
+  // A 409 here means another schedule for the same fee item already covers
+  // an overlapping class/year — surfacing that instead of silently creating
+  // a second schedule is what stops the same fee from double-billing
+  // students under two schedules at once.
+  function confirmDuplicateOrThrow(e: unknown): true {
+    const resp = (e as { response?: { status?: number; data?: { error?: string; message?: string; conflicting_schedules?: { class_name: string | null; amount: string }[] } } })?.response;
+    if (resp?.status === 409 && resp.data?.error === 'duplicate_schedule') {
+      const list = (resp.data.conflicting_schedules ?? [])
+        .map(c => `  • ${c.class_name ?? 'All Classes'} — ${fmt(c.amount)}`).join('\n');
+      if (confirm(`${resp.data.message}\n\nConflicting schedule(s):\n${list}\n\nCreate it anyway?`)) return true;
+    }
+    throw e;
   }
 
   async function save() {
     setSaving(true); setErr('');
     try {
+      if (targetMode === 'level' && !editing) {
+        const body = {
+          fee_item_id: form.fee_item_id, level_id: levelId,
+          academic_year_id: form.academic_year_id || null,
+          semester: form.semester ? Number(form.semester) : null,
+          amount: form.amount, due_date: form.due_date || null,
+        };
+        try {
+          await api.post('/api/fees/schedules/by-level', body);
+        } catch (e) {
+          confirmDuplicateOrThrow(e);
+          await api.post('/api/fees/schedules/by-level', { ...body, confirm_duplicate: true });
+        }
+        setShowModal(false); onRefresh();
+        return;
+      }
+
       const body = { ...form, semester: form.semester ? Number(form.semester) : null };
-      if (editing) await api.put(`/api/fees/schedules/${editing.id}`, body);
-      else await api.post('/api/fees/schedules', body);
+      try {
+        if (editing) await api.put(`/api/fees/schedules/${editing.id}`, body);
+        else await api.post('/api/fees/schedules', body);
+      } catch (e) {
+        confirmDuplicateOrThrow(e);
+        const confirmedBody = { ...body, confirm_duplicate: true };
+        if (editing) await api.put(`/api/fees/schedules/${editing.id}`, confirmedBody);
+        else await api.post('/api/fees/schedules', confirmedBody);
+      }
       setShowModal(false); onRefresh();
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
@@ -362,11 +409,41 @@ function SchedulesTab({
               </select>
             </div>
             <div>
-              <label style={labelStyle}>Class (leave blank for all)</label>
-              <select style={inputStyle} value={form.class_name} onChange={e => setForm(f => ({ ...f, class_name: e.target.value }))}>
-                <option value="">All Classes</option>
-                {classes.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <label style={labelStyle}>Applies To</label>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                {([['all', 'All Classes'], ['class', 'One Class'], ['level', 'A Form/Level']] as const).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    disabled={mode === 'level' && !!editing}
+                    onClick={() => { setTargetMode(mode); if (mode !== 'class') setForm(f => ({ ...f, class_name: '' })); if (mode !== 'level') setLevelId(''); }}
+                    style={{
+                      flex: 1, padding: '6px 8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: mode === 'level' && editing ? 'not-allowed' : 'pointer',
+                      border: targetMode === mode ? '1.5px solid #145C44' : '1.5px solid #e2e8f0',
+                      background: targetMode === mode ? '#f0fdf4' : '#fff',
+                      color: targetMode === mode ? '#145C44' : '#64748b',
+                      opacity: mode === 'level' && editing ? 0.4 : 1,
+                    }}
+                  >{label}</button>
+                ))}
+              </div>
+              {targetMode === 'class' && (
+                <select style={inputStyle} value={form.class_name} onChange={e => setForm(f => ({ ...f, class_name: e.target.value }))}>
+                  <option value="">Select class…</option>
+                  {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              )}
+              {targetMode === 'level' && (
+                <>
+                  <select style={inputStyle} value={levelId} onChange={e => setLevelId(e.target.value)}>
+                    <option value="">Select level…</option>
+                    {levels.map(l => <option key={l.id} value={l.id}>{l.name} ({l.class_count} class{l.class_count === 1 ? '' : 'es'})</option>)}
+                  </select>
+                  <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                    Creates or updates one schedule per class under this level — not a single shared schedule.
+                  </p>
+                </>
+              )}
             </div>
             <div>
               <label style={labelStyle}>Amount (GH₵) *</label>
@@ -379,7 +456,11 @@ function SchedulesTab({
             {err && <p style={{ color: '#dc2626', fontSize: 13 }}>{err}</p>}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button style={btnSecondary} onClick={() => setShowModal(false)}>Cancel</button>
-              <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+              <button
+                style={btnPrimary}
+                onClick={save}
+                disabled={saving || !form.fee_item_id || !form.amount || (targetMode === 'level' && !levelId)}
+              >{saving ? 'Saving…' : targetMode === 'level' ? 'Apply to Level' : 'Save'}</button>
             </div>
           </div>
         </Modal>
@@ -1271,6 +1352,7 @@ export default function FeesPage() {
   const [schedules, setSchedules] = useState<FeeSchedule[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [classes, setClasses] = useState<string[]>([]);
+  const [levels, setLevels] = useState<ClassLevel[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loadingItems, setLoadingItems] = useState(true);
   const [loadingSchedules, setLoadingSchedules] = useState(true);
@@ -1297,6 +1379,7 @@ export default function FeesPage() {
     loadStats();
     api.get('/api/academic-years').then(r => setYears(r.data)).catch(() => {});
     api.get('/api/fees/classes').then(r => setClasses(r.data)).catch(() => {});
+    api.get('/api/class-levels').then(r => setLevels(r.data)).catch(() => {});
   }, [loadItems, loadSchedules, loadStats]);
 
   const TABS: { id: Tab; label: string }[] = [
@@ -1352,7 +1435,7 @@ export default function FeesPage() {
 
       {/* Tab content */}
       {tab === 'items'       && <ItemsTab items={items} loading={loadingItems} onRefresh={loadItems} />}
-      {tab === 'schedules'   && <SchedulesTab schedules={schedules} items={items} years={years} classes={classes} loading={loadingSchedules} onRefresh={loadSchedules} onBillsGenerated={loadStats} />}
+      {tab === 'schedules'   && <SchedulesTab schedules={schedules} items={items} years={years} classes={classes} levels={levels} loading={loadingSchedules} onRefresh={loadSchedules} onBillsGenerated={loadStats} />}
       {tab === 'collections'  && <CollectionsTab items={items} />}
       {tab === 'expenditure'  && <ExpenditureTab onExpenseChange={loadStats} />}
       {tab === 'arrears'     && <ArrearTab years={years} classes={classes} />}
