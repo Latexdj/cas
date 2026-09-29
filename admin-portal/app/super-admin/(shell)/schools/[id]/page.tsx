@@ -477,13 +477,13 @@ export default function SchoolDetailPage() {
                       onClick={() => handleRowToggle(row)}
                       title={state === 'partial' ? 'Houses and Exeat disagree — click to enable both' : undefined}
                       className={[
-                        'relative w-11 h-6 rounded-full flex-shrink-0 transition-colors disabled:opacity-40',
+                        'relative inline-flex h-6 w-11 items-center rounded-full flex-shrink-0 transition-colors disabled:opacity-40',
                         state === 'on' ? 'bg-[#145C44]' : state === 'partial' ? 'bg-amber-600' : 'bg-slate-600',
                       ].join(' ')}
                     >
                       <span className={[
-                        'absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform',
-                        state === 'off' ? 'translate-x-0.5' : 'translate-x-5',
+                        'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                        state === 'off' ? 'translate-x-1' : 'translate-x-6',
                       ].join(' ')} />
                     </button>
                     <div className="flex-1 min-w-0">
@@ -518,13 +518,13 @@ export default function SchoolDetailPage() {
                               disabled={saving}
                               onClick={() => handleSubKeyToggle(row.label, key)}
                               className={[
-                                'relative w-9 h-5 rounded-full transition-colors disabled:opacity-40',
+                                'relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-40',
                                 on ? 'bg-[#145C44]' : 'bg-slate-600',
                               ].join(' ')}
                             >
                               <span className={[
-                                'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform',
-                                on ? 'translate-x-4' : 'translate-x-0.5',
+                                'inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform',
+                                on ? 'translate-x-5' : 'translate-x-1',
                               ].join(' ')} />
                             </button>
                           </div>
