@@ -42,6 +42,11 @@ interface ArrearRow {
 interface CollectionRow {
   payment_date: string; payment_method: string; total: string; count: number;
 }
+interface UnscheduledGroup {
+  fee_item_id: string; fee_item_name: string | null; description: string; amount: string; due_date: string | null;
+  student_count: number; paid_count: number; unpaid_count: number; unpaid_total: string;
+  earliest_created_at: string; latest_created_at: string;
+}
 interface AcademicYear { id: string; name: string; is_current: boolean; }
 interface Stats {
   total_billed: number; total_collected: number; outstanding: number;
@@ -60,7 +65,7 @@ const EXPENSE_CATEGORIES = [
   'Petty Cash', 'Other',
 ];
 
-type Tab = 'items' | 'schedules' | 'collections' | 'expenditure' | 'arrears' | 'payments_report';
+type Tab = 'items' | 'schedules' | 'collections' | 'expenditure' | 'arrears' | 'payments_report' | 'bill_cleanup';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -908,6 +913,118 @@ function PaymentsReportTab({ years, classes }: { years: AcademicYear[]; classes:
   );
 }
 
+// ── Bill Cleanup Tab ──────────────────────────────────────────────────────────
+// Finds bills with no fee_schedule_id — either a legitimate one-off manual
+// bill, or bills left behind by a fee schedule that was later deleted (before
+// that was blocked, a deleted schedule's already-generated bills stayed on
+// students' accounts with no trace of where they came from). Bills sharing
+// the same fee item, description, amount and due date across many students
+// are the signature of the latter — they were all created together by one
+// "Generate Bills" run. Nothing is deleted automatically; the admin reviews
+// each group and chooses.
+function BillCleanupTab({ onCleaned }: { onCleaned: () => void }) {
+  const [groups, setGroups] = useState<UnscheduledGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+
+  const groupKey = (g: UnscheduledGroup) => `${g.fee_item_id}|${g.description}|${g.amount}|${g.due_date ?? ''}`;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/api/fees/bills/unscheduled-groups');
+      setGroups(r.data);
+    } catch { setGroups([]); } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleCleanup(g: UnscheduledGroup) {
+    const warning = g.paid_count > 0
+      ? `${g.unpaid_count} unpaid bill(s) will be deleted. ${g.paid_count} bill(s) with a payment already recorded will be left untouched.`
+      : `${g.unpaid_count} unpaid bill(s) will be deleted. This cannot be undone.`;
+    if (!confirm(
+      `Delete "${g.description}" (${fmt(g.amount)}) for ${g.student_count} student(s)?\n\n${warning}`
+    )) return;
+
+    setBusyKey(groupKey(g)); setMsg(''); setErr('');
+    try {
+      const r = await api.delete('/api/fees/bills/unscheduled-groups', {
+        data: { fee_item_id: g.fee_item_id, description: g.description, amount: g.amount, due_date: g.due_date },
+      });
+      setMsg(r.data.message);
+      await load();
+      onCleaned();
+    } catch (e: unknown) {
+      setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete.');
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  if (loading) return <p style={{ color: '#94a3b8', textAlign: 'center', padding: 40 }}>Loading…</p>;
+
+  return (
+    <div>
+      <p style={{ color: '#64748b', fontSize: 13, marginBottom: 16 }}>
+        Bills below have no linked fee schedule. A large group (many students, identical item/amount/description)
+        usually means the schedule that generated them was later deleted — the bills stayed behind. A small group
+        or a one-off is more likely a manual bill added on purpose. Review each before deleting.
+      </p>
+
+      {msg && <p style={{ color: '#145C44', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13 }}>{msg}</p>}
+      {err && <p style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13 }}>{err}</p>}
+
+      {groups.length === 0 ? (
+        <p style={{ color: '#94a3b8', textAlign: 'center', padding: 24 }}>No unscheduled bills found — nothing to review.</p>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              {['Fee Item', 'Description', 'Amount', 'Due Date', 'Students', 'Paid', 'Unpaid', 'Unpaid Total', 'Created', ''].map(h => (
+                <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map(g => {
+              const key = groupKey(g);
+              const sameCreatedDate = g.earliest_created_at.slice(0, 10) === g.latest_created_at.slice(0, 10);
+              return (
+                <tr key={key} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '8px 10px', fontWeight: 600 }}>{g.fee_item_name ?? '—'}</td>
+                  <td style={{ padding: '8px 10px', color: '#64748b' }}>{g.description}</td>
+                  <td style={{ padding: '8px 10px' }}>{fmt(g.amount)}</td>
+                  <td style={{ padding: '8px 10px', color: '#64748b' }}>{g.due_date ? new Date(g.due_date).toLocaleDateString('en-GB') : '—'}</td>
+                  <td style={{ padding: '8px 10px' }}>{g.student_count}</td>
+                  <td style={{ padding: '8px 10px' }}>{g.paid_count > 0 ? <Pill ok={false} label={`${g.paid_count} paid`} /> : '0'}</td>
+                  <td style={{ padding: '8px 10px' }}>{g.unpaid_count}</td>
+                  <td style={{ padding: '8px 10px', fontWeight: 700 }}>{fmt(g.unpaid_total)}</td>
+                  <td style={{ padding: '8px 10px', color: '#94a3b8', fontSize: 12 }}>
+                    {new Date(g.earliest_created_at).toLocaleDateString('en-GB')}
+                    {!sameCreatedDate && ` – ${new Date(g.latest_created_at).toLocaleDateString('en-GB')}`}
+                  </td>
+                  <td style={{ padding: '8px 10px' }}>
+                    <button
+                      style={btnDanger}
+                      disabled={busyKey === key || g.unpaid_count === 0}
+                      onClick={() => handleCleanup(g)}
+                    >
+                      {busyKey === key ? 'Deleting…' : 'Delete Unpaid'}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 // ── Expenditure Tab ───────────────────────────────────────────────────────────
 
 function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
@@ -1189,6 +1306,7 @@ export default function FeesPage() {
     { id: 'expenditure', label: 'Expenditure' },
     { id: 'arrears',     label: 'Arrears Report' },
     { id: 'payments_report', label: 'Payments Report' },
+    { id: 'bill_cleanup', label: 'Bill Cleanup' },
   ];
 
   return (
@@ -1239,6 +1357,7 @@ export default function FeesPage() {
       {tab === 'expenditure'  && <ExpenditureTab onExpenseChange={loadStats} />}
       {tab === 'arrears'     && <ArrearTab years={years} classes={classes} />}
       {tab === 'payments_report' && <PaymentsReportTab years={years} classes={classes} />}
+      {tab === 'bill_cleanup' && <BillCleanupTab onCleaned={loadStats} />}
     </div>
   );
 }

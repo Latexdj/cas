@@ -259,6 +259,77 @@ router.post('/schedules/:id/generate', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Unscheduled bill cleanup ────────────────────────────────────────────────
+// Surfaces bills with no fee_schedule_id — either a legitimate one-off ad hoc
+// bill, or a bill orphaned by a schedule that was later deleted (which used
+// to be possible before the DELETE /schedules/:id guard above existed: the
+// schedule is gone, but bills it generated persist untouched, invisible from
+// anywhere else in the Fees screen). Grouping by the fields every bill from
+// one "Generate" run shares — item, description, amount, due date — makes a
+// deleted schedule's leftover bills show up as one large group (same values,
+// many students), distinct from genuine manual entries (small groups,
+// idiosyncratic descriptions). The admin reviews and decides; nothing here
+// is auto-deleted.
+router.get('/bills/unscheduled-groups', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT sb.fee_item_id, fi.name AS fee_item_name, sb.description, sb.amount, sb.due_date,
+              COUNT(*)::int AS student_count,
+              COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM fee_payments fp WHERE fp.bill_id = sb.id))::int AS paid_count,
+              COUNT(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM fee_payments fp WHERE fp.bill_id = sb.id))::int AS unpaid_count,
+              COALESCE(SUM(sb.amount) FILTER (WHERE NOT EXISTS (SELECT 1 FROM fee_payments fp WHERE fp.bill_id = sb.id)), 0) AS unpaid_total,
+              MIN(sb.created_at) AS earliest_created_at, MAX(sb.created_at) AS latest_created_at
+       FROM student_bills sb
+       LEFT JOIN fee_items fi ON fi.id = sb.fee_item_id
+       WHERE sb.school_id = $1 AND sb.fee_schedule_id IS NULL AND sb.fee_item_id IS NOT NULL
+       GROUP BY sb.fee_item_id, fi.name, sb.description, sb.amount, sb.due_date
+       ORDER BY student_count DESC`,
+      [req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// Deletes only the UNPAID bills in one group (exact item+description+amount+
+// due_date match) — paid ones are always left alone, same protection as
+// every other bill-affecting action in this file.
+router.delete('/bills/unscheduled-groups', adminOnly, async (req, res, next) => {
+  try {
+    const { fee_item_id, description, amount, due_date } = req.body;
+    if (!fee_item_id || !description || amount == null) {
+      return res.status(400).json({ error: 'fee_item_id, description and amount are required.' });
+    }
+    const { rows: itemRows } = await pool.query(`SELECT name FROM fee_items WHERE id=$1 AND school_id=$2`, [fee_item_id, req.schoolId]);
+
+    const { rows: deleted } = await pool.query(
+      `DELETE FROM student_bills sb
+       WHERE sb.school_id=$1 AND sb.fee_schedule_id IS NULL AND sb.fee_item_id=$2
+         AND sb.description=$3 AND sb.amount=$4 AND sb.due_date IS NOT DISTINCT FROM $5
+         AND NOT EXISTS (SELECT 1 FROM fee_payments fp WHERE fp.bill_id = sb.id)
+       RETURNING sb.id`,
+      [req.schoolId, fee_item_id, description, Number(amount), due_date || null]
+    );
+
+    const { rows: [{ count: skippedPaid }] } = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM student_bills sb
+       WHERE sb.school_id=$1 AND sb.fee_schedule_id IS NULL AND sb.fee_item_id=$2
+         AND sb.description=$3 AND sb.amount=$4 AND sb.due_date IS NOT DISTINCT FROM $5
+         AND EXISTS (SELECT 1 FROM fee_payments fp WHERE fp.bill_id = sb.id)`,
+      [req.schoolId, fee_item_id, description, Number(amount), due_date || null]
+    );
+
+    await auditLog('unscheduled_bills_cleaned_up', 'fee_item', fee_item_id, itemRows[0]?.name, {
+      deleted_by: req.user.name, description, amount, due_date,
+      deleted_count: deleted.length, skipped_paid: skippedPaid,
+    });
+
+    const message = skippedPaid > 0
+      ? `${deleted.length} unpaid bill(s) deleted; ${skippedPaid} left unchanged because a payment has already been recorded against them.`
+      : `${deleted.length} unpaid bill(s) deleted.`;
+    res.json({ message, deleted: deleted.length, skipped_paid: skippedPaid });
+  } catch (err) { next(err); }
+});
+
 // ── Student Bills ─────────────────────────────────────────────────────────────
 
 router.get('/bills', accountsAccess, async (req, res, next) => {
