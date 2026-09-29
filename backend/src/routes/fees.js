@@ -727,7 +727,11 @@ router.get('/reports/arrears', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/reports/collections', adminOnly, async (req, res, next) => {
+// accountsAccess (not adminOnly): this is pure fee-collections data (no
+// expenses/net_position, unlike GET /stats) — an accounts clerk already
+// sees every payment and bill individually via /payments and /bills, this
+// just aggregates what they can already see, for the staff-portal dashboard.
+router.get('/reports/collections', accountsAccess, async (req, res, next) => {
   try {
     const { from, to, class_name, year_id, semester } = req.query;
     const conditions = ['fp.school_id = $1'];

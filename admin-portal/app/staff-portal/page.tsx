@@ -53,6 +53,11 @@ interface AcctStudentSummary {
   bills: AcctBill[]; payments: AcctPayment[];
   total_billed: number; total_paid: number; outstanding: number;
 }
+interface AcctYear { id: string; name: string; is_current: boolean; }
+interface AcctRecentPayment {
+  id: string; amount: string; payment_date: string; payment_method: string;
+  student_name: string; student_code: string; receipt_no: string | null;
+}
 const PAYMENT_METHODS = ['Cash', 'Mobile Money', 'Bank Transfer', 'Cheque', 'Card', 'Other'];
 function fmtGHS(n: number | string) {
   return `GH₵ ${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -86,6 +91,7 @@ const STATUS_STYLE = {
 type Section     = 'clearance' | 'library' | 'inventory' | 'accounts';
 type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
+type AcctTab     = 'dashboard' | 'collect';
 type InvTab      = 'items' | 'issue' | 'return' | 'sign-list';
 
 interface SlFilters {
@@ -205,12 +211,22 @@ export default function StaffPortalPage() {
   const slDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Accounts state ───────────────────────────────────────────────────────────
+  const [acctTab,        setAcctTab]        = useState<AcctTab>('dashboard');
   const [acctItems,      setAcctItems]      = useState<FeeItem[]>([]);
   const [acctQuery,      setAcctQuery]      = useState('');
   const [acctResults,    setAcctResults]    = useState<AcctStudentResult[]>([]);
   const [acctSearching,  setAcctSearching]  = useState(false);
   const [acctSelected,   setAcctSelected]   = useState<AcctStudentSummary | null>(null);
   const [acctLoadingSum, setAcctLoadingSum] = useState(false);
+
+  // Dashboard tab
+  const [acctYears,        setAcctYears]        = useState<AcctYear[]>([]);
+  const [acctYearId,       setAcctYearId]       = useState('');
+  const [acctTotal,        setAcctTotal]        = useState<number | null>(null);
+  const [acctTotalLoading, setAcctTotalLoading] = useState(false);
+  const [acctToday,        setAcctToday]        = useState<number | null>(null);
+  const [acctRecent,       setAcctRecent]       = useState<AcctRecentPayment[]>([]);
+  const [acctDashLoading,  setAcctDashLoading]  = useState(false);
 
   const [showPayModal,   setShowPayModal]   = useState(false);
   const [payForm,        setPayForm]        = useState({ bill_id: '', fee_item_id: '', amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'Cash', reference: '', notes: '' });
@@ -242,8 +258,45 @@ export default function StaffPortalPage() {
     if (section === 'accounts' && acctItems.length === 0) {
       api.get<FeeItem[]>('/api/fees/items').then(r => setAcctItems(r.data)).catch(() => {});
     }
+    if (section === 'accounts' && acctTab === 'dashboard') loadAcctDashboard();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section, libTab, invTab]);
+  }, [section, libTab, invTab, acctTab]);
+
+  // ── Accounts dashboard ───────────────────────────────────────────────────────
+  async function loadAcctDashboard() {
+    setAcctDashLoading(true);
+    try {
+      let years = acctYears;
+      if (years.length === 0) {
+        const r = await api.get<AcctYear[]>('/api/academic-years');
+        years = r.data;
+        setAcctYears(years);
+      }
+      const defaultYearId = acctYearId || years.find(y => y.is_current)?.id || '';
+      if (!acctYearId && defaultYearId) setAcctYearId(defaultYearId);
+
+      const today = new Date().toISOString().slice(0, 10);
+      const [totalRes, todayRes, recentRes] = await Promise.all([
+        api.get('/api/fees/reports/collections', { params: defaultYearId ? { year_id: defaultYearId } : {} }),
+        api.get('/api/fees/payments', { params: { from: today, to: today } }),
+        api.get<AcctRecentPayment[]>('/api/fees/payments'),
+      ]);
+      setAcctTotal(totalRes.data.grand_total);
+      setAcctToday(todayRes.data.reduce((sum: number, p: { amount: string }) => sum + Number(p.amount), 0));
+      setAcctRecent(recentRes.data.slice(0, 10));
+    } catch { /* dashboard is non-critical; fail quietly */ }
+    finally { setAcctDashLoading(false); }
+  }
+
+  async function loadAcctTotalForYear(yearId: string) {
+    setAcctYearId(yearId);
+    setAcctTotalLoading(true);
+    try {
+      const r = await api.get('/api/fees/reports/collections', { params: yearId ? { year_id: yearId } : {} });
+      setAcctTotal(r.data.grand_total);
+    } catch { setAcctTotal(null); }
+    finally { setAcctTotalLoading(false); }
+  }
 
   // ── Accounts helpers ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -259,6 +312,7 @@ export default function StaffPortalPage() {
 
   async function selectAcctStudent(id: string) {
     setAcctResults([]); setAcctQuery(''); setAcctLoadingSum(true); setAcctSelected(null);
+    setAcctTab('collect');
     try {
       const r = await api.get<AcctStudentSummary>(`/api/fees/student/${id}/summary`);
       setAcctSelected(r.data);
@@ -1202,6 +1256,19 @@ export default function StaffPortalPage() {
       {/* ── Accounts Section ──────────────────────────────────────────────── */}
       {hasAcc && section === 'accounts' && (
         <div className="space-y-4">
+          <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
+            {([
+              ['dashboard', 'Dashboard'],
+              ['collect',   'Collect Payment'],
+            ] as const).map(([key, label]) => (
+              <button key={key} onClick={() => setAcctTab(key)}
+                className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${acctTab === key ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                style={acctTab === key ? { background: primary } : {}}>
+                {label}
+              </button>
+            ))}
+          </div>
+
           <div className="relative max-w-md">
             <input value={acctQuery}
               onChange={e => setAcctQuery(e.target.value)}
@@ -1227,6 +1294,60 @@ export default function StaffPortalPage() {
             )}
           </div>
 
+          {acctTab === 'dashboard' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full rounded-l-xl" style={{ backgroundColor: primary }} />
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <p className="text-xs font-semibold text-slate-400 font-medium">Total Collected</p>
+                    <select value={acctYearId} onChange={e => loadAcctTotalForYear(e.target.value)}
+                      className="text-xs border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none">
+                      {acctYears.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (current)' : ''}</option>)}
+                    </select>
+                  </div>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+                    {acctTotalLoading || (acctDashLoading && acctTotal === null) ? '…' : fmtGHS(acctTotal ?? 0)}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full rounded-l-xl" style={{ backgroundColor: '#0891B2' }} />
+                  <p className="text-xs font-semibold text-slate-400 font-medium">Collected Today</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+                    {acctDashLoading && acctToday === null ? '…' : fmtGHS(acctToday ?? 0)}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">Recent Payments</h3>
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  {acctDashLoading ? (
+                    <p className="p-5 text-center text-slate-400 text-sm">Loading…</p>
+                  ) : acctRecent.length === 0 ? (
+                    <p className="p-5 text-center text-slate-400 text-sm">No payments recorded yet.</p>
+                  ) : (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                      {acctRecent.map(p => (
+                        <div key={p.id} className="flex items-center gap-3 px-4 py-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{p.student_name} <span className="text-slate-400 font-normal">· {p.student_code}</span></p>
+                            <p className="text-xs text-slate-400">
+                              {p.payment_date.slice(0, 10)} · {p.payment_method}{p.receipt_no ? ` · ${p.receipt_no}` : ''}
+                            </p>
+                          </div>
+                          <span className="text-sm font-bold text-[#145C44] dark:text-[#2ab289] shrink-0">{fmtGHS(p.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {acctTab === 'collect' && (
+            <>
           {acctLoadingSum && <div className="flex justify-center py-10"><div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: primary, borderTopColor: 'transparent' }} /></div>}
 
           {!acctSelected && !acctLoadingSum && (
@@ -1308,6 +1429,8 @@ export default function StaffPortalPage() {
                 </div>
               </div>
             </div>
+          )}
+            </>
           )}
         </div>
       )}
