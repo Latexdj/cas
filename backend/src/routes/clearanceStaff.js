@@ -1,9 +1,10 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { recalcFullyCleared } = require('./clearanceAdmin');
 
-router.use(authenticate, requireActiveSubscription);
+router.use(authenticate, requireActiveSubscription, checkModuleAccess('clearance'));
 
 function clearanceStaffOnly(req, res, next) {
   const role = req.user?.role;

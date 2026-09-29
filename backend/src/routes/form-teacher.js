@@ -1,6 +1,7 @@
 ﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription, adminOnly } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { queryFlaggedStudents } = require('../utils/discipline-flags');
 
 router.use(authenticate, requireActiveSubscription);
@@ -337,7 +338,7 @@ router.get('/flagged-students', async (req, res, next) => {
 // GET /api/form-teacher/student-letters/:student_id
 // Returns discipline letters for a student in this teacher's form class.
 // Scoped: only students in the teacher's current-year form class. Excludes pending_approval letters.
-router.get('/student-letters/:student_id', async (req, res, next) => {
+router.get('/student-letters/:student_id', checkModuleAccess('discipline'), async (req, res, next) => {
   try {
     if (req.user.role !== 'teacher') return res.status(403).json({ error: 'Teacher access only' });
 

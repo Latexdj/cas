@@ -3,10 +3,11 @@ const router    = require('express').Router();
 const pool      = require('../config/db');
 const Anthropic = require('@anthropic-ai/sdk');
 const { authenticate, adminOrManagement, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { fetchChunksRAG } = require('../utils/rag');
 const { isBlocked } = require('../utils/letterSensitivity');
 
-router.use(authenticate, requireActiveSubscription);
+router.use(authenticate, requireActiveSubscription, checkModuleAccess('discipline'));
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 

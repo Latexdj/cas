@@ -3,11 +3,12 @@ const pool   = require('../config/db');
 const multer = require('multer');
 const XLSX   = require('xlsx');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { uploadFile } = require('../services/storage.service');
 const { generateAdmissionNumber, assignHouse } = require('../services/admissions.service');
 const { generateAdmissionLetterPDF, validateTemplate } = require('../services/pdf.service');
 
-router.use(authenticate, requireActiveSubscription, adminOnly);
+router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('admissions'));
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 // ── Settings ──────────────────────────────────────────────────────────────────

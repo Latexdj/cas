@@ -3,9 +3,10 @@ const router = require('express').Router();
 const bcrypt = require('bcrypt');
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription, adminOnly } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { uploadDocument } = require('../services/storage.service');
 
-router.use(authenticate, requireActiveSubscription, adminOnly);
+router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('library'));
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 async function syncBookCounts(bookId) {

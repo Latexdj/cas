@@ -1,9 +1,10 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { getClassRoster, mapWithLimit } = require('../services/classHistory.service');
 
-router.use(authenticate, requireActiveSubscription, adminOnly);
+router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('assessments'));
 
 // GET /api/assessment-monitoring?academic_year_id=&semester=&department=&teacher_id=
 router.get('/', async (req, res, next) => {

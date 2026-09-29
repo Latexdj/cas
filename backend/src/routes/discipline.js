@@ -2,12 +2,13 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, managementOnly, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { uploadDocument }          = require('../services/storage.service');
 const { generateAndUploadPDF }    = require('../services/pdf.service');
 const { queryFlaggedStudents, queryFlaggedTeachers, queryThresholds } = require('../utils/discipline-flags');
 const { returnLetterForCorrection, resubmitLetter, getReturnHistory } = require('../services/letterApproval.service');
 
-router.use(authenticate, requireActiveSubscription);
+router.use(authenticate, requireActiveSubscription, checkModuleAccess('discipline'));
 
 async function generateRefNumber(schoolId) {
   const { rows } = await pool.query(

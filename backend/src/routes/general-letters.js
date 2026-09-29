@@ -2,10 +2,11 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, managementOnly, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { generateAndUploadPDF } = require('../services/pdf.service');
 const { returnLetterForCorrection, resubmitLetter, getReturnHistory } = require('../services/letterApproval.service');
 
-router.use(authenticate, requireActiveSubscription);
+router.use(authenticate, requireActiveSubscription, checkModuleAccess('discipline'));
 
 // Admin (role: admin | super_admin) OR management (type: management) may issue letters.
 // This is checked on every route except approve, which is management-only.

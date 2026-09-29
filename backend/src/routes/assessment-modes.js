@@ -1,8 +1,9 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 
-router.use(authenticate, requireActiveSubscription);
+router.use(authenticate, requireActiveSubscription, checkModuleAccess('assessments'));
 
 // GET /api/assessment-modes
 router.get('/', async (req, res, next) => {

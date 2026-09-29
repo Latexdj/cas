@@ -7,6 +7,7 @@ const ExcelJS = require('exceljs');
 const { createNotification, sendTeacherEmail } = require('../services/notification.service');
 const { getCurrentSchoolContext } = require('../utils/school-context');
 const { getClassRoster } = require('../services/classHistory.service');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 
 // â”€â”€ Auth middleware â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function auth(req, res, next) {
@@ -563,8 +564,8 @@ router.patch('/exeat-settings', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// â”€â”€ 6. Clearance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-router.get('/clearance', async (req, res, next) => {
+// â”€â”€ 6. Clearance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+router.get('/clearance', checkModuleAccess('clearance'), async (req, res, next) => {
   try {
     const sid       = req.schoolId;
     const className = req.query.class   || '';
@@ -605,7 +606,7 @@ router.get('/clearance', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/clearance/student/:id', async (req, res, next) => {
+router.get('/clearance/student/:id', checkModuleAccess('clearance'), async (req, res, next) => {
   try {
     const { rows: stu } = await pool.query(`
       SELECT s.id, s.student_code, s.name, s.class_name, p.name AS program_name
@@ -1069,20 +1070,8 @@ router.get('/reports', async (req, res, next) => {
 
 // â”€â”€ Fees (read-only summary for management) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-async function feesModuleEnabled(schoolId) {
-  const { rows } = await pool.query(
-    `SELECT enabled FROM school_modules WHERE school_id=$1 AND module_key='fees'`,
-    [schoolId]
-  );
-  // No rows = legacy school, treat as enabled
-  return rows.length === 0 || rows[0].enabled;
-}
-
-router.get('/fees/summary', async (req, res, next) => {
+router.get('/fees/summary', checkModuleAccess('fees'), async (req, res, next) => {
   try {
-    if (!await feesModuleEnabled(req.schoolId)) {
-      return res.status(403).json({ error: 'Accounts & Fees module is not enabled for this school.' });
-    }
     const sid = req.schoolId;
     const { rows } = await pool.query(
       `SELECT
@@ -1108,11 +1097,8 @@ router.get('/fees/summary', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/fees/class-breakdown', async (req, res, next) => {
+router.get('/fees/class-breakdown', checkModuleAccess('fees'), async (req, res, next) => {
   try {
-    if (!await feesModuleEnabled(req.schoolId)) {
-      return res.status(403).json({ error: 'Accounts & Fees module is not enabled.' });
-    }
     const { rows } = await pool.query(
       `SELECT
          s.class_name,
@@ -1143,11 +1129,8 @@ router.get('/fees/class-breakdown', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/fees/income-vs-expenditure', async (req, res, next) => {
+router.get('/fees/income-vs-expenditure', checkModuleAccess('fees'), async (req, res, next) => {
   try {
-    if (!await feesModuleEnabled(req.schoolId)) {
-      return res.status(403).json({ error: 'Accounts & Fees module is not enabled.' });
-    }
     const sid = req.schoolId;
     const [incomeRes, expenseRes, byCat] = await Promise.all([
       pool.query(`SELECT COALESCE(SUM(amount),0) AS total FROM fee_payments WHERE school_id=$1`, [sid]),

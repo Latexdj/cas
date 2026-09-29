@@ -2,8 +2,17 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 
-router.use(authenticate, requireActiveSubscription);
+// Gated on its own existing 'exeat' key, not folded into 'houses', even
+// though the future super-admin screen will present "House Management" as
+// one toggle covering both — houses and exeat are independently toggled
+// today and some schools' flags already disagree (exeat defaults to SHS
+// only; houses defaults to JHS+SHS). Collapsing the keys here would silently
+// change access for any school where they differ. The future toggle screen
+// can write both school_modules rows from one UI control without requiring
+// the underlying keys to merge.
+router.use(authenticate, requireActiveSubscription, checkModuleAccess('exeat'));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

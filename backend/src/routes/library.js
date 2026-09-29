@@ -2,10 +2,11 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { uploadDocument } = require('../services/storage.service');
 const { syncBookCounts } = require('./libraryAdmin');
 
-router.use(authenticate, requireActiveSubscription);
+router.use(authenticate, requireActiveSubscription, checkModuleAccess('library'));
 
 async function libraryStaffOnly(req, res, next) {
   try {

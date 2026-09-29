@@ -2,6 +2,7 @@
 const bcrypt = require('bcrypt');
 const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { getCurrentSchoolContext } = require('../utils/school-context');
 const { getClassRoster, resolveStudentClassAtPeriod, getStudentEnrollmentYears } = require('../services/classHistory.service');
 
@@ -645,7 +646,7 @@ router.post('/change-pin', async (req, res, next) => {
 
 // â”€â”€ GET /api/student/clearance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-router.get('/clearance', async (req, res, next) => {
+router.get('/clearance', checkModuleAccess('clearance'), async (req, res, next) => {
   try {
     const { rows: clRows } = await pool.query(
       `SELECT sc.id, sc.is_fully_cleared, sc.initiated_at, sc.fully_cleared_at
@@ -687,7 +688,7 @@ router.get('/clearance', async (req, res, next) => {
 });
 
 // â”€â”€ GET /api/student/discipline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-router.get('/discipline', async (req, res, next) => {
+router.get('/discipline', checkModuleAccess('discipline'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT sdl.id, sdl.letter_type, sdl.offense_category, sdl.offense_other,
@@ -706,7 +707,7 @@ router.get('/discipline', async (req, res, next) => {
 });
 
 // â”€â”€ POST /api/student/discipline/:id/acknowledge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-router.post('/discipline/:id/acknowledge', async (req, res, next) => {
+router.post('/discipline/:id/acknowledge', checkModuleAccess('discipline'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `UPDATE student_disciplinary_letters
@@ -723,7 +724,7 @@ router.post('/discipline/:id/acknowledge', async (req, res, next) => {
 
 // â”€â”€ Library â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-router.get('/library/books', async (req, res, next) => {
+router.get('/library/books', checkModuleAccess('library'), async (req, res, next) => {
   try {
     const { search, subject, category } = req.query;
     const conditions = ['school_id = $1', 'total_copies > 0'];
@@ -753,7 +754,7 @@ router.get('/library/books', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/library/my-loans', async (req, res, next) => {
+router.get('/library/my-loans', checkModuleAccess('library'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT ll.id, ll.status, ll.issued_at, ll.due_date, ll.returned_at,
@@ -773,7 +774,7 @@ router.get('/library/my-loans', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/library/loans/:id/renew', async (req, res, next) => {
+router.post('/library/loans/:id/renew', checkModuleAccess('library'), async (req, res, next) => {
   try {
     const { rows: loanRows } = await pool.query(
       `SELECT * FROM library_loans WHERE id=$1 AND school_id=$2 AND student_id=$3 AND status='active'`,
@@ -798,7 +799,7 @@ router.post('/library/loans/:id/renew', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/library/resources', async (req, res, next) => {
+router.get('/library/resources', checkModuleAccess('library'), async (req, res, next) => {
   try {
     const { resource_type, subject, academic_year } = req.query;
     const conditions = ['school_id = $1'];
@@ -818,7 +819,7 @@ router.get('/library/resources', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/library/resources/:id/download', async (req, res, next) => {
+router.post('/library/resources/:id/download', checkModuleAccess('library'), async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `UPDATE library_resources
@@ -834,16 +835,8 @@ router.post('/library/resources/:id/download', async (req, res, next) => {
 
 // â”€â”€ GET /api/student/fees â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-router.get('/fees', async (req, res, next) => {
+router.get('/fees', checkModuleAccess('fees'), async (req, res, next) => {
   try {
-    const { rows: modRows } = await pool.query(
-      `SELECT enabled FROM school_modules WHERE school_id=$1 AND module_key='fees'`,
-      [req.schoolId]
-    );
-    if (modRows.length > 0 && !modRows[0].enabled) {
-      return res.status(403).json({ error: 'Fees module not enabled.' });
-    }
-
     const sid       = req.schoolId;
     const studentId = req.user.id;
 

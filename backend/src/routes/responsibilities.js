@@ -5,6 +5,10 @@ const { authenticate, requireActiveSubscription, adminOnly } = require('../middl
 
 router.use(authenticate, requireActiveSubscription);
 
+// NOTE: this `module_key` is unrelated to school_modules.module_key (the
+// per-school feature-licensing registry in modules.service.js). This one
+// tags a staff *responsibility/role* (e.g. "librarian", "HOD"), not a
+// licensed feature. Same column name, different concept — don't conflate.
 const VALID_MODULES = ['library', 'hod'];
 
 // GET /api/responsibilities/my-modules — teacher-facing (no adminOnly)

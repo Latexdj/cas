@@ -2833,6 +2833,24 @@ async function runMigrations() {
     `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] student_bills/fee_payments RESTRICT on student delete:', e.message); }
 
+    // ── Module licensing: register admissions/lms/discipline as licensable
+    // modules. These features have always existed and always been on for
+    // every school (no school_modules key covered them before), so the
+    // backfill defaults every existing school to enabled=true — nobody
+    // loses access they already had the moment this ships.
+    try {
+      await pool.query(`
+        INSERT INTO school_modules (school_id, module_key, enabled)
+        SELECT s.id, m.key, true
+        FROM schools s
+        CROSS JOIN (VALUES ('admissions'), ('lms'), ('discipline')) AS m(key)
+        WHERE NOT EXISTS (
+          SELECT 1 FROM school_modules sm WHERE sm.school_id = s.id AND sm.module_key = m.key
+        )
+        ON CONFLICT DO NOTHING
+      `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admissions/lms/discipline module backfill:', e.message); }
+
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
     } else {

@@ -2,8 +2,9 @@ const router  = require('express').Router();
 const bcrypt  = require('bcrypt');
 const pool    = require('../config/db');
 const { authenticate, requireActiveSubscription, adminOnly } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 
-router.use(authenticate, requireActiveSubscription, adminOnly);
+router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('clearance'));
 
 // ── Clearance Offices ─────────────────────────────────────────────────────────
 

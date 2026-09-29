@@ -2,8 +2,9 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, managementOnly, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 
-router.use(authenticate, managementOnly, requireActiveSubscription);
+router.use(authenticate, managementOnly, requireActiveSubscription, checkModuleAccess('discipline'));
 
 // GET /api/principal/general-letters
 // Returns pending_approval general letters for the principal's school, newest first.

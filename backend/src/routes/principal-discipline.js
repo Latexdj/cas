@@ -2,9 +2,10 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, managementOnly, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { queryFlaggedStudents, queryFlaggedTeachers, queryThresholds } = require('../utils/discipline-flags');
 
-router.use(authenticate, managementOnly, requireActiveSubscription);
+router.use(authenticate, managementOnly, requireActiveSubscription, checkModuleAccess('discipline'));
 
 // GET /api/principal/discipline/letters
 // Returns pending_approval letters for the principal's school, ordered newest first.

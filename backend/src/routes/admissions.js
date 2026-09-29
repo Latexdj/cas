@@ -3,7 +3,14 @@ const pool   = require('../config/db');
 const { uploadFile } = require('../services/storage.service');
 const { generateAdmissionNumber, assignHouse } = require('../services/admissions.service');
 const { generateAdmissionLetterPDF } = require('../services/pdf.service');
+const { isModuleEnabledForSchool } = require('../middleware/moduleAccess');
 
+// This is the public applicant-facing portal — there's no JWT/req.schoolId
+// here, so checkModuleAccess doesn't apply. Every route below resolves the
+// school via the slug first, so gating it here at the source covers the
+// whole file: if a school's Admission module is disabled, the public portal
+// simply doesn't exist (same as an unrecognized slug), same as it wouldn't
+// if the school had never set up a portal at all.
 async function getSchoolBySlug(slug) {
   const { rows } = await pool.query(
     `SELECT s.id AS school_id, s.name AS school_name, s.logo_url, s.primary_color, s.accent_color,
@@ -18,7 +25,10 @@ async function getSchoolBySlug(slug) {
      WHERE a.portal_slug = $1`,
     [slug]
   );
-  return rows[0] || null;
+  const school = rows[0] || null;
+  if (!school) return null;
+  if (!await isModuleEnabledForSchool(school.school_id, 'admissions')) return null;
+  return school;
 }
 
 // GET /api/admissions/:slug

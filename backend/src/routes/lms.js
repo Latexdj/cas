@@ -1,9 +1,10 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { uploadFile } = require('../services/storage.service');
 
-router.use(authenticate, requireActiveSubscription);
+router.use(authenticate, requireActiveSubscription, checkModuleAccess('lms'));
 
 // ── Role helpers ──────────────────────────────────────────────────────────────
 
@@ -760,7 +761,9 @@ router.get('/quizzes/:id/results', teacherOrAdmin, async (req, res, next) => {
 });
 
 // Sync quiz scores to CA assessment
-router.post('/quizzes/:id/sync-to-ca', teacherOrAdmin, async (req, res, next) => {
+// Writes directly into assessments/assessment_scores (a different licensed
+// module) — also requires 'assessments' to be enabled, not just 'lms'.
+router.post('/quizzes/:id/sync-to-ca', teacherOrAdmin, checkModuleAccess('assessments'), async (req, res, next) => {
   try {
     const { rows: qRows } = await pool.query(
       `SELECT q.*, c.subject_name, c.class_name, c.academic_year_id, c.semester, c.teacher_id
@@ -819,7 +822,8 @@ router.post('/quizzes/:id/sync-to-ca', teacherOrAdmin, async (req, res, next) =>
 });
 
 // Sync assignment scores to CA assessment
-router.post('/assignments/:id/sync-to-ca', teacherOrAdmin, async (req, res, next) => {
+// Same cross-module write as the quiz sync route above — see note there.
+router.post('/assignments/:id/sync-to-ca', teacherOrAdmin, checkModuleAccess('assessments'), async (req, res, next) => {
   try {
     const { rows: aRows } = await pool.query(
       `SELECT a.*, c.subject_name, c.class_name, c.academic_year_id, c.semester, c.teacher_id
