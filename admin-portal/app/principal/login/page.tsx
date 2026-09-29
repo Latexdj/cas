@@ -25,7 +25,7 @@ export default function PrincipalLoginPage() {
       });
       savePrincipal(r.data.token, {
         ...r.data.user,
-        schoolId: r.data.user.schoolId ?? '',
+        schoolId: r.data.school?.id ?? '',
         school:   r.data.school,
       } as PrincipalUser);
       router.push('/principal');

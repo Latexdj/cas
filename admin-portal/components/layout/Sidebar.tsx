@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
+import { getUser } from '@/lib/auth';
+import { useEnabledModules } from '@/hooks/useEnabledModules';
 
 type NavItem = { href: string; label: string; icon: React.ReactNode; module?: string };
 type Section = { label: string; items: NavItem[] };
@@ -380,15 +382,13 @@ interface SidebarProps {
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [enabledModules, setEnabledModules] = useState<string[] | null>(null);
   const [pendingProfileRequests, setPendingProfileRequests] = useState(0);
+  const [schoolId, setSchoolId] = useState<string | undefined>(undefined);
+  const enabledModules = useEnabledModules(api, schoolId);
 
   useEffect(() => {
+    setSchoolId(getUser()?.schoolId);
     api.get('/api/admin/settings').then(r => setLogoUrl(r.data.logo_url ?? null)).catch(() => {});
-    api.get('/api/admin/modules').then(r => setEnabledModules(r.data)).catch(() => {
-      // On error, show all items (fail open)
-      setEnabledModules(null);
-    });
 
     api.get('/api/admin/teacher-profile-requests', { params: { status: 'Pending' } })
       .then(r => setPendingProfileRequests(Array.isArray(r.data) ? r.data.length : 0))

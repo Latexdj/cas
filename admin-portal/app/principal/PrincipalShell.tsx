@@ -6,8 +6,9 @@ import { useTheme } from 'next-themes';
 import { getPrincipal, clearPrincipal, getRoleLabel, type PrincipalUser } from '@/lib/principal-auth';
 import { principalApi } from '@/lib/principal-api';
 import { HelpWidget } from '@/components/HelpWidget';
+import { useEnabledModules } from '@/hooks/useEnabledModules';
 
-type NavItem = { href: string; label: string; icon: ReactNode };
+type NavItem = { href: string; label: string; icon: ReactNode; module?: string };
 type Section = { label: string; items: NavItem[] };
 
 const sections: Section[] = [
@@ -47,21 +48,25 @@ const sections: Section[] = [
       {
         href: '/principal/exeats',
         label: 'Exeat Management',
+        module: 'exeat',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />,
       },
       {
         href: '/principal/discipline',
         label: 'Discipline Approvals',
+        module: 'discipline',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />,
       },
       {
         href: '/principal/general-letters',
         label: 'Letter Approvals',
+        module: 'discipline',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />,
       },
       {
         href: '/principal/clearance',
         label: 'Student Clearance',
+        module: 'clearance',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.745 3.745 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />,
       },
     ],
@@ -72,6 +77,7 @@ const sections: Section[] = [
       {
         href: '/principal/fees',
         label: 'Financial Overview',
+        module: 'fees',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />,
       },
     ],
@@ -139,6 +145,7 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
   const [mounted,  setMounted]  = useState(false);
   const [user,     setUser]     = useState<PrincipalUser | null>(null);
   const [sideOpen, setSideOpen] = useState(false);
+  const enabledModules = useEnabledModules(principalApi, user?.schoolId);
 
   useEffect(() => {
     setMounted(true);
@@ -155,7 +162,16 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
     return <>{children}</>;
   }
 
-  const allHrefs = sections.flatMap(s => s.items.map(i => i.href));
+  const visibleSections = sections.map(section => ({
+    ...section,
+    items: section.items.filter(item => {
+      if (!item.module) return true;
+      if (enabledModules === null) return true;
+      return enabledModules.includes(item.module);
+    }),
+  })).filter(section => section.items.length > 0);
+
+  const allHrefs = visibleSections.flatMap(s => s.items.map(i => i.href));
 
   function isActive(href: string) {
     const hasChild = allHrefs.some(h => h !== href && h.startsWith(href + '/'));
@@ -196,7 +212,7 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 px-3" style={{ scrollbarWidth: 'none' }}>
-        {sections.map((section, si) => (
+        {visibleSections.map((section, si) => (
           <div key={section.label} className={si > 0 ? 'mt-5' : ''}>
             <p className="px-3 text-[10px] mb-1.5" style={{ color: 'rgba(200,151,58,0.5)' }}>
               {section.label}
@@ -252,7 +268,7 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
     </aside>
   );
 
-  const currentLabel = sections.flatMap(s => s.items).find(i => isActive(i.href))?.label ?? 'Dashboard';
+  const currentLabel = visibleSections.flatMap(s => s.items).find(i => isActive(i.href))?.label ?? 'Dashboard';
 
   return (
     <div className="flex min-h-screen" style={{ background: dark ? '#0E1A0C' : '#F5F0E8' }}>

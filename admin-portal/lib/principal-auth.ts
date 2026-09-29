@@ -4,7 +4,7 @@ export interface PrincipalUser {
   role: string;
   managementCode: string;
   schoolId: string;
-  school: { name: string; primaryColor: string; accentColor: string; logoUrl: string };
+  school: { id: string; name: string; primaryColor: string; accentColor: string; logoUrl: string };
 }
 
 const TOKEN_KEY = 'cas_p_token';

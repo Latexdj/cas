@@ -8,6 +8,7 @@ import { getTeacher, getSchoolCode, getTeacherColors } from '@/lib/teacher-auth'
 import { teacherApi } from '@/lib/teacher-api';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { HelpWidget } from '@/components/HelpWidget';
+import { useEnabledModules } from '@/hooks/useEnabledModules';
 
 interface NavItem {
   href:                    string;
@@ -19,6 +20,7 @@ interface NavItem {
   housemasterOnly?:        boolean;
   seniorHousemasterOnly?:  boolean;
   hodOnly?:                boolean;
+  module?:                 string;
   icon:                    ReactNode;
 }
 
@@ -47,6 +49,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: '/teacher/lms',
     label: 'My Courses',
+    module: 'lms',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0118 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
@@ -83,6 +86,7 @@ const NAV_ITEMS: NavItem[] = [
     href:    '/teacher/hod/inventory',
     label:   'Dept Inventory',
     hodOnly: true,
+    module:  'inventory',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
@@ -115,6 +119,7 @@ const NAV_ITEMS: NavItem[] = [
     href:             '/teacher/house-students',
     label:            'My House',
     housemasterOnly:  true,
+    module:           'houses',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
@@ -127,6 +132,7 @@ const NAV_ITEMS: NavItem[] = [
     href:        '/teacher/library',
     label:       'Library',
     libraryOnly: true,
+    module:      'library',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -137,6 +143,7 @@ const NAV_ITEMS: NavItem[] = [
     href:           '/teacher/clearance',
     label:          'Clearance',
     clearanceOnly:  true,
+    module:         'clearance',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.745 3.745 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
@@ -146,6 +153,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href:  '/teacher/results',
     label: 'Results',
+    module: 'assessments',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -155,6 +163,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href:  '/teacher/assessments',
     label: 'Assessments',
+    module: 'assessments',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
@@ -178,6 +187,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     href:  '/teacher/conduct',
     label: 'Conduct',
+    module: 'discipline',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -298,6 +308,8 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const [isSeniorHousemaster,   setIsSeniorHousemaster]   = useState(false);
   const [isHod,                 setIsHod]                 = useState(false);
   const [managementRole,   setManagementRole]   = useState<string | null>(null);
+  const [schoolId,         setSchoolId]         = useState<string | undefined>(undefined);
+  const enabledModules = useEnabledModules(teacherApi, schoolId);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => { setMoreOpen(false); }, [pathname]);
@@ -345,6 +357,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     const teacher = getTeacher();
     if (!teacher)   { router.replace('/teacher/login'); return; }
     setManagementRole(teacher.management_role ?? null);
+    setSchoolId(teacher.schoolId);
     const colors = getTeacherColors();
     setPrimary(colors.primary);
     setLogoUrl(colors.logoUrl ?? null);
@@ -403,7 +416,8 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     (!item.libraryOnly           || isLibraryTeacher) &&
     (!item.housemasterOnly       || isHousemaster) &&
     (!item.seniorHousemasterOnly || isSeniorHousemaster) &&
-    (!item.hodOnly               || isHod)
+    (!item.hodOnly               || isHod) &&
+    (!item.module                || enabledModules === null || enabledModules.includes(item.module))
   );
   const mobileBarItems   = visibleNavItems.filter(item => MOBILE_BAR_HREFS.includes(item.href));
   const mobileMoreItems  = visibleNavItems.filter(item => !MOBILE_BAR_HREFS.includes(item.href));

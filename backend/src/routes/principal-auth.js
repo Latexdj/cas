@@ -52,6 +52,7 @@ router.post('/login', async (req, res, next) => {
         managementCode: teacher.teacher_code,
       },
       school: {
+        id:           school.id,
         name:         school.name,
         primaryColor: school.primary_color,
         accentColor:  school.accent_color,
