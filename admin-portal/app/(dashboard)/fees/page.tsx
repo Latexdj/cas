@@ -47,6 +47,18 @@ interface UnscheduledGroup {
   student_count: number; paid_count: number; unpaid_count: number; unpaid_total: string;
   earliest_created_at: string; latest_created_at: string;
 }
+interface MissingBillsGroup {
+  schedule_id: string; fee_item_name: string | null; class_name: string | null; amount: string;
+  missing_count: number;
+  missing_students: { id: string; name: string; student_code: string; class_name: string }[];
+}
+interface NeedsReviewRow {
+  bill_id: string; student_id: string; student_name: string; student_code: string; class_name: string;
+  fee_item_id: string | null; fee_item_name: string | null;
+  billed_amount: string; billed_due_date: string | null;
+  current_amount: string; current_due_date: string | null;
+  amount_paid: string;
+}
 interface AcademicYear { id: string; name: string; is_current: boolean; }
 interface ClassLevel { id: string; name: string; sort_order: number; class_count: number; }
 interface Stats {
@@ -66,7 +78,7 @@ const EXPENSE_CATEGORIES = [
   'Petty Cash', 'Other',
 ];
 
-type Tab = 'items' | 'schedules' | 'collections' | 'expenditure' | 'arrears' | 'payments_report' | 'bill_cleanup';
+type Tab = 'items' | 'schedules' | 'collections' | 'expenditure' | 'arrears' | 'payments_report' | 'bill_cleanup' | 'missing_bills' | 'needs_review';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1106,6 +1118,188 @@ function BillCleanupTab({ onCleaned }: { onCleaned: () => void }) {
   );
 }
 
+// ── Missing Bills Tab ─────────────────────────────────────────────────────────
+// A student admitted/migrated after a schedule was already generated for
+// everyone else won't have a bill for it until Generate Bills is run again —
+// new admissions now auto-bill themselves at migration time, but this still
+// catches a schedule created after a student was already enrolled, a bulk
+// import, or anything the automatic step missed.
+function MissingBillsTab({ onGenerated }: { onGenerated: () => void }) {
+  const [groups, setGroups] = useState<MissingBillsGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/api/fees/schedules/missing-bills');
+      setGroups(r.data);
+    } catch { setGroups([]); } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleGenerate(g: MissingBillsGroup) {
+    if (!confirm(`Generate bills for the ${g.missing_count} student(s) missing "${g.fee_item_name}"?`)) return;
+    setBusyId(g.schedule_id); setMsg(''); setErr('');
+    try {
+      const r = await api.post(`/api/fees/schedules/${g.schedule_id}/generate`);
+      setMsg(r.data.message);
+      await load();
+      onGenerated();
+    } catch (e: unknown) {
+      setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to generate.');
+    } finally { setBusyId(null); }
+  }
+
+  if (loading) return <p style={{ color: '#94a3b8', textAlign: 'center', padding: 40 }}>Loading…</p>;
+
+  return (
+    <div>
+      <p style={{ color: '#64748b', fontSize: 13, marginBottom: 16 }}>
+        These active fee schedules have students with no bill yet — most often a student enrolled after the
+        schedule was already generated for everyone else. Generating is safe to re-run: it only adds bills for
+        students who don&apos;t already have one.
+      </p>
+
+      {msg && <p style={{ color: '#145C44', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13 }}>{msg}</p>}
+      {err && <p style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13 }}>{err}</p>}
+
+      {groups.length === 0 ? (
+        <p style={{ color: '#94a3b8', textAlign: 'center', padding: 24 }}>No gaps found — every active schedule is fully billed.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {groups.map(g => (
+            <div key={g.schedule_id} style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontWeight: 700, fontSize: 14 }}>{g.fee_item_name ?? '—'} <span style={{ color: '#94a3b8', fontWeight: 400 }}>· {g.class_name ?? 'All Classes'}</span></p>
+                  <p style={{ fontSize: 12, color: '#64748b' }}>{fmt(g.amount)} · {g.missing_count} student(s) missing a bill</p>
+                </div>
+                <button style={btnSecondary} onClick={() => setExpanded(expanded === g.schedule_id ? null : g.schedule_id)}>
+                  {expanded === g.schedule_id ? 'Hide' : 'View'} students
+                </button>
+                <button style={btnPrimary} disabled={busyId === g.schedule_id} onClick={() => handleGenerate(g)}>
+                  {busyId === g.schedule_id ? 'Generating…' : '⚡ Generate Bills'}
+                </button>
+              </div>
+              {expanded === g.schedule_id && (
+                <div style={{ borderTop: '1px solid #f1f5f9', background: '#F9FAFB', padding: '8px 14px' }}>
+                  {g.missing_students.map(s => (
+                    <p key={s.id} style={{ fontSize: 13, padding: '4px 0' }}>{s.name} <span style={{ color: '#94a3b8' }}>· {s.student_code} · {s.class_name}</span></p>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Needs Review Tab ──────────────────────────────────────────────────────────
+// Bills with a payment already recorded whose amount/due date no longer
+// matches their schedule's current values, because the schedule was edited
+// after the payment came in. Generate Bills never touches these on its own —
+// this is the "who exactly" behind that count.
+function NeedsReviewTab() {
+  const [rows, setRows] = useState<NeedsReviewRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get('/api/fees/bills/needs-review');
+      setRows(r.data);
+    } catch { setRows([]); } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function createCorrectionBill(row: NeedsReviewRow, diff: number) {
+    if (!confirm(`Create a top-up bill of ${fmt(diff)} for ${row.student_name} (${row.fee_item_name} adjusted from ${fmt(row.billed_amount)} to ${fmt(row.current_amount)})?`)) return;
+    setBusyId(row.bill_id); setMsg(''); setErr('');
+    try {
+      await api.post('/api/fees/bills', {
+        student_id: row.student_id,
+        fee_item_id: row.fee_item_id,
+        description: `Correction: ${row.fee_item_name ?? 'Fee'} adjusted from ${fmt(row.billed_amount)} to ${fmt(row.current_amount)}`,
+        amount: diff.toFixed(2),
+        due_date: row.current_due_date,
+      });
+      setMsg(`Correction bill created for ${row.student_name}.`);
+      await load();
+    } catch (e: unknown) {
+      setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to create correction bill.');
+    } finally { setBusyId(null); }
+  }
+
+  if (loading) return <p style={{ color: '#94a3b8', textAlign: 'center', padding: 40 }}>Loading…</p>;
+
+  return (
+    <div>
+      <p style={{ color: '#64748b', fontSize: 13, marginBottom: 16 }}>
+        These bills already have a payment recorded, but their schedule was edited afterward — Generate Bills
+        leaves paid bills alone rather than silently changing them. A fee increase needs a top-up bill; a
+        decrease means the student overpaid and needs a refund or credit handled outside the system.
+      </p>
+
+      {msg && <p style={{ color: '#145C44', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13 }}>{msg}</p>}
+      {err && <p style={{ color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13 }}>{err}</p>}
+
+      {rows.length === 0 ? (
+        <p style={{ color: '#94a3b8', textAlign: 'center', padding: 24 }}>Nothing needs review — no paid bill disagrees with its current schedule.</p>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              {['Student', 'Fee Item', 'Billed', 'Schedule Now', 'Paid', 'Difference', ''].map(h => (
+                <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row => {
+              const diff = Number(row.current_amount) - Number(row.billed_amount);
+              const dueDateChanged = row.billed_due_date !== row.current_due_date;
+              return (
+                <tr key={row.bill_id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '8px 10px', fontWeight: 600 }}>{row.student_name} <span style={{ color: '#94a3b8', fontWeight: 400 }}>· {row.student_code}</span></td>
+                  <td style={{ padding: '8px 10px', color: '#64748b' }}>{row.fee_item_name ?? '—'}</td>
+                  <td style={{ padding: '8px 10px' }}>{fmt(row.billed_amount)}</td>
+                  <td style={{ padding: '8px 10px' }}>{fmt(row.current_amount)}</td>
+                  <td style={{ padding: '8px 10px' }}>{fmt(row.amount_paid)}</td>
+                  <td style={{ padding: '8px 10px', fontWeight: 700, color: diff > 0 ? '#dc2626' : diff < 0 ? '#f59e0b' : '#64748b' }}>
+                    {diff !== 0 ? `${diff > 0 ? '+' : ''}${fmt(diff)}` : dueDateChanged ? 'Due date changed' : '—'}
+                  </td>
+                  <td style={{ padding: '8px 10px' }}>
+                    {diff > 0 ? (
+                      <button style={btnPrimary} disabled={busyId === row.bill_id} onClick={() => createCorrectionBill(row, diff)}>
+                        {busyId === row.bill_id ? 'Creating…' : 'Create Top-Up Bill'}
+                      </button>
+                    ) : diff < 0 ? (
+                      <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>Refund/credit needed</span>
+                    ) : (
+                      <span style={{ fontSize: 12, color: '#94a3b8' }}>—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 // ── Expenditure Tab ───────────────────────────────────────────────────────────
 
 function ExpenditureTab({ onExpenseChange }: { onExpenseChange: () => void }) {
@@ -1390,6 +1584,8 @@ export default function FeesPage() {
     { id: 'arrears',     label: 'Arrears Report' },
     { id: 'payments_report', label: 'Payments Report' },
     { id: 'bill_cleanup', label: 'Bill Cleanup' },
+    { id: 'missing_bills', label: 'Missing Bills' },
+    { id: 'needs_review', label: 'Needs Review' },
   ];
 
   return (
@@ -1441,6 +1637,8 @@ export default function FeesPage() {
       {tab === 'arrears'     && <ArrearTab years={years} classes={classes} />}
       {tab === 'payments_report' && <PaymentsReportTab years={years} classes={classes} />}
       {tab === 'bill_cleanup' && <BillCleanupTab onCleaned={loadStats} />}
+      {tab === 'missing_bills' && <MissingBillsTab onGenerated={loadStats} />}
+      {tab === 'needs_review' && <NeedsReviewTab />}
     </div>
   );
 }

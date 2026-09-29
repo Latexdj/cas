@@ -403,6 +403,66 @@ router.post('/schedules/:id/generate', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/fees/schedules/missing-bills — for every schedule, which
+// currently-eligible active students have no bill for it yet. Most commonly
+// this is a student admitted/migrated after a schedule was already
+// generated for everyone else — new admissions now auto-bill themselves
+// (see admin-admissions.js), but this still catches schedules created after
+// a student was already enrolled, bulk imports, or anything the automatic
+// step missed. Deliberately re-resolves each schedule's target students
+// independently rather than sharing code with POST /schedules/:id/generate
+// above — that route is the one involved in the PTA Dues incident and stays
+// untouched; this is read-only anyway, so duplicating the (small) targeting
+// logic is the safer trade.
+router.get('/schedules/missing-bills', adminOnly, async (req, res, next) => {
+  try {
+    const { rows: schedules } = await pool.query(
+      `SELECT fs.*, fi.name AS fee_item_name
+       FROM fee_schedules fs LEFT JOIN fee_items fi ON fi.id = fs.fee_item_id
+       WHERE fs.school_id = $1`,
+      [req.schoolId]
+    );
+
+    const results = [];
+    for (const schedule of schedules) {
+      let targetIds;
+      if (schedule.class_name && schedule.academic_year_id) {
+        targetIds = await getClassRoster(req.schoolId, schedule.class_name, schedule.academic_year_id, schedule.semester);
+      } else if (schedule.class_name) {
+        const { rows } = await pool.query(
+          `SELECT id FROM students WHERE school_id=$1 AND status='Active' AND class_name=$2`,
+          [req.schoolId, schedule.class_name]
+        );
+        targetIds = rows.map(r => r.id);
+      } else {
+        const { rows } = await pool.query(
+          `SELECT id FROM students WHERE school_id=$1 AND status='Active'`,
+          [req.schoolId]
+        );
+        targetIds = rows.map(r => r.id);
+      }
+      if (!targetIds.length) continue;
+
+      const { rows: missing } = await pool.query(
+        `SELECT s.id, s.name, s.student_code, s.class_name
+         FROM students s
+         WHERE s.id = ANY($1::uuid[])
+           AND NOT EXISTS (SELECT 1 FROM student_bills sb WHERE sb.student_id = s.id AND sb.fee_schedule_id = $2)
+         ORDER BY s.name`,
+        [targetIds, schedule.id]
+      );
+      if (missing.length) {
+        results.push({
+          schedule_id: schedule.id, fee_item_name: schedule.fee_item_name,
+          class_name: schedule.class_name, amount: schedule.amount,
+          missing_count: missing.length, missing_students: missing,
+        });
+      }
+    }
+    res.json(results);
+  } catch (err) { next(err); }
+});
+
 // ── Unscheduled bill cleanup ────────────────────────────────────────────────
 // Surfaces bills with no fee_schedule_id — either a legitimate one-off ad hoc
 // bill, or a bill orphaned by a schedule that was later deleted (which used
@@ -471,6 +531,37 @@ router.delete('/bills/unscheduled-groups', adminOnly, async (req, res, next) => 
       ? `${deleted.length} unpaid bill(s) deleted; ${skippedPaid} left unchanged because a payment has already been recorded against them.`
       : `${deleted.length} unpaid bill(s) deleted.`;
     res.json({ message, deleted: deleted.length, skipped_paid: skippedPaid });
+  } catch (err) { next(err); }
+});
+
+// GET /api/fees/bills/needs-review — bills with a payment already recorded
+// whose amount/due_date no longer match their schedule's current values
+// (the schedule was edited after the bill was paid against). Generate Bills
+// deliberately never touches these automatically — rewriting a bill after
+// money has already been collected against it needs a human decision
+// (issue a top-up bill for a shortfall, or handle a refund/credit for an
+// overpayment outside the system) — this just makes them findable instead
+// of only ever showing up as an unlabeled count in a past Generate Bills
+// response.
+router.get('/bills/needs-review', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT sb.id AS bill_id, s.id AS student_id, s.name AS student_name, s.student_code, s.class_name,
+              fi.name AS fee_item_name,
+              sb.amount AS billed_amount, sb.due_date AS billed_due_date, sb.fee_item_id,
+              fs.amount AS current_amount, fs.due_date AS current_due_date,
+              COALESCE((SELECT SUM(amount) FROM fee_payments WHERE bill_id = sb.id), 0) AS amount_paid
+       FROM student_bills sb
+       JOIN fee_schedules fs ON fs.id = sb.fee_schedule_id
+       JOIN students s ON s.id = sb.student_id
+       LEFT JOIN fee_items fi ON fi.id = sb.fee_item_id
+       WHERE sb.school_id = $1
+         AND EXISTS (SELECT 1 FROM fee_payments WHERE bill_id = sb.id)
+         AND (sb.amount IS DISTINCT FROM fs.amount OR sb.due_date IS DISTINCT FROM fs.due_date)
+       ORDER BY s.name`,
+      [req.schoolId]
+    );
+    res.json(rows);
   } catch (err) { next(err); }
 });
 

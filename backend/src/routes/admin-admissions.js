@@ -7,6 +7,7 @@ const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { uploadFile } = require('../services/storage.service');
 const { generateAdmissionNumber, assignHouse } = require('../services/admissions.service');
 const { generateAdmissionLetterPDF, validateTemplate } = require('../services/pdf.service');
+const { generateBillsForNewStudent } = require('../services/billing.service');
 
 router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('admissions'));
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -536,6 +537,22 @@ async function migrateOne(client, app, defaultClass, schoolId, admissionYear) {
   return studentId;
 }
 
+// Best-effort, run AFTER the migration transaction has committed, on its own
+// connection: a newly enrolled student should immediately have a bill for
+// whatever fee schedules already apply to their class, without the admin
+// having to remember to click "Generate Bills" again. This intentionally
+// runs outside the enrollment transaction — a SQL-level failure here would
+// otherwise poison and roll back the whole migration (including the student
+// record itself) over what should be a non-fatal side effect. The Missing
+// Bills report catches anything this misses.
+async function autoGenerateBillsSafely(schoolId, studentId) {
+  try {
+    await generateBillsForNewStudent(pool, schoolId, studentId);
+  } catch (e) {
+    console.error('[admission migration] auto bill generation failed for student', studentId, e.message);
+  }
+}
+
 router.post('/applications/migrate-bulk', async (req, res, next) => {
   try {
     const { default_class = '1' } = req.body;
@@ -552,16 +569,17 @@ router.post('/applications/migrate-bulk', async (req, res, next) => {
     if (!rows.length) return res.json({ migrated: 0, skipped: 0, errors: [] });
     const admissionYear = settingsRows[0] ? (2000 + settingsRows[0].admission_year) : null;
     const client = await pool.connect();
-    let migrated = 0, skipped = 0; const errors = [];
+    let migrated = 0, skipped = 0; const errors = []; const migratedStudentIds = [];
     try {
       await client.query('BEGIN');
       for (const app of rows) {
-        try { await migrateOne(client, app, default_class, req.schoolId, admissionYear); migrated++; }
+        try { migratedStudentIds.push(await migrateOne(client, app, default_class, req.schoolId, admissionYear)); migrated++; }
         catch (e) { errors.push({ id: app.id, name: app.full_name, error: e.message }); skipped++; }
       }
       await client.query('COMMIT');
     } catch (e) { await client.query('ROLLBACK'); throw e; }
     finally { client.release(); }
+    for (const studentId of migratedStudentIds) await autoGenerateBillsSafely(req.schoolId, studentId);
     res.json({ migrated, skipped, errors });
   } catch (err) { next(err); }
 });
@@ -582,13 +600,15 @@ router.post('/applications/:id/migrate', async (req, res, next) => {
     if (!rows.length) return res.status(404).json({ error: 'Application not found or not in reported status.' });
     const admissionYear = settingsRows[0] ? (2000 + settingsRows[0].admission_year) : null;
     const client = await pool.connect();
+    let studentId;
     try {
       await client.query('BEGIN');
-      const studentId = await migrateOne(client, rows[0], default_class, req.schoolId, admissionYear);
+      studentId = await migrateOne(client, rows[0], default_class, req.schoolId, admissionYear);
       await client.query('COMMIT');
-      res.json({ migrated: 1, student_id: studentId });
     } catch (e) { await client.query('ROLLBACK'); throw e; }
     finally { client.release(); }
+    await autoGenerateBillsSafely(req.schoolId, studentId);
+    res.json({ migrated: 1, student_id: studentId });
   } catch (err) { next(err); }
 });
 
