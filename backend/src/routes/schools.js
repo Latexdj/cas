@@ -77,9 +77,13 @@ router.post('/', async (req, res, next) => {
 
       // Generate next school code: CAS001, CAS002, …
       // MAX of existing numeric suffixes handles deleted schools correctly.
-      // FOR UPDATE serializes concurrent creates within this transaction.
+      // An advisory lock (not FOR UPDATE — Postgres rejects combining a
+      // locking clause with an aggregate/no-GROUP-BY query, which made this
+      // fail with "Internal server error" on every single call) serializes
+      // concurrent creates; it auto-releases at COMMIT/ROLLBACK.
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext('schools_code_gen'))`);
       const { rows: codeRows } = await client.query(
-        `SELECT COALESCE(MAX(CAST(SUBSTRING(code, 4) AS INTEGER)), 0) + 1 AS next_num FROM schools FOR UPDATE`
+        `SELECT COALESCE(MAX(CAST(SUBSTRING(code, 4) AS INTEGER)), 0) + 1 AS next_num FROM schools`
       );
       const nextNum    = codeRows[0].next_num;
       const schoolCode = 'CAS' + String(nextNum).padStart(3, '0');
