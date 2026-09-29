@@ -4,6 +4,7 @@ const pool    = require('../config/db');
 const { authenticate, superAdminOnly, clearSubCache } = require('../middleware/auth');
 const { auditLog } = require('../utils/audit');
 const { MODULE_REGISTRY, ALL_MODULE_KEYS, defaultModulesForType } = require('../services/modules.service');
+const { clearModuleCache } = require('../middleware/moduleAccess');
 
 // All routes here are super-admin only
 router.use(authenticate, superAdminOnly);
@@ -480,12 +481,44 @@ router.put('/:id/modules', async (req, res, next) => {
     } catch (e) { await client.query('ROLLBACK'); throw e; }
     finally { client.release(); }
 
+    clearModuleCache(req.params.id);
     await auditLog('modules_updated', 'school', req.params.id, schoolRows[0].name, {
       modules: Object.fromEntries(
         Object.entries(modules).filter(([k]) => ALL_MODULE_KEYS.includes(k))
       ),
     });
     res.json({ message: 'Modules updated' });
+  } catch (err) { next(err); }
+});
+
+// ── PATCH /api/schools/:id/modules  body: { updates: [{ key, enabled }, ...] } ──
+// Targeted upsert (unlike PUT above, this never touches keys outside `updates`)
+// — used by the super-admin module-licensing toggle screen, where each row
+// (or, for "House Management", each pair of keys) is saved independently.
+router.patch('/:id/modules', async (req, res, next) => {
+  try {
+    const { updates } = req.body;
+    if (!Array.isArray(updates) || !updates.length) {
+      return res.status(400).json({ error: 'updates array required, e.g. [{ key, enabled }]' });
+    }
+    for (const u of updates) {
+      if (!u || !ALL_MODULE_KEYS.includes(u.key) || typeof u.enabled !== 'boolean') {
+        return res.status(400).json({ error: `Invalid update: ${JSON.stringify(u)}` });
+      }
+    }
+    const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.params.id]);
+    if (!schoolRows.length) return res.status(404).json({ error: 'School not found' });
+
+    for (const { key, enabled } of updates) {
+      await pool.query(
+        `INSERT INTO school_modules (school_id, module_key, enabled) VALUES ($1, $2, $3)
+         ON CONFLICT (school_id, module_key) DO UPDATE SET enabled = EXCLUDED.enabled`,
+        [req.params.id, key, enabled]
+      );
+    }
+    clearModuleCache(req.params.id);
+    await auditLog('modules_updated', 'school', req.params.id, schoolRows[0].name, { updates });
+    res.json({ ok: true, updates });
   } catch (err) { next(err); }
 });
 

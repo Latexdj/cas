@@ -32,38 +32,29 @@ interface ModuleItem {
   description: string;
   enabled: boolean;
   core: boolean;
-  comingSoon?: boolean;
+  licensable: boolean;
 }
 
 const SCHOOL_TYPES = ['Nursery', 'KG', 'Primary', 'JHS', 'SHS', 'Technical', 'University', 'Other'];
 const SCHOOL_CATEGORIES = ['Public', 'Private', 'International'];
 
-// Inline default-modules helper (mirrors modules.service.js on the server)
-const MODULE_DEFAULTS: { key: string; core: boolean; defaultFor: string[] | 'all' }[] = [
-  { key: 'teacher_attendance', core: true,  defaultFor: 'all' },
-  { key: 'student_attendance', core: false, defaultFor: 'all' },
-  { key: 'timetable',          core: false, defaultFor: ['Primary','JHS','SHS','Technical','University','Other'] },
-  { key: 'leave_management',   core: false, defaultFor: 'all' },
-  { key: 'meeting_attendance', core: false, defaultFor: ['JHS','SHS','Technical','University','Other'] },
-  { key: 'plc',                core: false, defaultFor: ['JHS','SHS'] },
-  { key: 'remedial_lessons',   core: false, defaultFor: ['JHS','SHS','Technical'] },
-  { key: 'assessments',        core: false, defaultFor: ['Primary','JHS','SHS','Technical'] },
-  { key: 'houses',             core: false, defaultFor: ['JHS','SHS'] },
-  { key: 'exeat',              core: false, defaultFor: ['SHS'] },
-  { key: 'clearance',          core: false, defaultFor: ['JHS','SHS','University'] },
-  { key: 'library',            core: false, defaultFor: ['JHS','SHS','University'] },
-  { key: 'classroom_qr',       core: false, defaultFor: 'all' },
-  { key: 'fees',               core: false, defaultFor: [] },
+// The licensable product rows shown on this screen. Foundation/attendance
+// keys (teacher_attendance, timetable, etc.) are licensable:false in the
+// registry and never appear here — they're always available, same tier as
+// student records and academic years. "House Management" is the one row
+// that maps to two underlying keys (houses + exeat), which some schools
+// already have set independently of each other.
+const LICENSABLE_ROWS: { label: string; keys: string[] }[] = [
+  { label: 'Assessment',       keys: ['assessments'] },
+  { label: 'Admission',        keys: ['admissions'] },
+  { label: 'Accounts',         keys: ['fees'] },
+  { label: 'Inventory',        keys: ['inventory'] },
+  { label: 'Library',          keys: ['library'] },
+  { label: 'LMS',              keys: ['lms'] },
+  { label: 'Clearance',        keys: ['clearance'] },
+  { label: 'House Management', keys: ['houses', 'exeat'] },
+  { label: 'Administration',   keys: ['discipline'] },
 ];
-
-function getDefaultEnabled(key: string, schoolType: string, schoolCategory: string): boolean {
-  const m = MODULE_DEFAULTS.find(d => d.key === key);
-  if (!m) return false;
-  if (m.core) return true;
-  if (m.defaultFor === 'all') return true;
-  if (key === 'fees') return schoolCategory === 'Private';
-  return Array.isArray(m.defaultFor) && m.defaultFor.includes(schoolType);
-}
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—';
@@ -132,10 +123,11 @@ export default function SchoolDetailPage() {
   const [deleteErr,     setDeleteErr]     = useState('');
 
   // Modules
-  const [modules,      setModules]      = useState<ModuleItem[]>([]);
-  const [moduleSaving, setModuleSaving] = useState(false);
-  const [moduleMsg,    setModuleMsg]    = useState('');
-  const [moduleErr,    setModuleErr]    = useState('');
+  const [modules,        setModules]        = useState<ModuleItem[]>([]);
+  const [moduleRowSaving, setModuleRowSaving] = useState<Record<string, boolean>>({});
+  const [moduleMsg,      setModuleMsg]      = useState('');
+  const [moduleErr,      setModuleErr]      = useState('');
+  const [expandedRow,    setExpandedRow]    = useState<string | null>(null);
 
   const loadModules = useCallback(async () => {
     try {
@@ -297,32 +289,50 @@ export default function SchoolDetailPage() {
     }
   }
 
-  async function handleSaveModules() {
-    setModuleSaving(true); setModuleMsg(''); setModuleErr('');
+  function getModuleEnabled(key: string): boolean {
+    return modules.find(m => m.key === key)?.enabled ?? false;
+  }
+
+  // 'on' / 'off' when every key in the row agrees, 'partial' when they don't
+  // (e.g. a school with houses=true, exeat=false) — shown explicitly rather
+  // than collapsed into a single misleading state.
+  function rowState(row: { keys: string[] }): 'on' | 'off' | 'partial' {
+    const states = row.keys.map(getModuleEnabled);
+    if (states.every(s => s)) return 'on';
+    if (states.every(s => !s)) return 'off';
+    return 'partial';
+  }
+
+  async function patchModuleKeys(rowLabel: string, updates: { key: string; enabled: boolean }[]) {
+    setModuleRowSaving(prev => ({ ...prev, [rowLabel]: true }));
+    setModuleMsg(''); setModuleErr('');
     try {
-      const modulesMap = Object.fromEntries(modules.map(m => [m.key, m.enabled]));
-      await saApi.put(`/api/schools/${id}/modules`, { modules: modulesMap });
-      setModuleMsg('Modules saved successfully.');
+      await saApi.patch(`/api/schools/${id}/modules`, { updates });
+      setModules(prev => prev.map(m => {
+        const u = updates.find(x => x.key === m.key);
+        return u ? { ...m, enabled: u.enabled } : m;
+      }));
+      setModuleMsg(`${rowLabel} updated.`);
     } catch (err: unknown) {
-      setModuleErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save modules.');
-    } finally { setModuleSaving(false); }
+      setModuleErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? `Failed to update ${rowLabel}.`);
+    } finally {
+      setModuleRowSaving(prev => ({ ...prev, [rowLabel]: false }));
+    }
   }
 
-  function handleRestoreDefaults() {
-    setModules(prev => prev.map(m => ({
-      ...m,
-      enabled: getDefaultEnabled(m.key, editType, editCategory),
-    })));
-    setModuleMsg('');
-    setModuleErr('');
+  // Clicking the collapsed row toggle: if both keys already agree, flip both
+  // together. If they disagree (partial), resolve by turning both ON —
+  // the same "don't take away access a school might already be using"
+  // posture as the Phase 0 backfill — rather than guessing which one the
+  // super admin meant to keep.
+  function handleRowToggle(row: { label: string; keys: string[] }) {
+    const state = rowState(row);
+    const nextEnabled = state !== 'on'; // 'off' or 'partial' -> turn both on; 'on' -> turn both off
+    patchModuleKeys(row.label, row.keys.map(key => ({ key, enabled: nextEnabled })));
   }
 
-  function toggleModule(key: string) {
-    setModules(prev => prev.map(m =>
-      m.key === key && !m.core && !m.comingSoon ? { ...m, enabled: !m.enabled } : m
-    ));
-    setModuleMsg('');
-    setModuleErr('');
+  function handleSubKeyToggle(rowLabel: string, key: string) {
+    patchModuleKeys(rowLabel, [{ key, enabled: !getModuleEnabled(key) }]);
   }
 
   if (loading) return (
@@ -442,76 +452,92 @@ export default function SchoolDetailPage() {
         </form>
       </div>
 
-      {/* Module Management */}
+      {/* Modules */}
       {modules.length > 0 && (
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-bold font-medium text-slate-400">Module Management</p>
-            <button
-              type="button"
-              onClick={handleRestoreDefaults}
-              className="text-xs text-slate-400 hover:text-slate-200 underline transition-colors"
-            >
-              Restore Defaults
-            </button>
-          </div>
+          <p className="text-xs font-bold font-medium text-slate-400 mb-1">Modules</p>
           <p className="text-xs text-slate-500 mb-4">
-            Toggle which features are available to this school. Core modules cannot be disabled.
+            Licensed features for this school. Turning a module off blocks new changes there
+            immediately — existing data stays visible to the school&apos;s admin and nothing is
+            lost if it&apos;s turned back on. Core features (student records, academic years,
+            attendance) are always available and aren&apos;t shown here.
           </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {modules.map(m => (
-              <div
-                key={m.key}
-                onClick={() => toggleModule(m.key)}
-                className={[
-                  'relative flex items-start gap-3 p-3 rounded-xl border transition-all',
-                  m.core || m.comingSoon
-                    ? 'opacity-60 cursor-not-allowed border-slate-700 bg-slate-900/40'
-                    : m.enabled
-                      ? 'cursor-pointer border-[#B8D9C8] bg-[#0B3D2E]/30 hover:border-[#B8D9C8]'
-                      : 'cursor-pointer border-slate-700 bg-slate-900/40 hover:border-slate-600',
-                ].join(' ')}
-              >
-                {/* Toggle indicator */}
-                <div className={[
-                  'mt-0.5 w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors',
-                  m.enabled ? 'bg-[#145C44] border-[#B8D9C8]' : 'bg-slate-800 border-slate-600',
-                ].join(' ')}>
-                  {m.enabled && (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={3} className="w-2.5 h-2.5">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-sm font-semibold text-white">{m.label}</span>
-                    {m.core && (
-                      <span className="text-[9px] font-bold font-medium text-amber-400 bg-amber-900/40 px-1.5 py-0.5 rounded">
-                        Core
-                      </span>
-                    )}
-                    {m.comingSoon && (
-                      <span className="text-[9px] font-bold font-medium text-slate-400 bg-slate-700 px-1.5 py-0.5 rounded">
-                        Coming Soon
-                      </span>
+          <div className="space-y-2">
+            {LICENSABLE_ROWS.map(row => {
+              const state = rowState(row);
+              const saving = !!moduleRowSaving[row.label];
+              const multiKey = row.keys.length > 1;
+              const isExpanded = expandedRow === row.label;
+              return (
+                <div key={row.label} className="rounded-xl border border-slate-700 bg-slate-900/40 overflow-hidden">
+                  <div className="flex items-center gap-3 p-3">
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => handleRowToggle(row)}
+                      title={state === 'partial' ? 'Houses and Exeat disagree — click to enable both' : undefined}
+                      className={[
+                        'relative w-11 h-6 rounded-full flex-shrink-0 transition-colors disabled:opacity-40',
+                        state === 'on' ? 'bg-[#145C44]' : state === 'partial' ? 'bg-amber-600' : 'bg-slate-600',
+                      ].join(' ')}
+                    >
+                      <span className={[
+                        'absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform',
+                        state === 'off' ? 'translate-x-0.5' : 'translate-x-5',
+                      ].join(' ')} />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-sm font-semibold text-white">{row.label}</span>
+                        {state === 'partial' && (
+                          <span className="text-[9px] font-bold text-amber-400 bg-amber-900/40 px-1.5 py-0.5 rounded">
+                            Partially enabled
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {multiKey && (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedRow(isExpanded ? null : row.label)}
+                        className="text-[11px] text-slate-400 hover:text-slate-200 underline flex-shrink-0"
+                      >
+                        {isExpanded ? 'Hide details' : 'Details'}
+                      </button>
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{m.description}</p>
+                  {multiKey && isExpanded && (
+                    <div className="border-t border-slate-700 bg-slate-950/40 px-3 py-2 space-y-1.5">
+                      {row.keys.map(key => {
+                        const on = getModuleEnabled(key);
+                        return (
+                          <div key={key} className="flex items-center justify-between">
+                            <span className="text-xs text-slate-300 capitalize">{key}</span>
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => handleSubKeyToggle(row.label, key)}
+                              className={[
+                                'relative w-9 h-5 rounded-full transition-colors disabled:opacity-40',
+                                on ? 'bg-[#145C44]' : 'bg-slate-600',
+                              ].join(' ')}
+                            >
+                              <span className={[
+                                'absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform',
+                                on ? 'translate-x-4' : 'translate-x-0.5',
+                              ].join(' ')} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           {moduleMsg && <p className="text-xs text-[#2ab289] bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-3">{moduleMsg}</p>}
           {moduleErr && <p className="text-xs text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-3 py-2 mt-3">{moduleErr}</p>}
-          <button
-            type="button"
-            onClick={handleSaveModules}
-            disabled={moduleSaving}
-            className="w-full mt-4 py-2.5 rounded-xl bg-[#145C44] hover:bg-[#145C44] text-white font-semibold text-sm transition-colors disabled:opacity-40"
-          >
-            {moduleSaving ? 'Saving...' : 'Save Module Settings'}
-          </button>
         </div>
       )}
 
