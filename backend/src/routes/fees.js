@@ -4,6 +4,7 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { getClassRoster, resolveStudentClassAtPeriod, mapWithLimit } = require('../services/classHistory.service');
 const { getCurrentYearSem } = require('../utils/school-context');
+const { auditLog } = require('../utils/audit');
 
 router.use(authenticate, requireActiveSubscription, checkModuleAccess('fees'));
 
@@ -70,7 +71,9 @@ router.delete('/items/:id', adminOnly, async (req, res, next) => {
     if (bills.length > 0) {
       return res.status(400).json({ error: 'Cannot delete: this fee item has bills linked to it. Deactivate it instead.' });
     }
+    const { rows: itemRows } = await pool.query(`SELECT name FROM fee_items WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]);
     await pool.query(`DELETE FROM fee_items WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]);
+    await auditLog('fee_item_deleted', 'fee_item', req.params.id, itemRows[0]?.name, { deleted_by: req.user.name });
     res.json({ message: 'Deleted.' });
   } catch (err) { next(err); }
 });
@@ -126,7 +129,25 @@ router.put('/schedules/:id', adminOnly, async (req, res, next) => {
 
 router.delete('/schedules/:id', adminOnly, async (req, res, next) => {
   try {
+    // student_bills.fee_schedule_id is ON DELETE SET NULL, not CASCADE — deleting
+    // a schedule with bills already generated from it doesn't remove those bills,
+    // it just orphans them (silently detached from the schedule that produced them,
+    // no longer visible or manageable from this screen, but still charged to the
+    // student). Block that the same way fee item deletion is already blocked.
+    const { rows: bills } = await pool.query(
+      `SELECT 1 FROM student_bills WHERE fee_schedule_id=$1 AND school_id=$2 LIMIT 1`,
+      [req.params.id, req.schoolId]
+    );
+    if (bills.length > 0) {
+      return res.status(400).json({ error: 'Cannot delete: this schedule has bills linked to it. Delete those bills first if they were created in error.' });
+    }
+    const { rows: schedRows } = await pool.query(
+      `SELECT fi.name AS fee_item_name FROM fee_schedules fs LEFT JOIN fee_items fi ON fi.id = fs.fee_item_id
+       WHERE fs.id=$1 AND fs.school_id=$2`,
+      [req.params.id, req.schoolId]
+    );
     await pool.query(`DELETE FROM fee_schedules WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]);
+    await auditLog('fee_schedule_deleted', 'fee_schedule', req.params.id, schedRows[0]?.fee_item_name, { deleted_by: req.user.name });
     res.json({ message: 'Deleted.' });
   } catch (err) { next(err); }
 });
@@ -314,7 +335,15 @@ router.delete('/bills/:id', adminOnly, async (req, res, next) => {
     if (payments.length > 0) {
       return res.status(400).json({ error: 'Cannot delete a bill that has payments. Void the payments first.' });
     }
+    const { rows: billRows } = await pool.query(
+      `SELECT sb.description, sb.amount, s.name AS student_name FROM student_bills sb JOIN students s ON s.id = sb.student_id
+       WHERE sb.id=$1 AND sb.school_id=$2`,
+      [req.params.id, req.schoolId]
+    );
     await pool.query(`DELETE FROM student_bills WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]);
+    await auditLog('student_bill_deleted', 'student_bill', req.params.id, billRows[0]?.student_name, {
+      deleted_by: req.user.name, description: billRows[0]?.description, amount: billRows[0]?.amount,
+    });
     res.json({ message: 'Deleted.' });
   } catch (err) { next(err); }
 });
@@ -387,7 +416,15 @@ router.post('/payments', accountsAccess, async (req, res, next) => {
 
 router.delete('/payments/:id', accountsAccess, async (req, res, next) => {
   try {
+    const { rows: paymentRows } = await pool.query(
+      `SELECT fp.amount, fp.receipt_no, s.name AS student_name FROM fee_payments fp JOIN students s ON s.id = fp.student_id
+       WHERE fp.id=$1 AND fp.school_id=$2`,
+      [req.params.id, req.schoolId]
+    );
     await pool.query(`DELETE FROM fee_payments WHERE id=$1 AND school_id=$2`, [req.params.id, req.schoolId]);
+    await auditLog('fee_payment_voided', 'fee_payment', req.params.id, paymentRows[0]?.student_name, {
+      voided_by: req.user.name, amount: paymentRows[0]?.amount, receipt_no: paymentRows[0]?.receipt_no,
+    });
     res.json({ message: 'Voided.' });
   } catch (err) { next(err); }
 });
