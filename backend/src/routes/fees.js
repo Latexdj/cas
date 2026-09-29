@@ -565,6 +565,41 @@ router.get('/bills/needs-review', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// PUT /api/fees/bills/:id/sync-to-schedule — updates a paid bill's amount/
+// due_date to match its schedule's current values in place, rather than
+// creating a separate top-up/correction bill. The payment already recorded
+// stays linked to this same bill, so (new amount − amount paid) is correct
+// immediately, and the bill stops appearing in Needs Review on its own —
+// there is nothing left to re-click, unlike a second bill that never
+// resolved the original mismatch it was meant to fix.
+router.put('/bills/:id/sync-to-schedule', adminOnly, async (req, res, next) => {
+  try {
+    const { rows: billRows } = await pool.query(
+      `SELECT sb.id, sb.fee_schedule_id, sb.amount, fs.amount AS schedule_amount, fs.due_date AS schedule_due_date,
+              s.name AS student_name
+       FROM student_bills sb
+       JOIN students s ON s.id = sb.student_id
+       LEFT JOIN fee_schedules fs ON fs.id = sb.fee_schedule_id
+       WHERE sb.id = $1 AND sb.school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!billRows.length) return res.status(404).json({ error: 'Bill not found.' });
+    const bill = billRows[0];
+    if (!bill.fee_schedule_id) return res.status(400).json({ error: 'This bill is not linked to a schedule.' });
+
+    const { rows: updated } = await pool.query(
+      `UPDATE student_bills SET amount = $1, due_date = $2 WHERE id = $3 RETURNING *`,
+      [bill.schedule_amount, bill.schedule_due_date, bill.id]
+    );
+
+    await auditLog('bill_synced_to_schedule', 'student_bill', bill.id, bill.student_name, {
+      synced_by: req.user.name, old_amount: bill.amount, new_amount: bill.schedule_amount,
+    });
+
+    res.json(updated[0]);
+  } catch (err) { next(err); }
+});
+
 // ── Student Bills ─────────────────────────────────────────────────────────────
 
 router.get('/bills', accountsAccess, async (req, res, next) => {

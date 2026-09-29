@@ -1223,21 +1223,19 @@ function NeedsReviewTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function createCorrectionBill(row: NeedsReviewRow, diff: number) {
-    if (!confirm(`Create a top-up bill of ${fmt(diff)} for ${row.student_name} (${row.fee_item_name} adjusted from ${fmt(row.billed_amount)} to ${fmt(row.current_amount)})?`)) return;
+  async function syncToSchedule(row: NeedsReviewRow, diff: number) {
+    const warning = diff > 0
+      ? `This will raise the bill from ${fmt(row.billed_amount)} to ${fmt(row.current_amount)} — the student will show ${fmt(diff)} more owed.`
+      : `This will lower the bill from ${fmt(row.billed_amount)} to ${fmt(row.current_amount)} — since ${fmt(row.amount_paid)} was already paid, the student will show as overpaid by ${fmt(Math.abs(diff))}. Handle any refund separately.`;
+    if (!confirm(`Sync ${row.student_name}'s bill to the current schedule?\n\n${warning}`)) return;
+
     setBusyId(row.bill_id); setMsg(''); setErr('');
     try {
-      await api.post('/api/fees/bills', {
-        student_id: row.student_id,
-        fee_item_id: row.fee_item_id,
-        description: `Correction: ${row.fee_item_name ?? 'Fee'} adjusted from ${fmt(row.billed_amount)} to ${fmt(row.current_amount)}`,
-        amount: diff.toFixed(2),
-        due_date: row.current_due_date,
-      });
-      setMsg(`Correction bill created for ${row.student_name}.`);
+      await api.put(`/api/fees/bills/${row.bill_id}/sync-to-schedule`);
+      setMsg(`${row.student_name}'s bill synced to the current schedule.`);
       await load();
     } catch (e: unknown) {
-      setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to create correction bill.');
+      setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to sync bill.');
     } finally { setBusyId(null); }
   }
 
@@ -1247,8 +1245,9 @@ function NeedsReviewTab() {
     <div>
       <p style={{ color: '#64748b', fontSize: 13, marginBottom: 16 }}>
         These bills already have a payment recorded, but their schedule was edited afterward — Generate Bills
-        leaves paid bills alone rather than silently changing them. A fee increase needs a top-up bill; a
-        decrease means the student overpaid and needs a refund or credit handled outside the system.
+        leaves paid bills alone rather than silently changing them. Syncing updates the bill to the schedule&apos;s
+        current amount in place; the payment already recorded stays linked, so what&apos;s still owed (or any
+        overpayment) is correct immediately, and the row disappears once synced.
       </p>
 
       {msg && <p style={{ color: '#145C44', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '8px 12px', marginBottom: 12, fontSize: 13 }}>{msg}</p>}
@@ -1280,12 +1279,10 @@ function NeedsReviewTab() {
                     {diff !== 0 ? `${diff > 0 ? '+' : ''}${fmt(diff)}` : dueDateChanged ? 'Due date changed' : '—'}
                   </td>
                   <td style={{ padding: '8px 10px' }}>
-                    {diff > 0 ? (
-                      <button style={btnPrimary} disabled={busyId === row.bill_id} onClick={() => createCorrectionBill(row, diff)}>
-                        {busyId === row.bill_id ? 'Creating…' : 'Create Top-Up Bill'}
+                    {diff !== 0 || dueDateChanged ? (
+                      <button style={btnPrimary} disabled={busyId === row.bill_id} onClick={() => syncToSchedule(row, diff)}>
+                        {busyId === row.bill_id ? 'Syncing…' : 'Sync to Schedule'}
                       </button>
-                    ) : diff < 0 ? (
-                      <span style={{ fontSize: 12, color: '#f59e0b', fontWeight: 600 }}>Refund/credit needed</span>
                     ) : (
                       <span style={{ fontSize: 12, color: '#94a3b8' }}>—</span>
                     )}
