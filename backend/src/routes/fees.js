@@ -107,7 +107,7 @@ router.delete('/items/:id', adminOnly, async (req, res, next) => {
 router.get('/schedules', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT fs.*, fi.name AS fee_item_name, ay.name AS academic_year_name
+      `SELECT fs.*, fi.name AS fee_item_name, ay.name AS academic_year_name, fs.due_date::text AS due_date
        FROM fee_schedules fs
        LEFT JOIN fee_items fi ON fi.id = fs.fee_item_id
        LEFT JOIN academic_years ay ON ay.id = fs.academic_year_id
@@ -140,7 +140,7 @@ router.post('/schedules', adminOnly, async (req, res, next) => {
 
     const { rows } = await pool.query(
       `INSERT INTO fee_schedules (school_id, fee_item_id, academic_year_id, semester, class_name, amount, due_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *, due_date::text AS due_date`,
       [req.schoolId, fee_item_id, academic_year_id || null, semester || null,
        class_name?.trim() || null, Number(amount), due_date || null]
     );
@@ -170,7 +170,7 @@ router.put('/schedules/:id', adminOnly, async (req, res, next) => {
     const { rows } = await pool.query(
       `UPDATE fee_schedules SET fee_item_id=$1, academic_year_id=$2, semester=$3,
          class_name=$4, amount=$5, due_date=$6
-       WHERE id=$7 AND school_id=$8 RETURNING *`,
+       WHERE id=$7 AND school_id=$8 RETURNING *, due_date::text AS due_date`,
       [fee_item_id, academic_year_id || null, semester || null,
        class_name?.trim() || null, Number(amount), due_date || null, req.params.id, req.schoolId]
     );
@@ -477,7 +477,7 @@ router.get('/schedules/missing-bills', adminOnly, async (req, res, next) => {
 router.get('/bills/unscheduled-groups', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT sb.fee_item_id, fi.name AS fee_item_name, sb.description, sb.amount, sb.due_date,
+      `SELECT sb.fee_item_id, fi.name AS fee_item_name, sb.description, sb.amount, sb.due_date::text AS due_date,
               COUNT(*)::int AS student_count,
               COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM fee_payments fp WHERE fp.bill_id = sb.id))::int AS paid_count,
               COUNT(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM fee_payments fp WHERE fp.bill_id = sb.id))::int AS unpaid_count,
@@ -548,8 +548,8 @@ router.get('/bills/needs-review', adminOnly, async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT sb.id AS bill_id, s.id AS student_id, s.name AS student_name, s.student_code, s.class_name,
               fi.name AS fee_item_name,
-              sb.amount AS billed_amount, sb.due_date AS billed_due_date, sb.fee_item_id,
-              fs.amount AS current_amount, fs.due_date AS current_due_date,
+              sb.amount AS billed_amount, sb.due_date::text AS billed_due_date, sb.fee_item_id,
+              fs.amount AS current_amount, fs.due_date::text AS current_due_date,
               COALESCE((SELECT SUM(amount) FROM fee_payments WHERE bill_id = sb.id), 0) AS amount_paid
        FROM student_bills sb
        JOIN fee_schedules fs ON fs.id = sb.fee_schedule_id
@@ -575,7 +575,7 @@ router.get('/bills/needs-review', adminOnly, async (req, res, next) => {
 router.put('/bills/:id/sync-to-schedule', adminOnly, async (req, res, next) => {
   try {
     const { rows: billRows } = await pool.query(
-      `SELECT sb.id, sb.fee_schedule_id, sb.amount, fs.amount AS schedule_amount, fs.due_date AS schedule_due_date,
+      `SELECT sb.id, sb.fee_schedule_id, sb.amount, fs.amount AS schedule_amount, fs.due_date::text AS schedule_due_date,
               s.name AS student_name
        FROM student_bills sb
        JOIN students s ON s.id = sb.student_id
@@ -588,7 +588,7 @@ router.put('/bills/:id/sync-to-schedule', adminOnly, async (req, res, next) => {
     if (!bill.fee_schedule_id) return res.status(400).json({ error: 'This bill is not linked to a schedule.' });
 
     const { rows: updated } = await pool.query(
-      `UPDATE student_bills SET amount = $1, due_date = $2 WHERE id = $3 RETURNING *`,
+      `UPDATE student_bills SET amount = $1, due_date = $2 WHERE id = $3 RETURNING *, due_date::text AS due_date`,
       [bill.schedule_amount, bill.schedule_due_date, bill.id]
     );
 
@@ -615,7 +615,7 @@ router.get('/bills', accountsAccess, async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT sb.*,
               s.name AS student_name, s.student_code, s.class_name,
-              fi.name AS fee_item_name,
+              fi.name AS fee_item_name, sb.due_date::text AS due_date,
               COALESCE((SELECT SUM(p.amount) FROM fee_payments p WHERE p.bill_id = sb.id),0) AS amount_paid
        FROM student_bills sb
        JOIN students s ON s.id = sb.student_id
@@ -659,7 +659,7 @@ router.post('/bills', adminOnly, async (req, res, next) => {
     }
     const { rows } = await pool.query(
       `INSERT INTO student_bills (school_id, student_id, fee_item_id, academic_year_id, semester, description, amount, due_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *, due_date::text AS due_date`,
       [req.schoolId, student_id, fee_item_id || null, academic_year_id || null,
        semester || null, description.trim(), Number(amount), due_date || null]
     );
@@ -702,7 +702,7 @@ router.get('/payments', accountsAccess, async (req, res, next) => {
     if (to)          { conditions.push(`fp.payment_date <= $${i++}`); params.push(to); }
 
     const { rows } = await pool.query(
-      `SELECT fp.*,
+      `SELECT fp.*, fp.payment_date::text AS payment_date,
               s.name AS student_name, s.student_code, s.class_name,
               fi.name AS fee_item_name,
               sb.academic_year_id AS bill_academic_year_id, sb.semester AS bill_semester
@@ -745,7 +745,7 @@ router.post('/payments', accountsAccess, async (req, res, next) => {
       `INSERT INTO fee_payments
          (school_id, student_id, bill_id, fee_item_id, amount, payment_date, payment_method,
           reference, notes, recorded_by, receipt_no)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *, payment_date::text AS payment_date`,
       [req.schoolId, student_id, bill_id || null, fee_item_id || null, Number(amount),
        payment_date || new Date().toISOString().slice(0, 10),
        payment_method || 'Cash', reference?.trim() || null, notes?.trim() || null,
@@ -781,7 +781,7 @@ router.get('/student/:id/summary', accountsAccess, async (req, res, next) => {
     if (!studentRows[0]) return res.status(404).json({ error: 'Student not found.' });
 
     const { rows: bills } = await pool.query(
-      `SELECT sb.*,
+      `SELECT sb.*, sb.due_date::text AS due_date,
               fi.name AS fee_item_name,
               COALESCE((SELECT SUM(p.amount) FROM fee_payments p WHERE p.bill_id = sb.id),0) AS amount_paid
        FROM student_bills sb
@@ -792,7 +792,7 @@ router.get('/student/:id/summary', accountsAccess, async (req, res, next) => {
     );
 
     const { rows: payments } = await pool.query(
-      `SELECT fp.*, fi.name AS fee_item_name
+      `SELECT fp.*, fp.payment_date::text AS payment_date, fi.name AS fee_item_name
        FROM fee_payments fp
        LEFT JOIN fee_items fi ON fi.id = fp.fee_item_id
        WHERE fp.student_id=$1 AND fp.school_id=$2
@@ -875,7 +875,7 @@ router.get('/reports/collections', accountsAccess, async (req, res, next) => {
     if (semester)   { conditions.push(`sb.semester = $${i++}`); params.push(Number(semester)); }
 
     const { rows } = await pool.query(
-      `SELECT fp.payment_date, fp.payment_method,
+      `SELECT fp.payment_date::text AS payment_date, fp.payment_method,
               SUM(fp.amount) AS total, COUNT(*)::int AS count
        FROM fee_payments fp
        JOIN students s ON s.id = fp.student_id

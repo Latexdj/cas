@@ -377,7 +377,7 @@ function SchedulesTab({
                   {[s.academic_year_name, s.semester ? `Semester ${s.semester}` : null].filter(Boolean).join(' / ') || '—'}
                 </td>
                 <td style={{ padding: '10px 12px', fontWeight: 600, color: '#145C44' }}>{fmt(s.amount)}</td>
-                <td style={{ padding: '10px 12px', color: '#64748b' }}>{s.due_date ?? '—'}</td>
+                <td style={{ padding: '10px 12px', color: '#64748b' }}>{s.due_date ? new Date(s.due_date).toLocaleDateString('en-GB') : '—'}</td>
                 <td style={{ padding: '10px 12px' }}>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button style={{ ...btnPrimary, padding: '5px 10px', fontSize: 12 }}
@@ -658,7 +658,7 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
                     <td style={{ padding: '8px 10px', fontWeight: 600 }}>{fmt(b.amount)}</td>
                     <td style={{ padding: '8px 10px', color: '#145C44' }}>{fmt(paid)}</td>
                     <td style={{ padding: '8px 10px', color: owed > 0 ? '#dc2626' : '#145C44', fontWeight: 600 }}>{fmt(owed)}</td>
-                    <td style={{ padding: '8px 10px', color: '#64748b' }}>{b.due_date ?? '—'}</td>
+                    <td style={{ padding: '8px 10px', color: '#64748b' }}>{b.due_date ? new Date(b.due_date).toLocaleDateString('en-GB') : '—'}</td>
                     <td style={{ padding: '8px 10px' }}>
                       <button style={btnDanger} onClick={() => deleteBill(b.id)}>Delete</button>
                     </td>
@@ -682,7 +682,7 @@ function CollectionsTab({ items }: { items: FeeItem[] }) {
               {selected.payments.length === 0 && <tr><td colSpan={7} style={{ padding: 16, color: '#94a3b8', textAlign: 'center' }}>No payments.</td></tr>}
               {selected.payments.map(p => (
                 <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '8px 10px' }}>{p.payment_date}</td>
+                  <td style={{ padding: '8px 10px' }}>{new Date(p.payment_date).toLocaleDateString('en-GB')}</td>
                   <td style={{ padding: '8px 10px', fontWeight: 600, color: '#145C44' }}>{fmt(p.amount)}</td>
                   <td style={{ padding: '8px 10px' }}>{p.payment_method}</td>
                   <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontSize: 12 }}>{p.receipt_no ?? '—'}</td>
