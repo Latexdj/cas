@@ -7,6 +7,16 @@ const pool     = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { uploadFile, uploadDocument } = require('../services/storage.service');
 const { notifyTeacherProfileRequestSubmitted } = require('../services/notification.service');
+const { getAdminAllowedModules, getEnabledModules, LICENSABLE_MODULE_KEYS } = require('../services/modules.service');
+
+// Only an unrestricted admin (or super_admin) may create/edit admin-level
+// access — granting is_admin, or scoping allowed_modules at creation time.
+// A restricted admin is blocked outright, not merely capped to their own
+// subset (locked decision — see admin-module-access design).
+async function callerIsUnrestrictedAdmin(req) {
+  if (req.user.role === 'super_admin') return true;
+  return (await getAdminAllowedModules(req.user.id)) === null;
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -800,10 +810,23 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', adminOnly, async (req, res, next) => {
   try {
-    const { name, email, phone, department, status = 'Active', is_admin = false, notes, teacher_code } = req.body;
+    const { name, email, phone, department, status = 'Active', is_admin = false, notes, teacher_code, allowed_modules } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
     const valErrors = validateTeacherFields(req.body);
     if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
+
+    if (is_admin && !(await callerIsUnrestrictedAdmin(req))) {
+      return res.status(403).json({ error: 'Your admin account is module-restricted and cannot create other admins.' });
+    }
+    let restrictModules = null;
+    if (is_admin && Array.isArray(allowed_modules)) {
+      const schoolLicensed = await getEnabledModules(req.schoolId);
+      const invalid = allowed_modules.filter(k => !schoolLicensed.includes(k) || !LICENSABLE_MODULE_KEYS.includes(k));
+      if (invalid.length) {
+        return res.status(400).json({ error: `Not licensed to this school: ${invalid.join(', ')}` });
+      }
+      restrictModules = allowed_modules;
+    }
 
     // Enforce teacher limit
     const { rows: subRows } = await pool.query(
@@ -835,6 +858,17 @@ router.post('/', adminOnly, async (req, res, next) => {
       [req.schoolId, code, name.trim(), email || null, phone || null,
        department || null, status, is_admin, notes || null, pinHash]
     );
+
+    if (restrictModules !== null) {
+      for (const moduleKey of restrictModules) {
+        await pool.query(
+          `INSERT INTO admin_module_access (teacher_id, module_key, granted_by) VALUES ($1,$2,$3)
+           ON CONFLICT (teacher_id, module_key) DO NOTHING`,
+          [rows[0].id, moduleKey, req.user.id]
+        );
+      }
+    }
+
     res.status(201).json(rows[0]);
   } catch (err) {
     if (err.code === '23505') {
@@ -863,6 +897,16 @@ router.put('/:id', adminOnly, async (req, res, next) => {
     } = req.body;
     const valErrors = validateTeacherFields(req.body);
     if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
+
+    if (is_admin != null) {
+      if (String(req.params.id) === String(req.user.id)) {
+        return res.status(403).json({ error: 'You cannot change your own admin status.' });
+      }
+      if (!(await callerIsUnrestrictedAdmin(req))) {
+        return res.status(403).json({ error: 'Your admin account is module-restricted and cannot change admin status for other accounts.' });
+      }
+    }
+
     const teachingIds = Array.isArray(currently_teaching_subject_ids) ? currently_teaching_subject_ids : null;
     if (teachingIds) {
       const subjectErr = await validateTeachingSubjectIds(req.schoolId, teachingIds);

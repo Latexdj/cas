@@ -319,7 +319,8 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const [isHod,                 setIsHod]                 = useState(false);
   const [managementRole,   setManagementRole]   = useState<string | null>(null);
   const [schoolId,         setSchoolId]         = useState<string | undefined>(undefined);
-  const enabledModules = useEnabledModules(teacherApi, schoolId);
+  const [userId,           setUserId]           = useState<string | undefined>(undefined);
+  const enabledModules = useEnabledModules(teacherApi, schoolId, userId);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => { setMoreOpen(false); }, [pathname]);
@@ -368,6 +369,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     if (!teacher)   { router.replace('/teacher/login'); return; }
     setManagementRole(teacher.management_role ?? null);
     setSchoolId(teacher.schoolId);
+    setUserId(teacher.id);
     const colors = getTeacherColors();
     setPrimary(colors.primary);
     setLogoUrl(colors.logoUrl ?? null);

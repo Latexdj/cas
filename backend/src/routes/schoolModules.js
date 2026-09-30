@@ -7,14 +7,19 @@
 // logged-in role for the school), not adminOnly.
 const router = require('express').Router();
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
-const { getEnabledModules } = require('../services/modules.service');
+const { getEffectiveModules } = require('../services/modules.service');
 
 router.use(authenticate, requireActiveSubscription);
 
-// GET /api/school-modules/enabled — the enabled module keys for the caller's school
+// GET /api/school-modules/enabled — the module keys the CALLER may use: the
+// school's own license, further intersected with that admin's own allowed
+// set if they've been restricted via admin_module_access (see
+// getEffectiveModules). Unrestricted callers (every non-admin role, and any
+// admin/management identity with no admin_module_access rows) get back
+// exactly the school's license, unchanged from before this existed.
 router.get('/enabled', async (req, res, next) => {
   try {
-    const modules = await getEnabledModules(req.schoolId);
+    const modules = await getEffectiveModules(req.schoolId, req.user);
     res.json(modules);
   } catch (err) { next(err); }
 });

@@ -60,4 +60,38 @@ async function getEnabledModules(schoolId) {
   return rows.map(r => r.module_key);
 }
 
-module.exports = { MODULE_REGISTRY, ALL_MODULE_KEYS, defaultModulesForType, getEnabledModules };
+const LICENSABLE_MODULE_KEYS = MODULE_REGISTRY.filter(m => m.licensable).map(m => m.key);
+
+// Per-admin restriction on top of the school's own license. Absence of rows
+// for a teacher = unrestricted, mirroring how getEnabledModules treats a
+// school with zero school_modules rows as "everything enabled".
+async function getAdminAllowedModules(teacherId) {
+  const { rows } = await pool.query(
+    `SELECT module_key FROM admin_module_access WHERE teacher_id = $1`,
+    [teacherId]
+  );
+  return rows.length ? rows.map(r => r.module_key) : null;
+}
+
+// The module list a given caller actually sees/may use: the school's license,
+// further intersected with that admin's own allowed set (if restricted).
+// Only 'admin' role and 'management' (principal/vice_principal portal) JWTs
+// are ever restricted — both map back to the same teachers.id, so a
+// restriction set via the admin portal applies no matter which portal the
+// same person logs into. Foundation (non-licensable) modules are never
+// stripped by a per-admin restriction — that would incorrectly hide core
+// nav (Teacher Attendance, Timetable, etc.) that isn't part of the school's
+// licensing concept in the first place.
+async function getEffectiveModules(schoolId, user) {
+  const schoolModules = await getEnabledModules(schoolId);
+  const isAdminIdentity = user?.role === 'admin' || user?.type === 'management';
+  if (!isAdminIdentity) return schoolModules;
+  const allowed = await getAdminAllowedModules(user.id);
+  if (allowed === null) return schoolModules;
+  return schoolModules.filter(k => !LICENSABLE_MODULE_KEYS.includes(k) || allowed.includes(k));
+}
+
+module.exports = {
+  MODULE_REGISTRY, ALL_MODULE_KEYS, LICENSABLE_MODULE_KEYS, defaultModulesForType,
+  getEnabledModules, getAdminAllowedModules, getEffectiveModules,
+};

@@ -5,6 +5,7 @@ import { Pagination, Th } from '@/components/ui/Pagination';
 import Link from 'next/link';
 import Image from 'next/image';
 import { api } from '@/lib/api';
+import { getUser } from '@/lib/auth';
 import { validateTeacherForm } from '@/lib/validations';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -57,6 +58,28 @@ export default function TeachersPage() {
   // Responsibilities
   const [availableResp,    setAvailableResp]    = useState<{ id: string; name: string; module_key: string | null }[]>([]);
   const [selectedRespIds,  setSelectedRespIds]  = useState<string[]>([]);
+
+  // Per-admin module access — only an unrestricted admin may grant/edit
+  // another admin's module scope; nobody may edit their own (self-lockout
+  // guard, enforced server-side too).
+  const myUserId = getUser()?.id;
+  const [callerRestricted, setCallerRestricted] = useState(false);
+  const [schoolModuleOptions, setSchoolModuleOptions] = useState<{ key: string; label: string }[]>([]);
+  const [moduleAccessMode, setModuleAccessMode] = useState<'full' | 'restricted'>('full');
+  const [selectedModules,  setSelectedModules]  = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!myUserId) return;
+    api.get<{ restricted: boolean }>(`/api/admin-module-access/${myUserId}`)
+      .then(r => setCallerRestricted(r.data.restricted)).catch(() => {});
+    api.get<{ key: string; label: string }[]>('/api/admin-module-access/school-modules')
+      .then(r => setSchoolModuleOptions(r.data)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function toggleSelectedModule(key: string) {
+    setSelectedModules(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  }
 
   // Reset PIN state
   const [pinTarget,    setPinTarget]    = useState<Teacher | null>(null);
@@ -148,6 +171,7 @@ export default function TeachersPage() {
   function openCreate() {
     setForm(EMPTY); setError(''); setFieldErrors({}); setEditId(null);
     setSelectedRespIds([]);
+    setModuleAccessMode('full'); setSelectedModules([]);
     api.get<{ id: string; name: string; module_key: string | null }[]>('/api/responsibilities')
       .then(r => setAvailableResp(r.data)).catch(() => {});
     setModal('create');
@@ -155,8 +179,14 @@ export default function TeachersPage() {
   async function openEdit(t: Teacher) {
     setEditId(t.id); setError(''); setFieldErrors({});
     setSelectedRespIds([]);
+    setModuleAccessMode('full'); setSelectedModules([]);
     api.get<{ id: string; name: string; module_key: string | null }[]>('/api/responsibilities')
       .then(r => setAvailableResp(r.data)).catch(() => {});
+    if (t.is_admin) {
+      api.get<{ restricted: boolean; modules: string[] }>(`/api/admin-module-access/${t.id}`)
+        .then(r => { setModuleAccessMode(r.data.restricted ? 'restricted' : 'full'); setSelectedModules(r.data.modules); })
+        .catch(() => {});
+    }
     try {
       const { data } = await api.get<TeacherProfile & { responsibilities?: { id: string }[] }>(`/api/teachers/${t.id}`);
       setForm({
@@ -191,8 +221,20 @@ export default function TeachersPage() {
       if (!body.password) delete body.password;
       for (const k of Object.keys(body)) { if (body[k] === '') body[k] = null; }
       body.responsibility_ids = selectedRespIds;
-      if (modal === 'create') await api.post('/api/teachers', body);
-      else await api.put(`/api/teachers/${editId}`, body);
+      const canEditModuleAccess = !callerRestricted && editId !== myUserId;
+      if (modal === 'create') {
+        if (form.is_admin && canEditModuleAccess && moduleAccessMode === 'restricted') {
+          body.allowed_modules = selectedModules;
+        }
+        await api.post('/api/teachers', body);
+      } else {
+        await api.put(`/api/teachers/${editId}`, body);
+        if (form.is_admin && canEditModuleAccess) {
+          await api.put(`/api/admin-module-access/${editId}`, {
+            modules: moduleAccessMode === 'restricted' ? selectedModules : null,
+          });
+        }
+      }
       setModal(null); await load();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -762,11 +804,49 @@ export default function TeachersPage() {
                   </select>
                   Status
                 </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={!!form.is_admin} onChange={e => setForm(f => ({ ...f, is_admin: e.target.checked }))} />
-                  Admin role
-                </label>
+                {!callerRestricted && editId !== myUserId ? (
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={!!form.is_admin} onChange={e => setForm(f => ({ ...f, is_admin: e.target.checked }))} />
+                    Admin role
+                  </label>
+                ) : form.is_admin ? (
+                  <span className="text-sm text-slate-500">
+                    Admin role {editId === myUserId && <span className="text-xs">(you can&apos;t change your own admin status)</span>}
+                  </span>
+                ) : null}
               </div>
+
+              {!!form.is_admin && !callerRestricted && editId !== myUserId && (
+                <div className="rounded-lg border border-slate-200 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-slate-600">Module Access</p>
+                  <div className="flex gap-2">
+                    {(['full', 'restricted'] as const).map(m => (
+                      <button key={m} type="button" onClick={() => setModuleAccessMode(m)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                          moduleAccessMode === m
+                            ? 'bg-[#145C44] border-green-600 text-white'
+                            : 'border-slate-200 text-slate-600 hover:border-[#2D7A4F]'
+                        }`}>
+                        {m === 'full' ? 'Full Access' : 'Restricted'}
+                      </button>
+                    ))}
+                  </div>
+                  {moduleAccessMode === 'restricted' && (
+                    schoolModuleOptions.length === 0 ? (
+                      <p className="text-xs text-slate-400">No licensable modules are enabled for this school.</p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {schoolModuleOptions.map(m => (
+                          <label key={m.key} className="flex items-center gap-1.5 text-xs text-slate-700">
+                            <input type="checkbox" checked={selectedModules.includes(m.key)} onChange={() => toggleSelectedModule(m.key)} />
+                            {m.label}
+                          </label>
+                        ))}
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

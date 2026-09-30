@@ -145,7 +145,7 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
   const [mounted,  setMounted]  = useState(false);
   const [user,     setUser]     = useState<PrincipalUser | null>(null);
   const [sideOpen, setSideOpen] = useState(false);
-  const enabledModules = useEnabledModules(principalApi, user?.schoolId);
+  const enabledModules = useEnabledModules(principalApi, user?.schoolId, user?.id);
 
   useEffect(() => {
     setMounted(true);

@@ -1,6 +1,7 @@
 ﻿'use client';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { getUser } from '@/lib/auth';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
 import { Button } from '@/components/ui/Button';
@@ -45,6 +46,28 @@ export default function ManagementUsersPage() {
   const [revokeId,  setRevokeId]  = useState<string | null>(null);
   const [revoking,  setRevoking]  = useState(false);
 
+  // Per-admin module access — same control and same restrictions as the
+  // Teachers page's admin-creation flow (only an unrestricted admin may
+  // grant/edit another admin's module scope; nobody may edit their own).
+  const myUserId = getUser()?.id;
+  const [callerRestricted, setCallerRestricted] = useState(false);
+  const [schoolModuleOptions, setSchoolModuleOptions] = useState<{ key: string; label: string }[]>([]);
+  const [moduleAccessMode, setModuleAccessMode] = useState<'full' | 'restricted'>('full');
+  const [selectedModules,  setSelectedModules]  = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!myUserId) return;
+    api.get<{ restricted: boolean }>(`/api/admin-module-access/${myUserId}`)
+      .then(r => setCallerRestricted(r.data.restricted)).catch(() => {});
+    api.get<{ key: string; label: string }[]>('/api/admin-module-access/school-modules')
+      .then(r => setSchoolModuleOptions(r.data)).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function toggleSelectedModule(key: string) {
+    setSelectedModules(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  }
+
   const load = async () => {
     setLoading(true);
     try {
@@ -71,6 +94,7 @@ export default function ManagementUsersPage() {
     setTeacherId(available[0]?.id ?? '');
     setRole('principal');
     setErr('');
+    setModuleAccessMode('full'); setSelectedModules([]);
     setOpen(true);
   }
 
@@ -78,17 +102,32 @@ export default function ManagementUsersPage() {
     setEditing(u);
     setRole(u.role);
     setErr('');
+    setModuleAccessMode('full'); setSelectedModules([]);
+    api.get<{ restricted: boolean; modules: string[] }>(`/api/admin-module-access/${u.id}`)
+      .then(r => { setModuleAccessMode(r.data.restricted ? 'restricted' : 'full'); setSelectedModules(r.data.modules); })
+      .catch(() => {});
     setOpen(true);
   }
+
+  // A caller may not edit their own management role or module access
+  // (self-lockout guard) — mirrors the Teachers page's admin-creation flow.
+  const canEditModuleAccess = !callerRestricted && editing?.id !== myUserId;
 
   async function handleSave() {
     setSaving(true); setErr('');
     try {
       if (editing) {
         await api.put(`/api/admin/management-users/${editing.id}`, { role });
+        if (canEditModuleAccess) {
+          await api.put(`/api/admin-module-access/${editing.id}`, {
+            modules: moduleAccessMode === 'restricted' ? selectedModules : null,
+          });
+        }
       } else {
         if (!teacherId) return setErr('Please select a teacher');
-        await api.post('/api/admin/management-users', { teacher_id: teacherId, role });
+        const body: Record<string, unknown> = { teacher_id: teacherId, role };
+        if (!callerRestricted && moduleAccessMode === 'restricted') body.allowed_modules = selectedModules;
+        await api.post('/api/admin/management-users', body);
       }
       setOpen(false);
       load();
@@ -118,7 +157,9 @@ export default function ManagementUsersPage() {
             Teaching staff with management portal access. They log in using their Teacher ID and PIN.
           </p>
         </div>
-        <Button onClick={openCreate} size="sm" disabled={available.length === 0}>+ Assign Role</Button>
+        {!callerRestricted && (
+          <Button onClick={openCreate} size="sm" disabled={available.length === 0}>+ Assign Role</Button>
+        )}
       </div>
 
       {loading ? (
@@ -154,14 +195,18 @@ export default function ManagementUsersPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{u.department || '—'}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-3 justify-end">
-                      <button onClick={() => openEdit(u)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                        Change Role
-                      </button>
-                      <button onClick={() => setRevokeId(u.id)} className="text-xs text-red-500 hover:underline">
-                        Revoke
-                      </button>
-                    </div>
+                    {!callerRestricted && (
+                      <div className="flex items-center gap-3 justify-end">
+                        <button onClick={() => openEdit(u)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                          Change Role
+                        </button>
+                        {u.id !== myUserId && (
+                          <button onClick={() => setRevokeId(u.id)} className="text-xs text-red-500 hover:underline">
+                            Revoke
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -218,6 +263,38 @@ export default function ManagementUsersPage() {
               {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </div>
+
+          {(editing ? canEditModuleAccess : !callerRestricted) && (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2">
+              <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">Module Access</p>
+              <div className="flex gap-2">
+                {(['full', 'restricted'] as const).map(m => (
+                  <button key={m} type="button" onClick={() => setModuleAccessMode(m)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                      moduleAccessMode === m
+                        ? 'bg-[#145C44] border-green-600 text-white'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-[#2D7A4F]'
+                    }`}>
+                    {m === 'full' ? 'Full Access' : 'Restricted'}
+                  </button>
+                ))}
+              </div>
+              {moduleAccessMode === 'restricted' && (
+                schoolModuleOptions.length === 0 ? (
+                  <p className="text-xs text-gray-400">No licensable modules are enabled for this school.</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {schoolModuleOptions.map(m => (
+                      <label key={m.key} className="flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300">
+                        <input type="checkbox" checked={selectedModules.includes(m.key)} onChange={() => toggleSelectedModule(m.key)} />
+                        {m.label}
+                      </label>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <Button variant="secondary" className="flex-1" onClick={() => setOpen(false)} disabled={saving}>Cancel</Button>

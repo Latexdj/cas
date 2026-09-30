@@ -435,7 +435,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [pendingProfileRequests, setPendingProfileRequests] = useState(0);
   const [schoolId, setSchoolId] = useState<string | undefined>(undefined);
-  const enabledModules = useEnabledModules(api, schoolId);
+  const [userId, setUserId] = useState<string | undefined>(undefined);
+  const enabledModules = useEnabledModules(api, schoolId, userId);
   // The single open accordion section (null = none open). Starts null on
   // every render (SSR-safe — no localStorage read here) and is resolved by
   // the effect below right after mount: a route match wins immediately; only
@@ -461,6 +462,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
   useEffect(() => {
     setSchoolId(getUser()?.schoolId);
+    setUserId(getUser()?.id);
     api.get('/api/admin/settings').then(r => setLogoUrl(r.data.logo_url ?? null)).catch(() => {});
 
     api.get('/api/admin/teacher-profile-requests', { params: { status: 'Pending' } })

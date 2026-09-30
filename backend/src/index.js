@@ -166,6 +166,7 @@ app.use('/api/notices',               noticesRoutes);
 app.use('/api/discipline',            disciplineRoutes);
 app.use('/api/general-letters',       require('./routes/general-letters'));
 app.use('/api/memos',                 require('./routes/memos'));
+app.use('/api/admin-module-access',   require('./routes/admin-module-access'));
 app.use('/api/letter-chat',           letterChatRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
 app.use('/api/resumption',            resumptionRoutes);
@@ -2908,6 +2909,23 @@ async function runMigrations() {
         EXCEPTION WHEN OTHERS THEN NULL; END $$
       `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] memo schema:', e.message); }
+
+    // ── Per-admin module access scoping ──────────────────────────────────────
+    // Absence of rows for a teacher_id = unrestricted (full access to whatever
+    // the school licenses) — same fallback-when-empty idiom as school_modules
+    // itself (getEnabledModules returns everything when a school has zero rows).
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS admin_module_access (
+          teacher_id UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+          module_key TEXT NOT NULL,
+          granted_by UUID REFERENCES teachers(id) ON DELETE SET NULL,
+          granted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          PRIMARY KEY (teacher_id, module_key)
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_admin_module_access_teacher ON admin_module_access(teacher_id)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admin_module_access:', e.message); }
 
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
