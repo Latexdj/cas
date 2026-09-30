@@ -205,6 +205,15 @@ router.post('/', adminOrManagement, async (req, res, next) => {
     let ref_number = null;
     if (!savingAsDraft) ref_number = await generateMemoRefNumber(req.schoolId);
     const computed_status = savingAsDraft ? 'draft' : 'issued';
+    // Default to today when a memo is actually being issued and no explicit
+    // date was given — general_letters' "always has a date" behavior turned
+    // out to come entirely from its frontend form defaulting to today, not
+    // any backend guarantee (its column is NOT NULL, so an omitted date there
+    // would 500, not silently succeed). memos.issued_date is nullable, so
+    // without this it would silently print a blank date on an issued memo —
+    // worse than general_letters' failure mode, not equivalent to it. A draft
+    // deliberately does NOT get a date yet — it isn't issued until finalize.
+    const resolvedIssuedDate = savingAsDraft ? (issued_date || null) : (issued_date || new Date().toISOString().slice(0, 10));
 
     const { rows } = await pool.query(
       `INSERT INTO memos (
@@ -216,7 +225,7 @@ router.post('/', adminOrManagement, async (req, res, next) => {
       [
         req.schoolId, issued_by_id, issued_by_name, issued_by_title?.trim() || null,
         distribution_type, JSON.stringify(distribution_ref ?? null), resolved.audienceLabel,
-        subject.trim(), (body?.trim() || ''), issued_date || null, ref_number, computed_status,
+        subject.trim(), (body?.trim() || ''), resolvedIssuedDate, ref_number, computed_status,
       ]
     );
     const memo = rows[0];
@@ -248,10 +257,15 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
     }
 
     const ref_number = await generateMemoRefNumber(req.schoolId);
-
+    // A draft created via POST / with status:'draft' never got an issued_date
+    // (see POST / above) — finalize is this memo's actual issue moment, so
+    // set it now if it's still unset. COALESCE, not overwrite: if the intake
+    // form (next phase) ever lets an issuer pick a specific date up front,
+    // that choice is preserved rather than clobbered here.
     const { rows } = await pool.query(
       `UPDATE memos
-       SET body = $1, ref_number = $2, status = 'issued', updated_at = now()
+       SET body = $1, ref_number = $2, status = 'issued', updated_at = now(),
+           issued_date = COALESCE(issued_date, CURRENT_DATE)
        WHERE id = $3 AND school_id = $4
        RETURNING *, issued_date::text`,
       [body.trim(), ref_number, req.params.id, req.schoolId]
