@@ -4,6 +4,7 @@ const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { generateAndUploadPDF } = require('../services/pdf.service');
+const { sendTeacherEmail } = require('../services/notification.service');
 
 router.use(authenticate, requireActiveSubscription, checkModuleAccess('discipline'));
 
@@ -128,6 +129,32 @@ async function fanOutMemo({ memoId, schoolId, teacherIds, subject }) {
      SELECT $1, unnest($2::uuid[]), 'teacher', $3, $4`,
     [schoolId, teacherIds, `New memo: ${subject}`, `/teacher/memos/${memoId}`]
   );
+}
+
+// Emails each recipient, matching the existing notification.service.js pattern
+// used for attendance/profile events (in-app + email, not in-app alone).
+// Fire-and-forget from the caller — never awaited before responding, same
+// reasoning as generateMemoPdf below: this can be slow for a large staff list
+// and must not risk outlasting the frontend's request timeout. sendTeacherEmail
+// already no-ops per-recipient on a missing email/API key and never throws.
+async function emailMemoRecipients(schoolId, teacherIds, memo) {
+  if (!teacherIds.length) return;
+  const { rows } = await pool.query(
+    `SELECT name, email FROM teachers WHERE id = ANY($1::uuid[]) AND email IS NOT NULL`,
+    [teacherIds]
+  );
+  const subjectLine = `New Memo: ${memo.subject}`;
+  for (const t of rows) {
+    const fromLine = memo.issued_by_name
+      ? ` by ${memo.issued_by_name}${memo.issued_by_title ? `, ${memo.issued_by_title}` : ''}`
+      : '';
+    const body = `Dear ${t.name},\n\nA new memo has been issued${fromLine}.\n\n` +
+      `${memo.ref_number ? `Ref: ${memo.ref_number}\n` : ''}To: ${memo.audience_label}\nSubject: ${memo.subject}\n\n${memo.body}\n\n` +
+      `Log in to the staff portal to view this memo and its signed PDF copy.\n\n— CAS Administration`;
+    sendTeacherEmail(t.email, subjectLine, body).catch(e => {
+      console.error('[memos] email failed for', t.email, e.message);
+    });
+  }
 }
 
 // Generates the memo's PDF and saves pdf_url on the row. Called automatically
@@ -257,6 +284,9 @@ router.post('/', adminOrManagement, async (req, res, next) => {
 
     if (!savingAsDraft) {
       await fanOutMemo({ memoId: memo.id, schoolId: req.schoolId, teacherIds: resolved.teacherIds, subject: memo.subject });
+      emailMemoRecipients(req.schoolId, resolved.teacherIds, memo).catch(e => {
+        console.error('[memos] email fan-out failed:', e.message);
+      });
       // Fire-and-forget: PDF generation (Puppeteer render + upload) is slow
       // enough to exceed the frontend's request timeout, which would make the
       // client show an error for a request that actually succeeded server-side
@@ -316,6 +346,9 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
       resolved = { teacherIds: [] };
     }
     await fanOutMemo({ memoId: memo.id, schoolId: req.schoolId, teacherIds: resolved.teacherIds, subject: memo.subject });
+    emailMemoRecipients(req.schoolId, resolved.teacherIds, memo).catch(e => {
+      console.error('[memos] email fan-out failed:', e.message);
+    });
     // Fire-and-forget — see the matching comment in POST / above: this must
     // not block the response, or a slow render can outlast the frontend's
     // request timeout and make a successful finalize look like a failure.
