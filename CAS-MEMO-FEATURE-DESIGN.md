@@ -119,7 +119,17 @@ A memo has no external-recipient concept at all — no salutation, no `Through:`
 | `subject` | required, same as every other letter type |
 | `body` | drafted via the shared AI chat, same as every other letter type |
 | `issued_date` | same pattern as `general_letters.issued_date` |
-| issuer identity + signature | `issued_by_id`, `issued_by_name`, `issued_by_signature_url`, `issued_by_title` — same pattern, same headmaster-signature convention (§1.3) |
+| issuer identity | `issued_by_id`, `issued_by_name`, `issued_by_title` — **no signature image** (see below) |
+
+**No signature image for memos — this is a deliberate departure from every other document type in this pipeline.** Every existing letter type (§1.3) prints the headmaster's signature regardless of who actually drafted it, because they're all headmaster-authorized correspondence. A memo is different: its entire point is knowing *which office* issued it — Accountant, Domestic Bursar, Assistant Headmaster Academics, Assistant Headmaster Administration, Assistant Headmaster Domestic, an HOD — not routing every internal circular through one signature that doesn't represent who actually sent it. So a memo's signoff is name + office/title only, no image, no `issued_by_signature_url` column at all.
+
+**`issued_by_title`'s source — researched directly, not assumed.** No office like "Accountant" or "Domestic Bursar" is modeled anywhere in the system today:
+- `teachers.management_role` exists, but the admin UI that sets it hard-types it to `'principal' | 'vice_principal'` only (`app/(dashboard)/management/page.tsx`) — never anything else in practice, despite the DB column itself having no CHECK constraint.
+- `school_staff_roles.role` is CHECK-constrained to four *functional permission* keys — `'clearance','library','inventory','accounts'` — not display titles. `'accounts'` grants fee-collection access; it is not stored or shown anywhere as the string "Accountant."
+- `teacher_responsibilities` is free-text per school, but scoped to cross-cutting duties (HOD, Housemaster) — not senior-office titles, and nothing in the schema associates one specific responsibility with one specific person the way a job title would.
+- `general_letters.issued_by_title` — direct precedent for the fallback below — is captured fresh as a manual free-text field on every letter at creation time (`issued_by_title?.trim() || null` in `general-letters.js`'s `POST /`), never read from or written back to a persistent profile field.
+
+**Recommendation**: auto-fill `issued_by_title` when the issuing user has a `management_role` (`'principal'` → "Principal", `'vice_principal'` → "Vice Principal", via the existing `getRoleLabel()`), otherwise fall back to a manual free-text field on the intake form — pre-filled with whatever was typed last time for that issuer, to avoid re-typing "Accountant" or "Domestic Bursar" on every memo, but always editable. Given the research above, the free-text fallback will in practice be the common path for exactly the offices named in this correction (Accountant, Domestic Bursar, the three Assistant Headmaster roles) — none of them has anything to auto-fill from today.
 
 ### 2.2 Who can issue
 
@@ -158,8 +168,7 @@ CREATE TABLE memos (
   school_id                UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
   issued_by_id             UUID REFERENCES teachers(id) ON DELETE SET NULL,
   issued_by_name           TEXT,
-  issued_by_signature_url  TEXT,
-  issued_by_title          TEXT,
+  issued_by_title          TEXT,   -- auto-filled from management_role when present, else manual free text (§2.1)
   distribution_type        TEXT NOT NULL CHECK (distribution_type IN ('all','department','responsibility','specific')),
   distribution_ref         JSONB,             -- department id / responsibility id / teacher id array; null for 'all'
   audience_label           TEXT NOT NULL,     -- frozen display string, e.g. "ALL STAFF"
@@ -219,7 +228,14 @@ SUBJECT: {subject}
 {body}
 ```
 
-...followed by the existing `renderSignoff` (reused as-is for the closing signature block, `letterKind: 'memo'` mapped to the non-`'general'` branch since a memo doesn't need `Through:`/`cc:`). No personal salutation ("Dear X,") — that's a letter convention; the memo's TO: line already states the audience, matching how real interoffice memos are actually formatted (header block, not address-block-plus-greeting). This is a genuine, if small, new render path in `buildLetterHTML`, not a parameter tweak to an existing one — `recipientType` gains a `'staff'` value alongside `'external'`/`'student'`/`'teacher'`.
+...followed by a new, minimal signoff — **not** `renderSignoff` reused, a fresh block, since every existing signoff branch prints "Yours faithfully," plus a signature image (§1.3), and a memo needs neither:
+
+```
+{issued_by_name}
+{issued_by_title}
+```
+
+No "Yours faithfully" — that's a letter's complimentary close; a memo's TO: header block already establishes its own register, closing it with letter framing would read oddly. No signature image, by design (§2.1) — the office/title *is* the authority marker for a memo, the way a signature is for a letter. No personal salutation ("Dear X,") either — that's also a letter convention; the memo's TO: line already states the audience, matching how real interoffice memos are actually formatted (header block, not address-block-plus-greeting). This is a genuine, if small, new render path in `buildLetterHTML`, not a parameter tweak to an existing one — `recipientType` gains a `'staff'` value alongside `'external'`/`'student'`/`'teacher'`, and it does not call `renderSig`/`renderSignoff` at all.
 
 ### 3.5 Shared middleware promotion
 
@@ -253,7 +269,11 @@ A new `document_type === 'memo'` branch in `buildSystemPrompt`, modeled directly
 
 ### 6.1 Admin/management issue flow
 
-A new `memos.js` backend route file (mirroring `general-letters.js`'s route shape: `GET /`, `POST /` with `status: 'draft'` pre-create for the chat flow, `PATCH /:id/finalize`, `POST /:id/pdf`, `GET /:id`) and a new admin-portal page, `app/(dashboard)/memos/page.tsx`, structured like `general-letters/page.tsx`: an intake form (distribution picker + subject) → chat drafting panel (reusing the same `letter-chat` calls) → finalize → PDF generation → list view. Distribution picker options: All Staff / Department (dropdown from `departments`) / Responsibility (dropdown from `teacher_responsibilities`) / Specific staff (multi-select from `teachers`).
+A new `memos.js` backend route file (mirroring `general-letters.js`'s route shape: `GET /`, `POST /` with `status: 'draft'` pre-create for the chat flow, `PATCH /:id/finalize`, `POST /:id/pdf`, `GET /:id`) and a new admin-portal page, `app/(dashboard)/memos/page.tsx`, structured like `general-letters/page.tsx`: an intake form (distribution picker + issuing title + subject) → chat drafting panel (reusing the same `letter-chat` calls) → finalize → PDF generation → list view.
+
+- Distribution picker: All Staff / Department (dropdown from `departments`) / Responsibility (dropdown from `teacher_responsibilities`) / Specific staff (multi-select from `teachers`).
+- Issuing title field: auto-filled and read-only when the issuer has a `management_role` (Principal/Vice Principal); otherwise a free-text input, pre-filled with that issuer's last-used value so "Accountant" or "Domestic Bursar" doesn't need retyping on every memo, but always editable (§2.1).
+- No signature upload/selection step anywhere in this flow — there is nothing to pick.
 
 ### 6.2 Teacher-facing "Memos" page
 
