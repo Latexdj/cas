@@ -344,16 +344,44 @@ router.get('/applications/:id/letter/download', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Fields an admin can correct after an application already exists — covers
+// everything captured at creation (direct-admission entry or the public
+// application form), not just the original 7 (status/house/program_id/
+// full_name/residential_status/gender/mobile_number). A typo in, say,
+// date_of_birth or a guardian's phone number had no fix path before this;
+// this is the same field set POST /applications/manual accepts, minus
+// system-managed columns (admission_number, admission_year, form_step, etc.)
+// that a correction should never touch.
+const PATCHABLE_FIELDS = [
+  'status', 'house', 'program_id', 'full_name', 'residential_status', 'gender', 'mobile_number',
+  'date_of_birth', 'hometown', 'residential_address', 'ghana_card_number', 'nhia_number',
+  'religion', 'religious_denomination', 'aggregate', 'index_number',
+  'guardian_name', 'guardian_relationship', 'guardian_occupation', 'guardian_mobile', 'direct_reason',
+];
+// Free-text fields: trim, empty string -> null (matches how POST /applications/manual
+// stores the same columns). date_of_birth/aggregate/index_number/program_id/status/
+// house/gender/full_name/residential_status/mobile_number keep their existing handling.
+const TRIM_TO_NULL_FIELDS = new Set([
+  'hometown', 'residential_address', 'ghana_card_number', 'nhia_number',
+  'religion', 'religious_denomination', 'guardian_name', 'guardian_relationship',
+  'guardian_occupation', 'guardian_mobile', 'direct_reason',
+]);
+
 router.patch('/applications/:id', async (req, res, next) => {
   try {
-    const allowed = ['status','house','program_id','full_name','residential_status','gender','mobile_number'];
     const sets = [], params = [];
-    for (const key of allowed) {
-      if (req.body[key] !== undefined) {
-        params.push(key === 'program_id' ? (req.body[key] || null) : req.body[key]);
-        sets.push(`${key} = $${params.length}${key === 'program_id' ? '::uuid' : ''}`);
-        if (key === 'status' && req.body[key] === 'reported') sets.push('reported_at = now()');
-      }
+    for (const key of PATCHABLE_FIELDS) {
+      if (req.body[key] === undefined) continue;
+      let value = req.body[key];
+      if (key === 'program_id') value = value || null;
+      else if (key === 'aggregate') value = value !== '' && value != null ? parseInt(value) : null;
+      else if (key === 'index_number') value = value?.trim() ? value.trim().toUpperCase() : null;
+      else if (key === 'date_of_birth') value = value || null;
+      else if (TRIM_TO_NULL_FIELDS.has(key)) value = value?.trim() || null;
+
+      params.push(value);
+      sets.push(`${key} = $${params.length}${key === 'program_id' ? '::uuid' : ''}`);
+      if (key === 'status' && req.body[key] === 'reported') sets.push('reported_at = now()');
     }
     sets.push('updated_at = now()');
     if (params.length === 0) return res.status(400).json({ error: 'Nothing to update' });
@@ -363,7 +391,12 @@ router.patch('/applications/:id', async (req, res, next) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
-  } catch (err) { next(err); }
+  } catch (err) {
+    if (err.code === '23505' && err.constraint === 'idx_admission_applications_school_idx_yr') {
+      return res.status(409).json({ error: `Index number "${req.body.index_number}" is already used by another application in this admission year.` });
+    }
+    next(err);
+  }
 });
 
 router.delete('/applications/:id', async (req, res, next) => {

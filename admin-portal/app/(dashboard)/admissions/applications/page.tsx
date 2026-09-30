@@ -8,13 +8,16 @@ import { Pagination, Th } from '@/components/ui/Pagination';
 
 interface Application {
   id: string; index_number: string | null; admission_number: string; form_token: string;
-  full_name: string; gender: string; aggregate: number | null; program_name: string | null;
+  full_name: string; gender: string; aggregate: number | null; program_id: string | null; program_name: string | null;
   house: string | null; residential_status: string | null; status: string;
   admission_type: string; direct_reason: string | null;
   mobile_number: string | null; date_of_birth: string | null;
   guardian_name: string | null; guardian_mobile: string | null; guardian_relationship: string | null;
-  hometown: string | null; ghana_card_number: string | null; nhia_number: string | null;
-  religion: string | null; picture_url: string | null; bece_results_url: string | null;
+  guardian_occupation: string | null;
+  hometown: string | null; residential_address: string | null;
+  ghana_card_number: string | null; nhia_number: string | null;
+  religion: string | null; religious_denomination: string | null;
+  picture_url: string | null; bece_results_url: string | null;
   created_at: string; form_completed_at: string | null; reported_at: string | null;
   total_count?: number;
 }
@@ -62,6 +65,143 @@ const BLANK_FORM = {
   program_id: '', direct_reason: '',
   guardian_name: '', guardian_relationship: '', guardian_occupation: '', guardian_mobile: '',
 };
+type AppForm = typeof BLANK_FORM;
+
+// Shared Personal Info / Academic Details / Guardian field groups — used by
+// both the "Add Direct Admission" (create) and "Edit Application" modals so
+// the two forms can't drift apart.
+function AdmissionFormFields({ form, setField, programs }: {
+  form: AppForm; setField: (field: string, value: string) => void; programs: Program[];
+}) {
+  return (
+    <>
+      <div>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Personal Information</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className="text-xs font-semibold text-slate-500">Full Name <span className="text-red-500">*</span></label>
+            <input value={form.full_name} onChange={e => setField('full_name', e.target.value)}
+              placeholder="e.g. Kwame Mensah"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Gender <span className="text-red-500">*</span></label>
+            <select value={form.gender} onChange={e => setField('gender', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="">Select gender</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Date of Birth</label>
+            <input type="date" value={form.date_of_birth} onChange={e => setField('date_of_birth', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Hometown</label>
+            <input value={form.hometown} onChange={e => setField('hometown', e.target.value)}
+              placeholder="e.g. Accra"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Mobile Number</label>
+            <input value={form.mobile_number} onChange={e => setField('mobile_number', e.target.value)}
+              placeholder="e.g. 0244000000"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Ghana Card No.</label>
+            <input value={form.ghana_card_number} onChange={e => setField('ghana_card_number', e.target.value)}
+              placeholder="GHA-XXXXXXXXX-X"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">NHIA No.</label>
+            <input value={form.nhia_number} onChange={e => setField('nhia_number', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Religion</label>
+            <select value={form.religion} onChange={e => setField('religion', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="">Select religion</option>
+              {RELIGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Residential Address</label>
+            <input value={form.residential_address} onChange={e => setField('residential_address', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Academic Details</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Program <span className="text-red-500">*</span></label>
+            <select value={form.program_id} onChange={e => setField('program_id', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="">Select program</option>
+              {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Residential Status <span className="text-red-500">*</span></label>
+            <select value={form.residential_status} onChange={e => setField('residential_status', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="">Select status</option>
+              <option value="Boarding">Boarding</option>
+              <option value="Day">Day</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Aggregate</label>
+            <input type="number" min="6" max="36" value={form.aggregate} onChange={e => setField('aggregate', e.target.value)}
+              placeholder="e.g. 12"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">BECE Index No. <span className="text-xs text-slate-400">(optional)</span></label>
+            <input value={form.index_number} onChange={e => setField('index_number', e.target.value)}
+              placeholder="12-character index number"
+              maxLength={12}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Guardian / Parent</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Guardian Name</label>
+            <input value={form.guardian_name} onChange={e => setField('guardian_name', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Relationship</label>
+            <input value={form.guardian_relationship} onChange={e => setField('guardian_relationship', e.target.value)}
+              placeholder="e.g. Father, Mother, Uncle"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Guardian Mobile</label>
+            <input value={form.guardian_mobile} onChange={e => setField('guardian_mobile', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-slate-500">Occupation</label>
+            <input value={form.guardian_occupation} onChange={e => setField('guardian_occupation', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
 
 export default function ApplicationsPage() {
   const [rows,       setRows]       = useState<Application[]>([]);
@@ -87,6 +227,15 @@ export default function ApplicationsPage() {
   const [directSaving, setDirectSaving] = useState(false);
   const [directError,  setDirectError]  = useState('');
   const [duplicateMatches, setDuplicateMatches] = useState<DuplicateMatch[] | null>(null);
+
+  // Edit application modal state — lets an admin correct any field captured
+  // at creation (direct admission or the public form); there was previously
+  // no way to fix a typo in, say, date of birth or a guardian's phone number.
+  const [editModal,  setEditModal]  = useState(false);
+  const [editForm,   setEditForm]   = useState(BLANK_FORM);
+  const [editHouse,  setEditHouse]  = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError,  setEditError]  = useState('');
 
   const loadStats = useCallback(async () => {
     try { const { data } = await api.get('/api/admin/admissions/stats'); setStats(data); } catch {}
@@ -162,6 +311,54 @@ export default function ApplicationsPage() {
 
   function setDF(field: string, value: string) {
     setDirectForm(f => ({ ...f, [field]: value }));
+  }
+
+  function setEF(field: string, value: string) {
+    setEditForm(f => ({ ...f, [field]: value }));
+  }
+
+  function openEdit(app: Application) {
+    setEditForm({
+      full_name: app.full_name ?? '',
+      date_of_birth: app.date_of_birth ? app.date_of_birth.slice(0, 10) : '',
+      gender: app.gender ?? '',
+      hometown: app.hometown ?? '',
+      residential_address: app.residential_address ?? '',
+      mobile_number: app.mobile_number ?? '',
+      ghana_card_number: app.ghana_card_number ?? '',
+      nhia_number: app.nhia_number ?? '',
+      religion: app.religion ?? '',
+      religious_denomination: app.religious_denomination ?? '',
+      aggregate: app.aggregate != null ? String(app.aggregate) : '',
+      residential_status: app.residential_status ?? '',
+      index_number: app.index_number ?? '',
+      program_id: app.program_id ?? '',
+      direct_reason: app.direct_reason ?? '',
+      guardian_name: app.guardian_name ?? '',
+      guardian_relationship: app.guardian_relationship ?? '',
+      guardian_occupation: app.guardian_occupation ?? '',
+      guardian_mobile: app.guardian_mobile ?? '',
+    });
+    setEditHouse(app.house ?? '');
+    setEditError('');
+    setEditModal(true);
+  }
+
+  async function submitEdit() {
+    if (!selected) return;
+    setEditError('');
+    setEditSaving(true);
+    try {
+      const { data } = await api.patch(`/api/admin/admissions/applications/${selected.id}`, {
+        ...editForm,
+        house: editHouse,
+      });
+      setRows(rs => rs.map(r => r.id === data.id ? { ...r, ...data } : r));
+      setSelected(s => s && s.id === data.id ? { ...s, ...data } : s);
+      setEditModal(false);
+    } catch (err: unknown) {
+      setEditError((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save changes.');
+    } finally { setEditSaving(false); }
   }
 
   async function printLetter(appId: string) {
@@ -364,11 +561,51 @@ export default function ApplicationsPage() {
                   Print Admission Letter
                 </Button>
               )}
+              {selected.status !== 'migrated' && (
+                <Button variant="secondary" onClick={() => openEdit(selected)}>Edit Details</Button>
+              )}
               <Button variant="danger" onClick={() => del(selected.id)}>Delete Application</Button>
               <Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Edit Application modal */}
+      <Modal open={editModal} onClose={() => setEditModal(false)} title="Edit Application" maxWidth="max-w-2xl">
+        <div className="space-y-5">
+          <AdmissionFormFields form={editForm} setField={setEF} programs={programs} />
+
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Other</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-500">House</label>
+                <input value={editHouse} onChange={e => setEditHouse(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+              {selected?.admission_type === 'direct' && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-500">Reason for Direct Admission</label>
+                  <select value={editForm.direct_reason} onChange={e => setEF('direct_reason', e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+                    <option value="">Select reason</option>
+                    {DIRECT_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {editError && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{editError}</div>
+          )}
+
+          <div className="flex gap-2 justify-end pt-1">
+            <Button variant="secondary" onClick={() => setEditModal(false)}>Cancel</Button>
+            <Button onClick={submitEdit} loading={editSaving}>Save Changes</Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Migration modal */}
@@ -411,133 +648,7 @@ export default function ApplicationsPage() {
             For students who physically walked in for admission or were admitted through protocol/vacancy. An admission number will be auto-generated. Status is set to <strong>Completed</strong> since the student has collected their admission letter.
           </div>
 
-          {/* Personal Info */}
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Personal Information</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="text-xs font-semibold text-slate-500">Full Name <span className="text-red-500">*</span></label>
-                <input value={directForm.full_name} onChange={e => setDF('full_name', e.target.value)}
-                  placeholder="e.g. Kwame Mensah"
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Gender <span className="text-red-500">*</span></label>
-                <select value={directForm.gender} onChange={e => setDF('gender', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
-                  <option value="">Select gender</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Date of Birth</label>
-                <input type="date" value={directForm.date_of_birth} onChange={e => setDF('date_of_birth', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Hometown</label>
-                <input value={directForm.hometown} onChange={e => setDF('hometown', e.target.value)}
-                  placeholder="e.g. Accra"
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Mobile Number</label>
-                <input value={directForm.mobile_number} onChange={e => setDF('mobile_number', e.target.value)}
-                  placeholder="e.g. 0244000000"
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Ghana Card No.</label>
-                <input value={directForm.ghana_card_number} onChange={e => setDF('ghana_card_number', e.target.value)}
-                  placeholder="GHA-XXXXXXXXX-X"
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">NHIA No.</label>
-                <input value={directForm.nhia_number} onChange={e => setDF('nhia_number', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Religion</label>
-                <select value={directForm.religion} onChange={e => setDF('religion', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
-                  <option value="">Select religion</option>
-                  {RELIGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Residential Address</label>
-                <input value={directForm.residential_address} onChange={e => setDF('residential_address', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-            </div>
-          </div>
-
-          {/* Academic */}
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Academic Details</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Program <span className="text-red-500">*</span></label>
-                <select value={directForm.program_id} onChange={e => setDF('program_id', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
-                  <option value="">Select program</option>
-                  {programs.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Residential Status <span className="text-red-500">*</span></label>
-                <select value={directForm.residential_status} onChange={e => setDF('residential_status', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
-                  <option value="">Select status</option>
-                  <option value="Boarding">Boarding</option>
-                  <option value="Day">Day</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Aggregate</label>
-                <input type="number" min="6" max="36" value={directForm.aggregate} onChange={e => setDF('aggregate', e.target.value)}
-                  placeholder="e.g. 12"
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">BECE Index No. <span className="text-xs text-slate-400">(optional)</span></label>
-                <input value={directForm.index_number} onChange={e => setDF('index_number', e.target.value)}
-                  placeholder="12-character index number"
-                  maxLength={12}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-            </div>
-          </div>
-
-          {/* Guardian */}
-          <div>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">Guardian / Parent</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Guardian Name</label>
-                <input value={directForm.guardian_name} onChange={e => setDF('guardian_name', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Relationship</label>
-                <input value={directForm.guardian_relationship} onChange={e => setDF('guardian_relationship', e.target.value)}
-                  placeholder="e.g. Father, Mother, Uncle"
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Guardian Mobile</label>
-                <input value={directForm.guardian_mobile} onChange={e => setDF('guardian_mobile', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500">Occupation</label>
-                <input value={directForm.guardian_occupation} onChange={e => setDF('guardian_occupation', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500" />
-              </div>
-            </div>
-          </div>
+          <AdmissionFormFields form={directForm} setField={setDF} programs={programs} />
 
           {/* Admission Reason */}
           <div>
