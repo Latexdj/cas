@@ -571,7 +571,7 @@ router.get('/sign-list/recipients', async (req, res, next) => {
 
       const { rows } = await pool.query(
         `SELECT s.id, s.name, s.student_code, s.class_name, s.gender, s.residential_status,
-                p.name AS program_name
+                s.jhs_index_number, p.name AS program_name
          FROM students s
          LEFT JOIN programs p ON p.id=s.program_id
          WHERE ${conditions.join(' AND ')}
