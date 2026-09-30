@@ -165,6 +165,7 @@ app.use('/api/exams',                 examsRoutes);
 app.use('/api/notices',               noticesRoutes);
 app.use('/api/discipline',            disciplineRoutes);
 app.use('/api/general-letters',       require('./routes/general-letters'));
+app.use('/api/memos',                 require('./routes/memos'));
 app.use('/api/letter-chat',           letterChatRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
 app.use('/api/resumption',            resumptionRoutes);
@@ -2853,6 +2854,60 @@ async function runMigrations() {
         ON CONFLICT DO NOTHING
       `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admissions/lms/discipline module backfill:', e.message); }
+
+    // ── Memo (internal staff circulars) ──────────────────────────────────────
+    // Backend foundation only — gated by the existing 'discipline' module key,
+    // no new registry entry. No approval step (draft -> issued directly), so
+    // no letter_returns.document_type change is needed. See
+    // CAS-MEMO-FEATURE-DESIGN.md for the full design and rationale.
+    try {
+      await pool.query(`ALTER TABLE schools ADD COLUMN IF NOT EXISTS memo_ref_counter INTEGER NOT NULL DEFAULT 0`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS memos (
+          id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id         UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          issued_by_id      UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+          issued_by_name    TEXT,
+          issued_by_title   TEXT,
+          distribution_type TEXT        NOT NULL CHECK (distribution_type IN ('all','department','responsibility','specific')),
+          distribution_ref  JSONB,
+          audience_label    TEXT        NOT NULL,
+          subject           TEXT        NOT NULL,
+          body              TEXT        NOT NULL DEFAULT '',
+          issued_date       DATE,
+          ref_number        TEXT,
+          pdf_url           TEXT,
+          draft_session_id  UUID        REFERENCES letter_draft_sessions(id) ON DELETE SET NULL,
+          status            TEXT        NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','issued')),
+          created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_memos_school ON memos(school_id, created_at DESC)`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS memo_recipients (
+          id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          memo_id     UUID        NOT NULL REFERENCES memos(id) ON DELETE CASCADE,
+          teacher_id  UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+          read_at     TIMESTAMPTZ,
+          created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+          UNIQUE (memo_id, teacher_id)
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_memo_recipients_teacher ON memo_recipients(teacher_id)`);
+      // Widen letter_draft_sessions.document_type to admit 'memo'. Live constraint
+      // name confirmed against the DB (pg_constraint) before writing this —
+      // matches the default auto-generated name, same drop/recreate pattern this
+      // codebase already used for school_staff_roles.role.
+      await pool.query(`
+        DO $$ BEGIN
+          ALTER TABLE letter_draft_sessions DROP CONSTRAINT IF EXISTS letter_draft_sessions_document_type_check;
+          ALTER TABLE letter_draft_sessions
+            ADD CONSTRAINT letter_draft_sessions_document_type_check
+            CHECK (document_type IN ('teacher_query','student_letter','general_letter','memo'));
+        EXCEPTION WHEN OTHERS THEN NULL; END $$
+      `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] memo schema:', e.message); }
 
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);

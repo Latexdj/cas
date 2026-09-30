@@ -361,6 +361,30 @@ function buildLetterHTML({ letter, school, recipientType, letterKind = 'discipli
   ${watermarkHtml}
   ${letterheadHtml}`;
 
+  // ── Staff memo — header block, no salutation, no signature image ──────────
+  // Deliberately does not call renderSig/renderSignoff or use signatoryName:
+  // a memo's whole point is knowing which office sent it (Accountant,
+  // Domestic Bursar, an HOD, etc.), not routing it through the headmaster's
+  // signature the way every other document type in this pipeline does.
+  if (recipientType === 'staff') {
+    return `${pageHead}
+  <div style="margin:0 0 28px;font-size:11pt;line-height:2.1;">
+    <div><strong>TO:</strong> ${esc(letter.audience_label ?? '')}</div>
+    <div><strong>FROM:</strong> ${esc(letter.issued_by_name ?? '')}${letter.issued_by_title ? `, ${esc(letter.issued_by_title)}` : ''}</div>
+    <div><strong>DATE:</strong> ${fmtDate(letter.issued_date)}</div>
+    ${letter.ref_number ? `<div><strong>REF:</strong> ${esc(letter.ref_number)}</div>` : ''}
+    <div><strong>SUBJECT:</strong> ${esc(letter.subject)}</div>
+  </div>
+  <div style="border-top:1px solid #000;margin:0 0 28px;"></div>
+  <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;text-align:justify;">${esc(letter.body)}</div>
+  <div style="margin-top:40px;font-size:11pt;">
+    <div style="font-weight:bold;">${esc(letter.issued_by_name ?? '')}</div>
+    ${letter.issued_by_title ? `<div style="font-size:10pt;color:#4A3F32;">${esc(letter.issued_by_title)}</div>` : ''}
+  </div>
+</body>
+</html>`;
+  }
+
   // ── External / parent recipients — formal business-letter format ──────────
   if (recipientType === 'external') {
     const extName  = letter.ext_recipient_name  || '';

@@ -168,6 +168,22 @@ Your role:
 
 SENSITIVITY SAFEGUARD: If the conversation reveals health information, bereavement, family legal matters, safeguarding concerns, or other deeply personal information about a named individual, pause and respond: "This content may involve a sensitive personal matter. If so, please close this session, re-open the letter, and mark it as sensitive so it can be composed manually." Do not produce a full draft until the user confirms the matter is not sensitive.`;
 
+  } else if (documentType === 'memo') {
+    base = `You are assisting an admin at ${schoolName} in drafting an internal staff memo.
+
+Context:
+- Audience: ${metadata?.audience_label ?? 'staff'}
+- Subject: "${metadata?.subject ?? ''}"
+
+Your role:
+- Help draft the BODY of the memo only — the text between the SUBJECT header and the sign-off
+- Do NOT include the TO/FROM/DATE/REF/SUBJECT header block or the closing name/title (the system handles those)
+- Do NOT open with a salutation like "Dear..." — a memo's header block already states who it's addressed to, it does not also greet them
+- Before producing a full draft, ask what this memo needs to communicate: the main purpose, any relevant facts, dates, or instructions, and what action or response is expected, if any. Do not draft without these details.
+- Present a complete draft once you have enough information; revise based on feedback
+- Keep the tone direct, clear, and professional — internal staff communication, not a formal letter to an external party
+- Write as a school administrator addressing colleagues, not as if addressing one specific named individual`;
+
   } else {
     // teacher_query (default fallback)
     base = `You are assisting an admin at ${schoolName} in drafting a formal query letter to a teacher.
@@ -274,6 +290,9 @@ function openingMessage(documentType, metadata) {
     const classLabel = (metadata?.classification ?? '').replace(/_/g, ' ');
     return `I am ready to help you draft the body of this ${classLabel} letter to ${recipientDisplay}.\n\nTo write a clear, professional letter please tell me:\n1. What this letter needs to communicate — the main purpose and any key facts\n2. Any action or response you expect from the recipient\n3. Any specific details, dates, or references to include\n\nOnce you provide these details I will draft the letter body for your review.`;
   }
+  if (documentType === 'memo') {
+    return `I'm ready to help you draft this memo to ${metadata?.audience_label ?? 'staff'}.\n\nTo write a clear memo please tell me:\n1. What this memo needs to communicate — the main purpose and any key facts\n2. Any dates, deadlines, or instructions staff need to know\n3. Any action or response expected, if any\n\nOnce you provide these details I will draft the memo body for your review.`;
+  }
   // teacher_query
   return `I'm ready to help you draft the body of this query letter for ${metadata.teacher_name ?? 'the teacher'}.\n\nPlease tell me:\n1. What happened — the specific concern or incident\n2. When it occurred\n3. Any relevant context or prior discussions\n4. What response you expect from the teacher and by when\n\nWith those details I can draft a clear, formal query body for your review.`;
 }
@@ -285,8 +304,8 @@ router.post('/start', adminOrManagement, async (req, res, next) => {
   try {
     const { document_type, metadata } = req.body;
 
-    if (!['teacher_query', 'student_letter', 'general_letter'].includes(document_type)) {
-      return res.status(400).json({ error: 'document_type must be teacher_query, student_letter, or general_letter' });
+    if (!['teacher_query', 'student_letter', 'general_letter', 'memo'].includes(document_type)) {
+      return res.status(400).json({ error: 'document_type must be teacher_query, student_letter, general_letter, or memo' });
     }
     if (!metadata?.subject?.trim()) {
       return res.status(400).json({ error: 'metadata.subject is required' });
@@ -322,9 +341,25 @@ router.post('/start', adminOrManagement, async (req, res, next) => {
       }
     }
 
-    // Grounding: skip for general_letter (no policy citation needed for general correspondence)
+    // Server-side check for memo: the shell row must already exist (created by
+    // POST /api/memos with status:'draft'), same requirement as general_letter.
+    if (document_type === 'memo') {
+      const memoId = metadata?.memo_id;
+      if (!memoId) {
+        return res.status(400).json({ error: 'metadata.memo_id is required for memo sessions' });
+      }
+      const { rows: memoRows } = await pool.query(
+        `SELECT id FROM memos WHERE id = $1 AND school_id = $2`,
+        [memoId, req.schoolId]
+      );
+      if (!memoRows.length) {
+        return res.status(404).json({ error: 'Memo not found' });
+      }
+    }
+
+    // Grounding: skip for general_letter and memo (no policy citation needed for either)
     let grounding = { mode: 'none', results: [] };
-    if (document_type !== 'general_letter') {
+    if (document_type !== 'general_letter' && document_type !== 'memo') {
       grounding = await fetchGrounding(req.schoolId, document_type, metadata);
     }
 
@@ -345,14 +380,20 @@ router.post('/start', adminOrManagement, async (req, res, next) => {
       [req.schoolId, req.user.id, document_type, JSON.stringify(enrichedMetadata)]
     );
 
-    // general_letter rows are pre-created before the chat starts, so the
-    // link back can be set immediately (student_letter has no letter row
+    // general_letter and memo rows are pre-created before the chat starts, so
+    // the link back can be set immediately (student_letter has no letter row
     // yet — it's created only once the chat finishes, at which point the
     // frontend passes this session's id in explicitly).
     if (document_type === 'general_letter') {
       await pool.query(
         `UPDATE general_letters SET draft_session_id = $1 WHERE id = $2 AND school_id = $3`,
         [rows[0].id, metadata.letter_id, req.schoolId]
+      );
+    }
+    if (document_type === 'memo') {
+      await pool.query(
+        `UPDATE memos SET draft_session_id = $1 WHERE id = $2 AND school_id = $3`,
+        [rows[0].id, metadata.memo_id, req.schoolId]
       );
     }
 
