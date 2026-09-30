@@ -7,7 +7,21 @@ import { getUser } from '@/lib/auth';
 import { useEnabledModules } from '@/hooks/useEnabledModules';
 
 type NavItem = { href: string; label: string; icon: React.ReactNode; module?: string };
-type Section = { label: string; items: NavItem[] };
+type Section = { label: string; items: NavItem[]; collapsible?: boolean };
+
+// Per-viewer UI preference, not a server setting — same treatment this
+// codebase already gives things like theme (localStorage, no backend). Keyed
+// by section label so more sections can opt into collapsible: true later
+// without a new storage scheme.
+const COLLAPSE_STORAGE_KEY = 'cas_sidebar_collapsed_sections';
+
+function loadCollapsedSections(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(COLLAPSE_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
 
 const sections: Section[] = [
   {
@@ -65,6 +79,12 @@ const sections: Section[] = [
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />,
         module: 'exeat',
       },
+    ],
+  },
+  {
+    label: 'ADMINISTRATIVE ACTIVITIES',
+    collapsible: true,
+    items: [
       {
         href: '/discipline', label: 'Discipline',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
@@ -393,6 +413,22 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const [pendingProfileRequests, setPendingProfileRequests] = useState(0);
   const [schoolId, setSchoolId] = useState<string | undefined>(undefined);
   const enabledModules = useEnabledModules(api, schoolId);
+  // Undefined = "not loaded from localStorage yet", distinct from false, so a
+  // collapsible section defaults to expanded (per spec) until we know better —
+  // never flashes collapsed-then-expanded on first paint.
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setCollapsedSections(loadCollapsedSections());
+  }, []);
+
+  function toggleSectionCollapsed(label: string) {
+    setCollapsedSections(prev => {
+      const next = { ...prev, [label]: !prev[label] };
+      try { localStorage.setItem(COLLAPSE_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }
 
   useEffect(() => {
     setSchoolId(getUser()?.schoolId);
@@ -445,12 +481,34 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto no-scrollbar py-4 px-3">
-        {visibleSections.map((section, si) => (
+        {visibleSections.map((section, si) => {
+          const isCollapsed = !!section.collapsible && !!collapsedSections[section.label];
+          return (
           <div key={section.label} className={si > 0 ? 'mt-5' : ''}>
-            <p className="px-3 text-[10px] font-bold mb-1.5" style={{ color: 'rgba(200,151,58,0.5)', letterSpacing: '0.06em' }}>
-              {section.label.toUpperCase()}
-            </p>
-            {section.items.map(({ href, label, icon }) => {
+            {section.collapsible ? (
+              <button
+                type="button"
+                onClick={() => toggleSectionCollapsed(section.label)}
+                className="w-full flex items-center justify-between px-3 mb-1.5 group"
+                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                <span className="text-[10px] font-bold" style={{ color: 'rgba(200,151,58,0.5)', letterSpacing: '0.06em' }}>
+                  {section.label.toUpperCase()}
+                </span>
+                <svg
+                  viewBox="0 0 24 24" fill="none" stroke="rgba(200,151,58,0.5)" strokeWidth={2}
+                  className="w-3 h-3 flex-shrink-0 transition-transform"
+                  style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            ) : (
+              <p className="px-3 text-[10px] font-bold mb-1.5" style={{ color: 'rgba(200,151,58,0.5)', letterSpacing: '0.06em' }}>
+                {section.label.toUpperCase()}
+              </p>
+            )}
+            {!isCollapsed && section.items.map(({ href, label, icon }) => {
               const allHrefs = visibleSections.flatMap(s => s.items.map(i => i.href));
               const hasChildNavItem = allHrefs.some(h => h !== href && h.startsWith(href + '/'));
               const active = pathname === href || (!hasChildNavItem && pathname.startsWith(href + '/'));
@@ -483,7 +541,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               );
             })}
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Footer */}
