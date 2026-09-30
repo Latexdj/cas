@@ -7,20 +7,44 @@ import { getUser } from '@/lib/auth';
 import { useEnabledModules } from '@/hooks/useEnabledModules';
 
 type NavItem = { href: string; label: string; icon: React.ReactNode; module?: string };
-type Section = { label: string; items: NavItem[]; collapsible?: boolean };
+type Section = { label: string; items: NavItem[] };
 
 // Per-viewer UI preference, not a server setting — same treatment this
-// codebase already gives things like theme (localStorage, no backend). Keyed
-// by section label so more sections can opt into collapsible: true later
-// without a new storage scheme.
-const COLLAPSE_STORAGE_KEY = 'cas_sidebar_collapsed_sections';
+// codebase already gives things like theme (localStorage, no backend).
+// Single-open accordion: at most one section is expanded at a time, so the
+// stored preference is just the one open section's label (or absent = none).
+const OPEN_SECTION_STORAGE_KEY = 'cas_sidebar_open_section';
 
-function loadCollapsedSections(): Record<string, boolean> {
-  if (typeof window === 'undefined') return {};
+function loadStoredOpenSection(): string | null {
+  if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem(COLLAPSE_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
+    const raw = localStorage.getItem(OPEN_SECTION_STORAGE_KEY);
+    return raw && raw.length > 0 ? raw : null;
+  } catch { return null; }
+}
+
+function saveStoredOpenSection(label: string | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (label) localStorage.setItem(OPEN_SECTION_STORAGE_KEY, label);
+    else localStorage.removeItem(OPEN_SECTION_STORAGE_KEY);
+  } catch { /* ignore */ }
+}
+
+function isActiveHref(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(href + '/');
+}
+
+// Which collapsible (>1 item) section owns the nav item matching the current
+// route, so navigation can force that section open regardless of whatever
+// was last manually opened or stored. Single-item sections never participate
+// — they render as plain links, not accordion groups, so they're never "open".
+function findRouteSectionLabel(secs: Section[], pathname: string): string | null {
+  for (const section of secs) {
+    if (section.items.length <= 1) continue;
+    if (section.items.some(item => isActiveHref(pathname, item.href))) return section.label;
+  }
+  return null;
 }
 
 const sections: Section[] = [
@@ -83,7 +107,6 @@ const sections: Section[] = [
   },
   {
     label: 'ADMINISTRATIVE ACTIVITIES',
-    collapsible: true,
     items: [
       {
         href: '/discipline', label: 'Discipline',
@@ -413,19 +436,25 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const [pendingProfileRequests, setPendingProfileRequests] = useState(0);
   const [schoolId, setSchoolId] = useState<string | undefined>(undefined);
   const enabledModules = useEnabledModules(api, schoolId);
-  // Undefined = "not loaded from localStorage yet", distinct from false, so a
-  // collapsible section defaults to expanded (per spec) until we know better —
-  // never flashes collapsed-then-expanded on first paint.
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  // The single open accordion section (null = none open). Starts null on
+  // every render (SSR-safe — no localStorage read here) and is resolved by
+  // the effect below right after mount: a route match wins immediately; only
+  // absent a route match does the effect fall back to the stored preference.
+  const [openSection, setOpenSection] = useState<string | null>(null);
 
   useEffect(() => {
-    setCollapsedSections(loadCollapsedSections());
-  }, []);
+    const routeMatch = findRouteSectionLabel(sections, pathname);
+    if (routeMatch) {
+      setOpenSection(routeMatch);
+    } else {
+      setOpenSection(prev => prev ?? loadStoredOpenSection());
+    }
+  }, [pathname]);
 
-  function toggleSectionCollapsed(label: string) {
-    setCollapsedSections(prev => {
-      const next = { ...prev, [label]: !prev[label] };
-      try { localStorage.setItem(COLLAPSE_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  function toggleSectionOpen(label: string) {
+    setOpenSection(prev => {
+      const next = prev === label ? null : label;
+      saveStoredOpenSection(next);
       return next;
     });
   }
@@ -440,14 +469,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   }, []);
 
   // Filter sections based on enabled modules; null means not yet loaded or error → show all
-  const visibleSections = sections.map(section => ({
-    ...section,
-    items: section.items.filter(item => {
+  const visibleSections = sections.map(section => {
+    const items = section.items.filter(item => {
       if (!item.module) return true;
       if (enabledModules === null) return true;
       return enabledModules.includes(item.module);
-    }),
-  })).filter(section => section.items.length > 0);
+    });
+    // Every section with more than one (visible) item becomes an accordion
+    // group; a section down to exactly one item is just a plain top-level link.
+    return { ...section, items, collapsible: items.length > 1 };
+  }).filter(section => section.items.length > 0);
 
   return (
     <aside
@@ -482,13 +513,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto no-scrollbar py-4 px-3">
         {visibleSections.map((section, si) => {
-          const isCollapsed = !!section.collapsible && !!collapsedSections[section.label];
+          const isCollapsed = section.collapsible && openSection !== section.label;
           return (
           <div key={section.label} className={si > 0 ? 'mt-5' : ''}>
             {section.collapsible ? (
               <button
                 type="button"
-                onClick={() => toggleSectionCollapsed(section.label)}
+                onClick={() => toggleSectionOpen(section.label)}
                 className="w-full flex items-center justify-between px-3 mb-1.5 group"
                 style={{ background: 'none', border: 'none', cursor: 'pointer' }}
               >
