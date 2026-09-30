@@ -16,6 +16,7 @@ router.get('/stats', async (_req, res, next) => {
         COUNT(DISTINCT CASE WHEN sub.status = 'active' THEN s.id END)::int AS active_schools,
         COUNT(DISTINCT CASE WHEN sub.status IN ('expired','cancelled') OR (sub.status = 'trial' AND sub.ends_at <= now()) THEN s.id END)::int AS expired_schools,
         (SELECT COUNT(*)::int FROM teachers WHERE status = 'Active') AS total_teachers,
+        (SELECT COUNT(*)::int FROM students WHERE status = 'Active') AS total_students,
         (SELECT COUNT(*)::int FROM attendance WHERE date >= date_trunc('month', now())) AS attendance_this_month,
         (SELECT COUNT(*)::int FROM attendance) AS total_attendance
       FROM schools s

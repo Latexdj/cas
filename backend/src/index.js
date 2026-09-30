@@ -207,6 +207,7 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS plan_id UUID`);
     await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now()`);
     await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS teacher_limit INTEGER NOT NULL DEFAULT 10`);
+    await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS student_limit INTEGER`);
     await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS programs (

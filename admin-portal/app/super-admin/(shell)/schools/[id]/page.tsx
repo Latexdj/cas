@@ -20,6 +20,8 @@ interface SchoolDetail {
   ends_at: string | null;
   active_teachers: number;
   teacher_limit: number;
+  active_students: number;
+  student_limit: number | null;
   total_attendance: number;
   last_submission: string | null;
   school_type: string | null;
@@ -116,6 +118,12 @@ export default function SchoolDetailPage() {
   const [limitLoading, setLimitLoading] = useState(false);
   const [limitMsg,     setLimitMsg]     = useState('');
   const [limitErr,     setLimitErr]     = useState('');
+
+  // Student limit
+  const [studentLimitInput,   setStudentLimitInput]   = useState('');
+  const [studentLimitLoading, setStudentLimitLoading] = useState(false);
+  const [studentLimitMsg,     setStudentLimitMsg]     = useState('');
+  const [studentLimitErr,     setStudentLimitErr]     = useState('');
 
   // Typed delete
   const [deleteInput,   setDeleteInput]   = useState('');
@@ -277,6 +285,21 @@ export default function SchoolDetailPage() {
     } finally { setLimitLoading(false); }
   }
 
+  async function handleUpdateStudentLimit(e: React.FormEvent) {
+    e.preventDefault();
+    const n = parseInt(studentLimitInput);
+    if (!n || n < 10) { setStudentLimitErr('Limit must be at least 10.'); return; }
+    setStudentLimitLoading(true); setStudentLimitMsg(''); setStudentLimitErr('');
+    try {
+      await saApi.patch(`/api/schools/${id}/student-limit`, { studentLimit: n });
+      setStudentLimitMsg(`Student limit updated to ${n}.`);
+      setStudentLimitInput('');
+      await load();
+    } catch (err: unknown) {
+      setStudentLimitErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to update limit.');
+    } finally { setStudentLimitLoading(false); }
+  }
+
   async function handleDelete() {
     if (deleteInput !== school?.name) { setDeleteErr('School name does not match.'); return; }
     setDeleteLoading(true); setDeleteErr('');
@@ -370,7 +393,7 @@ export default function SchoolDetailPage() {
       </div>
 
       {/* Usage metrics */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
           <p className="text-lg font-bold text-[#C8973A]">
             {school.active_teachers}
@@ -383,6 +406,22 @@ export default function SchoolDetailPage() {
               style={{
                 width: `${Math.min(100, Math.round((school.active_teachers / school.teacher_limit) * 100))}%`,
                 backgroundColor: school.active_teachers >= school.teacher_limit ? '#f87171' : '#818cf8',
+              }}
+            />
+          </div>
+        </div>
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center">
+          <p className="text-lg font-bold text-[#C8973A]">
+            {school.active_students}
+            <span className="text-sm font-normal text-slate-500">/{school.student_limit ?? '—'}</span>
+          </p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Active Students</p>
+          <div className="mt-1.5 h-1 bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: school.student_limit ? `${Math.min(100, Math.round((school.active_students / school.student_limit) * 100))}%` : '0%',
+                backgroundColor: school.student_limit && school.active_students >= school.student_limit ? '#f87171' : '#818cf8',
               }}
             />
           </div>
@@ -671,6 +710,32 @@ export default function SchoolDetailPage() {
         </form>
         {limitMsg && <p className="text-xs text-[#2ab289] bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-2">{limitMsg}</p>}
         {limitErr && <p className="text-xs text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-3 py-2 mt-2">{limitErr}</p>}
+      </div>
+
+      {/* Student Limit */}
+      <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+        <p className="text-xs font-bold font-medium text-slate-400 mb-1">Student Limit</p>
+        <p className="text-xs text-slate-500 mb-4">
+          Current limit: <span className="font-semibold text-white">{school.student_limit ?? 'unlimited'}{school.student_limit ? ' students' : ''}</span>
+          {' '}({school.active_students} currently active).
+          {school.student_limit !== null && school.active_students >= school.student_limit && (
+            <span className="text-red-400 font-semibold"> Limit reached — new registrations are blocked.</span>
+          )}
+        </p>
+        <form onSubmit={handleUpdateStudentLimit} className="flex gap-2">
+          <input
+            type="number" value={studentLimitInput}
+            onChange={e => { setStudentLimitInput(e.target.value); setStudentLimitErr(''); setStudentLimitMsg(''); }}
+            placeholder={`New limit (min 10, current ${school.student_limit ?? 'unlimited'})`} min="10"
+            className="flex-1 bg-slate-900 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#B8D9C8] placeholder-slate-500"
+          />
+          <button type="submit" disabled={studentLimitLoading}
+            className="px-4 py-2.5 rounded-xl bg-slate-600 hover:bg-slate-500 text-white text-sm font-semibold disabled:opacity-40 transition-colors">
+            {studentLimitLoading ? '...' : 'Update'}
+          </button>
+        </form>
+        {studentLimitMsg && <p className="text-xs text-[#2ab289] bg-green-900/30 border border-green-800 rounded-lg px-3 py-2 mt-2">{studentLimitMsg}</p>}
+        {studentLimitErr && <p className="text-xs text-red-400 bg-red-900/30 border border-red-800 rounded-lg px-3 py-2 mt-2">{studentLimitErr}</p>}
       </div>
 
       {/* Reset admin PIN */}

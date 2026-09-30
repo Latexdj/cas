@@ -19,8 +19,10 @@ router.get('/', async (_req, res, next) => {
         sub.starts_at,
         sub.ends_at,
         sub.teacher_limit,
+        sub.student_limit,
         p.display_name      AS plan_name,
         (SELECT COUNT(*) FROM teachers t WHERE t.school_id = s.id AND t.status = 'Active')::int AS active_teachers,
+        (SELECT COUNT(*) FROM students st WHERE st.school_id = s.id AND st.status = 'Active')::int AS active_students,
         (SELECT COUNT(*) FROM attendance a WHERE a.school_id = s.id)::int AS total_attendance,
         (SELECT MAX(a2.date)::text FROM attendance a2 WHERE a2.school_id = s.id) AS last_submission
       FROM schools s
@@ -44,9 +46,10 @@ router.get('/:id', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT s.*,
-         sub.status AS subscription_status, sub.starts_at, sub.ends_at, sub.teacher_limit,
+         sub.status AS subscription_status, sub.starts_at, sub.ends_at, sub.teacher_limit, sub.student_limit,
          p.name AS plan_name, p.display_name,
          (SELECT COUNT(*)::int FROM teachers t WHERE t.school_id = s.id AND t.status = 'Active') AS active_teachers,
+         (SELECT COUNT(*)::int FROM students st WHERE st.school_id = s.id AND st.status = 'Active') AS active_students,
          (SELECT COUNT(*)::int FROM attendance a WHERE a.school_id = s.id) AS total_attendance,
          (SELECT MAX(a2.date)::text FROM attendance a2 WHERE a2.school_id = s.id) AS last_submission
        FROM schools s
@@ -102,6 +105,7 @@ router.post('/', async (req, res, next) => {
 
       // Attach 14-day trial subscription
       const teacherLimit = Math.max(10, parseInt(req.body.teacherLimit) || 10);
+      const studentLimit = Math.max(10, parseInt(req.body.studentLimit) || 500);
       const { rows: planRows } = await client.query(
         `SELECT id FROM plans WHERE name = 'trial' LIMIT 1`
       );
@@ -110,9 +114,9 @@ router.post('/', async (req, res, next) => {
       const trialEnd    = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
 
       await client.query(
-        `INSERT INTO subscriptions (school_id, plan_id, status, ends_at, teacher_limit)
-         VALUES ($1,$2,'trial',$3,$4)`,
-        [school.id, trialPlanId, trialEnd, teacherLimit]
+        `INSERT INTO subscriptions (school_id, plan_id, status, ends_at, teacher_limit, student_limit)
+         VALUES ($1,$2,'trial',$3,$4,$5)`,
+        [school.id, trialPlanId, trialEnd, teacherLimit, studentLimit]
       );
 
       // Create the school admin teacher account
@@ -147,7 +151,7 @@ router.post('/', async (req, res, next) => {
         school,
         admin: adminRows[0],
         subscription: { status: 'trial', ends_at: trialEnd },
-        message: `School created. Trial ends ${trialEnd.toDateString()}. Admin PIN: ${pin}. Teacher limit: ${teacherLimit}.`,
+        message: `School created. Trial ends ${trialEnd.toDateString()}. Admin PIN: ${pin}. Teacher limit: ${teacherLimit}. Student limit: ${studentLimit}.`,
       });
     } catch (err) {
       await client.query('ROLLBACK');
@@ -205,14 +209,17 @@ router.post('/:id/activate', async (req, res, next) => {
     if (!planRows.length) return res.status(500).json({ error: 'Paid plan not found in database. Contact support.' });
     const paidPlanId = planRows[0].id;
 
-    // Preserve teacher_limit from current subscription unless explicitly overridden
+    // Preserve teacher_limit/student_limit from current subscription unless explicitly overridden
     const { rows: currentSubRows } = await pool.query(
-      `SELECT teacher_limit FROM subscriptions WHERE school_id = $1 ORDER BY created_at DESC LIMIT 1`,
+      `SELECT teacher_limit, student_limit FROM subscriptions WHERE school_id = $1 ORDER BY created_at DESC LIMIT 1`,
       [req.params.id]
     );
     const teacherLimit = req.body.teacherLimit
       ? Math.max(10, parseInt(req.body.teacherLimit))
       : (currentSubRows[0]?.teacher_limit ?? 10);
+    const studentLimit = req.body.studentLimit
+      ? Math.max(10, parseInt(req.body.studentLimit))
+      : (currentSubRows[0]?.student_limit ?? null);
 
     await pool.query(
       `UPDATE subscriptions SET status = 'expired', updated_at = now()
@@ -224,9 +231,9 @@ router.post('/:id/activate', async (req, res, next) => {
     const endsAt   = req.body.endsAt   ? new Date(req.body.endsAt)   : null;
 
     const { rows } = await pool.query(
-      `INSERT INTO subscriptions (school_id, plan_id, status, starts_at, ends_at, teacher_limit)
-       VALUES ($1,$2,'active',$3,$4,$5) RETURNING *`,
-      [req.params.id, paidPlanId, startsAt, endsAt, teacherLimit]
+      `INSERT INTO subscriptions (school_id, plan_id, status, starts_at, ends_at, teacher_limit, student_limit)
+       VALUES ($1,$2,'active',$3,$4,$5,$6) RETURNING *`,
+      [req.params.id, paidPlanId, startsAt, endsAt, teacherLimit, studentLimit]
     );
 
     clearSubCache(req.params.id);
@@ -235,6 +242,7 @@ router.post('/:id/activate', async (req, res, next) => {
       starts_at: startsAt,
       ends_at: endsAt,
       teacher_limit: teacherLimit,
+      student_limit: studentLimit,
       message: endsAt
         ? `Activated on paid plan until ${endsAt.toDateString()}`
         : 'Activated on paid plan (no expiry)',
@@ -259,12 +267,13 @@ router.post('/:id/revert-to-trial', async (req, res, next) => {
     const trialPlanId = planRows[0].id;
     const trialEnd    = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
-    // Preserve teacher_limit from the active subscription
+    // Preserve teacher_limit/student_limit from the active subscription
     const { rows: currentSubRows } = await pool.query(
-      `SELECT teacher_limit FROM subscriptions WHERE school_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
+      `SELECT teacher_limit, student_limit FROM subscriptions WHERE school_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`,
       [req.params.id]
     );
     const teacherLimit = currentSubRows[0]?.teacher_limit ?? 10;
+    const studentLimit = currentSubRows[0]?.student_limit ?? null;
 
     // Expire the current active subscription
     await pool.query(
@@ -273,11 +282,11 @@ router.post('/:id/revert-to-trial', async (req, res, next) => {
       [req.params.id]
     );
 
-    // Create a fresh trial subscription with the same teacher limit
+    // Create a fresh trial subscription with the same teacher/student limits
     const { rows } = await pool.query(
-      `INSERT INTO subscriptions (school_id, plan_id, status, ends_at, teacher_limit)
-       VALUES ($1, $2, 'trial', $3, $4) RETURNING *`,
-      [req.params.id, trialPlanId, trialEnd, teacherLimit]
+      `INSERT INTO subscriptions (school_id, plan_id, status, ends_at, teacher_limit, student_limit)
+       VALUES ($1, $2, 'trial', $3, $4, $5) RETURNING *`,
+      [req.params.id, trialPlanId, trialEnd, teacherLimit, studentLimit]
     );
 
     clearSubCache(req.params.id);
@@ -433,6 +442,35 @@ router.patch('/:id/teacher-limit', async (req, res, next) => {
     });
 
     res.json({ message: `Teacher limit updated to ${limit}`, teacher_limit: rows[0].teacher_limit });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── PATCH /api/schools/:id/student-limit — update the active subscription's student limit ──
+router.patch('/:id/student-limit', async (req, res, next) => {
+  try {
+    const limit = parseInt(req.body.studentLimit);
+    if (!limit || limit < 10)
+      return res.status(400).json({ error: 'Student limit must be at least 10' });
+
+    const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.params.id]);
+    if (!schoolRows.length) return res.status(404).json({ error: 'School not found' });
+
+    const { rows } = await pool.query(
+      `UPDATE subscriptions SET student_limit = $1, updated_at = now()
+       WHERE school_id = $2
+         AND id = (SELECT id FROM subscriptions WHERE school_id = $2 ORDER BY created_at DESC LIMIT 1)
+       RETURNING student_limit`,
+      [limit, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No subscription found' });
+
+    await auditLog('student_limit_updated', 'school', req.params.id, schoolRows[0].name, {
+      new_limit: limit,
+    });
+
+    res.json({ message: `Student limit updated to ${limit}`, student_limit: rows[0].student_limit });
   } catch (err) {
     next(err);
   }

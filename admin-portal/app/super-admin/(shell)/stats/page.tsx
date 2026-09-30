@@ -10,6 +10,7 @@ interface Stats {
   active_schools: number;
   expired_schools: number;
   total_teachers: number;
+  total_students: number;
   attendance_this_month: number;
   total_attendance: number;
   most_active_school: { name: string; code: string; attendance_count: number } | null;
@@ -85,9 +86,10 @@ export default function StatsPage() {
           {/* Attendance + teachers */}
           <div className="mb-6">
             <p className="text-xs font-bold font-medium text-slate-400 mb-3 mt-6">Usage</p>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
               {[
                 { label: 'Active Teachers (all schools)',   value: stats.total_teachers.toLocaleString(),            color: '#a78bfa' },
+                { label: 'Active Students (all schools)',   value: stats.total_students.toLocaleString(),            color: '#f0abfc' },
                 { label: 'Attendance Records This Month',   value: stats.attendance_this_month.toLocaleString(),     color: '#34d399' },
                 { label: 'Total Attendance (all time)',     value: stats.total_attendance.toLocaleString(),          color: '#94a3b8' },
               ].map(s => (

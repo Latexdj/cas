@@ -346,6 +346,8 @@ export interface AdminStats {
   today_attendance: number;
   today_absences: number;
   total_teachers: number;
+  active_students: number;
+  student_limit: number | null;
   week_attendance: number;
   outstanding_absences: number;
   pending_remedials: number;

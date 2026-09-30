@@ -18,6 +18,8 @@ interface School {
   plan_name: string | null;
   active_teachers: number;
   teacher_limit: number;
+  active_students: number;
+  student_limit: number | null;
   total_attendance: number;
   last_submission: string | null;
   created_at: string;
@@ -63,15 +65,15 @@ function statusBadge(status: string) {
 }
 
 function exportCSV(schools: School[]) {
-  const header = ['Code', 'Name', 'Email', 'Phone', 'Status', 'Starts', 'Expires', 'Days Left', 'Teachers', 'Teacher Limit', 'Attendance', 'Last Submission', 'Created'];
+  const header = ['Code', 'Name', 'Email', 'Phone', 'Status', 'Starts', 'Expires', 'Days Left', 'Teachers', 'Teacher Limit', 'Students', 'Student Limit', 'Attendance', 'Last Submission', 'Created'];
   const rows = schools.map(s => {
     const days = daysUntil(s.ends_at);
     return [
       s.code, s.name, s.email, s.phone ?? '',
       s.subscription_status, fmtDate(s.starts_at), fmtDate(s.ends_at),
       days !== null ? days : '',
-      s.active_teachers, s.teacher_limit, s.total_attendance,
-      fmtDate(s.last_submission), fmtDate(s.created_at),
+      s.active_teachers, s.teacher_limit, s.active_students, s.student_limit ?? '',
+      s.total_attendance, fmtDate(s.last_submission), fmtDate(s.created_at),
     ];
   });
   const csv = [header, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -248,6 +250,7 @@ export default function SchoolsListPage() {
                   <Th label="Status" sortKey="subscription_status" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 font-medium" />
                   <Th label="Subscription Period" sortKey="ends_at" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 font-medium" />
                   <Th label="Teachers" sortKey="active_teachers" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-slate-400 font-medium" />
+                  <Th label="Students" sortKey="active_students" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-slate-400 font-medium" />
                   <Th label="Attendance" sortKey="total_attendance" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-xs font-semibold text-slate-400 font-medium" />
                   <Th label="Last Activity" sortKey="last_submission" currentKey={sortKey} currentDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left text-xs font-semibold text-slate-400 font-medium" />
                 </tr>
@@ -277,6 +280,11 @@ export default function SchoolsListPage() {
                       <td className="px-4 py-3 text-right">
                         <span className={(s.active_teachers ?? 0) >= (s.teacher_limit ?? 10) ? 'text-red-400 font-semibold' : 'text-slate-300'}>
                           {s.active_teachers ?? 0}/{s.teacher_limit ?? '?'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={s.student_limit !== null && (s.active_students ?? 0) >= s.student_limit ? 'text-red-400 font-semibold' : 'text-slate-300'}>
+                          {s.active_students ?? 0}/{s.student_limit ?? '?'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right text-slate-300">{s.total_attendance.toLocaleString()}</td>

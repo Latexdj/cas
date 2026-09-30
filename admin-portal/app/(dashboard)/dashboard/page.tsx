@@ -592,6 +592,40 @@ export default function DashboardPage() {
         );
       })()}
 
+      {/* Student-count subscription banner */}
+      {stats && stats.student_limit != null && (() => {
+        const used = stats.active_students;
+        const limit = stats.student_limit;
+        const pct = limit > 0 ? used / limit : 0;
+        const atLimit  = used >= limit;
+        const warning  = !atLimit && pct >= 0.7;
+        const bg     = atLimit ? '#FEF2F2' : warning ? '#FFF8E1' : '#E8F4EE';
+        const border = atLimit ? '#FECACA' : warning ? '#FDE68A' : '#BBF7D0';
+        const color  = atLimit ? '#B83232' : warning ? '#92400E' : '#145C44';
+        const title  = atLimit
+          ? 'Student limit reached'
+          : warning
+          ? 'Approaching your student limit'
+          : 'Your subscription is now also sized by student count';
+        const body = atLimit
+          ? `You have ${used}/${limit} active students. New student registrations are blocked until the limit is raised — contact support to upgrade.`
+          : `You're using ${used} of ${limit} student slots (${Math.round(pct * 100)}%).`;
+        return (
+          <div className="flex items-start gap-3 px-4 py-3 rounded-xl text-sm"
+            style={{ backgroundColor: bg, border: `1px solid ${border}`, borderLeft: `4px solid ${color}` }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"
+              style={{ width: 16, height: 16, flexShrink: 0, marginTop: 2 }}>
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 00-3-3.87" /><path d="M16 3.13a4 4 0 010 7.75" />
+            </svg>
+            <div>
+              <p className="font-bold" style={{ color }}>{title}</p>
+              <p className="text-xs mt-0.5" style={{ color, opacity: 0.8 }}>{body}</p>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── header ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>

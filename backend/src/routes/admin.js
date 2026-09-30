@@ -208,6 +208,11 @@ router.get('/stats', async (req, res, next) => {
             AND status != 'Excused')::int                   AS today_absences,
         (SELECT COUNT(*) FROM teachers
           WHERE school_id = $2 AND status = 'Active')::int  AS total_teachers,
+        (SELECT COUNT(*) FROM students
+          WHERE school_id = $2 AND status = 'Active')::int  AS active_students,
+        (SELECT student_limit FROM subscriptions
+          WHERE school_id = $2 AND status IN ('trial','active')
+          ORDER BY created_at DESC LIMIT 1)                 AS student_limit,
         (SELECT COUNT(*) FROM attendance
           WHERE school_id = $2
             AND date >= DATE_TRUNC('week', CURRENT_DATE))::int AS week_attendance,

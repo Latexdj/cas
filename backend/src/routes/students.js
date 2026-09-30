@@ -217,6 +217,24 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       }
     }
 
+    // Get student limit for this school
+    const { rows: subRows } = await pool.query(
+      `SELECT student_limit FROM subscriptions
+       WHERE school_id = $1 AND status IN ('trial', 'active')
+       ORDER BY created_at DESC LIMIT 1`,
+      [req.schoolId]
+    );
+    let studentLimit = null;
+    let activeCount  = 0;
+    if (subRows.length && subRows[0].student_limit !== null) {
+      studentLimit = subRows[0].student_limit;
+      const { rows: countRows } = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM students WHERE school_id = $1 AND status = 'Active'`,
+        [req.schoolId]
+      );
+      activeCount = countRows[0].cnt;
+    }
+
     // Load programs + ALL existing student codes in two parallel queries
     const [{ rows: programRows }, { rows: allCodeRows }] = await Promise.all([
       pool.query(`SELECT id, LOWER(TRIM(name)) AS name_lower FROM programs WHERE school_id = $1`, [req.schoolId]),
@@ -259,6 +277,7 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
     const validRows = [];
     const seenCodes = new Set();
     const validStatuses = ['Active', 'Graduated', 'Inactive'];
+    let newActiveCount = 0;
 
     for (let i = 0; i < dataRows.length; i++) {
       const row    = dataRows[i];
@@ -304,6 +323,13 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       }
 
       const status = validStatuses.find(s => s.toLowerCase() === statusRaw.toLowerCase()) || 'Active';
+
+      // Hard stop at student limit (only rows that will be Active count toward it)
+      if (status === 'Active' && studentLimit !== null && activeCount + newActiveCount >= studentLimit) {
+        errors.push({ row: rowNum, message: `Student limit reached (${studentLimit}). Row skipped.` });
+        continue;
+      }
+
       const code   = studentCode || ('S' + String(++autoCodeCounter).padStart(3, '0'));
 
       if (existingCodesDB.has(code)) {
@@ -315,6 +341,7 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
         continue;
       }
       seenCodes.add(code);
+      if (status === 'Active') newActiveCount++;
 
       validRows.push({ rowNum, code, name, className, status, notes, programId,
         jhs_index_number, date_of_birth, gender, hometown, residential_address,
@@ -697,6 +724,26 @@ router.post('/', adminOnly, async (req, res, next) => {
     if (!class_name) return res.status(400).json({ error: 'class_name is required' });
     const valErrors = validateStudentFields(req.body);
     if (valErrors.length) return res.status(400).json({ error: valErrors.join('; ') });
+
+    // Enforce student limit
+    const { rows: subRows } = await pool.query(
+      `SELECT student_limit FROM subscriptions
+       WHERE school_id = $1 AND status IN ('trial', 'active')
+       ORDER BY created_at DESC LIMIT 1`,
+      [req.schoolId]
+    );
+    if (subRows.length && subRows[0].student_limit !== null) {
+      const limit = subRows[0].student_limit;
+      const { rows: countRows } = await pool.query(
+        `SELECT COUNT(*)::int AS cnt FROM students WHERE school_id = $1 AND status = 'Active'`,
+        [req.schoolId]
+      );
+      if (countRows[0].cnt >= limit) {
+        return res.status(403).json({
+          error: `Student limit reached (${countRows[0].cnt}/${limit}). Contact your administrator to upgrade your subscription.`,
+        });
+      }
+    }
 
     const code = student_code?.trim() || await nextStudentCode(req.schoolId);
     const defaultHash = await bcrypt.hash(DEFAULT_STUDENT_PIN, 12);
