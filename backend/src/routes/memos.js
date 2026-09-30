@@ -130,6 +130,30 @@ async function fanOutMemo({ memoId, schoolId, teacherIds, subject }) {
   );
 }
 
+// Generates the memo's PDF and saves pdf_url on the row. Called automatically
+// the moment a memo becomes 'issued' (direct issue or finalize) — unlike
+// general_letters/discipline, a memo has no approval step and no watermark
+// distinction, so there's no reason to make an admin trigger this by hand;
+// recipients should be able to open a PDF the instant they're notified.
+// POST /:id/pdf below stays as a manual re-generate path.
+async function generateMemoPdf(memo, schoolId) {
+  const { rows: sRows } = await pool.query(
+    `SELECT name, address, phone, email, motto, letterhead_url FROM schools WHERE id = $1`,
+    [schoolId]
+  );
+  const school = sRows[0];
+  const pdfUrl = await generateAndUploadPDF({
+    letter: memo,
+    school,
+    recipientType: 'staff',
+    letterKind: 'memo',
+    watermark: false,
+    pathPrefix: `memos/${schoolId}`,
+  });
+  await pool.query(`UPDATE memos SET pdf_url = $1, updated_at = now() WHERE id = $2`, [pdfUrl, memo.id]);
+  return pdfUrl;
+}
+
 // ── issued_by_title default resolution ──────────────────────────────────────
 // Must be defined before /:id to avoid Express matching this as an id.
 // GET /api/memos/issued-by-title-default
@@ -163,7 +187,8 @@ router.get('/', adminOrManagement, async (req, res, next) => {
       `SELECT m.id, m.ref_number, m.distribution_type, m.audience_label,
               m.subject, m.issued_date::text, m.status, m.pdf_url,
               m.issued_by_name, m.issued_by_title, m.created_at,
-              (SELECT COUNT(*)::int FROM memo_recipients mr WHERE mr.memo_id = m.id) AS recipient_count
+              (SELECT COUNT(*)::int FROM memo_recipients mr WHERE mr.memo_id = m.id) AS recipient_count,
+              (SELECT COUNT(*)::int FROM memo_recipients mr WHERE mr.memo_id = m.id AND mr.read_at IS NOT NULL) AS read_count
        FROM memos m
        WHERE m.school_id = $1 AND m.status != 'draft'
        ORDER BY m.created_at DESC`,
@@ -228,10 +253,15 @@ router.post('/', adminOrManagement, async (req, res, next) => {
         subject.trim(), (body?.trim() || ''), resolvedIssuedDate, ref_number, computed_status,
       ]
     );
-    const memo = rows[0];
+    let memo = rows[0];
 
     if (!savingAsDraft) {
       await fanOutMemo({ memoId: memo.id, schoolId: req.schoolId, teacherIds: resolved.teacherIds, subject: memo.subject });
+      const pdfUrl = await generateMemoPdf(memo, req.schoolId).catch(e => {
+        console.error('[memos] PDF generation failed for', memo.id, e.message);
+        return null;
+      });
+      if (pdfUrl) memo = { ...memo, pdf_url: pdfUrl };
     }
 
     res.status(201).json(memo);
@@ -270,7 +300,7 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
        RETURNING *, issued_date::text`,
       [body.trim(), ref_number, req.params.id, req.schoolId]
     );
-    const memo = rows[0];
+    let memo = rows[0];
 
     let resolved;
     try {
@@ -283,12 +313,18 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
       resolved = { teacherIds: [] };
     }
     await fanOutMemo({ memoId: memo.id, schoolId: req.schoolId, teacherIds: resolved.teacherIds, subject: memo.subject });
+    const pdfUrl = await generateMemoPdf(memo, req.schoolId).catch(e => {
+      console.error('[memos] PDF generation failed for', memo.id, e.message);
+      return null;
+    });
+    if (pdfUrl) memo = { ...memo, pdf_url: pdfUrl };
 
     res.json(memo);
   } catch (err) { next(err); }
 });
 
-// POST /api/memos/:id/pdf — generate (or re-generate) PDF.
+// POST /api/memos/:id/pdf — manual re-generate (PDF is already generated
+// automatically at issue time; this is for the rare case that failed).
 // Must be registered before GET /:id to prevent Express matching 'pdf' as an id.
 router.post('/:id/pdf', adminOrManagement, async (req, res, next) => {
   try {
@@ -297,37 +333,76 @@ router.post('/:id/pdf', adminOrManagement, async (req, res, next) => {
       [req.params.id, req.schoolId]
     );
     if (!mRows.length) return res.status(404).json({ error: 'Memo not found' });
-    const memo = mRows[0];
 
-    const { rows: sRows } = await pool.query(
-      `SELECT name, address, phone, email, motto, letterhead_url FROM schools WHERE id = $1`,
-      [req.schoolId]
-    );
-    const school = sRows[0];
-
-    const pdfUrl = await generateAndUploadPDF({
-      letter: memo,
-      school,
-      recipientType: 'staff',
-      letterKind: 'memo',
-      watermark: false,
-      pathPrefix: `memos/${req.schoolId}`,
-    });
-
-    await pool.query(`UPDATE memos SET pdf_url = $1, updated_at = now() WHERE id = $2`, [pdfUrl, memo.id]);
-
+    const pdfUrl = await generateMemoPdf(mRows[0], req.schoolId);
     res.json({ pdf_url: pdfUrl });
   } catch (err) { next(err); }
 });
 
-// GET /api/memos/:id
-router.get('/:id', adminOrManagement, async (req, res, next) => {
+// GET /api/memos/mine — teacher-facing memo list. No adminOrManagement: any
+// authenticated teacher may call this, scoped to memos they're actually a
+// recipient of. Must be defined before /:id.
+router.get('/mine', async (req, res, next) => {
   try {
+    if (req.user?.role !== 'teacher' && req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Teacher access only' });
+    }
     const { rows } = await pool.query(
-      `SELECT *, issued_date::text FROM memos WHERE id = $1 AND school_id = $2`,
+      `SELECT m.id, m.ref_number, m.subject, m.audience_label, m.issued_date::text,
+              m.issued_by_name, m.issued_by_title, m.pdf_url, m.created_at,
+              mr.read_at
+       FROM memo_recipients mr
+       JOIN memos m ON m.id = mr.memo_id
+       WHERE mr.teacher_id = $1 AND m.school_id = $2
+       ORDER BY m.created_at DESC`,
+      [req.user.id, req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/memos/:id/read — teacher marks a memo as read (idempotent — a
+// re-open never overwrites the original read_at). Must be before /:id.
+router.patch('/:id/read', async (req, res, next) => {
+  try {
+    if (req.user?.role !== 'teacher' && req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Teacher access only' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE memo_recipients SET read_at = COALESCE(read_at, now())
+       WHERE memo_id = $1 AND teacher_id = $2
+       RETURNING read_at`,
+      [req.params.id, req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not a recipient of this memo' });
+    res.json({ read_at: rows[0].read_at });
+  } catch (err) { next(err); }
+});
+
+// GET /api/memos/:id — admin/management see any memo in their school;
+// a teacher may see one only if they're an actual recipient of it (checked
+// against memo_recipients, not inferred from role).
+router.get('/:id', async (req, res, next) => {
+  try {
+    const isStaff = req.user?.role === 'admin' || req.user?.role === 'super_admin' || req.user?.type === 'management';
+
+    const { rows } = await pool.query(
+      `SELECT m.*, m.issued_date::text,
+              (SELECT COUNT(*)::int FROM memo_recipients mr WHERE mr.memo_id = m.id) AS recipient_count,
+              (SELECT COUNT(*)::int FROM memo_recipients mr WHERE mr.memo_id = m.id AND mr.read_at IS NOT NULL) AS read_count
+       FROM memos m WHERE m.id = $1 AND m.school_id = $2`,
       [req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Memo not found' });
+
+    if (!isStaff) {
+      const { rows: recRows } = await pool.query(
+        `SELECT 1 FROM memo_recipients WHERE memo_id = $1 AND teacher_id = $2`,
+        [req.params.id, req.user.id]
+      );
+      if (!recRows.length) return res.status(403).json({ error: 'Not authorized to view this memo' });
+    }
+
     res.json(rows[0]);
   } catch (err) { next(err); }
 });

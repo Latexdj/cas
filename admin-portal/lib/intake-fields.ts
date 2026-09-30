@@ -8,7 +8,7 @@ export interface IntakeField {
   placeholder: string;
 }
 
-export const INTAKE_FIELDS: Record<'student_letter' | 'teacher_query' | 'general_letter', IntakeField[]> = {
+export const INTAKE_FIELDS: Record<'student_letter' | 'teacher_query' | 'general_letter' | 'memo', IntakeField[]> = {
   student_letter: [
     {
       key: 'incident',
@@ -79,6 +79,26 @@ export const INTAKE_FIELDS: Record<'student_letter' | 'teacher_query' | 'general
       label: 'Specific details or references',
       kind: 'textarea', required: false,
       placeholder: 'Dates, references, or other details (leave blank if none)',
+    },
+  ],
+  memo: [
+    {
+      key: 'purpose',
+      label: 'Main purpose and key facts',
+      kind: 'textarea', required: true,
+      placeholder: 'What does this memo need to communicate?',
+    },
+    {
+      key: 'expected_action',
+      label: 'Expected action or response',
+      kind: 'short', required: false,
+      placeholder: 'Leave blank if none',
+    },
+    {
+      key: 'extra_details',
+      label: 'Dates, deadlines, or instructions',
+      kind: 'textarea', required: false,
+      placeholder: 'Leave blank if none',
     },
   ],
 };
