@@ -336,7 +336,17 @@ export default function MemosPage() {
       load();
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      setSaveErr(err.response?.data?.error ?? 'Failed to finalize memo.');
+      const msg = err.response?.data?.error;
+      // PDF generation can outlast the client's request timeout even though
+      // the server finished issuing the memo — a retry then correctly (but
+      // confusingly) hits this exact message. Since the desired end state
+      // (issued) has already been reached, treat it as success, not an error.
+      if (msg === 'Memo is not a draft') {
+        setCreateOpen(false);
+        load();
+        return;
+      }
+      setSaveErr(msg ?? 'Failed to finalize memo.');
     } finally { setFinalizing(false); }
   }
 

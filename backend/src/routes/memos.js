@@ -253,15 +253,18 @@ router.post('/', adminOrManagement, async (req, res, next) => {
         subject.trim(), (body?.trim() || ''), resolvedIssuedDate, ref_number, computed_status,
       ]
     );
-    let memo = rows[0];
+    const memo = rows[0];
 
     if (!savingAsDraft) {
       await fanOutMemo({ memoId: memo.id, schoolId: req.schoolId, teacherIds: resolved.teacherIds, subject: memo.subject });
-      const pdfUrl = await generateMemoPdf(memo, req.schoolId).catch(e => {
+      // Fire-and-forget: PDF generation (Puppeteer render + upload) is slow
+      // enough to exceed the frontend's request timeout, which would make the
+      // client show an error for a request that actually succeeded server-side
+      // — never await it before responding. Non-fatal either way; the memo
+      // itself, its recipients, and notifications are already fully saved.
+      generateMemoPdf(memo, req.schoolId).catch(e => {
         console.error('[memos] PDF generation failed for', memo.id, e.message);
-        return null;
       });
-      if (pdfUrl) memo = { ...memo, pdf_url: pdfUrl };
     }
 
     res.status(201).json(memo);
@@ -300,7 +303,7 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
        RETURNING *, issued_date::text`,
       [body.trim(), ref_number, req.params.id, req.schoolId]
     );
-    let memo = rows[0];
+    const memo = rows[0];
 
     let resolved;
     try {
@@ -313,11 +316,12 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
       resolved = { teacherIds: [] };
     }
     await fanOutMemo({ memoId: memo.id, schoolId: req.schoolId, teacherIds: resolved.teacherIds, subject: memo.subject });
-    const pdfUrl = await generateMemoPdf(memo, req.schoolId).catch(e => {
+    // Fire-and-forget — see the matching comment in POST / above: this must
+    // not block the response, or a slow render can outlast the frontend's
+    // request timeout and make a successful finalize look like a failure.
+    generateMemoPdf(memo, req.schoolId).catch(e => {
       console.error('[memos] PDF generation failed for', memo.id, e.message);
-      return null;
     });
-    if (pdfUrl) memo = { ...memo, pdf_url: pdfUrl };
 
     res.json(memo);
   } catch (err) { next(err); }
