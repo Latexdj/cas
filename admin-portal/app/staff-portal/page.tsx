@@ -266,18 +266,24 @@ export default function StaffPortalPage() {
   async function loadAcctDashboard() {
     setAcctDashLoading(true);
     try {
-      let years = acctYears;
-      if (years.length === 0) {
+      if (acctYears.length === 0) {
         const r = await api.get<AcctYear[]>('/api/academic-years');
-        years = r.data;
-        setAcctYears(years);
+        setAcctYears(r.data);
       }
-      const defaultYearId = acctYearId || years.find(y => y.is_current)?.id || '';
-      if (!acctYearId && defaultYearId) setAcctYearId(defaultYearId);
 
+      // Default to All Time (no year_id) so the headline figure is always the
+      // true grand total — it previously auto-selected the current academic
+      // year on every load, which silently drops ad-hoc payments (no linked
+      // bill) and any payment against a prior year's bill via
+      // /reports/collections' year_id filter (a LEFT JOIN to student_bills
+      // that behaves like an INNER JOIN once filtered on sb.academic_year_id).
+      // That made the card under-report actual collections with no visible
+      // indication why. The year <select> below still lets a clerk narrow to
+      // a specific year on purpose; "All Time" is always available to get
+      // back to the true total.
       const today = new Date().toISOString().slice(0, 10);
       const [totalRes, todayRes, recentRes] = await Promise.all([
-        api.get('/api/fees/reports/collections', { params: defaultYearId ? { year_id: defaultYearId } : {} }),
+        api.get('/api/fees/reports/collections', { params: acctYearId ? { year_id: acctYearId } : {} }),
         api.get('/api/fees/payments', { params: { from: today, to: today } }),
         api.get<AcctRecentPayment[]>('/api/fees/payments'),
       ]);
@@ -1303,6 +1309,7 @@ export default function StaffPortalPage() {
                     <p className="text-xs font-semibold text-slate-400 font-medium">Total Collected</p>
                     <select value={acctYearId} onChange={e => loadAcctTotalForYear(e.target.value)}
                       className="text-xs border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:outline-none">
+                      <option value="">All Time</option>
                       {acctYears.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (current)' : ''}</option>)}
                     </select>
                   </div>
