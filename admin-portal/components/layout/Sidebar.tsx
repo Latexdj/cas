@@ -46,7 +46,6 @@ const sections: Section[] = [
       {
         href: '/students', label: 'Students',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />,
-        module: 'student_attendance',
       },
       {
         href: '/promotions', label: 'Promotions',
@@ -69,10 +68,12 @@ const sections: Section[] = [
       {
         href: '/discipline', label: 'Discipline',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
+        module: 'discipline',
       },
       {
         href: '/general-letters', label: 'Correspondence',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
+        module: 'discipline',
       },
     ],
   },
@@ -86,17 +87,14 @@ const sections: Section[] = [
       {
         href: '/meetings', label: 'Meetings',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />,
-        module: 'meeting_attendance',
       },
       {
         href: '/student-attendance', label: 'Student Attendance',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />,
-        module: 'student_attendance',
       },
       {
         href: '/absences', label: 'Absences & Remedials',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />,
-        module: 'remedial_lessons',
       },
       {
         href: '/manual-entry', label: 'Manual Entry',
@@ -118,12 +116,10 @@ const sections: Section[] = [
       {
         href: '/timetable', label: 'Timetable',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
-        module: 'timetable',
       },
       {
         href: '/school-breaks', label: 'Bell Schedule',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />,
-        module: 'timetable',
       },
       {
         href: '/academic-years', label: 'Academic Years',
@@ -145,10 +141,12 @@ const sections: Section[] = [
       {
         href: '/lms', label: 'LMS Overview',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0118 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />,
+        module: 'lms',
       },
       {
         href: '/lms/pasco', label: 'Pasco Bank',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />,
+        module: 'lms',
       },
     ],
   },
@@ -354,7 +352,6 @@ const sections: Section[] = [
       {
         href: '/classroom-qr', label: 'Classroom QR',
         icon: <><rect x="3" y="3" width="5" height="5" rx="1" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} /><rect x="16" y="3" width="5" height="5" rx="1" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} /><rect x="3" y="16" width="5" height="5" rx="1" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 10h5M16 14h3M21 14v5M10 3v5M10 16v5M3 10h5M10 10h.01" /></>,
-        module: 'classroom_qr',
       },
       {
         href: '/audit-log', label: 'Audit Log',
