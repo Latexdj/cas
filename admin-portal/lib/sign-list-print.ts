@@ -152,14 +152,16 @@ export function buildHeadCountSignListHtml(opts: {
   title: string;
   issueDate: string;
   notes: string;
+  recipientType: 'students' | 'teachers';
   filterLabel: string;
   recipients: SlRecipient[];
   school: SlSchool;
 }): string {
-  const { title, issueDate, notes, filterLabel, recipients, school } = opts;
-  const colCount = 7;
+  const { title, issueDate, notes, recipientType, filterLabel, recipients, school } = opts;
+  const isStudents = recipientType === 'students';
+  const colCount = isStudents ? 7 : 6;
 
-  const bodyRows = recipients.map((r, i) => `
+  const bodyRows = recipients.map((r, i) => isStudents ? `
     <tr>
       <td class="no">${i + 1}</td>
       <td>${escHtml(r.name)}</td>
@@ -167,6 +169,14 @@ export function buildHeadCountSignListHtml(opts: {
       <td>${escHtml(r.student_code ?? '')}</td>
       <td style="text-align:center">${escHtml(r.gender ?? '')}</td>
       <td>${escHtml(r.residential_status ?? '')}</td>
+      <td></td>
+    </tr>` : `
+    <tr>
+      <td class="no">${i + 1}</td>
+      <td>${escHtml(r.name)}</td>
+      <td>${escHtml(r.teacher_code ?? '')}</td>
+      <td>${escHtml(r.dept_name ?? r.department ?? '')}</td>
+      <td style="text-align:center">${escHtml(r.gender ?? '')}</td>
       <td></td>
     </tr>`).join('');
 
@@ -219,13 +229,13 @@ tbody tr:nth-child(even) td { background: #fafafa; }
   </div>
 </div>
 
-<div class="doc-title">Student Head Count Sign List</div>
+<div class="doc-title">${isStudents ? 'Student' : 'Teacher'} Head Count Sign List</div>
 
 <div class="meta">
   <div class="mr"><span class="ml">Title:&nbsp;</span>${escHtml(title || '—')}</div>
   <div class="mr"><span class="ml">Date:&nbsp;</span>${escHtml(issueDate)}</div>
   <div class="mr"><span class="ml">Recipients:&nbsp;</span>${escHtml(filterLabel)}</div>
-  <div class="mr"><span class="ml">Total Count:&nbsp;</span>${recipients.length} student${recipients.length === 1 ? '' : 's'}</div>
+  <div class="mr"><span class="ml">Total Count:&nbsp;</span>${recipients.length} ${isStudents ? 'student' : 'teacher'}${recipients.length === 1 ? '' : 's'}</div>
 </div>
 
 ${notes ? `<div class="notes-box"><b>Notes:</b> ${escHtml(notes)}</div>` : ''}
@@ -235,10 +245,14 @@ ${notes ? `<div class="notes-box"><b>Notes:</b> ${escHtml(notes)}</div>` : ''}
     <tr>
       <th class="no">#</th>
       <th>Full Name</th>
+      ${isStudents ? `
       <th>BECE Index No.</th>
       <th>Student ID</th>
       <th style="width:50px;text-align:center">Sex</th>
-      <th>Residential Status</th>
+      <th>Residential Status</th>` : `
+      <th>Staff ID</th>
+      <th>Department</th>
+      <th style="width:50px;text-align:center">Sex</th>`}
       <th class="sig">Signature</th>
     </tr>
   </thead>

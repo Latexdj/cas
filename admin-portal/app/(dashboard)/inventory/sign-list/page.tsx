@@ -20,8 +20,9 @@ export default function SignListPage() {
   const today = new Date().toISOString().split('T')[0];
 
   // List type: "item" issues items against a signature; "headcount" is a
-  // student roll-count sheet (name, BECE index no., student ID, sex,
-  // residential status, signature) — no item/quantity involved.
+  // roll-count sheet (student: name, BECE index no., student ID, sex,
+  // residential status, signature; teacher: name, staff ID, department, sex,
+  // signature) — no item/quantity involved either way.
   const [listType,          setListType]          = useState<'item' | 'headcount'>('item');
 
   // Document config
@@ -31,13 +32,8 @@ export default function SignListPage() {
   const [qtyPerPerson,      setQtyPerPerson]      = useState('1');
   const [notes,             setNotes]             = useState('');
 
-  // Recipient type — head count is always students
+  // Recipient type — applies to both list types (Item Issue and Head Count)
   const [recipientType,     setRecipientType]     = useState<'students' | 'teachers'>('students');
-
-  function selectListType(t: 'item' | 'headcount') {
-    setListType(t);
-    if (t === 'headcount') setRecipientType('students');
-  }
 
   // Student filters
   const [className,         setClassName]         = useState('');
@@ -130,7 +126,7 @@ export default function SignListPage() {
       }
       const html = listType === 'headcount'
         ? buildHeadCountSignListHtml({
-            title, issueDate, notes, filterLabel: buildFilterLabel(),
+            title, issueDate, notes, recipientType, filterLabel: buildFilterLabel(),
             recipients: r.data.recipients,
             school: r.data.school,
           })
@@ -161,7 +157,7 @@ export default function SignListPage() {
       <div>
         <h1 className="text-xl font-bold text-slate-900 dark:text-white">Sign List Generator</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Generate a printable sign sheet for item issues to students/staff, or a student head count roster
+          Generate a printable sign sheet for item issues, or a student/teacher head count roster
         </p>
       </div>
 
@@ -173,8 +169,8 @@ export default function SignListPage() {
           <div>
             <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4">List Type</h2>
             <div className="flex gap-2">
-              {([['item', 'Item Issue'], ['headcount', 'Student Head Count']] as const).map(([t, label]) => (
-                <button key={t} onClick={() => selectListType(t)}
+              {([['item', 'Item Issue'], ['headcount', 'Head Count']] as const).map(([t, label]) => (
+                <button key={t} onClick={() => setListType(t)}
                   className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-colors ${
                     listType === t
                       ? 'bg-[#145C44] border-green-600 text-white'
@@ -232,20 +228,18 @@ export default function SignListPage() {
           <div>
             <h2 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4">Recipients & Filters</h2>
 
-            {listType === 'item' && (
-              <div className="flex gap-2 mb-5">
-                {(['students', 'teachers'] as const).map(t => (
-                  <button key={t} onClick={() => setRecipientType(t)}
-                    className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-colors ${
-                      recipientType === t
-                        ? 'bg-[#145C44] border-green-600 text-white'
-                        : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-[#2D7A4F] dark:hover:border-green-600'
-                    }`}>
-                    {t === 'students' ? 'Students' : 'Teachers / Staff'}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="flex gap-2 mb-5">
+              {(['students', 'teachers'] as const).map(t => (
+                <button key={t} onClick={() => setRecipientType(t)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+                    recipientType === t
+                      ? 'bg-[#145C44] border-green-600 text-white'
+                      : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-[#2D7A4F] dark:hover:border-green-600'
+                  }`}>
+                  {t === 'students' ? 'Students' : 'Teachers / Staff'}
+                </button>
+              ))}
+            </div>
 
             {recipientType === 'students' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -331,12 +325,21 @@ export default function SignListPage() {
               <ul className="space-y-0.5 list-disc list-inside">
                 <li>School logo and header</li>
                 {listType === 'headcount' ? (
-                  <>
-                    <li>Name, BECE Index No. &amp; Student ID</li>
-                    <li>Sex and Residential Status columns</li>
-                    <li>Signature column per student</li>
-                    <li>Head count sign-off footer</li>
-                  </>
+                  recipientType === 'students' ? (
+                    <>
+                      <li>Name, BECE Index No. &amp; Student ID</li>
+                      <li>Sex and Residential Status columns</li>
+                      <li>Signature column per student</li>
+                      <li>Head count sign-off footer</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>Name, Staff ID &amp; Department</li>
+                      <li>Sex column</li>
+                      <li>Signature column per teacher</li>
+                      <li>Head count sign-off footer</li>
+                    </>
+                  )
                 ) : (
                   <>
                     <li>Document title and item details</li>
