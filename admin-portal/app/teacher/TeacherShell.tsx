@@ -636,13 +636,31 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
             </a>
           </div>
         )}
-        <div className="px-4 py-3.5 text-center" style={{ borderTop: `1px solid ${dk.border}` }}>
-          <div className="flex justify-center mb-2">
+        <div className="px-4 pt-4 pb-3.5" style={{ borderTop: `1px solid ${dk.border}` }}>
+          <div className="flex justify-center mb-3">
             <ThemeToggle />
           </div>
-          <p className="text-[9px]" style={{ color: dk.footerText }}>Designed by</p>
-          <p className="text-[11px] font-bold mt-0.5" style={{ color: dk.brandText }}>LatexTech</p>
-          <p className="text-[9px] mt-0.5" style={{ color: dk.footerText }}>+233 24 8234 649</p>
+          <div className="flex items-center justify-center gap-1.5">
+            <svg viewBox="0 0 24 24" fill="none" stroke={isDark ? 'rgba(200,151,58,0.6)' : `${primary}99`} strokeWidth={1.8} className="w-3 h-3 flex-shrink-0">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l1.8 4.4L18.2 9.2l-4.4 1.8L12 15.4l-1.8-4.4L5.8 9.2l4.4-1.8L12 3z" />
+            </svg>
+            <p className="text-[9px] text-center font-bold" style={{ color: dk.footerText, letterSpacing: '0.09em' }}>
+              COMPREHENSIVE ACADEMIC SUITE
+            </p>
+          </div>
+          <div className="mt-3 pt-3 flex items-center justify-center gap-2.5" style={{ borderTop: `1px solid ${dk.border}` }}>
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[9px] font-extrabold tracking-tight"
+              style={{ background: 'linear-gradient(135deg, #E8B85C, #C8973A)', color: '#0B3D2E', boxShadow: '0 2px 6px rgba(200,151,58,0.3)' }}
+            >
+              LT
+            </div>
+            <div className="text-left leading-tight">
+              <p className="text-[8px] font-semibold" style={{ color: dk.footerText, letterSpacing: '0.1em' }}>DESIGNED BY</p>
+              <p className="text-[11px] font-bold" style={{ color: dk.brandText }}>LatexTech</p>
+            </div>
+          </div>
+          <p className="text-[9px] text-center mt-1.5" style={{ color: dk.footerText }}>+233 24 8234 649</p>
         </div>
       </aside>
 
