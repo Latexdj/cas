@@ -35,13 +35,12 @@ function isActiveHref(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + '/');
 }
 
-// Which collapsible (>1 item) section owns the nav item matching the current
-// route, so navigation can force that section open regardless of whatever
-// was last manually opened or stored. Single-item sections never participate
-// — they render as plain links, not accordion groups, so they're never "open".
+// Which section owns the nav item matching the current route, so navigation
+// can force that section's group open regardless of whatever was last
+// manually opened or stored. Every section is a collapsible group (even a
+// single-item one), so every section participates here.
 function findRouteSectionLabel(secs: Section[], pathname: string): string | null {
   for (const section of secs) {
-    if (section.items.length <= 1) continue;
     if (section.items.some(item => isActiveHref(pathname, item.href))) return section.label;
   }
   return null;
@@ -49,7 +48,7 @@ function findRouteSectionLabel(secs: Section[], pathname: string): string | null
 
 const sections: Section[] = [
   {
-    label: 'OVERVIEW',
+    label: 'Overview',
     items: [
       {
         href: '/dashboard', label: 'Dashboard',
@@ -62,7 +61,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'ANALYTICS',
+    label: 'Analytics',
     items: [
       {
         href: '/reports', label: 'Reports',
@@ -71,7 +70,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'PEOPLE',
+    label: 'People',
     items: [
       {
         href: '/teachers', label: 'Teachers',
@@ -106,7 +105,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'ADMINISTRATIVE ACTIVITIES',
+    label: 'Administrative',
     items: [
       {
         href: '/discipline', label: 'Discipline',
@@ -126,7 +125,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'ATTENDANCE',
+    label: 'Attendance',
     items: [
       {
         href: '/attendance', label: 'Teacher Attendance',
@@ -159,7 +158,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'SCHEDULING',
+    label: 'Scheduling',
     items: [
       {
         href: '/timetable', label: 'Timetable',
@@ -199,7 +198,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'ASSESSMENT',
+    label: 'Assessment',
     items: [
       {
         href: '/results', label: 'Results',
@@ -239,7 +238,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'CLEARANCE',
+    label: 'Clearance',
     items: [
       {
         href: '/clearance', label: 'Student Clearance',
@@ -254,7 +253,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'LIBRARY',
+    label: 'Library',
     items: [
       {
         href: '/library', label: 'Overview',
@@ -299,7 +298,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'INVENTORY',
+    label: 'Inventory',
     items: [
       {
         href: '/inventory', label: 'Overview',
@@ -334,7 +333,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'FINANCES',
+    label: 'Finances',
     items: [
       {
         href: '/fees', label: 'Accounts & Fees',
@@ -344,7 +343,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'ADMISSIONS',
+    label: 'Admissions',
     items: [
       {
         href: '/admissions/applications', label: 'Applications',
@@ -379,7 +378,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'SETUP',
+    label: 'Setup',
     items: [
       {
         href: '/form-teachers', label: 'Form Teachers',
@@ -477,9 +476,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       if (enabledModules === null) return true;
       return enabledModules.includes(item.module);
     });
-    // Every section with more than one (visible) item becomes an accordion
-    // group; a section down to exactly one item is just a plain top-level link.
-    return { ...section, items, collapsible: items.length > 1 };
+    return { ...section, items };
   }).filter(section => section.items.length > 0);
 
   return (
@@ -515,79 +512,81 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto no-scrollbar py-4 px-3">
         {visibleSections.map((section, si) => {
-          const isCollapsed = section.collapsible && openSection !== section.label;
+          const isOpen = openSection === section.label;
+          const headerIcon = section.items[0]?.icon;
           return (
-          <div key={section.label} className={si > 0 ? 'mt-5' : ''}>
-            {section.collapsible ? (
-              <button
-                type="button"
-                onClick={() => toggleSectionOpen(section.label)}
-                className={[
-                  'w-full flex items-center justify-between gap-2 px-3 py-2 mb-1 rounded-lg',
-                  'border-0 cursor-pointer transition-all duration-200 ease-out group',
-                  !isCollapsed
-                    ? 'bg-[rgba(200,151,58,0.1)] shadow-[inset_0_0_0_1px_rgba(200,151,58,0.14)]'
-                    : 'bg-transparent hover:bg-white/[0.05]',
-                ].join(' ')}
+          <div key={section.label} className={si > 0 ? 'mt-1' : ''}>
+            <button
+              type="button"
+              onClick={() => toggleSectionOpen(section.label)}
+              className={[
+                'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg mb-0.5',
+                'border-0 cursor-pointer transition-all duration-200 ease-out',
+                isOpen ? 'bg-[rgba(200,151,58,0.12)]' : 'bg-transparent hover:bg-white/[0.05]',
+              ].join(' ')}
+            >
+              <svg
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}
+                className="w-[17px] h-[17px] flex-shrink-0 transition-colors duration-200"
+                style={{ color: isOpen ? '#C8973A' : 'rgba(255,255,255,0.6)' }}
               >
-                <span
-                  className="flex items-center gap-1.5 text-[10px] font-bold transition-colors duration-200"
-                  style={{ color: !isCollapsed ? '#C8973A' : 'rgba(200,151,58,0.55)', letterSpacing: '0.09em' }}
-                >
-                  <span
-                    className="w-1 h-1 rounded-full flex-shrink-0 transition-all duration-200"
-                    style={{ backgroundColor: !isCollapsed ? '#C8973A' : 'rgba(200,151,58,0.4)' }}
-                  />
-                  {section.label.toUpperCase()}
-                </span>
-                <svg
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}
-                  className="w-3 h-3 flex-shrink-0 transition-transform duration-200 ease-out"
-                  style={{
-                    color: !isCollapsed ? '#C8973A' : 'rgba(200,151,58,0.45)',
-                    transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-                  }}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-            ) : (
-              <p className="px-3 text-[10px] font-bold mb-1.5" style={{ color: 'rgba(200,151,58,0.5)', letterSpacing: '0.06em' }}>
-                {section.label.toUpperCase()}
-              </p>
+                {headerIcon}
+              </svg>
+              <span
+                className="flex-1 text-left text-sm font-semibold truncate transition-colors duration-200"
+                style={{ color: isOpen ? '#C8973A' : 'rgba(255,255,255,0.78)' }}
+              >
+                {section.label}
+              </span>
+              <svg
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}
+                className="w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ease-out"
+                style={{
+                  color: isOpen ? '#C8973A' : 'rgba(255,255,255,0.4)',
+                  transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                }}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {isOpen && (
+              <div className="ml-[22px] pl-3 mb-1 border-l" style={{ borderColor: 'rgba(200,151,58,0.14)' }}>
+                {section.items.map(({ href, label, icon }) => {
+                  const allHrefs = visibleSections.flatMap(s => s.items.map(i => i.href));
+                  const hasChildNavItem = allHrefs.some(h => h !== href && h.startsWith(href + '/'));
+                  const active = pathname === href || (!hasChildNavItem && pathname.startsWith(href + '/'));
+                  const showPendingBadge = href === '/teacher-profile-requests' && pendingProfileRequests > 0;
+                  return (
+                    <div key={href} className="relative">
+                      {active && (
+                        <span className="absolute -left-[13px] top-1.5 bottom-1.5 w-[3px] rounded-full" style={{ backgroundColor: '#C8973A' }} />
+                      )}
+                      <Link
+                        href={href}
+                        onClick={onClose}
+                        className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium mb-0.5 transition-all"
+                        style={{
+                          backgroundColor: active ? 'rgba(200,151,58,0.15)' : 'transparent',
+                          color: active ? '#C8973A' : 'rgba(255,255,255,0.55)',
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-[17px] h-[17px] flex-shrink-0">
+                          {icon}
+                        </svg>
+                        <span className="truncate">{label}</span>
+                        {showPendingBadge && (
+                          <span className="ml-auto min-w-[1.2rem] h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center"
+                            style={{ backgroundColor: '#F59E0B', color: '#0B3D2E' }}>
+                            {pendingProfileRequests > 99 ? '99+' : pendingProfileRequests}
+                          </span>
+                        )}
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
             )}
-            {!isCollapsed && section.items.map(({ href, label, icon }) => {
-              const allHrefs = visibleSections.flatMap(s => s.items.map(i => i.href));
-              const hasChildNavItem = allHrefs.some(h => h !== href && h.startsWith(href + '/'));
-              const active = pathname === href || (!hasChildNavItem && pathname.startsWith(href + '/'));
-              const showPendingBadge = href === '/teacher-profile-requests' && pendingProfileRequests > 0;
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={onClose}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium mb-0.5 transition-all"
-                  style={{
-                    backgroundColor: active ? 'rgba(200,151,58,0.15)' : 'transparent',
-                    color: active ? '#C8973A' : 'rgba(255,255,255,0.55)',
-                  }}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-[17px] h-[17px] flex-shrink-0">
-                    {icon}
-                  </svg>
-                  <span className="truncate">{label}</span>
-                  {showPendingBadge && (
-                    <span className="ml-auto min-w-[1.2rem] h-5 px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center"
-                      style={{ backgroundColor: '#F59E0B', color: '#0B3D2E' }}>
-                      {pendingProfileRequests > 99 ? '99+' : pendingProfileRequests}
-                    </span>
-                  )}
-                  {active && !showPendingBadge && (
-                    <span className="ml-auto w-1 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: '#C8973A' }} />
-                  )}
-                </Link>
-              );
-            })}
           </div>
           );
         })}
