@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination } from '@/components/ui/Pagination';
 import { api } from '@/lib/api';
+import { FeeReportsPanel } from '@/components/fees/FeeReportsPanel';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ const EXPENSE_CATEGORIES = [
   'Petty Cash', 'Other',
 ];
 
-type Tab = 'items' | 'schedules' | 'collections' | 'expenditure' | 'arrears' | 'payments_report' | 'bill_cleanup' | 'missing_bills' | 'needs_review';
+type Tab = 'items' | 'schedules' | 'collections' | 'expenditure' | 'arrears' | 'payments_report' | 'fee_reports' | 'bill_cleanup' | 'missing_bills' | 'needs_review';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1580,6 +1581,7 @@ export default function FeesPage() {
     { id: 'expenditure', label: 'Expenditure' },
     { id: 'arrears',     label: 'Arrears Report' },
     { id: 'payments_report', label: 'Payments Report' },
+    { id: 'fee_reports', label: 'Fee Reports' },
     { id: 'bill_cleanup', label: 'Bill Cleanup' },
     { id: 'missing_bills', label: 'Missing Bills' },
     { id: 'needs_review', label: 'Needs Review' },
@@ -1633,6 +1635,7 @@ export default function FeesPage() {
       {tab === 'expenditure'  && <ExpenditureTab onExpenseChange={loadStats} />}
       {tab === 'arrears'     && <ArrearTab years={years} classes={classes} />}
       {tab === 'payments_report' && <PaymentsReportTab years={years} classes={classes} />}
+      {tab === 'fee_reports' && <FeeReportsPanel apiClient={api} years={years} levels={levels} />}
       {tab === 'bill_cleanup' && <BillCleanupTab onCleaned={loadStats} />}
       {tab === 'missing_bills' && <MissingBillsTab onGenerated={loadStats} />}
       {tab === 'needs_review' && <NeedsReviewTab />}

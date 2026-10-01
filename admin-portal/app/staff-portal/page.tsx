@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import { buildSignListHtml, type SlRecipient, type SlSchool } from '@/lib/sign-list-print';
+import { FeeReportsPanel } from '@/components/fees/FeeReportsPanel';
 import { getStaffUser, getStaffColors, getStaffToken } from './layout';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -91,7 +92,7 @@ const STATUS_STYLE = {
 type Section     = 'clearance' | 'library' | 'inventory' | 'accounts';
 type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
-type AcctTab     = 'dashboard' | 'collect';
+type AcctTab     = 'dashboard' | 'collect' | 'reports';
 type InvTab      = 'items' | 'issue' | 'return' | 'sign-list';
 
 interface SlFilters {
@@ -1266,6 +1267,7 @@ export default function StaffPortalPage() {
             {([
               ['dashboard', 'Dashboard'],
               ['collect',   'Collect Payment'],
+              ['reports',   'Reports'],
             ] as const).map(([key, label]) => (
               <button key={key} onClick={() => setAcctTab(key)}
                 className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${acctTab === key ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
@@ -1275,6 +1277,7 @@ export default function StaffPortalPage() {
             ))}
           </div>
 
+          {acctTab !== 'reports' && (
           <div className="relative max-w-md">
             <input value={acctQuery}
               onChange={e => setAcctQuery(e.target.value)}
@@ -1299,6 +1302,7 @@ export default function StaffPortalPage() {
               </div>
             )}
           </div>
+          )}
 
           {acctTab === 'dashboard' && (
             <div className="space-y-4">
@@ -1439,6 +1443,8 @@ export default function StaffPortalPage() {
           )}
             </>
           )}
+
+          {acctTab === 'reports' && <FeeReportsPanel apiClient={api} />}
         </div>
       )}
 

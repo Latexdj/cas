@@ -890,6 +890,153 @@ router.get('/reports/collections', accountsAccess, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/fees/reports/by-schedule — amount billed/collected per scheduled
+// bill. accountsAccess, same reasoning as /reports/collections above: this
+// only aggregates bills/payments a clerk can already see individually.
+// Payments are pre-aggregated per bill_id in a subquery before joining to
+// student_bills (same idiom as /reports/arrears above) so a bill with more
+// than one payment against it never fans out and double-counts total_billed.
+router.get('/reports/by-schedule', accountsAccess, async (req, res, next) => {
+  try {
+    const { year_id } = req.query;
+
+    const scheduleParams = [req.schoolId];
+    let scheduleYearFilter = '';
+    if (year_id) { scheduleParams.push(year_id); scheduleYearFilter = ` AND fs.academic_year_id = $2`; }
+
+    const { rows: schedules } = await pool.query(
+      `SELECT fs.id AS schedule_id, fi.name AS fee_item_name, fs.class_name, fs.semester,
+              ay.name AS academic_year_name, fs.amount AS scheduled_amount,
+              COALESCE(b.bill_count, 0)::int AS bill_count,
+              COALESCE(b.total_billed, 0) AS total_billed,
+              COALESCE(b.total_collected, 0) AS total_collected
+       FROM fee_schedules fs
+       JOIN fee_items fi ON fi.id = fs.fee_item_id
+       LEFT JOIN academic_years ay ON ay.id = fs.academic_year_id
+       LEFT JOIN (
+         SELECT sb.fee_schedule_id, COUNT(*)::int AS bill_count, SUM(sb.amount) AS total_billed,
+                COALESCE(SUM(p.paid), 0) AS total_collected
+         FROM student_bills sb
+         LEFT JOIN (
+           SELECT bill_id, SUM(amount) AS paid FROM fee_payments WHERE school_id = $1 GROUP BY bill_id
+         ) p ON p.bill_id = sb.id
+         WHERE sb.school_id = $1 AND sb.fee_schedule_id IS NOT NULL
+         GROUP BY sb.fee_schedule_id
+       ) b ON b.fee_schedule_id = fs.id
+       WHERE fs.school_id = $1${scheduleYearFilter}
+       ORDER BY ay.name DESC NULLS LAST, fs.class_name, fi.name`,
+      scheduleParams
+    );
+
+    // Unscheduled bills — student_bills with no fee_schedule_id, same
+    // billed/collected aggregation. academic_year_id lives directly on
+    // student_bills so it's legitimately year-filterable, unlike ad-hoc
+    // payments below.
+    const unschedParams = [req.schoolId];
+    let unschedYearFilter = '';
+    if (year_id) { unschedParams.push(year_id); unschedYearFilter = ` AND sb.academic_year_id = $2`; }
+    const { rows: unschedRows } = await pool.query(
+      `SELECT COUNT(*)::int AS bill_count, COALESCE(SUM(sb.amount), 0) AS total_billed,
+              COALESCE(SUM(p.paid), 0) AS total_collected
+       FROM student_bills sb
+       LEFT JOIN (
+         SELECT bill_id, SUM(amount) AS paid FROM fee_payments WHERE school_id = $1 GROUP BY bill_id
+       ) p ON p.bill_id = sb.id
+       WHERE sb.school_id = $1 AND sb.fee_schedule_id IS NULL${unschedYearFilter}`,
+      unschedParams
+    );
+
+    // Ad-hoc payments (no bill at all) have no year attribution — always
+    // shown as an all-time total regardless of the year filter, never
+    // silently dropped, matching the lesson from the accounts-dashboard fix.
+    const { rows: adhocRows } = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM fee_payments WHERE school_id = $1 AND bill_id IS NULL`,
+      [req.schoolId]
+    );
+
+    res.json({
+      schedules,
+      unscheduled: unschedRows[0],
+      adhoc_total: Number(adhocRows[0].total),
+    });
+  } catch (err) { next(err); }
+});
+
+// GET /api/fees/reports/student-status — per-student billed/paid, filterable
+// by year, year-group (level_id, resolved to class names below), and a
+// specific fee_schedule_id (the drill-down from /reports/by-schedule).
+// accountsAccess, same reasoning as the reports above.
+router.get('/reports/student-status', accountsAccess, async (req, res, next) => {
+  try {
+    const { year_id, level_id, fee_schedule_id, status } = req.query;
+
+    let classNames = null;
+    if (level_id) {
+      const { rows: classRows } = await pool.query(
+        `SELECT name FROM classes WHERE school_id = $1 AND level_id = $2`,
+        [req.schoolId, level_id]
+      );
+      classNames = classRows.map(r => r.name);
+      if (!classNames.length) return res.json({ rows: [], school: {} }); // level has no classes — nothing to show, not an error
+    }
+
+    const conditions = ['s.school_id = $1', `s.status = 'Active'`];
+    const params = [req.schoolId];
+    let i = 2;
+    if (classNames)      { conditions.push(`s.class_name = ANY($${i++}::text[])`); params.push(classNames); }
+
+    // Bill-scoping (year/schedule) applies inside the LEFT JOIN's own ON
+    // clause, not the outer WHERE — a WHERE here would turn this into an
+    // inner join and drop every student with zero bills in scope, when what
+    // we actually want for a year-only filter is "still list them, with 0
+    // billed and 0 paid" (a student not yet billed this year is still
+    // relevant to "who hasn't paid this year").
+    const billConditions = ['sb.student_id = s.id'];
+    if (year_id)         { billConditions.push(`sb.academic_year_id = $${i++}`); params.push(year_id); }
+    if (fee_schedule_id) { billConditions.push(`sb.fee_schedule_id = $${i++}`); params.push(fee_schedule_id); }
+
+    // A specific schedule is different: it targets a defined subset of
+    // students (whatever class it was created for), so a student with no
+    // bill under it isn't "owing $0" — they're simply not part of this bill
+    // at all and must not appear in a "who's paid this bill" drill-down.
+    // This is a real WHERE restriction (not just a JOIN condition) on top of
+    // the LEFT JOIN above, which still does the billed/paid aggregation.
+    if (fee_schedule_id) {
+      conditions.push(`EXISTS (SELECT 1 FROM student_bills sb2 WHERE sb2.student_id = s.id AND sb2.fee_schedule_id = $${i++})`);
+      params.push(fee_schedule_id);
+    }
+
+    const havingClause = status === 'unpaid' ? 'HAVING COALESCE(SUM(p.paid), 0) = 0'
+      : status === 'paid' ? 'HAVING COALESCE(SUM(p.paid), 0) >= COALESCE(SUM(sb.amount), 0) AND COALESCE(SUM(sb.amount), 0) > 0'
+      : '';
+
+    const { rows } = await pool.query(
+      `SELECT s.id AS student_id, s.name AS student_name, s.student_code, s.class_name,
+              COALESCE(SUM(sb.amount), 0) AS total_billed,
+              COALESCE(SUM(p.paid), 0) AS total_paid
+       FROM students s
+       LEFT JOIN student_bills sb ON ${billConditions.join(' AND ')}
+       LEFT JOIN (
+         SELECT bill_id, SUM(amount) AS paid FROM fee_payments WHERE school_id = $1 GROUP BY bill_id
+       ) p ON p.bill_id = sb.id
+       WHERE ${conditions.join(' AND ')}
+       GROUP BY s.id, s.name, s.student_code, s.class_name
+       ${havingClause}
+       ORDER BY s.class_name, s.name`,
+      params
+    );
+
+    // Bundled alongside the rows (not a separate adminOnly /school-profile
+    // call, which a staff-role accounts clerk can't reach) so the printable
+    // list has everything it needs in one request — same pattern the
+    // Inventory sign-list feature already uses.
+    const { rows: schoolRows } = await pool.query(
+      `SELECT name, address, logo_url FROM schools WHERE id = $1`, [req.schoolId]
+    );
+    res.json({ rows, school: schoolRows[0] ?? {} });
+  } catch (err) { next(err); }
+});
+
 // GET /api/fees/students/search?q= — fast student search for Collections tab
 router.get('/students/search', accountsAccess, async (req, res, next) => {
   try {
