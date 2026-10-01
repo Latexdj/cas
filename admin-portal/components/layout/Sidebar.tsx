@@ -522,16 +522,31 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               <button
                 type="button"
                 onClick={() => toggleSectionOpen(section.label)}
-                className="w-full flex items-center justify-between px-3 mb-1.5 group"
-                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                className={[
+                  'w-full flex items-center justify-between gap-2 px-3 py-2 mb-1 rounded-lg',
+                  'border-0 cursor-pointer transition-all duration-200 ease-out group',
+                  !isCollapsed
+                    ? 'bg-[rgba(200,151,58,0.1)] shadow-[inset_0_0_0_1px_rgba(200,151,58,0.14)]'
+                    : 'bg-transparent hover:bg-white/[0.05]',
+                ].join(' ')}
               >
-                <span className="text-[10px] font-bold" style={{ color: 'rgba(200,151,58,0.5)', letterSpacing: '0.06em' }}>
+                <span
+                  className="flex items-center gap-1.5 text-[10px] font-bold transition-colors duration-200"
+                  style={{ color: !isCollapsed ? '#C8973A' : 'rgba(200,151,58,0.55)', letterSpacing: '0.09em' }}
+                >
+                  <span
+                    className="w-1 h-1 rounded-full flex-shrink-0 transition-all duration-200"
+                    style={{ backgroundColor: !isCollapsed ? '#C8973A' : 'rgba(200,151,58,0.4)' }}
+                  />
                   {section.label.toUpperCase()}
                 </span>
                 <svg
-                  viewBox="0 0 24 24" fill="none" stroke="rgba(200,151,58,0.5)" strokeWidth={2}
-                  className="w-3 h-3 flex-shrink-0 transition-transform"
-                  style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4}
+                  className="w-3 h-3 flex-shrink-0 transition-transform duration-200 ease-out"
+                  style={{
+                    color: !isCollapsed ? '#C8973A' : 'rgba(200,151,58,0.45)',
+                    transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                  }}
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
@@ -579,15 +594,31 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
-        <p className="text-[10px] text-center font-medium" style={{ color: 'rgba(255,255,255,0.3)' }}>
-          Classroom Attendance System
-        </p>
-        <div className="mt-2.5 pt-2.5 border-t text-center" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-          <p className="text-[9px] font-semibold" style={{ color: 'rgba(200,151,58,0.5)', letterSpacing: '0.08em' }}>DESIGNED BY</p>
-          <p className="text-[11px] font-bold mt-0.5" style={{ color: '#C8973A' }}>LatexTech</p>
-          <p className="text-[9px] mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>+233 24 8234 649</p>
+      <div className="px-4 pt-4 pb-4 relative">
+        <div className="absolute top-0 left-4 right-4 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(200,151,58,0.25), transparent)' }} />
+
+        <div className="flex items-center justify-center gap-1.5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="rgba(200,151,58,0.6)" strokeWidth={1.8} className="w-3 h-3 flex-shrink-0">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3l1.8 4.4L18.2 9.2l-4.4 1.8L12 15.4l-1.8-4.4L5.8 9.2l4.4-1.8L12 3z" />
+          </svg>
+          <p className="text-[9px] text-center font-bold" style={{ color: 'rgba(255,255,255,0.4)', letterSpacing: '0.09em' }}>
+            COMPREHENSIVE ACADEMIC SUITE
+          </p>
         </div>
+
+        <div className="mt-3 pt-3 flex items-center justify-center gap-2.5" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[9px] font-extrabold tracking-tight"
+            style={{ background: 'linear-gradient(135deg, #E8B85C, #C8973A)', color: '#0B3D2E', boxShadow: '0 2px 6px rgba(200,151,58,0.3)' }}
+          >
+            LT
+          </div>
+          <div className="text-left leading-tight">
+            <p className="text-[8px] font-semibold" style={{ color: 'rgba(200,151,58,0.55)', letterSpacing: '0.1em' }}>DESIGNED BY</p>
+            <p className="text-[11px] font-bold" style={{ color: '#C8973A' }}>LatexTech</p>
+          </div>
+        </div>
+        <p className="text-[9px] text-center mt-1.5" style={{ color: 'rgba(255,255,255,0.25)' }}>+233 24 8234 649</p>
       </div>
     </aside>
   );
