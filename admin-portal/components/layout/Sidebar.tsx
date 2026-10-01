@@ -596,28 +596,30 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       <div className="px-4 pt-4 pb-4 relative">
         <div className="absolute top-0 left-4 right-4 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(200,151,58,0.25), transparent)' }} />
 
-        <div className="flex items-center justify-center gap-1.5">
-          <svg viewBox="0 0 24 24" fill="none" stroke="rgba(200,151,58,0.6)" strokeWidth={1.5} className="w-3.5 h-3.5 flex-shrink-0">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5" />
-          </svg>
-          <p className="text-[9px] text-center font-bold" style={{ color: 'rgba(255,255,255,0.4)', letterSpacing: '0.09em' }}>
-            COMPREHENSIVE ACADEMIC SUITE
-          </p>
-        </div>
+        <p className="text-[9px] text-center font-bold" style={{ color: 'rgba(255,255,255,0.4)', letterSpacing: '0.09em' }}>
+          COMPREHENSIVE ACADEMIC <span style={{ color: '#C8973A' }}>SUITE</span>
+        </p>
 
-        <div className="mt-3 pt-3 flex items-center justify-center gap-2.5" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="mt-3 pt-3 flex items-center gap-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[9px] font-extrabold tracking-tight"
             style={{ background: 'linear-gradient(135deg, #E8B85C, #C8973A)', color: '#0B3D2E', boxShadow: '0 2px 6px rgba(200,151,58,0.3)' }}
           >
             LT
           </div>
-          <div className="text-left leading-tight">
-            <p className="text-[8px] font-semibold" style={{ color: 'rgba(200,151,58,0.55)', letterSpacing: '0.1em' }}>DESIGNED BY</p>
-            <p className="text-[11px] font-bold" style={{ color: '#C8973A' }}>LatexTech</p>
+          <div className="w-px self-stretch flex-shrink-0" style={{ background: 'linear-gradient(180deg, transparent, rgba(200,151,58,0.25), transparent)' }} />
+          <div className="text-left leading-tight min-w-0">
+            <p className="text-[8px] font-semibold truncate" style={{ color: 'rgba(200,151,58,0.55)', letterSpacing: '0.1em' }}>DESIGNED BY</p>
+            <p className="text-[11px] font-bold truncate" style={{ color: '#C8973A' }}>LatexTech</p>
+          </div>
+          <div className="w-px self-stretch flex-shrink-0" style={{ background: 'linear-gradient(180deg, transparent, rgba(200,151,58,0.25), transparent)' }} />
+          <div className="flex items-center gap-1 min-w-0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth={1.8} className="w-3 h-3 flex-shrink-0">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+            </svg>
+            <span className="text-[8px] leading-tight" style={{ color: 'rgba(255,255,255,0.3)' }}>+233 24<br />8234 649</span>
           </div>
         </div>
-        <p className="text-[9px] text-center mt-1.5" style={{ color: 'rgba(255,255,255,0.25)' }}>+233 24 8234 649</p>
       </div>
     </aside>
   );
