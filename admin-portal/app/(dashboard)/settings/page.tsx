@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import type { GradeBoundary } from '@/types/api';
+import { THEME_PRESETS } from '@/lib/theme-presets';
 
 interface SchoolSettings {
   name: string;
@@ -49,6 +50,38 @@ function ColorSwatch({ color, label }: { color: string; label: string }) {
       <div>
         <p className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>{label}</p>
         <p className="text-sm font-mono font-semibold" style={{ color: '#1C1208' }}>{color}</p>
+      </div>
+    </div>
+  );
+}
+
+function ThemePresetGrid({ primary, accent, onSelect }: { primary: string; accent: string; onSelect: (primary: string, accent: string) => void }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold font-medium mb-3" style={{ color: '#475569' }}>Presets</label>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {THEME_PRESETS.map(preset => {
+          const selected = preset.primary.toLowerCase() === primary.toLowerCase() && preset.accent.toLowerCase() === accent.toLowerCase();
+          return (
+            <button
+              key={preset.name}
+              type="button"
+              title={preset.name}
+              onClick={() => onSelect(preset.primary, preset.accent)}
+              className="flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors"
+              style={{
+                border: selected ? '2px solid #145C44' : '1px solid #E2E8F0',
+                backgroundColor: selected ? '#F0FDF4' : '#fff',
+              }}
+            >
+              <span className="flex rounded-md overflow-hidden flex-shrink-0" style={{ width: 20, height: 20 }}>
+                <span className="flex-1" style={{ backgroundColor: preset.primary }} />
+                <span className="flex-1" style={{ backgroundColor: preset.accent }} />
+              </span>
+              <span className="text-xs font-medium truncate" style={{ color: '#1C1208' }}>{preset.name}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -838,6 +871,8 @@ export default function SettingsPage() {
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Pickers */}
           <div className="flex-1 space-y-6">
+            <ThemePresetGrid primary={primary} accent={accent} onSelect={(p, a) => { setPrimary(p); setAccent(a); }} />
+
             <div>
               <label className="block text-xs font-semibold font-medium mb-3" style={{ color: '#475569' }}>Primary Color</label>
               <div className="flex items-center gap-4">

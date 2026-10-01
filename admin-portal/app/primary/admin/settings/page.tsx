@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import { THEME_PRESETS } from '@/lib/theme-presets';
 
 interface AssessmentMode {
   id: string; name: string; ca_weight: number;
@@ -39,6 +40,34 @@ function compressToBase64(file: File): Promise<string> {
     img.onerror = reject;
     img.src = url;
   });
+}
+
+function ThemePresetGrid({ primary, accent, onSelect }: { primary: string; accent: string; onSelect: (primary: string, accent: string) => void }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-slate-600 mb-1">Presets</label>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {THEME_PRESETS.map(preset => {
+          const selected = preset.primary.toLowerCase() === primary.toLowerCase() && preset.accent.toLowerCase() === accent.toLowerCase();
+          return (
+            <button
+              key={preset.name}
+              type="button"
+              title={preset.name}
+              onClick={() => onSelect(preset.primary, preset.accent)}
+              className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-colors ${selected ? 'border-emerald-700 bg-emerald-50' : 'border-gray-200 bg-white'}`}
+            >
+              <span className="flex rounded-md overflow-hidden flex-shrink-0" style={{ width: 20, height: 20 }}>
+                <span className="flex-1" style={{ backgroundColor: preset.primary }} />
+                <span className="flex-1" style={{ backgroundColor: preset.accent }} />
+              </span>
+              <span className="text-xs font-medium text-slate-700 truncate">{preset.name}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export default function PrimarySettingsPage() {
@@ -506,6 +535,11 @@ export default function PrimarySettingsPage() {
           <h2 className="text-sm font-bold text-slate-700 font-medium">Branding Colors</h2>
           <p className="text-xs text-slate-400 mt-0.5">Teachers will see the updated theme on their next login.</p>
         </div>
+        <ThemePresetGrid
+          primary={form.primary_color ?? '#145C44'}
+          accent={form.accent_color ?? '#C8973A'}
+          onSelect={(primary, accent) => setForm(f => ({ ...f, primary_color: primary, accent_color: accent }))}
+        />
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Primary Color</label>
