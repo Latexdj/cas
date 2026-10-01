@@ -11,9 +11,34 @@ import { useEnabledModules } from '@/hooks/useEnabledModules';
 type NavItem = { href: string; label: string; icon: ReactNode; module?: string };
 type Section = { label: string; items: NavItem[] };
 
+const OPEN_SECTION_STORAGE_KEY = 'cas_principal_sidebar_open_section';
+
+function loadStoredOpenSection(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(OPEN_SECTION_STORAGE_KEY);
+    return raw && raw.length > 0 ? raw : null;
+  } catch { return null; }
+}
+
+function saveStoredOpenSection(label: string | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (label) localStorage.setItem(OPEN_SECTION_STORAGE_KEY, label);
+    else localStorage.removeItem(OPEN_SECTION_STORAGE_KEY);
+  } catch { /* ignore */ }
+}
+
+function findRouteSectionLabel(secs: Section[], pathname: string): string | null {
+  for (const section of secs) {
+    if (section.items.some(item => pathname === item.href || pathname.startsWith(item.href + '/'))) return section.label;
+  }
+  return null;
+}
+
 const sections: Section[] = [
   {
-    label: 'OVERVIEW',
+    label: 'Overview',
     items: [
       {
         href: '/principal',
@@ -23,7 +48,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'MONITORING',
+    label: 'Monitoring',
     items: [
       {
         href: '/principal/occupancy',
@@ -38,7 +63,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'ACTIONS',
+    label: 'Actions',
     items: [
       {
         href: '/principal/leaves',
@@ -72,7 +97,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'FINANCES',
+    label: 'Finances',
     items: [
       {
         href: '/principal/fees',
@@ -83,7 +108,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'BOARDING',
+    label: 'Boarding',
     items: [
       {
         href: '/principal/resumption',
@@ -98,7 +123,7 @@ const sections: Section[] = [
     ],
   },
   {
-    label: 'RECORDS',
+    label: 'Records',
     items: [
       {
         href: '/principal/personnel',
@@ -145,6 +170,7 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
   const [mounted,  setMounted]  = useState(false);
   const [user,     setUser]     = useState<PrincipalUser | null>(null);
   const [sideOpen, setSideOpen] = useState(false);
+  const [openSection, setOpenSection] = useState<string | null>(null);
   const enabledModules = useEnabledModules(principalApi, user?.schoolId, user?.id);
 
   useEffect(() => {
@@ -156,6 +182,23 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
       setUser(u);
     }
   }, [pathname, router]);
+
+  useEffect(() => {
+    const routeMatch = findRouteSectionLabel(sections, pathname);
+    if (routeMatch) {
+      setOpenSection(routeMatch);
+    } else {
+      setOpenSection(prev => prev ?? loadStoredOpenSection());
+    }
+  }, [pathname]);
+
+  function toggleSectionOpen(label: string) {
+    setOpenSection(prev => {
+      const next = prev === label ? null : label;
+      saveStoredOpenSection(next);
+      return next;
+    });
+  }
 
   // Skip shell for auth pages
   if (!mounted || pathname === '/principal/login' || pathname === '/principal/setup') {
@@ -212,34 +255,76 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 px-3" style={{ scrollbarWidth: 'none' }}>
-        {visibleSections.map((section, si) => (
-          <div key={section.label} className={si > 0 ? 'mt-5' : ''}>
-            <p className="px-3 text-[10px] mb-1.5" style={{ color: 'rgba(200,151,58,0.5)' }}>
-              {section.label}
-            </p>
-            {section.items.map(({ href, label, icon }) => {
-              const active = isActive(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setSideOpen(false)}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium mb-0.5 transition-all"
-                  style={{
-                    backgroundColor: active ? 'rgba(200,151,58,0.15)' : 'transparent',
-                    color: active ? '#C8973A' : 'rgba(255,255,255,0.6)',
-                  }}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-[17px] h-[17px] flex-shrink-0">
-                    {icon}
-                  </svg>
-                  <span className="truncate">{label}</span>
-                  {active && <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: '#C8973A' }} />}
-                </Link>
-              );
-            })}
+        {visibleSections.map((section, si) => {
+          const isOpen = openSection === section.label;
+          const headerIcon = section.items[0]?.icon;
+          return (
+          <div key={section.label} className={si > 0 ? 'mt-1' : ''}>
+            <button
+              type="button"
+              onClick={() => toggleSectionOpen(section.label)}
+              className={[
+                'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg mb-0.5',
+                'border-0 cursor-pointer transition-all duration-200 ease-out',
+                isOpen ? 'bg-[rgba(200,151,58,0.12)]' : 'bg-transparent hover:bg-white/[0.05]',
+              ].join(' ')}
+            >
+              <svg
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}
+                className="w-[17px] h-[17px] flex-shrink-0 transition-colors duration-200"
+                style={{ color: isOpen ? '#C8973A' : 'rgba(255,255,255,0.6)' }}
+              >
+                {headerIcon}
+              </svg>
+              <span
+                className="flex-1 text-left text-sm font-semibold truncate transition-colors duration-200"
+                style={{ color: isOpen ? '#C8973A' : 'rgba(255,255,255,0.78)' }}
+              >
+                {section.label}
+              </span>
+              <svg
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}
+                className="w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ease-out"
+                style={{
+                  color: isOpen ? '#C8973A' : 'rgba(255,255,255,0.4)',
+                  transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)',
+                }}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {isOpen && (
+              <div className="ml-[22px] pl-3 mb-1 border-l" style={{ borderColor: 'rgba(200,151,58,0.14)' }}>
+                {section.items.map(({ href, label, icon }) => {
+                  const active = isActive(href);
+                  return (
+                    <div key={href} className="relative">
+                      {active && (
+                        <span className="absolute -left-[13px] top-1.5 bottom-1.5 w-[3px] rounded-full" style={{ backgroundColor: '#C8973A' }} />
+                      )}
+                      <Link
+                        href={href}
+                        onClick={() => setSideOpen(false)}
+                        className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium mb-0.5 transition-all"
+                        style={{
+                          backgroundColor: active ? 'rgba(200,151,58,0.15)' : 'transparent',
+                          color: active ? '#C8973A' : 'rgba(255,255,255,0.55)',
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-[17px] h-[17px] flex-shrink-0">
+                          {icon}
+                        </svg>
+                        <span className="truncate">{label}</span>
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Footer */}

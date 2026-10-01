@@ -24,6 +24,36 @@ interface NavItem {
   icon:                    ReactNode;
 }
 
+type Section = { label: string; hrefs: string[] };
+
+const SECTIONS: Section[] = [
+  { label: 'Overview', hrefs: ['/teacher'] },
+  { label: 'Attendance', hrefs: ['/teacher/submit', '/teacher/history', '/teacher/absences', '/teacher/meetings', '/teacher/invigilation', '/teacher/timetable'] },
+  { label: 'Students', hrefs: ['/teacher/student-attendance'] },
+  { label: 'Academics', hrefs: ['/teacher/assessments', '/teacher/results', '/teacher/lms'] },
+  { label: 'Administrative', hrefs: ['/teacher/absences/leaves', '/teacher/conduct', '/teacher/memos'] },
+  { label: 'Responsibilities', hrefs: ['/teacher/form-class', '/teacher/hod', '/teacher/hod/inventory', '/teacher/house-students', '/teacher/resumption', '/teacher/roll-call', '/teacher/library', '/teacher/clearance'] },
+  { label: 'Account', hrefs: ['/teacher/notifications', '/teacher/profile'] },
+];
+
+const OPEN_SECTION_STORAGE_KEY = 'cas_teacher_sidebar_open_section';
+
+function loadStoredOpenSection(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(OPEN_SECTION_STORAGE_KEY);
+    return raw && raw.length > 0 ? raw : null;
+  } catch { return null; }
+}
+
+function saveStoredOpenSection(label: string | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (label) localStorage.setItem(OPEN_SECTION_STORAGE_KEY, label);
+    else localStorage.removeItem(OPEN_SECTION_STORAGE_KEY);
+  } catch { /* ignore */ }
+}
+
 const NAV_ITEMS: NavItem[] = [
   {
     href:  '/teacher',
@@ -320,6 +350,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
   const [managementRole,   setManagementRole]   = useState<string | null>(null);
   const [schoolId,         setSchoolId]         = useState<string | undefined>(undefined);
   const [userId,           setUserId]           = useState<string | undefined>(undefined);
+  const [openSection,      setOpenSection]      = useState<string | null>(null);
   const enabledModules = useEnabledModules(teacherApi, schoolId, userId);
 
   useEffect(() => setMounted(true), []);
@@ -405,16 +436,6 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [pathname, router, fetchUnread]);
 
-  if (!ready) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: dk.pageBg }}>
-        <div className="w-8 h-8 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: '#145C44', borderBottomColor: 'transparent' }} />
-      </div>
-    );
-  }
-
-  if (NO_SHELL_PATHS.includes(pathname)) return <>{children}</>;
-
   const allNavHrefs = NAV_ITEMS.map(i => i.href);
   const isActive = (href: string) => {
     if (href === '/teacher') return pathname === '/teacher';
@@ -431,9 +452,45 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
     (!item.hodOnly               || isHod) &&
     (!item.module                || enabledModules === null || enabledModules.includes(item.module))
   );
+
+  const visibleSections = SECTIONS.map(section => ({
+    label: section.label,
+    items: section.hrefs
+      .map(href => visibleNavItems.find(item => item.href === href))
+      .filter((item): item is NavItem => !!item),
+  })).filter(section => section.items.length > 0);
+
+  useEffect(() => {
+    const routeMatch = visibleSections.find(s => s.items.some(i => isActive(i.href)))?.label ?? null;
+    if (routeMatch) {
+      setOpenSection(routeMatch);
+    } else {
+      setOpenSection(prev => prev ?? loadStoredOpenSection());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, isFormTeacher, isClearanceStaff, isLibraryTeacher, isHousemaster, isSeniorHousemaster, isHod, enabledModules]);
+
+  function toggleSectionOpen(label: string) {
+    setOpenSection(prev => {
+      const next = prev === label ? null : label;
+      saveStoredOpenSection(next);
+      return next;
+    });
+  }
+
   const mobileBarItems   = visibleNavItems.filter(item => MOBILE_BAR_HREFS.includes(item.href));
   const mobileMoreItems  = visibleNavItems.filter(item => !MOBILE_BAR_HREFS.includes(item.href));
   const isMoreActive     = mobileMoreItems.some(item => isActive(item.href));
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: dk.pageBg }}>
+        <div className="w-8 h-8 rounded-full border-2 border-b-transparent animate-spin" style={{ borderColor: '#145C44', borderBottomColor: 'transparent' }} />
+      </div>
+    );
+  }
+
+  if (NO_SHELL_PATHS.includes(pathname)) return <>{children}</>;
 
   return (
     <div className="min-h-screen flex" style={{ background: dk.pageBg }}>
@@ -498,33 +555,70 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
             )}
           </div>
         </div>
-        <nav className="flex-1 py-4 space-y-1 px-3 overflow-y-auto no-scrollbar">
-          {visibleNavItems.map((item) => {
-            const active = isActive(item.href);
+        <nav className="flex-1 py-4 px-3 overflow-y-auto no-scrollbar">
+          {visibleSections.map((section, si) => {
+            const isOpen = openSection === section.label;
+            const headerIcon = section.items[0]?.icon;
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                style={active ? { backgroundColor: dk.navActiveBg, color: dk.navActiveText } : { color: dk.navText }}
-              >
-                <span style={{ color: active ? dk.navActiveText : dk.navText }} className="relative">
-                  {item.icon}
-                  {item.badge && unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#B83232] text-white text-[9px] font-bold flex items-center justify-center">
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  )}
-                </span>
-                {item.label}
-                {item.badge && unreadCount > 0 ? (
-                  <span className="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full bg-[#FEF2F2] text-[#B83232]">
-                    {unreadCount}
+              <div key={section.label} className={si > 0 ? 'mt-1' : ''}>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionOpen(section.label)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl mb-0.5 border-0 cursor-pointer transition-all duration-200 ease-out"
+                  style={{ backgroundColor: isOpen ? dk.navActiveBg : 'transparent' }}
+                  onMouseEnter={e => { if (!isOpen) e.currentTarget.style.backgroundColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'; }}
+                  onMouseLeave={e => { if (!isOpen) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <span style={{ color: isOpen ? dk.navActiveText : dk.navText }} className="flex-shrink-0">
+                    {headerIcon}
                   </span>
-                ) : active ? (
-                  <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: dk.navActiveText }} />
-                ) : null}
-              </Link>
+                  <span className="flex-1 text-left text-sm font-semibold truncate" style={{ color: isOpen ? dk.navActiveText : dk.navText }}>
+                    {section.label}
+                  </span>
+                  <svg
+                    viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}
+                    className="w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ease-out"
+                    style={{ color: isOpen ? dk.navActiveText : dk.navText, transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)' }}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {isOpen && (
+                  <div className="ml-[22px] pl-3 mb-1 border-l" style={{ borderColor: isDark ? 'rgba(200,151,58,0.14)' : `${primary}22` }}>
+                    {section.items.map((item) => {
+                      const active = isActive(item.href);
+                      return (
+                        <div key={item.href} className="relative">
+                          {active && (
+                            <span className="absolute -left-[13px] top-1.5 bottom-1.5 w-[3px] rounded-full" style={{ backgroundColor: dk.navActiveText }} />
+                          )}
+                          <Link
+                            href={item.href}
+                            className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium mb-0.5 transition-colors"
+                            style={active ? { backgroundColor: dk.navActiveBg, color: dk.navActiveText } : { color: dk.navText }}
+                          >
+                            <span style={{ color: active ? dk.navActiveText : dk.navText }} className="relative flex-shrink-0">
+                              {item.icon}
+                              {item.badge && unreadCount > 0 && (
+                                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#B83232] text-white text-[9px] font-bold flex items-center justify-center">
+                                  {unreadCount > 9 ? '9+' : unreadCount}
+                                </span>
+                              )}
+                            </span>
+                            <span className="truncate">{item.label}</span>
+                            {item.badge && unreadCount > 0 && (
+                              <span className="ml-auto text-xs font-bold px-1.5 py-0.5 rounded-full bg-[#FEF2F2] text-[#B83232]">
+                                {unreadCount}
+                              </span>
+                            )}
+                          </Link>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>
