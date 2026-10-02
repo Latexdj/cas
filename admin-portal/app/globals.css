@@ -11,6 +11,16 @@
   --cas-surface:     #FDFAF5;
   --cas-border:      #E2D9CC;
   --cas-muted:       #8C7E6E;
+
+  /* Chart series colors — validated for CVD-safety and contrast via the
+     dataviz skill's validate_palette.js against both the warm light surface
+     and the (dashboard) section's slate dark-mode surface (#1E293B). Kept
+     separate from --cas-primary/--cas-accent since those are unused
+     elsewhere and chart marks need their own lightness/chroma tuning to
+     actually pass the categorical checks (the raw brand hexes don't). */
+  --chart-green: #1C8A62;
+  --chart-gold:  #C8973A;
+  --chart-grid:  #E2D9CC;
 }
 
 .dark {
@@ -20,6 +30,10 @@
   --cas-surface:  #152210;
   --cas-border:   #2A3D28;
   --cas-muted:    #7A8F76;
+
+  --chart-green: #1C8A62;
+  --chart-gold:  #B8842E;
+  --chart-grid:  #334155;
 }
 
 @theme inline {

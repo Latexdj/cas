@@ -619,6 +619,86 @@ router.get('/', async (req, res, next) => {
 });
 
 /** GET /api/students/batch-year-review — all classes with their year_of_admission breakdown */
+/** GET /api/students/entry-grades-stats — BECE aggregate distribution, by-year
+ *  and by-program breakdowns, for the Entry Grades analytics page. status
+ *  defaults to Active (same escape-hatch convention as GET /api/students and
+ *  the fee reports: pass status=all to include graduated/inactive too). */
+router.get('/entry-grades-stats', adminOnly, async (req, res, next) => {
+  try {
+    const { status } = req.query;
+    // Unlike the binary Active/all toggle elsewhere (GET /api/students,
+    // reports.js), this page also needs a Graduated-only view, so the actual
+    // status value is bound as a parameter rather than hardcoded — 'all'
+    // still drops the filter entirely.
+    const effectiveStatus = status || 'Active';
+    const sc         = effectiveStatus === 'all' ? '' : `AND status = $2`;
+    const scAliased  = effectiveStatus === 'all' ? '' : `AND s.status = $2`;
+    const statusParam = effectiveStatus === 'all' ? [] : [effectiveStatus];
+
+    const [summaryRes, distributionRes, byProgramRes, byYearRes] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE aggregate IS NOT NULL)::int AS with_aggregate,
+                ROUND(AVG(aggregate), 1)::float8 AS avg,
+                MIN(aggregate) AS best,
+                MAX(aggregate) AS worst
+         FROM students WHERE school_id = $1 ${sc}`,
+        [req.schoolId, ...statusParam]
+      ),
+      // Same bucket boundaries as the Analytics > Reports "Aggregate Range
+      // Distribution" table (backend/src/routes/reports.js) — kept identical
+      // so the two views never disagree.
+      pool.query(
+        `WITH agg AS (
+           SELECT gender,
+             CASE
+               WHEN aggregate IS NULL           THEN 'Not Recorded'
+               WHEN aggregate BETWEEN 6  AND 12 THEN '6 – 12'
+               WHEN aggregate BETWEEN 13 AND 18 THEN '13 – 18'
+               WHEN aggregate BETWEEN 19 AND 24 THEN '19 – 24'
+               WHEN aggregate BETWEEN 25 AND 30 THEN '25 – 30'
+               WHEN aggregate BETWEEN 31 AND 36 THEN '31 – 36'
+               ELSE '37 and above'
+             END AS range
+           FROM students WHERE school_id = $1 ${sc}
+         )
+         SELECT range,
+                COUNT(*) FILTER (WHERE gender = 'Male')   AS male,
+                COUNT(*) FILTER (WHERE gender = 'Female') AS female,
+                COUNT(*)                                   AS total
+         FROM agg GROUP BY range
+         ORDER BY CASE range
+           WHEN '6 – 12' THEN 1 WHEN '13 – 18' THEN 2 WHEN '19 – 24' THEN 3
+           WHEN '25 – 30' THEN 4 WHEN '31 – 36' THEN 5 WHEN '37 and above' THEN 6
+           ELSE 99 END`,
+        [req.schoolId, ...statusParam]
+      ),
+      pool.query(
+        `SELECT COALESCE(p.name, 'No Program') AS program_name,
+                ROUND(AVG(s.aggregate), 1)::float8 AS avg_aggregate,
+                COUNT(*)::int AS count
+         FROM students s LEFT JOIN programs p ON p.id = s.program_id
+         WHERE s.school_id = $1 ${scAliased} AND s.aggregate IS NOT NULL
+         GROUP BY p.name ORDER BY avg_aggregate ASC`,
+        [req.schoolId, ...statusParam]
+      ),
+      pool.query(
+        `SELECT year_of_admission, ROUND(AVG(aggregate), 1)::float8 AS avg_aggregate, COUNT(*)::int AS count
+         FROM students WHERE school_id = $1 ${sc} AND aggregate IS NOT NULL AND year_of_admission IS NOT NULL
+         GROUP BY year_of_admission ORDER BY year_of_admission ASC`,
+        [req.schoolId, ...statusParam]
+      ),
+    ]);
+
+    res.json({
+      summary: summaryRes.rows[0],
+      distribution: distributionRes.rows,
+      by_program: byProgramRes.rows,
+      by_year: byYearRes.rows,
+    });
+  } catch (err) { next(err); }
+});
+
 router.get('/batch-year-review', adminOnly, async (req, res, next) => {
   try {
     const [byClassYear, assignedByYear] = await Promise.all([
