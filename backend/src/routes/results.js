@@ -227,6 +227,7 @@ async function assembleResults(schoolId, academic_year_id, semester, class_name)
       subjects:         subjectRows.sort((a, b) => a.subject.localeCompare(b.subject)),
       average,
       overall_grade:    overallGrade.grade,
+      overall_remark:   overallGrade.remark,
       ca_percentage:    caPercentage,
       exam_percentage:  examPercentage,
     };
@@ -298,6 +299,128 @@ router.get('/', async (req, res, next) => {
     for (const r of results) r.attendance = attMap[r.student_id] ?? null;
 
     res.json(results);
+  } catch (err) { next(err); }
+});
+
+// GET /api/results/analytics?academic_year_id=&semester=&status=
+// School-wide exam-performance analytics for the Exam Performance charts
+// page. Unlike the exam_scores-only / hardcoded-40%-pass-rate reports in
+// reports.js (ACADEMIC_REPORTS), this aggregates assembleResults() — the
+// same CA + exam blend, graded against the school's own configured
+// grade_boundaries — across every class active in the term, since that's
+// the number that actually matches a student's report card.
+router.get('/analytics', adminOnly, async (req, res, next) => {
+  try {
+    const { academic_year_id, semester, status } = req.query;
+    if (!academic_year_id || !semester) {
+      return res.status(400).json({ error: 'academic_year_id and semester are required' });
+    }
+    const semInt = parseInt(semester);
+    const effectiveStatus = status || 'Active';
+
+    const { rows: classRows } = await pool.query(
+      `SELECT DISTINCT class_name FROM (
+         SELECT class_name FROM exam_scores WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
+         UNION
+         SELECT class_name FROM assessments WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
+       ) t WHERE class_name IS NOT NULL`,
+      [req.schoolId, academic_year_id, semInt]
+    );
+    const classNames = classRows.map(r => r.class_name);
+
+    const empty = {
+      summary: { total_students: 0, average: null, pass_rate: null, highest_class_avg: null, lowest_class_avg: null },
+      by_class: [], by_subject: [], grade_distribution: [],
+    };
+    if (!classNames.length) return res.json(empty);
+
+    const classResults = await Promise.all(
+      classNames.map(cn => assembleResults(req.schoolId, academic_year_id, semInt, cn))
+    );
+
+    // Active by default, 'all' to include graduated — same parameterized
+    // convention already used for Fee Reports and Entry Grades.
+    let statusByStudent = null;
+    if (effectiveStatus !== 'all') {
+      const allStudentIds = [...new Set(classResults.flatMap(cr => cr.results.map(r => r.student_id)))];
+      const { rows: statusRows } = allStudentIds.length
+        ? await pool.query(`SELECT id, status FROM students WHERE school_id = $1 AND id = ANY($2::uuid[])`, [req.schoolId, allStudentIds])
+        : { rows: [] };
+      statusByStudent = new Map(statusRows.map(r => [r.id, r.status]));
+    }
+    const included = (studentId) => !statusByStudent || statusByStudent.get(studentId) === effectiveStatus;
+
+    // A boundary's remark is treated as passing unless it's the bottom
+    // tier's "FAIL" (the one vocabulary word both the WAEC and CTVET seed
+    // defaults and the hardcoded getGrade() fallback always use for it) —
+    // there's no dedicated is-passing flag on grade_boundaries to check
+    // instead.
+    const isPassing = remark => !!remark && remark.toUpperCase() !== 'FAIL';
+
+    const byClass = [];
+    const subjectMap = new Map();
+    const gradeMap = new Map();
+    let overallSum = 0, overallCount = 0, overallPass = 0;
+
+    for (let i = 0; i < classNames.length; i++) {
+      const studentsInClass = classResults[i].results.filter(r => included(r.student_id) && r.average != null);
+      let classSum = 0, classPass = 0;
+
+      for (const st of studentsInClass) {
+        classSum += st.average;
+        overallSum += st.average;
+        overallCount++;
+        if (isPassing(st.overall_remark)) { classPass++; overallPass++; }
+        if (st.overall_grade) gradeMap.set(st.overall_grade, (gradeMap.get(st.overall_grade) || 0) + 1);
+
+        for (const subj of st.subjects) {
+          if (subj.total == null) continue;
+          if (!subjectMap.has(subj.subject)) subjectMap.set(subj.subject, { sum: 0, count: 0, pass: 0 });
+          const agg = subjectMap.get(subj.subject);
+          agg.sum += subj.total;
+          agg.count += 1;
+          if (isPassing(subj.remark)) agg.pass += 1;
+        }
+      }
+
+      if (studentsInClass.length > 0) {
+        byClass.push({
+          class_name: classNames[i],
+          avg: Math.round((classSum / studentsInClass.length) * 10) / 10,
+          pass_rate: Math.round((classPass / studentsInClass.length) * 1000) / 10,
+          count: studentsInClass.length,
+        });
+      }
+    }
+
+    byClass.sort((a, b) => b.avg - a.avg);
+
+    const bySubject = [...subjectMap.entries()]
+      .map(([subject, agg]) => ({
+        subject,
+        avg: Math.round((agg.sum / agg.count) * 10) / 10,
+        pass_rate: Math.round((agg.pass / agg.count) * 1000) / 10,
+        count: agg.count,
+      }))
+      .sort((a, b) => b.avg - a.avg);
+
+    const gradeOrder = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9', 'A', 'B+', 'B-', 'C+', 'C-', 'D', 'E', 'F'];
+    const gradeDistribution = [...gradeMap.entries()]
+      .map(([grade, count]) => ({ grade, count }))
+      .sort((a, b) => gradeOrder.indexOf(a.grade) - gradeOrder.indexOf(b.grade));
+
+    res.json({
+      summary: {
+        total_students: overallCount,
+        average: overallCount ? Math.round((overallSum / overallCount) * 10) / 10 : null,
+        pass_rate: overallCount ? Math.round((overallPass / overallCount) * 1000) / 10 : null,
+        highest_class_avg: byClass.length ? byClass[0].avg : null,
+        lowest_class_avg: byClass.length ? byClass[byClass.length - 1].avg : null,
+      },
+      by_class: byClass,
+      by_subject: bySubject,
+      grade_distribution: gradeDistribution,
+    });
   } catch (err) { next(err); }
 });
 
