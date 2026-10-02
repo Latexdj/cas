@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
 } from 'recharts';
 import { api } from '@/lib/api';
 
@@ -17,11 +17,14 @@ interface Summary {
 interface ClassRow { class_name: string; avg: number; pass_rate: number; count: number; }
 interface SubjectRow { subject: string; avg: number; pass_rate: number; count: number; }
 interface GradeRow { grade: string; count: number; }
+interface GradeDistributionGroup { exam_body: string; grades: GradeRow[]; }
+interface TermRow { label: string; academic_year_id: string; semester: number; avg_pct: number; count: number; }
 interface AnalyticsResponse {
   summary: Summary;
   by_class: ClassRow[];
   by_subject: SubjectRow[];
-  grade_distribution: GradeRow[];
+  grade_distribution: GradeDistributionGroup[];
+  by_term: TermRow[];
 }
 
 type EnrollmentStatus = 'Active' | 'Graduated' | 'all';
@@ -125,12 +128,39 @@ export default function ExamPerformancePage() {
         <div className="flex items-center justify-center py-24">
           <div className="w-8 h-8 rounded-full border-4 border-[#145C44] border-t-transparent animate-spin" />
         </div>
-      ) : !data || data.summary.total_students === 0 ? (
+      ) : !data ? (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-12 text-center">
-          <p className="text-sm text-slate-400">No results recorded for this term yet.</p>
+          <p className="text-sm text-slate-400">Could not load exam performance data.</p>
         </div>
       ) : (
         <>
+          {data.by_term.length > 0 && (
+            <ChartCard title="Performance trend" subtitle="Terminal exam average by term, across every term on record — not blended with CA like the charts below">
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={data.by_term} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={{ stroke: 'var(--chart-grid)' }} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v) => [`${v}%`, 'Average']} />
+                  <Line
+                    type="monotone"
+                    dataKey="avg_pct"
+                    name="Average"
+                    stroke="var(--chart-green)"
+                    strokeWidth={2}
+                    dot={{ r: 4, fill: 'var(--chart-green)', strokeWidth: 2, stroke: '#fff' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
+
+          {data.summary.total_students === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-12 text-center">
+              <p className="text-sm text-slate-400">No results recorded for this term yet.</p>
+            </div>
+          ) : (
+          <>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <StatTile label="Students scored" value={String(data.summary.total_students)} />
             <StatTile label="School average" value={fmtPct(data.summary.average)} />
@@ -175,23 +205,37 @@ export default function ExamPerformancePage() {
             )}
           </ChartCard>
 
-          <ChartCard title="Grade distribution" subtitle="Number of students by overall grade, this term">
-            {data.grade_distribution.length === 0 ? (
+          {data.grade_distribution.length === 0 ? (
+            <ChartCard title="Grade distribution" subtitle="Number of students by overall grade, this term">
               <EmptyState message="No grade data for this filter." />
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data.grade_distribution} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
-                  <XAxis dataKey="grade" tick={{ fontSize: 12 }} axisLine={{ stroke: 'var(--chart-grid)' }} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip />
-                  <Bar dataKey="count" name="Students" fill="var(--chart-green)" radius={[4, 4, 0, 0]} maxBarSize={32}>
-                    <LabelList dataKey="count" position="top" fontSize={11} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </ChartCard>
+            </ChartCard>
+          ) : (
+            data.grade_distribution.map(group => (
+              <ChartCard
+                key={group.exam_body}
+                title="Grade distribution"
+                subtitle={
+                  data.grade_distribution.length > 1
+                    ? `Number of students by overall grade, this term (${group.exam_body})`
+                    : 'Number of students by overall grade, this term'
+                }
+              >
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={group.grades} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
+                    <XAxis dataKey="grade" tick={{ fontSize: 12 }} axisLine={{ stroke: 'var(--chart-grid)' }} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <Tooltip />
+                    <Bar dataKey="count" name="Students" fill="var(--chart-green)" radius={[4, 4, 0, 0]} maxBarSize={32}>
+                      <LabelList dataKey="count" position="top" fontSize={11} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+            ))
+          )}
+          </>
+          )}
         </>
       )}
     </div>

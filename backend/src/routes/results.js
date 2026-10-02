@@ -302,13 +302,44 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Cheap (exam_scores-only, no CA blend) average per term, across the
+// school's whole history — the accurate assembleResults() blend would mean
+// re-running it for every class in every term the school has ever run,
+// which isn't worth the cost just for a trend line. Same simplification
+// the older ACADEMIC_REPORTS (reports.js) already rely on.
+async function loadTermTrend(schoolId, effectiveStatus) {
+  const sc = effectiveStatus === 'all' ? '' : `AND s.status = $2`;
+  const params = effectiveStatus === 'all' ? [schoolId] : [schoolId, effectiveStatus];
+  const { rows } = await pool.query(
+    `SELECT es.academic_year_id, es.semester, ay.name AS year_name,
+            ROUND(AVG(es.score / es.max_score * 100)::numeric, 1)::float8 AS avg_pct,
+            COUNT(DISTINCT es.student_id)::int AS count
+     FROM exam_scores es
+     JOIN students s ON s.id = es.student_id
+     JOIN academic_years ay ON ay.id = es.academic_year_id
+     WHERE es.school_id = $1 ${sc}
+     GROUP BY es.academic_year_id, es.semester, ay.name, ay.start_date
+     ORDER BY ay.start_date ASC NULLS LAST, ay.name ASC, es.semester ASC`,
+    params
+  );
+  return rows.map(r => ({
+    label: `${r.year_name} Sem ${r.semester}`,
+    academic_year_id: r.academic_year_id,
+    semester: r.semester,
+    avg_pct: r.avg_pct,
+    count: r.count,
+  }));
+}
+
 // GET /api/results/analytics?academic_year_id=&semester=&status=
 // School-wide exam-performance analytics for the Exam Performance charts
 // page. Unlike the exam_scores-only / hardcoded-40%-pass-rate reports in
 // reports.js (ACADEMIC_REPORTS), this aggregates assembleResults() — the
 // same CA + exam blend, graded against the school's own configured
 // grade_boundaries — across every class active in the term, since that's
-// the number that actually matches a student's report card.
+// the number that actually matches a student's report card. The one
+// exception is the by_term trend (see loadTermTrend) which stays on the
+// cheaper exam_scores-only average for performance reasons.
 router.get('/analytics', adminOnly, async (req, res, next) => {
   try {
     const { academic_year_id, semester, status } = req.query;
@@ -328,11 +359,19 @@ router.get('/analytics', adminOnly, async (req, res, next) => {
     );
     const classNames = classRows.map(r => r.class_name);
 
-    const empty = {
-      summary: { total_students: 0, average: null, pass_rate: null, highest_class_avg: null, lowest_class_avg: null },
-      by_class: [], by_subject: [], grade_distribution: [],
-    };
-    if (!classNames.length) return res.json(empty);
+    // Trend spans every term the school has exam data for, independent of
+    // the Year/Semester filter above — a cheaper exam_scores-only average
+    // (same simplification the older ACADEMIC_REPORTS already accept),
+    // since the full CA+exam blend across every term * class would mean
+    // re-running assembleResults() for the school's entire history.
+    const byTerm = await loadTermTrend(req.schoolId, effectiveStatus);
+
+    if (!classNames.length) {
+      return res.json({
+        summary: { total_students: 0, average: null, pass_rate: null, highest_class_avg: null, lowest_class_avg: null },
+        by_class: [], by_subject: [], grade_distribution: [], by_term: byTerm,
+      });
+    }
 
     const classResults = await Promise.all(
       classNames.map(cn => assembleResults(req.schoolId, academic_year_id, semInt, cn))
@@ -359,7 +398,7 @@ router.get('/analytics', adminOnly, async (req, res, next) => {
 
     const byClass = [];
     const subjectMap = new Map();
-    const gradeMap = new Map();
+    const gradeMap = new Map(); // exam_body -> Map(grade -> count)
     let overallSum = 0, overallCount = 0, overallPass = 0;
 
     for (let i = 0; i < classNames.length; i++) {
@@ -371,7 +410,12 @@ router.get('/analytics', adminOnly, async (req, res, next) => {
         overallSum += st.average;
         overallCount++;
         if (isPassing(st.overall_remark)) { classPass++; overallPass++; }
-        if (st.overall_grade) gradeMap.set(st.overall_grade, (gradeMap.get(st.overall_grade) || 0) + 1);
+        if (st.overall_grade) {
+          const body = st.exam_body || 'WAEC';
+          if (!gradeMap.has(body)) gradeMap.set(body, new Map());
+          const bodyGrades = gradeMap.get(body);
+          bodyGrades.set(st.overall_grade, (bodyGrades.get(st.overall_grade) || 0) + 1);
+        }
 
         for (const subj of st.subjects) {
           if (subj.total == null) continue;
@@ -404,10 +448,19 @@ router.get('/analytics', adminOnly, async (req, res, next) => {
       }))
       .sort((a, b) => b.avg - a.avg);
 
+    // WAEC and CTVET use different grade vocabularies (A1-F9 vs A-F) for the
+    // same underlying tiers — mixing both bodies' bars on one x-axis would
+    // read as one grading scale when it isn't. Grouped by exam_body instead,
+    // so a mixed-program school gets one clearly-labeled chart per body.
     const gradeOrder = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9', 'A', 'B+', 'B-', 'C+', 'C-', 'D', 'E', 'F'];
     const gradeDistribution = [...gradeMap.entries()]
-      .map(([grade, count]) => ({ grade, count }))
-      .sort((a, b) => gradeOrder.indexOf(a.grade) - gradeOrder.indexOf(b.grade));
+      .map(([examBody, grades]) => ({
+        exam_body: examBody,
+        grades: [...grades.entries()]
+          .map(([grade, count]) => ({ grade, count }))
+          .sort((a, b) => gradeOrder.indexOf(a.grade) - gradeOrder.indexOf(b.grade)),
+      }))
+      .sort((a, b) => a.exam_body.localeCompare(b.exam_body));
 
     res.json({
       summary: {
@@ -420,6 +473,7 @@ router.get('/analytics', adminOnly, async (req, res, next) => {
       by_class: byClass,
       by_subject: bySubject,
       grade_distribution: gradeDistribution,
+      by_term: byTerm,
     });
   } catch (err) { next(err); }
 });
