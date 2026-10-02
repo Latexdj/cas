@@ -30,8 +30,18 @@ function saveStoredOpenSection(label: string | null) {
 }
 
 function findRouteSectionLabel(secs: Section[], pathname: string): string | null {
+  // A plain prefix match (pathname.startsWith(href + '/')) misfires for a
+  // root route like '/principal' (Dashboard), since every other principal
+  // route is nested under it — every page would match Overview first. Only
+  // prefix-match when no other href is itself more specific, mirroring the
+  // guard isActive() already uses for nav-item highlighting below.
+  const allHrefs = secs.flatMap(s => s.items.map(i => i.href));
+  const isRouteActive = (href: string) => {
+    const hasChild = allHrefs.some(h => h !== href && h.startsWith(href + '/'));
+    return pathname === href || (!hasChild && pathname.startsWith(href + '/'));
+  };
   for (const section of secs) {
-    if (section.items.some(item => pathname === item.href || pathname.startsWith(item.href + '/'))) return section.label;
+    if (section.items.some(item => isRouteActive(item.href))) return section.label;
   }
   return null;
 }
@@ -134,6 +144,11 @@ const sections: Section[] = [
         href: '/principal/reports',
         label: 'Reports',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />,
+      },
+      {
+        href: '/principal/entry-grades',
+        label: 'Entry Grades',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25a2.25 2.25 0 01-2.25 2.25H18m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5m.75-9 3-3 2.148 2.148A12.061 12.061 0 0116.5 7.605" />,
       },
     ],
   },

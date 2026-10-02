@@ -1052,6 +1052,81 @@ function addPct(rows, keys) {
   return rows.map(r => ({ ...r, pct: grand ? ((parseInt(r[keys[1]])/grand)*100).toFixed(1)+'%' : '0%' }));
 }
 
+/** GET /api/principal/entry-grades-stats — same shape as the admin portal's
+ *  GET /api/students/entry-grades-stats (backend/src/routes/students.js),
+ *  for the principal-side Entry Grades page. status defaults to Active;
+ *  'all' drops the filter; 'Graduated' is also valid (the actual value is
+ *  bound as a parameter, not hardcoded, unlike the Active/all-only `sc`
+ *  pattern used by the /reports catalogue above). */
+router.get('/entry-grades-stats', async (req, res, next) => {
+  try {
+    const { status } = req.query;
+    const effectiveStatus = status || 'Active';
+    const sc         = effectiveStatus === 'all' ? '' : `AND status = $2`;
+    const scAliased  = effectiveStatus === 'all' ? '' : `AND s.status = $2`;
+    const statusParam = effectiveStatus === 'all' ? [] : [effectiveStatus];
+
+    const [summaryRes, distributionRes, byProgramRes, byYearRes] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*)::int AS total,
+                COUNT(*) FILTER (WHERE aggregate IS NOT NULL)::int AS with_aggregate,
+                ROUND(AVG(aggregate), 1)::float8 AS avg,
+                MIN(aggregate) AS best,
+                MAX(aggregate) AS worst
+         FROM students WHERE school_id = $1 ${sc}`,
+        [req.schoolId, ...statusParam]
+      ),
+      pool.query(
+        `WITH agg AS (
+           SELECT gender,
+             CASE
+               WHEN aggregate IS NULL           THEN 'Not Recorded'
+               WHEN aggregate BETWEEN 6  AND 12 THEN '6 – 12'
+               WHEN aggregate BETWEEN 13 AND 18 THEN '13 – 18'
+               WHEN aggregate BETWEEN 19 AND 24 THEN '19 – 24'
+               WHEN aggregate BETWEEN 25 AND 30 THEN '25 – 30'
+               WHEN aggregate BETWEEN 31 AND 36 THEN '31 – 36'
+               ELSE '37 and above'
+             END AS range
+           FROM students WHERE school_id = $1 ${sc}
+         )
+         SELECT range,
+                COUNT(*) FILTER (WHERE gender = 'Male')   AS male,
+                COUNT(*) FILTER (WHERE gender = 'Female') AS female,
+                COUNT(*)                                   AS total
+         FROM agg GROUP BY range
+         ORDER BY CASE range
+           WHEN '6 – 12' THEN 1 WHEN '13 – 18' THEN 2 WHEN '19 – 24' THEN 3
+           WHEN '25 – 30' THEN 4 WHEN '31 – 36' THEN 5 WHEN '37 and above' THEN 6
+           ELSE 99 END`,
+        [req.schoolId, ...statusParam]
+      ),
+      pool.query(
+        `SELECT COALESCE(p.name, 'No Program') AS program_name,
+                ROUND(AVG(s.aggregate), 1)::float8 AS avg_aggregate,
+                COUNT(*)::int AS count
+         FROM students s LEFT JOIN programs p ON p.id = s.program_id
+         WHERE s.school_id = $1 ${scAliased} AND s.aggregate IS NOT NULL
+         GROUP BY p.name ORDER BY avg_aggregate ASC`,
+        [req.schoolId, ...statusParam]
+      ),
+      pool.query(
+        `SELECT year_of_admission, ROUND(AVG(aggregate), 1)::float8 AS avg_aggregate, COUNT(*)::int AS count
+         FROM students WHERE school_id = $1 ${sc} AND aggregate IS NOT NULL AND year_of_admission IS NOT NULL
+         GROUP BY year_of_admission ORDER BY year_of_admission ASC`,
+        [req.schoolId, ...statusParam]
+      ),
+    ]);
+
+    res.json({
+      summary: summaryRes.rows[0],
+      distribution: distributionRes.rows,
+      by_program: byProgramRes.rows,
+      by_year: byYearRes.rows,
+    });
+  } catch (err) { next(err); }
+});
+
 router.get('/reports', async (req, res, next) => {
   try {
     const { scope = 'students', type, status = 'active' } = req.query;
