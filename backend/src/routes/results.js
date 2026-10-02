@@ -373,9 +373,15 @@ router.get('/analytics', adminOnly, async (req, res, next) => {
       });
     }
 
-    const classResults = await Promise.all(
-      classNames.map(cn => assembleResults(req.schoolId, academic_year_id, semInt, cn))
-    );
+    // Sequential, not Promise.all — assembleResults() itself opens several
+    // simultaneous connections per class, so running every class in the
+    // term concurrently can burst past the DB pool's connection ceiling on
+    // a school with many classes. This page isn't a hot path; the extra
+    // latency is a fair trade for not falling over under load.
+    const classResults = [];
+    for (const cn of classNames) {
+      classResults.push(await assembleResults(req.schoolId, academic_year_id, semInt, cn));
+    }
 
     // Active by default, 'all' to include graduated — same parameterized
     // convention already used for Fee Reports and Entry Grades.
@@ -940,3 +946,8 @@ router.get('/transcript/:student_id', async (req, res, next) => {
 });
 
 module.exports = router;
+// Reused by the principal-portal mirror of this analytics endpoint
+// (backend/src/routes/principal.js) so both portals compute the exact same
+// CA+exam blend rather than maintaining two implementations of it.
+module.exports.assembleResults = assembleResults;
+module.exports.loadTermTrend = loadTermTrend;

@@ -8,6 +8,7 @@ const { createNotification, sendTeacherEmail } = require('../services/notificati
 const { getCurrentSchoolContext } = require('../utils/school-context');
 const { getClassRoster } = require('../services/classHistory.service');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
+const { assembleResults, loadTermTrend } = require('./results');
 
 // â”€â”€ Auth middleware â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function auth(req, res, next) {
@@ -1436,6 +1437,140 @@ router.get('/results', async (req, res, next) => {
     results.forEach(r => { r.class_total = classTotal; r.class_position = r.class_position ?? null; });
 
     res.json(results);
+  } catch (err) { next(err); }
+});
+
+// GET /api/principal/results/analytics?academic_year_id=&semester=&status=
+// Same shape and logic as the admin portal's GET /api/results/analytics
+// (backend/src/routes/results.js) — reuses that file's assembleResults()/
+// loadTermTrend() directly rather than re-deriving the CA+exam blend a
+// third time (the /results route above already has its own, separate,
+// inline duplicate of this same math — this endpoint intentionally reuses
+// the canonical version instead of extending that duplicate).
+router.get('/results/analytics', async (req, res, next) => {
+  try {
+    const { academic_year_id, semester, status } = req.query;
+    if (!academic_year_id || !semester) {
+      return res.status(400).json({ error: 'academic_year_id and semester are required' });
+    }
+    const semInt = parseInt(semester);
+    const effectiveStatus = status || 'Active';
+
+    const { rows: classRows } = await pool.query(
+      `SELECT DISTINCT class_name FROM (
+         SELECT class_name FROM exam_scores WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
+         UNION
+         SELECT class_name FROM assessments WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
+       ) t WHERE class_name IS NOT NULL`,
+      [req.schoolId, academic_year_id, semInt]
+    );
+    const classNames = classRows.map(r => r.class_name);
+
+    const byTerm = await loadTermTrend(req.schoolId, effectiveStatus);
+
+    if (!classNames.length) {
+      return res.json({
+        summary: { total_students: 0, average: null, pass_rate: null, highest_class_avg: null, lowest_class_avg: null },
+        by_class: [], by_subject: [], grade_distribution: [], by_term: byTerm,
+      });
+    }
+
+    // Sequential, not Promise.all — assembleResults() itself opens several
+    // simultaneous connections per class, so running every class in the
+    // term concurrently can burst past the DB pool's connection ceiling on
+    // a school with many classes. This page isn't a hot path; the extra
+    // latency is a fair trade for not falling over under load.
+    const classResults = [];
+    for (const cn of classNames) {
+      classResults.push(await assembleResults(req.schoolId, academic_year_id, semInt, cn));
+    }
+
+    let statusByStudent = null;
+    if (effectiveStatus !== 'all') {
+      const allStudentIds = [...new Set(classResults.flatMap(cr => cr.results.map(r => r.student_id)))];
+      const { rows: statusRows } = allStudentIds.length
+        ? await pool.query(`SELECT id, status FROM students WHERE school_id = $1 AND id = ANY($2::uuid[])`, [req.schoolId, allStudentIds])
+        : { rows: [] };
+      statusByStudent = new Map(statusRows.map(r => [r.id, r.status]));
+    }
+    const included = studentId => !statusByStudent || statusByStudent.get(studentId) === effectiveStatus;
+    const isPassing = remark => !!remark && remark.toUpperCase() !== 'FAIL';
+
+    const byClass = [];
+    const subjectMap = new Map();
+    const gradeMap = new Map();
+    let overallSum = 0, overallCount = 0, overallPass = 0;
+
+    for (let i = 0; i < classNames.length; i++) {
+      const studentsInClass = classResults[i].results.filter(r => included(r.student_id) && r.average != null);
+      let classSum = 0, classPass = 0;
+
+      for (const st of studentsInClass) {
+        classSum += st.average;
+        overallSum += st.average;
+        overallCount++;
+        if (isPassing(st.overall_remark)) { classPass++; overallPass++; }
+        if (st.overall_grade) {
+          const body = st.exam_body || 'WAEC';
+          if (!gradeMap.has(body)) gradeMap.set(body, new Map());
+          const bodyGrades = gradeMap.get(body);
+          bodyGrades.set(st.overall_grade, (bodyGrades.get(st.overall_grade) || 0) + 1);
+        }
+
+        for (const subj of st.subjects) {
+          if (subj.total == null) continue;
+          if (!subjectMap.has(subj.subject)) subjectMap.set(subj.subject, { sum: 0, count: 0, pass: 0 });
+          const agg = subjectMap.get(subj.subject);
+          agg.sum += subj.total;
+          agg.count += 1;
+          if (isPassing(subj.remark)) agg.pass += 1;
+        }
+      }
+
+      if (studentsInClass.length > 0) {
+        byClass.push({
+          class_name: classNames[i],
+          avg: Math.round((classSum / studentsInClass.length) * 10) / 10,
+          pass_rate: Math.round((classPass / studentsInClass.length) * 1000) / 10,
+          count: studentsInClass.length,
+        });
+      }
+    }
+
+    byClass.sort((a, b) => b.avg - a.avg);
+
+    const bySubject = [...subjectMap.entries()]
+      .map(([subject, agg]) => ({
+        subject,
+        avg: Math.round((agg.sum / agg.count) * 10) / 10,
+        pass_rate: Math.round((agg.pass / agg.count) * 1000) / 10,
+        count: agg.count,
+      }))
+      .sort((a, b) => b.avg - a.avg);
+
+    const gradeOrder = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9', 'A', 'B+', 'B-', 'C+', 'C-', 'D', 'E', 'F'];
+    const gradeDistribution = [...gradeMap.entries()]
+      .map(([examBody, grades]) => ({
+        exam_body: examBody,
+        grades: [...grades.entries()]
+          .map(([grade, count]) => ({ grade, count }))
+          .sort((a, b) => gradeOrder.indexOf(a.grade) - gradeOrder.indexOf(b.grade)),
+      }))
+      .sort((a, b) => a.exam_body.localeCompare(b.exam_body));
+
+    res.json({
+      summary: {
+        total_students: overallCount,
+        average: overallCount ? Math.round((overallSum / overallCount) * 10) / 10 : null,
+        pass_rate: overallCount ? Math.round((overallPass / overallCount) * 1000) / 10 : null,
+        highest_class_avg: byClass.length ? byClass[0].avg : null,
+        lowest_class_avg: byClass.length ? byClass[byClass.length - 1].avg : null,
+      },
+      by_class: byClass,
+      by_subject: bySubject,
+      grade_distribution: gradeDistribution,
+      by_term: byTerm,
+    });
   } catch (err) { next(err); }
 });
 
