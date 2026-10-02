@@ -968,7 +968,7 @@ router.get('/reports/by-schedule', accountsAccess, async (req, res, next) => {
 // accountsAccess, same reasoning as the reports above.
 router.get('/reports/student-status', accountsAccess, async (req, res, next) => {
   try {
-    const { year_id, level_id, fee_schedule_id, status } = req.query;
+    const { year_id, level_id, fee_schedule_id, status, enrollment_status } = req.query;
 
     let classNames = null;
     if (level_id) {
@@ -980,9 +980,14 @@ router.get('/reports/student-status', accountsAccess, async (req, res, next) => 
       if (!classNames.length) return res.json({ rows: [], school: {} }); // level has no classes — nothing to show, not an error
     }
 
-    const conditions = ['s.school_id = $1', `s.status = 'Active'`];
+    const conditions = ['s.school_id = $1'];
     const params = [req.schoolId];
     let i = 2;
+    // Defaults to Active (today's behavior); 'all' drops the filter entirely —
+    // same convention as GET /api/students, so a graduated class's payment
+    // status can be reported on without disturbing the default active-only view.
+    const effectiveEnrollmentStatus = enrollment_status || 'Active';
+    if (effectiveEnrollmentStatus !== 'all') { conditions.push(`s.status = $${i++}`); params.push(effectiveEnrollmentStatus); }
     if (classNames)      { conditions.push(`s.class_name = ANY($${i++}::text[])`); params.push(classNames); }
 
     // Bill-scoping (year/schedule) applies inside the LEFT JOIN's own ON
@@ -1057,12 +1062,15 @@ router.get('/students/search', accountsAccess, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/fees/classes — distinct class names that have students with bills
+// GET /api/fees/classes — distinct class names, any enrollment status. Not
+// restricted to Active: the Arrears/Payments Report tabs that use this for
+// their Class filter already include every status in their own results, so
+// a class that's since fully graduated still needs to be selectable here.
 router.get('/classes', accountsAccess, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `SELECT DISTINCT s.class_name
-       FROM students s WHERE s.school_id=$1 AND s.status='Active' AND s.class_name IS NOT NULL
+       FROM students s WHERE s.school_id=$1 AND s.class_name IS NOT NULL
        ORDER BY s.class_name`,
       [req.schoolId]
     );

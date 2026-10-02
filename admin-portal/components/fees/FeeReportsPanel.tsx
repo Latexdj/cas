@@ -82,6 +82,7 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
   const [studentYearId, setStudentYearId] = useState('');
   const [levelId, setLevelId] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'unpaid'>('all');
+  const [enrollmentStatus, setEnrollmentStatus] = useState<'Active' | 'Graduated' | 'Inactive' | 'all'>('Active');
   const [scheduleFilter, setScheduleFilter] = useState<{ id: string; label: string } | null>(null);
   const [studentRows, setStudentRows] = useState<FeeStatusRow[]>([]);
   const [school, setSchool] = useState<SlSchool>({});
@@ -96,13 +97,14 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
           level_id: levelId || undefined,
           fee_schedule_id: scheduleFilter?.id,
           status: statusFilter,
+          enrollment_status: enrollmentStatus,
         },
       });
       setStudentRows(r.data.rows);
       setSchool(r.data.school);
     } catch { setStudentRows([]); }
     finally { setStudentLoading(false); }
-  }, [studentYearId, levelId, statusFilter, scheduleFilter]);
+  }, [studentYearId, levelId, statusFilter, enrollmentStatus, scheduleFilter]);
 
   useEffect(() => { if (subTab === 'student') loadStudents(); }, [subTab, loadStudents]);
 
@@ -117,7 +119,8 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
     else if (studentYearId) filterParts.push(years.find(y => y.id === studentYearId)?.name ?? 'Selected Year');
     else filterParts.push('All Time');
     if (levelId) filterParts.push(levels.find(l => l.id === levelId)?.name ?? 'Selected Group');
-    filterParts.push(statusFilter === 'all' ? 'All Students' : statusFilter === 'paid' ? 'Paid Only' : 'Unpaid Only');
+    if (enrollmentStatus !== 'all') filterParts.push(`${enrollmentStatus} Students`);
+    filterParts.push(statusFilter === 'all' ? 'All Payment Statuses' : statusFilter === 'paid' ? 'Paid Only' : 'Unpaid Only');
 
     const html = buildFeePaymentListHtml({
       title: 'Student Fee Payment Status',
@@ -243,6 +246,15 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
                 <select className={inputCls} value={levelId} onChange={e => setLevelId(e.target.value)}>
                   <option value="">All Year Groups</option>
                   {levels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Enrollment</label>
+                <select className={inputCls} value={enrollmentStatus} onChange={e => setEnrollmentStatus(e.target.value as typeof enrollmentStatus)}>
+                  <option value="Active">Active</option>
+                  <option value="Graduated">Graduated</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="all">All Students</option>
                 </select>
               </div>
               <div>
