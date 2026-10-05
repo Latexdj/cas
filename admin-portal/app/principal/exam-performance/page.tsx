@@ -148,7 +148,13 @@ export default function PrincipalExamPerformancePage() {
           <p style={{ fontSize: 13, color: textMuted }}>Could not load exam performance data.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ position: 'relative' }}>
+        {loading && (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 10, display: 'flex', justifyContent: 'center', paddingTop: 96 }}>
+            <div className="w-8 h-8 rounded-full border-4 border-[#145C44] border-t-transparent animate-spin" />
+          </div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, opacity: loading ? 0.4 : 1, pointerEvents: loading ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
           {data.by_term.length > 0 && (
             <Card title="Performance trend" subtitle="Terminal exam average by term, across every term on record — not blended with CA like the charts below">
               <ResponsiveContainer width="100%" height={260}>
@@ -244,6 +250,7 @@ export default function PrincipalExamPerformancePage() {
               )}
             </>
           )}
+        </div>
         </div>
       )}
     </div>

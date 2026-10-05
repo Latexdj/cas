@@ -133,7 +133,13 @@ export default function ExamPerformancePage() {
           <p className="text-sm text-slate-400">Could not load exam performance data.</p>
         </div>
       ) : (
-        <>
+        <div className="relative">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-start justify-center pt-24">
+            <div className="w-8 h-8 rounded-full border-4 border-[#145C44] border-t-transparent animate-spin" />
+          </div>
+        )}
+        <div className={loading ? 'opacity-40 pointer-events-none transition-opacity duration-200 space-y-6' : 'transition-opacity duration-200 space-y-6'}>
           {data.by_term.length > 0 && (
             <ChartCard title="Performance trend" subtitle="Terminal exam average by term, across every term on record — not blended with CA like the charts below">
               <ResponsiveContainer width="100%" height={260}>
@@ -236,7 +242,8 @@ export default function ExamPerformancePage() {
           )}
           </>
           )}
-        </>
+        </div>
+        </div>
       )}
     </div>
   );
