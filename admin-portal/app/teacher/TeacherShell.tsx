@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { getTeacher, getSchoolCode, getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { HelpWidget } from '@/components/HelpWidget';
+import { HelpWidget, HelpNavItem } from '@/components/HelpWidget';
 import { useEnabledModules } from '@/hooks/useEnabledModules';
 
 interface NavItem {
@@ -747,7 +747,7 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <HelpWidget apiClient={teacherApi} />
+      <HelpWidget apiClient={teacherApi} navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
 
       {/* ── Mobile bottom tab bar ── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 flex" style={{ height: 60, backgroundColor: dk.tabBarBg, borderTop: `1px solid ${dk.border}` }}>

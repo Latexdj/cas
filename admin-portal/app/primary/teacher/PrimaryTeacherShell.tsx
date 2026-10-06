@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { getTeacherUser, clearTeacherUser } from '@/lib/auth';
 import { teacherApi } from '@/lib/teacher-api';
-import { HelpWidget } from '@/components/HelpWidget';
+import { HelpWidget, HelpNavItem } from '@/components/HelpWidget';
 
 const NAV = [
   {
@@ -137,7 +137,7 @@ export default function PrimaryTeacherShell({ children }: { children: React.Reac
           {children}
         </main>
       </div>
-      <HelpWidget apiClient={teacherApi} />
+      <HelpWidget apiClient={teacherApi} navItems={NAV.map((i): HelpNavItem => ({ label: i.label, href: i.href }))} />
     </div>
   );
 }

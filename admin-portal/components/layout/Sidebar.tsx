@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
 import { getUser } from '@/lib/auth';
 import { useEnabledModules } from '@/hooks/useEnabledModules';
+import { HelpWidget, HelpNavItem } from '@/components/HelpWidget';
 
 type NavItem = { href: string; label: string; icon: React.ReactNode; module?: string };
 type Section = { label: string; items: NavItem[] };
@@ -513,6 +514,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   }).filter(section => section.items.length > 0);
 
   return (
+    <>
     <aside
       className={[
         // Mobile: fixed, slides in/out from left over content
@@ -655,5 +657,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </div>
       </div>
     </aside>
+    <HelpWidget navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
+    </>
   );
 }

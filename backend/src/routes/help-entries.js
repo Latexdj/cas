@@ -101,4 +101,27 @@ router.delete('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Logged knowledge-base gaps (questions Alex couldn't answer) ─────────────
+// super_admin sees gaps logged across every school (global entries are
+// super_admin's to write); admin sees only their own school's gaps.
+
+router.get('/gaps', async (req, res, next) => {
+  try {
+    const { rows } = req.user.role === 'super_admin'
+      ? await pool.query(`SELECT * FROM help_chat_gaps ORDER BY created_at DESC LIMIT 200`)
+      : await pool.query(`SELECT * FROM help_chat_gaps WHERE school_id = $1 ORDER BY created_at DESC LIMIT 200`, [req.schoolId]);
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.delete('/gaps/:id', async (req, res, next) => {
+  try {
+    const { rows } = req.user.role === 'super_admin'
+      ? await pool.query(`DELETE FROM help_chat_gaps WHERE id = $1 RETURNING id`, [req.params.id])
+      : await pool.query(`DELETE FROM help_chat_gaps WHERE id = $1 AND school_id = $2 RETURNING id`, [req.params.id, req.schoolId]);
+    if (!rows.length) return res.status(404).json({ error: 'Gap not found' });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

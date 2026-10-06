@@ -2652,6 +2652,22 @@ async function runMigrations() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_help_chat_sessions_school ON help_chat_sessions(school_id, created_at DESC)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] help_chat_sessions:', e.message); }
 
+    // Logs a question Alex genuinely couldn't answer (no matching help_entries
+    // row and nothing in the user's own nav menu), so content owners have a
+    // concrete list of what to write next instead of relying on chance.
+    try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS help_chat_gaps (
+        id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id  UUID        REFERENCES schools(id) ON DELETE CASCADE,
+        role       TEXT        NOT NULL,
+        question   TEXT        NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_help_chat_gaps_created ON help_chat_gaps(created_at DESC)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] help_chat_gaps:', e.message); }
+
     // ── ID Card module ────────────────────────────────────────────────────────
     try {
     await pool.query(`

@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import type { AxiosInstance } from 'axios';
 
 type Msg = { role: 'user' | 'assistant'; content: string };
+export type HelpNavItem = { section?: string; label: string; href: string };
 
 const C = {
   forest: '#0B3D2E', mid: '#145C44',
@@ -12,7 +13,7 @@ const C = {
   danger: '#B83232',
 };
 
-export function HelpWidget({ apiClient }: { apiClient?: AxiosInstance } = {}) {
+export function HelpWidget({ apiClient, navItems }: { apiClient?: AxiosInstance; navItems?: HelpNavItem[] } = {}) {
   const client = apiClient ?? api;
   const [open,      setOpen]      = useState(false);
   const [messages,  setMessages]  = useState<Msg[]>([]);
@@ -38,13 +39,13 @@ export function HelpWidget({ apiClient }: { apiClient?: AxiosInstance } = {}) {
     if (sessionId || starting) return;
     setStarting(true); setError('');
     try {
-      const { data } = await client.post('/api/help-chat/start');
+      const { data } = await client.post('/api/help-chat/start', { nav_items: navItems ?? [] });
       setSessionId(data.session_id);
       setMessages([{ role: 'assistant', content: data.welcome_message }]);
     } catch {
       setError('Could not start help session. Please try again.');
     } finally { setStarting(false); }
-  }, [sessionId, starting, client]);
+  }, [sessionId, starting, client, navItems]);
 
   async function openPanel() {
     setOpen(true);
@@ -66,7 +67,7 @@ export function HelpWidget({ apiClient }: { apiClient?: AxiosInstance } = {}) {
         setSessionId('');
         setMessages([]);
         try {
-          const s = await client.post('/api/help-chat/start');
+          const s = await client.post('/api/help-chat/start', { nav_items: navItems ?? [] });
           setSessionId(s.data.session_id);
           setMessages([{ role: 'assistant', content: s.data.welcome_message }]);
           const r = await client.post(`/api/help-chat/${s.data.session_id}/message`, { content: userContent });

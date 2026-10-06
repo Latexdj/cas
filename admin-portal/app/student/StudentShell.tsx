@@ -6,7 +6,7 @@ import { useTheme } from 'next-themes';
 import Link from 'next/link';
 import { getStudent, getStudentSchoolCode, getStudentColors, clearStudent } from '@/lib/student-auth';
 import { studentApi } from '@/lib/student-api';
-import { HelpWidget } from '@/components/HelpWidget';
+import { HelpWidget, HelpNavItem } from '@/components/HelpWidget';
 
 const PRIMARY = '#3B82F6';
 
@@ -361,7 +361,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
         <main className="flex-1 pb-20 md:pb-6">{children}</main>
       </div>
 
-      <HelpWidget apiClient={studentApi} />
+      <HelpWidget apiClient={studentApi} navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
 
       {/* ── Mobile More backdrop ── */}
       {moreOpen && (

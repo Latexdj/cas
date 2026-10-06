@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { getUser, clearUser } from '@/lib/auth';
-import { HelpWidget } from '@/components/HelpWidget';
+import { HelpWidget, HelpNavItem } from '@/components/HelpWidget';
 
 interface NavItem { href: string; label: string; d: string; }
 interface Section { title: string; items: NavItem[]; }
@@ -269,7 +269,7 @@ export default function PrimaryAdminShell({ children }: { children: React.ReactN
           {children}
         </main>
       </div>
-      <HelpWidget />
+      <HelpWidget navItems={SECTIONS.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.title, label: i.label, href: i.href })))} />
     </div>
   );
 }

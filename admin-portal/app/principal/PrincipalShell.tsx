@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { getPrincipal, clearPrincipal, getRoleLabel, type PrincipalUser } from '@/lib/principal-auth';
 import { principalApi } from '@/lib/principal-api';
-import { HelpWidget } from '@/components/HelpWidget';
+import { HelpWidget, HelpNavItem } from '@/components/HelpWidget';
 import { useEnabledModules } from '@/hooks/useEnabledModules';
 
 type NavItem = { href: string; label: string; icon: ReactNode; module?: string };
@@ -446,7 +446,7 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
-      <HelpWidget apiClient={principalApi} />
+      <HelpWidget apiClient={principalApi} navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
     </div>
   );
 }

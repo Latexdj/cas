@@ -14,6 +14,14 @@ interface HelpEntry {
   updated_at: string;
 }
 
+interface HelpGap {
+  id: string;
+  school_id: string | null;
+  role: string;
+  question: string;
+  created_at: string;
+}
+
 const C = {
   forest: '#0B3D2E', bg: '#F5F0E8', card: '#FDFAF5',
   border: '#E2D9CC', dark: '#2C2218', muted: '#8C7E6E',
@@ -179,6 +187,10 @@ export default function HelpEntriesPage() {
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState<string>('all');
 
+  const [gaps, setGaps]               = useState<HelpGap[]>([]);
+  const [gapsLoading, setGapsLoading] = useState(true);
+  const [dismissingGap, setDismissingGap] = useState<string | null>(null);
+
   const [showCreate, setShowCreate] = useState(false);
   const [cForm, setCForm]           = useState<EntryForm>(blank());
   const [cErr, setCErr]             = useState('');
@@ -209,7 +221,31 @@ export default function HelpEntriesPage() {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { load(); }, []);
+  async function loadGaps() {
+    setGapsLoading(true);
+    try {
+      const { data } = await api.get('/api/help-entries/gaps');
+      setGaps(data as HelpGap[]);
+    } catch { /* ignore */ }
+    finally { setGapsLoading(false); }
+  }
+
+  useEffect(() => { load(); loadGaps(); }, []);
+
+  async function dismissGap(id: string) {
+    setDismissingGap(id);
+    try {
+      await api.delete(`/api/help-entries/gaps/${id}`);
+      setGaps(prev => prev.filter(g => g.id !== id));
+    } catch { /* ignore */ }
+    finally { setDismissingGap(null); }
+  }
+
+  function writeEntryFromGap(gap: HelpGap) {
+    setShowCreate(true);
+    setCForm({ ...blank(), title: gap.question.slice(0, 120), applicable_roles: [gap.role] });
+    setCErr('');
+  }
 
   async function handleCreate() {
     if (!cForm.title.trim())        return setCErr('Title is required.');
@@ -303,6 +339,29 @@ export default function HelpEntriesPage() {
         </div>
         <Btn label="+ Add Entry" onClick={() => { setShowCreate(true); setCForm(blank()); setCErr(''); }} />
       </div>
+
+      {/* Logged gaps — real questions Alex couldn't answer */}
+      {!gapsLoading && gaps.length > 0 && (
+        <div style={{ marginBottom: 24, background: C.dangerBg, border: `1px solid ${C.danger}33`, borderRadius: 10, padding: '14px 16px' }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: C.danger, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+            Questions the Help assistant couldn&apos;t answer ({gaps.length})
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {gaps.map(g => (
+              <div key={g.id} style={{ background: '#fff', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, color: C.dark, margin: 0 }}>{g.question}</p>
+                  <p style={{ fontSize: 11, color: C.muted, margin: '3px 0 0' }}>{g.role}, {new Date(g.created_at).toLocaleDateString()}</p>
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <Btn small label="Write entry" onClick={() => writeEntryFromGap(g)} />
+                  <Btn small label="Dismiss" variant="ghost" disabled={dismissingGap === g.id} onClick={() => dismissGap(g.id)} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Role filter */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
