@@ -1,21 +1,8 @@
-'use client';
-import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { publicApi } from '@/lib/api';
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { hexToRgb, readableOn } from '@/lib/site-theme';
-import { SiteChrome, MenuNode } from '@/components/site/SiteChrome';
-
-interface SiteInfo {
-  school_name: string; logo_url: string | null; primary_color: string; accent_color: string;
-  motto: string | null; vision: string | null; mission: string | null; core_values: string | null;
-  address: string | null; phone: string | null; email: string | null;
-  school_type: string | null; headmaster_name: string | null; region: string | null; district: string | null;
-  hero_image_url: string | null; hero_tagline: string | null;
-  show_programs: boolean; show_admissions_cta: boolean; show_stats: boolean;
-  programs: { id: string; name: string }[];
-  stats: { students: number; faculty: number; programmes: number } | null;
-  admissions_slug: string | null;
-}
+import { SiteChrome } from '@/components/site/SiteChrome';
+import { getSiteBranding, getSitePage, getSiteMenu } from '@/lib/site-data';
 
 const SCHOOL_TYPE_LABELS: Record<string, string> = {
   Primary: 'Primary School', JHS: 'Junior High School', SHS: 'Senior High School',
@@ -38,47 +25,28 @@ function CheckIcon({ className }: { className?: string }) {
   );
 }
 
-export default function SchoolWebsitePage() {
-  const { slug }  = useParams<{ slug: string }>();
-  const [info,    setInfo]    = useState<SiteInfo | null>(null);
-  const [menu,    setMenu]    = useState<{ header: MenuNode[]; footer: MenuNode[] } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState('');
+type Params = Promise<{ slug: string }>;
 
-  const load = useCallback(async () => {
-    try {
-      const { data } = await publicApi.get(`/api/website/${slug}`);
-      setInfo(data);
-      publicApi.get(`/api/website/${slug}/menu`).then(r => setMenu(r.data)).catch(() => setMenu(null));
-    }
-    catch { setError('This school website could not be found.'); }
-    finally { setLoading(false); }
-  }, [slug]);
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { slug } = await params;
+  const [info, homePage] = await Promise.all([getSiteBranding(slug), getSitePage(slug, 'home')]);
+  if (!info) return { title: 'Site Not Found' };
 
-  useEffect(() => { load(); }, [load]);
+  const title = homePage?.seo_title || info.hero_tagline || info.motto || info.school_name;
+  const description = homePage?.seo_description || info.motto || undefined;
+  const image = homePage?.og_image_url || info.hero_image_url || info.logo_url || undefined;
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F5F0E8]">
-      <div className="text-center space-y-4">
-        <div className="w-12 h-12 rounded-full border-4 border-[#145C44] border-b-transparent animate-spin mx-auto" />
-        <p className="text-sm text-slate-500 font-medium">Loading site…</p>
-      </div>
-    </div>
-  );
+  return {
+    title: `${info.school_name}${title && title !== info.school_name ? ` — ${title}` : ''}`,
+    description,
+    openGraph: { title: info.school_name, description, images: image ? [image] : undefined },
+  };
+}
 
-  if (error || !info) return (
-    <div className="min-h-screen bg-[#F5F0E8] flex items-center justify-center p-6">
-      <div className="text-center space-y-4 max-w-sm">
-        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto">
-          <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-        </div>
-        <p className="text-xl font-bold text-slate-800">Site Not Found</p>
-        <p className="text-slate-500 text-sm">{error || 'This link does not point to a valid school website.'}</p>
-      </div>
-    </div>
-  );
+export default async function SchoolWebsitePage({ params }: { params: Params }) {
+  const { slug } = await params;
+  const [info, menu] = await Promise.all([getSiteBranding(slug), getSiteMenu(slug)]);
+  if (!info) notFound();
 
   const primary = info.primary_color || '#0B3D2E';
   const accent  = info.accent_color  || '#C8973A';

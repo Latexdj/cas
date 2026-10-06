@@ -26,6 +26,35 @@ async function getSchoolBySlug(slug) {
   return school;
 }
 
+// GET /api/website — every published, module-enabled school's slug plus its
+// published pages' slugs/updated_at. Public, no-auth (same "public is
+// public" design as the rest of this file) — used only to build
+// app/sitemap.ts; carries no content, just the URL shape.
+router.get('/', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT w.school_id, w.slug AS school_slug, w.updated_at AS site_updated_at,
+             p.slug AS page_slug, p.updated_at AS page_updated_at
+      FROM school_website_settings w
+      LEFT JOIN website_pages p ON p.school_id = w.school_id AND p.status = 'published' AND p.is_homepage = false
+      WHERE w.is_published = true
+      ORDER BY w.slug
+    `);
+    const bySchool = new Map();
+    for (const row of rows) {
+      if (!bySchool.has(row.school_id)) {
+        bySchool.set(row.school_id, { school_slug: row.school_slug, site_updated_at: row.site_updated_at, pages: [] });
+      }
+      if (row.page_slug) bySchool.get(row.school_id).pages.push({ slug: row.page_slug, updated_at: row.page_updated_at });
+    }
+    const result = [];
+    for (const [schoolId, entry] of bySchool) {
+      if (await isModuleEnabledForSchool(schoolId, 'website')) result.push(entry);
+    }
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
 // GET /api/website/:slug
 router.get('/:slug', async (req, res, next) => {
   try {

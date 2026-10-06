@@ -1,71 +1,30 @@
-'use client';
-import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { publicApi } from '@/lib/api';
-import { SiteChrome, MenuNode } from '@/components/site/SiteChrome';
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { SiteChrome } from '@/components/site/SiteChrome';
+import { getSiteBranding, getSitePage, getSiteMenu } from '@/lib/site-data';
 
-interface Branding {
-  school_name: string; logo_url: string | null; primary_color: string; accent_color: string;
-  motto: string | null; phone: string | null; email: string | null; address: string | null;
-  show_admissions_cta: boolean; admissions_slug: string | null;
+type Params = Promise<{ slug: string; page: string }>;
+
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { slug, page: pageSlug } = await params;
+  const [branding, page] = await Promise.all([getSiteBranding(slug), getSitePage(slug, pageSlug)]);
+  if (!branding || !page) return { title: 'Page Not Found' };
+
+  const title = page.seo_title || page.title;
+  const description = page.seo_description || undefined;
+  const image = page.og_image_url || branding.logo_url || undefined;
+
+  return {
+    title: `${title} — ${branding.school_name}`,
+    description,
+    openGraph: { title: `${title} — ${branding.school_name}`, description, images: image ? [image] : undefined },
+  };
 }
 
-interface PageContent {
-  slug: string; title: string; menu_label: string | null; content: string | null;
-  seo_title: string | null; seo_description: string | null; page_type: string;
-}
-
-export default function SchoolWebsiteSubPage() {
-  const { slug, page: pageSlug } = useParams<{ slug: string; page: string }>();
-  const [branding, setBranding] = useState<Branding | null>(null);
-  const [page,     setPage]     = useState<PageContent | null>(null);
-  const [menu,     setMenu]     = useState<{ header: MenuNode[]; footer: MenuNode[] } | null>(null);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState('');
-
-  const load = useCallback(async () => {
-    try {
-      const [{ data: b }, { data: p }] = await Promise.all([
-        publicApi.get(`/api/website/${slug}`),
-        publicApi.get(`/api/website/${slug}/pages/${pageSlug}`),
-      ]);
-      setBranding(b);
-      setPage(p);
-      publicApi.get(`/api/website/${slug}/menu`).then(r => setMenu(r.data)).catch(() => setMenu(null));
-    } catch {
-      setError('This page could not be found.');
-    } finally {
-      setLoading(false);
-    }
-  }, [slug, pageSlug]);
-
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    if (page) document.title = page.seo_title || page.title;
-  }, [page]);
-
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F5F0E8]">
-      <div className="text-center space-y-4">
-        <div className="w-12 h-12 rounded-full border-4 border-[#145C44] border-b-transparent animate-spin mx-auto" />
-        <p className="text-sm text-slate-500 font-medium">Loading…</p>
-      </div>
-    </div>
-  );
-
-  if (error || !branding || !page) return (
-    <div className="min-h-screen bg-[#F5F0E8] flex items-center justify-center p-6">
-      <div className="text-center space-y-4 max-w-sm">
-        <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto">
-          <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-        </div>
-        <p className="text-xl font-bold text-slate-800">Page Not Found</p>
-        <p className="text-slate-500 text-sm">{error || 'This page does not exist or has not been published yet.'}</p>
-      </div>
-    </div>
-  );
+export default async function SchoolWebsiteSubPage({ params }: { params: Params }) {
+  const { slug, page: pageSlug } = await params;
+  const [branding, page, menu] = await Promise.all([getSiteBranding(slug), getSitePage(slug, pageSlug), getSiteMenu(slug)]);
+  if (!branding || !page) notFound();
 
   const primary = branding.primary_color || '#0B3D2E';
   const accent  = branding.accent_color  || '#C8973A';
