@@ -2947,6 +2947,13 @@ async function runMigrations() {
       `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] school_website_settings:', e.message); }
 
+    // Opt-in live stat strip (real enrolment/faculty/programme counts, computed
+    // at request time) — off by default since showing real headcounts publicly
+    // is a school's call, not an assumed default.
+    try {
+      await pool.query(`ALTER TABLE school_website_settings ADD COLUMN IF NOT EXISTS show_stats BOOLEAN NOT NULL DEFAULT false`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] school_website_settings.show_stats:', e.message); }
+
     // Website module always-on backfill — same idiom as the admissions/lms/
     // discipline backfill above (new module key, default every existing
     // school to enabled=true since nobody had a website before this shipped).

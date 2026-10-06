@@ -7,15 +7,44 @@ interface SiteInfo {
   school_name: string; logo_url: string | null; primary_color: string; accent_color: string;
   motto: string | null; vision: string | null; mission: string | null; core_values: string | null;
   address: string | null; phone: string | null; email: string | null;
+  school_type: string | null; headmaster_name: string | null; region: string | null; district: string | null;
   hero_image_url: string | null; hero_tagline: string | null;
-  show_programs: boolean; show_admissions_cta: boolean;
+  show_programs: boolean; show_admissions_cta: boolean; show_stats: boolean;
   programs: { id: string; name: string }[];
+  stats: { students: number; faculty: number; programmes: number } | null;
   admissions_slug: string | null;
 }
+
+const SCHOOL_TYPE_LABELS: Record<string, string> = {
+  Primary: 'Primary School', JHS: 'Junior High School', SHS: 'Senior High School',
+  Technical: 'Technical School', University: 'University', Other: 'School',
+};
 
 function hexToRgb(hex: string) {
   const h = hex.replace('#', '');
   return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
+}
+
+// Readable text color against a given background hex (basic luminance check).
+function readableOn(hex: string) {
+  const { r, g, b } = hexToRgb(hex);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#1A1A1A' : '#FFFFFF';
+}
+
+function splitList(text: string | null): string[] {
+  if (!text) return [];
+  let parts = text.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  if (parts.length < 2) parts = text.split(';').map(s => s.trim()).filter(Boolean);
+  if (parts.length < 2) parts = text.split(',').map(s => s.trim()).filter(Boolean);
+  return parts.slice(0, 8);
+}
+
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+    </svg>
+  );
 }
 
 export default function SchoolWebsitePage() {
@@ -24,6 +53,7 @@ export default function SchoolWebsitePage() {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const load = useCallback(async () => {
     try { const { data } = await publicApi.get(`/api/website/${slug}`); setInfo(data); }
@@ -39,16 +69,16 @@ export default function SchoolWebsitePage() {
   }, []);
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%)' }}>
+    <div className="min-h-screen flex items-center justify-center bg-[#F5F0E8]">
       <div className="text-center space-y-4">
-        <div className="w-14 h-14 rounded-full border-4 border-green-600 border-t-transparent animate-spin mx-auto" />
+        <div className="w-12 h-12 rounded-full border-4 border-[#145C44] border-b-transparent animate-spin mx-auto" />
         <p className="text-sm text-slate-500 font-medium">Loading site…</p>
       </div>
     </div>
   );
 
   if (error || !info) return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[#F5F0E8] flex items-center justify-center p-6">
       <div className="text-center space-y-4 max-w-sm">
         <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto">
           <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -61,107 +91,206 @@ export default function SchoolWebsitePage() {
     </div>
   );
 
-  const primary = info.primary_color || '#16A34A';
-  const accent  = info.accent_color  || '#145C44';
+  const primary = info.primary_color || '#0B3D2E';
+  const accent  = info.accent_color  || '#C8973A';
+  const onPrimary = readableOn(primary);
   const { r, g, b } = hexToRgb(primary);
-  const hasAbout   = Boolean(info.motto || info.vision || info.mission || info.core_values);
+  const typeLabel = info.school_type ? SCHOOL_TYPE_LABELS[info.school_type] ?? info.school_type : null;
+  const coreValues = splitList(info.core_values);
+  const hasAbout   = Boolean(info.mission || info.vision || info.motto || coreValues.length);
   const hasContact = Boolean(info.phone || info.email || info.address);
+  const canApply   = Boolean(info.show_admissions_cta && info.admissions_slug);
+
+  const navLinks = [
+    hasAbout && { href: '#about', label: 'About' },
+    info.show_programs && info.programs.length > 0 && { href: '#academics', label: 'Academics' },
+    hasContact && { href: '#contact', label: 'Contact' },
+  ].filter(Boolean) as { href: string; label: string }[];
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen bg-[#F5F0E8] font-sans">
 
-      {/* Sticky Navbar */}
-      <header className={`fixed top-0 inset-x-0 z-50 transition-all duration-300 ${scrolled ? 'bg-white/95 backdrop-blur-md shadow-sm border-b border-slate-100' : 'bg-transparent'}`}>
+      {/* Nav */}
+      <header className={`fixed top-0 inset-x-0 z-50 transition-colors duration-300 ${scrolled ? 'bg-white shadow-sm' : 'bg-transparent'}`}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             {info.logo_url
-              ? <img src={info.logo_url} alt="Logo" className="w-9 h-9 object-contain rounded-lg" />
-              : <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: primary }}>{info.school_name[0]}</div>
+              ? <img src={info.logo_url} alt="" className="w-9 h-9 object-contain rounded-lg flex-shrink-0" />
+              : <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0" style={{ backgroundColor: accent, color: readableOn(accent) }}>{info.school_name[0]}</div>
             }
-            <span className={`font-bold text-sm truncate max-w-[200px] ${scrolled ? 'text-slate-900' : 'text-white'}`}>{info.school_name}</span>
+            <span className={`font-bold text-sm truncate ${scrolled ? 'text-slate-900' : 'text-white'}`}>{info.school_name}</span>
           </div>
-          <nav className="flex items-center gap-6">
-            {hasAbout && <a href="#about" className={`text-sm font-semibold hidden sm:inline ${scrolled ? 'text-slate-600' : 'text-white/90'}`}>About</a>}
-            {info.show_programs && info.programs.length > 0 && <a href="#academics" className={`text-sm font-semibold hidden sm:inline ${scrolled ? 'text-slate-600' : 'text-white/90'}`}>Academics</a>}
-            {hasContact && <a href="#contact" className={`text-sm font-semibold hidden sm:inline ${scrolled ? 'text-slate-600' : 'text-white/90'}`}>Contact</a>}
-            {info.admissions_slug && (
+          <nav className="hidden md:flex items-center gap-8">
+            {navLinks.map(l => (
+              <a key={l.href} href={l.href} className={`text-sm font-semibold transition-colors ${scrolled ? 'text-slate-600 hover:text-slate-900' : 'text-white/85 hover:text-white'}`}>{l.label}</a>
+            ))}
+            {canApply && (
               <a href={`/admissions/${info.admissions_slug}`}
-                className="px-5 py-2 rounded-full text-sm font-bold text-white shadow-lg transition-transform"
-                style={{ background: `linear-gradient(135deg, ${primary}, ${accent})` }}>
+                className="px-5 py-2 rounded-lg text-sm font-bold shadow-sm transition-transform hover:-translate-y-0.5"
+                style={{ backgroundColor: accent, color: readableOn(accent) }}>
                 Apply Now
               </a>
             )}
           </nav>
+          <button
+            className={`md:hidden p-2 rounded-lg ${scrolled ? 'text-slate-700' : 'text-white'}`}
+            onClick={() => setMenuOpen(v => !v)} aria-label="Toggle menu">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {menuOpen
+                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              }
+            </svg>
+          </button>
         </div>
+        {menuOpen && (
+          <div className="md:hidden bg-white border-t border-slate-100 shadow-sm">
+            <div className="px-6 py-4 flex flex-col gap-3">
+              {navLinks.map(l => (
+                <a key={l.href} href={l.href} onClick={() => setMenuOpen(false)} className="text-sm font-semibold text-slate-700">{l.label}</a>
+              ))}
+              {canApply && (
+                <a href={`/admissions/${info.admissions_slug}`}
+                  className="px-5 py-2.5 rounded-lg text-sm font-bold text-center"
+                  style={{ backgroundColor: accent, color: readableOn(accent) }}>
+                  Apply Now
+                </a>
+              )}
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Hero */}
-      <section className="relative min-h-[90vh] flex flex-col items-center justify-center overflow-hidden">
-        <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, rgba(${r},${g},${b},0.97) 0%, rgba(${r},${g},${b},0.85) 60%, rgba(${Math.max(0,r-30)},${Math.max(0,g-30)},${Math.max(0,b-30)},0.95) 100%)` }} />
-        {info.hero_image_url && (
-          <img src={info.hero_image_url} alt="Banner" className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-30" />
-        )}
-        <div className="absolute top-20 left-10 w-64 h-64 rounded-full bg-white/5 blur-3xl" />
-        <div className="absolute bottom-20 right-10 w-80 h-80 rounded-full bg-white/5 blur-3xl" />
-
-        <div className="relative z-10 text-center px-6 max-w-3xl mx-auto pt-20">
-          {info.logo_url && (
-            <div className="inline-flex items-center justify-center w-24 h-24 rounded-xl bg-white/15 backdrop-blur-sm border border-white/20 mb-8 shadow-2xl">
-              <img src={info.logo_url} alt="Logo" className="w-16 h-16 object-contain" />
+      <section className="relative pt-28 pb-16 md:pt-36 md:pb-24 px-6 overflow-hidden" style={{ backgroundColor: primary }}>
+        <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-14 items-center relative z-10">
+          <div>
+            {typeLabel && (
+              <div className="inline-flex items-center gap-2 mb-5">
+                <span className="w-6 h-px" style={{ backgroundColor: accent }} />
+                <span className="text-xs font-bold uppercase tracking-wide" style={{ color: accent }}>{typeLabel}{info.region ? ` in ${info.region}` : ''}</span>
+              </div>
+            )}
+            <h1 className="text-4xl md:text-5xl font-black leading-tight tracking-tight" style={{ color: onPrimary }}>
+              {info.school_name}
+            </h1>
+            {info.hero_tagline ? (
+              <p className="mt-4 text-xl md:text-2xl font-bold" style={{ color: accent }}>{info.hero_tagline}</p>
+            ) : info.motto ? (
+              <p className="mt-4 text-lg italic" style={{ color: onPrimary, opacity: 0.85 }}>&ldquo;{info.motto}&rdquo;</p>
+            ) : null}
+            <div className="mt-9 flex flex-wrap gap-3">
+              {canApply ? (
+                <a href={`/admissions/${info.admissions_slug}`}
+                  className="px-7 py-3.5 rounded-lg text-base font-bold shadow-lg transition-transform hover:-translate-y-0.5"
+                  style={{ backgroundColor: accent, color: readableOn(accent) }}>
+                  Apply Now
+                </a>
+              ) : hasContact && (
+                <a href="#contact"
+                  className="px-7 py-3.5 rounded-lg text-base font-bold shadow-lg transition-transform hover:-translate-y-0.5"
+                  style={{ backgroundColor: accent, color: readableOn(accent) }}>
+                  Contact Us
+                </a>
+              )}
+              {info.show_programs && info.programs.length > 0 && (
+                <a href="#academics"
+                  className="px-7 py-3.5 rounded-lg text-base font-bold border transition-colors"
+                  style={{ borderColor: `rgba(${onPrimary === '#FFFFFF' ? '255,255,255' : '0,0,0'},0.3)`, color: onPrimary }}>
+                  View Programmes
+                </a>
+              )}
             </div>
-          )}
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight tracking-tight">
-            {info.school_name}
-          </h1>
-          {(info.hero_tagline || info.motto) && (
-            <p className="mt-5 text-lg md:text-xl text-white/75 leading-relaxed max-w-xl mx-auto">{info.hero_tagline || info.motto}</p>
-          )}
-          {info.admissions_slug && (
-            <div className="mt-10">
-              <a href={`/admissions/${info.admissions_slug}`}
-                className="inline-flex items-center px-8 py-4 rounded-xl text-base font-bold text-white shadow-2xl transition-all duration-200"
-                style={{ background: 'linear-gradient(135deg,rgba(255,255,255,0.25),rgba(255,255,255,0.10))', border: '1.5px solid rgba(255,255,255,0.35)' }}>
-                Apply Now
-                <svg className="inline-block w-5 h-5 ml-2 -mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-              </a>
-            </div>
-          )}
-        </div>
+          </div>
 
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-          <svg className="w-6 h-6 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+          <div className="relative">
+            {info.hero_image_url ? (
+              <div className="rounded-2xl overflow-hidden shadow-2xl aspect-[4/3]">
+                <img src={info.hero_image_url} alt="" className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="rounded-2xl aspect-[4/3] flex items-center justify-center" style={{ backgroundColor: `rgba(${r},${g},${b},0.4)`, border: `1px solid rgba(${onPrimary === '#FFFFFF' ? '255,255,255' : '0,0,0'},0.15)` }}>
+                {info.logo_url
+                  ? <img src={info.logo_url} alt="" className="w-28 h-28 object-contain opacity-90" />
+                  : <span className="text-7xl font-black" style={{ color: onPrimary, opacity: 0.25 }}>{info.school_name[0]}</span>
+                }
+              </div>
+            )}
+            {info.show_stats && info.stats && (
+              <div className="absolute -bottom-6 -left-6 bg-white rounded-xl shadow-xl px-5 py-4 hidden sm:block">
+                <p className="text-3xl font-black text-slate-900">{info.stats.students}+</p>
+                <p className="text-xs font-semibold text-slate-500 mt-0.5">Active Students</p>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
+      {/* Stats bar */}
+      {info.show_stats && info.stats && (
+        <section className="py-8 px-6" style={{ backgroundColor: accent }}>
+          <div className="max-w-6xl mx-auto grid grid-cols-3 gap-6 text-center">
+            {[
+              { n: info.stats.students, label: 'Active Students' },
+              { n: info.stats.faculty, label: 'Faculty Members' },
+              { n: info.stats.programmes, label: 'Programmes' },
+            ].map(s => (
+              <div key={s.label}>
+                <p className="text-3xl md:text-4xl font-black" style={{ color: readableOn(accent) }}>{s.n}</p>
+                <p className="text-xs md:text-sm font-semibold mt-1" style={{ color: readableOn(accent), opacity: 0.85 }}>{s.label}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* About */}
       {hasAbout && (
-        <section id="about" className="bg-white py-20 px-6">
-          <div className="max-w-5xl mx-auto">
-            <div className="text-center mb-14">
-              <p className="text-xs font-bold mb-2" style={{ color: primary }}>Who We Are</p>
-              <h2 className="text-3xl font-black text-slate-900">About {info.school_name}</h2>
+        <section id="about" className="py-20 px-6 bg-white">
+          <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-14 items-start">
+            <div className="relative">
+              {info.hero_image_url ? (
+                <div className="rounded-2xl overflow-hidden shadow-lg aspect-[4/3]">
+                  <img src={info.hero_image_url} alt="" className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <div className="rounded-2xl aspect-[4/3] flex items-center justify-center" style={{ backgroundColor: `rgba(${r},${g},${b},0.08)` }}>
+                  {info.logo_url && <img src={info.logo_url} alt="" className="w-24 h-24 object-contain opacity-70" />}
+                </div>
+              )}
+              {info.headmaster_name && (
+                <div className="absolute -bottom-5 left-6 bg-white rounded-xl shadow-lg px-5 py-3">
+                  <p className="text-xs text-slate-400 font-semibold">Led by</p>
+                  <p className="font-bold text-slate-800 text-sm">{info.headmaster_name}</p>
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {info.vision && (
-                <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100">
-                  <h3 className="font-bold text-slate-900 mb-3">Our Vision</h3>
+
+            <div>
+              <div className="inline-flex items-center gap-2 mb-3">
+                <span className="w-6 h-px" style={{ backgroundColor: primary }} />
+                <span className="text-xs font-bold uppercase tracking-wide" style={{ color: primary }}>Who We Are</span>
+              </div>
+              <h2 className="text-3xl font-black text-slate-900">About {info.school_name}</h2>
+              {(info.mission || info.vision) && (
+                <p className="mt-4 text-slate-600 leading-relaxed whitespace-pre-wrap">{info.mission || info.vision}</p>
+              )}
+              {coreValues.length > 0 && (
+                <ul className="mt-7 space-y-3">
+                  {coreValues.map(v => (
+                    <li key={v} className="flex items-start gap-3">
+                      <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: `rgba(${r},${g},${b},0.12)` }}>
+                        <CheckIcon className="w-3 h-3" />
+                      </span>
+                      <span className="text-sm text-slate-700 font-medium">{v}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {info.mission && info.vision && (
+                <div className="mt-7 rounded-xl p-5 border-l-4" style={{ borderColor: accent, backgroundColor: `rgba(${r},${g},${b},0.04)` }}>
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400 mb-1.5">Our Vision</p>
                   <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{info.vision}</p>
-                </div>
-              )}
-              {info.mission && (
-                <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100">
-                  <h3 className="font-bold text-slate-900 mb-3">Our Mission</h3>
-                  <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{info.mission}</p>
-                </div>
-              )}
-              {info.core_values && (
-                <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 md:col-span-2">
-                  <h3 className="font-bold text-slate-900 mb-3">Our Core Values</h3>
-                  <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{info.core_values}</p>
                 </div>
               )}
             </div>
@@ -171,17 +300,22 @@ export default function SchoolWebsitePage() {
 
       {/* Academics */}
       {info.show_programs && info.programs.length > 0 && (
-        <section id="academics" className="py-20 px-6">
-          <div className="max-w-5xl mx-auto">
-            <div className="text-center mb-10">
-              <p className="text-xs font-bold mb-2" style={{ color: primary }}>What We Offer</p>
+        <section id="academics" className="py-20 px-6" style={{ backgroundColor: '#F5F0E8' }}>
+          <div className="max-w-6xl mx-auto">
+            <div className="mb-12">
+              <div className="inline-flex items-center gap-2 mb-3">
+                <span className="w-6 h-px" style={{ backgroundColor: primary }} />
+                <span className="text-xs font-bold uppercase tracking-wide" style={{ color: primary }}>What We Offer</span>
+              </div>
               <h2 className="text-3xl font-black text-slate-900">Academic Programmes</h2>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {info.programs.map((p, i) => (
-                <div key={p.id} className="flex items-center gap-4 p-5 rounded-xl border border-slate-100 bg-white hover:shadow-lg transition-all duration-200">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-xs font-black flex-shrink-0" style={{ background: `linear-gradient(135deg, ${primary}, ${accent})` }}>
-                    {String(i + 1).padStart(2,'0')}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {info.programs.map(p => (
+                <div key={p.id} className="flex items-center gap-4 p-5 rounded-xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: primary }}>
+                    <svg className="w-5 h-5" style={{ color: onPrimary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.42A12.083 12.083 0 0112 21.5a12.083 12.083 0 01-6.16-10.92L12 14z" />
+                    </svg>
                   </div>
                   <p className="font-semibold text-slate-800">{p.name}</p>
                 </div>
@@ -191,52 +325,72 @@ export default function SchoolWebsitePage() {
         </section>
       )}
 
+      {/* Apply CTA banner */}
+      {canApply && (
+        <section className="px-6 py-14" style={{ backgroundColor: primary }}>
+          <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+            <div>
+              <h3 className="text-2xl font-black" style={{ color: onPrimary }}>Ready to join {info.school_name}?</h3>
+              <p className="mt-1.5 text-sm" style={{ color: onPrimary, opacity: 0.75 }}>Start your application through our admissions portal.</p>
+            </div>
+            <a href={`/admissions/${info.admissions_slug}`}
+              className="px-8 py-3.5 rounded-lg text-base font-bold shadow-lg whitespace-nowrap transition-transform hover:-translate-y-0.5"
+              style={{ backgroundColor: accent, color: readableOn(accent) }}>
+              Apply Now
+            </a>
+          </div>
+        </section>
+      )}
+
       {/* Contact */}
       {hasContact && (
-        <section id="contact" className="bg-white py-16 px-6">
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-10">
-              <p className="text-xs font-bold mb-2" style={{ color: primary }}>Get In Touch</p>
+        <section id="contact" className="bg-white py-20 px-6">
+          <div className="max-w-6xl mx-auto">
+            <div className="mb-12">
+              <div className="inline-flex items-center gap-2 mb-3">
+                <span className="w-6 h-px" style={{ backgroundColor: primary }} />
+                <span className="text-xs font-bold uppercase tracking-wide" style={{ color: primary }}>Get In Touch</span>
+              </div>
               <h2 className="text-3xl font-black text-slate-900">Contact Us</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-10">
               {info.phone && (
-                <a href={`tel:${info.phone}`} className="flex flex-col items-center gap-3 p-6 bg-slate-50 rounded-3xl border border-slate-100 hover:shadow-md transition-shadow text-center">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
-                    <svg className="w-6 h-6" style={{ color: primary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <a href={`tel:${info.phone}`} className="flex items-center gap-4 p-5 rounded-xl border border-slate-100 bg-[#F5F0E8]/60 hover:shadow-md transition-shadow">
+                  <div className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
+                    <svg className="w-5 h-5" style={{ color: primary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-slate-400 font-semibold">Phone</p>
-                    <p className="font-bold text-slate-800 mt-0.5">{info.phone}</p>
+                    <p className="font-bold text-slate-800 text-sm truncate">{info.phone}</p>
                   </div>
                 </a>
               )}
               {info.email && (
-                <a href={`mailto:${info.email}`} className="flex flex-col items-center gap-3 p-6 bg-slate-50 rounded-3xl border border-slate-100 hover:shadow-md transition-shadow text-center">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
-                    <svg className="w-6 h-6" style={{ color: primary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <a href={`mailto:${info.email}`} className="flex items-center gap-4 p-5 rounded-xl border border-slate-100 bg-[#F5F0E8]/60 hover:shadow-md transition-shadow">
+                  <div className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
+                    <svg className="w-5 h-5" style={{ color: primary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-slate-400 font-semibold">Email</p>
-                    <p className="font-bold text-slate-800 mt-0.5 text-sm break-all">{info.email}</p>
+                    <p className="font-bold text-slate-800 text-sm truncate">{info.email}</p>
                   </div>
                 </a>
               )}
               {info.address && (
-                <div className="flex flex-col items-center gap-3 p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
-                    <svg className="w-6 h-6" style={{ color: primary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex items-center gap-4 p-5 rounded-xl border border-slate-100 bg-[#F5F0E8]/60">
+                  <div className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `rgba(${r},${g},${b},0.1)` }}>
+                    <svg className="w-5 h-5" style={{ color: primary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-slate-400 font-semibold">Address</p>
-                    <p className="font-semibold text-slate-800 mt-0.5 text-sm">{info.address}</p>
+                    <p className="font-semibold text-slate-800 text-sm">{info.address}</p>
                   </div>
                 </div>
               )}
@@ -246,16 +400,42 @@ export default function SchoolWebsitePage() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-slate-100 bg-white py-8">
-        <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            {info.logo_url
-              ? <img src={info.logo_url} alt="Logo" className="w-7 h-7 object-contain rounded" />
-              : <div className="w-7 h-7 rounded flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: primary }}>{info.school_name[0]}</div>
-            }
-            <span className="text-sm font-semibold text-slate-700">{info.school_name}</span>
+      <footer className="pt-16 pb-8 px-6" style={{ backgroundColor: primary }}>
+        <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-10 mb-10">
+          <div className="col-span-2">
+            <div className="flex items-center gap-3 mb-3">
+              {info.logo_url
+                ? <img src={info.logo_url} alt="" className="w-8 h-8 object-contain rounded" />
+                : <div className="w-8 h-8 rounded flex items-center justify-center font-bold text-xs" style={{ backgroundColor: accent, color: readableOn(accent) }}>{info.school_name[0]}</div>
+              }
+              <span className="font-bold" style={{ color: onPrimary }}>{info.school_name}</span>
+            </div>
+            {info.motto && <p className="text-sm italic max-w-xs" style={{ color: onPrimary, opacity: 0.65 }}>&ldquo;{info.motto}&rdquo;</p>}
           </div>
-          <p className="text-xs text-slate-400">Powered by <span className="font-semibold text-slate-500">CAS School Management System</span></p>
+          {navLinks.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide mb-4" style={{ color: accent }}>Quick Links</p>
+              <ul className="space-y-2.5">
+                {navLinks.map(l => (
+                  <li key={l.href}><a href={l.href} className="text-sm hover:underline" style={{ color: onPrimary, opacity: 0.75 }}>{l.label}</a></li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {hasContact && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide mb-4" style={{ color: accent }}>Contact</p>
+              <ul className="space-y-2.5 text-sm" style={{ color: onPrimary, opacity: 0.75 }}>
+                {info.phone && <li>{info.phone}</li>}
+                {info.email && <li className="break-all">{info.email}</li>}
+                {info.address && <li>{info.address}</li>}
+              </ul>
+            </div>
+          )}
+        </div>
+        <div className="max-w-6xl mx-auto pt-6 flex flex-col sm:flex-row items-center justify-between gap-3" style={{ borderTop: `1px solid rgba(${onPrimary === '#FFFFFF' ? '255,255,255' : '0,0,0'},0.12)` }}>
+          <p className="text-xs" style={{ color: onPrimary, opacity: 0.55 }}>© {new Date().getFullYear()} {info.school_name}. All rights reserved.</p>
+          <p className="text-xs" style={{ color: onPrimary, opacity: 0.55 }}>Powered by <span className="font-semibold" style={{ opacity: 0.85 }}>CAS School Management System</span></p>
         </div>
       </footer>
     </div>

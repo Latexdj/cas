@@ -12,6 +12,7 @@ interface Settings {
   hero_tagline?: string;
   show_programs?: boolean;
   show_admissions_cta?: boolean;
+  show_stats?: boolean;
 }
 
 const inputCls = 'mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
@@ -132,6 +133,17 @@ export default function WebsiteSettingsPage() {
             onClick={() => setSettings(s => ({ ...s, show_admissions_cta: !s.show_admissions_cta }))}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.show_admissions_cta ? 'bg-[#145C44]' : 'bg-slate-300'}`}>
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${settings.show_admissions_cta ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-medium text-slate-800">Show live stats bar</p>
+            <p className="text-xs text-slate-400 mt-0.5">Displays your current active student count, faculty count and number of programmes. Updates automatically — off by default.</p>
+          </div>
+          <button
+            onClick={() => setSettings(s => ({ ...s, show_stats: !s.show_stats }))}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.show_stats ? 'bg-[#145C44]' : 'bg-slate-300'}`}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${settings.show_stats ? 'translate-x-6' : 'translate-x-1'}`} />
           </button>
         </div>
       </section>

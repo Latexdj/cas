@@ -14,14 +14,14 @@ router.get('/settings', async (req, res, next) => {
       `SELECT * FROM school_website_settings WHERE school_id = $1`, [req.schoolId]
     );
     res.json(rows[0] ?? { school_id: req.schoolId, is_published: false,
-      show_programs: true, show_admissions_cta: true });
+      show_programs: true, show_admissions_cta: true, show_stats: false });
   } catch (err) { next(err); }
 });
 
 router.patch('/settings', async (req, res, next) => {
   try {
     const {
-      slug, is_published, hero_tagline, show_programs, show_admissions_cta,
+      slug, is_published, hero_tagline, show_programs, show_admissions_cta, show_stats,
       hero_image_data,
     } = req.body;
 
@@ -30,8 +30,8 @@ router.patch('/settings', async (req, res, next) => {
 
     const { rows } = await pool.query(
       `INSERT INTO school_website_settings
-         (school_id, slug, is_published, hero_image_url, hero_tagline, show_programs, show_admissions_cta, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,now())
+         (school_id, slug, is_published, hero_image_url, hero_tagline, show_programs, show_admissions_cta, show_stats, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now())
        ON CONFLICT (school_id) DO UPDATE SET
          slug                = COALESCE(EXCLUDED.slug,                school_website_settings.slug),
          is_published         = COALESCE(EXCLUDED.is_published,        school_website_settings.is_published),
@@ -39,13 +39,15 @@ router.patch('/settings', async (req, res, next) => {
          hero_tagline         = COALESCE(EXCLUDED.hero_tagline,        school_website_settings.hero_tagline),
          show_programs        = COALESCE(EXCLUDED.show_programs,       school_website_settings.show_programs),
          show_admissions_cta  = COALESCE(EXCLUDED.show_admissions_cta, school_website_settings.show_admissions_cta),
+         show_stats           = COALESCE(EXCLUDED.show_stats,          school_website_settings.show_stats),
          updated_at           = now()
        RETURNING *`,
       [req.schoolId, slug || null,
        is_published !== undefined ? Boolean(is_published) : null,
        hero_image_url, hero_tagline || null,
        show_programs !== undefined ? Boolean(show_programs) : null,
-       show_admissions_cta !== undefined ? Boolean(show_admissions_cta) : null]
+       show_admissions_cta !== undefined ? Boolean(show_admissions_cta) : null,
+       show_stats !== undefined ? Boolean(show_stats) : null]
     );
     res.json(rows[0]);
   } catch (err) {
