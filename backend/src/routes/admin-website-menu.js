@@ -2,6 +2,7 @@ const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
+const { findOversizedField } = require('../utils/websiteValidation');
 
 router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('website'));
 
@@ -32,7 +33,7 @@ router.get('/', async (req, res, next) => {
     const location = req.query.location === 'footer' ? 'footer' : 'header';
     const { rows } = await pool.query(
       `SELECT m.*, p.slug AS page_slug, p.title AS page_title
-       FROM website_menu_items m LEFT JOIN website_pages p ON p.id = m.page_id
+       FROM website_menu_items m LEFT JOIN website_pages p ON p.id = m.page_id AND p.school_id = m.school_id
        WHERE m.school_id = $1 AND m.location = $2
        ORDER BY m.sort_order`,
       [req.schoolId, location]
@@ -46,6 +47,8 @@ router.post('/', async (req, res, next) => {
     const { location, label, page_id, external_url, parent_id, open_new_tab, is_visible } = req.body;
     if (!location || !['header', 'footer'].includes(location)) return res.status(400).json({ error: 'Location must be header or footer.' });
     if (!label) return res.status(400).json({ error: 'Label is required.' });
+    const oversized = findOversizedField({ label });
+    if (oversized) return res.status(400).json({ error: `Label must be ${oversized.limit} characters or fewer.` });
     if (!page_id && !external_url) return res.status(400).json({ error: 'A page or an external URL is required.' });
     if (page_id && external_url) return res.status(400).json({ error: 'Choose either a page or an external URL, not both.' });
     if (external_url && !isSafeExternalUrl(external_url)) return res.status(400).json({ error: 'That URL is not allowed. Use an anchor (#section), a site-relative path (/page), or a full http(s) link.' });
@@ -54,8 +57,11 @@ router.post('/', async (req, res, next) => {
       if (!owned.length) return res.status(400).json({ error: 'That page does not exist.' });
     }
     if (parent_id) {
-      const { rows: parentOwned } = await pool.query(`SELECT 1 FROM website_menu_items WHERE id = $1 AND school_id = $2 AND location = $3`, [parent_id, req.schoolId, location]);
+      // Menu nesting is one level deep by design: the chosen parent must
+      // itself be a top-level item, or this would create a grandchild.
+      const { rows: parentOwned } = await pool.query(`SELECT parent_id FROM website_menu_items WHERE id = $1 AND school_id = $2 AND location = $3`, [parent_id, req.schoolId, location]);
       if (!parentOwned.length) return res.status(400).json({ error: 'That parent menu item does not exist.' });
+      if (parentOwned[0].parent_id) return res.status(400).json({ error: 'Menu nesting only supports one level — that item is already a child, so it cannot have children of its own.' });
     }
 
     const { rows: maxRow } = await pool.query(
@@ -77,6 +83,10 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const { label, page_id, external_url, parent_id, sort_order, open_new_tab, is_visible } = req.body;
+    if (label !== undefined) {
+      const oversized = findOversizedField({ label });
+      if (oversized) return res.status(400).json({ error: `Label must be ${oversized.limit} characters or fewer.` });
+    }
     if (page_id && external_url) return res.status(400).json({ error: 'Choose either a page or an external URL, not both.' });
     if (external_url && !isSafeExternalUrl(external_url)) return res.status(400).json({ error: 'That URL is not allowed. Use an anchor (#section), a site-relative path (/page), or a full http(s) link.' });
     if (page_id) {
@@ -85,8 +95,15 @@ router.patch('/:id', async (req, res, next) => {
     }
     if (parent_id) {
       if (parent_id === req.params.id) return res.status(400).json({ error: 'A menu item cannot be its own parent.' });
-      const { rows: parentOwned } = await pool.query(`SELECT 1 FROM website_menu_items WHERE id = $1 AND school_id = $2`, [parent_id, req.schoolId]);
+      // One level of nesting, enforced both directions: the target parent
+      // must be top-level (no grandchildren), and the item being re-parented
+      // must not itself already have children (no indirectly-created
+      // grandchildren via re-parenting an existing parent).
+      const { rows: parentOwned } = await pool.query(`SELECT parent_id FROM website_menu_items WHERE id = $1 AND school_id = $2`, [parent_id, req.schoolId]);
       if (!parentOwned.length) return res.status(400).json({ error: 'That parent menu item does not exist.' });
+      if (parentOwned[0].parent_id) return res.status(400).json({ error: 'Menu nesting only supports one level — that item is already a child, so it cannot have children of its own.' });
+      const { rows: ownChildren } = await pool.query(`SELECT 1 FROM website_menu_items WHERE parent_id = $1 AND school_id = $2 LIMIT 1`, [req.params.id, req.schoolId]);
+      if (ownChildren.length) return res.status(400).json({ error: 'This item already has children of its own — nesting it under another item would create a third level.' });
     }
 
     const { rows } = await pool.query(

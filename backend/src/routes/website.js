@@ -93,7 +93,7 @@ router.get('/:slug/menu', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT m.id, m.location, m.label, m.external_url, m.parent_id, m.open_new_tab,
               p.slug AS page_slug
-       FROM website_menu_items m LEFT JOIN website_pages p ON p.id = m.page_id
+       FROM website_menu_items m LEFT JOIN website_pages p ON p.id = m.page_id AND p.school_id = m.school_id
        WHERE m.school_id = $1 AND m.is_visible = true
          AND (m.page_id IS NULL OR p.status = 'published')
        ORDER BY m.sort_order`,

@@ -43,7 +43,9 @@ function schoolRow(overrides = {}) {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  // mockReset, not clearAllMocks — see website-navigation.test.js for why.
+  mockQuery.mockReset();
+  mockIsModuleEnabled.mockReset();
   mockIsModuleEnabled.mockResolvedValue(true);
 });
 
@@ -70,6 +72,18 @@ describe('GET /:slug/pages/:pageSlug — draft/published visibility', () => {
     expect(res.status).toBe(404);
     const pageQueryParams = mockQuery.mock.calls[1][0];
     expect(pageQueryParams).toMatch(/status = 'published'/);
+  });
+
+  it('a page that WAS published and is edited back to draft stops being served publicly — no caching/alternate-route leak', async () => {
+    // Same page id, same slug — only its status column changed. The public
+    // query is state-driven (status = 'published' at read time), not based
+    // on any cached "this was public once" flag, so a status flip alone is
+    // enough to revoke public access with no separate cache-bust step needed.
+    mockQuery
+      .mockResolvedValueOnce({ rows: [schoolRow()] })
+      .mockResolvedValueOnce({ rows: [] }); // the row still exists, just status='draft' now, so the filter excludes it
+    const res = await request(buildApp()).get('/api/website/test-school/pages/about');
+    expect(res.status).toBe(404);
   });
 
   it('200s for a published page on a published site', async () => {

@@ -41,7 +41,11 @@ function buildApp() {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  // mockReset (not clearAllMocks) — clearAllMocks only wipes call history,
+  // it leaves any queued mockResolvedValueOnce() responses a previous test
+  // didn't fully consume sitting in the queue, where they leak into the
+  // next test's first query call. mockReset wipes the queue too.
+  mockQuery.mockReset();
   mockCurrentUser = { id: ADMIN_A, role: 'admin', schoolId: SCHOOL_A };
   mockCurrentSchool = SCHOOL_A;
   mockQuery.mockResolvedValue({ rows: [] });
@@ -75,6 +79,56 @@ describe('Cross-tenant resource injection — POST /', () => {
       location: 'header', label: 'Sneaky Child', external_url: '#x', parent_id: 'parent-owned-by-another-school',
     });
     expect(res.status).toBe(400);
+  });
+});
+
+// ── One-level nesting enforcement (server-side, not just UI) ─────────────────
+
+describe('One-level nesting — POST / rejects a grandchild', () => {
+  it('rejects nesting under a parent that is itself already a child', async () => {
+    // Ownership check returns a row WITH a non-null parent_id — i.e. the
+    // chosen "parent" is already nested one level deep.
+    mockQuery.mockResolvedValueOnce({ rows: [{ parent_id: 'top-level-item' }] });
+    const res = await request(buildApp()).post('/api/admin/website/menu').send({
+      location: 'header', label: 'Grandchild Attempt', external_url: '#x', parent_id: 'already-a-child',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts nesting under a genuinely top-level parent', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ parent_id: null }] }) // parent is top-level
+      .mockResolvedValueOnce({ rows: [{ next: 0 }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'item-1' }] });
+    const res = await request(buildApp()).post('/api/admin/website/menu').send({
+      location: 'header', label: 'Valid Child', external_url: '#x', parent_id: 'top-level-item',
+    });
+    expect(res.status).toBe(201);
+  });
+});
+
+describe('One-level nesting — PATCH /:id rejects creating a grandchild either direction', () => {
+  it('rejects re-parenting under an already-nested item (direct grandchild)', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ parent_id: 'top-level-item' }] }); // target parent is itself a child
+    const res = await request(buildApp()).patch('/api/admin/website/menu/item-1').send({ parent_id: 'already-a-child' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects re-parenting an item that already has children of its own (indirect grandchild)', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ parent_id: null }] })   // chosen parent is top-level — fine on its own
+      .mockResolvedValueOnce({ rows: [{ 1: 1 }] });              // but the item being moved already has children
+    const res = await request(buildApp()).patch('/api/admin/website/menu/item-with-children').send({ parent_id: 'some-top-level-item' });
+    expect(res.status).toBe(400);
+  });
+
+  it('allows re-parenting a genuinely childless item under a genuinely top-level item', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ parent_id: null }] })
+      .mockResolvedValueOnce({ rows: [] }) // no children of its own
+      .mockResolvedValueOnce({ rows: [{ id: 'item-1' }] }); // UPDATE
+    const res = await request(buildApp()).patch('/api/admin/website/menu/item-1').send({ parent_id: 'top-level-item' });
+    expect(res.status).toBe(200);
   });
 });
 
@@ -141,6 +195,37 @@ describe('Basic field validation', () => {
       location: 'sidebar', label: 'Bad location', external_url: '#x',
     });
     expect(res.status).toBe(400);
+  });
+});
+
+// ── Label length validation ────────────────────────────────────────────────
+
+describe('Label length validation', () => {
+  it('rejects a menu label over 60 characters', async () => {
+    const res = await request(buildApp()).post('/api/admin/website/menu').send({
+      location: 'header', label: 'A'.repeat(61), external_url: '#x',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts a menu label at exactly the 60-character limit', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ next: 0 }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'item-1' }] });
+    const res = await request(buildApp()).post('/api/admin/website/menu').send({
+      location: 'header', label: 'A'.repeat(60), external_url: '#x',
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('a normal, realistic label is unaffected', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ next: 0 }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'item-1' }] });
+    const res = await request(buildApp()).post('/api/admin/website/menu').send({
+      location: 'header', label: 'Student Life & Activities', external_url: '#x',
+    });
+    expect(res.status).toBe(201);
   });
 });
 

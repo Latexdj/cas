@@ -44,7 +44,10 @@ function buildApp() {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  // mockReset, not clearAllMocks — see website-navigation.test.js for why:
+  // clearAllMocks leaves unconsumed mockResolvedValueOnce() queue entries
+  // in place, where they leak into the next test's first query call.
+  mockQuery.mockReset();
   mockCurrentUser = { id: ADMIN_A, role: 'admin', schoolId: SCHOOL_A };
   mockCurrentSchool = SCHOOL_A;
   mockQuery.mockResolvedValue({ rows: [] });
@@ -89,6 +92,72 @@ describe('Tenant isolation — PATCH/DELETE/duplicate scope every query by schoo
     mockQuery.mockResolvedValueOnce({ rows: [] }); // source lookup scoped to SCHOOL_A finds nothing
     const res = await request(buildApp()).post('/api/admin/website/pages/page-owned-by-b/duplicate');
     expect(res.status).toBe(404);
+  });
+
+  it('a duplicate always starts as draft, even when the source page was published', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'src-1', slug: 'about', title: 'About', status: 'published', page_type: 'standard', content: '<p>x</p>' }] });
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // slug-clash check: "about-copy" is free
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'new-1', slug: 'about-copy', status: 'draft' }] });
+    const res = await request(buildApp()).post('/api/admin/website/pages/src-1/duplicate');
+    expect(res.status).toBe(201);
+    const insertSQL = mockQuery.mock.calls[2][0];
+    expect(insertSQL).toMatch(/'draft'/);
+    expect(mockQuery.mock.calls[2][1]).not.toContain('src-1'); // new row gets its own id, not the source's
+  });
+
+  it('a duplicate gets a distinct slug, not a collision with the source', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'src-1', slug: 'about', title: 'About', status: 'draft', page_type: 'standard', content: '' }] });
+    mockQuery.mockResolvedValueOnce({ rows: [{ 1: 1 }] }); // "about-copy" already taken
+    mockQuery.mockResolvedValueOnce({ rows: [] });          // "about-copy-2" is free
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'new-1', slug: 'about-copy-2' }] });
+    const res = await request(buildApp()).post('/api/admin/website/pages/src-1/duplicate');
+    expect(res.status).toBe(201);
+    const insertedSlug = mockQuery.mock.calls[3][1][1];
+    expect(insertedSlug).toBe('about-copy-2');
+  });
+});
+
+// ── Text length limits (a 100KB title was accepted before this QA pass) ──────
+
+describe('Text length limits', () => {
+  it('rejects a title over 200 characters', async () => {
+    const res = await request(buildApp()).post('/api/admin/website/pages').send({ slug: 'x', title: 'A'.repeat(201) });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts a title at exactly the 200-character limit', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'new-1' }] });
+    const res = await request(buildApp()).post('/api/admin/website/pages').send({ slug: 'x', title: 'A'.repeat(200) });
+    expect(res.status).toBe(201);
+  });
+
+  it('rejects an oversized menu_label', async () => {
+    const res = await request(buildApp()).post('/api/admin/website/pages').send({ slug: 'x', title: 'Fine', menu_label: 'B'.repeat(61) });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an oversized seo_title', async () => {
+    const res = await request(buildApp()).post('/api/admin/website/pages').send({ slug: 'x', title: 'Fine', seo_title: 'C'.repeat(71) });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an oversized seo_description', async () => {
+    const res = await request(buildApp()).post('/api/admin/website/pages').send({ slug: 'x', title: 'Fine', seo_description: 'D'.repeat(301) });
+    expect(res.status).toBe(400);
+  });
+
+  it('a realistic school name as the title is comfortably within limits', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'new-1' }] });
+    const res = await request(buildApp()).post('/api/admin/website/pages').send({
+      slug: 'about', title: "St. Augustine's Senior High Technical School — Our Rich History and Heritage",
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('enforces the same limits on PATCH, not just create', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ slug: 'about', is_homepage: false }] });
+    const res = await request(buildApp()).patch('/api/admin/website/pages/page-1').send({ title: 'E'.repeat(201) });
+    expect(res.status).toBe(400);
   });
 });
 

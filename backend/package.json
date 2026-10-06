@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "jest --testPathPatterns=src/__tests__ --forceExit"
+    "test": "jest --testPathPatterns=src/__tests__ --forceExit",
+    "test:website": "jest --testPathPatterns=src/__tests__/website --forceExit"
   },
   "jest": {
     "testEnvironment": "node",

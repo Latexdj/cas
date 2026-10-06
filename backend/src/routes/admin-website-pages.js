@@ -4,6 +4,7 @@ const sanitizeHtml = require('sanitize-html');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { uploadFile } = require('../services/storage.service');
+const { findOversizedField } = require('../utils/websiteValidation');
 
 router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('website'));
 
@@ -84,6 +85,9 @@ router.post('/', async (req, res, next) => {
     const slug = normalizeSlug(req.body.slug);
     if (!slug || !title) return res.status(400).json({ error: 'Slug and title are required.' });
 
+    const oversized = findOversizedField({ title, menu_label, seo_title, seo_description, slug });
+    if (oversized) return res.status(400).json({ error: `${oversized.field.replace('_', ' ')} must be ${oversized.limit} characters or fewer.` });
+
     let og_image_url = null;
     if (og_image_data) og_image_url = await uploadFile(og_image_data, `website/${req.schoolId}/pages/${slug}-og`, { upsert: true });
 
@@ -119,6 +123,9 @@ router.patch('/:id', async (req, res, next) => {
     if (status !== undefined && !['draft', 'published'].includes(status)) {
       return res.status(400).json({ error: 'Status must be draft or published.' });
     }
+
+    const oversized = findOversizedField({ title, menu_label, seo_title, seo_description, slug });
+    if (oversized) return res.status(400).json({ error: `${oversized.field.replace('_', ' ')} must be ${oversized.limit} characters or fewer.` });
 
     let og_image_url = null;
     if (og_image_data) og_image_url = await uploadFile(og_image_data, `website/${req.schoolId}/pages/${req.params.id}-og`, { upsert: true });
