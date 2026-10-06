@@ -105,6 +105,27 @@ components/site/**`.
       screenshot, and **not** by hardcoding one school's colors (must
       hold for any school's branding).
 
+## Public (SSR/SEO)
+
+- [ ] `curl -s <public page URL>` (raw HTML, not rendered in a browser)
+      contains a real `<title>` and `og:title`/`og:description` sourced
+      from the page's own `seo_title`/`seo_description`/`og_image_url` —
+      this is the one regression this phase exists to catch: it's easy to
+      accidentally reintroduce a client-only fetch that looks identical in
+      a browser but ships an empty shell to crawlers again.
+- [ ] A nonexistent school, a nonexistent page, and a draft page all
+      return a real HTTP 404 (`curl -o /dev/null -w "%{http_code}"`), not
+      a 200 with a client-rendered error message.
+- [ ] `/robots.txt` and `/sitemap.xml` both render; the sitemap lists real
+      published pages and does **not** include a homepage's own
+      `website_pages` row as a separate `/site/<slug>/<slug-of-home>` URL
+      (thin/duplicate content — the homepage's canonical URL is
+      `/site/<slug>` itself).
+- [ ] Client interactivity (mobile menu toggle, scroll-based header style
+      in `SiteChrome`) still works — a Server Component page rendering a
+      `'use client'` child is the intended pattern here, not something to
+      "fix" by making `SiteChrome` a Server Component too.
+
 ## Build
 
 - [ ] `npm run test:website` (backend) — all green.
@@ -115,12 +136,11 @@ components/site/**`.
       warnings on the established `useEffect(() => { load() }, [load])`
       data-fetching pattern are not Website-specific and are not a gate).
 - [ ] `npm run build` (admin-portal) — exits 0, `/site/[slug]`,
-      `/site/[slug]/[page]`, and every `/website/*` admin route compile.
+      `/site/[slug]/[page]`, `/robots.txt`, `/sitemap.xml`, and every
+      `/website/*` admin route compile.
 
 ## Known, deliberately out-of-scope items (do not re-litigate per change)
 
-- SSR / `generateMetadata` / sitemap.xml — scheduled for the next phase;
-  public pages are intentionally still `'use client'`.
 - A full axe-core/WCAG automated audit — only heading hierarchy, alt
   text, keyboard reachability, visible focus, and accessible names are
   covered today.
