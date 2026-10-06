@@ -56,6 +56,8 @@ const admissionsRoutes        = require('./routes/admissions');
 const adminAdmissionsRoutes   = require('./routes/admin-admissions');
 const websiteRoutes           = require('./routes/website');
 const adminWebsiteRoutes      = require('./routes/admin-website');
+const adminWebsitePagesRoutes = require('./routes/admin-website-pages');
+const adminWebsiteMenuRoutes  = require('./routes/admin-website-menu');
 const schoolModulesRoutes     = require('./routes/schoolModules');
 const resultSubmissionsRoutes = require('./routes/result-submissions');
 const monitoringRoutes        = require('./routes/assessment-monitoring');
@@ -158,6 +160,8 @@ app.use('/api/admissions',            admissionsRoutes);
 app.use('/api/admin/admissions',      adminAdmissionsRoutes);
 app.use('/api/website',               websiteRoutes);
 app.use('/api/admin/website',         adminWebsiteRoutes);
+app.use('/api/admin/website/pages',   adminWebsitePagesRoutes);
+app.use('/api/admin/website/menu',    adminWebsiteMenuRoutes);
 app.use('/api/school-modules',        schoolModulesRoutes);
 app.use('/api/result-submissions',    resultSubmissionsRoutes);
 app.use('/api/assessment-monitoring', monitoringRoutes);
@@ -2968,6 +2972,53 @@ async function runMigrations() {
         ON CONFLICT DO NOTHING
       `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website module backfill:', e.message); }
+
+    // Multi-page website — Phase 1: Pages. page_type is deliberately minimal
+    // (listing-news/listing-events etc. are added once those modules exist).
+    // "Exactly one homepage per school" is enforced at the application layer.
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS website_pages (
+          id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id       UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          slug            TEXT NOT NULL,
+          title           TEXT NOT NULL,
+          menu_label      TEXT,
+          page_type       TEXT NOT NULL DEFAULT 'standard' CHECK (page_type IN ('standard','homepage','contact')),
+          content         TEXT,
+          seo_title       TEXT,
+          seo_description TEXT,
+          og_image_url    TEXT,
+          status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published')),
+          is_homepage     BOOLEAN NOT NULL DEFAULT false,
+          created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+          UNIQUE (school_id, slug)
+        )
+      `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website_pages:', e.message); }
+
+    // Multi-page website — Phase 1: Navigation. One level of nesting via
+    // parent_id in v1 (matches the up/down-reorder admin UI, not drag-drop).
+    // Exactly one of page_id/external_url set is enforced at the app layer.
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS website_menu_items (
+          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id     UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          location      TEXT NOT NULL CHECK (location IN ('header','footer')),
+          label         TEXT NOT NULL,
+          page_id       UUID REFERENCES website_pages(id) ON DELETE CASCADE,
+          external_url  TEXT,
+          parent_id     UUID REFERENCES website_menu_items(id) ON DELETE CASCADE,
+          sort_order    INTEGER NOT NULL DEFAULT 0,
+          open_new_tab  BOOLEAN NOT NULL DEFAULT false,
+          is_visible    BOOLEAN NOT NULL DEFAULT true,
+          created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website_menu_items:', e.message); }
 
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);

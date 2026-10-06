@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { publicApi } from '@/lib/api';
+import { hexToRgb, readableOn } from '@/lib/site-theme';
+import { SiteChrome, MenuNode } from '@/components/site/SiteChrome';
 
 interface SiteInfo {
   school_name: string; logo_url: string | null; primary_color: string; accent_color: string;
@@ -19,17 +21,6 @@ const SCHOOL_TYPE_LABELS: Record<string, string> = {
   Primary: 'Primary School', JHS: 'Junior High School', SHS: 'Senior High School',
   Technical: 'Technical School', University: 'University', Other: 'School',
 };
-
-function hexToRgb(hex: string) {
-  const h = hex.replace('#', '');
-  return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
-}
-
-// Readable text color against a given background hex (basic luminance check).
-function readableOn(hex: string) {
-  const { r, g, b } = hexToRgb(hex);
-  return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? '#1A1A1A' : '#FFFFFF';
-}
 
 function splitList(text: string | null): string[] {
   if (!text) return [];
@@ -50,23 +41,21 @@ function CheckIcon({ className }: { className?: string }) {
 export default function SchoolWebsitePage() {
   const { slug }  = useParams<{ slug: string }>();
   const [info,    setInfo]    = useState<SiteInfo | null>(null);
+  const [menu,    setMenu]    = useState<{ header: MenuNode[]; footer: MenuNode[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
-  const [scrolled, setScrolled] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const load = useCallback(async () => {
-    try { const { data } = await publicApi.get(`/api/website/${slug}`); setInfo(data); }
+    try {
+      const { data } = await publicApi.get(`/api/website/${slug}`);
+      setInfo(data);
+      publicApi.get(`/api/website/${slug}/menu`).then(r => setMenu(r.data)).catch(() => setMenu(null));
+    }
     catch { setError('This school website could not be found.'); }
     finally { setLoading(false); }
   }, [slug]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    const fn = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', fn);
-    return () => window.removeEventListener('scroll', fn);
-  }, []);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#F5F0E8]">
@@ -101,66 +90,19 @@ export default function SchoolWebsitePage() {
   const hasContact = Boolean(info.phone || info.email || info.address);
   const canApply   = Boolean(info.show_admissions_cta && info.admissions_slug);
 
-  const navLinks = [
+  const fallbackNavLinks = [
     hasAbout && { href: '#about', label: 'About' },
     info.show_programs && info.programs.length > 0 && { href: '#academics', label: 'Academics' },
     hasContact && { href: '#contact', label: 'Contact' },
   ].filter(Boolean) as { href: string; label: string }[];
 
   return (
-    <div className="min-h-screen bg-[#F5F0E8] font-sans">
-
-      {/* Nav */}
-      <header className={`fixed top-0 inset-x-0 z-50 transition-colors duration-300 ${scrolled ? 'bg-white shadow-sm' : 'bg-transparent'}`}>
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            {info.logo_url
-              ? <img src={info.logo_url} alt="" className="w-9 h-9 object-contain rounded-lg flex-shrink-0" />
-              : <div className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0" style={{ backgroundColor: accent, color: readableOn(accent) }}>{info.school_name[0]}</div>
-            }
-            <span className={`font-bold text-sm truncate ${scrolled ? 'text-slate-900' : 'text-white'}`}>{info.school_name}</span>
-          </div>
-          <nav className="hidden md:flex items-center gap-8">
-            {navLinks.map(l => (
-              <a key={l.href} href={l.href} className={`text-sm font-semibold transition-colors ${scrolled ? 'text-slate-600 hover:text-slate-900' : 'text-white/85 hover:text-white'}`}>{l.label}</a>
-            ))}
-            {canApply && (
-              <a href={`/admissions/${info.admissions_slug}`}
-                className="px-5 py-2 rounded-lg text-sm font-bold shadow-sm transition-transform hover:-translate-y-0.5"
-                style={{ backgroundColor: accent, color: readableOn(accent) }}>
-                Apply Now
-              </a>
-            )}
-          </nav>
-          <button
-            className={`md:hidden p-2 rounded-lg ${scrolled ? 'text-slate-700' : 'text-white'}`}
-            onClick={() => setMenuOpen(v => !v)} aria-label="Toggle menu">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {menuOpen
-                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              }
-            </svg>
-          </button>
-        </div>
-        {menuOpen && (
-          <div className="md:hidden bg-white border-t border-slate-100 shadow-sm">
-            <div className="px-6 py-4 flex flex-col gap-3">
-              {navLinks.map(l => (
-                <a key={l.href} href={l.href} onClick={() => setMenuOpen(false)} className="text-sm font-semibold text-slate-700">{l.label}</a>
-              ))}
-              {canApply && (
-                <a href={`/admissions/${info.admissions_slug}`}
-                  className="px-5 py-2.5 rounded-lg text-sm font-bold text-center"
-                  style={{ backgroundColor: accent, color: readableOn(accent) }}>
-                  Apply Now
-                </a>
-              )}
-            </div>
-          </div>
-        )}
-      </header>
-
+    <SiteChrome
+      slug={slug} schoolName={info.school_name} logoUrl={info.logo_url}
+      primary={primary} accent={accent} motto={info.motto}
+      menu={menu} fallbackNavLinks={fallbackNavLinks}
+      canApply={canApply} admissionsSlug={info.admissions_slug} isHomepage
+    >
       {/* Hero */}
       <section className="relative pt-28 pb-16 md:pt-36 md:pb-24 px-6 overflow-hidden" style={{ backgroundColor: primary }}>
         <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-14 items-center relative z-10">
@@ -398,46 +340,6 @@ export default function SchoolWebsitePage() {
           </div>
         </section>
       )}
-
-      {/* Footer */}
-      <footer className="pt-16 pb-8 px-6" style={{ backgroundColor: primary }}>
-        <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-10 mb-10">
-          <div className="col-span-2">
-            <div className="flex items-center gap-3 mb-3">
-              {info.logo_url
-                ? <img src={info.logo_url} alt="" className="w-8 h-8 object-contain rounded" />
-                : <div className="w-8 h-8 rounded flex items-center justify-center font-bold text-xs" style={{ backgroundColor: accent, color: readableOn(accent) }}>{info.school_name[0]}</div>
-              }
-              <span className="font-bold" style={{ color: onPrimary }}>{info.school_name}</span>
-            </div>
-            {info.motto && <p className="text-sm italic max-w-xs" style={{ color: onPrimary, opacity: 0.65 }}>&ldquo;{info.motto}&rdquo;</p>}
-          </div>
-          {navLinks.length > 0 && (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide mb-4" style={{ color: accent }}>Quick Links</p>
-              <ul className="space-y-2.5">
-                {navLinks.map(l => (
-                  <li key={l.href}><a href={l.href} className="text-sm hover:underline" style={{ color: onPrimary, opacity: 0.75 }}>{l.label}</a></li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {hasContact && (
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide mb-4" style={{ color: accent }}>Contact</p>
-              <ul className="space-y-2.5 text-sm" style={{ color: onPrimary, opacity: 0.75 }}>
-                {info.phone && <li>{info.phone}</li>}
-                {info.email && <li className="break-all">{info.email}</li>}
-                {info.address && <li>{info.address}</li>}
-              </ul>
-            </div>
-          )}
-        </div>
-        <div className="max-w-6xl mx-auto pt-6 flex flex-col sm:flex-row items-center justify-between gap-3" style={{ borderTop: `1px solid rgba(${onPrimary === '#FFFFFF' ? '255,255,255' : '0,0,0'},0.12)` }}>
-          <p className="text-xs" style={{ color: onPrimary, opacity: 0.55 }}>© {new Date().getFullYear()} {info.school_name}. All rights reserved.</p>
-          <p className="text-xs" style={{ color: onPrimary, opacity: 0.55 }}>Powered by <span className="font-semibold" style={{ opacity: 0.85 }}>CAS School Management System</span></p>
-        </div>
-      </footer>
-    </div>
+    </SiteChrome>
   );
 }

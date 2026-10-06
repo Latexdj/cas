@@ -66,4 +66,53 @@ router.get('/:slug', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/website/:slug/pages/:pageSlug — published pages only; a draft or
+// missing page is indistinguishable from an unpublished site (same 404
+// semantics used throughout this file).
+router.get('/:slug/pages/:pageSlug', async (req, res, next) => {
+  try {
+    const school = await getSchoolBySlug(req.params.slug);
+    if (!school) return res.status(404).json({ error: 'Website not found' });
+    const { rows } = await pool.query(
+      `SELECT id, slug, title, menu_label, content, seo_title, seo_description, og_image_url, page_type
+       FROM website_pages WHERE school_id = $1 AND slug = $2 AND status = 'published'`,
+      [school.school_id, req.params.pageSlug]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Page not found' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// GET /api/website/:slug/menu — header + footer trees in one call, with
+// page_id entries resolved to their slug/title so the frontend needs no
+// second round-trip to render links.
+router.get('/:slug/menu', async (req, res, next) => {
+  try {
+    const school = await getSchoolBySlug(req.params.slug);
+    if (!school) return res.status(404).json({ error: 'Website not found' });
+    const { rows } = await pool.query(
+      `SELECT m.id, m.location, m.label, m.external_url, m.parent_id, m.open_new_tab,
+              p.slug AS page_slug
+       FROM website_menu_items m LEFT JOIN website_pages p ON p.id = m.page_id
+       WHERE m.school_id = $1 AND m.is_visible = true
+         AND (m.page_id IS NULL OR p.status = 'published')
+       ORDER BY m.sort_order`,
+      [school.school_id]
+    );
+    const buildTree = (items) => {
+      const byId = new Map(items.map(it => [it.id, { ...it, children: [] }]));
+      const top = [];
+      for (const it of byId.values()) {
+        if (it.parent_id && byId.has(it.parent_id)) byId.get(it.parent_id).children.push(it);
+        else top.push(it);
+      }
+      return top;
+    };
+    res.json({
+      header: buildTree(rows.filter(r => r.location === 'header')),
+      footer: buildTree(rows.filter(r => r.location === 'footer')),
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
