@@ -5,7 +5,7 @@ const ALL_MODULE_KEYS = [
   'leave_management', 'meeting_attendance', 'plc',
   'remedial_lessons', 'assessments', 'houses',
   'exeat', 'clearance', 'library', 'classroom_qr', 'fees', 'inventory',
-  'admissions', 'lms', 'discipline',
+  'admissions', 'lms', 'discipline', 'website',
 ];
 
 // `licensable` marks which modules can ever be toggled off for a school via
@@ -37,6 +37,7 @@ const MODULE_REGISTRY = [
   { key: 'admissions',         label: 'Admission',            description: 'Online application, placement, and prospectus management',         core: false, licensable: true,  defaultFor: 'all' },
   { key: 'lms',                label: 'LMS',                  description: 'Courses, assignments, quizzes, and the past-questions bank',        core: false, licensable: true,  defaultFor: 'all' },
   { key: 'discipline',         label: 'Administration',       description: 'Disciplinary letters, general letters, and letter drafting/chat',   core: false, licensable: true,  defaultFor: 'all' },
+  { key: 'website',            label: 'Website',              description: 'Public school website / landing page builder',                     core: false, licensable: true,  defaultFor: 'all' },
 ];
 
 function defaultModulesForType(schoolType, schoolCategory) {

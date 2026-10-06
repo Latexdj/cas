@@ -54,6 +54,8 @@ const managementUserRoutes    = require('./routes/management-users');
 const feesRoutes              = require('./routes/fees');
 const admissionsRoutes        = require('./routes/admissions');
 const adminAdmissionsRoutes   = require('./routes/admin-admissions');
+const websiteRoutes           = require('./routes/website');
+const adminWebsiteRoutes      = require('./routes/admin-website');
 const schoolModulesRoutes     = require('./routes/schoolModules');
 const resultSubmissionsRoutes = require('./routes/result-submissions');
 const monitoringRoutes        = require('./routes/assessment-monitoring');
@@ -154,6 +156,8 @@ app.use('/api/admin/management-users', managementUserRoutes);
 app.use('/api/fees',                  feesRoutes);
 app.use('/api/admissions',            admissionsRoutes);
 app.use('/api/admin/admissions',      adminAdmissionsRoutes);
+app.use('/api/website',               websiteRoutes);
+app.use('/api/admin/website',         adminWebsiteRoutes);
 app.use('/api/school-modules',        schoolModulesRoutes);
 app.use('/api/result-submissions',    resultSubmissionsRoutes);
 app.use('/api/assessment-monitoring', monitoringRoutes);
@@ -2926,6 +2930,37 @@ async function runMigrations() {
       `);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_admin_module_access_teacher ON admin_module_access(teacher_id)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admin_module_access:', e.message); }
+
+    // ── Website module ───────────────────────────────────────────────────────
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS school_website_settings (
+          school_id            UUID PRIMARY KEY REFERENCES schools(id) ON DELETE CASCADE,
+          slug                 TEXT UNIQUE,
+          is_published         BOOLEAN NOT NULL DEFAULT false,
+          hero_image_url       TEXT,
+          hero_tagline         TEXT,
+          show_programs        BOOLEAN NOT NULL DEFAULT true,
+          show_admissions_cta  BOOLEAN NOT NULL DEFAULT true,
+          updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] school_website_settings:', e.message); }
+
+    // Website module always-on backfill — same idiom as the admissions/lms/
+    // discipline backfill above (new module key, default every existing
+    // school to enabled=true since nobody had a website before this shipped).
+    try {
+      await pool.query(`
+        INSERT INTO school_modules (school_id, module_key, enabled)
+        SELECT s.id, 'website', true
+        FROM schools s
+        WHERE NOT EXISTS (
+          SELECT 1 FROM school_modules sm WHERE sm.school_id = s.id AND sm.module_key = 'website'
+        )
+        ON CONFLICT DO NOTHING
+      `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website module backfill:', e.message); }
 
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
