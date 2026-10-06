@@ -3010,7 +3010,7 @@ async function runMigrations() {
           label         TEXT NOT NULL,
           page_id       UUID REFERENCES website_pages(id) ON DELETE CASCADE,
           external_url  TEXT,
-          parent_id     UUID REFERENCES website_menu_items(id) ON DELETE CASCADE,
+          parent_id     UUID REFERENCES website_menu_items(id) ON DELETE SET NULL,
           sort_order    INTEGER NOT NULL DEFAULT 0,
           open_new_tab  BOOLEAN NOT NULL DEFAULT false,
           is_visible    BOOLEAN NOT NULL DEFAULT true,
@@ -3019,6 +3019,25 @@ async function runMigrations() {
         )
       `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website_menu_items:', e.message); }
+
+    // QA fix: deleting a parent menu item (directly, or via its linked page
+    // being deleted) must not silently destroy its children too — demote
+    // them to top-level instead. Table may already exist from before this
+    // fix with the old CASCADE behavior, so repair it in place. Also adds
+    // the school_id index every query here filters by, which the table's
+    // own DDL never got (unlike website_pages, which gets one for free from
+    // its UNIQUE(school_id, slug) constraint).
+    try {
+      await pool.query(`
+        DO $$ BEGIN
+          ALTER TABLE website_menu_items DROP CONSTRAINT IF EXISTS website_menu_items_parent_id_fkey;
+          ALTER TABLE website_menu_items
+            ADD CONSTRAINT website_menu_items_parent_id_fkey
+            FOREIGN KEY (parent_id) REFERENCES website_menu_items(id) ON DELETE SET NULL;
+        EXCEPTION WHEN OTHERS THEN NULL; END $$
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_menu_items_school ON website_menu_items(school_id)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website_menu_items parent_id SET NULL + index:', e.message); }
 
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);

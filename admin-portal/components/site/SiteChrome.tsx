@@ -11,18 +11,22 @@ export interface MenuNode {
   children: MenuNode[];
 }
 
-export interface NavLink { href: string; label: string; openNewTab?: boolean }
+export interface NavLink { id?: string; href: string; label: string; openNewTab?: boolean }
 
+// Keyed by the menu item's own database id, not its resolved href — two
+// different menu items can legitimately resolve to the same href (e.g. two
+// items both pointing at #academics), and React requires list keys to be
+// unique regardless of what they link to.
 function resolveHref(node: MenuNode, slug: string, isHomepage: boolean): NavLink {
   if (node.page_slug) {
     const href = node.page_slug === 'home' ? `/site/${slug}` : `/site/${slug}/${node.page_slug}`;
-    return { href, label: node.label, openNewTab: node.open_new_tab };
+    return { id: node.id, href, label: node.label, openNewTab: node.open_new_tab };
   }
   const url = node.external_url || '#';
   if (url.startsWith('#')) {
-    return { href: isHomepage ? url : `/site/${slug}${url}`, label: node.label, openNewTab: node.open_new_tab };
+    return { id: node.id, href: isHomepage ? url : `/site/${slug}${url}`, label: node.label, openNewTab: node.open_new_tab };
   }
-  return { href: url, label: node.label, openNewTab: node.open_new_tab };
+  return { id: node.id, href: url, label: node.label, openNewTab: node.open_new_tab };
 }
 
 interface SiteChromeProps {
@@ -78,14 +82,18 @@ export function SiteChrome({
             }
             <span className={`font-bold text-sm truncate ${solid ? 'text-slate-900' : 'text-white'}`}>{schoolName}</span>
           </a>
-          <nav className="hidden md:flex items-center gap-8">
-            {headerLinks.map(l => (
-              <a key={l.href} href={l.href} target={l.openNewTab ? '_blank' : undefined} rel={l.openNewTab ? 'noopener noreferrer' : undefined}
-                className={`text-sm font-semibold transition-colors ${solid ? 'text-slate-600 hover:text-slate-900' : 'text-white/85 hover:text-white'}`}>{l.label}</a>
-            ))}
+          <nav className="hidden md:flex items-center gap-4 min-w-0">
+            {/* Scrolls horizontally instead of silently clipping links off-screen
+                when a school has more menu items than fit at this width. */}
+            <div className="flex items-center gap-6 overflow-x-auto min-w-0">
+              {headerLinks.map(l => (
+                <a key={l.id ?? l.href} href={l.href} target={l.openNewTab ? '_blank' : undefined} rel={l.openNewTab ? 'noopener noreferrer' : undefined}
+                  className={`text-sm font-semibold whitespace-nowrap transition-colors ${solid ? 'text-slate-600 hover:text-slate-900' : 'text-white/85 hover:text-white'}`}>{l.label}</a>
+              ))}
+            </div>
             {canApply && (
               <a href={`/admissions/${admissionsSlug}`}
-                className="px-5 py-2 rounded-lg text-sm font-bold shadow-sm transition-transform hover:-translate-y-0.5"
+                className="px-5 py-2 rounded-lg text-sm font-bold shadow-sm transition-transform hover:-translate-y-0.5 flex-shrink-0"
                 style={{ backgroundColor: accent, color: readableOn(accent) }}>
                 Apply Now
               </a>
@@ -106,7 +114,7 @@ export function SiteChrome({
           <div className="md:hidden bg-white border-t border-slate-100 shadow-sm">
             <div className="px-6 py-4 flex flex-col gap-3">
               {headerLinks.map(l => (
-                <a key={l.href} href={l.href} onClick={() => setMenuOpen(false)} className="text-sm font-semibold text-slate-700">{l.label}</a>
+                <a key={l.id ?? l.href} href={l.href} onClick={() => setMenuOpen(false)} className="text-sm font-semibold text-slate-700">{l.label}</a>
               ))}
               {canApply && (
                 <a href={`/admissions/${admissionsSlug}`}
@@ -139,7 +147,7 @@ export function SiteChrome({
               <p className="text-xs font-bold uppercase tracking-wide mb-4" style={{ color: accent }}>Quick Links</p>
               <ul className="space-y-2.5">
                 {footerLinks.map(l => (
-                  <li key={l.href}><a href={l.href} className="text-sm hover:underline" style={{ color: onPrimary, opacity: 0.75 }}>{l.label}</a></li>
+                  <li key={l.id ?? l.href}><a href={l.href} className="text-sm hover:underline" style={{ color: onPrimary, opacity: 0.75 }}>{l.label}</a></li>
                 ))}
               </ul>
             </div>

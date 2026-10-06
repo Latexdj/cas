@@ -34,6 +34,19 @@ function sanitizePageContent(html) {
   });
 }
 
+// Page slugs become a public URL segment (/site/<slug>/<pageSlug>) that an
+// admin can type freely — normalize rather than reject so "My Page!" still
+// works, instead of forcing non-technical users to hand-craft a URL-safe
+// string. Returns null if nothing usable is left (e.g. all-Unicode/symbol input).
+function normalizeSlug(raw) {
+  const slug = String(raw ?? '')
+    .trim().toLowerCase()
+    .normalize('NFKD').replace(/[̀-ͯ]/g, '') // strip accents (é → e)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || null;
+}
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -67,7 +80,8 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { slug, title, menu_label, seo_title, seo_description, content, og_image_data } = req.body;
+    const { title, menu_label, seo_title, seo_description, content, og_image_data } = req.body;
+    const slug = normalizeSlug(req.body.slug);
     if (!slug || !title) return res.status(400).json({ error: 'Slug and title are required.' });
 
     let og_image_url = null;
@@ -89,7 +103,22 @@ router.post('/', async (req, res, next) => {
 
 router.patch('/:id', async (req, res, next) => {
   try {
-    const { slug, title, menu_label, seo_title, seo_description, content, status, og_image_data } = req.body;
+    const { title, menu_label, seo_title, seo_description, content, status, og_image_data } = req.body;
+
+    const { rows: current } = await pool.query(`SELECT slug, is_homepage FROM website_pages WHERE id = $1 AND school_id = $2`, [req.params.id, req.schoolId]);
+    if (!current.length) return res.status(404).json({ error: 'Page not found' });
+
+    let slug = null;
+    if (req.body.slug !== undefined) {
+      slug = normalizeSlug(req.body.slug);
+      if (!slug) return res.status(400).json({ error: 'That slug is not valid.' });
+      if (current[0].is_homepage && slug !== current[0].slug) {
+        return res.status(400).json({ error: 'The homepage URL cannot be changed.' });
+      }
+    }
+    if (status !== undefined && !['draft', 'published'].includes(status)) {
+      return res.status(400).json({ error: 'Status must be draft or published.' });
+    }
 
     let og_image_url = null;
     if (og_image_data) og_image_url = await uploadFile(og_image_data, `website/${req.schoolId}/pages/${req.params.id}-og`, { upsert: true });

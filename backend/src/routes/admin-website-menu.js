@@ -15,6 +15,17 @@ function buildTree(items) {
   return top;
 }
 
+// Menu items can carry a raw external_url with no DB-level constraint on its
+// shape, and it is rendered back as a plain href on the public site — so it
+// must be scheme-validated server-side the same way page content HTML is
+// sanitized. Anchors, site-relative paths, and http(s) links are allowed;
+// javascript:/data:/vbscript: and anything else is rejected outright.
+function isSafeExternalUrl(url) {
+  if (typeof url !== 'string' || !url.trim()) return false;
+  if (url.startsWith('#') || url.startsWith('/')) return true;
+  return /^https?:\/\//i.test(url);
+}
+
 // GET /?location=header|footer
 router.get('/', async (req, res, next) => {
   try {
@@ -37,6 +48,15 @@ router.post('/', async (req, res, next) => {
     if (!label) return res.status(400).json({ error: 'Label is required.' });
     if (!page_id && !external_url) return res.status(400).json({ error: 'A page or an external URL is required.' });
     if (page_id && external_url) return res.status(400).json({ error: 'Choose either a page or an external URL, not both.' });
+    if (external_url && !isSafeExternalUrl(external_url)) return res.status(400).json({ error: 'That URL is not allowed. Use an anchor (#section), a site-relative path (/page), or a full http(s) link.' });
+    if (page_id) {
+      const { rows: owned } = await pool.query(`SELECT 1 FROM website_pages WHERE id = $1 AND school_id = $2`, [page_id, req.schoolId]);
+      if (!owned.length) return res.status(400).json({ error: 'That page does not exist.' });
+    }
+    if (parent_id) {
+      const { rows: parentOwned } = await pool.query(`SELECT 1 FROM website_menu_items WHERE id = $1 AND school_id = $2 AND location = $3`, [parent_id, req.schoolId, location]);
+      if (!parentOwned.length) return res.status(400).json({ error: 'That parent menu item does not exist.' });
+    }
 
     const { rows: maxRow } = await pool.query(
       `SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM website_menu_items WHERE school_id = $1 AND location = $2 AND parent_id IS NOT DISTINCT FROM $3`,
@@ -58,6 +78,16 @@ router.patch('/:id', async (req, res, next) => {
   try {
     const { label, page_id, external_url, parent_id, sort_order, open_new_tab, is_visible } = req.body;
     if (page_id && external_url) return res.status(400).json({ error: 'Choose either a page or an external URL, not both.' });
+    if (external_url && !isSafeExternalUrl(external_url)) return res.status(400).json({ error: 'That URL is not allowed. Use an anchor (#section), a site-relative path (/page), or a full http(s) link.' });
+    if (page_id) {
+      const { rows: owned } = await pool.query(`SELECT 1 FROM website_pages WHERE id = $1 AND school_id = $2`, [page_id, req.schoolId]);
+      if (!owned.length) return res.status(400).json({ error: 'That page does not exist.' });
+    }
+    if (parent_id) {
+      if (parent_id === req.params.id) return res.status(400).json({ error: 'A menu item cannot be its own parent.' });
+      const { rows: parentOwned } = await pool.query(`SELECT 1 FROM website_menu_items WHERE id = $1 AND school_id = $2`, [parent_id, req.schoolId]);
+      if (!parentOwned.length) return res.status(400).json({ error: 'That parent menu item does not exist.' });
+    }
 
     const { rows } = await pool.query(
       `UPDATE website_menu_items SET
