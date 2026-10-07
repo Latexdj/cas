@@ -234,90 +234,21 @@ router.get('/batches/:id/report', async (req, res, next) => {
   }
 });
 
-// GET /batches/:id/export.xlsx — matches the GES Analysis Report layout:
-// one row per subject, B/G/T columns for Registered/Presented/Absent/each
-// grade/% Pass, with the Summary of Subjects Passed block below.
+// GET /batches/:id/export.xlsx — matches the GES Analysis Report layout
+// (one row per subject, B/G/T columns for Registered/Presented/Absent/
+// each grade/% Pass, Summary of Subjects Passed below), styled with the
+// CAS brand palette (deep forest green #0B3D2E header bands, warm gold
+// #C8973A section accents, status-tiered colors on % Pass — see
+// buildExamAnalysisWorkbook for the full rationale) instead of ExcelJS's
+// plain default look.
 router.get('/batches/:id/export.xlsx', async (req, res, next) => {
   try {
-    const ExcelJS = require('exceljs');
+    const { buildExamAnalysisWorkbook } = require('../services/examAnalysisWorkbook');
     const report = await buildReportForBatch(req.schoolId, req.params.id);
-    const gradeOrder = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9'];
+    const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.schoolId]);
+    const school = schoolRows[0] || { name: 'School' };
 
-    const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Analysis Report');
-
-    ws.mergeCells('A1:C1');
-    ws.getCell('A1').value = `${report.examBody} ${report.year} School Result Analysis`;
-    ws.getCell('A1').font = { bold: true, size: 13 };
-
-    const headerRow1 = ['Subject', 'Registered', '', '', 'Presented', '', '', 'Absent', '', '',
-      ...gradeOrder.flatMap(g => [g, '', '']), '% Pass', '', ''];
-    const headerRow2 = ['', 'B', 'G', 'T', 'B', 'G', 'T', 'B', 'G', 'T',
-      ...gradeOrder.flatMap(() => ['B', 'G', 'T']), 'B', 'G', 'T'];
-    const r1 = ws.addRow(headerRow1);
-    const r2 = ws.addRow(headerRow2);
-    [r1, r2].forEach(r => { r.font = { bold: true }; r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } }; });
-    // r1.number, not a hardcoded 1 — row 1 is the title row (already
-    // merged A1:C1 above), and addRow() placed this header content on
-    // whatever row actually came after it. Merging against a hardcoded 1
-    // collided with the title's own merge ("Cannot merge already merged
-    // cells") instead of merging the header row's own cells.
-    let col = 2;
-    for (const span of [3, 3, 3, ...gradeOrder.map(() => 3), 3]) {
-      ws.mergeCells(r1.number, col, r1.number, col + span - 1);
-      col += span;
-    }
-
-    const addSection = (title, subjects) => {
-      if (!subjects.length) return;
-      const titleRow = ws.addRow([title]);
-      titleRow.font = { bold: true, italic: true };
-      for (const s of subjects) {
-        ws.addRow([
-          s.name,
-          s.registered.boys, s.registered.girls, s.registered.total,
-          s.presented.boys, s.presented.girls, s.presented.total,
-          s.absent.boys, s.absent.girls, s.absent.total,
-          ...gradeOrder.flatMap(g => {
-            const d = s.gradeDistribution[g];
-            return [d?.boys || 0, d?.girls || 0, d ? d.boys + d.girls : 0];
-          }),
-          s.percentagePass.boys, s.percentagePass.girls, s.percentagePass.total,
-        ]);
-      }
-    };
-    addSection('Core', report.subjects.filter(s => s.isCore));
-    addSection('Electives', report.subjects.filter(s => !s.isCore));
-
-    ws.addRow([]);
-    const summaryTitle = ws.addRow(['Summary of Subjects Passed (computed from imported grades)']);
-    summaryTitle.font = { bold: true };
-    ws.addRow(['Total Number of Candidates', report.totalCandidates]);
-    const maxBucket = Math.max(0, ...Object.keys(report.summaryOfPasses.buckets).map(Number));
-    for (let n = maxBucket; n >= 1; n--) ws.addRow([`${n} Pass${n === 1 ? '' : 'es'}`, report.summaryOfPasses.buckets[n] || 0]);
-    ws.addRow(['Failures', report.summaryOfPasses.failures]);
-    ws.addRow(['No Result (Absent / Cancelled / Withheld — see below for which)', report.summaryOfPasses.noResultCandidates]);
-
-    if (report.officialSummary) {
-      const os = report.officialSummary;
-      ws.addRow([]);
-      const officialTitle = ws.addRow(["WAEC's Own Printed Summary (from the listing itself)"]);
-      officialTitle.font = { bold: true };
-      ws.addRow(['Total Number of Candidates', os.totalCandidates]);
-      const osMaxBucket = Math.max(0, ...Object.keys(os.buckets || {}).map(Number));
-      for (let n = osMaxBucket; n >= 1; n--) ws.addRow([`${n} Pass${n === 1 ? '' : 'es'}`, os.buckets[n] || 0]);
-      ws.addRow(['Failures', os.failures ?? 0]);
-      ws.addRow(['Absent', os.absent ?? 0]);
-      ws.addRow(['Entire Results Withheld', os.entireResultsWithheld ?? 0]);
-      ws.addRow(['Entire Results Pending', os.entireResultsPending ?? 0]);
-      ws.addRow(['Candidate Owing Fees', os.candidateOwingFees ?? 0]);
-      ws.addRow(['Entire Results Blocked', os.entireResultsBlocked ?? 0]);
-      ws.addRow(['Entire Results Cancelled', os.entireResultsCancelled ?? 0]);
-    }
-
-    ws.columns.forEach(c => { c.width = 12; });
-    ws.getColumn(1).width = 26;
-
+    const wb = buildExamAnalysisWorkbook(report, school);
     const filename = `${report.examBody}_${report.year}_Analysis_Report.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

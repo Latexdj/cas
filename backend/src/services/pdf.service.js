@@ -1063,102 +1063,159 @@ async function generateCardPng({ student, card, school }) {
 }
 
 // ── WAEC Results Analysis Report ───────────────────────────────────────────────
+// Styled with the CAS brand palette (see the design-rules memory): deep
+// forest green #0B3D2E for header bands, warm gold #C8973A for section
+// accents/dividers, and the brand-calibrated status trio (not Tailwind
+// defaults) for % Pass — green #2D7A4F / amber #C8780A / red #B83232,
+// applied only to the Total % Pass column so color stays a real
+// performance signal rather than decoration on every cell. The Excel
+// export (examAnalysisWorkbook.js) mirrors this exact palette and layout.
 
 const WAEC_GRADE_ORDER = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9'];
+const EXAM_BRAND_DARK  = '#0B3D2E';
+const EXAM_BRAND_MID   = '#145C44';
+const EXAM_BRAND_GOLD  = '#C8973A';
+const EXAM_GOLD_TINT   = '#F6E9CF';
+const EXAM_ZEBRA       = '#FAF7F1';
+const EXAM_BORDER      = '#D9D2C4';
+const EXAM_STATUS_GOOD = '#2D7A4F';
+const EXAM_STATUS_WARN = '#C8780A';
+const EXAM_STATUS_BAD  = '#B83232';
+const EXAM_MUTED       = '#6B6358';
+
+function examPassRateColor(pct) {
+  if (pct >= 75) return EXAM_STATUS_GOOD;
+  if (pct >= 50) return EXAM_STATUS_WARN;
+  return EXAM_STATUS_BAD;
+}
 
 function buildExamAnalysisReportHTML(report, school) {
-  const headerCell = (label) => `<th style="padding:3px 4px;border:1px solid #ccc;background:#f2f2f2;font-size:7pt;">${esc(label)}</th>`;
-  const groupHeader = (label, span) => `<th colspan="${span}" style="padding:3px 4px;border:1px solid #ccc;background:#f2f2f2;font-size:7pt;">${esc(label)}</th>`;
+  const colCount = 1 + 3 * 3 + WAEC_GRADE_ORDER.length * 3 + 3;
 
-  const subjectRow = (s) => {
+  const subjectRow = (s, zebra) => {
     const gradeCells = WAEC_GRADE_ORDER.map(g => {
       const d = s.gradeDistribution[g];
-      return `<td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${d?.boys || ''}</td>
-              <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${d?.girls || ''}</td>
-              <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${d ? d.boys + d.girls : ''}</td>`;
+      return `<td class="num">${d?.boys || ''}</td><td class="num">${d?.girls || ''}</td><td class="num">${d ? d.boys + d.girls : ''}</td>`;
     }).join('');
-    return `<tr>
-      <td style="padding:2px 4px;border:1px solid #ccc;white-space:nowrap;">${esc(s.name)}</td>
-      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.registered.boys}</td>
-      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.registered.girls}</td>
-      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.registered.total}</td>
-      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.presented.boys}</td>
-      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.presented.girls}</td>
-      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.presented.total}</td>
-      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.absent.boys}</td>
-      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.absent.girls}</td>
-      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.absent.total}</td>
+    return `<tr${zebra ? ' class="zebra"' : ''}>
+      <td class="subject-name">${esc(s.name)}</td>
+      <td class="num">${s.registered.boys}</td><td class="num">${s.registered.girls}</td><td class="num">${s.registered.total}</td>
+      <td class="num">${s.presented.boys}</td><td class="num">${s.presented.girls}</td><td class="num">${s.presented.total}</td>
+      <td class="num">${s.absent.boys}</td><td class="num">${s.absent.girls}</td><td class="num">${s.absent.total}</td>
       ${gradeCells}
-      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.percentagePass.boys}%</td>
-      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.percentagePass.girls}%</td>
-      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;font-weight:bold;">${s.percentagePass.total}%</td>
+      <td class="num">${s.percentagePass.boys}%</td><td class="num">${s.percentagePass.girls}%</td>
+      <td class="num pct-total" style="color:${examPassRateColor(s.percentagePass.total)}">${s.percentagePass.total}%</td>
     </tr>`;
   };
 
   const coreSubjects = report.subjects.filter(s => s.isCore);
   const electiveSubjects = report.subjects.filter(s => !s.isCore);
-  const maxBucket = Math.max(0, ...Object.keys(report.summaryOfPasses.buckets).map(Number));
-  const summaryRows = [];
-  for (let n = maxBucket; n >= 1; n--) summaryRows.push(`<tr><td style="padding:2px 8px;">${n} Pass${n === 1 ? '' : 'es'}</td><td style="padding:2px 8px;font-weight:bold;">${report.summaryOfPasses.buckets[n] || 0}</td></tr>`);
+  let zebraIndex = 0;
+  const sectionHTML = (title, subjects) => {
+    if (!subjects.length) return '';
+    const rows = subjects.map(s => subjectRow(s, zebraIndex++ % 2 === 1)).join('');
+    return `<tr><td class="section-band" colspan="${colCount}">${esc(title)}</td></tr>${rows}`;
+  };
 
-  let officialSummaryHTML = '';
+  const summaryCard = (title, rows) => `
+    <div class="card">
+      <div class="card-title">${esc(title)}</div>
+      <table class="card-table">
+        ${rows.map(([label, value], i) => `<tr${i % 2 === 1 ? ' class="zebra"' : ''}><td>${esc(label)}</td><td class="num">${value}</td></tr>`).join('')}
+      </table>
+    </div>`;
+
+  const maxBucket = Math.max(0, ...Object.keys(report.summaryOfPasses.buckets).map(Number));
+  const computedRows = [['Total Number of Candidates', report.totalCandidates]];
+  for (let n = maxBucket; n >= 1; n--) computedRows.push([`${n} Pass${n === 1 ? '' : 'es'}`, report.summaryOfPasses.buckets[n] || 0]);
+  computedRows.push(['Failures', report.summaryOfPasses.failures]);
+  computedRows.push(['No Result (Absent / Cancelled / Withheld)', report.summaryOfPasses.noResultCandidates]);
+
+  let officialCardHTML = '';
   if (report.officialSummary) {
     const os = report.officialSummary;
     const osMaxBucket = Math.max(0, ...Object.keys(os.buckets || {}).map(Number));
-    const osRows = [];
-    for (let n = osMaxBucket; n >= 1; n--) osRows.push(`<tr><td style="padding:2px 8px;">${n} Pass${n === 1 ? '' : 'es'}</td><td style="padding:2px 8px;font-weight:bold;">${os.buckets[n] || 0}</td></tr>`);
-    officialSummaryHTML = `
-    <h3 style="margin:20px 0 8px;font-size:11pt;">WAEC's Own Printed Summary (from the listing itself)</h3>
-    <table style="width:auto;">
-      <tr><td style="padding:2px 8px;">Total Number of Candidates</td><td style="padding:2px 8px;font-weight:bold;">${os.totalCandidates}</td></tr>
-      ${osRows.join('')}
-      <tr><td style="padding:2px 8px;">Failures</td><td style="padding:2px 8px;font-weight:bold;">${os.failures ?? 0}</td></tr>
-      <tr><td style="padding:2px 8px;">Absent</td><td style="padding:2px 8px;font-weight:bold;">${os.absent ?? 0}</td></tr>
-      <tr><td style="padding:2px 8px;">Entire Results Withheld</td><td style="padding:2px 8px;font-weight:bold;">${os.entireResultsWithheld ?? 0}</td></tr>
-      <tr><td style="padding:2px 8px;">Entire Results Pending</td><td style="padding:2px 8px;font-weight:bold;">${os.entireResultsPending ?? 0}</td></tr>
-      <tr><td style="padding:2px 8px;">Candidate Owing Fees</td><td style="padding:2px 8px;font-weight:bold;">${os.candidateOwingFees ?? 0}</td></tr>
-      <tr><td style="padding:2px 8px;">Entire Results Blocked</td><td style="padding:2px 8px;font-weight:bold;">${os.entireResultsBlocked ?? 0}</td></tr>
-      <tr><td style="padding:2px 8px;">Entire Results Cancelled</td><td style="padding:2px 8px;font-weight:bold;">${os.entireResultsCancelled ?? 0}</td></tr>
-    </table>`;
+    const officialRows = [['Total Number of Candidates', os.totalCandidates]];
+    for (let n = osMaxBucket; n >= 1; n--) officialRows.push([`${n} Pass${n === 1 ? '' : 'es'}`, os.buckets[n] || 0]);
+    officialRows.push(['Failures', os.failures ?? 0]);
+    officialRows.push(['Absent', os.absent ?? 0]);
+    officialRows.push(['Entire Results Withheld', os.entireResultsWithheld ?? 0]);
+    officialRows.push(['Entire Results Pending', os.entireResultsPending ?? 0]);
+    officialRows.push(['Candidate Owing Fees', os.candidateOwingFees ?? 0]);
+    officialRows.push(['Entire Results Blocked', os.entireResultsBlocked ?? 0]);
+    officialRows.push(['Entire Results Cancelled', os.entireResultsCancelled ?? 0]);
+    officialCardHTML = summaryCard("WAEC's Own Printed Summary", officialRows);
   }
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    body { font-family: Arial, sans-serif; color: #111; }
+  const mismatchHTML = (report.summaryMismatches && report.summaryMismatches.length)
+    ? `<div class="mismatch-note">${report.summaryMismatches.map(m => esc(m)).join(' ')}</div>`
+    : '';
+
+  const generatedOn = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light"><style>
+    * { box-sizing: border-box; }
+    html, body { background: #FFFFFF; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #2A2620; margin: 0; }
     table { border-collapse: collapse; width: 100%; }
+
+    .letterhead { text-align: center; padding-bottom: 10px; margin-bottom: 14px; border-bottom: 3px solid ${EXAM_BRAND_GOLD}; }
+    .letterhead h1 { margin: 0 0 4px; font-size: 16pt; color: ${EXAM_BRAND_DARK}; }
+    .letterhead h2 { margin: 0; font-size: 11pt; font-weight: normal; color: ${EXAM_BRAND_MID}; }
+    .letterhead .meta { display: flex; justify-content: space-between; margin-top: 8px; font-size: 8pt; color: ${EXAM_MUTED}; }
+
+    table.report th, table.report td { border: 1px solid ${EXAM_BORDER}; padding: 3px 5px; font-size: 7.5pt; background: #FFFFFF; }
+    table.report thead th { background: ${EXAM_BRAND_DARK}; color: #fff; font-weight: bold; text-align: center; }
+    table.report .subject-name { text-align: left; white-space: nowrap; }
+    table.report .num { text-align: center; }
+    table.report .pct-total { font-weight: bold; }
+    table.report tr.zebra td { background: ${EXAM_ZEBRA}; }
+    table.report .section-band { background: ${EXAM_GOLD_TINT}; color: ${EXAM_BRAND_DARK}; font-weight: bold; text-align: left; padding: 4px 6px; }
+
+    .summary-section { display: flex; gap: 20px; margin-top: 22px; align-items: flex-start; }
+    .card { border: 1px solid ${EXAM_BORDER}; border-radius: 8px; overflow: hidden; width: 320px; background: #FFFFFF; }
+    .card-title { background: ${EXAM_BRAND_DARK}; color: #fff; font-weight: bold; font-size: 9pt; padding: 6px 10px; }
+    .card-table td { padding: 3px 10px; font-size: 8pt; border: none; border-bottom: 1px solid ${EXAM_BORDER}; background: #FFFFFF; }
+    .card-table tr:last-child td { border-bottom: none; }
+    .card-table tr.zebra td { background: ${EXAM_ZEBRA}; }
+    .card-table .num { text-align: right; font-weight: bold; }
+
+    .mismatch-note { margin-top: 14px; padding: 8px 12px; border-left: 3px solid ${EXAM_STATUS_WARN}; background: ${EXAM_GOLD_TINT}; font-size: 8pt; color: #4A3F32; font-style: italic; }
   </style></head><body>
-    <div style="text-align:center;margin-bottom:16px;">
-      <h2 style="margin:0 0 4px;font-size:13pt;">${esc(school.name)}</h2>
-      ${report.schoolNumber ? `<p style="margin:0;font-size:9pt;color:#555;">School # ${esc(report.schoolNumber)}</p>` : ''}
-      <h3 style="margin:10px 0 0;font-size:11pt;">${esc(report.examBody)} ${report.year} School Result Analysis</h3>
+    <div class="letterhead">
+      <h1>${esc(school.name)}</h1>
+      <h2>${esc(report.examBody)} ${report.year} School Result Analysis</h2>
+      <div class="meta">
+        <span>${report.schoolNumber ? `School # ${esc(report.schoolNumber)}` : ''}</span>
+        <span>Generated ${generatedOn}</span>
+      </div>
     </div>
-    <table>
+
+    <table class="report">
       <thead>
         <tr>
-          ${headerCell('Subject')}
-          ${groupHeader('Registered', 3)}
-          ${groupHeader('Presented', 3)}
-          ${groupHeader('Absent', 3)}
-          ${WAEC_GRADE_ORDER.map(g => groupHeader(g, 3)).join('')}
-          ${groupHeader('% Pass', 3)}
+          <th rowspan="2">Subject</th>
+          <th colspan="3">Registered</th>
+          <th colspan="3">Presented</th>
+          <th colspan="3">Absent</th>
+          ${WAEC_GRADE_ORDER.map(g => `<th colspan="3">${g}</th>`).join('')}
+          <th colspan="3">% Pass</th>
         </tr>
         <tr>
-          <th style="border:1px solid #ccc;"></th>
-          ${Array.from({ length: 3 + 3 + 3 + WAEC_GRADE_ORDER.length * 3 + 3 }).map((_, i) => headerCell(['B', 'G', 'T'][i % 3])).join('')}
+          ${Array.from({ length: 3 + 3 + 3 + WAEC_GRADE_ORDER.length * 3 + 3 }).map((_, i) => `<th>${['B', 'G', 'T'][i % 3]}</th>`).join('')}
         </tr>
       </thead>
       <tbody>
-        ${coreSubjects.length ? `<tr><td colspan="${13 + WAEC_GRADE_ORDER.length * 3}" style="padding:4px;font-weight:bold;font-style:italic;">Core</td></tr>${coreSubjects.map(subjectRow).join('')}` : ''}
-        ${electiveSubjects.length ? `<tr><td colspan="${13 + WAEC_GRADE_ORDER.length * 3}" style="padding:4px;font-weight:bold;font-style:italic;">Electives</td></tr>${electiveSubjects.map(subjectRow).join('')}` : ''}
+        ${sectionHTML('Core Subjects', coreSubjects)}
+        ${sectionHTML('Elective Subjects', electiveSubjects)}
       </tbody>
     </table>
-    <h3 style="margin:20px 0 8px;font-size:11pt;">Summary of Subjects Passed (computed from imported grades)</h3>
-    <table style="width:auto;">
-      <tr><td style="padding:2px 8px;">Total Number of Candidates</td><td style="padding:2px 8px;font-weight:bold;">${report.totalCandidates}</td></tr>
-      ${summaryRows.join('')}
-      <tr><td style="padding:2px 8px;">Failures</td><td style="padding:2px 8px;font-weight:bold;">${report.summaryOfPasses.failures}</td></tr>
-      <tr><td style="padding:2px 8px;">No Result (Absent / Cancelled / Withheld — see below for which)</td><td style="padding:2px 8px;font-weight:bold;">${report.summaryOfPasses.noResultCandidates}</td></tr>
-    </table>
-    ${officialSummaryHTML}
+
+    <div class="summary-section">
+      ${summaryCard('Summary of Subjects Passed (computed)', computedRows)}
+      ${officialCardHTML}
+    </div>
+    ${mismatchHTML}
   </body></html>`;
 }
 
@@ -1177,7 +1234,14 @@ async function generateExamAnalysisReportPDFBuffer(report, school) {
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
-    return await page.pdf({ format: 'A3', landscape: true, printBackground: true, margin: { top: '12mm', right: '10mm', bottom: '12mm', left: '10mm' } });
+    return await page.pdf({
+      format: 'A3', landscape: true, printBackground: true,
+      margin: { top: '10mm', right: '10mm', bottom: '14mm', left: '10mm' },
+      displayHeaderFooter: true,
+      headerTemplate: '<div></div>',
+      footerTemplate: `<div style="width:100%;font-size:7pt;color:${EXAM_MUTED};display:flex;justify-content:space-between;padding:0 10mm;">
+        <span>CAS Services</span><span class="pageNumber"></span>/<span class="totalPages"></span></div>`,
+    });
   } finally {
     await browser.close();
   }
