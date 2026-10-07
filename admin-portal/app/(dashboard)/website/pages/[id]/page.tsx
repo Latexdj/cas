@@ -69,7 +69,7 @@ function compressImage(file: File, maxDimension = 1920, quality = 0.82): Promise
 // real guarantee (a direct API call bypasses this entirely), this is just
 // to catch it before spending an upload round-trip on something that will
 // be rejected anyway.
-const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
 
 function base64ByteSize(dataUri: string): number {
   const base64 = dataUri.slice(dataUri.indexOf(',') + 1);

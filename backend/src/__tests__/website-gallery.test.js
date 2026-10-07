@@ -42,7 +42,7 @@ function buildApp() {
   const app = express();
   // Matches index.js's real body-size limit — the default express.json()
   // limit (100kb) would reject the oversized-image test payload itself
-  // before the route's own 3MB check ever ran.
+  // before the route's own 2MB check ever ran.
   app.use(express.json({ limit: '50mb' }));
   app.use('/api/admin/website/gallery', galleryRouter);
   return app;
@@ -128,7 +128,7 @@ describe('Image mime-type validation', () => {
 // ── Image size cap ────────────────────────────────────────────────────────────
 
 describe('Image size cap', () => {
-  it('rejects an image over 3MB', async () => {
+  it('rejects an image over 2MB', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [{ id: 'page-1' }] });
     // Content doesn't need to be a real PNG — the size check runs on the
     // base64 string length before anything is decoded or uploaded.

@@ -92,7 +92,7 @@ components/site/**`.
 - [ ] Caption text rejects oversized input server-side (150 chars) while
       comfortably fitting a real caption.
 - [ ] A gallery is capped at 40 images; the 41st upload is rejected.
-- [ ] An image over 3MB is rejected server-side even if sent directly to the
+- [ ] An image over 2MB is rejected server-side even if sent directly to the
       API (the admin UI's client-side compression is a convenience, not the
       enforcement — a direct API call must still be rejected).
 - [ ] Deleting an image removes both the DB row and the underlying Supabase

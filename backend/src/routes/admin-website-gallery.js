@@ -10,9 +10,8 @@ router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess
 const MAX_IMAGES_PER_GALLERY = 40;
 // The admin UI already compresses/resizes before upload, so this is rarely
 // hit in practice — it's the actual guarantee, since a direct API call
-// bypasses client-side compression entirely. 3MB comfortably fits even a
-// high-quality 1920px JPEG.
-const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+// bypasses client-side compression entirely.
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 
 // Only ever fed a client-supplied data URI, never a server-trusted one (the
 // other website uploads — OG image, hero, logo — tolerate any file because
