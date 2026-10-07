@@ -31,6 +31,40 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+// Resizes to a sensible max dimension and re-encodes as JPEG before upload —
+// phone photos routinely come in at 3000px+ and several MB, which is far
+// more than a web gallery needs. Done client-side (no new backend
+// dependency like sharp) since gallery uploads are admin-authenticated, not
+// public input that needs server-side enforcement. GIFs pass through
+// untouched so animation isn't flattened into a single static frame.
+function compressImage(file: File, maxDimension = 1920, quality = 0.82): Promise<string> {
+  if (file.type === 'image/gif') return fileToBase64(file);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDimension || height > maxDimension) {
+          const scale = maxDimension / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(reader.result as string); return; } // fall back to the original if canvas isn't available
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(reader.result as string); // fall back rather than block the upload
+      img.src = reader.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 // Page type is chosen once at creation and is immutable after — same
 // precedent as the homepage's slug being locked — so this panel only needs
 // to exist once the page has a real id to attach images to.
@@ -49,7 +83,7 @@ function GalleryPanel({ pageId }: { pageId: string }) {
     setUploading(true);
     try {
       for (const file of Array.from(files)) {
-        const image_data = await fileToBase64(file);
+        const image_data = await compressImage(file);
         await api.post('/api/admin/website/gallery', { page_id: pageId, image_data });
       }
       await load();
