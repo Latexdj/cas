@@ -60,6 +60,7 @@ const adminWebsitePagesRoutes   = require('./routes/admin-website-pages');
 const adminWebsiteMenuRoutes    = require('./routes/admin-website-menu');
 const adminWebsiteGalleryRoutes = require('./routes/admin-website-gallery');
 const adminWebsiteContactRoutes = require('./routes/admin-website-contact');
+const adminExamResultsRoutes    = require('./routes/admin-exam-results');
 const schoolModulesRoutes     = require('./routes/schoolModules');
 const resultSubmissionsRoutes = require('./routes/result-submissions');
 const monitoringRoutes        = require('./routes/assessment-monitoring');
@@ -166,6 +167,7 @@ app.use('/api/admin/website/pages',   adminWebsitePagesRoutes);
 app.use('/api/admin/website/menu',    adminWebsiteMenuRoutes);
 app.use('/api/admin/website/gallery', adminWebsiteGalleryRoutes);
 app.use('/api/admin/website/contact', adminWebsiteContactRoutes);
+app.use('/api/admin/exam-results', adminExamResultsRoutes);
 app.use('/api/school-modules',        schoolModulesRoutes);
 app.use('/api/result-submissions',    resultSubmissionsRoutes);
 app.use('/api/assessment-monitoring', monitoringRoutes);
@@ -3069,6 +3071,59 @@ async function runMigrations() {
       `);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_contact_submissions_school ON website_contact_submissions(school_id)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website_contact_submissions:', e.message); }
+
+    // WAEC Results Analysis — exam_body-discriminated the same way
+    // grade_boundaries already is, so CTVET can reuse this schema later
+    // without a migration. registered_data holds admin-entered, editable
+    // Registered/Absent counts per subject per gender — these aren't
+    // derivable from the results listing itself (it only lists candidates
+    // who have results), so they're never silently defaulted server-side.
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS exam_result_batches (
+          id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id       UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          exam_body       TEXT NOT NULL CHECK (exam_body IN ('WAEC','CTVET')),
+          year            INTEGER NOT NULL,
+          school_number   TEXT,
+          source          TEXT NOT NULL CHECK (source IN ('upload','paste')),
+          raw_text        TEXT NOT NULL,
+          registered_data JSONB,
+          created_by      UUID,
+          created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+          UNIQUE (school_id, exam_body, year)
+        )
+      `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] exam_result_batches:', e.message); }
+
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS exam_result_candidates (
+          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          batch_id      UUID NOT NULL REFERENCES exam_result_batches(id) ON DELETE CASCADE,
+          index_number  TEXT NOT NULL,
+          name          TEXT NOT NULL,
+          gender        TEXT NOT NULL CHECK (gender IN ('Male','Female')),
+          dob           DATE,
+          UNIQUE (batch_id, index_number)
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_exam_result_candidates_batch ON exam_result_candidates(batch_id)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] exam_result_candidates:', e.message); }
+
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS exam_result_grades (
+          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          candidate_id  UUID NOT NULL REFERENCES exam_result_candidates(id) ON DELETE CASCADE,
+          subject_raw   TEXT NOT NULL,
+          subject_name  TEXT NOT NULL,
+          grade         TEXT NOT NULL
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_exam_result_grades_candidate ON exam_result_grades(candidate_id)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] exam_result_grades:', e.message); }
 
     // Multi-page website — Phase 1: Navigation. One level of nesting via
     // parent_id in v1 (matches the up/down-reorder admin UI, not drag-drop).
