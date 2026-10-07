@@ -19,6 +19,15 @@ const NOISE_LINE_PATTERNS = [
   /^\d{1,2}\/\d{1,2}\/\d{2,4},?\s*\d{1,2}:\d{2}\s*[AP]M$/i,
   /^WAEC Results Listing$/i,
   /^(https?:\/\/)?resultslisting\.waecgh\.org\/search\s*\d+\/\d+$/i,
+  // The page-fraction and the URL were also observed torn onto two
+  // separate lines, in that order ("3/13" alone, then
+  // "resultslisting.waecgh.org/search" alone on the next line) — neither
+  // half matches the combined pattern above on its own, and with no
+  // trailing comma after the candidate's last grade on that page, the
+  // leftover text stayed glued onto it instead of being stripped
+  // (e.g. "MGT IN LIVING - E8 3/13 resultslisting.waecgh.org/search").
+  /^\d{1,3}\/\d{1,3}$/,
+  /^(https?:\/\/)?resultslisting\.waecgh\.org\/search$/i,
   /^INDEX NUMBER\s*NAME\s*GENDER\s*DOB\s*RESULTS$/i,
   /^INDEX NUMBER$/i,
   /^NAME$/i,

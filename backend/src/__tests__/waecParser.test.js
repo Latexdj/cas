@@ -376,4 +376,66 @@ describe('Browser copy-paste (not a PDF upload)', () => {
     expect(c9.grades).toHaveLength(8);
     expect(c9.grades.map(g => g.grade)).toEqual(['D7', 'D7', 'F9', 'F9', 'F9', 'F9', 'C5', 'E8']);
   });
+
+  it('strips a page-fraction and the footer URL when they land on separate lines with no trailing comma after the last grade', () => {
+    // Real quirk: when a candidate's last subject on a page has no comma
+    // after it, and the page-fraction ("N/M") and the footer URL get torn
+    // onto two separate lines (fraction first, URL second — the reverse
+    // of the combined "URL N/M" line the other fixtures show), neither
+    // half matched the combined noise pattern, so the leftover text
+    // stayed glued onto that candidate's last grade (reported as
+    // "MGT IN LIVING - E8 3/13 resultslisting.waecgh.org/search").
+    const fixture = `
+INDEX NUMBER NAME GENDER DOB RESULTS
+0100505009 BAWAALE-ERE
+MILLICENT
+KYEN-NIBE
+Female 15/07/2003 SOCIAL STUDIES - D7 ,
+ENGLISH LANG - D7 ,
+MATHEMATICS(CORE) - F9 ,
+ECONOMICS - F9 ,
+BIOLOGY - F9 , FOODS &
+NUTRITION - C5 , MGT
+IN LIVING - E8
+3/13
+resultslisting.waecgh.org/search
+Total Number of Candidates: 1
+`;
+    const result = parseWaecListing(fixture);
+    expect(result.warnings).toEqual([]);
+    const mgt = result.candidates[0].grades.find(g => g.subjectName === 'Management in Living');
+    expect(mgt.grade).toBe('E8');
+  });
+});
+
+describe('Subject-name canonicalization is punctuation/spacing-agnostic', () => {
+  // Fixing "LIT-IN ENGLISH" (space, from a real browser-paste warning) as
+  // its own special case would only patch that one subject for this one
+  // trial school — other schools' subject combinations will hit the same
+  // KIND of extraction variance on subjects this fixture set has never
+  // seen. The lookup itself needs to tolerate hyphen/space/punctuation
+  // differences generally, not grow a special case per subject per quirk.
+  it('matches a subject whose hyphen became a space in a different extraction path', () => {
+    const fixture = `
+INDEX NUMBER NAME GENDER DOB RESULTS
+0100505001 TEST CANDIDATE Female 01/01/2005
+LIT-IN ENGLISH - B2
+Total Number of Candidates: 1
+`;
+    const result = parseWaecListing(fixture);
+    expect(result.warnings.some(w => w.type === 'unrecognized_subject')).toBe(false);
+    expect(result.candidates[0].grades[0].subjectName).toBe('Literature in English');
+  });
+
+  it('still flags a genuinely new subject as unrecognized rather than silently guessing', () => {
+    const fixture = `
+INDEX NUMBER NAME GENDER DOB RESULTS
+0100505001 TEST CANDIDATE Female 01/01/2005
+ELECTIVE MATHEMATICS - B2
+Total Number of Candidates: 1
+`;
+    const result = parseWaecListing(fixture);
+    expect(result.warnings.some(w => w.type === 'unrecognized_subject')).toBe(true);
+    expect(result.candidates[0].grades[0].subjectName).toBe('Elective Mathematics');
+  });
 });

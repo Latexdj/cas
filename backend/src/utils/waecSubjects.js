@@ -31,12 +31,31 @@ function titleCase(str) {
   return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
+// Collapses punctuation/spacing variance (hyphen vs space vs double space,
+// "&" vs "AND", parenthesised qualifiers) down to one comparable form, so
+// a lookup isn't defeated by cosmetic differences in how a given
+// extraction path happened to serialize the same subject name. Found
+// necessary when a browser copy-paste rendered "LIT-IN-ENGLISH" (the PDF
+// extraction's form) as "LIT-IN ENGLISH" instead — a different subject
+// hitting the same kind of variance (this school doesn't offer every
+// WAEC subject; others will) would otherwise need its own special case
+// added by hand every time, which doesn't scale and was never going to
+// cover a school whose combination we haven't seen yet.
+function canonicalize(label) {
+  return label.toUpperCase().replace(/&/g, ' AND ').replace(/[^A-Z0-9]+/g, ' ').trim();
+}
+
+const CANONICAL_LOOKUP = new Map(
+  Object.entries(WAEC_SUBJECT_NAMES).map(([raw, name]) => [canonicalize(raw), name])
+);
+
 // Returns { name, recognized } — recognized=false means this subject
 // wasn't in the map above and the caller should surface a warning.
 function normalizeSubjectName(rawLabel) {
-  const key = rawLabel.trim().toUpperCase().replace(/\s+/g, ' ');
-  if (WAEC_SUBJECT_NAMES[key]) return { name: WAEC_SUBJECT_NAMES[key], recognized: true };
-  return { name: titleCase(rawLabel.trim()), recognized: false };
+  const trimmed = rawLabel.trim();
+  const match = CANONICAL_LOOKUP.get(canonicalize(trimmed));
+  if (match) return { name: match, recognized: true };
+  return { name: titleCase(trimmed), recognized: false };
 }
 
 module.exports = { WAEC_SUBJECT_NAMES, WAEC_CORE_SUBJECTS, WAEC_GRADE_CODES, normalizeSubjectName };
