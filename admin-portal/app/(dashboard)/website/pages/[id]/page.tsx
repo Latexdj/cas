@@ -65,12 +65,25 @@ function compressImage(file: File, maxDimension = 1920, quality = 0.82): Promise
   });
 }
 
+// Keep in sync with admin-website-gallery.js's MAX_IMAGE_BYTES — that's the
+// real guarantee (a direct API call bypasses this entirely), this is just
+// to catch it before spending an upload round-trip on something that will
+// be rejected anyway.
+const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
+
+function base64ByteSize(dataUri: string): number {
+  const base64 = dataUri.slice(dataUri.indexOf(',') + 1);
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+  return Math.floor((base64.length * 3) / 4) - padding;
+}
+
 // Page type is chosen once at creation and is immutable after — same
 // precedent as the homepage's slug being locked — so this panel only needs
 // to exist once the page has a real id to attach images to.
 function GalleryPanel({ pageId }: { pageId: string }) {
   const [images, setImages] = useState<GalleryImage[] | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -80,12 +93,24 @@ function GalleryPanel({ pageId }: { pageId: string }) {
   useEffect(() => { load(); }, [load]);
 
   async function upload(files: FileList) {
-    setUploading(true);
+    setUploading(true); setUploadError('');
+    const tooLarge: string[] = [];
     try {
       for (const file of Array.from(files)) {
-        const image_data = await compressImage(file);
+        let image_data = await compressImage(file);
+        if (base64ByteSize(image_data) > MAX_UPLOAD_BYTES) {
+          // One more pass, more aggressive — handles the rare photo that's
+          // still large after the default compression (e.g. a very
+          // detailed/noisy image).
+          image_data = await compressImage(file, 1280, 0.6);
+        }
+        if (base64ByteSize(image_data) > MAX_UPLOAD_BYTES) {
+          tooLarge.push(file.name);
+          continue;
+        }
         await api.post('/api/admin/website/gallery', { page_id: pageId, image_data });
       }
+      if (tooLarge.length) setUploadError(`Too large even after compression, skipped: ${tooLarge.join(', ')}`);
       await load();
     } catch { /* a failed image doesn't block the others already uploaded */ }
     finally { setUploading(false); if (fileRef.current) fileRef.current.value = ''; }
@@ -123,6 +148,7 @@ function GalleryPanel({ pageId }: { pageId: string }) {
             onChange={e => e.target.files?.length && upload(e.target.files)} />
         </label>
       </div>
+      {uploadError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{uploadError}</p>}
       {images === null ? (
         <p className="text-sm text-slate-400">Loading…</p>
       ) : images.length === 0 ? (

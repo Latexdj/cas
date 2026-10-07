@@ -8,6 +8,11 @@ const { findOversizedField } = require('../utils/websiteValidation');
 router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('website'));
 
 const MAX_IMAGES_PER_GALLERY = 40;
+// The admin UI already compresses/resizes before upload, so this is rarely
+// hit in practice — it's the actual guarantee, since a direct API call
+// bypasses client-side compression entirely. 3MB comfortably fits even a
+// high-quality 1920px JPEG.
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 
 // Only ever fed a client-supplied data URI, never a server-trusted one (the
 // other website uploads — OG image, hero, logo — tolerate any file because
@@ -16,6 +21,15 @@ const MAX_IMAGES_PER_GALLERY = 40;
 // before it reaches storage.
 function isImageDataUri(value) {
   return typeof value === 'string' && /^data:image\/(jpeg|jpg|png|webp|gif);base64,/.test(value);
+}
+
+// Base64 encodes 3 bytes as 4 chars, so decoded size is ~3/4 of the string
+// length (minus padding) — close enough for a size gate without actually
+// allocating a Buffer for a request about to be rejected anyway.
+function base64ByteSize(dataUri) {
+  const base64 = dataUri.slice(dataUri.indexOf(',') + 1);
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+  return Math.floor((base64.length * 3) / 4) - padding;
 }
 
 // A gallery image's page_id must belong to the caller's own school AND
@@ -50,6 +64,9 @@ router.post('/', async (req, res, next) => {
     const { page_id, image_data, caption } = req.body;
     if (!page_id || !image_data) return res.status(400).json({ error: 'page_id and image_data are required.' });
     if (!isImageDataUri(image_data)) return res.status(400).json({ error: 'Only JPEG, PNG, WEBP, or GIF images are accepted.' });
+    if (base64ByteSize(image_data) > MAX_IMAGE_BYTES) {
+      return res.status(400).json({ error: `Image must be ${MAX_IMAGE_BYTES / (1024 * 1024)}MB or smaller.` });
+    }
 
     const page = await getOwnedGalleryPage(page_id, req.schoolId);
     if (!page) return res.status(400).json({ error: 'That page does not exist, or is not a gallery page.' });

@@ -40,7 +40,10 @@ const { uploadFile } = require('../services/storage.service');
 
 function buildApp() {
   const app = express();
-  app.use(express.json());
+  // Matches index.js's real body-size limit — the default express.json()
+  // limit (100kb) would reject the oversized-image test payload itself
+  // before the route's own 3MB check ever ran.
+  app.use(express.json({ limit: '50mb' }));
   app.use('/api/admin/website/gallery', galleryRouter);
   return app;
 }
@@ -110,6 +113,34 @@ describe('Image mime-type validation', () => {
   });
 
   it('accepts a real image data URI', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 'page-1' }] })
+      .mockResolvedValueOnce({ rows: [{ n: 0 }] })
+      .mockResolvedValueOnce({ rows: [{ next: 0 }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'img-1' }] });
+    const res = await request(buildApp()).post('/api/admin/website/gallery').send({
+      page_id: 'page-1', image_data: PNG_DATA_URI,
+    });
+    expect(res.status).toBe(201);
+  });
+});
+
+// ── Image size cap ────────────────────────────────────────────────────────────
+
+describe('Image size cap', () => {
+  it('rejects an image over 3MB', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'page-1' }] });
+    // Content doesn't need to be a real PNG — the size check runs on the
+    // base64 string length before anything is decoded or uploaded.
+    const oversized = 'data:image/png;base64,' + 'A'.repeat(5 * 1024 * 1024);
+    const res = await request(buildApp()).post('/api/admin/website/gallery').send({
+      page_id: 'page-1', image_data: oversized,
+    });
+    expect(res.status).toBe(400);
+    expect(uploadFile).not.toHaveBeenCalled();
+  });
+
+  it('accepts an image comfortably under the cap', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ id: 'page-1' }] })
       .mockResolvedValueOnce({ rows: [{ n: 0 }] })
