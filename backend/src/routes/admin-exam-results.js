@@ -20,6 +20,48 @@ async function getGradeBoundaries(schoolId, examBody) {
   return rows;
 }
 
+// Shared by the JSON report endpoint and both exports — computes the full
+// Analysis Report live from stored candidates/grades + this school's
+// grade_boundaries. Throws a {status, message} shaped error on failure so
+// each caller can respond in its own format (JSON vs a file download).
+async function buildReportForBatch(schoolId, batchId) {
+  const { rows: batchRows } = await pool.query(
+    `SELECT id, exam_body, year, school_number, registered_data FROM exam_result_batches WHERE id = $1 AND school_id = $2`,
+    [batchId, schoolId]
+  );
+  if (!batchRows.length) { const e = new Error('Batch not found'); e.status = 404; throw e; }
+  const batch = batchRows[0];
+
+  const [{ rows: candidateRows }, gradeBoundaries] = await Promise.all([
+    pool.query(
+      `SELECT c.id, c.index_number, c.name, c.gender, c.dob,
+              COALESCE(json_agg(json_build_object('subjectName', g.subject_name, 'grade', g.grade)) FILTER (WHERE g.id IS NOT NULL), '[]') AS grades
+       FROM exam_result_candidates c
+       LEFT JOIN exam_result_grades g ON g.candidate_id = c.id
+       WHERE c.batch_id = $1
+       GROUP BY c.id
+       ORDER BY c.index_number`,
+      [batch.id]
+    ),
+    getGradeBoundaries(schoolId, batch.exam_body),
+  ]);
+
+  if (!gradeBoundaries.length) {
+    const e = new Error(`No ${batch.exam_body} grade boundaries are configured for this school. Set them up under Grade Boundaries first.`);
+    e.status = 400;
+    throw e;
+  }
+
+  const report = computeReport({
+    candidates: candidateRows,
+    gradeBoundaries,
+    registeredData: batch.registered_data,
+    coreSubjects: WAEC_CORE_SUBJECTS,
+  });
+
+  return { year: batch.year, examBody: batch.exam_body, schoolNumber: batch.school_number, ...report };
+}
+
 // POST /parse — accepts either a PDF upload (multipart, field "pdf") or
 // pasted text ({ raw_text } JSON body); runs the shared parser either way.
 // Nothing is persisted here — this is the preview step.
@@ -148,40 +190,107 @@ router.get('/batches/:id', async (req, res, next) => {
 // cached/pre-stored, so it always reflects the current boundaries.
 router.get('/batches/:id/report', async (req, res, next) => {
   try {
-    const { rows: batchRows } = await pool.query(
-      `SELECT id, exam_body, year, registered_data FROM exam_result_batches WHERE id = $1 AND school_id = $2`,
-      [req.params.id, req.schoolId]
-    );
-    if (!batchRows.length) return res.status(404).json({ error: 'Batch not found' });
-    const batch = batchRows[0];
+    const report = await buildReportForBatch(req.schoolId, req.params.id);
+    res.json(report);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
 
-    const [{ rows: candidateRows }, gradeBoundaries] = await Promise.all([
-      pool.query(
-        `SELECT c.id, c.index_number, c.name, c.gender, c.dob,
-                COALESCE(json_agg(json_build_object('subjectName', g.subject_name, 'grade', g.grade)) FILTER (WHERE g.id IS NOT NULL), '[]') AS grades
-         FROM exam_result_candidates c
-         LEFT JOIN exam_result_grades g ON g.candidate_id = c.id
-         WHERE c.batch_id = $1
-         GROUP BY c.id
-         ORDER BY c.index_number`,
-        [batch.id]
-      ),
-      getGradeBoundaries(req.schoolId, batch.exam_body),
-    ]);
+// GET /batches/:id/export.xlsx — matches the GES Analysis Report layout:
+// one row per subject, B/G/T columns for Registered/Presented/Absent/each
+// grade/% Pass, with the Summary of Subjects Passed block below.
+router.get('/batches/:id/export.xlsx', async (req, res, next) => {
+  try {
+    const ExcelJS = require('exceljs');
+    const report = await buildReportForBatch(req.schoolId, req.params.id);
+    const gradeOrder = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9'];
 
-    if (!gradeBoundaries.length) {
-      return res.status(400).json({ error: `No ${batch.exam_body} grade boundaries are configured for this school. Set them up under Grade Boundaries first.` });
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Analysis Report');
+
+    ws.mergeCells('A1:C1');
+    ws.getCell('A1').value = `${report.examBody} ${report.year} School Result Analysis`;
+    ws.getCell('A1').font = { bold: true, size: 13 };
+
+    const headerRow1 = ['Subject', 'Registered', '', '', 'Presented', '', '', 'Absent', '', '',
+      ...gradeOrder.flatMap(g => [g, '', '']), '% Pass', '', ''];
+    const headerRow2 = ['', 'B', 'G', 'T', 'B', 'G', 'T', 'B', 'G', 'T',
+      ...gradeOrder.flatMap(() => ['B', 'G', 'T']), 'B', 'G', 'T'];
+    const r1 = ws.addRow(headerRow1);
+    const r2 = ws.addRow(headerRow2);
+    [r1, r2].forEach(r => { r.font = { bold: true }; r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } }; });
+    let col = 2;
+    for (const span of [3, 3, 3, ...gradeOrder.map(() => 3), 3]) {
+      ws.mergeCells(1, col, 1, col + span - 1);
+      col += span;
     }
 
-    const report = computeReport({
-      candidates: candidateRows,
-      gradeBoundaries,
-      registeredData: batch.registered_data,
-      coreSubjects: WAEC_CORE_SUBJECTS,
-    });
+    const addSection = (title, subjects) => {
+      if (!subjects.length) return;
+      const titleRow = ws.addRow([title]);
+      titleRow.font = { bold: true, italic: true };
+      for (const s of subjects) {
+        ws.addRow([
+          s.name,
+          s.registered.boys, s.registered.girls, s.registered.total,
+          s.presented.boys, s.presented.girls, s.presented.total,
+          s.absent.boys, s.absent.girls, s.absent.total,
+          ...gradeOrder.flatMap(g => {
+            const d = s.gradeDistribution[g];
+            return [d?.boys || 0, d?.girls || 0, d ? d.boys + d.girls : 0];
+          }),
+          s.percentagePass.boys, s.percentagePass.girls, s.percentagePass.total,
+        ]);
+      }
+    };
+    addSection('Core', report.subjects.filter(s => s.isCore));
+    addSection('Electives', report.subjects.filter(s => !s.isCore));
 
-    res.json({ year: batch.year, examBody: batch.exam_body, ...report });
-  } catch (err) { next(err); }
+    ws.addRow([]);
+    const summaryTitle = ws.addRow(['Summary of Subjects Passed']);
+    summaryTitle.font = { bold: true };
+    ws.addRow(['Total Number of Candidates', report.totalCandidates]);
+    const maxBucket = Math.max(0, ...Object.keys(report.summaryOfPasses.buckets).map(Number));
+    for (let n = maxBucket; n >= 1; n--) ws.addRow([`${n} Pass${n === 1 ? '' : 'es'}`, report.summaryOfPasses.buckets[n] || 0]);
+    ws.addRow(['Failures', report.summaryOfPasses.failures]);
+    ws.addRow(['Entire Results Cancelled', report.summaryOfPasses.entireResultsCancelled]);
+
+    ws.columns.forEach(c => { c.width = 12; });
+    ws.getColumn(1).width = 26;
+
+    const filename = `${report.examBody}_${report.year}_Analysis_Report.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+// GET /batches/:id/export.pdf — same report, rendered via the existing
+// puppeteer-core + @sparticuz/chromium HTML-to-PDF pipeline already used
+// for discipline/admission letters (pdf.service.js), returning a buffer
+// directly rather than persisting to storage (see that function's comment).
+router.get('/batches/:id/export.pdf', async (req, res, next) => {
+  try {
+    const { generateExamAnalysisReportPDFBuffer } = require('../services/pdf.service');
+    const report = await buildReportForBatch(req.schoolId, req.params.id);
+    const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.schoolId]);
+    const school = schoolRows[0] || { name: 'School' };
+
+    const pdfBuffer = await generateExamAnalysisReportPDFBuffer(report, school);
+    const filename = `${report.examBody}_${report.year}_Analysis_Report.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 router.patch('/batches/:id/registered-data', async (req, res, next) => {

@@ -1062,6 +1062,105 @@ async function generateCardPng({ student, card, school }) {
   return pngBuffer;
 }
 
+// ── WAEC Results Analysis Report ───────────────────────────────────────────────
+
+const WAEC_GRADE_ORDER = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9'];
+
+function buildExamAnalysisReportHTML(report, school) {
+  const headerCell = (label) => `<th style="padding:3px 4px;border:1px solid #ccc;background:#f2f2f2;font-size:7pt;">${esc(label)}</th>`;
+  const groupHeader = (label, span) => `<th colspan="${span}" style="padding:3px 4px;border:1px solid #ccc;background:#f2f2f2;font-size:7pt;">${esc(label)}</th>`;
+
+  const subjectRow = (s) => {
+    const gradeCells = WAEC_GRADE_ORDER.map(g => {
+      const d = s.gradeDistribution[g];
+      return `<td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${d?.boys || ''}</td>
+              <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${d?.girls || ''}</td>
+              <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${d ? d.boys + d.girls : ''}</td>`;
+    }).join('');
+    return `<tr>
+      <td style="padding:2px 4px;border:1px solid #ccc;white-space:nowrap;">${esc(s.name)}</td>
+      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.registered.boys}</td>
+      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.registered.girls}</td>
+      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.registered.total}</td>
+      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.presented.boys}</td>
+      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.presented.girls}</td>
+      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.presented.total}</td>
+      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.absent.boys}</td>
+      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.absent.girls}</td>
+      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.absent.total}</td>
+      ${gradeCells}
+      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.percentagePass.boys}%</td>
+      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;">${s.percentagePass.girls}%</td>
+      <td style="padding:2px 4px;border:1px solid #ccc;text-align:center;font-weight:bold;">${s.percentagePass.total}%</td>
+    </tr>`;
+  };
+
+  const coreSubjects = report.subjects.filter(s => s.isCore);
+  const electiveSubjects = report.subjects.filter(s => !s.isCore);
+  const maxBucket = Math.max(0, ...Object.keys(report.summaryOfPasses.buckets).map(Number));
+  const summaryRows = [];
+  for (let n = maxBucket; n >= 1; n--) summaryRows.push(`<tr><td style="padding:2px 8px;">${n} Pass${n === 1 ? '' : 'es'}</td><td style="padding:2px 8px;font-weight:bold;">${report.summaryOfPasses.buckets[n] || 0}</td></tr>`);
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body { font-family: Arial, sans-serif; color: #111; }
+    table { border-collapse: collapse; width: 100%; }
+  </style></head><body>
+    <div style="text-align:center;margin-bottom:16px;">
+      <h2 style="margin:0 0 4px;font-size:13pt;">${esc(school.name)}</h2>
+      ${report.schoolNumber ? `<p style="margin:0;font-size:9pt;color:#555;">School # ${esc(report.schoolNumber)}</p>` : ''}
+      <h3 style="margin:10px 0 0;font-size:11pt;">${esc(report.examBody)} ${report.year} School Result Analysis</h3>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          ${headerCell('Subject')}
+          ${groupHeader('Registered', 3)}
+          ${groupHeader('Presented', 3)}
+          ${groupHeader('Absent', 3)}
+          ${WAEC_GRADE_ORDER.map(g => groupHeader(g, 3)).join('')}
+          ${groupHeader('% Pass', 3)}
+        </tr>
+        <tr>
+          <th style="border:1px solid #ccc;"></th>
+          ${Array.from({ length: 3 + 3 + 3 + WAEC_GRADE_ORDER.length * 3 + 3 }).map((_, i) => headerCell(['B', 'G', 'T'][i % 3])).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${coreSubjects.length ? `<tr><td colspan="${13 + WAEC_GRADE_ORDER.length * 3}" style="padding:4px;font-weight:bold;font-style:italic;">Core</td></tr>${coreSubjects.map(subjectRow).join('')}` : ''}
+        ${electiveSubjects.length ? `<tr><td colspan="${13 + WAEC_GRADE_ORDER.length * 3}" style="padding:4px;font-weight:bold;font-style:italic;">Electives</td></tr>${electiveSubjects.map(subjectRow).join('')}` : ''}
+      </tbody>
+    </table>
+    <h3 style="margin:20px 0 8px;font-size:11pt;">Summary of Subjects Passed</h3>
+    <table style="width:auto;">
+      <tr><td style="padding:2px 8px;">Total Number of Candidates</td><td style="padding:2px 8px;font-weight:bold;">${report.totalCandidates}</td></tr>
+      ${summaryRows.join('')}
+      <tr><td style="padding:2px 8px;">Failures</td><td style="padding:2px 8px;font-weight:bold;">${report.summaryOfPasses.failures}</td></tr>
+      <tr><td style="padding:2px 8px;">Entire Results Cancelled</td><td style="padding:2px 8px;font-weight:bold;">${report.summaryOfPasses.entireResultsCancelled}</td></tr>
+    </table>
+  </body></html>`;
+}
+
+// Returns a PDF buffer directly (no Supabase upload) — the report is
+// always computed live and re-exportable on demand, so persisting every
+// export attempt to storage would just accumulate orphaned files.
+async function generateExamAnalysisReportPDFBuffer(report, school) {
+  const html = buildExamAnalysisReportHTML(report, school);
+  const executablePath = await resolveChromePath();
+  const browser = await puppeteer.launch({
+    args:            [...(chromium.args ?? []), '--no-sandbox', '--disable-setuid-sandbox'],
+    defaultViewport: chromium.defaultViewport,
+    executablePath,
+    headless:        true,
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
+    return await page.pdf({ format: 'A3', landscape: true, printBackground: true, margin: { top: '12mm', right: '10mm', bottom: '12mm', left: '10mm' } });
+  } finally {
+    await browser.close();
+  }
+}
+
 module.exports = {
   generateAndUploadPDF, buildLetterHTML,
   buildAdmissionLetterHTML, generateAdmissionLetterPDF,
@@ -1069,4 +1168,5 @@ module.exports = {
   buildCardMarkup, buildCardBackMarkup, buildCardHTML, generateCardBuffer,
   buildBatchHTML, generateBatchAndUpload,
   generateCardPng,
+  buildExamAnalysisReportHTML, generateExamAnalysisReportPDFBuffer,
 };
