@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 
 interface MenuItem {
-  id: string; label: string; page_id: string | null; external_url: string | null;
+  id: string; label: string; page_id: string | null; external_url: string | null; is_home_link: boolean;
   parent_id: string | null; sort_order: number; open_new_tab: boolean; is_visible: boolean;
   page_slug: string | null; page_title: string | null; children: MenuItem[];
 }
@@ -13,7 +13,7 @@ interface PageOption { id: string; title: string; slug: string; status: string }
 
 const inputCls = 'rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
 
-function NewItemForm({ pages, onAdd }: { pages: PageOption[]; onAdd: (v: { label: string; page_id?: string; external_url?: string }) => void }) {
+function NewItemForm({ pages, onAdd }: { pages: PageOption[]; onAdd: (v: { label: string; page_id?: string; external_url?: string; is_home_link?: boolean }) => void }) {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
   const [target, setTarget] = useState('');
@@ -22,13 +22,19 @@ function NewItemForm({ pages, onAdd }: { pages: PageOption[]; onAdd: (v: { label
     <button onClick={() => setOpen(true)} className="text-xs font-semibold text-[#145C44] hover:underline">+ Add item</button>
   );
 
-  const isPage = pages.some(p => p.id === target);
-
   return (
     <div className="border border-dashed border-slate-200 rounded-lg p-3 space-y-2">
       <input className={`${inputCls} w-full`} placeholder="Label" value={label} onChange={e => setLabel(e.target.value)} />
-      <select className={`${inputCls} w-full`} value={target} onChange={e => setTarget(e.target.value)}>
+      <select
+        className={`${inputCls} w-full`}
+        value={target}
+        onChange={e => {
+          setTarget(e.target.value);
+          if (e.target.value === '__home' && !label) setLabel('Home');
+        }}
+      >
         <option value="">Choose a page…</option>
+        <option value="__home">Home (your homepage)</option>
         {pages.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
         <option value="__external">Custom URL / anchor…</option>
       </select>
@@ -40,7 +46,9 @@ function NewItemForm({ pages, onAdd }: { pages: PageOption[]; onAdd: (v: { label
         <button
           onClick={() => {
             if (!label || !target) return;
-            if (target === '__external') {
+            if (target === '__home') {
+              onAdd({ label, is_home_link: true });
+            } else if (target === '__external') {
               const url = (document.getElementById('ext-url-input') as HTMLInputElement | null)?.value || '';
               if (!url) return;
               onAdd({ label, external_url: url });
@@ -78,8 +86,8 @@ function MenuColumn({ title, location, items, pages, onChange }: {
     await api.delete(`/api/admin/website/menu/${id}`);
     onChange();
   }
-  async function add(v: { label: string; page_id?: string; external_url?: string }) {
-    await api.post('/api/admin/website/menu', { location, label: v.label, page_id: v.page_id, external_url: v.external_url });
+  async function add(v: { label: string; page_id?: string; external_url?: string; is_home_link?: boolean }) {
+    await api.post('/api/admin/website/menu', { location, label: v.label, page_id: v.page_id, external_url: v.external_url, is_home_link: v.is_home_link });
     onChange();
   }
 
@@ -89,7 +97,7 @@ function MenuColumn({ title, location, items, pages, onChange }: {
         <div className={`flex items-center justify-between gap-2 py-2 px-3 rounded-lg ${depth > 0 ? 'ml-6 bg-slate-50' : 'bg-white border border-slate-100'}`}>
           <div className="min-w-0">
             <p className="text-sm font-medium text-slate-800 truncate">{item.label}</p>
-            <p className="text-xs text-slate-400 truncate">{item.page_title ? `Page: ${item.page_title}` : item.external_url}</p>
+            <p className="text-xs text-slate-400 truncate">{item.is_home_link ? 'Home (your homepage)' : item.page_title ? `Page: ${item.page_title}` : item.external_url}</p>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
             <button onClick={() => move(list, index, -1)} disabled={index === 0} className="w-6 h-6 text-slate-400 hover:text-slate-700 disabled:opacity-20">↑</button>

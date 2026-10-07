@@ -196,6 +196,21 @@ describe('Slug normalization', () => {
     const res = await request(buildApp()).post('/api/admin/website/pages').send({});
     expect(res.status).toBe(400);
   });
+
+  // "home" used to be creatable as an ordinary page — the only way an admin
+  // could get a working "Home" nav link, before Navigation had its own Home
+  // link type — leaving an empty duplicate of the real homepage sitting in
+  // the sitemap. Reserved outright now; use a Home-type navigation item.
+  it('rejects creating a new page with the reserved slug "home"', async () => {
+    const res = await request(buildApp()).post('/api/admin/website/pages').send({ slug: 'Home', title: 'Home' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects renaming an existing non-homepage page to the reserved slug "home"', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ slug: 'academics', is_homepage: false }] });
+    const res = await request(buildApp()).patch('/api/admin/website/pages/academics-id').send({ slug: 'home' });
+    expect(res.status).toBe(400);
+  });
 });
 
 // ── Homepage protection ───────────────────────────────────────────────────────

@@ -44,13 +44,14 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { location, label, page_id, external_url, parent_id, open_new_tab, is_visible } = req.body;
+    const { location, label, page_id, external_url, is_home_link, parent_id, open_new_tab, is_visible } = req.body;
+    const isHome = Boolean(is_home_link);
     if (!location || !['header', 'footer'].includes(location)) return res.status(400).json({ error: 'Location must be header or footer.' });
     if (!label) return res.status(400).json({ error: 'Label is required.' });
     const oversized = findOversizedField({ label });
     if (oversized) return res.status(400).json({ error: `Label must be ${oversized.limit} characters or fewer.` });
-    if (!page_id && !external_url) return res.status(400).json({ error: 'A page or an external URL is required.' });
-    if (page_id && external_url) return res.status(400).json({ error: 'Choose either a page or an external URL, not both.' });
+    if (!page_id && !external_url && !isHome) return res.status(400).json({ error: 'A page, an external URL, or Home is required.' });
+    if ((page_id && external_url) || (page_id && isHome) || (external_url && isHome)) return res.status(400).json({ error: 'Choose only one of: a page, an external URL, or Home.' });
     if (external_url && !isSafeExternalUrl(external_url)) return res.status(400).json({ error: 'That URL is not allowed. Use an anchor (#section), a site-relative path (/page), or a full http(s) link.' });
     if (page_id) {
       const { rows: owned } = await pool.query(`SELECT 1 FROM website_pages WHERE id = $1 AND school_id = $2`, [page_id, req.schoolId]);
@@ -70,10 +71,10 @@ router.post('/', async (req, res, next) => {
     );
 
     const { rows } = await pool.query(
-      `INSERT INTO website_menu_items (school_id, location, label, page_id, external_url, parent_id, sort_order, open_new_tab, is_visible)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      `INSERT INTO website_menu_items (school_id, location, label, page_id, external_url, is_home_link, parent_id, sort_order, open_new_tab, is_visible)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        RETURNING *`,
-      [req.schoolId, location, label, page_id || null, external_url || null, parent_id || null,
+      [req.schoolId, location, label, page_id || null, external_url || null, isHome, parent_id || null,
        maxRow[0].next, Boolean(open_new_tab), is_visible !== undefined ? Boolean(is_visible) : true]
     );
     res.status(201).json(rows[0]);
@@ -82,12 +83,13 @@ router.post('/', async (req, res, next) => {
 
 router.patch('/:id', async (req, res, next) => {
   try {
-    const { label, page_id, external_url, parent_id, sort_order, open_new_tab, is_visible } = req.body;
+    const { label, page_id, external_url, is_home_link, parent_id, sort_order, open_new_tab, is_visible } = req.body;
+    const isHome = is_home_link === true;
     if (label !== undefined) {
       const oversized = findOversizedField({ label });
       if (oversized) return res.status(400).json({ error: `Label must be ${oversized.limit} characters or fewer.` });
     }
-    if (page_id && external_url) return res.status(400).json({ error: 'Choose either a page or an external URL, not both.' });
+    if ((page_id && external_url) || (page_id && isHome) || (external_url && isHome)) return res.status(400).json({ error: 'Choose only one of: a page, an external URL, or Home.' });
     if (external_url && !isSafeExternalUrl(external_url)) return res.status(400).json({ error: 'That URL is not allowed. Use an anchor (#section), a site-relative path (/page), or a full http(s) link.' });
     if (page_id) {
       const { rows: owned } = await pool.query(`SELECT 1 FROM website_pages WHERE id = $1 AND school_id = $2`, [page_id, req.schoolId]);
@@ -109,16 +111,17 @@ router.patch('/:id', async (req, res, next) => {
     const { rows } = await pool.query(
       `UPDATE website_menu_items SET
          label        = COALESCE($1, label),
-         page_id      = CASE WHEN $2::uuid IS NOT NULL THEN $2 WHEN $3::text IS NOT NULL THEN NULL ELSE page_id END,
-         external_url = CASE WHEN $3::text IS NOT NULL THEN $3 WHEN $2::uuid IS NOT NULL THEN NULL ELSE external_url END,
-         parent_id    = COALESCE($4, parent_id),
-         sort_order   = COALESCE($5, sort_order),
-         open_new_tab = COALESCE($6, open_new_tab),
-         is_visible   = COALESCE($7, is_visible),
+         page_id      = CASE WHEN $2::uuid IS NOT NULL THEN $2 WHEN $3::text IS NOT NULL OR $4::boolean = true THEN NULL ELSE page_id END,
+         external_url = CASE WHEN $3::text IS NOT NULL THEN $3 WHEN $2::uuid IS NOT NULL OR $4::boolean = true THEN NULL ELSE external_url END,
+         is_home_link = CASE WHEN $4::boolean = true THEN true WHEN $2::uuid IS NOT NULL OR $3::text IS NOT NULL THEN false ELSE is_home_link END,
+         parent_id    = COALESCE($5, parent_id),
+         sort_order   = COALESCE($6, sort_order),
+         open_new_tab = COALESCE($7, open_new_tab),
+         is_visible   = COALESCE($8, is_visible),
          updated_at   = now()
-       WHERE id = $8 AND school_id = $9
+       WHERE id = $9 AND school_id = $10
        RETURNING *`,
-      [label || null, page_id || null, external_url || null, parent_id || null, sort_order ?? null,
+      [label || null, page_id || null, external_url || null, isHome, parent_id || null, sort_order ?? null,
        open_new_tab !== undefined ? Boolean(open_new_tab) : null,
        is_visible !== undefined ? Boolean(is_visible) : null,
        req.params.id, req.schoolId]

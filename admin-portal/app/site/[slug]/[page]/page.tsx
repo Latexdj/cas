@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { SiteChrome } from '@/components/site/SiteChrome';
 import { getSiteBranding, getSitePage, getSiteMenu } from '@/lib/site-data';
 
@@ -23,6 +23,10 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 export default async function SchoolWebsiteSubPage({ params }: { params: Params }) {
   const { slug, page: pageSlug } = await params;
+  // "home" is the site's own homepage, served at /site/<slug> with no page
+  // needed — consolidate any old/stray page at this URL onto the canonical
+  // one rather than serving it as separate, duplicate content.
+  if (pageSlug === 'home') permanentRedirect(`/site/${slug}`);
   const [branding, page, menu] = await Promise.all([getSiteBranding(slug), getSitePage(slug, pageSlug), getSiteMenu(slug)]);
   if (!branding || !page) notFound();
 

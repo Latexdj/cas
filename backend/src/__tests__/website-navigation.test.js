@@ -198,6 +198,43 @@ describe('Basic field validation', () => {
   });
 });
 
+// ── Home link — a menu item that points at the site root with no page needed,
+// so admins no longer have to create a fake "home" page just to get a
+// working Home nav entry (the bug that left an empty page in the sitemap).
+
+describe('Home link', () => {
+  it('accepts is_home_link with no page_id or external_url', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ next: 0 }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'item-1', is_home_link: true }] });
+    const res = await request(buildApp()).post('/api/admin/website/menu').send({
+      location: 'header', label: 'Home', is_home_link: true,
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('rejects is_home_link combined with a page_id', async () => {
+    const res = await request(buildApp()).post('/api/admin/website/menu').send({
+      location: 'header', label: 'Home', is_home_link: true, page_id: 'page-1',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects is_home_link combined with an external_url', async () => {
+    const res = await request(buildApp()).post('/api/admin/website/menu').send({
+      location: 'header', label: 'Home', is_home_link: true, external_url: '#x',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('PATCH rejects setting is_home_link on an item that also has a page_id in the same request', async () => {
+    const res = await request(buildApp()).patch('/api/admin/website/menu/item-1').send({
+      is_home_link: true, page_id: 'page-1',
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
 // ── Label length validation ────────────────────────────────────────────────
 
 describe('Label length validation', () => {

@@ -3036,6 +3036,14 @@ async function runMigrations() {
       `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website_menu_items:', e.message); }
 
+    // A menu item needs a real way to link back to the site root without
+    // pointing at a page row — before this, the only way an admin could get
+    // a working "Home" nav entry was to create an actual page slugged
+    // "home", which then sat in the sitemap as a second, empty homepage.
+    try {
+      await pool.query(`ALTER TABLE website_menu_items ADD COLUMN IF NOT EXISTS is_home_link BOOLEAN NOT NULL DEFAULT false`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website_menu_items.is_home_link:', e.message); }
+
     // QA fix: deleting a parent menu item (directly, or via its linked page
     // being deleted) must not silently destroy its children too — demote
     // them to top-level instead. Table may already exist from before this

@@ -84,6 +84,11 @@ router.post('/', async (req, res, next) => {
     const { title, menu_label, seo_title, seo_description, content, og_image_data } = req.body;
     const slug = normalizeSlug(req.body.slug);
     if (!slug || !title) return res.status(400).json({ error: 'Slug and title are required.' });
+    // "home" is reserved for the site's own homepage (served at /site/<slug>
+    // with no page needed) — this used to be the only way an admin could get
+    // a working "Home" nav link, which left an empty duplicate page sitting
+    // in the sitemap. Use a Home-type navigation item instead.
+    if (slug === 'home') return res.status(400).json({ error: 'The slug "home" is reserved for your site’s homepage. Use Navigation to add a Home link instead of creating a page.' });
 
     const oversized = findOversizedField({ title, menu_label, seo_title, seo_description, slug });
     if (oversized) return res.status(400).json({ error: `${oversized.field.replace('_', ' ')} must be ${oversized.limit} characters or fewer.` });
@@ -118,6 +123,9 @@ router.patch('/:id', async (req, res, next) => {
       if (!slug) return res.status(400).json({ error: 'That slug is not valid.' });
       if (current[0].is_homepage && slug !== current[0].slug) {
         return res.status(400).json({ error: 'The homepage URL cannot be changed.' });
+      }
+      if (!current[0].is_homepage && slug === 'home') {
+        return res.status(400).json({ error: 'The slug "home" is reserved for your site’s homepage. Use Navigation to add a Home link instead of creating a page.' });
       }
     }
     if (status !== undefined && !['draft', 'published'].includes(status)) {

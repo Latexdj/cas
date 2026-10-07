@@ -7,6 +7,7 @@ export interface MenuNode {
   label: string;
   page_slug: string | null;
   external_url: string | null;
+  is_home_link?: boolean;
   open_new_tab: boolean;
   children: MenuNode[];
 }
@@ -18,6 +19,9 @@ export interface NavLink { id?: string; href: string; label: string; openNewTab?
 // items both pointing at #academics), and React requires list keys to be
 // unique regardless of what they link to.
 function resolveHref(node: MenuNode, slug: string, isHomepage: boolean): NavLink {
+  if (node.is_home_link) {
+    return { id: node.id, href: `/site/${slug}`, label: node.label, openNewTab: node.open_new_tab };
+  }
   if (node.page_slug) {
     const href = node.page_slug === 'home' ? `/site/${slug}` : `/site/${slug}/${node.page_slug}`;
     return { id: node.id, href, label: node.label, openNewTab: node.open_new_tab };

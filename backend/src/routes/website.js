@@ -36,7 +36,7 @@ router.get('/', async (req, res, next) => {
       SELECT w.school_id, w.slug AS school_slug, w.updated_at AS site_updated_at,
              p.slug AS page_slug, p.updated_at AS page_updated_at
       FROM school_website_settings w
-      LEFT JOIN website_pages p ON p.school_id = w.school_id AND p.status = 'published' AND p.is_homepage = false
+      LEFT JOIN website_pages p ON p.school_id = w.school_id AND p.status = 'published' AND p.is_homepage = false AND p.slug <> 'home'
       WHERE w.is_published = true
       ORDER BY w.slug
     `);
@@ -120,7 +120,7 @@ router.get('/:slug/menu', async (req, res, next) => {
     const school = await getSchoolBySlug(req.params.slug);
     if (!school) return res.status(404).json({ error: 'Website not found' });
     const { rows } = await pool.query(
-      `SELECT m.id, m.location, m.label, m.external_url, m.parent_id, m.open_new_tab,
+      `SELECT m.id, m.location, m.label, m.external_url, m.is_home_link, m.parent_id, m.open_new_tab,
               p.slug AS page_slug
        FROM website_menu_items m LEFT JOIN website_pages p ON p.id = m.page_id AND p.school_id = m.school_id
        WHERE m.school_id = $1 AND m.is_visible = true
