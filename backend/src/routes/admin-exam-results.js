@@ -87,9 +87,26 @@ router.post('/parse', upload.single('pdf'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// "15/07/2003" -> "2003-07-15". The parser only ever emits DD/MM/YYYY
+// (validated against the regex in waecParser.js), so this is a plain
+// reformat, not general date parsing.
+function toIsoDate(ddmmyyyy) {
+  const [d, m, y] = ddmmyyyy.split('/');
+  return `${y}-${m}-${d}`;
+}
+
 // POST /batches — re-parses raw_text server-side (never trusts
 // client-edited candidate JSON, only year/registered_data/source
 // metadata) and replaces any existing batch for this school/exam_body/year.
+//
+// Inserts in bulk via unnest() (same pattern as results.js's /import) —
+// a real 50-candidate listing is ~400+ grade rows; one-row-at-a-time
+// INSERTs in a loop meant 450+ sequential round-trips to the DB inside a
+// single transaction, which was slow enough to hit a platform request
+// timeout on a real listing (reported as a bare "Save failed." with no
+// error body reaching the browser — the request died before Express
+// ever got to respond). Bulk insert cuts this to ~2 queries regardless
+// of candidate count.
 router.post('/batches', async (req, res, next) => {
   try {
     const { exam_body, year, source, raw_text, school_number, registered_data } = req.body;
@@ -126,19 +143,37 @@ router.post('/batches', async (req, res, next) => {
         batchId = rows[0].id;
       }
 
+      const { rows: candRows } = await client.query(
+        `INSERT INTO exam_result_candidates (batch_id, index_number, name, gender, dob)
+         SELECT $1, u.index_number, u.name, u.gender, u.dob::date
+         FROM unnest($2::text[], $3::text[], $4::text[], $5::text[]) AS u(index_number, name, gender, dob)
+         RETURNING id, index_number`,
+        [
+          batchId,
+          parsed.candidates.map(c => c.indexNumber),
+          parsed.candidates.map(c => c.name),
+          parsed.candidates.map(c => c.gender),
+          parsed.candidates.map(c => toIsoDate(c.dob)),
+        ]
+      );
+      const candidateIdByIndex = new Map(candRows.map(r => [r.index_number, r.id]));
+
+      const gCandidateIds = [], gSubjectRaws = [], gSubjectNames = [], gGrades = [];
       for (const c of parsed.candidates) {
-        const { rows: candRows } = await client.query(
-          `INSERT INTO exam_result_candidates (batch_id, index_number, name, gender, dob)
-           VALUES ($1,$2,$3,$4,TO_DATE($5,'DD/MM/YYYY')) RETURNING id`,
-          [batchId, c.indexNumber, c.name, c.gender, c.dob]
-        );
-        const candidateId = candRows[0].id;
+        const candidateId = candidateIdByIndex.get(c.indexNumber);
         for (const g of c.grades) {
-          await client.query(
-            `INSERT INTO exam_result_grades (candidate_id, subject_raw, subject_name, grade) VALUES ($1,$2,$3,$4)`,
-            [candidateId, g.subjectRaw, g.subjectName, g.grade]
-          );
+          gCandidateIds.push(candidateId);
+          gSubjectRaws.push(g.subjectRaw);
+          gSubjectNames.push(g.subjectName);
+          gGrades.push(g.grade);
         }
+      }
+      if (gCandidateIds.length) {
+        await client.query(
+          `INSERT INTO exam_result_grades (candidate_id, subject_raw, subject_name, grade)
+           SELECT * FROM unnest($1::uuid[], $2::text[], $3::text[], $4::text[])`,
+          [gCandidateIds, gSubjectRaws, gSubjectNames, gGrades]
+        );
       }
 
       await client.query('COMMIT');
@@ -150,7 +185,7 @@ router.post('/batches', async (req, res, next) => {
       client.release();
     }
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'A batch for this year already exists.' });
+    if (err.code === '23505') return res.status(409).json({ error: 'A batch for this year already exists, or the listing has a duplicate index number.' });
     next(err);
   }
 });

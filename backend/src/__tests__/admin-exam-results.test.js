@@ -97,15 +97,14 @@ describe('POST /batches — save transaction', () => {
     expect(res.status).toBe(400);
   });
 
-  it('creates a new batch inside a transaction when none exists for this year', async () => {
+  it('creates a new batch inside a transaction, inserting candidates and grades in bulk', async () => {
     mockClientQuery
-      .mockResolvedValueOnce({ rows: [] })                           // BEGIN (no-op in mock, but counted)
-      .mockResolvedValueOnce({ rows: [] })                           // SELECT existing -> none
-      .mockResolvedValueOnce({ rows: [{ id: 'batch-1' }] })          // INSERT batch
-      .mockResolvedValueOnce({ rows: [{ id: 'cand-1' }] })           // INSERT candidate
-      .mockResolvedValueOnce({ rows: [] })                           // INSERT grade (Mathematics)
-      .mockResolvedValueOnce({ rows: [] })                           // INSERT grade (English)
-      .mockResolvedValueOnce({ rows: [] });                          // COMMIT
+      .mockResolvedValueOnce({ rows: [] })                                      // BEGIN (no-op in mock, but counted)
+      .mockResolvedValueOnce({ rows: [] })                                      // SELECT existing -> none
+      .mockResolvedValueOnce({ rows: [{ id: 'batch-1' }] })                     // INSERT batch
+      .mockResolvedValueOnce({ rows: [{ id: 'cand-1', index_number: '0100505001' }] }) // bulk INSERT candidates
+      .mockResolvedValueOnce({ rows: [] })                                      // bulk INSERT grades
+      .mockResolvedValueOnce({ rows: [] });                                     // COMMIT
     const res = await request(buildApp()).post('/api/admin/exam-results/batches').send({
       exam_body: 'WAEC', year: 2023, source: 'paste', raw_text: SIMPLE_LISTING,
     });
@@ -113,6 +112,13 @@ describe('POST /batches — save transaction', () => {
     expect(res.body.candidateCount).toBe(1);
     const insertBatchCall = mockClientQuery.mock.calls.find(c => c[0].includes('INSERT INTO exam_result_batches'));
     expect(insertBatchCall[1]).toContain(SCHOOL_A);
+    // Exactly one bulk call for candidates (unnest over arrays), not one
+    // call per candidate — this is the fix for a real timeout on a real
+    // 50-candidate listing's ~450 one-row-at-a-time inserts.
+    const candidateInsertCalls = mockClientQuery.mock.calls.filter(c => c[0].includes('INSERT INTO exam_result_candidates'));
+    expect(candidateInsertCalls).toHaveLength(1);
+    const gradeInsertCalls = mockClientQuery.mock.calls.filter(c => c[0].includes('INSERT INTO exam_result_grades'));
+    expect(gradeInsertCalls).toHaveLength(1);
   });
 
   it('rolls back and surfaces the error if a write fails mid-transaction', async () => {
