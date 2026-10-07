@@ -179,6 +179,59 @@ F9 , FOODS & NUTRITION - D7
 Total Number of Candidates: 1
 `;
 
+// A real Ctrl+A browser copy-paste of the live results page (not a PDF
+// upload) — a user reported a wall of "malformed grade" warnings when
+// pasting this. Two things differ from every pdf-parse fixture above:
+// "INTEGRATED SCIENCE" consistently has NO hyphen before its grade (every
+// occurrence in the real paste reads "INTEGRATED SCIENCE F9", not
+// "INTEGRATED SCIENCE - F9" — a line-wrap quirk specific to that subject
+// in this extraction path), and the repeating page header gets scrambled
+// into separate, reordered single-field lines ("RESULTS" / "INDEX NUMBER"
+// / "NAME" / "GENDER DOB" each on their own line, in that order) instead
+// of pdf-parse's one concatenated line.
+const BROWSER_PASTE_SAMPLE = `INDEX NUMBER NAME GENDER DOB RESULTS
+0100505001 ABUBAKARI
+KAMILATU Female 03/05/2001
+SOCIAL STUDIES - F9 ,
+ENGLISH LANG - F9 ,
+MATHEMATICS(CORE) - F9
+, INTEGRATED SCIENCE
+F9 , ECONOMICS - F9 ,
+BIOLOGY - F9 , FOODS &
+NUTRITION - F9 , MGT
+IN LIVING - F9
+0100505002 ADAMS
+HALILAT Female 24/05/2001
+SOCIAL STUDIES - B2 ,
+ENGLISH LANG - C6 ,
+MATHEMATICS(CORE) - F9
+, INTEGRATED SCIENCE
+E8 , CHRISTIAN REL
+STUD - C5 , ECONOMICS- F9 , HISTORY - C6 ,
+LIT-IN-ENGLISH - E8
+0100505009 BAWAALE-ERE
+MILLICENT
+KYEN-NIBE
+Female 15/07/2003 SOCIAL STUDIES - D7 ,
+ENGLISH LANG - D7 ,
+MATHEMATICS(CORE) - F9
+, INTEGRATED SCIENCE
+Total Number of Candidates: 3
+2/27/25, 12:02 PM WAEC Results Listing
+resultslisting.waecgh.org/search 2/13
+2/27/25, 12:02 PM
+WAEC Results Listing
+RESULTS
+INDEX NUMBER
+NAME
+GENDER DOB
+F9 , ECONOMICS - F9 ,
+BIOLOGY - F9 , FOODS &
+NUTRITION - C5 , MGT
+IN LIVING - E8
+Total Number of Candidates: 3
+`;
+
 describe('Header metadata', () => {
   it('extracts school name, school number, and year', () => {
     const result = parseWaecListing(TWO_ORDINARY_CANDIDATES);
@@ -300,5 +353,27 @@ Total Number of Candidates: 2
 `;
     const result = parseWaecListing(fixture);
     expect(result.warnings.some(w => w.type === 'duplicate_candidate')).toBe(true);
+  });
+});
+
+describe('Browser copy-paste (not a PDF upload)', () => {
+  it('parses all 3 candidates with zero warnings', () => {
+    const result = parseWaecListing(BROWSER_PASTE_SAMPLE);
+    expect(result.warnings).toEqual([]);
+    expect(result.candidates).toHaveLength(3);
+  });
+
+  it('parses a hyphen-less "INTEGRATED SCIENCE <grade>" correctly', () => {
+    const result = parseWaecListing(BROWSER_PASTE_SAMPLE);
+    const c1 = result.candidates.find(c => c.indexNumber === '0100505001');
+    expect(c1.grades.find(g => g.subjectName === 'Integrated Science')?.grade).toBe('F9');
+  });
+
+  it('stitches a candidate split across the scrambled/reordered page header, not just the pdf-parse header shape', () => {
+    const result = parseWaecListing(BROWSER_PASTE_SAMPLE);
+    const c9 = result.candidates.find(c => c.indexNumber === '0100505009');
+    expect(c9.name).toBe('BAWAALE-ERE MILLICENT KYEN-NIBE');
+    expect(c9.grades).toHaveLength(8);
+    expect(c9.grades.map(g => g.grade)).toEqual(['D7', 'D7', 'F9', 'F9', 'F9', 'F9', 'C5', 'E8']);
   });
 });

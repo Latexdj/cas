@@ -3,13 +3,27 @@ const { WAEC_GRADE_CODES, normalizeSubjectName } = require('./waecSubjects');
 
 // Lines that are pure page-break artifacts in a pdf-parse/copy-paste
 // extraction of a WAEC results listing — verified against real extracted
-// text from three actual listings, not guessed. Both a pre-https and a
-// https-prefixed form of the footer URL were observed across different
-// years, hence the optional scheme.
+// text from three actual PDF listings AND a real browser copy-paste of
+// the live results page, which turned out to serialize the exact same
+// repeating header+date/time block completely differently: pdf-parse
+// keeps "INDEX NUMBER NAME GENDER DOB RESULTS" as one line and
+// "<date>, <time> WAEC Results Listing" as another, but a browser Ctrl+A
+// copy was observed splitting AND reordering that same block into
+// separate single-field lines ("RESULTS" / "INDEX NUMBER" / "NAME" /
+// "GENDER DOB", date and "WAEC Results Listing" on their own lines too) —
+// both shapes are matched here since either extraction path can produce
+// either one. Both a pre-https and a https-prefixed form of the footer
+// URL were observed across different years, hence the optional scheme.
 const NOISE_LINE_PATTERNS = [
   /^\d{1,2}\/\d{1,2}\/\d{2,4},\s*\d{1,2}:\d{2}\s*[AP]M\s*WAEC Results Listing$/i,
+  /^\d{1,2}\/\d{1,2}\/\d{2,4},?\s*\d{1,2}:\d{2}\s*[AP]M$/i,
+  /^WAEC Results Listing$/i,
   /^(https?:\/\/)?resultslisting\.waecgh\.org\/search\s*\d+\/\d+$/i,
   /^INDEX NUMBER\s*NAME\s*GENDER\s*DOB\s*RESULTS$/i,
+  /^INDEX NUMBER$/i,
+  /^NAME$/i,
+  /^GENDER\s*DOB$/i,
+  /^RESULTS$/i,
   /^WAEC\s*\.\.\.\s*Committed to Excellence$/i,
 ];
 
@@ -24,7 +38,13 @@ const TOTAL_CANDIDATES_RE = /^Total Number of Candidates:\s*(\d+)$/i;
 const INDEX_NUMBER_RE = /(?<!\d)\d{10}(?!\d)/g;
 const GENDER_DOB_RE = /(Male|Female)\s*(\d{2}\/\d{2}\/\d{4})/;
 const GRADE_ALTERNATION = WAEC_GRADE_CODES.join('|');
-const RESULT_PAIR_RE = new RegExp(`^(.+?)\\s*-\\s*(${GRADE_ALTERNATION})$`, 'i');
+// The hyphen is optional — a real browser copy-paste was observed
+// consistently dropping it for "INTEGRATED SCIENCE" specifically (every
+// occurrence in that paste read "INTEGRATED SCIENCE F9", not
+// "INTEGRATED SCIENCE - F9"), while every other subject kept its hyphen.
+// Likely a line-wrap quirk specific to how that subject's column breaks,
+// not something worth chasing further — just accept either shape.
+const RESULT_PAIR_RE = new RegExp(`^(.+?)\\s*-?\\s*(${GRADE_ALTERNATION})$`, 'i');
 
 // Joins consecutive text fragments the way the original PDF layout
 // intended: a fragment ending in '-' was a mid-word line wrap (e.g.
