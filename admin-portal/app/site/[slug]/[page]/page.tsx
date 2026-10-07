@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { SiteChrome } from '@/components/site/SiteChrome';
+import { GalleryGrid } from '@/components/site/GalleryGrid';
 import { getSiteBranding, getSitePage, getSiteMenu } from '@/lib/site-data';
 
 type Params = Promise<{ slug: string; page: string }>;
@@ -76,6 +77,16 @@ export default async function SchoolWebsiteSubPage({ params }: { params: Params 
                 </div>
               )}
             </div>
+          </div>
+        </section>
+      ) : page.page_type === 'gallery' ? (
+        <section className="pt-32 pb-20 px-6 bg-white">
+          <div className="max-w-5xl mx-auto">
+            <h1 className="text-3xl md:text-4xl font-black text-slate-900 mb-8">{page.title}</h1>
+            {page.content && (
+              <div className="site-page-content mb-10" dangerouslySetInnerHTML={{ __html: page.content }} />
+            )}
+            <GalleryGrid images={page.images ?? []} />
           </div>
         </section>
       ) : (

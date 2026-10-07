@@ -108,7 +108,15 @@ router.get('/:slug/pages/:pageSlug', async (req, res, next) => {
       [school.school_id, req.params.pageSlug]
     );
     if (!rows.length) return res.status(404).json({ error: 'Page not found' });
-    res.json(rows[0]);
+    const page = rows[0];
+    if (page.page_type === 'gallery') {
+      const { rows: images } = await pool.query(
+        `SELECT id, image_url, caption FROM website_gallery_images WHERE page_id = $1 ORDER BY sort_order`,
+        [page.id]
+      );
+      page.images = images;
+    }
+    res.json(page);
   } catch (err) { next(err); }
 });
 

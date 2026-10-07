@@ -12,6 +12,7 @@ const LIMITS = {
   slug: 100,
   seo_title: 70,
   seo_description: 300,
+  caption: 150, // website_gallery_images.caption
 };
 
 // field -> value map; returns the first field name that exceeds its limit,

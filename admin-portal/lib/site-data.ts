@@ -19,6 +19,7 @@ export interface SiteBranding {
 export interface SitePage {
   id: string; slug: string; title: string; menu_label: string | null; content: string | null;
   seo_title: string | null; seo_description: string | null; og_image_url: string | null; page_type: string;
+  images?: { id: string; image_url: string; caption: string | null }[];
 }
 
 export interface SiteMenu { header: MenuNode[]; footer: MenuNode[] }

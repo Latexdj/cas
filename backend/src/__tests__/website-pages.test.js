@@ -256,7 +256,7 @@ describe('Content sanitization', () => {
     await request(buildApp()).post('/api/admin/website/pages').send({
       slug: 'xss-test', title: 'XSS', content: '<p>hi</p><script>alert(1)</script>',
     });
-    const insertedContent = mockQuery.mock.calls[0][1][7];
+    const insertedContent = mockQuery.mock.calls[0][1][8];
     expect(insertedContent).not.toContain('<script>');
     expect(insertedContent).toContain('<p>hi</p>');
   });
@@ -266,7 +266,7 @@ describe('Content sanitization', () => {
     await request(buildApp()).post('/api/admin/website/pages').send({
       slug: 'xss-test-2', title: 'XSS2', content: '<a href="javascript:alert(1)">click</a><img src=x onerror=alert(1)>',
     });
-    const insertedContent = mockQuery.mock.calls[0][1][7];
+    const insertedContent = mockQuery.mock.calls[0][1][8];
     expect(insertedContent).not.toContain('javascript:');
     expect(insertedContent).not.toContain('onerror');
   });

@@ -81,6 +81,28 @@ components/site/**`.
       list rendering on the public site — keyed by the menu item's own
       id, not its resolved href.
 
+## Gallery
+
+- [ ] A gallery image's `page_id` is rejected unless it belongs to the
+      caller's own school AND that page's `page_type = 'gallery'` —
+      uploading to another school's page, or to a `standard`/`contact`
+      page, both 400.
+- [ ] Non-image `image_data` (wrong mime prefix, or not a data URI at all)
+      is rejected server-side before it reaches storage.
+- [ ] Caption text rejects oversized input server-side (150 chars) while
+      comfortably fitting a real caption.
+- [ ] A gallery is capped at 40 images; the 41st upload is rejected.
+- [ ] Deleting an image removes both the DB row and the underlying Supabase
+      storage blob — confirm via the storage bucket, not just the DB.
+- [ ] `page_type` can only be set to `'standard'` or `'gallery'` through the
+      general create-page endpoint — `'contact'`/`'homepage'` stay reserved
+      for `generate-starter` and are not reachable here.
+- [ ] Reordering (`sort_order` swap) persists and reflects correctly after
+      a refresh, same pattern as Navigation reordering.
+- [ ] The public page response only includes `images` when
+      `page_type = 'gallery'` — a standard page's response has no `images`
+      key at all.
+
 ## Public
 
 - [ ] `/site/<slug>` and `/site/<slug>/<page>` routing: valid/invalid

@@ -89,6 +89,10 @@ router.post('/', async (req, res, next) => {
     // a working "Home" nav link, which left an empty duplicate page sitting
     // in the sitemap. Use a Home-type navigation item instead.
     if (slug === 'home') return res.status(400).json({ error: 'The slug "home" is reserved for your site’s homepage. Use Navigation to add a Home link instead of creating a page.' });
+    // 'contact' and 'homepage' are only ever set by generate-starter — a
+    // school should have at most one of each, which this general endpoint
+    // has no way to enforce. 'gallery' is the only extra type choosable here.
+    const pageType = req.body.page_type === 'gallery' ? 'gallery' : 'standard';
 
     const oversized = findOversizedField({ title, menu_label, seo_title, seo_description, slug });
     if (oversized) return res.status(400).json({ error: `${oversized.field.replace('_', ' ')} must be ${oversized.limit} characters or fewer.` });
@@ -97,10 +101,10 @@ router.post('/', async (req, res, next) => {
     if (og_image_data) og_image_url = await uploadFile(og_image_data, `website/${req.schoolId}/pages/${slug}-og`, { upsert: true });
 
     const { rows } = await pool.query(
-      `INSERT INTO website_pages (school_id, slug, title, menu_label, seo_title, seo_description, og_image_url, content)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO website_pages (school_id, slug, title, menu_label, page_type, seo_title, seo_description, og_image_url, content)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        RETURNING *`,
-      [req.schoolId, slug, title, menu_label || null, seo_title || null, seo_description || null,
+      [req.schoolId, slug, title, menu_label || null, pageType, seo_title || null, seo_description || null,
        og_image_url, sanitizePageContent(content || '')]
     );
     res.status(201).json(rows[0]);

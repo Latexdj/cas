@@ -76,4 +76,12 @@ async function uploadDocument(base64DataUri, originalFilename, pathPrefix) {
   return { url: data.publicUrl, filename: safeName };
 }
 
-module.exports = { uploadPhoto, uploadFile, uploadDocument };
+// Remove a previously-uploaded file by its storage path. Used where a row
+// tracks its own storage_path (e.g. gallery images) so deleting the row can
+// also delete the underlying blob instead of leaving it orphaned.
+async function deleteFile(filePath) {
+  const { error } = await supabase.storage.from(BUCKET).remove([filePath]);
+  if (error) throw new Error(`Storage delete failed: ${error.message}`);
+}
+
+module.exports = { uploadPhoto, uploadFile, uploadDocument, deleteFile };

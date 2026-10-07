@@ -56,8 +56,9 @@ const admissionsRoutes        = require('./routes/admissions');
 const adminAdmissionsRoutes   = require('./routes/admin-admissions');
 const websiteRoutes           = require('./routes/website');
 const adminWebsiteRoutes      = require('./routes/admin-website');
-const adminWebsitePagesRoutes = require('./routes/admin-website-pages');
-const adminWebsiteMenuRoutes  = require('./routes/admin-website-menu');
+const adminWebsitePagesRoutes   = require('./routes/admin-website-pages');
+const adminWebsiteMenuRoutes    = require('./routes/admin-website-menu');
+const adminWebsiteGalleryRoutes = require('./routes/admin-website-gallery');
 const schoolModulesRoutes     = require('./routes/schoolModules');
 const resultSubmissionsRoutes = require('./routes/result-submissions');
 const monitoringRoutes        = require('./routes/assessment-monitoring');
@@ -162,6 +163,7 @@ app.use('/api/website',               websiteRoutes);
 app.use('/api/admin/website',         adminWebsiteRoutes);
 app.use('/api/admin/website/pages',   adminWebsitePagesRoutes);
 app.use('/api/admin/website/menu',    adminWebsiteMenuRoutes);
+app.use('/api/admin/website/gallery', adminWebsiteGalleryRoutes);
 app.use('/api/school-modules',        schoolModulesRoutes);
 app.use('/api/result-submissions',    resultSubmissionsRoutes);
 app.use('/api/assessment-monitoring', monitoringRoutes);
@@ -3013,6 +3015,40 @@ async function runMigrations() {
         )
       `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website_pages:', e.message); }
+
+    // 'gallery' page type — added after website_pages already existed in
+    // production, so the CHECK constraint needs dropping and recreating
+    // rather than a plain ADD (Postgres has no "add enum value to an inline
+    // CHECK" statement).
+    try {
+      await pool.query(`
+        DO $$ BEGIN
+          ALTER TABLE website_pages DROP CONSTRAINT IF EXISTS website_pages_page_type_check;
+          ALTER TABLE website_pages ADD CONSTRAINT website_pages_page_type_check
+            CHECK (page_type IN ('standard','homepage','contact','gallery'));
+        EXCEPTION WHEN OTHERS THEN NULL; END $$
+      `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website_pages.page_type gallery:', e.message); }
+
+    // Gallery page type's images — one row per photo, ordered, with its own
+    // optional caption. storage_path is kept alongside image_url because
+    // uploadFile() only returns the public URL, and deleting an image needs
+    // the underlying storage path too.
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS website_gallery_images (
+          id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id     UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          page_id       UUID NOT NULL REFERENCES website_pages(id) ON DELETE CASCADE,
+          image_url     TEXT NOT NULL,
+          storage_path  TEXT NOT NULL,
+          caption       TEXT,
+          sort_order    INTEGER NOT NULL DEFAULT 0,
+          created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_gallery_images_page ON website_gallery_images(page_id)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website_gallery_images:', e.message); }
 
     // Multi-page website — Phase 1: Navigation. One level of nesting via
     // parent_id in v1 (matches the up/down-reorder admin UI, not drag-drop).
