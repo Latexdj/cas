@@ -221,9 +221,14 @@ router.get('/batches/:id/export.xlsx', async (req, res, next) => {
     const r1 = ws.addRow(headerRow1);
     const r2 = ws.addRow(headerRow2);
     [r1, r2].forEach(r => { r.font = { bold: true }; r.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E9' } }; });
+    // r1.number, not a hardcoded 1 — row 1 is the title row (already
+    // merged A1:C1 above), and addRow() placed this header content on
+    // whatever row actually came after it. Merging against a hardcoded 1
+    // collided with the title's own merge ("Cannot merge already merged
+    // cells") instead of merging the header row's own cells.
     let col = 2;
     for (const span of [3, 3, 3, ...gradeOrder.map(() => 3), 3]) {
-      ws.mergeCells(1, col, 1, col + span - 1);
+      ws.mergeCells(r1.number, col, r1.number, col + span - 1);
       col += span;
     }
 
