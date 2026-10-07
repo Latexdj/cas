@@ -73,6 +73,8 @@ export default function WaecReportPage() {
   const { id } = useParams<{ id: string }>();
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState('');
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null);
+  const [exportError, setExportError] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -83,6 +85,33 @@ export default function WaecReportPage() {
     }
   }, [id]);
   useEffect(() => { load(); }, [load]);
+
+  // Export endpoints require the same Bearer auth as every other API call —
+  // a plain <a href> to the backend URL sends no Authorization header at
+  // all (the browser only auto-attaches cookies, not localStorage tokens),
+  // so it always hit "Authentication required" instead of downloading.
+  async function handleExport(format: 'xlsx' | 'pdf') {
+    setExporting(format); setExportError('');
+    try {
+      const token = localStorage.getItem('cas_token');
+      const base = process.env.NEXT_PUBLIC_API_URL ?? '';
+      const r = await fetch(`${base}/api/admin/exam-results/batches/${id}/export.${format}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error('Export failed');
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${report?.examBody ?? 'WAEC'}_${report?.year ?? ''}_Analysis_Report.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError(`${format.toUpperCase()} export failed. Please try again.`);
+    } finally {
+      setExporting(null);
+    }
+  }
 
   if (error) return <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3 max-w-xl">{error}</p>;
   if (!report) return <p className="text-sm text-slate-400">Loading…</p>;
@@ -102,12 +131,18 @@ export default function WaecReportPage() {
           <h1 className="text-2xl font-bold text-slate-900 mt-1">{report.examBody} {report.year} Analysis Report</h1>
         </div>
         <div className="flex gap-2">
-          <a href={`${process.env.NEXT_PUBLIC_API_URL}/api/admin/exam-results/batches/${id}/export.xlsx`}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#145C44] hover:bg-[#0f4a36]">Export Excel</a>
-          <a href={`${process.env.NEXT_PUBLIC_API_URL}/api/admin/exam-results/batches/${id}/export.pdf`}
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200">Export PDF</a>
+          <button onClick={() => handleExport('xlsx')} disabled={exporting !== null}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#145C44] hover:bg-[#0f4a36] disabled:opacity-50">
+            {exporting === 'xlsx' ? 'Exporting…' : 'Export Excel'}
+          </button>
+          <button onClick={() => handleExport('pdf')} disabled={exporting !== null}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-50">
+            {exporting === 'pdf' ? 'Exporting…' : 'Export PDF'}
+          </button>
         </div>
       </div>
+
+      {exportError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{exportError}</p>}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3">
