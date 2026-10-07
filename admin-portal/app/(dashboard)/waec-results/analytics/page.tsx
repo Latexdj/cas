@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import { CheckboxDropdown } from '@/components/ui/CheckboxDropdown';
 
 interface GenderCount { boys: number; girls: number; total: number }
 interface AnalyticsRow {
@@ -30,19 +31,6 @@ const LABEL_COLOR: Record<string, string> = {
   Average: '#C8780A', 'Below Average': '#C8780A',
   'Needs Improvement': '#B83232',
 };
-
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-        active ? 'bg-[#145C44] text-white border-[#145C44]' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
 
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
@@ -99,13 +87,11 @@ export default function WaecAnalyticsPage() {
     }
   }, []);
 
-  function toggleSubject(s: string) {
-    const next = selectedSubjects.includes(s) ? selectedSubjects.filter(x => x !== s) : [...selectedSubjects, s];
+  function handleSubjectsChange(next: string[]) {
     setSelectedSubjects(next);
     load(next, selectedYears);
   }
-  function toggleYear(y: number) {
-    const next = selectedYears.includes(y) ? selectedYears.filter(x => x !== y) : [...selectedYears, y];
+  function handleYearsChange(next: number[]) {
     setSelectedYears(next);
     load(selectedSubjects, next);
   }
@@ -183,6 +169,18 @@ export default function WaecAnalyticsPage() {
     });
   }, [data, selectedSubjects]);
 
+  const subjectOptions = useMemo(() => {
+    if (!full) return [];
+    const withGroup = full.subjects.map(s => {
+      const row = full.rows.find(r => r.subject === s);
+      return { value: s, label: s, group: row?.isCore ? 'Core' : 'Elective' };
+    });
+    // Core before Elective, matching the ordering used everywhere else in
+    // this module (the batch report's subject table, the exports).
+    return withGroup.sort((a, b) => (a.group === b.group ? 0 : a.group === 'Core' ? -1 : 1));
+  }, [full]);
+  const yearOptions = useMemo(() => (full ? full.years.map(y => ({ value: String(y), label: String(y) })) : []), [full]);
+
   if (error && !data) return <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3 max-w-xl">{error}</p>;
 
   return (
@@ -201,19 +199,14 @@ export default function WaecAnalyticsPage() {
       {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</p>}
 
       {full && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
-          <div>
-            <p className="text-xs font-semibold text-slate-500 mb-1.5">Subject</p>
-            <div className="flex flex-wrap gap-1.5">
-              {full.subjects.map(s => <Chip key={s} active={selectedSubjects.includes(s)} onClick={() => toggleSubject(s)}>{s}</Chip>)}
-            </div>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-slate-500 mb-1.5">Year</p>
-            <div className="flex flex-wrap gap-1.5">
-              {full.years.map(y => <Chip key={y} active={selectedYears.includes(y)} onClick={() => toggleYear(y)}>{y}</Chip>)}
-            </div>
-          </div>
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 flex flex-wrap items-center gap-2">
+          <CheckboxDropdown label="Subject" options={subjectOptions} selected={selectedSubjects} onChange={handleSubjectsChange} />
+          <CheckboxDropdown
+            label="Year"
+            options={yearOptions}
+            selected={selectedYears.map(String)}
+            onChange={(vals) => handleYearsChange(vals.map(Number))}
+          />
           {(selectedSubjects.length > 0 || selectedYears.length > 0) && (
             <button onClick={clearFilters} className="text-xs font-semibold text-[#145C44] hover:underline">Clear filters</button>
           )}
