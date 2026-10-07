@@ -3098,6 +3098,22 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE exam_result_batches ADD COLUMN IF NOT EXISTS official_summary JSONB`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] exam_result_batches:', e.message); }
 
+    // Exam Results Analysis module always-on backfill — same idiom as the
+    // website backfill above (new module key, default every existing
+    // school to enabled=true since this module had no gating at all before
+    // this shipped, including the trial school actively using it).
+    try {
+      await pool.query(`
+        INSERT INTO school_modules (school_id, module_key, enabled)
+        SELECT s.id, 'exam_results', true
+        FROM schools s
+        WHERE NOT EXISTS (
+          SELECT 1 FROM school_modules sm WHERE sm.school_id = s.id AND sm.module_key = 'exam_results'
+        )
+        ON CONFLICT DO NOTHING
+      `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] exam_results module backfill:', e.message); }
+
     try {
       await pool.query(`
         CREATE TABLE IF NOT EXISTS exam_result_candidates (

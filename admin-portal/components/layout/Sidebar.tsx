@@ -78,6 +78,7 @@ const sections: Section[] = [
       },
       {
         href: '/waec-results', label: 'WAEC Results',
+        module: 'exam_results',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h4m1-16H5a2 2 0 00-2 2v16a2 2 0 002 2h14a2 2 0 002-2V8l-6-6z M13 2v6h6" />,
       },
     ],

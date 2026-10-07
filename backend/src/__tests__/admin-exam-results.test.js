@@ -29,6 +29,9 @@ jest.mock('../middleware/auth', () => ({
     next();
   },
 }));
+jest.mock('../middleware/moduleAccess', () => ({
+  checkModuleAccess: () => (_req, _res, next) => next(),
+}));
 
 const request = require('supertest');
 const express = require('express');

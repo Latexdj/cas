@@ -4,13 +4,14 @@ const multer   = require('multer');
 const pdfParse = require('pdf-parse');
 const pool     = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { parseWaecListing } = require('../utils/waecParser');
 const { computeReport } = require('../utils/examResultsReport');
 const { WAEC_CORE_SUBJECTS } = require('../utils/waecSubjects');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
-router.use(authenticate, requireActiveSubscription, adminOnly);
+router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('exam_results'));
 
 async function getGradeBoundaries(schoolId, examBody) {
   const { rows } = await pool.query(
