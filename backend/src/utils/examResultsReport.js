@@ -1,18 +1,30 @@
 'use strict';
 
 // Computes the GES-style Analysis Report from a batch's parsed candidates
-// and this school's grade_boundaries. Two distinct pass thresholds are in
-// play here, both verified against real Analysis Report numbers (see the
-// WAEC Results Analysis plan doc) rather than assumed:
-//   - Per-subject "Percentage Pass": any grade except F9 (remark != 'Fail').
-//   - Per-candidate "N Passes" summary: C6 or better (the standard
-//     "number of credits" metric) — grade_boundaries' sort_order for C6
-//     is the cutoff, read from the table rather than hardcoded, so a
-//     school's own customization of their boundaries stays consistent
-//     with the rest of the app.
+// and this school's grade_boundaries.
+//
+// Both the per-subject "Percentage Pass" AND the per-candidate "N Passes"
+// summary use the SAME threshold: any grade except F9 (remark != 'Fail').
+// This was corrected after live verification against a real school's full
+// 23-candidate dataset — tallying each candidate's non-F9 subject count by
+// hand reproduced WAEC's own printed "N PASSES" bucket counts exactly
+// (all 7 non-empty buckets matched); a stricter "C6 or better" (credits)
+// threshold, which an earlier single-candidate spot-check had seemed to
+// confirm during planning, does not. See CAS-WAEC-FAILURES-OPEN-QUESTION
+// in the plan doc for the one still-unresolved figure (WAEC's own
+// "FAILURES" count doesn't match a literal "zero non-F9 subjects" tally
+// on that same real dataset — flagged for the user, not guessed at).
+//
+// remark is compared case-insensitively: a real school's grade_boundaries
+// were found storing it as "FAIL"/"CREDIT" (all caps) rather than the
+// title-case seed default, and a case-sensitive check silently matched
+// nothing, making every grade count as a pass.
 function computeReport({ candidates, gradeBoundaries, registeredData, coreSubjects }) {
   const boundaryByGrade = new Map(gradeBoundaries.map(b => [b.grade, b]));
-  const creditSortOrder = boundaryByGrade.get('C6')?.sort_order ?? 4;
+  const isPassingGrade = (grade) => {
+    const b = boundaryByGrade.get(grade);
+    return Boolean(b) && (b.remark || '').toUpperCase() !== 'FAIL';
+  };
   const coreSet = new Set(coreSubjects);
 
   const subjectNames = [];
@@ -42,8 +54,7 @@ function computeReport({ candidates, gradeBoundaries, registeredData, coreSubjec
       presented[key]++;
       if (!gradeDistribution[g.grade]) gradeDistribution[g.grade] = { boys: 0, girls: 0 };
       gradeDistribution[g.grade][key]++;
-      const boundary = boundaryByGrade.get(g.grade);
-      if (boundary && boundary.remark !== 'Fail') passCount[key]++;
+      if (isPassingGrade(g.grade)) passCount[key]++;
     }
 
     // Registered/Absent can't be derived from the listing (it only lists
@@ -80,12 +91,9 @@ function computeReport({ candidates, gradeBoundaries, registeredData, coreSubjec
   for (const c of candidates) {
     const realGrades = c.grades.filter(g => g.grade !== 'X');
     if (c.grades.length > 0 && realGrades.length === 0) { entireResultsCancelled++; continue; }
-    const creditCount = realGrades.filter(g => {
-      const b = boundaryByGrade.get(g.grade);
-      return b && b.sort_order >= creditSortOrder;
-    }).length;
-    if (creditCount === 0) failures++;
-    else buckets[creditCount] = (buckets[creditCount] || 0) + 1;
+    const passCount = realGrades.filter(g => isPassingGrade(g.grade)).length;
+    if (passCount === 0) failures++;
+    else buckets[passCount] = (buckets[passCount] || 0) + 1;
   }
 
   return {
