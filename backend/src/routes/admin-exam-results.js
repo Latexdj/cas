@@ -7,6 +7,7 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { parseWaecListing } = require('../utils/waecParser');
 const { computeReport } = require('../utils/examResultsReport');
+const { computeAnalytics } = require('../utils/examAnalytics');
 const { WAEC_CORE_SUBJECTS } = require('../utils/waecSubjects');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -62,6 +63,59 @@ async function buildReportForBatch(schoolId, batchId) {
   });
 
   return { year: batch.year, examBody: batch.exam_body, schoolNumber: batch.school_number, ...report };
+}
+
+// Backs both GET /analytics and its CSV export — loads every WASSCE batch
+// for this school (optionally restricted to `years`), computes each one's
+// report once via the same computeReport() the single-batch endpoints use,
+// optionally narrows each report's subjects down to `subjects` before
+// handing them to computeAnalytics(). Narrowing happens here (not inside
+// computeAnalytics) so totalCandidates — a whole-batch, subject-independent
+// figure — is computed before any subject filtering, while overallPassRate/
+// rows/subjects/latestBySubject are computed after, scoped to whatever
+// subject set is in view.
+async function buildAnalytics(schoolId, { years, subjects } = {}) {
+  const examBody = 'WAEC';
+  const { rows: batchRows } = await pool.query(
+    years && years.length
+      ? `SELECT id, year FROM exam_result_batches WHERE school_id = $1 AND exam_body = $2 AND year = ANY($3::int[]) ORDER BY year`
+      : `SELECT id, year FROM exam_result_batches WHERE school_id = $1 AND exam_body = $2 ORDER BY year`,
+    years && years.length ? [schoolId, examBody, years] : [schoolId, examBody]
+  );
+  if (!batchRows.length) return { years: [], subjects: [], totalCandidates: 0, overallPassRate: 0, rows: [], latestBySubject: [] };
+
+  const gradeBoundaries = await getGradeBoundaries(schoolId, examBody);
+  if (!gradeBoundaries.length) {
+    const e = new Error(`No ${examBody} grade boundaries are configured for this school. Set them up under Grade Boundaries first.`);
+    e.status = 400;
+    throw e;
+  }
+
+  const batchReports = await Promise.all(batchRows.map(async (batch) => {
+    const { rows: candidateRows } = await pool.query(
+      `SELECT c.id, c.index_number, c.name, c.gender, c.dob,
+              COALESCE(json_agg(json_build_object('subjectName', g.subject_name, 'grade', g.grade)) FILTER (WHERE g.id IS NOT NULL), '[]') AS grades
+       FROM exam_result_candidates c
+       LEFT JOIN exam_result_grades g ON g.candidate_id = c.id
+       WHERE c.batch_id = $1
+       GROUP BY c.id
+       ORDER BY c.index_number`,
+      [batch.id]
+    );
+    const report = computeReport({ candidates: candidateRows, gradeBoundaries, registeredData: null, coreSubjects: WAEC_CORE_SUBJECTS });
+    if (subjects && subjects.length) {
+      report.subjects = report.subjects.filter(s => subjects.includes(s.name));
+    }
+    return { year: batch.year, report };
+  }));
+
+  return computeAnalytics(batchReports);
+}
+
+function parseListParam(raw) {
+  if (!raw) return null;
+  const parts = String(raw).split(',').map(s => s.trim()).filter(Boolean);
+  return parts.length ? parts : null;
 }
 
 // POST /parse — accepts either a PDF upload (multipart, field "pdf") or
@@ -208,6 +262,49 @@ router.get('/batches', async (req, res, next) => {
     );
     res.json(rows);
   } catch (err) { next(err); }
+});
+
+// GET /analytics?years=2023,2024&subjects=Mathematics,English%20Language
+// — cross-year view over every saved WASSCE batch for this school. Both
+// filters are optional; omitting either means "all".
+router.get('/analytics', async (req, res, next) => {
+  try {
+    const years = parseListParam(req.query.years)?.map(Number).filter(Number.isInteger) || null;
+    const subjects = parseListParam(req.query.subjects);
+    const analytics = await buildAnalytics(req.schoolId, { years, subjects });
+    res.json(analytics);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+// GET /analytics/export.csv — same filters, flat CSV: one row per
+// subject-year. Hand-built (no library), matching timetable.js's existing
+// CSV-export convention elsewhere in this backend.
+router.get('/analytics/export.csv', async (req, res, next) => {
+  try {
+    const years = parseListParam(req.query.years)?.map(Number).filter(Number.isInteger) || null;
+    const subjects = parseListParam(req.query.subjects);
+    const analytics = await buildAnalytics(req.schoolId, { years, subjects });
+
+    const csvEscape = (v) => {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = ['Subject', 'Year', 'Candidates', 'Pass Rate (%)', 'Fail Rate (%)', 'Top Grade', 'Performance'];
+    const lines = [header.join(',')];
+    for (const r of analytics.rows) {
+      lines.push([r.subject, r.year, r.presented.total, r.percentagePass.total, r.failRate, r.topGrade || '', r.performanceLabel].map(csvEscape).join(','));
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="WAEC_Analytics.csv"`);
+    res.send(lines.join('\n'));
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 router.get('/batches/:id', async (req, res, next) => {

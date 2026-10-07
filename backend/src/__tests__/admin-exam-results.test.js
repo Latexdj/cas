@@ -178,3 +178,61 @@ describe('GET /batches/:id/report', () => {
     expect(res.body.error).toMatch(/grade boundaries/i);
   });
 });
+
+const BOUNDARIES_ROW = { rows: [
+  { grade: 'C6', remark: 'Credit', sort_order: 4 },
+  { grade: 'F9', remark: 'Fail', sort_order: 1 },
+] };
+
+describe('GET /analytics', () => {
+  it('returns an empty-but-well-shaped payload when no batches exist', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // batch list
+    const res = await request(buildApp()).get('/api/admin/exam-results/analytics');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ years: [], subjects: [], totalCandidates: 0, overallPassRate: 0, rows: [], latestBySubject: [] });
+  });
+
+  it('aggregates across every saved WASSCE batch and reflects a years filter in the query sent to the DB', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 'b2023', year: 2023 }] })  // batch list (years-filtered)
+      .mockResolvedValueOnce(BOUNDARIES_ROW)                           // grade_boundaries
+      .mockResolvedValueOnce({ rows: [                                  // candidates for b2023
+        { id: 'c1', index_number: '1', name: 'A', gender: 'Male', dob: '2005-01-01', grades: [{ subjectName: 'Mathematics', grade: 'C6' }] },
+        { id: 'c2', index_number: '2', name: 'B', gender: 'Female', dob: '2005-01-01', grades: [{ subjectName: 'Mathematics', grade: 'F9' }] },
+      ] });
+    const res = await request(buildApp()).get('/api/admin/exam-results/analytics').query({ years: '2023' });
+    expect(res.status).toBe(200);
+    expect(res.body.years).toEqual([2023]);
+    expect(res.body.totalCandidates).toBe(2);
+    expect(res.body.rows).toHaveLength(1);
+    expect(res.body.rows[0]).toMatchObject({ subject: 'Mathematics', year: 2023, performanceLabel: 'Average' });
+
+    const batchListCall = mockQuery.mock.calls[0];
+    expect(batchListCall[1]).toEqual(['aaaaaaaa-0000-0000-0000-000000000000', 'WAEC', [2023]]);
+  });
+
+  it('400s with a clear message when no grade_boundaries are configured', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 'b2023', year: 2023 }] })
+      .mockResolvedValueOnce({ rows: [] }); // grade_boundaries empty
+    const res = await request(buildApp()).get('/api/admin/exam-results/analytics');
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/grade boundaries/i);
+  });
+});
+
+describe('GET /analytics/export.csv', () => {
+  it('returns a CSV with one row per subject-year', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 'b2023', year: 2023 }] })
+      .mockResolvedValueOnce(BOUNDARIES_ROW)
+      .mockResolvedValueOnce({ rows: [
+        { id: 'c1', index_number: '1', name: 'A', gender: 'Male', dob: '2005-01-01', grades: [{ subjectName: 'Mathematics', grade: 'C6' }] },
+      ] });
+    const res = await request(buildApp()).get('/api/admin/exam-results/analytics/export.csv');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/text\/csv/);
+    expect(res.text).toContain('Subject,Year,Candidates,Pass Rate (%),Fail Rate (%),Top Grade,Performance');
+    expect(res.text).toContain('Mathematics,2023,1,100,0,C6,Excellent');
+  });
+});

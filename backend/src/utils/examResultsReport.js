@@ -84,6 +84,12 @@ function computeReport({ candidates, gradeBoundaries, registeredData, coreSubjec
       absent: { ...absent, total: absent.boys + absent.girls },
       cancelled: { ...cancelled, total: cancelled.boys + cancelled.girls },
       gradeDistribution,
+      // Exact integer pass count alongside the rounded percentage — kept so
+      // examAnalytics.js can sum exact candidates-passed across many
+      // subject-years for a weighted overall rate, rather than re-deriving
+      // an approximate count from the already-rounded percentage (which
+      // would compound a small rounding error across every subject-year).
+      passCount: { ...passCount, total: passCount.boys + passCount.girls },
       percentagePass: {
         boys: pct(passCount.boys, presented.boys),
         girls: pct(passCount.girls, presented.girls),

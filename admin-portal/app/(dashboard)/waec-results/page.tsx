@@ -35,7 +35,12 @@ export default function WaecResultsPage() {
           <h1 className="text-2xl font-bold text-slate-900">WAEC Results</h1>
           <p className="text-sm text-slate-400 mt-0.5">Import a year&apos;s WASSCE results listing and generate the Regional Education Office analysis report automatically.</p>
         </div>
-        <Link href="/waec-results/import"><Button>Import New Year</Button></Link>
+        <div className="flex gap-2">
+          {batches.length > 0 && (
+            <Link href="/waec-results/analytics"><Button variant="secondary">View Analytics</Button></Link>
+          )}
+          <Link href="/waec-results/import"><Button>Import New Year</Button></Link>
+        </div>
       </div>
 
       {batches.length === 0 ? (
