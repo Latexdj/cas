@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { SiteChrome } from '@/components/site/SiteChrome';
 import { GalleryGrid } from '@/components/site/GalleryGrid';
+import { ContactForm } from '@/components/site/ContactForm';
 import { getSiteBranding, getSitePage, getSiteMenu } from '@/lib/site-data';
 
 type Params = Promise<{ slug: string; page: string }>;
@@ -76,6 +77,10 @@ export default async function SchoolWebsiteSubPage({ params }: { params: Params 
                   </div>
                 </div>
               )}
+            </div>
+            <div className="mt-12 pt-10 border-t border-slate-100">
+              <h2 className="text-xl font-bold text-slate-900 mb-5">Send us a message</h2>
+              <ContactForm slug={slug} />
             </div>
           </div>
         </section>

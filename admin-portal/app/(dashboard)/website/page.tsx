@@ -29,18 +29,21 @@ export default function WebsiteDashboard() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [pages, setPages] = useState<PageRow[] | null>(null);
   const [menuCount, setMenuCount] = useState<number | null>(null);
+  const [unreadCount, setUnreadCount] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    const [{ data: s }, { data: p }, { data: h }, { data: f }] = await Promise.all([
+    const [{ data: s }, { data: p }, { data: h }, { data: f }, { data: c }] = await Promise.all([
       api.get('/api/admin/website/settings'),
       api.get('/api/admin/website/pages'),
       api.get('/api/admin/website/menu', { params: { location: 'header' } }),
       api.get('/api/admin/website/menu', { params: { location: 'footer' } }),
+      api.get('/api/admin/website/contact'),
     ]);
     setSettings(s);
     setPages(p);
     const count = (items: MenuTree[]): number => items.reduce((n, it) => n + 1 + count((it.children as MenuTree[]) || []), 0);
     setMenuCount(count(h) + count(f));
+    setUnreadCount(c.unread_count);
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -66,10 +69,11 @@ export default function WebsiteDashboard() {
         <Link href="/website/settings" className="text-xs font-semibold text-[#145C44] hover:underline">Edit settings</Link>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatTile label="Pages" value={pages ? String(pages.length) : '—'} />
         <StatTile label="Published pages" value={pages ? String(publishedCount) : '—'} />
         <StatTile label="Menu items" value={menuCount !== null ? String(menuCount) : '—'} />
+        <StatTile label="Unread inquiries" value={unreadCount !== null ? String(unreadCount) : '—'} />
       </div>
 
       <div>
@@ -78,6 +82,7 @@ export default function WebsiteDashboard() {
           <QuickAction href="/website/pages/new" label="Create page" />
           <QuickAction href="/website/pages" label="Manage pages" />
           <QuickAction href="/website/navigation" label="Manage navigation" />
+          <QuickAction href="/website/inquiries" label="View inquiries" />
           <QuickAction href="/website/settings" label="Website settings" />
         </div>
       </div>

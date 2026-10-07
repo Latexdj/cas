@@ -103,6 +103,25 @@ components/site/**`.
       `page_type = 'gallery'` — a standard page's response has no `images`
       key at all.
 
+## Contact form
+
+- [ ] Missing name/email/message, a malformed email address, and an
+      oversized message (over 1000 chars) are all rejected server-side,
+      not just via frontend form validation.
+- [ ] A filled honeypot field (`website_url`) returns the same `201` success
+      response a real submission would, but inserts nothing — confirm via
+      the DB, not just the response code.
+- [ ] A submission to an unpublished site or a site with the website module
+      disabled 404s the same way every other public route in `website.js`
+      does — it never reaches the database.
+- [ ] More than 5 submissions from the same IP within 15 minutes get a 429,
+      not silently accepted (manual check — not covered by the automated
+      suite, consistent with the login rate limiter also having no test).
+- [ ] Admin list/mark-read/delete all tenant-scoped the same way pages are;
+      a teacher gets 403, not a silently empty or successful response.
+- [ ] The dashboard's unread count and the Inquiries list's unread count
+      agree and both drop by one the moment a message is opened.
+
 ## Public
 
 - [ ] `/site/<slug>` and `/site/<slug>/<page>` routing: valid/invalid

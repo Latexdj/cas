@@ -35,4 +35,11 @@ const superAdminLimiter = makeLimiter({
   message:       'Too many super admin login attempts. Please wait 15 minutes before trying again.',
 });
 
-module.exports = { loginLimiter, schoolLookupLimiter, superAdminLimiter };
+/** POST /api/website/:slug/contact — a public, unauthenticated form */
+const contactFormLimiter = makeLimiter({
+  max:           5,
+  windowMinutes: 15,
+  message:       'Too many messages sent. Please wait 15 minutes before trying again.',
+});
+
+module.exports = { loginLimiter, schoolLookupLimiter, superAdminLimiter, contactFormLimiter };

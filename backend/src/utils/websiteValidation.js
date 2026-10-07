@@ -13,6 +13,10 @@ const LIMITS = {
   seo_title: 70,
   seo_description: 300,
   caption: 150, // website_gallery_images.caption
+  contact_name: 100,
+  contact_email: 150,
+  contact_phone: 30,
+  contact_message: 1000,
 };
 
 // field -> value map; returns the first field name that exceeds its limit,
@@ -26,4 +30,11 @@ function findOversizedField(fields) {
   return null;
 }
 
-module.exports = { LIMITS, findOversizedField };
+// Deliberately simple — this gates a contact form, not an account signup,
+// so it only needs to catch obviously-malformed input, not fully validate
+// per RFC 5322.
+function isValidEmail(value) {
+  return typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+module.exports = { LIMITS, findOversizedField, isValidEmail };

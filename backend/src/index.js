@@ -59,6 +59,7 @@ const adminWebsiteRoutes      = require('./routes/admin-website');
 const adminWebsitePagesRoutes   = require('./routes/admin-website-pages');
 const adminWebsiteMenuRoutes    = require('./routes/admin-website-menu');
 const adminWebsiteGalleryRoutes = require('./routes/admin-website-gallery');
+const adminWebsiteContactRoutes = require('./routes/admin-website-contact');
 const schoolModulesRoutes     = require('./routes/schoolModules');
 const resultSubmissionsRoutes = require('./routes/result-submissions');
 const monitoringRoutes        = require('./routes/assessment-monitoring');
@@ -164,6 +165,7 @@ app.use('/api/admin/website',         adminWebsiteRoutes);
 app.use('/api/admin/website/pages',   adminWebsitePagesRoutes);
 app.use('/api/admin/website/menu',    adminWebsiteMenuRoutes);
 app.use('/api/admin/website/gallery', adminWebsiteGalleryRoutes);
+app.use('/api/admin/website/contact', adminWebsiteContactRoutes);
 app.use('/api/school-modules',        schoolModulesRoutes);
 app.use('/api/result-submissions',    resultSubmissionsRoutes);
 app.use('/api/assessment-monitoring', monitoringRoutes);
@@ -3049,6 +3051,24 @@ async function runMigrations() {
       `);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_gallery_images_page ON website_gallery_images(page_id)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website_gallery_images:', e.message); }
+
+    // Public contact form submissions — pull-based, same as Admissions/
+    // Exeat/Discipline queries (admin visits a list, nothing is pushed).
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS website_contact_submissions (
+          id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          name        TEXT NOT NULL,
+          email       TEXT NOT NULL,
+          phone       TEXT,
+          message     TEXT NOT NULL,
+          is_read     BOOLEAN NOT NULL DEFAULT false,
+          created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_contact_submissions_school ON website_contact_submissions(school_id)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website_contact_submissions:', e.message); }
 
     // Multi-page website — Phase 1: Navigation. One level of nesting via
     // parent_id in v1 (matches the up/down-reorder admin UI, not drag-drop).

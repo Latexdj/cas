@@ -1,6 +1,8 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { isModuleEnabledForSchool } = require('../middleware/moduleAccess');
+const { contactFormLimiter } = require('../middleware/rateLimiter');
+const { findOversizedField, isValidEmail } = require('../utils/websiteValidation');
 
 // Public, no-auth school website — same design as the admissions portal
 // (backend/src/routes/admissions.js): resolve the school by slug first, and
@@ -149,6 +151,38 @@ router.get('/:slug/menu', async (req, res, next) => {
       header: buildTree(rows.filter(r => r.location === 'header')),
       footer: buildTree(rows.filter(r => r.location === 'footer')),
     });
+  } catch (err) { next(err); }
+});
+
+// POST /api/website/:slug/contact — public, no auth. Pull-based like
+// Admissions/Exeat/Discipline: stores the message, the admin finds it on
+// the Inquiries list. No email, no push notification (see plan doc).
+router.post('/:slug/contact', contactFormLimiter, async (req, res, next) => {
+  try {
+    const school = await getSchoolBySlug(req.params.slug);
+    if (!school) return res.status(404).json({ error: 'Website not found' });
+
+    const { name, email, phone, message } = req.body;
+    // Hidden field real visitors never see or fill. A bot that fills every
+    // field gets a fake success so it doesn't learn to leave this one blank.
+    if (req.body.website_url) return res.status(201).json({ success: true });
+
+    if (!name || !email || !message) {
+      return res.status(400).json({ error: 'Name, email, and message are required.' });
+    }
+    if (!isValidEmail(email)) return res.status(400).json({ error: 'That email address doesn’t look right.' });
+
+    const oversized = findOversizedField({
+      contact_name: name, contact_email: email, contact_phone: phone, contact_message: message,
+    });
+    if (oversized) return res.status(400).json({ error: `${oversized.field.replace('contact_', '')} must be ${oversized.limit} characters or fewer.` });
+
+    await pool.query(
+      `INSERT INTO website_contact_submissions (school_id, name, email, phone, message)
+       VALUES ($1,$2,$3,$4,$5)`,
+      [school.school_id, name, email, phone || null, message]
+    );
+    res.status(201).json({ success: true });
   } catch (err) { next(err); }
 });
 
