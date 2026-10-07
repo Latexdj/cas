@@ -9,6 +9,7 @@ const { getCurrentSchoolContext } = require('../utils/school-context');
 const { getClassRoster } = require('../services/classHistory.service');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { assembleResults, loadTermTrend } = require('./results');
+const { listBatches, buildReportForBatch, buildAnalytics, parseListParam } = require('./admin-exam-results');
 
 // â”€â”€ Auth middleware â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function auth(req, res, next) {
@@ -1572,6 +1573,117 @@ router.get('/results/analytics', async (req, res, next) => {
       by_term: byTerm,
     });
   } catch (err) { next(err); }
+});
+
+// ── WAEC Results Analysis — read-only mirror of the admin module ───────────
+// Principals can review the Analysis Report and cross-year Analytics the
+// same way every other licensed module appears here (Clearance, Fees): a
+// view-only GET surface, no import/delete. Each route reuses the admin
+// module's own report/analytics builders (admin-exam-results.js) rather
+// than re-deriving the WAEC grade math a second time, same pattern as
+// assembleResults()/loadTermTrend() above. Per-route checkModuleAccess,
+// matching the Clearance/Fees precedent, not router.use — this file's
+// other core/unlicensed routes (results/analytics, occupancy, etc.) stay
+// gated only by the file-level management-token check.
+
+// GET /api/principal/exam-results/batches?exam_body=WAEC
+router.get('/exam-results/batches', checkModuleAccess('exam_results'), async (req, res, next) => {
+  try {
+    const examBody = req.query.exam_body === 'CTVET' ? 'CTVET' : 'WAEC';
+    const rows = await listBatches(req.schoolId, examBody);
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// GET /api/principal/exam-results/batches/:id/report
+router.get('/exam-results/batches/:id/report', checkModuleAccess('exam_results'), async (req, res, next) => {
+  try {
+    const report = await buildReportForBatch(req.schoolId, req.params.id);
+    res.json(report);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+// GET /api/principal/exam-results/analytics?years=&subjects=
+router.get('/exam-results/analytics', checkModuleAccess('exam_results'), async (req, res, next) => {
+  try {
+    const years = parseListParam(req.query.years)?.map(Number).filter(Number.isInteger) || null;
+    const subjects = parseListParam(req.query.subjects);
+    const analytics = await buildAnalytics(req.schoolId, { years, subjects });
+    res.json(analytics);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+// GET /api/principal/exam-results/analytics/export.csv?years=&subjects=
+router.get('/exam-results/analytics/export.csv', checkModuleAccess('exam_results'), async (req, res, next) => {
+  try {
+    const years = parseListParam(req.query.years)?.map(Number).filter(Number.isInteger) || null;
+    const subjects = parseListParam(req.query.subjects);
+    const analytics = await buildAnalytics(req.schoolId, { years, subjects });
+
+    const csvEscape = (v) => {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = ['Subject', 'Year', 'Candidates', 'Pass Rate (%)', 'Fail Rate (%)', 'Top Grade', 'Performance'];
+    const lines = [header.join(',')];
+    for (const r of analytics.rows) {
+      lines.push([r.subject, r.year, r.presented.total, r.percentagePass.total, r.failRate, r.topGrade || '', r.performanceLabel].map(csvEscape).join(','));
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="WAEC_Analytics.csv"`);
+    res.send(lines.join('\n'));
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+// GET /api/principal/exam-results/batches/:id/export.xlsx and export.pdf —
+// same read-only reasoning as the two JSON routes above: exporting is just
+// another way to consume data the principal can already see on screen, not
+// a write, so it isn't withheld the way import/delete are.
+router.get('/exam-results/batches/:id/export.xlsx', checkModuleAccess('exam_results'), async (req, res, next) => {
+  try {
+    const { buildExamAnalysisWorkbook } = require('../services/examAnalysisWorkbook');
+    const report = await buildReportForBatch(req.schoolId, req.params.id);
+    const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.schoolId]);
+    const school = schoolRows[0] || { name: 'School' };
+
+    const wb = buildExamAnalysisWorkbook(report, school);
+    const filename = `${report.examBody}_${report.year}_Analysis_Report.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+router.get('/exam-results/batches/:id/export.pdf', checkModuleAccess('exam_results'), async (req, res, next) => {
+  try {
+    const { generateExamAnalysisReportPDFBuffer } = require('../services/pdf.service');
+    const report = await buildReportForBatch(req.schoolId, req.params.id);
+    const { rows: schoolRows } = await pool.query(`SELECT name FROM schools WHERE id = $1`, [req.schoolId]);
+    const school = schoolRows[0] || { name: 'School' };
+
+    const pdfBuffer = await generateExamAnalysisReportPDFBuffer(report, school);
+    const filename = `${report.examBody}_${report.year}_Analysis_Report.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 module.exports = router;

@@ -118,6 +118,21 @@ function parseListParam(raw) {
   return parts.length ? parts : null;
 }
 
+// Shared by GET /batches and its principal-portal mirror.
+async function listBatches(schoolId, examBody) {
+  const { rows } = await pool.query(
+    `SELECT b.id, b.exam_body, b.year, b.school_number, b.source, b.created_at, b.updated_at,
+            count(c.id)::int AS candidate_count
+     FROM exam_result_batches b
+     LEFT JOIN exam_result_candidates c ON c.batch_id = b.id
+     WHERE b.school_id = $1 AND b.exam_body = $2
+     GROUP BY b.id
+     ORDER BY b.year DESC`,
+    [schoolId, examBody]
+  );
+  return rows;
+}
+
 // POST /parse — accepts either a PDF upload (multipart, field "pdf") or
 // pasted text ({ raw_text } JSON body); runs the shared parser either way.
 // Nothing is persisted here — this is the preview step.
@@ -250,16 +265,7 @@ router.post('/batches', async (req, res, next) => {
 router.get('/batches', async (req, res, next) => {
   try {
     const examBody = req.query.exam_body === 'CTVET' ? 'CTVET' : 'WAEC';
-    const { rows } = await pool.query(
-      `SELECT b.id, b.exam_body, b.year, b.school_number, b.source, b.created_at, b.updated_at,
-              count(c.id)::int AS candidate_count
-       FROM exam_result_batches b
-       LEFT JOIN exam_result_candidates c ON c.batch_id = b.id
-       WHERE b.school_id = $1 AND b.exam_body = $2
-       GROUP BY b.id
-       ORDER BY b.year DESC`,
-      [req.schoolId, examBody]
-    );
+    const rows = await listBatches(req.schoolId, examBody);
     res.json(rows);
   } catch (err) { next(err); }
 });
@@ -404,3 +410,10 @@ router.delete('/batches/:id', async (req, res, next) => {
 });
 
 module.exports = router;
+// Reused by the principal-portal mirror of this module (read-only:
+// backend/src/routes/principal.js) so both portals compute the exact same
+// report/analytics rather than maintaining two implementations of it.
+module.exports.listBatches = listBatches;
+module.exports.buildReportForBatch = buildReportForBatch;
+module.exports.buildAnalytics = buildAnalytics;
+module.exports.parseListParam = parseListParam;
