@@ -3095,6 +3095,7 @@ async function runMigrations() {
           UNIQUE (school_id, exam_body, year)
         )
       `);
+      await pool.query(`ALTER TABLE exam_result_batches ADD COLUMN IF NOT EXISTS official_summary JSONB`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] exam_result_batches:', e.message); }
 
     try {

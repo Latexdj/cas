@@ -232,6 +232,38 @@ IN LIVING - E8
 Total Number of Candidates: 3
 `;
 
+// Real tail text from the 2024 listing's own trailing "SUMMARY OF SUBJECT
+// PASSES" block, exactly as pdf-parse extracted it — no space around the
+// colon here, unlike the per-page "Total Number of Candidates: N" footer
+// earlier in the same document, which does have one.
+const WITH_OFFICIAL_SUMMARY = `
+INDEX NUMBERNAMEGENDERDOBRESULTS
+0100505001
+TEST CANDIDATE
+Female01/01/2005
+MATHEMATICS(CORE) - C6 ,
+ENGLISH LANG - F9
+Total Number of Candidates:1
+8 PASSES:0
+7 PASSES:2
+6 PASSES:4
+5 PASSES:6
+4 PASSES:9
+3 PASSES:11
+2 PASSES:7
+1 PASSES:4
+FAILURES:4
+ABSENT:1
+ENTIRE RESULTS WITHHELD:0
+ENTIRE RESULTS PENDING:0
+CANDIDATE OWING FEES:0
+ENTIRE RESULTS BLOCKED:0
+ENTIRE RESULTS CANCELLED:0
+DISCLAIMER:
+The result listing are provisional at the time of release. The final results are those which will be printed on the candidate's certificate.
+SUMMARY OF SUBJECT PASSES
+`;
+
 describe('Header metadata', () => {
   it('extracts school name, school number, and year', () => {
     const result = parseWaecListing(TWO_ORDINARY_CANDIDATES);
@@ -405,6 +437,28 @@ Total Number of Candidates: 1
     expect(result.warnings).toEqual([]);
     const mgt = result.candidates[0].grades.find(g => g.subjectName === 'Management in Living');
     expect(mgt.grade).toBe('E8');
+  });
+});
+
+describe("WAEC's own printed summary block", () => {
+  it('is null when the listing text was never scrolled/pasted down to that block', () => {
+    const result = parseWaecListing(TWO_ORDINARY_CANDIDATES);
+    expect(result.officialSummary).toBeNull();
+  });
+
+  it('parses every field exactly from the real 2024 listing tail text, including the no-space colon formatting', () => {
+    const result = parseWaecListing(WITH_OFFICIAL_SUMMARY);
+    expect(result.officialSummary).toEqual({
+      totalCandidates: 1,
+      buckets: { 1: 4, 2: 7, 3: 11, 4: 9, 5: 6, 6: 4, 7: 2, 8: 0 },
+      failures: 4,
+      absent: 1,
+      entireResultsWithheld: 0,
+      entireResultsPending: 0,
+      candidateOwingFees: 0,
+      entireResultsBlocked: 0,
+      entireResultsCancelled: 0,
+    });
   });
 });
 

@@ -1101,6 +1101,27 @@ function buildExamAnalysisReportHTML(report, school) {
   const summaryRows = [];
   for (let n = maxBucket; n >= 1; n--) summaryRows.push(`<tr><td style="padding:2px 8px;">${n} Pass${n === 1 ? '' : 'es'}</td><td style="padding:2px 8px;font-weight:bold;">${report.summaryOfPasses.buckets[n] || 0}</td></tr>`);
 
+  let officialSummaryHTML = '';
+  if (report.officialSummary) {
+    const os = report.officialSummary;
+    const osMaxBucket = Math.max(0, ...Object.keys(os.buckets || {}).map(Number));
+    const osRows = [];
+    for (let n = osMaxBucket; n >= 1; n--) osRows.push(`<tr><td style="padding:2px 8px;">${n} Pass${n === 1 ? '' : 'es'}</td><td style="padding:2px 8px;font-weight:bold;">${os.buckets[n] || 0}</td></tr>`);
+    officialSummaryHTML = `
+    <h3 style="margin:20px 0 8px;font-size:11pt;">WAEC's Own Printed Summary (from the listing itself)</h3>
+    <table style="width:auto;">
+      <tr><td style="padding:2px 8px;">Total Number of Candidates</td><td style="padding:2px 8px;font-weight:bold;">${os.totalCandidates}</td></tr>
+      ${osRows.join('')}
+      <tr><td style="padding:2px 8px;">Failures</td><td style="padding:2px 8px;font-weight:bold;">${os.failures ?? 0}</td></tr>
+      <tr><td style="padding:2px 8px;">Absent</td><td style="padding:2px 8px;font-weight:bold;">${os.absent ?? 0}</td></tr>
+      <tr><td style="padding:2px 8px;">Entire Results Withheld</td><td style="padding:2px 8px;font-weight:bold;">${os.entireResultsWithheld ?? 0}</td></tr>
+      <tr><td style="padding:2px 8px;">Entire Results Pending</td><td style="padding:2px 8px;font-weight:bold;">${os.entireResultsPending ?? 0}</td></tr>
+      <tr><td style="padding:2px 8px;">Candidate Owing Fees</td><td style="padding:2px 8px;font-weight:bold;">${os.candidateOwingFees ?? 0}</td></tr>
+      <tr><td style="padding:2px 8px;">Entire Results Blocked</td><td style="padding:2px 8px;font-weight:bold;">${os.entireResultsBlocked ?? 0}</td></tr>
+      <tr><td style="padding:2px 8px;">Entire Results Cancelled</td><td style="padding:2px 8px;font-weight:bold;">${os.entireResultsCancelled ?? 0}</td></tr>
+    </table>`;
+  }
+
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
     body { font-family: Arial, sans-serif; color: #111; }
     table { border-collapse: collapse; width: 100%; }
@@ -1130,13 +1151,14 @@ function buildExamAnalysisReportHTML(report, school) {
         ${electiveSubjects.length ? `<tr><td colspan="${13 + WAEC_GRADE_ORDER.length * 3}" style="padding:4px;font-weight:bold;font-style:italic;">Electives</td></tr>${electiveSubjects.map(subjectRow).join('')}` : ''}
       </tbody>
     </table>
-    <h3 style="margin:20px 0 8px;font-size:11pt;">Summary of Subjects Passed</h3>
+    <h3 style="margin:20px 0 8px;font-size:11pt;">Summary of Subjects Passed (computed from imported grades)</h3>
     <table style="width:auto;">
       <tr><td style="padding:2px 8px;">Total Number of Candidates</td><td style="padding:2px 8px;font-weight:bold;">${report.totalCandidates}</td></tr>
       ${summaryRows.join('')}
       <tr><td style="padding:2px 8px;">Failures</td><td style="padding:2px 8px;font-weight:bold;">${report.summaryOfPasses.failures}</td></tr>
       <tr><td style="padding:2px 8px;">Entire Results Cancelled</td><td style="padding:2px 8px;font-weight:bold;">${report.summaryOfPasses.entireResultsCancelled}</td></tr>
     </table>
+    ${officialSummaryHTML}
   </body></html>`;
 }
 

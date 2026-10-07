@@ -26,7 +26,7 @@ async function getGradeBoundaries(schoolId, examBody) {
 // each caller can respond in its own format (JSON vs a file download).
 async function buildReportForBatch(schoolId, batchId) {
   const { rows: batchRows } = await pool.query(
-    `SELECT id, exam_body, year, school_number, registered_data FROM exam_result_batches WHERE id = $1 AND school_id = $2`,
+    `SELECT id, exam_body, year, school_number, registered_data, official_summary FROM exam_result_batches WHERE id = $1 AND school_id = $2`,
     [batchId, schoolId]
   );
   if (!batchRows.length) { const e = new Error('Batch not found'); e.status = 404; throw e; }
@@ -57,6 +57,7 @@ async function buildReportForBatch(schoolId, batchId) {
     gradeBoundaries,
     registeredData: batch.registered_data,
     coreSubjects: WAEC_CORE_SUBJECTS,
+    officialSummary: batch.official_summary,
   });
 
   return { year: batch.year, examBody: batch.exam_body, schoolNumber: batch.school_number, ...report };
@@ -131,14 +132,14 @@ router.post('/batches', async (req, res, next) => {
         batchId = existing[0].id;
         await client.query(`DELETE FROM exam_result_candidates WHERE batch_id = $1`, [batchId]);
         await client.query(
-          `UPDATE exam_result_batches SET school_number = $1, source = $2, raw_text = $3, registered_data = $4, updated_at = now() WHERE id = $5`,
-          [school_number || parsed.schoolNumber || null, source, raw_text, registered_data || null, batchId]
+          `UPDATE exam_result_batches SET school_number = $1, source = $2, raw_text = $3, registered_data = $4, official_summary = $5, updated_at = now() WHERE id = $6`,
+          [school_number || parsed.schoolNumber || null, source, raw_text, registered_data || null, parsed.officialSummary || null, batchId]
         );
       } else {
         const { rows } = await client.query(
-          `INSERT INTO exam_result_batches (school_id, exam_body, year, school_number, source, raw_text, registered_data, created_by)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-          [req.schoolId, exam_body, year, school_number || parsed.schoolNumber || null, source, raw_text, registered_data || null, req.user.id]
+          `INSERT INTO exam_result_batches (school_id, exam_body, year, school_number, source, raw_text, registered_data, official_summary, created_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+          [req.schoolId, exam_body, year, school_number || parsed.schoolNumber || null, source, raw_text, registered_data || null, parsed.officialSummary || null, req.user.id]
         );
         batchId = rows[0].id;
       }
@@ -289,13 +290,30 @@ router.get('/batches/:id/export.xlsx', async (req, res, next) => {
     addSection('Electives', report.subjects.filter(s => !s.isCore));
 
     ws.addRow([]);
-    const summaryTitle = ws.addRow(['Summary of Subjects Passed']);
+    const summaryTitle = ws.addRow(['Summary of Subjects Passed (computed from imported grades)']);
     summaryTitle.font = { bold: true };
     ws.addRow(['Total Number of Candidates', report.totalCandidates]);
     const maxBucket = Math.max(0, ...Object.keys(report.summaryOfPasses.buckets).map(Number));
     for (let n = maxBucket; n >= 1; n--) ws.addRow([`${n} Pass${n === 1 ? '' : 'es'}`, report.summaryOfPasses.buckets[n] || 0]);
     ws.addRow(['Failures', report.summaryOfPasses.failures]);
     ws.addRow(['Entire Results Cancelled', report.summaryOfPasses.entireResultsCancelled]);
+
+    if (report.officialSummary) {
+      const os = report.officialSummary;
+      ws.addRow([]);
+      const officialTitle = ws.addRow(["WAEC's Own Printed Summary (from the listing itself)"]);
+      officialTitle.font = { bold: true };
+      ws.addRow(['Total Number of Candidates', os.totalCandidates]);
+      const osMaxBucket = Math.max(0, ...Object.keys(os.buckets || {}).map(Number));
+      for (let n = osMaxBucket; n >= 1; n--) ws.addRow([`${n} Pass${n === 1 ? '' : 'es'}`, os.buckets[n] || 0]);
+      ws.addRow(['Failures', os.failures ?? 0]);
+      ws.addRow(['Absent', os.absent ?? 0]);
+      ws.addRow(['Entire Results Withheld', os.entireResultsWithheld ?? 0]);
+      ws.addRow(['Entire Results Pending', os.entireResultsPending ?? 0]);
+      ws.addRow(['Candidate Owing Fees', os.candidateOwingFees ?? 0]);
+      ws.addRow(['Entire Results Blocked', os.entireResultsBlocked ?? 0]);
+      ws.addRow(['Entire Results Cancelled', os.entireResultsCancelled ?? 0]);
+    }
 
     ws.columns.forEach(c => { c.width = 12; });
     ws.getColumn(1).width = 26;

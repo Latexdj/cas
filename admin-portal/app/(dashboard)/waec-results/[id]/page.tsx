@@ -14,9 +14,16 @@ interface Subject {
   gradeDistribution: Record<string, { boys: number; girls: number }>;
   percentagePass: { boys: number; girls: number; total: number };
 }
+interface OfficialSummary {
+  totalCandidates: number; buckets: Record<string, number>; failures?: number; absent?: number;
+  entireResultsWithheld?: number; entireResultsPending?: number; candidateOwingFees?: number;
+  entireResultsBlocked?: number; entireResultsCancelled?: number;
+}
 interface Report {
   year: number; examBody: string; totalCandidates: number; subjects: Subject[];
   summaryOfPasses: { buckets: Record<string, number>; failures: number; entireResultsCancelled: number };
+  officialSummary: OfficialSummary | null;
+  summaryMismatches: string[];
 }
 
 const cellCls = 'px-2 py-1.5 text-center whitespace-nowrap';
@@ -171,18 +178,54 @@ export default function WaecReportPage() {
         <SubjectTable title="Electives" subjects={electiveSubjects} />
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-        <h2 className="text-sm font-semibold text-slate-500 mb-3">Summary of Subjects Passed</h2>
-        <table className="text-sm">
-          <tbody className="divide-y divide-slate-100">
-            <tr><td className="py-1.5 pr-6 text-slate-500">Total Number of Candidates</td><td className="py-1.5 font-semibold">{report.totalCandidates}</td></tr>
-            {Array.from({ length: maxBucket }, (_, i) => maxBucket - i).map(n => (
-              <tr key={n}><td className="py-1.5 pr-6 text-slate-500">{n} {n === 1 ? 'Pass' : 'Passes'}</td><td className="py-1.5 font-semibold">{report.summaryOfPasses.buckets[n] || 0}</td></tr>
-            ))}
-            <tr><td className="py-1.5 pr-6 text-slate-500">Failures</td><td className="py-1.5 font-semibold">{report.summaryOfPasses.failures}</td></tr>
-            <tr><td className="py-1.5 pr-6 text-slate-500">Entire Results Cancelled</td><td className="py-1.5 font-semibold">{report.summaryOfPasses.entireResultsCancelled}</td></tr>
-          </tbody>
-        </table>
+      {report.summaryMismatches.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-1">
+          <p className="text-xs font-semibold text-amber-800">These two summaries don&apos;t fully agree:</p>
+          {report.summaryMismatches.map((m, i) => (
+            <p key={i} className="text-xs text-amber-700">{m}</p>
+          ))}
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-slate-500 mb-3">Summary of Subjects Passed (computed from imported grades)</h2>
+          <table className="text-sm">
+            <tbody className="divide-y divide-slate-100">
+              <tr><td className="py-1.5 pr-6 text-slate-500">Total Number of Candidates</td><td className="py-1.5 font-semibold">{report.totalCandidates}</td></tr>
+              {Array.from({ length: maxBucket }, (_, i) => maxBucket - i).map(n => (
+                <tr key={n}><td className="py-1.5 pr-6 text-slate-500">{n} {n === 1 ? 'Pass' : 'Passes'}</td><td className="py-1.5 font-semibold">{report.summaryOfPasses.buckets[n] || 0}</td></tr>
+              ))}
+              <tr><td className="py-1.5 pr-6 text-slate-500">Failures</td><td className="py-1.5 font-semibold">{report.summaryOfPasses.failures}</td></tr>
+              <tr><td className="py-1.5 pr-6 text-slate-500">Entire Results Cancelled</td><td className="py-1.5 font-semibold">{report.summaryOfPasses.entireResultsCancelled}</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        {report.officialSummary ? (
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+            <h2 className="text-sm font-semibold text-slate-500 mb-3">WAEC&apos;s Own Printed Summary (from the listing itself)</h2>
+            <table className="text-sm">
+              <tbody className="divide-y divide-slate-100">
+                <tr><td className="py-1.5 pr-6 text-slate-500">Total Number of Candidates</td><td className="py-1.5 font-semibold">{report.officialSummary.totalCandidates}</td></tr>
+                {Array.from({ length: Math.max(0, ...Object.keys(report.officialSummary.buckets).map(Number)) }, (_, i) => Math.max(0, ...Object.keys(report.officialSummary!.buckets).map(Number)) - i).map(n => (
+                  <tr key={n}><td className="py-1.5 pr-6 text-slate-500">{n} {n === 1 ? 'Pass' : 'Passes'}</td><td className="py-1.5 font-semibold">{report.officialSummary!.buckets[n] || 0}</td></tr>
+                ))}
+                <tr><td className="py-1.5 pr-6 text-slate-500">Failures</td><td className="py-1.5 font-semibold">{report.officialSummary.failures ?? 0}</td></tr>
+                <tr><td className="py-1.5 pr-6 text-slate-500">Absent</td><td className="py-1.5 font-semibold">{report.officialSummary.absent ?? 0}</td></tr>
+                <tr><td className="py-1.5 pr-6 text-slate-500">Entire Results Withheld</td><td className="py-1.5 font-semibold">{report.officialSummary.entireResultsWithheld ?? 0}</td></tr>
+                <tr><td className="py-1.5 pr-6 text-slate-500">Entire Results Pending</td><td className="py-1.5 font-semibold">{report.officialSummary.entireResultsPending ?? 0}</td></tr>
+                <tr><td className="py-1.5 pr-6 text-slate-500">Candidate Owing Fees</td><td className="py-1.5 font-semibold">{report.officialSummary.candidateOwingFees ?? 0}</td></tr>
+                <tr><td className="py-1.5 pr-6 text-slate-500">Entire Results Blocked</td><td className="py-1.5 font-semibold">{report.officialSummary.entireResultsBlocked ?? 0}</td></tr>
+                <tr><td className="py-1.5 pr-6 text-slate-500">Entire Results Cancelled</td><td className="py-1.5 font-semibold">{report.officialSummary.entireResultsCancelled ?? 0}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="bg-slate-50 rounded-xl border border-slate-100 p-5 flex items-center">
+            <p className="text-xs text-slate-400">This listing&apos;s own &quot;SUMMARY OF SUBJECT PASSES&quot; block wasn&apos;t found in the imported text (it may have been cut off when pasted) — only the computed summary is available.</p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -165,6 +165,54 @@ describe('Real dataset regression — 2023 WAEC listing, 23 candidates', () => {
     expect(Math.round(subject1.percentagePass.girls)).toBe(27);
     expect(Math.round(subject1.percentagePass.total)).toBe(30);
   });
+
+  describe("WAEC's own printed summary — passed through, not forced to agree", () => {
+  // Real finding from this same dataset: WAEC's own printed FAILURES (4)
+  // does not equal our computed failures (1, the single all-F9
+  // candidate) — every grade-based definition tried against this exact
+  // dataset (zero non-F9, zero C6-or-better, failed English or Maths)
+  // disagreed with WAEC's own number, so officialSummary is surfaced
+  // as-is rather than forced to match.
+  const officialSummary = {
+    totalCandidates: 23,
+    buckets: { 1: 4, 2: 1, 3: 5, 4: 6, 5: 2, 6: 3, 7: 1, 8: 0 },
+    failures: 4, absent: 0, entireResultsWithheld: 0, entireResultsPending: 0,
+    candidateOwingFees: 0, entireResultsBlocked: 0, entireResultsCancelled: 0,
+  };
+
+  it('is passed through on the report unmodified', () => {
+    const report = computeReport({ candidates, gradeBoundaries: WAEC_BOUNDARIES, registeredData: null, coreSubjects: CORE_SUBJECTS, officialSummary });
+    expect(report.officialSummary).toEqual(officialSummary);
+  });
+
+  it('is null on the report when the listing had no parseable summary block', () => {
+    const report = computeReport({ candidates, gradeBoundaries: WAEC_BOUNDARIES, registeredData: null, coreSubjects: CORE_SUBJECTS, officialSummary: null });
+    expect(report.officialSummary).toBeNull();
+    expect(report.summaryMismatches).toEqual([]);
+  });
+
+  it('flags the known Failures disagreement without flagging the N-Passes buckets, which do agree', () => {
+    const report = computeReport({ candidates, gradeBoundaries: WAEC_BOUNDARIES, registeredData: null, coreSubjects: CORE_SUBJECTS, officialSummary });
+    // Buckets match exactly (22 candidates total in both), so no bucket-total mismatch.
+    // But officialSummary's absent/withheld/pending/blocked/cancelled (all 0) plus our
+    // own entireResultsCancelled (0) agree too — the only real-world mismatch here is
+    // the Failures figure itself, which isn't cross-checked (there's no grade-based
+    // definition to check it against), so this specific dataset produces no mismatch.
+    expect(report.summaryMismatches).toEqual([]);
+  });
+
+  it('flags a bucket-total mismatch when the two totals genuinely disagree', () => {
+    const mismatched = { ...officialSummary, buckets: { ...officialSummary.buckets, 1: 999 } };
+    const report = computeReport({ candidates, gradeBoundaries: WAEC_BOUNDARIES, registeredData: null, coreSubjects: CORE_SUBJECTS, officialSummary: mismatched });
+    expect(report.summaryMismatches.some(m => m.includes('N-PASSES buckets'))).toBe(true);
+  });
+
+  it('flags a whole-candidate-count mismatch when officialSummary declares a different total', () => {
+    const mismatched = { ...officialSummary, totalCandidates: 999 };
+    const report = computeReport({ candidates, gradeBoundaries: WAEC_BOUNDARIES, registeredData: null, coreSubjects: CORE_SUBJECTS, officialSummary: mismatched });
+    expect(report.summaryMismatches.some(m => m.includes('declares 999 candidates'))).toBe(true);
+  });
+  });
 });
 
 describe('Registered/Absent — admin-entered, defaulting to Presented/0', () => {

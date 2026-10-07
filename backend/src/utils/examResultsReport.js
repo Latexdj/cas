@@ -10,16 +10,24 @@
 // hand reproduced WAEC's own printed "N PASSES" bucket counts exactly
 // (all 7 non-empty buckets matched); a stricter "C6 or better" (credits)
 // threshold, which an earlier single-candidate spot-check had seemed to
-// confirm during planning, does not. See CAS-WAEC-FAILURES-OPEN-QUESTION
-// in the plan doc for the one still-unresolved figure (WAEC's own
-// "FAILURES" count doesn't match a literal "zero non-F9 subjects" tally
-// on that same real dataset — flagged for the user, not guessed at).
+// confirm during planning, does not.
+//
+// WAEC's own printed "FAILURES" figure, however, does NOT match any
+// grade-based definition we tried against that same 23-candidate dataset
+// — not "zero non-F9 subjects" (gives 1, WAEC says 4), not "zero
+// C6-or-better subjects" (gives 7), not "failed English or Maths" (gives
+// ~20). Since we can't reverse-engineer WAEC's exact definition from the
+// grades alone, `officialSummary` (parsed verbatim from the listing's own
+// trailing "SUMMARY OF SUBJECT PASSES" block, see waecParser.js) is passed
+// through unmodified on the report rather than forcing our own computed
+// failures/absent figures to agree with it. The N-PASSES buckets DO agree
+// exactly, which is the useful cross-check surfaced below.
 //
 // remark is compared case-insensitively: a real school's grade_boundaries
 // were found storing it as "FAIL"/"CREDIT" (all caps) rather than the
 // title-case seed default, and a case-sensitive check silently matched
 // nothing, making every grade count as a pass.
-function computeReport({ candidates, gradeBoundaries, registeredData, coreSubjects }) {
+function computeReport({ candidates, gradeBoundaries, registeredData, coreSubjects, officialSummary }) {
   const boundaryByGrade = new Map(gradeBoundaries.map(b => [b.grade, b]));
   const isPassingGrade = (grade) => {
     const b = boundaryByGrade.get(grade);
@@ -96,10 +104,40 @@ function computeReport({ candidates, gradeBoundaries, registeredData, coreSubjec
     else buckets[passCount] = (buckets[passCount] || 0) + 1;
   }
 
+  // The one candidate-level fact WAEC's own summary lets us confirm beyond
+  // doubt: in the real 2024 listing, exactly one candidate had every
+  // subject marked X, and that listing's own summary showed ABSENT: 1
+  // with every other whole-candidate category (withheld/pending/blocked/
+  // cancelled/owing fees) at 0 — i.e. an all-X candidate there was the
+  // absent one. We can't generally attribute WHICH specific reason
+  // (absent vs withheld vs blocked vs cancelled vs owing fees) applies to
+  // an all-X candidate purely from their grades when more than one such
+  // candidate exists and WAEC's own breakdown splits them across several
+  // of those categories — so this count is surfaced neutrally, and
+  // officialSummary (when present) is the authoritative breakdown by reason.
+  const summaryMismatches = [];
+  if (officialSummary) {
+    if (officialSummary.totalCandidates !== candidates.length) {
+      summaryMismatches.push(`This listing's own summary declares ${officialSummary.totalCandidates} candidates, but ${candidates.length} were imported.`);
+    }
+    const officialBucketTotal = Object.values(officialSummary.buckets || {}).reduce((a, b) => a + b, 0);
+    const computedBucketTotal = Object.values(buckets).reduce((a, b) => a + b, 0);
+    if (officialBucketTotal !== computedBucketTotal) {
+      summaryMismatches.push(`Our computed N-PASSES buckets total ${computedBucketTotal} candidates; this listing's own summary totals ${officialBucketTotal}.`);
+    }
+    const officialNoResultTotal = ['absent', 'entireResultsWithheld', 'entireResultsPending', 'entireResultsBlocked', 'entireResultsCancelled']
+      .reduce((sum, key) => sum + (officialSummary[key] || 0), 0);
+    if (officialNoResultTotal !== entireResultsCancelled) {
+      summaryMismatches.push(`This listing's own summary counts ${officialNoResultTotal} candidate(s) as absent/withheld/pending/blocked/cancelled; ${entireResultsCancelled} candidate(s) here have every subject marked X.`);
+    }
+  }
+
   return {
     totalCandidates: candidates.length,
     subjects,
     summaryOfPasses: { buckets, failures, entireResultsCancelled },
+    officialSummary: officialSummary || null,
+    summaryMismatches,
   };
 }
 

@@ -37,6 +37,55 @@ const NOISE_LINE_PATTERNS = [
 ];
 
 const TOTAL_CANDIDATES_RE = /^Total Number of Candidates:\s*(\d+)$/i;
+// WAEC's own trailing "SUMMARY OF SUBJECT PASSES" block — confirmed
+// against the real extracted text of all three sample PDFs. It always
+// follows the LAST "Total Number of Candidates" line, one field per line,
+// colon-separated with no consistent spacing (pdf-parse renders this
+// block with no space around the colon — "FAILURES:4" — even though the
+// per-page footer repeating the same "Total Number of Candidates" line
+// earlier in the document has a space; \s* tolerates both). This is
+// parsed as a SEPARATE, trusted source alongside our own computed
+// buckets/failures rather than replacing them — see examResultsReport.js
+// for why: hand-checking this exact block against the real 23-candidate
+// 2023 dataset found our own computed N-PASSES buckets match WAEC's
+// printed ones exactly, but WAEC's own FAILURES figure does not equal
+// "count of candidates with zero non-F9 subjects" (nor zero-credits, nor
+// a core-subject-failure definition) — WAEC is evidently counting
+// something we can't reverse-engineer from the grades alone, so its
+// printed number is surfaced as-is rather than guessed at.
+const PASS_BUCKET_RE = /^(\d{1,2})\s*PASSES\s*:\s*(\d+)$/i;
+const SUMMARY_SCALAR_FIELDS = [
+  ['failures', /^FAILURES\s*:\s*(\d+)$/i],
+  ['absent', /^ABSENT\s*:\s*(\d+)$/i],
+  ['entireResultsWithheld', /^ENTIRE RESULTS WITHHELD\s*:\s*(\d+)$/i],
+  ['entireResultsPending', /^ENTIRE RESULTS PENDING\s*:\s*(\d+)$/i],
+  ['candidateOwingFees', /^CANDIDATE OWING FEES\s*:\s*(\d+)$/i],
+  ['entireResultsBlocked', /^ENTIRE RESULTS BLOCKED\s*:\s*(\d+)$/i],
+  ['entireResultsCancelled', /^ENTIRE RESULTS CANCELLED\s*:\s*(\d+)$/i],
+];
+
+// Returns null when none of these lines matched anything — e.g. a paste
+// that only covers the candidate table and was never scrolled/selected
+// down to this trailing block. Never invented or defaulted: downstream
+// code must treat "WAEC's own summary wasn't captured" as a real,
+// distinct state from "every figure in it happens to be zero."
+function parseOfficialSummary(lines) {
+  const summary = { buckets: {} };
+  let found = false;
+  for (const line of lines) {
+    const bucketMatch = line.match(PASS_BUCKET_RE);
+    if (bucketMatch) {
+      summary.buckets[parseInt(bucketMatch[1], 10)] = parseInt(bucketMatch[2], 10);
+      found = true;
+      continue;
+    }
+    for (const [key, re] of SUMMARY_SCALAR_FIELDS) {
+      const m = line.match(re);
+      if (m) { summary[key] = parseInt(m[1], 10); found = true; break; }
+    }
+  }
+  return found ? summary : null;
+}
 // Index numbers are a fixed 10 digits (7-digit school code + 3-digit
 // candidate sequence) in every sample seen. Deliberately NOT using a
 // trailing \b — a 10-digit run is frequently glued directly onto the next
@@ -99,9 +148,9 @@ function parseWaecListing(rawText) {
 
   // The summary section ("8 PASSES: N", "FAILURES: N", the disclaimer,
   // etc.) always follows the LAST "Total Number of Candidates" line —
-  // truncate there; that section isn't candidate data and is recomputed
-  // independently from grade_boundaries rather than trusted from WAEC's
-  // own printed summary.
+  // candidate parsing truncates there (that section isn't candidate data),
+  // but the lines after it are separately parsed below into
+  // officialSummary rather than being discarded outright.
   let declaredTotal = null;
   let lastTotalIdx = -1;
   allLines.forEach((l, i) => {
@@ -110,6 +159,8 @@ function parseWaecListing(rawText) {
   });
   const bodyLines = (lastTotalIdx >= 0 ? allLines.slice(0, lastTotalIdx) : allLines)
     .filter(l => !NOISE_LINE_PATTERNS.some(re => re.test(l)) && !TOTAL_CANDIDATES_RE.test(l));
+  const officialSummary = lastTotalIdx >= 0 ? parseOfficialSummary(allLines.slice(lastTotalIdx + 1)) : null;
+  if (officialSummary) officialSummary.totalCandidates = declaredTotal;
 
   const joined = joinFragments(bodyLines);
 
@@ -175,7 +226,7 @@ function parseWaecListing(rawText) {
     });
   }
 
-  return { schoolName, schoolNumber, year, declaredTotal, candidates, warnings };
+  return { schoolName, schoolNumber, year, declaredTotal, candidates, warnings, officialSummary };
 }
 
 module.exports = { parseWaecListing };
