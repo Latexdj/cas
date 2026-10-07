@@ -93,28 +93,30 @@ function computeReport({ candidates, gradeBoundaries, registeredData, coreSubjec
   });
 
   // Summary of Subjects Passed — per candidate, not per subject.
+  //
+  // noResultCandidates deliberately does NOT call itself "cancelled" —
+  // an all-X candidate's grades alone don't say WHY every subject is X.
+  // Confirmed against the real 2024 listing: its one all-X candidate
+  // corresponds to officialSummary.absent = 1, with WAEC's own "Entire
+  // Results Cancelled" category at 0 for that same listing — i.e. this
+  // bucket was mostly catching an absence, not a malpractice cancellation,
+  // even though "cancelled" is also a real, separate reason a candidate's
+  // whole result set can be all-X. Labeling it "Entire Results Cancelled"
+  // would mislead an admin reading the computed panel into assuming
+  // malpractice specifically. officialSummary (when present) is the
+  // authoritative breakdown by actual reason (absent vs withheld vs
+  // blocked vs cancelled vs owing fees).
   const buckets = {};
   let failures = 0;
-  let entireResultsCancelled = 0;
+  let noResultCandidates = 0;
   for (const c of candidates) {
     const realGrades = c.grades.filter(g => g.grade !== 'X');
-    if (c.grades.length > 0 && realGrades.length === 0) { entireResultsCancelled++; continue; }
+    if (c.grades.length > 0 && realGrades.length === 0) { noResultCandidates++; continue; }
     const passCount = realGrades.filter(g => isPassingGrade(g.grade)).length;
     if (passCount === 0) failures++;
     else buckets[passCount] = (buckets[passCount] || 0) + 1;
   }
 
-  // The one candidate-level fact WAEC's own summary lets us confirm beyond
-  // doubt: in the real 2024 listing, exactly one candidate had every
-  // subject marked X, and that listing's own summary showed ABSENT: 1
-  // with every other whole-candidate category (withheld/pending/blocked/
-  // cancelled/owing fees) at 0 — i.e. an all-X candidate there was the
-  // absent one. We can't generally attribute WHICH specific reason
-  // (absent vs withheld vs blocked vs cancelled vs owing fees) applies to
-  // an all-X candidate purely from their grades when more than one such
-  // candidate exists and WAEC's own breakdown splits them across several
-  // of those categories — so this count is surfaced neutrally, and
-  // officialSummary (when present) is the authoritative breakdown by reason.
   const summaryMismatches = [];
   if (officialSummary) {
     if (officialSummary.totalCandidates !== candidates.length) {
@@ -127,15 +129,15 @@ function computeReport({ candidates, gradeBoundaries, registeredData, coreSubjec
     }
     const officialNoResultTotal = ['absent', 'entireResultsWithheld', 'entireResultsPending', 'entireResultsBlocked', 'entireResultsCancelled']
       .reduce((sum, key) => sum + (officialSummary[key] || 0), 0);
-    if (officialNoResultTotal !== entireResultsCancelled) {
-      summaryMismatches.push(`This listing's own summary counts ${officialNoResultTotal} candidate(s) as absent/withheld/pending/blocked/cancelled; ${entireResultsCancelled} candidate(s) here have every subject marked X.`);
+    if (officialNoResultTotal !== noResultCandidates) {
+      summaryMismatches.push(`This listing's own summary counts ${officialNoResultTotal} candidate(s) as absent/withheld/pending/blocked/cancelled; ${noResultCandidates} candidate(s) here have every subject marked X.`);
     }
   }
 
   return {
     totalCandidates: candidates.length,
     subjects,
-    summaryOfPasses: { buckets, failures, entireResultsCancelled },
+    summaryOfPasses: { buckets, failures, noResultCandidates },
     officialSummary: officialSummary || null,
     summaryMismatches,
   };

@@ -96,7 +96,12 @@ describe('Cancelled grades (X)', () => {
   it('a candidate whose entire result set is X is counted separately, not as a FAILURE', () => {
     const candidates = [candidate('1', 'Male', [['Mathematics', 'X'], ['English Language', 'X']])];
     const report = computeReport({ candidates, gradeBoundaries: WAEC_BOUNDARIES, registeredData: null, coreSubjects: CORE_SUBJECTS });
-    expect(report.summaryOfPasses.entireResultsCancelled).toBe(1);
+    // Named noResultCandidates, not "cancelled" — an all-X candidate's
+    // grades alone don't say whether they were absent, cancelled for
+    // malpractice, withheld, blocked, or owing fees (see WAEC's own
+    // printed-summary tests below, where this bucket turns out to mostly
+    // be catching absences, not cancellations).
+    expect(report.summaryOfPasses.noResultCandidates).toBe(1);
     expect(report.summaryOfPasses.failures).toBe(0);
   });
 });
@@ -195,7 +200,7 @@ describe('Real dataset regression — 2023 WAEC listing, 23 candidates', () => {
     const report = computeReport({ candidates, gradeBoundaries: WAEC_BOUNDARIES, registeredData: null, coreSubjects: CORE_SUBJECTS, officialSummary });
     // Buckets match exactly (22 candidates total in both), so no bucket-total mismatch.
     // But officialSummary's absent/withheld/pending/blocked/cancelled (all 0) plus our
-    // own entireResultsCancelled (0) agree too — the only real-world mismatch here is
+    // own noResultCandidates (0) agree too — the only real-world mismatch here is
     // the Failures figure itself, which isn't cross-checked (there's no grade-based
     // definition to check it against), so this specific dataset produces no mismatch.
     expect(report.summaryMismatches).toEqual([]);

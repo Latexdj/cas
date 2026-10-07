@@ -1156,7 +1156,7 @@ function buildExamAnalysisReportHTML(report, school) {
       <tr><td style="padding:2px 8px;">Total Number of Candidates</td><td style="padding:2px 8px;font-weight:bold;">${report.totalCandidates}</td></tr>
       ${summaryRows.join('')}
       <tr><td style="padding:2px 8px;">Failures</td><td style="padding:2px 8px;font-weight:bold;">${report.summaryOfPasses.failures}</td></tr>
-      <tr><td style="padding:2px 8px;">Entire Results Cancelled</td><td style="padding:2px 8px;font-weight:bold;">${report.summaryOfPasses.entireResultsCancelled}</td></tr>
+      <tr><td style="padding:2px 8px;">No Result (Absent / Cancelled / Withheld — see below for which)</td><td style="padding:2px 8px;font-weight:bold;">${report.summaryOfPasses.noResultCandidates}</td></tr>
     </table>
     ${officialSummaryHTML}
   </body></html>`;

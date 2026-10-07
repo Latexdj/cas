@@ -296,7 +296,7 @@ router.get('/batches/:id/export.xlsx', async (req, res, next) => {
     const maxBucket = Math.max(0, ...Object.keys(report.summaryOfPasses.buckets).map(Number));
     for (let n = maxBucket; n >= 1; n--) ws.addRow([`${n} Pass${n === 1 ? '' : 'es'}`, report.summaryOfPasses.buckets[n] || 0]);
     ws.addRow(['Failures', report.summaryOfPasses.failures]);
-    ws.addRow(['Entire Results Cancelled', report.summaryOfPasses.entireResultsCancelled]);
+    ws.addRow(['No Result (Absent / Cancelled / Withheld — see below for which)', report.summaryOfPasses.noResultCandidates]);
 
     if (report.officialSummary) {
       const os = report.officialSummary;

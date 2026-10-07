@@ -21,7 +21,7 @@ interface OfficialSummary {
 }
 interface Report {
   year: number; examBody: string; totalCandidates: number; subjects: Subject[];
-  summaryOfPasses: { buckets: Record<string, number>; failures: number; entireResultsCancelled: number };
+  summaryOfPasses: { buckets: Record<string, number>; failures: number; noResultCandidates: number };
   officialSummary: OfficialSummary | null;
   summaryMismatches: string[];
 }
@@ -165,8 +165,8 @@ export default function WaecReportPage() {
           <p className="text-2xl font-semibold text-slate-900 mt-1">{report.summaryOfPasses.failures}</p>
         </div>
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3">
-          <p className="text-xs text-slate-400">Entire Results Cancelled</p>
-          <p className="text-2xl font-semibold text-slate-900 mt-1">{report.summaryOfPasses.entireResultsCancelled}</p>
+          <p className="text-xs text-slate-400">No Result (Absent/Cancelled/Withheld)</p>
+          <p className="text-2xl font-semibold text-slate-900 mt-1">{report.summaryOfPasses.noResultCandidates}</p>
         </div>
       </div>
 
@@ -197,7 +197,7 @@ export default function WaecReportPage() {
                 <tr key={n}><td className="py-1.5 pr-6 text-slate-500">{n} {n === 1 ? 'Pass' : 'Passes'}</td><td className="py-1.5 font-semibold">{report.summaryOfPasses.buckets[n] || 0}</td></tr>
               ))}
               <tr><td className="py-1.5 pr-6 text-slate-500">Failures</td><td className="py-1.5 font-semibold">{report.summaryOfPasses.failures}</td></tr>
-              <tr><td className="py-1.5 pr-6 text-slate-500">Entire Results Cancelled</td><td className="py-1.5 font-semibold">{report.summaryOfPasses.entireResultsCancelled}</td></tr>
+              <tr><td className="py-1.5 pr-6 text-slate-500">No Result (Absent / Cancelled / Withheld — see WAEC&apos;s own summary for which)</td><td className="py-1.5 font-semibold">{report.summaryOfPasses.noResultCandidates}</td></tr>
             </tbody>
           </table>
         </div>
