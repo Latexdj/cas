@@ -392,3 +392,79 @@ describe('GET /batches/:id/report — source: excel', () => {
     expect(mockQuery).toHaveBeenCalledTimes(2); // batch row + grade_boundaries, no candidates query
   });
 });
+
+describe('GET /students/search', () => {
+  it('returns [] without querying the database for a query shorter than 2 characters', async () => {
+    const res = await request(buildApp()).get('/api/admin/exam-results/students/search').query({ q: 'a' });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('matches by name or index number, scoped to this school and WAEC', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ index_number: '0100505001', name: 'TEST CANDIDATE', gender: 'Female', year: 2023 }] });
+    const res = await request(buildApp()).get('/api/admin/exam-results/students/search').query({ q: 'test' });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(mockQuery.mock.calls[0][1]).toEqual([SCHOOL_A, '%test%']);
+  });
+});
+
+describe('GET /students/:year/:indexNumber', () => {
+  it('requires a year', async () => {
+    const res = await request(buildApp()).get('/api/admin/exam-results/students/not-a-year/0100505999');
+    expect(res.status).toBe(400);
+  });
+
+  it('404s when no candidate with that index number exists in that specific year for this school', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    const res = await request(buildApp()).get('/api/admin/exam-results/students/2023/0100505999');
+    expect(res.status).toBe(404);
+  });
+
+  it('scopes the lookup to one specific year, since WAEC index numbers get reused for a different candidate in a different year', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [
+        { year: 2023, index_number: '0100505001', name: 'TEST CANDIDATE', gender: 'Female',
+          grades: [{ subjectName: 'English Language', grade: 'A1' }, { subjectName: 'Mathematics', grade: 'C6' }] },
+      ] })
+      .mockResolvedValueOnce(BOUNDARIES_ROW);
+    const res = await request(buildApp()).get('/api/admin/exam-results/students/2023/0100505001');
+    expect(res.status).toBe(200);
+    expect(mockQuery.mock.calls[0][1]).toEqual([SCHOOL_A, 2023, '0100505001']);
+    // BOUNDARIES_ROW only configures C6 (sort_order 4) and F9 (sort_order 1) -> C6 is point 1, A1 has no
+    // configured boundary and is excluded from scoring, matching computeBestSixAggregate's own behavior.
+    expect(res.body.bestSixAggregate).toBe(1);
+    expect(res.body.subjectsCounted).toBe(1);
+  });
+});
+
+describe('GET /rankings', () => {
+  it('requires a year', async () => {
+    const res = await request(buildApp()).get('/api/admin/exam-results/rankings');
+    expect(res.status).toBe(400);
+  });
+
+  it('404s when no batch exists for that year', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    const res = await request(buildApp()).get('/api/admin/exam-results/rankings').query({ year: 1999 });
+    expect(res.status).toBe(404);
+  });
+
+  it('drops a wholly-absent candidate and ranks the rest by best-6 aggregate', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 'batch-1' }] }) // batch lookup
+      .mockResolvedValueOnce(BOUNDARIES_ROW) // grade_boundaries (C6=1pt, F9=2pt here)
+      .mockResolvedValueOnce({ rows: [
+        { index_number: '001', name: 'Best Student', gender: 'Female', grades: [{ subjectName: 'Mathematics', grade: 'C6' }] },
+        { index_number: '002', name: 'Worst Student', gender: 'Male', grades: [{ subjectName: 'Mathematics', grade: 'F9' }] },
+        { index_number: '003', name: 'Absent Student', gender: 'Male', grades: [{ subjectName: 'Mathematics', grade: 'X' }] },
+      ] });
+    const res = await request(buildApp()).get('/api/admin/exam-results/rankings').query({ year: 2023 });
+    expect(res.status).toBe(200);
+    expect(res.body.candidates).toHaveLength(2); // the absent candidate is dropped
+    expect(res.body.candidates.map(c => c.indexNumber)).toEqual(['001', '002']);
+    expect(res.body.subjects).toEqual(['Mathematics']);
+    expect(res.body.gradePoints).toEqual({ C6: 1, F9: 2 });
+  });
+});

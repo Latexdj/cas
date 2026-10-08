@@ -9,7 +9,7 @@ const { getCurrentSchoolContext } = require('../utils/school-context');
 const { getClassRoster } = require('../services/classHistory.service');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { assembleResults, loadTermTrend } = require('./results');
-const { listBatches, buildReportForBatch, buildAnalytics, parseListParam } = require('./admin-exam-results');
+const { listBatches, buildReportForBatch, buildAnalytics, parseListParam, searchCandidates, getStudentResult, buildRankings } = require('./admin-exam-results');
 
 // â”€â”€ Auth middleware â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function auth(req, res, next) {
@@ -1684,6 +1684,38 @@ router.get('/exam-results/batches/:id/export.pdf', checkModuleAccess('exam_resul
     if (err.status) return res.status(err.status).json({ error: err.message });
     next(err);
   }
+});
+
+// GET /api/principal/exam-results/students/search?q= — same individual-
+// student lookup the admin portal has, mirrored read-only.
+router.get('/exam-results/students/search', checkModuleAccess('exam_results'), async (req, res, next) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (q.length < 2) return res.json([]);
+    res.json(await searchCandidates(req.schoolId, q));
+  } catch (err) { next(err); }
+});
+
+// GET /api/principal/exam-results/students/:year/:indexNumber
+router.get('/exam-results/students/:year/:indexNumber', checkModuleAccess('exam_results'), async (req, res, next) => {
+  try {
+    const year = parseInt(req.params.year);
+    if (!year) return res.status(400).json({ error: 'year is required' });
+    const result = await getStudentResult(req.schoolId, year, req.params.indexNumber.trim());
+    if (!result) return res.status(404).json({ error: 'No WAEC results found for this student in that year' });
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+// GET /api/principal/exam-results/rankings?year=
+router.get('/exam-results/rankings', checkModuleAccess('exam_results'), async (req, res, next) => {
+  try {
+    const year = parseInt(req.query.year);
+    if (!year) return res.status(400).json({ error: 'year is required' });
+    const result = await buildRankings(req.schoolId, year);
+    if (!result) return res.status(404).json({ error: 'No results found for that year' });
+    res.json(result);
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

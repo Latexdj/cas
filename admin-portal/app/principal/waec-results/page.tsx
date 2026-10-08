@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from 'next-themes';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
@@ -25,6 +25,18 @@ interface Report {
   summaryMismatches: string[];
 }
 interface Batch { id: string; year: number; candidate_count: number; }
+
+interface SearchResult { index_number: string; name: string; gender: string; year: number }
+interface StudentResult {
+  year: number; indexNumber: string; name: string; gender: string;
+  grades: { subjectName: string; grade: string }[];
+  bestSixAggregate: number | null; subjectsCounted: number;
+}
+interface RankCandidate {
+  indexNumber: string; name: string; gender: string;
+  grades: Record<string, string>; bestSixAggregate: number; subjectsCounted: number;
+}
+interface Rankings { year: number; gradePoints: Record<string, number>; subjects: string[]; candidates: RankCandidate[] }
 
 interface AnalyticsRow {
   subject: string; year: number; isCore: boolean;
@@ -84,7 +96,7 @@ export default function PrincipalWaecResultsPage() {
     return <p style={{ fontSize: 12, color: textMuted, textAlign: 'center', padding: '48px 0' }}>{message}</p>;
   }
 
-  const [mode, setMode] = useState<'report' | 'analytics'>('report');
+  const [mode, setMode] = useState<'report' | 'analytics' | 'lookup' | 'rankings'>('report');
 
   // ── Batch list + single-year Report ──────────────────────────────────
   const [batches, setBatches] = useState<Batch[] | null>(null);
@@ -190,6 +202,80 @@ export default function PrincipalWaecResultsPage() {
     }
   }
 
+  // ── Student Lookup ─────────────────────────────────────────────────────
+  const [lookupQuery, setLookupQuery] = useState('');
+  const [lookupResults, setLookupResults] = useState<SearchResult[] | null>(null);
+  const [lookupSearching, setLookupSearching] = useState(false);
+  const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
+  const [student, setStudent] = useState<StudentResult | null>(null);
+  const [studentLoading, setStudentLoading] = useState(false);
+  const lookupDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (lookupDebounceRef.current) clearTimeout(lookupDebounceRef.current);
+    if (lookupQuery.trim().length < 2) { setLookupResults(null); return; }
+    lookupDebounceRef.current = setTimeout(async () => {
+      setLookupSearching(true);
+      try {
+        const { data } = await principalApi.get<SearchResult[]>('/api/principal/exam-results/students/search', { params: { q: lookupQuery.trim() } });
+        setLookupResults(data);
+      } catch {
+        setLookupResults([]);
+      } finally {
+        setLookupSearching(false);
+      }
+    }, 300);
+    return () => { if (lookupDebounceRef.current) clearTimeout(lookupDebounceRef.current); };
+  }, [lookupQuery]);
+
+  const openStudent = useCallback(async (result: SearchResult) => {
+    setSelectedResult(result);
+    setStudentLoading(true);
+    try {
+      const { data } = await principalApi.get<StudentResult>(`/api/principal/exam-results/students/${result.year}/${encodeURIComponent(result.index_number)}`);
+      setStudent(data);
+    } catch {
+      setStudent(null);
+    } finally {
+      setStudentLoading(false);
+    }
+  }, []);
+
+  // ── Rankings ────────────────────────────────────────────────────────────
+  const [rankYear, setRankYear] = useState<number | null>(null);
+  const [rankGender, setRankGender] = useState('');
+  const [rankSubject, setRankSubject] = useState('');
+  const [rankings, setRankings] = useState<Rankings | null>(null);
+  const [rankingsLoading, setRankingsLoading] = useState(false);
+
+  useEffect(() => { if (batches && batches.length && rankYear === null) setRankYear(batches[0].year); }, [batches, rankYear]);
+
+  const loadRankings = useCallback(async (y: number) => {
+    setRankingsLoading(true);
+    try {
+      const { data } = await principalApi.get<Rankings>('/api/principal/exam-results/rankings', { params: { year: y } });
+      setRankings(data);
+    } catch {
+      setRankings(null);
+    } finally {
+      setRankingsLoading(false);
+    }
+  }, []);
+  useEffect(() => { if (mode === 'rankings' && rankYear !== null) loadRankings(rankYear); }, [mode, rankYear, loadRankings]);
+
+  const rankRows = useMemo(() => {
+    if (!rankings) return [] as RankCandidate[];
+    let list = rankings.candidates.filter(c => !rankGender || c.gender === rankGender);
+    if (rankSubject) {
+      list = list
+        .filter(c => rankings.gradePoints[c.grades[rankSubject]] != null)
+        .sort((a, b) => rankings.gradePoints[a.grades[rankSubject]] - rankings.gradePoints[b.grades[rankSubject]] || a.bestSixAggregate - b.bestSixAggregate);
+    } else {
+      list = [...list].sort((a, b) => a.bestSixAggregate - b.bestSixAggregate);
+    }
+    return list;
+  }, [rankings, rankGender, rankSubject]);
+
   const trend = useMemo(() => {
     if (!analytics) return [] as { year: number; pct: number }[];
     const years = [...new Set(analytics.rows.map(r => r.year))].sort((a, b) => a - b);
@@ -231,9 +317,11 @@ export default function PrincipalWaecResultsPage() {
           <h2 style={{ fontSize: 20, fontWeight: 700, color: textStrong }}>WAEC Results</h2>
           <p style={{ fontSize: 13, color: textMuted, marginTop: 2 }}>WASSCE Analysis Report and multi-year performance trends.</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button style={tabBtn(mode === 'report')} onClick={() => setMode('report')}>Year Report</button>
           <button style={tabBtn(mode === 'analytics')} onClick={() => setMode('analytics')}>Analytics Trends</button>
+          <button style={tabBtn(mode === 'lookup')} onClick={() => setMode('lookup')}>Student Lookup</button>
+          <button style={tabBtn(mode === 'rankings')} onClick={() => setMode('rankings')}>Rankings</button>
         </div>
       </div>
 
@@ -339,7 +427,7 @@ export default function PrincipalWaecResultsPage() {
             </div>
           )}
         </div>
-      ) : (
+      ) : mode === 'analytics' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
             <div>
@@ -420,6 +508,129 @@ export default function PrincipalWaecResultsPage() {
                 </div>
               </Card>
             </div>
+          )}
+        </div>
+      ) : mode === 'lookup' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <input
+            value={lookupQuery}
+            onChange={e => { setLookupQuery(e.target.value); setSelectedResult(null); setStudent(null); }}
+            placeholder="Search by name or index number…"
+            style={{ ...selectStyle, width: '100%', maxWidth: 420 }}
+          />
+
+          {lookupSearching && <p style={{ fontSize: 12, color: textMuted }}>Searching…</p>}
+
+          {lookupResults && lookupResults.length === 0 && lookupQuery.trim().length >= 2 && !lookupSearching && (
+            <p style={{ fontSize: 13, color: textMuted }}>No matching student found.</p>
+          )}
+
+          {lookupResults && lookupResults.length > 0 && !selectedResult && (
+            <Card title="Search results">
+              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 8 }}>
+                {lookupResults.map(r => (
+                  <button key={`${r.index_number}-${r.year}`} onClick={() => openStudent(r)}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', textAlign: 'left', background: 'transparent', border: 'none', borderTop: `1px solid ${border}`, padding: '10px 2px', cursor: 'pointer' }}>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: textStrong }}>{r.name}</p>
+                      <p style={{ fontSize: 11, color: textMuted }}>{r.index_number} · {r.gender}</p>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: textMuted }}>{r.year}</span>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {selectedResult && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <button onClick={() => { setSelectedResult(null); setStudent(null); }}
+                style={{ alignSelf: 'flex-start', background: 'transparent', border: 'none', color: green, fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
+                &larr; Back to results
+              </button>
+              {studentLoading ? (
+                <EmptyState message="Loading…" />
+              ) : student ? (
+                <Card title={student.name} subtitle={`${student.indexNumber} · ${student.gender} · WASSCE ${student.year}`}
+                  right={<div style={{ textAlign: 'right' }}><p style={{ fontSize: 22, fontWeight: 700, color: green }}>{student.bestSixAggregate ?? '—'}</p><p style={{ fontSize: 11, color: textMuted }}>Best {student.subjectsCounted} Aggregate</p></div>}>
+                  <table style={{ fontSize: 13, marginTop: 8, width: '100%' }}>
+                    <tbody>
+                      {student.grades.map(g => (
+                        <tr key={g.subjectName} style={{ borderTop: `1px solid ${border}` }}>
+                          <td style={{ padding: '5px 0', color: textMuted }}>{g.subjectName}</td>
+                          <td style={{ padding: '5px 0', textAlign: 'right', fontWeight: 700, color: textStrong }}>{g.grade}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Card>
+              ) : (
+                <EmptyState message="No results found." />
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <label style={labelStyle}>Year</label>
+              <select value={rankYear ?? ''} onChange={e => setRankYear(Number(e.target.value))} style={selectStyle}>
+                {batches.map(b => <option key={b.id} value={b.year}>{b.year} ({b.candidate_count} candidates)</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Gender</label>
+              <select value={rankGender} onChange={e => setRankGender(e.target.value)} style={selectStyle}>
+                <option value="">All</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Subject</label>
+              <select value={rankSubject} onChange={e => setRankSubject(e.target.value)} style={selectStyle}>
+                <option value="">Best-6 aggregate (all subjects)</option>
+                {rankings?.subjects.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {rankingsLoading ? (
+            <EmptyState message="Loading…" />
+          ) : rankRows.length === 0 ? (
+            <EmptyState message="No candidates match this filter." />
+          ) : (
+            <Card title={`Rankings — ${rankYear}`}>
+              <div style={{ overflowX: 'auto', marginTop: 8 }}>
+                <table style={{ fontSize: 12, borderCollapse: 'collapse', minWidth: '100%' }}>
+                  <thead>
+                    <tr style={{ color: textMuted }}>
+                      <th style={{ textAlign: 'left', padding: '4px 8px' }}>#</th>
+                      <th style={{ textAlign: 'left', padding: '4px 8px' }}>Name</th>
+                      <th style={{ textAlign: 'left', padding: '4px 8px' }}>Index Number</th>
+                      <th style={{ padding: '4px 8px' }}>Gender</th>
+                      {rankSubject && <th style={{ padding: '4px 8px' }}>{rankSubject}</th>}
+                      <th style={{ padding: '4px 8px' }}>Best-6 Aggregate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rankRows.map((c, i) => (
+                      <tr key={c.indexNumber} style={{ borderTop: `1px solid ${border}` }}>
+                        <td style={{ padding: '6px 8px', color: textMuted }}>{i + 1}</td>
+                        <td style={{ padding: '6px 8px', fontWeight: 600, color: textStrong, whiteSpace: 'nowrap' }}>{c.name}</td>
+                        <td style={{ padding: '6px 8px', color: textMuted, fontFamily: 'monospace' }}>{c.indexNumber}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'center', color: textMuted }}>{c.gender}</td>
+                        {rankSubject && <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: textStrong }}>{c.grades[rankSubject]}</td>}
+                        <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: green }}>
+                          {c.bestSixAggregate}{c.subjectsCounted < 6 && <span style={{ color: textMuted, fontWeight: 400 }}> ({c.subjectsCounted} subj.)</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           )}
         </div>
       )}

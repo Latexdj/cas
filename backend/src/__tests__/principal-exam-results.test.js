@@ -84,6 +84,36 @@ describe('GET /exam-results/analytics', () => {
   });
 });
 
+describe('GET /exam-results/students/search', () => {
+  it('matches by name or index number via the shared searchCandidates() helper', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ index_number: '0100505001', name: 'TEST CANDIDATE', gender: 'Female', year: 2023 }] });
+    const res = await request(buildApp()).get('/api/principal/exam-results/students/search').query({ q: 'test' }).set('Authorization', `Bearer ${managementToken()}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+});
+
+describe('GET /exam-results/students/:year/:indexNumber', () => {
+  it('404s when no candidate with that index number exists in that year for this school', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    const res = await request(buildApp()).get('/api/principal/exam-results/students/2023/0100505999').set('Authorization', `Bearer ${managementToken()}`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('GET /exam-results/rankings', () => {
+  it('requires a year', async () => {
+    const res = await request(buildApp()).get('/api/principal/exam-results/rankings').set('Authorization', `Bearer ${managementToken()}`);
+    expect(res.status).toBe(400);
+  });
+
+  it('404s when no batch exists for that year', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    const res = await request(buildApp()).get('/api/principal/exam-results/rankings').query({ year: 1999 }).set('Authorization', `Bearer ${managementToken()}`);
+    expect(res.status).toBe(404);
+  });
+});
+
 describe('No write routes are exposed', () => {
   it('has no POST/PATCH/DELETE for exam-results under the principal router', async () => {
     const token = managementToken();

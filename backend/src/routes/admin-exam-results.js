@@ -13,6 +13,7 @@ const { parseAggregateWorkbook } = require('../utils/waecExcelAggregateParser');
 const { validateAggregateReportHard, validateAggregateReportSoft } = require('../utils/examAggregateValidation');
 const { validateListingWarnings } = require('../utils/examListingValidation');
 const { WAEC_CORE_SUBJECTS } = require('../utils/waecSubjects');
+const { computeGradePoints, computeBestSixAggregate } = require('../utils/examResultsRanking');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -514,6 +515,127 @@ router.delete('/batches/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Shared by GET /students/search and its principal-portal mirror — name or
+// index-number lookup across every WAEC listing-sourced batch (an
+// 'excel'-sourced year has no candidate rows, so it never appears here —
+// see the aggregate-report comment above).
+async function searchCandidates(schoolId, q) {
+  const { rows } = await pool.query(
+    `SELECT c.index_number, c.name, c.gender, b.year
+     FROM exam_result_candidates c
+     JOIN exam_result_batches b ON b.id = c.batch_id
+     WHERE b.school_id = $1 AND b.exam_body = 'WAEC' AND (c.name ILIKE $2 OR c.index_number ILIKE $2)
+     ORDER BY c.name, b.year DESC
+     LIMIT 20`,
+    [schoolId, `%${q}%`]
+  );
+  return rows;
+}
+
+router.get('/students/search', async (req, res, next) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (q.length < 2) return res.json([]);
+    res.json(await searchCandidates(req.schoolId, q));
+  } catch (err) { next(err); }
+});
+
+// Shared by GET /students/:year/:indexNumber and its principal-portal
+// mirror. WAEC index numbers are a center number + per-year sequence, so
+// the same index number gets reused for a *different* candidate in a
+// different year's batch — a lookup must be scoped to one specific year,
+// never "every year sharing this index number" (that would silently
+// splice two unrelated students' results together).
+async function getStudentResult(schoolId, year, indexNumber) {
+  const { rows } = await pool.query(
+    `SELECT b.year, c.index_number, c.name, c.gender,
+            COALESCE(json_agg(json_build_object('subjectName', g.subject_name, 'grade', g.grade) ORDER BY g.subject_name) FILTER (WHERE g.id IS NOT NULL), '[]') AS grades
+     FROM exam_result_candidates c
+     JOIN exam_result_batches b ON b.id = c.batch_id
+     LEFT JOIN exam_result_grades g ON g.candidate_id = c.id
+     WHERE b.school_id = $1 AND b.exam_body = 'WAEC' AND b.year = $2 AND c.index_number = $3
+     GROUP BY b.id, b.year, c.id`,
+    [schoolId, year, indexNumber]
+  );
+  if (!rows.length) return null;
+  const gradeBoundaries = await getGradeBoundaries(schoolId, 'WAEC');
+  const gradePoints = computeGradePoints(gradeBoundaries);
+  const r = rows[0];
+  const best = computeBestSixAggregate(r.grades, gradePoints);
+  return {
+    year: r.year, indexNumber: r.index_number, name: r.name, gender: r.gender, grades: r.grades,
+    bestSixAggregate: best?.aggregate ?? null, subjectsCounted: best?.subjectsCounted ?? 0,
+  };
+}
+
+router.get('/students/:year/:indexNumber', async (req, res, next) => {
+  try {
+    const year = parseInt(req.params.year);
+    if (!year) return res.status(400).json({ error: 'year is required' });
+    const result = await getStudentResult(req.schoolId, year, req.params.indexNumber.trim());
+    if (!result) return res.status(404).json({ error: 'No WAEC results found for this student in that year' });
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+// Shared by GET /rankings and its principal-portal mirror — every scoreable
+// candidate in one year's batch (wholly absent/cancelled candidates have
+// no best-6 aggregate and are dropped, same "no result" definition used
+// elsewhere in this module), with every subject's grade alongside so the
+// admin can filter/re-rank by a single subject client-side without another
+// round trip. gradePoints ships too so the client sorts using this school's
+// own grade_boundaries rather than assuming the standard WAEC scale.
+async function buildRankings(schoolId, year) {
+  const { rows: batchRows } = await pool.query(
+    `SELECT id FROM exam_result_batches WHERE school_id = $1 AND exam_body = 'WAEC' AND year = $2`,
+    [schoolId, year]
+  );
+  if (!batchRows.length) return null;
+
+  const [gradeBoundaries, candidateResult] = await Promise.all([
+    getGradeBoundaries(schoolId, 'WAEC'),
+    pool.query(
+      `SELECT c.index_number, c.name, c.gender,
+              COALESCE(json_agg(json_build_object('subjectName', g.subject_name, 'grade', g.grade)) FILTER (WHERE g.id IS NOT NULL), '[]') AS grades
+       FROM exam_result_candidates c
+       LEFT JOIN exam_result_grades g ON g.candidate_id = c.id
+       WHERE c.batch_id = $1
+       GROUP BY c.id
+       ORDER BY c.index_number`,
+      [batchRows[0].id]
+    ),
+  ]);
+
+  const gradePoints = computeGradePoints(gradeBoundaries);
+  const subjectSet = new Set();
+  const candidates = [];
+  for (const c of candidateResult.rows) {
+    const best = computeBestSixAggregate(c.grades, gradePoints);
+    if (!best) continue; // wholly absent/cancelled — nothing to rank
+    const grades = {};
+    for (const g of c.grades) { grades[g.subjectName] = g.grade; subjectSet.add(g.subjectName); }
+    candidates.push({
+      indexNumber: c.index_number, name: c.name, gender: c.gender, grades,
+      bestSixAggregate: best.aggregate, subjectsCounted: best.subjectsCounted,
+    });
+  }
+
+  const subjects = [...subjectSet].sort((a, b) =>
+    (WAEC_CORE_SUBJECTS.includes(a) ? 0 : 1) - (WAEC_CORE_SUBJECTS.includes(b) ? 0 : 1) || a.localeCompare(b)
+  );
+  return { year, gradePoints, subjects, candidates };
+}
+
+router.get('/rankings', async (req, res, next) => {
+  try {
+    const year = parseInt(req.query.year);
+    if (!year) return res.status(400).json({ error: 'year is required' });
+    const result = await buildRankings(req.schoolId, year);
+    if (!result) return res.status(404).json({ error: 'No results found for that year' });
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
 module.exports = router;
 // Reused by the principal-portal mirror of this module (read-only:
 // backend/src/routes/principal.js) so both portals compute the exact same
@@ -522,3 +644,6 @@ module.exports.listBatches = listBatches;
 module.exports.buildReportForBatch = buildReportForBatch;
 module.exports.buildAnalytics = buildAnalytics;
 module.exports.parseListParam = parseListParam;
+module.exports.searchCandidates = searchCandidates;
+module.exports.getStudentResult = getStudentResult;
+module.exports.buildRankings = buildRankings;

@@ -37,7 +37,11 @@ export default function WaecResultsPage() {
         </div>
         <div className="flex gap-2">
           {batches.length > 0 && (
-            <Link href="/waec-results/analytics"><Button variant="secondary">View Analytics</Button></Link>
+            <>
+              <Link href="/waec-results/students"><Button variant="secondary">Student Lookup</Button></Link>
+              <Link href="/waec-results/rankings"><Button variant="secondary">Rankings</Button></Link>
+              <Link href="/waec-results/analytics"><Button variant="secondary">View Analytics</Button></Link>
+            </>
           )}
           <Link href="/waec-results/import"><Button>Import New Year</Button></Link>
         </div>
