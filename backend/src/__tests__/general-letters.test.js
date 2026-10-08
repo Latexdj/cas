@@ -180,3 +180,101 @@ describe('POST /:id/accept and /:id/decline', () => {
     expect(res.body.decline_reason).toBe('Prefer not to relocate');
   });
 });
+
+describe('PATCH /:id — correcting a letter issued wrongly', () => {
+  function editBody(overrides = {}) {
+    return {
+      classification: 'internal_administrative',
+      recipient_type: 'external',
+      ext_recipient_title: 'THE DISTRICT DIRECTOR',
+      subject: 'Corrected subject',
+      body: '<p>Corrected body.</p>',
+      issued_date: '2026-01-01',
+      issued_as: 'own_office',
+      ...overrides,
+    };
+  }
+
+  it('400s on a letter that is not issued or pending_approval', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 'letter-1', status: 'voided' }] });
+    const res = await request(buildApp()).patch('/api/general-letters/letter-1').send(editBody());
+    expect(res.status).toBe(400);
+  });
+
+  it('404s when the letter does not exist in this school', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+    const res = await request(buildApp()).patch('/api/general-letters/letter-1').send(editBody());
+    expect(res.status).toBe(404);
+  });
+
+  it('an own_office edit with no other approval trigger keeps the letter issued, clears pdf_url, and stamps the editor', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 'letter-1', status: 'issued', classification: 'internal_administrative', issued_as: 'own_office' }] }) // existing
+      .mockResolvedValueOnce({ rows: [{ name: 'Tang Alex' }] }) // resolveIssuedBy
+      .mockResolvedValueOnce({ rows: [{
+        id: 'letter-1', status: 'issued', recipient_type: 'external', pdf_url: null,
+        last_edited_by_name: 'Tang Alex',
+      }] }); // UPDATE ... RETURNING
+    const res = await request(buildApp()).patch('/api/general-letters/letter-1').send(editBody());
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('issued');
+    expect(res.body.pdf_url).toBeNull();
+    expect(res.body.last_edited_by_name).toBe('Tang Alex');
+    // recipient_type is external in this edit -> no FK lookup query, no notification (not a teacher recipient)
+    expect(mockQuery).toHaveBeenCalledTimes(3);
+  });
+
+  it('switching to "on_behalf_of_head" moves an already-issued letter back to pending_approval', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 'letter-1', status: 'issued', classification: 'internal_administrative', issued_as: 'own_office' }] })
+      .mockResolvedValueOnce({ rows: [{ name: 'Tang Alex' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'letter-1', status: 'pending_approval' }] });
+    const res = await request(buildApp()).patch('/api/general-letters/letter-1').send(editBody({ issued_as: 'on_behalf_of_head' }));
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('pending_approval');
+  });
+
+  it('re-notifies the (possibly corrected) teacher recipient when the edit leaves the letter issued', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 'letter-1', status: 'issued', classification: 'internal_administrative', issued_as: 'own_office' }] })
+      .mockResolvedValueOnce({ rows: [{ id: TEACHER_A }] }) // recipient FK check
+      .mockResolvedValueOnce({ rows: [{ name: 'Tang Alex' }] }) // resolveIssuedBy
+      .mockResolvedValueOnce({ rows: [{
+        id: 'letter-1', status: 'issued', recipient_type: 'teacher', internal_recipient_id: TEACHER_A,
+        school_id: SCHOOL_A, subject: 'Corrected subject', requires_acceptance: false,
+      }] }) // UPDATE
+      .mockResolvedValueOnce({ rows: [] }); // notification insert
+    const res = await request(buildApp()).patch('/api/general-letters/letter-1').send(editBody({
+      recipient_type: 'teacher', internal_recipient_id: TEACHER_A, internal_recipient_table: 'teachers', ext_recipient_title: undefined,
+    }));
+    expect(res.status).toBe(200);
+    expect(mockQuery).toHaveBeenCalledTimes(5);
+  });
+});
+
+describe('PATCH /:id/void', () => {
+  it('requires a reason', async () => {
+    const res = await request(buildApp()).patch('/api/general-letters/letter-1/void').send({});
+    expect(res.status).toBe(400);
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('404s when the letter is not in a voidable status (wrong school, already voided, still a draft, etc)', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ name: 'Tang Alex' }] }) // resolveIssuedBy
+      .mockResolvedValueOnce({ rows: [] }); // UPDATE matched nothing
+    const res = await request(buildApp()).patch('/api/general-letters/letter-1/void').send({ reason: 'Issued to the wrong teacher' });
+    expect(res.status).toBe(404);
+  });
+
+  it('voids an issued letter and records who/why', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ name: 'Tang Alex' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'letter-1', status: 'voided', voided_by_name: 'Tang Alex', void_reason: 'Issued to the wrong teacher' }] });
+    const res = await request(buildApp()).patch('/api/general-letters/letter-1/void').send({ reason: 'Issued to the wrong teacher' });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('voided');
+    expect(res.body.void_reason).toBe('Issued to the wrong teacher');
+    expect(mockQuery.mock.calls[1][1]).toEqual(['Tang Alex', 'Issued to the wrong teacher', 'letter-1', SCHOOL_A]);
+  });
+});

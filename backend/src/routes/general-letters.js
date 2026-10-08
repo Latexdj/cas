@@ -71,6 +71,24 @@ async function resolveIssuedBy(req) {
   return { issued_by_id: id, issued_by_name: rows[0]?.name ?? '' };
 }
 
+// GET /api/general-letters/school — just the letterhead/signature/contact
+// fields the print preview and PDF layer need. /api/admin/settings has the
+// full settings record but is gated role:admin only (no management
+// bypass), which would break this for the principal-portal mount of this
+// same module — so this module fetches its own narrow, adminOrManagement-
+// gated copy instead of depending on that endpoint.
+// Must be defined BEFORE /:id routes to avoid Express matching 'school' as an id.
+router.get('/school', adminOrManagement, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT name, address, phone, email, motto, letterhead_url, headmaster_signature_url, headmaster_name
+       FROM schools WHERE id = $1`,
+      [req.schoolId]
+    );
+    res.json(rows[0] || {});
+  } catch (err) { next(err); }
+});
+
 // ─── EXTERNAL CONTACTS ────────────────────────────────────────────────────────
 // Must be defined BEFORE /:id routes to avoid Express matching 'contacts' as an id.
 
@@ -532,6 +550,118 @@ router.patch('/:id/resubmit', adminOrManagement, async (req, res, next) => {
     });
     if (!letter) return res.status(404).json({ error: 'Letter not found or not in returned status' });
     res.json(letter);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/general-letters/:id — correct a letter issued wrongly (wrong
+// recipient, wrong wording, wrong classification, etc). Only on an issued
+// or still-pending-approval letter — a draft is edited via /finalize, a
+// returned letter via /resubmit (its own reason-tracked flow), and a
+// voided letter is terminal. Re-running computeRequiresApproval means an
+// edit that newly triggers approval (e.g. switching to "on behalf of the
+// Head") moves an already-issued letter back to pending_approval rather
+// than silently keeping it issued under the old, already-approved basis.
+// The stale pdf_url is cleared — it no longer matches the letter's content.
+router.patch('/:id', adminOrManagement, async (req, res, next) => {
+  try {
+    const {
+      classification, recipient_type,
+      internal_recipient_id, internal_recipient_table,
+      ext_recipient_name, ext_recipient_title, ext_recipient_org, ext_recipient_address,
+      issued_by_title, through_office, cc,
+      subject, body, is_sensitive, issued_date,
+      issued_as, requires_acceptance,
+    } = req.body;
+
+    const { rows: existing } = await pool.query(
+      `SELECT * FROM general_letters WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!existing.length) return res.status(404).json({ error: 'Letter not found' });
+    const current = existing[0];
+    if (!['issued', 'pending_approval'].includes(current.status)) {
+      return res.status(400).json({ error: `Cannot edit a letter with status "${current.status}". Use resubmit for a returned letter.` });
+    }
+
+    if (!VALID_CLASSIFICATIONS.includes(classification))
+      return res.status(400).json({ error: 'Invalid classification' });
+    if (!VALID_RECIPIENT_TYPES.includes(recipient_type))
+      return res.status(400).json({ error: 'Invalid recipient_type' });
+    if (!subject?.trim()) return res.status(400).json({ error: 'subject is required' });
+    if (!body?.trim()) return res.status(400).json({ error: 'body is required' });
+
+    const isExternal = recipient_type === 'external' || recipient_type === 'parent';
+    if (isExternal) {
+      if (!ext_recipient_name?.trim() && !ext_recipient_title?.trim())
+        return res.status(400).json({ error: 'Provide a recipient name or a title/office for external/parent recipients' });
+    } else {
+      if (!internal_recipient_id || !internal_recipient_table)
+        return res.status(400).json({ error: 'internal_recipient_id and internal_recipient_table are required' });
+      if (!['students', 'teachers'].includes(internal_recipient_table))
+        return res.status(400).json({ error: 'internal_recipient_table must be students or teachers' });
+      const { rows: recRows } = await pool.query(
+        `SELECT id FROM ${internal_recipient_table} WHERE id = $1 AND school_id = $2`,
+        [internal_recipient_id, req.schoolId]
+      );
+      if (!recRows.length) return res.status(404).json({ error: 'Recipient not found in this school' });
+    }
+
+    const { issued_by_name: edited_by_name } = await resolveIssuedBy(req);
+    const sensitive = is_sensitive === true || is_sensitive === 'true';
+    const issuedAs = VALID_ISSUED_AS.includes(issued_as) ? issued_as : current.issued_as;
+    const requiresAcceptance = requires_acceptance === true || requires_acceptance === 'true';
+    const requires_approval = computeRequiresApproval(classification, sensitive, issuedAs);
+    const new_status = (current.status === 'issued' && requires_approval) ? 'pending_approval' : current.status;
+
+    const { rows } = await pool.query(
+      `UPDATE general_letters SET
+         classification = $1, recipient_type = $2,
+         internal_recipient_id = $3, internal_recipient_table = $4,
+         ext_recipient_name = $5, ext_recipient_title = $6, ext_recipient_org = $7, ext_recipient_address = $8,
+         issued_by_title = $9, through_office = $10, cc = $11,
+         subject = $12, body = $13, is_sensitive = $14, issued_date = $15,
+         issued_as = $16, requires_acceptance = $17, requires_approval = $18, status = $19,
+         pdf_url = NULL, last_edited_by_name = $20, last_edited_at = now(), updated_at = now()
+       WHERE id = $21 AND school_id = $22
+       RETURNING *, issued_date::text`,
+      [
+        classification, recipient_type,
+        isExternal ? null : internal_recipient_id, isExternal ? null : internal_recipient_table,
+        isExternal ? (ext_recipient_name?.trim() || null) : null, isExternal ? (ext_recipient_title?.trim() || null) : null,
+        isExternal ? (ext_recipient_org?.trim() || null) : null, isExternal ? (ext_recipient_address?.trim() || null) : null,
+        issued_by_title?.trim() || null, through_office?.trim() || null, cc?.trim() || null,
+        subject.trim(), sanitizeRichText(body.trim()), sensitive, issued_date || null,
+        issuedAs, requiresAcceptance, requires_approval, new_status,
+        edited_by_name, req.params.id, req.schoolId,
+      ]
+    );
+    // Re-notify if the letter is (still, or newly) issued — covers the "wrong
+    // recipient" correction case, where the right teacher was never told.
+    if (new_status === 'issued') await notifyTeacherIfIssued(rows[0]);
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/general-letters/:id/void — a letter issued wrongly. Not a hard
+// delete: kept for audit (who issued it, who voided it, why), just excluded
+// from GET /mine (already scoped to status = 'issued') and shown with a
+// clear Voided badge everywhere else, same transparency-over-silent-removal
+// approach as the rest of this module.
+router.patch('/:id/void', adminOrManagement, async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    if (!reason?.trim()) return res.status(400).json({ error: 'A reason is required to void a letter' });
+
+    const { issued_by_name: voided_by_name } = await resolveIssuedBy(req);
+    const { rows } = await pool.query(
+      `UPDATE general_letters
+       SET status = 'voided', voided_at = now(), voided_by_name = $1, void_reason = $2, updated_at = now()
+       WHERE id = $3 AND school_id = $4 AND status IN ('issued','pending_approval','returned')
+       RETURNING *, issued_date::text`,
+      [voided_by_name, reason.trim(), req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Letter not found or cannot be voided from its current status' });
+    res.json(rows[0]);
   } catch (err) { next(err); }
 });
 

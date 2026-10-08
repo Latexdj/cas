@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { api } from '@/lib/api';
+import type { AxiosInstance } from 'axios';
+import { api as defaultApi } from '@/lib/api';
 import { PrintLetterModal } from '@/components/PrintLetterModal';
 import { StructuredIntake } from '@/components/StructuredIntake';
 import { INTAKE_FIELDS } from '@/lib/intake-fields';
@@ -40,6 +41,8 @@ type Letter = {
   approved_at: string | null; issued_by_name: string; body?: string;
   issued_as: string;
   requires_acceptance: boolean; accepted_at: string | null; declined_at: string | null; decline_reason: string | null;
+  voided_at?: string | null; voided_by_name?: string | null; void_reason?: string | null;
+  last_edited_by_name?: string | null; last_edited_at?: string | null;
   pdf_url?: string | null; created_at: string; draft_session_id?: string | null;
   return_history?: { id: string; reason: string; returned_by_name?: string; returned_at: string }[];
 };
@@ -103,6 +106,7 @@ function statusPill(status: string) {
     issued:           { label: 'Issued',           color: C.success, bg: C.successBg },
     archived:         { label: 'Archived',         color: C.muted,   bg: '#EDE8DF' },
     returned:         { label: 'Returned for Correction', color: C.danger, bg: C.dangerBg },
+    voided:           { label: 'Voided',           color: C.muted,   bg: '#EDE8DF' },
   };
   const s = map[status] ?? { label: status, color: C.muted, bg: '#EDE8DF' };
   return (
@@ -250,12 +254,20 @@ function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onU
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-
-export default function GeneralLettersPage() {
+// Takes an injectable API client so the exact same module — list, create,
+// AI drafting, edit, void, approve/return, print — can be mounted at both
+// the admin portal (default export below, api client) and the principal
+// portal (app/principal/general-letters/page.tsx, principalApi client),
+// rather than maintaining two copies of ~1800 lines of near-identical UI.
+// defaultStatusFilter lets the principal instance land pre-filtered on
+// "Pending Approval" (its main reason to be here) while still being the
+// full module, not a stripped-down one.
+export function GeneralLettersModule({ apiClient = defaultApi, defaultStatusFilter = '' }: { apiClient?: AxiosInstance; defaultStatusFilter?: string }) {
+  const api = apiClient;
   const [letters, setLetters]           = useState<Letter[]>([]);
   const [contacts, setContacts]         = useState<Contact[]>([]);
   const [loading, setLoading]           = useState(true);
-  const [filterStatus, setFilterStatus] = useState('');
+  const [filterStatus, setFilterStatus] = useState(defaultStatusFilter);
   const [filterClass, setFilterClass]   = useState('');
 
   const [createOpen, setCreateOpen]     = useState(false);
@@ -403,6 +415,21 @@ export default function GeneralLettersPage() {
   const [selectedRecipientName, setSelectedRecipientName] = useState('');
   const [showContactPicker, setShowContactPicker] = useState(false);
 
+  // Edit an issued/pending-approval letter — shares the recipient-search
+  // state above (teachers/students/recipientSearch/selectedRecipientName)
+  // with the create form, since only one of the two modals is ever open
+  // at once.
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editForm, setEditForm]           = useState<FormState>(EMPTY_FORM);
+  const [editSaving, setEditSaving]       = useState(false);
+  const [editSaveErr, setEditSaveErr]     = useState('');
+
+  // Void (cancel) a letter issued wrongly — not a hard delete, see backend.
+  const [voidOpen, setVoidOpen]     = useState(false);
+  const [voidReason, setVoidReason] = useState('');
+  const [voiding, setVoiding]       = useState(false);
+  const [voidErr, setVoidErr]       = useState('');
+
   const returnFilteredTeachers = teachers.filter(t =>
     !returnRecipientSearch || t.name.toLowerCase().includes(returnRecipientSearch.toLowerCase())
   );
@@ -452,7 +479,7 @@ export default function GeneralLettersPage() {
   useEffect(() => { load(); }, [filterStatus, filterClass]);
   useEffect(() => {
     loadContacts();
-    api.get('/api/admin/settings').then(r => setSchool(r.data)).catch(() => {});
+    api.get('/api/general-letters/school').then(r => setSchool(r.data)).catch(() => {});
   }, []);
 
   // Load teachers/students when relevant recipient type chosen
@@ -482,34 +509,42 @@ export default function GeneralLettersPage() {
   function setField<K extends keyof FormState>(k: K, v: FormState[K]) {
     setForm(f => ({ ...f, [k]: v }));
   }
-
-  function onClassificationChange(v: string) {
-    setField('classification', v);
+  function setEditField<K extends keyof FormState>(k: K, v: FormState[K]) {
+    setEditForm(f => ({ ...f, [k]: v }));
   }
 
-  function onRecipientTypeChange(v: string) {
-    setField('recipient_type', v);
-    setField('internal_recipient_id', '');
-    setField('internal_recipient_table', RECIPIENT_TYPES.find(r => r.value === v)?.internal_table ?? '');
-    setField('ext_recipient_name', '');
-    setField('ext_recipient_org', '');
-    setField('ext_recipient_address', '');
+  // These four take the target setField as a parameter so the create form
+  // and the edit form — which share the same recipient-search UI state
+  // (teachers/students/recipientSearch/selectedRecipientName/showContactPicker),
+  // only one of the two modals ever being open at once — can reuse the same
+  // logic instead of each having its own copy.
+  function onClassificationChange(v: string, set: typeof setField = setField) {
+    set('classification', v);
+  }
+
+  function onRecipientTypeChange(v: string, set: typeof setField = setField) {
+    set('recipient_type', v);
+    set('internal_recipient_id', '');
+    set('internal_recipient_table', RECIPIENT_TYPES.find(r => r.value === v)?.internal_table ?? '');
+    set('ext_recipient_name', '');
+    set('ext_recipient_org', '');
+    set('ext_recipient_address', '');
     setRecipientSearch('');
     setSelectedRecipientName('');
     setShowContactPicker(false);
   }
 
-  function selectInternalRecipient(id: string, name: string, table: string) {
-    setField('internal_recipient_id', id);
-    setField('internal_recipient_table', table);
+  function selectInternalRecipient(id: string, name: string, table: string, set: typeof setField = setField) {
+    set('internal_recipient_id', id);
+    set('internal_recipient_table', table);
     setSelectedRecipientName(name);
     setRecipientSearch('');
   }
 
-  function pickContact(c: Contact) {
-    setField('ext_recipient_name', c.name);
-    setField('ext_recipient_org', c.organization ?? '');
-    setField('ext_recipient_address', c.address ?? '');
+  function pickContact(c: Contact, set: typeof setField = setField) {
+    set('ext_recipient_name', c.name);
+    set('ext_recipient_org', c.organization ?? '');
+    set('ext_recipient_address', c.address ?? '');
     setShowContactPicker(false);
   }
 
@@ -734,6 +769,96 @@ export default function GeneralLettersPage() {
     }
   }
 
+  // Correct a letter issued wrongly — wrong recipient, wrong wording, wrong
+  // classification/issued-as, etc. Only offered for an issued or still-
+  // pending-approval letter; a returned letter already has its own
+  // resubmit flow above.
+  function openEdit(letter: Letter) {
+    setEditForm({
+      classification: letter.classification,
+      recipient_type: letter.recipient_type,
+      internal_recipient_id: letter.internal_recipient_id ?? '',
+      internal_recipient_table: letter.internal_recipient_table ?? '',
+      ext_recipient_name: letter.ext_recipient_name ?? '',
+      ext_recipient_title: letter.ext_recipient_title ?? '',
+      ext_recipient_org: letter.ext_recipient_org ?? '',
+      ext_recipient_address: letter.ext_recipient_address ?? '',
+      issued_by_title: letter.issued_by_title ?? '',
+      through_office: letter.through_office ?? '',
+      cc: letter.cc ?? '',
+      subject: letter.subject,
+      body: letter.body ?? '',
+      is_sensitive: letter.is_sensitive,
+      issued_date: letter.issued_date ? letter.issued_date.slice(0, 10) : '',
+      issued_as: letter.issued_as,
+      requires_acceptance: letter.requires_acceptance,
+    });
+    setSelectedRecipientName(letter.internal_recipient_name ?? '');
+    setRecipientSearch('');
+    setShowContactPicker(false);
+    setEditSaveErr('');
+    setEditModalOpen(true);
+  }
+
+  async function submitEdit() {
+    if (!viewLetter) return;
+    setEditSaveErr('');
+    if (!editForm.classification) { setEditSaveErr('Select a classification.'); return; }
+    if (!editForm.recipient_type) { setEditSaveErr('Select a recipient type.'); return; }
+    if (!editForm.subject.trim()) { setEditSaveErr('Subject is required.'); return; }
+    if (isHtmlEmpty(editForm.body)) { setEditSaveErr('Body is required.'); return; }
+
+    const isExternal = editForm.recipient_type === 'external' || editForm.recipient_type === 'parent';
+    if (isExternal && !editForm.ext_recipient_name.trim() && !editForm.ext_recipient_title.trim()) {
+      setEditSaveErr('Enter a recipient name or title/office.'); return;
+    }
+    if (!isExternal && !editForm.internal_recipient_id) { setEditSaveErr('Select a recipient.'); return; }
+
+    setEditSaving(true);
+    try {
+      const { data } = await api.patch(`/api/general-letters/${viewLetter.id}`, {
+        classification:           editForm.classification,
+        recipient_type:           editForm.recipient_type,
+        internal_recipient_id:    editForm.internal_recipient_id || undefined,
+        internal_recipient_table: editForm.internal_recipient_table || undefined,
+        ext_recipient_name:       editForm.ext_recipient_name || undefined,
+        ext_recipient_title:      editForm.ext_recipient_title || undefined,
+        ext_recipient_org:        editForm.ext_recipient_org || undefined,
+        ext_recipient_address:    editForm.ext_recipient_address || undefined,
+        issued_by_title:          editForm.issued_by_title || undefined,
+        through_office:           editForm.through_office || undefined,
+        cc:                       editForm.cc || undefined,
+        subject:                  editForm.subject,
+        body:                     editForm.body,
+        is_sensitive:             editForm.is_sensitive,
+        issued_date:              editForm.issued_date,
+        issued_as:                editForm.issued_as,
+        requires_acceptance:      editForm.requires_acceptance,
+      });
+      setEditModalOpen(false);
+      setViewLetter(data);
+      load();
+    } catch (e: any) {
+      setEditSaveErr(e.response?.data?.error ?? 'Failed to save changes.');
+    } finally { setEditSaving(false); }
+  }
+
+  // Void (cancel) a letter issued wrongly — not a hard delete; see backend
+  // comment on PATCH /:id/void for why the record is kept.
+  async function submitVoid() {
+    if (!viewLetter || !voidReason.trim()) { setVoidErr('A reason is required.'); return; }
+    setVoiding(true); setVoidErr('');
+    try {
+      const { data } = await api.patch(`/api/general-letters/${viewLetter.id}/void`, { reason: voidReason.trim() });
+      setViewLetter(data);
+      setVoidOpen(false);
+      setVoidReason('');
+      load();
+    } catch (e: any) {
+      setVoidErr(e.response?.data?.error ?? 'Failed to void this letter.');
+    } finally { setVoiding(false); }
+  }
+
   // ── Filtered recipient lists ────────────────────────────────────────────────
   const filteredTeachers = teachers.filter(t =>
     !recipientSearch || t.name.toLowerCase().includes(recipientSearch.toLowerCase())
@@ -798,6 +923,7 @@ export default function GeneralLettersPage() {
           <option value="returned">Returned for Correction</option>
           <option value="issued">Issued</option>
           <option value="archived">Archived</option>
+          <option value="voided">Voided</option>
         </select>
         <select
           value={filterClass}
@@ -1486,6 +1612,49 @@ export default function GeneralLettersPage() {
                 {viewLetter.approved_at ? ` on ${new Date(viewLetter.approved_at).toLocaleDateString()}` : ''}
               </div>
             )}
+            {viewLetter.status === 'voided' && (
+              <div style={{
+                padding: '10px 14px', marginBottom: 16, borderRadius: 7,
+                background: '#EDE8DF', border: `1px solid ${C.border}`, fontSize: 13, color: C.mid2,
+              }}>
+                <strong>Voided</strong> by {viewLetter.voided_by_name ?? 'an admin'}
+                {viewLetter.voided_at ? ` on ${new Date(viewLetter.voided_at).toLocaleDateString()}` : ''}
+                {viewLetter.void_reason && <> — &quot;{viewLetter.void_reason}&quot;</>}
+              </div>
+            )}
+            {viewLetter.last_edited_by_name && (
+              <p style={{ fontSize: 11, color: C.muted, marginTop: -8, marginBottom: 16 }}>
+                Last corrected by {viewLetter.last_edited_by_name}
+                {viewLetter.last_edited_at ? ` on ${new Date(viewLetter.last_edited_at).toLocaleDateString()}` : ''}
+              </p>
+            )}
+
+            {/* Void confirmation */}
+            {voidOpen && (
+              <div style={{ background: C.dangerBg, border: `1px solid ${C.danger}44`, borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: C.danger, marginBottom: 8 }}>
+                  Void this letter — issued wrongly
+                </p>
+                <p style={{ fontSize: 12, color: C.mid2, marginBottom: 10, lineHeight: 1.5 }}>
+                  This cancels the letter rather than deleting it — it stays on record for audit, just marked
+                  Voided and hidden from the teacher&apos;s &quot;My Letters&quot; if applicable. A reason is required.
+                </p>
+                <textarea value={voidReason} onChange={e => setVoidReason(e.target.value)} rows={2}
+                  placeholder="e.g. Issued to the wrong teacher"
+                  style={{ ...inputStyle, resize: 'none', marginBottom: 8 }} />
+                {voidErr && <p style={{ fontSize: 12, color: C.danger, marginBottom: 8 }}>{voidErr}</p>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { setVoidOpen(false); setVoidReason(''); setVoidErr(''); }} disabled={voiding}
+                    style={{ flex: 1, padding: '9px 0', borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.muted, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                  <button onClick={submitVoid} disabled={voiding}
+                    style={{ flex: 2, padding: '9px 0', borderRadius: 8, border: 'none', background: C.danger, color: '#fff', fontWeight: 800, fontSize: 12, cursor: voiding ? 'not-allowed' : 'pointer', opacity: voiding ? 0.6 : 1 }}>
+                    {voiding ? 'Voiding…' : 'Confirm Void'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Returned for correction — reason history + editable resubmit surface */}
             {viewLetter.status === 'returned' && (
@@ -1713,6 +1882,24 @@ export default function GeneralLettersPage() {
                   background: C.card, color: C.mid2, fontSize: 13, cursor: 'pointer',
                 }}
               >Close</button>
+              {['issued', 'pending_approval', 'returned'].includes(viewLetter.status) && !voidOpen && (
+                <button
+                  onClick={() => { setVoidOpen(true); setVoidReason(''); setVoidErr(''); }}
+                  style={{
+                    padding: '8px 18px', borderRadius: 7, border: `1.5px solid ${C.danger}`,
+                    background: 'transparent', color: C.danger, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >Void</button>
+              )}
+              {['issued', 'pending_approval'].includes(viewLetter.status) && (
+                <button
+                  onClick={() => openEdit(viewLetter)}
+                  style={{
+                    padding: '8px 18px', borderRadius: 7, border: `1.5px solid ${C.mid}`,
+                    background: '#fff', color: C.mid, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >Edit — issued wrongly?</button>
+              )}
               {viewLetter.status === 'pending_approval' && (
                 <button
                   onClick={() => approve(viewLetter.id)}
@@ -1722,6 +1909,205 @@ export default function GeneralLettersPage() {
                   }}
                 >Approve & Issue</button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── EDIT MODAL — correcting a letter issued wrongly ─────────────────────── */}
+      {editModalOpen && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 50,
+          background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-start',
+          justifyContent: 'center', padding: '32px 16px', overflowY: 'auto',
+        }}>
+          <div style={{
+            background: C.card, borderRadius: 12, width: '100%', maxWidth: 620,
+            boxShadow: '0 8px 40px rgba(0,0,0,0.18)', padding: 28,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.forest }}>Edit Letter</h2>
+              <button onClick={() => setEditModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: C.muted }}>✕</button>
+            </div>
+            <p style={{ fontSize: 12, color: C.muted, marginTop: -16, marginBottom: 20, lineHeight: 1.5 }}>
+              Correcting a letter switched to &quot;On behalf of the Head&quot; — or marked sensitive, or external/official —
+              moves it back to Pending Approval, same as a new letter. The reference number and issue date on record don&apos;t change.
+            </p>
+
+            <Field label="Classification" required>
+              <select value={editForm.classification} onChange={e => onClassificationChange(e.target.value, setEditField)} style={inputStyle}>
+                <option value="">Select…</option>
+                {CLASSIFICATIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </Field>
+
+            <Field label="Issued As" required>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {ISSUED_AS_OPTIONS.map(opt => (
+                  <label key={opt.value}
+                    style={{
+                      display: 'flex', gap: 10, cursor: 'pointer', alignItems: 'flex-start',
+                      padding: '10px 12px', borderRadius: 8,
+                      border: `1.5px solid ${editForm.issued_as === opt.value ? C.mid : C.border}`,
+                      background: editForm.issued_as === opt.value ? '#E8F4EE' : C.card,
+                    }}>
+                    <input type="radio" name="edit_issued_as" value={opt.value}
+                      checked={editForm.issued_as === opt.value}
+                      onChange={() => setEditField('issued_as', opt.value)}
+                      style={{ marginTop: 2, accentColor: C.forest }} />
+                    <div>
+                      <span style={{ fontWeight: 700, fontSize: 13, color: C.dark }}>{opt.label}</span>
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: C.muted, lineHeight: 1.5 }}>{opt.hint}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </Field>
+
+            <div style={{
+              borderRadius: 8, padding: '14px 16px', marginBottom: 20,
+              border: `1.5px solid ${editForm.is_sensitive ? C.danger : C.border}`,
+              background: editForm.is_sensitive ? C.dangerBg : C.bg,
+            }}>
+              <label style={{ display: 'flex', gap: 10, cursor: 'pointer', alignItems: 'flex-start' }}>
+                <input type="checkbox" checked={editForm.is_sensitive} onChange={e => setEditField('is_sensitive', e.target.checked)}
+                  style={{ marginTop: 2, accentColor: C.danger, width: 16, height: 16, flexShrink: 0 }} />
+                <span style={{ fontWeight: 700, fontSize: 13, color: editForm.is_sensitive ? C.danger : C.dark }}>
+                  This letter concerns a sensitive personal matter
+                </span>
+              </label>
+            </div>
+
+            <Field label="Recipient Type" required>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {RECIPIENT_TYPES.map(rt => (
+                  <label key={rt.value}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 6, cursor: 'pointer',
+                      border: `1.5px solid ${editForm.recipient_type === rt.value ? C.mid : C.border}`,
+                      background: editForm.recipient_type === rt.value ? '#E8F4EE' : C.card,
+                    }}>
+                    <input type="radio" name="edit_recipient_type" value={rt.value}
+                      checked={editForm.recipient_type === rt.value}
+                      onChange={() => onRecipientTypeChange(rt.value, setEditField)}
+                      style={{ accentColor: C.forest }} />
+                    <span style={{ fontSize: 13, color: C.dark }}>{rt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </Field>
+
+            {(editForm.recipient_type === 'student' || editForm.recipient_type === 'teacher') && (
+              <Field label={editForm.recipient_type === 'student' ? 'Student' : 'Teacher'} required>
+                {selectedRecipientName ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 6, background: '#E8F4EE', border: `1px solid ${C.mid}44` }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: C.mid }}>{selectedRecipientName}</span>
+                    <button onClick={() => { setSelectedRecipientName(''); setEditField('internal_recipient_id', ''); }}
+                      style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 12 }}>Change</button>
+                  </div>
+                ) : (
+                  <div>
+                    <input type="text" placeholder={`Search ${editForm.recipient_type === 'student' ? 'students' : 'teachers'}…`}
+                      value={recipientSearch} onChange={e => setRecipientSearch(e.target.value)} style={inputStyle} />
+                    {(editForm.recipient_type === 'teacher' ? filteredTeachers : filteredStudents).length > 0 && (
+                      <div style={{ border: `1px solid ${C.border}`, borderTop: 'none', borderRadius: '0 0 6px 6px', background: C.card, maxHeight: 180, overflowY: 'auto' }}>
+                        {editForm.recipient_type === 'teacher'
+                          ? filteredTeachers.map(t => (
+                              <button key={t.id} onClick={() => selectInternalRecipient(t.id, t.name, 'teachers', setEditField)}
+                                style={{ width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderBottom: `1px solid ${C.border}`, background: 'none', cursor: 'pointer', fontSize: 13, color: C.dark }}>
+                                <strong>{t.name}</strong>
+                                {t.department && <span style={{ color: C.muted, marginLeft: 6 }}>{t.department}</span>}
+                              </button>
+                            ))
+                          : filteredStudents.map(s => (
+                              <button key={s.id} onClick={() => selectInternalRecipient(s.id, `${s.name} (${s.student_code})`, 'students', setEditField)}
+                                style={{ width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderBottom: `1px solid ${C.border}`, background: 'none', cursor: 'pointer', fontSize: 13, color: C.dark }}>
+                                <strong>{s.name}</strong>
+                                <span style={{ color: C.muted, marginLeft: 6 }}>{s.student_code}{s.class_name ? ` · ${s.class_name}` : ''}</span>
+                              </button>
+                            ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Field>
+            )}
+
+            {editForm.recipient_type === 'teacher' && (
+              <div style={{
+                borderRadius: 8, padding: '12px 14px', marginBottom: 16,
+                border: `1.5px solid ${editForm.requires_acceptance ? C.mid : C.border}`,
+                background: editForm.requires_acceptance ? '#E8F4EE' : C.bg,
+              }}>
+                <label style={{ display: 'flex', gap: 10, cursor: 'pointer', alignItems: 'flex-start' }}>
+                  <input type="checkbox" checked={editForm.requires_acceptance} onChange={e => setEditField('requires_acceptance', e.target.checked)}
+                    style={{ marginTop: 2, accentColor: C.mid, width: 16, height: 16, flexShrink: 0 }} />
+                  <span style={{ fontWeight: 700, fontSize: 13, color: C.dark }}>Requires the teacher&apos;s acceptance</span>
+                </label>
+              </div>
+            )}
+
+            {(editForm.recipient_type === 'external' || editForm.recipient_type === 'parent') && (
+              <>
+                <Field label="Recipient Name">
+                  <input type="text" value={editForm.ext_recipient_name} onChange={e => setEditField('ext_recipient_name', e.target.value)}
+                    placeholder="Full name (leave blank if addressing a title/office only)" style={inputStyle} />
+                </Field>
+                {editForm.recipient_type === 'external' && (
+                  <Field label="Recipient Title / Office">
+                    <input type="text" value={editForm.ext_recipient_title} onChange={e => setEditField('ext_recipient_title', e.target.value)}
+                      placeholder="e.g. THE PTA CHAIRMAN" style={inputStyle} />
+                  </Field>
+                )}
+                {editForm.recipient_type === 'external' && (
+                  <>
+                    <Field label="Organisation / Body">
+                      <input type="text" value={editForm.ext_recipient_org} onChange={e => setEditField('ext_recipient_org', e.target.value)}
+                        placeholder="e.g. Ghana Education Service, District Education Office" style={inputStyle} />
+                    </Field>
+                    <Field label="Address">
+                      <textarea value={editForm.ext_recipient_address} onChange={e => setEditField('ext_recipient_address', e.target.value)}
+                        placeholder="Postal address (optional)" rows={2} style={{ ...inputStyle, resize: 'none' }} />
+                    </Field>
+                  </>
+                )}
+              </>
+            )}
+
+            <Field label="Subject" required>
+              <input type="text" value={editForm.subject} onChange={e => setEditField('subject', e.target.value)}
+                placeholder="Letter subject line" style={inputStyle} />
+            </Field>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={labelStyle}>Letter Body<span style={{ color: C.danger }}> *</span></label>
+              <RichTextEditor value={editForm.body} onChange={html => setEditField('body', html)} minHeight={160} />
+            </div>
+
+            <Field label="Issued Date">
+              <input type="date" value={editForm.issued_date} onChange={e => setEditField('issued_date', e.target.value)} style={{ ...inputStyle, width: 180 }} />
+            </Field>
+
+            <Field label="Headmaster's Title">
+              <input type="text" value={editForm.issued_by_title} onChange={e => setEditField('issued_by_title', e.target.value)}
+                placeholder="e.g. Headmaster" style={inputStyle} />
+            </Field>
+
+            {editSaveErr && (
+              <div style={{ padding: '10px 14px', borderRadius: 7, marginBottom: 16, background: C.dangerBg, color: C.danger, fontSize: 13, border: `1px solid ${C.danger}44` }}>
+                {editSaveErr}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+              <button onClick={() => setEditModalOpen(false)}
+                style={{ padding: '9px 18px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.card, color: C.mid2, fontSize: 13, cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={submitEdit} disabled={editSaving}
+                style={{ padding: '9px 20px', borderRadius: 7, border: 'none', background: C.forest, color: '#fff', fontSize: 13, fontWeight: 600, cursor: editSaving ? 'not-allowed' : 'pointer', opacity: editSaving ? 0.7 : 1 }}>
+                {editSaving ? 'Saving…' : 'Save Correction'}
+              </button>
             </div>
           </div>
         </div>
@@ -1815,4 +2201,8 @@ export default function GeneralLettersPage() {
       )}
     </div>
   );
+}
+
+export default function GeneralLettersPage() {
+  return <GeneralLettersModule apiClient={defaultApi} />;
 }

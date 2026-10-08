@@ -2885,6 +2885,27 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS decline_reason TEXT`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] general_letters issued_as + acceptance fields:', e.message); }
 
+    // ── General letters: edit + void (for a letter issued wrongly) ────────────
+    // 'voided' is a terminal status alongside the existing ones — a voided
+    // letter is kept (never hard-deleted) for audit, just hidden from the
+    // normal "what's active" views. last_edited_by_name/_at is a lightweight
+    // audit trail for corrections — the fuller letter_returns-style history
+    // table is reserved for the existing return/resubmit workflow, which
+    // already has its own reason trail.
+    try {
+    await pool.query(`ALTER TABLE general_letters DROP CONSTRAINT IF EXISTS general_letters_status_check`);
+    await pool.query(`
+      ALTER TABLE general_letters
+      ADD CONSTRAINT general_letters_status_check
+      CHECK (status IN ('draft','pending_approval','issued','returned','voided'))
+    `);
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS voided_by_name TEXT`);
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS void_reason TEXT`);
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS last_edited_by_name TEXT`);
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS last_edited_at TIMESTAMPTZ`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] general_letters edit + void fields:', e.message); }
+
     // ── Fees: stop student deletion from silently destroying financial records ──
     // student_bills.student_id and fee_payments.student_id were ON DELETE CASCADE,
     // so DELETE /api/students/:id (students.js) would wipe a student's entire
