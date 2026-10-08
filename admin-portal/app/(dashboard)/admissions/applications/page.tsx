@@ -320,7 +320,10 @@ export default function ApplicationsPage() {
   function openEdit(app: Application) {
     setEditForm({
       full_name: app.full_name ?? '',
-      date_of_birth: app.date_of_birth ? app.date_of_birth.slice(0, 10) : '',
+      // A handful of old records have a corrupted year (e.g. "20010" typed
+      // instead of "2010"); slice(0,10) on that mangles it further ("+020010-06"),
+      // so only pass through a value that already looks like a real YYYY-MM-DD date.
+      date_of_birth: /^\d{4}-\d{2}-\d{2}/.test(app.date_of_birth ?? '') ? app.date_of_birth!.slice(0, 10) : '',
       gender: app.gender ?? '',
       hometown: app.hometown ?? '',
       residential_address: app.residential_address ?? '',

@@ -376,7 +376,16 @@ router.patch('/applications/:id', async (req, res, next) => {
       if (key === 'program_id') value = value || null;
       else if (key === 'aggregate') value = value !== '' && value != null ? parseInt(value) : null;
       else if (key === 'index_number') value = value?.trim() ? value.trim().toUpperCase() : null;
-      else if (key === 'date_of_birth') value = value || null;
+      else if (key === 'date_of_birth') {
+        value = value || null;
+        // A handful of old records have a corrupted date (e.g. year "20010"
+        // typed instead of "2010"), which Postgres' date parser rejects
+        // with an uncaught 22009 — reject that here with a clear message
+        // instead of a 500, rather than assuming every stored date is sane.
+        if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+          return res.status(400).json({ error: `"${value}" isn't a valid date of birth. Please re-enter it.` });
+        }
+      }
       else if (TRIM_TO_NULL_FIELDS.has(key)) value = value?.trim() || null;
 
       params.push(value);

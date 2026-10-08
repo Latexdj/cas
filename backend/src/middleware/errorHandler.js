@@ -5,6 +5,8 @@ const PG_MESSAGES = {
   '23502': 'A required field is missing.',
   '22001': 'A value exceeds the maximum allowed length.',
   '22003': 'A numeric value is out of the allowed range.',
+  '22007': 'One of the dates entered is not valid.',
+  '22008': 'One of the dates entered is out of range.',
   '22P02': 'Invalid ID format.',       // invalid input syntax for type uuid
   '42703': 'Internal server error.',   // undefined column (schema bug)
   '42P01': 'Internal server error.',   // undefined table  (schema bug)
