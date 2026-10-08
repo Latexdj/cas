@@ -24,6 +24,7 @@ interface Report {
   summaryOfPasses: { buckets: Record<string, number>; failures: number; noResultCandidates: number };
   officialSummary: OfficialSummary | null;
   summaryMismatches: string[];
+  source?: 'upload' | 'paste' | 'excel';
 }
 
 const cellCls = 'px-2 py-1.5 text-center whitespace-nowrap';
@@ -136,6 +137,9 @@ export default function WaecReportPage() {
         <div>
           <Link href="/waec-results" className="text-xs font-semibold text-slate-400 hover:text-slate-600">&larr; WAEC Results</Link>
           <h1 className="text-2xl font-bold text-slate-900 mt-1">{report.examBody} {report.year} Analysis Report</h1>
+          {report.source === 'excel' && (
+            <p className="text-xs text-amber-700 mt-1">Imported from an Excel Analysis Report &mdash; no results listing was available for this year.</p>
+          )}
         </div>
         <div className="flex gap-2">
           <button onClick={() => handleExport('xlsx')} disabled={exporting !== null}

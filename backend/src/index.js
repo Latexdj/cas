@@ -3096,6 +3096,23 @@ async function runMigrations() {
         )
       `);
       await pool.query(`ALTER TABLE exam_result_batches ADD COLUMN IF NOT EXISTS official_summary JSONB`);
+      // 'excel' = imported from a school's own old Excel Analysis Report
+      // (no raw listing available for that year) — see
+      // waecExcelAggregateParser.js. These batches have no candidate rows
+      // at all, so raw_text (only meaningful for upload/paste) must be
+      // nullable, and aggregate_report holds the per-subject counts
+      // directly (computeReportFromAggregate consumes it, see
+      // admin-exam-results.js).
+      await pool.query(`
+        DO $$ BEGIN
+          ALTER TABLE exam_result_batches DROP CONSTRAINT IF EXISTS exam_result_batches_source_check;
+          ALTER TABLE exam_result_batches
+            ADD CONSTRAINT exam_result_batches_source_check
+            CHECK (source IN ('upload','paste','excel'));
+        EXCEPTION WHEN OTHERS THEN NULL; END $$
+      `);
+      await pool.query(`ALTER TABLE exam_result_batches ALTER COLUMN raw_text DROP NOT NULL`);
+      await pool.query(`ALTER TABLE exam_result_batches ADD COLUMN IF NOT EXISTS aggregate_report JSONB`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] exam_result_batches:', e.message); }
 
     // Exam Results Analysis module always-on backfill — same idiom as the

@@ -16,6 +16,17 @@ const WAEC_SUBJECT_NAMES = {
   'MGT IN LIVING': 'Management in Living',
   'BIOLOGY': 'Biology',
   'FOODS & NUTRITION': 'Food and Nutrition',
+  // A results LISTING prints WAEC's own abbreviated codes (above); a
+  // school's own Excel Analysis Report spells subjects out in full
+  // instead (waecExcelAggregateParser.js's source). Both need to resolve
+  // to the same canonical name or the same subject fragments into two
+  // separate entries across years in Analytics.
+  'ENGLISH LANGUAGE': 'English Language',
+  'MATHEMATICS': 'Mathematics',
+  'CHRISTIAN RELIGIOUS STUDIES': 'Christian Religious Studies',
+  'MANAGEMENT IN LIVING': 'Management in Living',
+  'FOOD AND NUTRITION': 'Food and Nutrition',
+  'LITERATURE IN ENGLISH': 'Literature in English',
 };
 
 // The four subjects every WASSCE candidate takes, regardless of program —

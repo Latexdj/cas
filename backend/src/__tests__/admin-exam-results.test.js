@@ -236,3 +236,93 @@ describe('GET /analytics/export.csv', () => {
     expect(res.text).toContain('Mathematics,2023,1,100,0,C6,Excellent');
   });
 });
+
+describe('POST /parse-excel — Excel Analysis Report upload (no listing available for that year)', () => {
+  const path = require('path');
+  const fixture = path.join(__dirname, 'fixtures', 'analysis-reports', '2021-standard.xlsx');
+
+  it('parses a real old Analysis Report workbook and returns its sheets without touching the database', async () => {
+    const res = await request(buildApp()).post('/api/admin/exam-results/parse-excel').attach('file', fixture);
+    expect(res.status).toBe(200);
+    expect(res.body.sheets).toHaveLength(1);
+    expect(res.body.sheets[0].detectedYear).toBe(2021);
+    expect(res.body.sheets[0].subjects.length).toBeGreaterThan(0);
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('rejects a request with no file', async () => {
+    const res = await request(buildApp()).post('/api/admin/exam-results/parse-excel');
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a non-.xlsx file', async () => {
+    const res = await request(buildApp())
+      .post('/api/admin/exam-results/parse-excel')
+      .attach('file', Buffer.from('not an excel file'), { filename: 'listing.pdf', contentType: 'application/pdf' });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /batches — source: excel (aggregate, no candidates)', () => {
+  const AGGREGATE_REPORT = {
+    totalCandidates: 2,
+    subjects: [{
+      name: 'Mathematics', isCore: true,
+      registered: { boys: 1, girls: 1 }, presented: { boys: 1, girls: 1 },
+      absent: { boys: 0, girls: 0 }, cancelled: { boys: 0, girls: 0 },
+      gradeDistribution: { C6: { boys: 1, girls: 0 }, F9: { boys: 0, girls: 1 } },
+    }],
+    summaryOfPasses: null,
+  };
+
+  it('rejects when aggregate_report has no subjects', async () => {
+    const res = await request(buildApp()).post('/api/admin/exam-results/batches').send({
+      exam_body: 'WAEC', year: 2021, source: 'excel', aggregate_report: { totalCandidates: 0, subjects: [] },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('saves an excel-sourced batch with zero candidate/grade inserts', async () => {
+    mockClientQuery
+      .mockResolvedValueOnce({ rows: [] })                      // BEGIN
+      .mockResolvedValueOnce({ rows: [] })                      // SELECT existing -> none
+      .mockResolvedValueOnce({ rows: [{ id: 'batch-excel-1' }] }) // INSERT batch
+      .mockResolvedValueOnce({ rows: [] });                     // COMMIT
+    const res = await request(buildApp()).post('/api/admin/exam-results/batches').send({
+      exam_body: 'WAEC', year: 2021, source: 'excel', aggregate_report: AGGREGATE_REPORT,
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.candidateCount).toBe(0);
+    // No INSERT INTO exam_result_candidates/exam_result_grades for this source.
+    expect(mockClientQuery.mock.calls.some(c => c[0].includes('INSERT INTO exam_result_candidates'))).toBe(false);
+    expect(mockClientQuery.mock.calls.some(c => c[0].includes('INSERT INTO exam_result_grades'))).toBe(false);
+    const insertCall = mockClientQuery.mock.calls.find(c => c[0].includes('INSERT INTO exam_result_batches'));
+    expect(insertCall[1]).toContain('excel');
+  });
+});
+
+describe('GET /batches/:id/report — source: excel', () => {
+  it('computes the report from the stored aggregate_report, skipping the candidates query entirely', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{
+        id: 'batch-excel-1', exam_body: 'WAEC', year: 2021, school_number: null,
+        source: 'excel', registered_data: null, official_summary: null,
+        aggregate_report: {
+          totalCandidates: 2,
+          subjects: [{
+            name: 'Mathematics', isCore: true,
+            registered: { boys: 1, girls: 1 }, presented: { boys: 1, girls: 1 },
+            absent: { boys: 0, girls: 0 }, cancelled: { boys: 0, girls: 0 },
+            gradeDistribution: { C6: { boys: 1, girls: 0 }, F9: { boys: 0, girls: 1 } },
+          }],
+          summaryOfPasses: null,
+        },
+      }] })
+      .mockResolvedValueOnce(BOUNDARIES_ROW); // grade_boundaries — the only other query this path makes
+    const res = await request(buildApp()).get('/api/admin/exam-results/batches/batch-excel-1/report');
+    expect(res.status).toBe(200);
+    expect(res.body.source).toBe('excel');
+    expect(res.body.subjects[0].percentagePass).toEqual({ boys: 100, girls: 0, total: 50 });
+    expect(mockQuery).toHaveBeenCalledTimes(2); // batch row + grade_boundaries, no candidates query
+  });
+});

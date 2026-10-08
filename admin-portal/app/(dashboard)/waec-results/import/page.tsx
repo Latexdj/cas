@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useRef, useState } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -14,6 +14,34 @@ interface ParseResult {
   source: 'upload' | 'paste'; rawText: string;
 }
 interface RegEntry { registeredBoys: number; registeredGirls: number; absentBoys: number; absentGirls: number }
+
+const WAEC_GRADE_ORDER = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9'];
+interface GenderPair { boys: number; girls: number }
+interface AggregateSubject {
+  name: string; isCore: boolean;
+  registered: GenderPair; presented: GenderPair; absent: GenderPair; cancelled: GenderPair;
+  gradeDistribution: Record<string, GenderPair>;
+}
+interface AggregateSummary { buckets: Record<string, number>; failures: number; noResultCandidates: number }
+interface ExcelSheet {
+  sheetName: string; detectedYear: number | null; schoolName: string | null;
+  totalCandidates: number; subjects: AggregateSubject[]; summaryOfPasses: AggregateSummary | null;
+  warnings: { type: string; message: string }[];
+}
+function blankGradeDistribution(): Record<string, GenderPair> {
+  const d: Record<string, GenderPair> = {};
+  for (const g of WAEC_GRADE_ORDER) d[g] = { boys: 0, girls: 0 };
+  return d;
+}
+function blankSubject(): AggregateSubject {
+  return {
+    name: '', isCore: false,
+    registered: { boys: 0, girls: 0 }, presented: { boys: 0, girls: 0 },
+    absent: { boys: 0, girls: 0 }, cancelled: { boys: 0, girls: 0 },
+    gradeDistribution: blankGradeDistribution(),
+  };
+}
+const numCellCls = 'w-12 rounded border border-slate-200 px-1 py-0.5 text-center text-xs';
 
 const inputCls = 'mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
 const WARNING_LABELS: Record<string, string> = {
@@ -38,9 +66,148 @@ function presentedBySubject(candidates: ParsedCandidate[]) {
   return map;
 }
 
+interface ExcelReviewProps {
+  year: number; setYear: (y: number) => void;
+  subjects: AggregateSubject[]; total: number; setTotal: (n: number) => void;
+  summary: AggregateSummary | null; warnings: { type: string; message: string }[];
+  onUpdateSubject: <K extends keyof AggregateSubject>(idx: number, field: K, value: AggregateSubject[K]) => void;
+  onUpdateGender: (idx: number, field: 'registered' | 'presented' | 'absent' | 'cancelled', gender: 'boys' | 'girls', raw: string) => void;
+  onUpdateGrade: (idx: number, grade: string, gender: 'boys' | 'girls', raw: string) => void;
+  onAddSubject: () => void; onRemoveSubject: (idx: number) => void;
+  onUpdateSummaryField: (field: 'failures' | 'noResultCandidates', raw: string) => void;
+  onUpdateBucket: (n: number, raw: string) => void;
+  saveError: string; saving: boolean;
+  onStartOver: () => void; onSave: () => void;
+}
+
+// Review/correction screen for an Excel Analysis Report import — every
+// extracted field is editable before saving, same spirit as the
+// PDF/paste path's Registered/Absent table, just covering every column
+// since there's no candidate-level data underneath this to re-derive
+// Presented/grade counts from if a cell is wrong.
+function ExcelReview({
+  year, setYear, subjects, total, setTotal, summary, warnings,
+  onUpdateSubject, onUpdateGender, onUpdateGrade, onAddSubject, onRemoveSubject,
+  onUpdateSummaryField, onUpdateBucket, saveError, saving, onStartOver, onSave,
+}: ExcelReviewProps) {
+  const maxBucket = Math.max(8, ...Object.keys(summary?.buckets ?? {}).map(Number));
+  return (
+    <>
+      <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-3">
+        <div className="flex items-end gap-4 flex-wrap">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500">Year</label>
+            <input type="number" className={`${inputCls} w-32`} value={year} onChange={e => setYear(parseInt(e.target.value, 10) || year)} />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500">Total Candidates</label>
+            <input type="number" min={0} className={`${inputCls} w-32`} value={total} onChange={e => setTotal(Math.max(0, parseInt(e.target.value, 10) || 0))} />
+          </div>
+        </div>
+        <p className="text-xs text-slate-400">Extracted from an Excel Analysis Report — review every number below before saving. There are no individual candidate records for a year imported this way.</p>
+      </section>
+
+      {warnings.length > 0 && (
+        <section className="bg-amber-50 rounded-xl border border-amber-200 p-5 space-y-2">
+          <h2 className="text-sm font-semibold text-amber-800">{warnings.length} warning{warnings.length === 1 ? '' : 's'}</h2>
+          <ul className="text-sm text-amber-800 space-y-1 max-h-48 overflow-y-auto">
+            {warnings.map((w, i) => <li key={i}>{w.message}</li>)}
+          </ul>
+        </section>
+      )}
+
+      <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-500">Subjects</h2>
+          <button onClick={onAddSubject} className="text-xs font-semibold text-[#145C44] hover:underline">+ Add subject</button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="text-xs border-collapse">
+            <thead className="text-slate-500">
+              <tr>
+                <th className="text-left py-1.5 pr-2 sticky left-0 bg-white">Subject</th>
+                <th className="py-1.5 px-1">Core</th>
+                <th className="py-1.5 px-1" colSpan={2}>Registered</th>
+                <th className="py-1.5 px-1" colSpan={2}>Presented</th>
+                <th className="py-1.5 px-1" colSpan={2}>Absent</th>
+                <th className="py-1.5 px-1" colSpan={2}>Cancelled</th>
+                {WAEC_GRADE_ORDER.map(g => <th key={g} className="py-1.5 px-1" colSpan={2}>{g}</th>)}
+                <th className="py-1.5 px-1" />
+              </tr>
+              <tr className="text-slate-400">
+                <th className="sticky left-0 bg-white" />
+                <th />
+                {Array.from({ length: 4 + WAEC_GRADE_ORDER.length }).flatMap((_, i) => [
+                  <th key={`${i}-b`} className="px-1 font-normal">B</th>,
+                  <th key={`${i}-g`} className="px-1 font-normal">G</th>,
+                ])}
+                <th />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {subjects.map((s, idx) => (
+                <tr key={idx}>
+                  <td className="py-1.5 pr-2 sticky left-0 bg-white">
+                    <input className="w-40 rounded border border-slate-200 px-1.5 py-0.5 text-xs" value={s.name} onChange={e => onUpdateSubject(idx, 'name', e.target.value)} />
+                  </td>
+                  <td className="text-center px-1">
+                    <input type="checkbox" checked={s.isCore} onChange={e => onUpdateSubject(idx, 'isCore', e.target.checked)} className="accent-[#145C44]" />
+                  </td>
+                  {(['registered', 'presented', 'absent', 'cancelled'] as const).map(field => (
+                    <Fragment key={field}>
+                      <td className="px-1"><input type="number" min={0} className={numCellCls} value={s[field].boys} onChange={e => onUpdateGender(idx, field, 'boys', e.target.value)} /></td>
+                      <td className="px-1"><input type="number" min={0} className={numCellCls} value={s[field].girls} onChange={e => onUpdateGender(idx, field, 'girls', e.target.value)} /></td>
+                    </Fragment>
+                  ))}
+                  {WAEC_GRADE_ORDER.map(g => (
+                    <Fragment key={g}>
+                      <td className="px-1"><input type="number" min={0} className={numCellCls} value={s.gradeDistribution[g]?.boys ?? 0} onChange={e => onUpdateGrade(idx, g, 'boys', e.target.value)} /></td>
+                      <td className="px-1"><input type="number" min={0} className={numCellCls} value={s.gradeDistribution[g]?.girls ?? 0} onChange={e => onUpdateGrade(idx, g, 'girls', e.target.value)} /></td>
+                    </Fragment>
+                  ))}
+                  <td className="px-1"><button onClick={() => onRemoveSubject(idx)} className="text-slate-300 hover:text-red-500 px-1" title="Remove subject">&times;</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-500">Summary of Subjects Passed</h2>
+          <p className="text-xs text-slate-400 mt-0.5">Only present if this Excel report had its own copy of this block — leave as 0 if not applicable.</p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {Array.from({ length: maxBucket }, (_, i) => maxBucket - i).map(n => (
+            <div key={n}>
+              <label className="block text-[11px] text-slate-400">{n} Pass{n === 1 ? '' : 'es'}</label>
+              <input type="number" min={0} className="w-full rounded border border-slate-200 px-2 py-1 text-xs" value={summary?.buckets[n] ?? 0} onChange={e => onUpdateBucket(n, e.target.value)} />
+            </div>
+          ))}
+          <div>
+            <label className="block text-[11px] text-slate-400">Failures</label>
+            <input type="number" min={0} className="w-full rounded border border-slate-200 px-2 py-1 text-xs" value={summary?.failures ?? 0} onChange={e => onUpdateSummaryField('failures', e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-[11px] text-slate-400">No Result (Absent/Cancelled/Withheld)</label>
+            <input type="number" min={0} className="w-full rounded border border-slate-200 px-2 py-1 text-xs" value={summary?.noResultCandidates ?? 0} onChange={e => onUpdateSummaryField('noResultCandidates', e.target.value)} />
+          </div>
+        </div>
+      </section>
+
+      {saveError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{saveError}</p>}
+      <div className="flex justify-end gap-3">
+        <Button variant="secondary" onClick={onStartOver}>Start over</Button>
+        <Button onClick={onSave} loading={saving} disabled={!subjects.length}>Confirm &amp; Save</Button>
+      </div>
+    </>
+  );
+}
+
 export default function WaecImportPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<'upload' | 'paste'>('upload');
+  const [mode, setMode] = useState<'upload' | 'paste' | 'excel'>('upload');
   const [year, setYear] = useState(new Date().getFullYear());
   const [pasteText, setPasteText] = useState('');
   const [parsing, setParsing] = useState(false);
@@ -50,6 +217,17 @@ export default function WaecImportPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const excelFileRef = useRef<HTMLInputElement>(null);
+
+  // Excel Analysis Report import (no listing available for that year) —
+  // separate state from the PDF/paste path above since the review shape
+  // is entirely different (per-subject aggregate counts, no candidates).
+  const [excelSheets, setExcelSheets] = useState<ExcelSheet[] | null>(null);
+  const [excelSheetIdx, setExcelSheetIdx] = useState<number | null>(null);
+  const [excelWarnings, setExcelWarnings] = useState<{ type: string; message: string }[]>([]);
+  const [excelSubjects, setExcelSubjects] = useState<AggregateSubject[]>([]);
+  const [excelTotal, setExcelTotal] = useState(0);
+  const [excelSummary, setExcelSummary] = useState<AggregateSummary | null>(null);
 
   const subjectPresented = useMemo(() => (result ? presentedBySubject(result.candidates) : new Map()), [result]);
 
@@ -79,6 +257,71 @@ export default function WaecImportPage() {
     } finally { setParsing(false); }
   }
 
+  async function doParseExcel() {
+    setParsing(true); setParseError('');
+    try {
+      const file = excelFileRef.current?.files?.[0];
+      if (!file) { setParseError('Choose an Excel (.xlsx) file.'); setParsing(false); return; }
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await api.post<{ sheets: ExcelSheet[] }>('/api/admin/exam-results/parse-excel', fd);
+      setExcelSheets(data.sheets);
+      if (data.sheets.length === 1) selectExcelSheet(data.sheets, 0);
+    } catch (e: unknown) {
+      setParseError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Could not read this workbook.');
+    } finally { setParsing(false); }
+  }
+
+  function selectExcelSheet(sheets: ExcelSheet[], idx: number) {
+    const sheet = sheets[idx];
+    setExcelSheetIdx(idx);
+    setExcelWarnings(sheet.warnings);
+    setExcelSubjects(sheet.subjects.map(s => ({ ...s, gradeDistribution: { ...blankGradeDistribution(), ...s.gradeDistribution } })));
+    setExcelTotal(sheet.totalCandidates);
+    setExcelSummary(sheet.summaryOfPasses);
+    if (sheet.detectedYear) setYear(sheet.detectedYear);
+  }
+
+  function updateExcelSubject<K extends keyof AggregateSubject>(idx: number, field: K, value: AggregateSubject[K]) {
+    setExcelSubjects(prev => prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)));
+  }
+  function updateExcelGender(idx: number, field: 'registered' | 'presented' | 'absent' | 'cancelled', gender: 'boys' | 'girls', raw: string) {
+    const n = Math.max(0, parseInt(raw, 10) || 0);
+    setExcelSubjects(prev => prev.map((s, i) => (i === idx ? { ...s, [field]: { ...s[field], [gender]: n } } : s)));
+  }
+  function updateExcelGrade(idx: number, grade: string, gender: 'boys' | 'girls', raw: string) {
+    const n = Math.max(0, parseInt(raw, 10) || 0);
+    setExcelSubjects(prev => prev.map((s, i) => (i === idx ? { ...s, gradeDistribution: { ...s.gradeDistribution, [grade]: { ...s.gradeDistribution[grade], [gender]: n } } } : s)));
+  }
+  function addExcelSubject() { setExcelSubjects(prev => [...prev, blankSubject()]); }
+  function removeExcelSubject(idx: number) { setExcelSubjects(prev => prev.filter((_, i) => i !== idx)); }
+  function updateExcelSummaryField(field: 'failures' | 'noResultCandidates', raw: string) {
+    const n = Math.max(0, parseInt(raw, 10) || 0);
+    setExcelSummary(prev => ({ buckets: prev?.buckets ?? {}, failures: prev?.failures ?? 0, noResultCandidates: prev?.noResultCandidates ?? 0, [field]: n }));
+  }
+  function updateExcelBucket(n: number, raw: string) {
+    const count = Math.max(0, parseInt(raw, 10) || 0);
+    setExcelSummary(prev => ({ buckets: { ...(prev?.buckets ?? {}), [n]: count }, failures: prev?.failures ?? 0, noResultCandidates: prev?.noResultCandidates ?? 0 }));
+  }
+
+  function startOverExcel() {
+    setExcelSheets(null); setExcelSheetIdx(null); setExcelSubjects([]); setExcelWarnings([]);
+    if (excelFileRef.current) excelFileRef.current.value = '';
+  }
+
+  async function confirmSaveExcel() {
+    setSaving(true); setSaveError('');
+    try {
+      const { data } = await api.post('/api/admin/exam-results/batches', {
+        exam_body: 'WAEC', year, source: 'excel',
+        aggregate_report: { totalCandidates: excelTotal, subjects: excelSubjects, summaryOfPasses: excelSummary },
+      });
+      router.push(`/waec-results/${data.id}`);
+    } catch (e: unknown) {
+      setSaveError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Save failed.');
+    } finally { setSaving(false); }
+  }
+
   function updateReg(subject: string, field: keyof RegEntry, value: string) {
     const n = Math.max(0, parseInt(value, 10) || 0);
     setRegisteredData(prev => ({ ...prev, [subject]: { ...prev[subject], [field]: n } }));
@@ -105,7 +348,36 @@ export default function WaecImportPage() {
         <h1 className="text-2xl font-bold text-slate-900 mt-1">Import WAEC Results</h1>
       </div>
 
-      {!result ? (
+      {mode === 'excel' && excelSheetIdx !== null ? (
+        <ExcelReview
+          year={year} setYear={setYear}
+          subjects={excelSubjects} total={excelTotal} setTotal={setExcelTotal}
+          summary={excelSummary} warnings={excelWarnings}
+          onUpdateSubject={updateExcelSubject} onUpdateGender={updateExcelGender} onUpdateGrade={updateExcelGrade}
+          onAddSubject={addExcelSubject} onRemoveSubject={removeExcelSubject}
+          onUpdateSummaryField={updateExcelSummaryField} onUpdateBucket={updateExcelBucket}
+          saveError={saveError} saving={saving}
+          onStartOver={startOverExcel} onSave={confirmSaveExcel}
+        />
+      ) : mode === 'excel' && excelSheets !== null ? (
+        <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-slate-500">This workbook has {excelSheets.length} sheets with analysis data — choose which one to import</h2>
+          <div className="divide-y divide-slate-100">
+            {excelSheets.map((sheet, i) => (
+              <button
+                key={i} onClick={() => selectExcelSheet(excelSheets, i)}
+                className="w-full text-left py-3 flex items-center justify-between hover:bg-slate-50 px-2 rounded-lg"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">{sheet.sheetName}</p>
+                  <p className="text-xs text-slate-400">{sheet.detectedYear ?? 'Year not detected'} &middot; {sheet.subjects.length} subjects &middot; {sheet.totalCandidates} candidates</p>
+                </div>
+                <span className="text-xs font-semibold text-[#145C44]">Select</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : !result ? (
         <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-500">Year</label>
@@ -114,18 +386,24 @@ export default function WaecImportPage() {
           <div className="flex gap-2">
             <button type="button" onClick={() => setMode('upload')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${mode === 'upload' ? 'bg-[#145C44] text-white border-[#145C44]' : 'text-slate-600 border-slate-200'}`}>Upload PDF</button>
             <button type="button" onClick={() => setMode('paste')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${mode === 'paste' ? 'bg-[#145C44] text-white border-[#145C44]' : 'text-slate-600 border-slate-200'}`}>Paste text</button>
+            <button type="button" onClick={() => setMode('excel')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${mode === 'excel' ? 'bg-[#145C44] text-white border-[#145C44]' : 'text-slate-600 border-slate-200'}`}>Upload Excel report</button>
           </div>
           {mode === 'upload' ? (
             <input ref={fileRef} type="file" accept="application/pdf" className="text-sm" />
-          ) : (
+          ) : mode === 'paste' ? (
             <textarea
               className={`${inputCls} font-mono text-xs`} rows={10}
               placeholder="Select all (Ctrl+A) and copy the results listing, then paste it here…"
               value={pasteText} onChange={e => setPasteText(e.target.value)}
             />
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-400">For a year with no results listing available — upload the school&apos;s own old Excel Analysis Report instead. You&apos;ll review and can correct every extracted number before saving.</p>
+              <input ref={excelFileRef} type="file" accept=".xlsx" className="text-sm" />
+            </div>
           )}
           {parseError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{parseError}</p>}
-          <Button onClick={doParse} loading={parsing}>Parse</Button>
+          <Button onClick={mode === 'excel' ? doParseExcel : doParse} loading={parsing}>Parse</Button>
         </section>
       ) : (
         <>

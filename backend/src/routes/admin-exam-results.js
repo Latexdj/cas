@@ -7,7 +7,9 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { parseWaecListing } = require('../utils/waecParser');
 const { computeReport } = require('../utils/examResultsReport');
+const { computeReportFromAggregate } = require('../utils/examResultsAggregate');
 const { computeAnalytics } = require('../utils/examAnalytics');
+const { parseAggregateWorkbook } = require('../utils/waecExcelAggregateParser');
 const { WAEC_CORE_SUBJECTS } = require('../utils/waecSubjects');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -28,24 +30,29 @@ async function getGradeBoundaries(schoolId, examBody) {
 // each caller can respond in its own format (JSON vs a file download).
 async function buildReportForBatch(schoolId, batchId) {
   const { rows: batchRows } = await pool.query(
-    `SELECT id, exam_body, year, school_number, registered_data, official_summary FROM exam_result_batches WHERE id = $1 AND school_id = $2`,
+    `SELECT id, exam_body, year, school_number, source, registered_data, official_summary, aggregate_report
+     FROM exam_result_batches WHERE id = $1 AND school_id = $2`,
     [batchId, schoolId]
   );
   if (!batchRows.length) { const e = new Error('Batch not found'); e.status = 404; throw e; }
   const batch = batchRows[0];
 
-  const [{ rows: candidateRows }, gradeBoundaries] = await Promise.all([
-    pool.query(
-      `SELECT c.id, c.index_number, c.name, c.gender, c.dob,
-              COALESCE(json_agg(json_build_object('subjectName', g.subject_name, 'grade', g.grade)) FILTER (WHERE g.id IS NOT NULL), '[]') AS grades
-       FROM exam_result_candidates c
-       LEFT JOIN exam_result_grades g ON g.candidate_id = c.id
-       WHERE c.batch_id = $1
-       GROUP BY c.id
-       ORDER BY c.index_number`,
-      [batch.id]
-    ),
+  // A batch imported from an Excel Analysis Report (no listing available
+  // for that year) has no candidate rows at all — skip that query
+  // entirely and compute its report straight from the stored aggregate.
+  const candidatesPromise = batch.source === 'excel' ? null : pool.query(
+    `SELECT c.id, c.index_number, c.name, c.gender, c.dob,
+            COALESCE(json_agg(json_build_object('subjectName', g.subject_name, 'grade', g.grade)) FILTER (WHERE g.id IS NOT NULL), '[]') AS grades
+     FROM exam_result_candidates c
+     LEFT JOIN exam_result_grades g ON g.candidate_id = c.id
+     WHERE c.batch_id = $1
+     GROUP BY c.id
+     ORDER BY c.index_number`,
+    [batch.id]
+  );
+  const [gradeBoundaries, candidateResult] = await Promise.all([
     getGradeBoundaries(schoolId, batch.exam_body),
+    candidatesPromise,
   ]);
 
   if (!gradeBoundaries.length) {
@@ -54,15 +61,17 @@ async function buildReportForBatch(schoolId, batchId) {
     throw e;
   }
 
-  const report = computeReport({
-    candidates: candidateRows,
-    gradeBoundaries,
-    registeredData: batch.registered_data,
-    coreSubjects: WAEC_CORE_SUBJECTS,
-    officialSummary: batch.official_summary,
-  });
+  const report = batch.source === 'excel'
+    ? computeReportFromAggregate({ ...batch.aggregate_report, gradeBoundaries, coreSubjects: WAEC_CORE_SUBJECTS })
+    : computeReport({
+        candidates: candidateResult.rows,
+        gradeBoundaries,
+        registeredData: batch.registered_data,
+        coreSubjects: WAEC_CORE_SUBJECTS,
+        officialSummary: batch.official_summary,
+      });
 
-  return { year: batch.year, examBody: batch.exam_body, schoolNumber: batch.school_number, ...report };
+  return { year: batch.year, examBody: batch.exam_body, schoolNumber: batch.school_number, source: batch.source, ...report };
 }
 
 // Backs both GET /analytics and its CSV export — loads every WASSCE batch
@@ -78,8 +87,8 @@ async function buildAnalytics(schoolId, { years, subjects } = {}) {
   const examBody = 'WAEC';
   const { rows: batchRows } = await pool.query(
     years && years.length
-      ? `SELECT id, year FROM exam_result_batches WHERE school_id = $1 AND exam_body = $2 AND year = ANY($3::int[]) ORDER BY year`
-      : `SELECT id, year FROM exam_result_batches WHERE school_id = $1 AND exam_body = $2 ORDER BY year`,
+      ? `SELECT id, year, source, aggregate_report FROM exam_result_batches WHERE school_id = $1 AND exam_body = $2 AND year = ANY($3::int[]) ORDER BY year`
+      : `SELECT id, year, source, aggregate_report FROM exam_result_batches WHERE school_id = $1 AND exam_body = $2 ORDER BY year`,
     years && years.length ? [schoolId, examBody, years] : [schoolId, examBody]
   );
   if (!batchRows.length) return { years: [], subjects: [], totalCandidates: 0, overallPassRate: 0, rows: [], latestBySubject: [] };
@@ -92,17 +101,22 @@ async function buildAnalytics(schoolId, { years, subjects } = {}) {
   }
 
   const batchReports = await Promise.all(batchRows.map(async (batch) => {
-    const { rows: candidateRows } = await pool.query(
-      `SELECT c.id, c.index_number, c.name, c.gender, c.dob,
-              COALESCE(json_agg(json_build_object('subjectName', g.subject_name, 'grade', g.grade)) FILTER (WHERE g.id IS NOT NULL), '[]') AS grades
-       FROM exam_result_candidates c
-       LEFT JOIN exam_result_grades g ON g.candidate_id = c.id
-       WHERE c.batch_id = $1
-       GROUP BY c.id
-       ORDER BY c.index_number`,
-      [batch.id]
-    );
-    const report = computeReport({ candidates: candidateRows, gradeBoundaries, registeredData: null, coreSubjects: WAEC_CORE_SUBJECTS });
+    let report;
+    if (batch.source === 'excel') {
+      report = computeReportFromAggregate({ ...batch.aggregate_report, gradeBoundaries, coreSubjects: WAEC_CORE_SUBJECTS });
+    } else {
+      const { rows: candidateRows } = await pool.query(
+        `SELECT c.id, c.index_number, c.name, c.gender, c.dob,
+                COALESCE(json_agg(json_build_object('subjectName', g.subject_name, 'grade', g.grade)) FILTER (WHERE g.id IS NOT NULL), '[]') AS grades
+         FROM exam_result_candidates c
+         LEFT JOIN exam_result_grades g ON g.candidate_id = c.id
+         WHERE c.batch_id = $1
+         GROUP BY c.id
+         ORDER BY c.index_number`,
+        [batch.id]
+      );
+      report = computeReport({ candidates: candidateRows, gradeBoundaries, registeredData: null, coreSubjects: WAEC_CORE_SUBJECTS });
+    }
     if (subjects && subjects.length) {
       report.subjects = report.subjects.filter(s => subjects.includes(s.name));
     }
@@ -158,6 +172,25 @@ router.post('/parse', upload.single('pdf'), async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /parse-excel — accepts a .xlsx upload (multipart, field "file") of
+// a school's own old Analysis Report, for a year with no listing
+// available. Nothing persisted here, same preview-step contract as
+// POST /parse; the admin reviews/corrects the result before POST /batches.
+router.post('/parse-excel', upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Upload an Excel (.xlsx) file.' });
+    const name = (req.file.originalname || '').toLowerCase();
+    if (!name.endsWith('.xlsx') && req.file.mimetype !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+      return res.status(400).json({ error: 'Uploaded file must be an Excel (.xlsx) file.' });
+    }
+    const result = await parseAggregateWorkbook(req.file.buffer);
+    if (!result.sheets.length) {
+      return res.status(400).json({ error: 'Could not find a results-analysis table in this workbook (expected a Registered/Presented/Absent column header row).' });
+    }
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
 // "15/07/2003" -> "2003-07-15". The parser only ever emits DD/MM/YYYY
 // (validated against the regex in waecParser.js), so this is a plain
 // reformat, not general date parsing.
@@ -180,14 +213,26 @@ function toIsoDate(ddmmyyyy) {
 // of candidate count.
 router.post('/batches', async (req, res, next) => {
   try {
-    const { exam_body, year, source, raw_text, school_number, registered_data } = req.body;
+    const { exam_body, year, source, raw_text, aggregate_report, school_number, registered_data } = req.body;
     if (!['WAEC', 'CTVET'].includes(exam_body)) return res.status(400).json({ error: 'exam_body must be WAEC or CTVET.' });
     if (!year || !Number.isInteger(year)) return res.status(400).json({ error: 'A valid year is required.' });
-    if (!['upload', 'paste'].includes(source)) return res.status(400).json({ error: 'source must be upload or paste.' });
-    if (!raw_text || !raw_text.trim()) return res.status(400).json({ error: 'raw_text is required.' });
+    if (!['upload', 'paste', 'excel'].includes(source)) return res.status(400).json({ error: 'source must be upload, paste, or excel.' });
 
-    const parsed = parseWaecListing(raw_text);
-    if (!parsed.candidates.length) return res.status(400).json({ error: 'No candidates could be parsed from this text.' });
+    // Two shapes converge on the same batch row: a listing (upload/paste)
+    // re-parsed server-side into candidates+grades, or an Excel Analysis
+    // Report's admin-reviewed aggregate with no candidates at all (see
+    // waecExcelAggregateParser.js — there's no raw listing for these
+    // years, so there's nothing to re-parse from).
+    let parsed = null;
+    if (source === 'excel') {
+      if (!aggregate_report || !Array.isArray(aggregate_report.subjects) || !aggregate_report.subjects.length) {
+        return res.status(400).json({ error: 'aggregate_report with at least one subject is required.' });
+      }
+    } else {
+      if (!raw_text || !raw_text.trim()) return res.status(400).json({ error: 'raw_text is required.' });
+      parsed = parseWaecListing(raw_text);
+      if (!parsed.candidates.length) return res.status(400).json({ error: 'No candidates could be parsed from this text.' });
+    }
 
     const client = await pool.connect();
     try {
@@ -197,58 +242,71 @@ router.post('/batches', async (req, res, next) => {
         `SELECT id FROM exam_result_batches WHERE school_id = $1 AND exam_body = $2 AND year = $3`,
         [req.schoolId, exam_body, year]
       );
+      // Always clear out whichever column the OTHER source shape uses —
+      // re-importing a year under a different source (e.g. a listing
+      // surfaces for a year that was previously excel-only) must not
+      // leave stale raw_text/aggregate_report behind.
+      const rawTextValue = source === 'excel' ? null : raw_text;
+      const aggregateValue = source === 'excel' ? aggregate_report : null;
+      const officialSummaryValue = source === 'excel' ? null : (parsed.officialSummary || null);
+      const schoolNumberValue = school_number || (parsed && parsed.schoolNumber) || null;
+
       let batchId;
       if (existing.length) {
         batchId = existing[0].id;
         await client.query(`DELETE FROM exam_result_candidates WHERE batch_id = $1`, [batchId]);
         await client.query(
-          `UPDATE exam_result_batches SET school_number = $1, source = $2, raw_text = $3, registered_data = $4, official_summary = $5, updated_at = now() WHERE id = $6`,
-          [school_number || parsed.schoolNumber || null, source, raw_text, registered_data || null, parsed.officialSummary || null, batchId]
+          `UPDATE exam_result_batches SET school_number = $1, source = $2, raw_text = $3, registered_data = $4, official_summary = $5, aggregate_report = $6, updated_at = now() WHERE id = $7`,
+          [schoolNumberValue, source, rawTextValue, registered_data || null, officialSummaryValue, aggregateValue, batchId]
         );
       } else {
         const { rows } = await client.query(
-          `INSERT INTO exam_result_batches (school_id, exam_body, year, school_number, source, raw_text, registered_data, official_summary, created_by)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-          [req.schoolId, exam_body, year, school_number || parsed.schoolNumber || null, source, raw_text, registered_data || null, parsed.officialSummary || null, req.user.id]
+          `INSERT INTO exam_result_batches (school_id, exam_body, year, school_number, source, raw_text, registered_data, official_summary, aggregate_report, created_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+          [req.schoolId, exam_body, year, schoolNumberValue, source, rawTextValue, registered_data || null, officialSummaryValue, aggregateValue, req.user.id]
         );
         batchId = rows[0].id;
       }
 
-      const { rows: candRows } = await client.query(
-        `INSERT INTO exam_result_candidates (batch_id, index_number, name, gender, dob)
-         SELECT $1, u.index_number, u.name, u.gender, u.dob::date
-         FROM unnest($2::text[], $3::text[], $4::text[], $5::text[]) AS u(index_number, name, gender, dob)
-         RETURNING id, index_number`,
-        [
-          batchId,
-          parsed.candidates.map(c => c.indexNumber),
-          parsed.candidates.map(c => c.name),
-          parsed.candidates.map(c => c.gender),
-          parsed.candidates.map(c => toIsoDate(c.dob)),
-        ]
-      );
-      const candidateIdByIndex = new Map(candRows.map(r => [r.index_number, r.id]));
-
-      const gCandidateIds = [], gSubjectRaws = [], gSubjectNames = [], gGrades = [];
-      for (const c of parsed.candidates) {
-        const candidateId = candidateIdByIndex.get(c.indexNumber);
-        for (const g of c.grades) {
-          gCandidateIds.push(candidateId);
-          gSubjectRaws.push(g.subjectRaw);
-          gSubjectNames.push(g.subjectName);
-          gGrades.push(g.grade);
-        }
-      }
-      if (gCandidateIds.length) {
-        await client.query(
-          `INSERT INTO exam_result_grades (candidate_id, subject_raw, subject_name, grade)
-           SELECT * FROM unnest($1::uuid[], $2::text[], $3::text[], $4::text[])`,
-          [gCandidateIds, gSubjectRaws, gSubjectNames, gGrades]
+      let candidateCount = 0;
+      if (source !== 'excel') {
+        candidateCount = parsed.candidates.length;
+        const { rows: candRows } = await client.query(
+          `INSERT INTO exam_result_candidates (batch_id, index_number, name, gender, dob)
+           SELECT $1, u.index_number, u.name, u.gender, u.dob::date
+           FROM unnest($2::text[], $3::text[], $4::text[], $5::text[]) AS u(index_number, name, gender, dob)
+           RETURNING id, index_number`,
+          [
+            batchId,
+            parsed.candidates.map(c => c.indexNumber),
+            parsed.candidates.map(c => c.name),
+            parsed.candidates.map(c => c.gender),
+            parsed.candidates.map(c => toIsoDate(c.dob)),
+          ]
         );
+        const candidateIdByIndex = new Map(candRows.map(r => [r.index_number, r.id]));
+
+        const gCandidateIds = [], gSubjectRaws = [], gSubjectNames = [], gGrades = [];
+        for (const c of parsed.candidates) {
+          const candidateId = candidateIdByIndex.get(c.indexNumber);
+          for (const g of c.grades) {
+            gCandidateIds.push(candidateId);
+            gSubjectRaws.push(g.subjectRaw);
+            gSubjectNames.push(g.subjectName);
+            gGrades.push(g.grade);
+          }
+        }
+        if (gCandidateIds.length) {
+          await client.query(
+            `INSERT INTO exam_result_grades (candidate_id, subject_raw, subject_name, grade)
+             SELECT * FROM unnest($1::uuid[], $2::text[], $3::text[], $4::text[])`,
+            [gCandidateIds, gSubjectRaws, gSubjectNames, gGrades]
+          );
+        }
       }
 
       await client.query('COMMIT');
-      res.status(201).json({ id: batchId, candidateCount: parsed.candidates.length });
+      res.status(201).json({ id: batchId, candidateCount });
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
