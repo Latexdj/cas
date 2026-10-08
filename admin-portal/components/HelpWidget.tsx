@@ -85,9 +85,9 @@ export function HelpWidget({ apiClient, navItems }: { apiClient?: AxiosInstance;
       <button
         onClick={openPanel}
         aria-label="Open Help"
-        className="print:hidden"
+        className="print:hidden fixed bottom-20 right-6 md:bottom-6"
         style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 9000,
+          zIndex: 9000,
           width: 44, height: 44, borderRadius: '50%',
           background: C.mid, color: '#fff',
           border: 'none', cursor: 'pointer',
