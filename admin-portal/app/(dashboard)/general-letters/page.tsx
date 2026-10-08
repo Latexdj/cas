@@ -27,7 +27,7 @@ type Letter = {
   ext_recipient_org: string | null; ext_recipient_address: string | null;
   internal_recipient_id: string | null;
   internal_recipient_table: string | null;
-  // Resolved by GET /:id JOIN (not present on list rows)
+  // Resolved by a LEFT JOIN on both GET / and GET /:id
   internal_recipient_name?: string | null;
   student_code?: string | null; class_name?: string | null;
   department?: string | null;
@@ -975,7 +975,10 @@ export function GeneralLettersModule({ apiClient = defaultApi, defaultStatusFilt
                   </td>
                   <td style={{ padding: '10px 14px', color: C.mid2, maxWidth: 160 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span>{l.ext_recipient_name ?? l.ext_recipient_title ?? recipientLabel(l.recipient_type)}</span>
+                      <span>{l.internal_recipient_name ?? l.ext_recipient_name ?? l.ext_recipient_title ?? recipientLabel(l.recipient_type)}</span>
+                      {l.internal_recipient_name && (
+                        <span style={{ fontSize: 11, color: C.muted }}>{recipientLabel(l.recipient_type)}</span>
+                      )}
                       {l.ext_recipient_org && (
                         <span style={{ fontSize: 11, color: C.muted }}>{l.ext_recipient_org}</span>
                       )}

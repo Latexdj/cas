@@ -156,8 +156,15 @@ router.get('/', adminOrManagement, async (req, res, next) => {
               gl.subject, gl.is_sensitive, gl.issued_date::text, gl.status,
               gl.requires_approval, gl.approved_by_name, gl.approved_at,
               gl.issued_by_name, gl.issued_as, gl.created_at,
-              gl.requires_acceptance, gl.accepted_at, gl.declined_at, gl.decline_reason
+              gl.requires_acceptance, gl.accepted_at, gl.declined_at, gl.decline_reason,
+              CASE WHEN gl.internal_recipient_table = 'students' THEN s.name
+                   WHEN gl.internal_recipient_table = 'teachers' THEN t.name
+                   ELSE NULL END AS internal_recipient_name
        FROM general_letters gl
+       LEFT JOIN students s
+         ON gl.internal_recipient_table = 'students' AND gl.internal_recipient_id = s.id
+       LEFT JOIN teachers t
+         ON gl.internal_recipient_table = 'teachers' AND gl.internal_recipient_id = t.id
        WHERE gl.school_id = $1${where}
        ORDER BY gl.created_at DESC`,
       params
