@@ -261,6 +261,18 @@ describe('POST /parse-excel — Excel Analysis Report upload (no listing availab
       .attach('file', Buffer.from('not an excel file'), { filename: 'listing.pdf', contentType: 'application/pdf' });
     expect(res.status).toBe(400);
   });
+
+  it('appends the soft consistency checks to each sheet\'s warnings — this real file genuinely has a few (an old, hand-entered record, not a parser bug)', async () => {
+    const res = await request(buildApp()).post('/api/admin/exam-results/parse-excel').attach('file', fixture);
+    const softTypes = ['presented_mismatch', 'registered_mismatch', 'core_subject_mismatch', 'total_mismatch', 'no_core_subjects', 'summary_mismatch'];
+    const soft = res.body.sheets[0].warnings.filter(w => softTypes.includes(w.type));
+    expect(soft.length).toBeGreaterThan(0);
+    // The real anomaly this surfaced: Social Studies' grade counts are
+    // split 16 boys / 41 girls while Presented says 15 boys / 42 girls —
+    // same total (57) either way, which is exactly why a totals-only
+    // check would have missed it.
+    expect(soft.some(w => w.type === 'presented_mismatch' && w.message.includes('Social Studies') && w.message.includes('Boys') && w.message.includes('Girls'))).toBe(true);
+  });
 });
 
 describe('POST /batches — source: excel (aggregate, no candidates)', () => {
@@ -280,6 +292,39 @@ describe('POST /batches — source: excel (aggregate, no candidates)', () => {
       exam_body: 'WAEC', year: 2021, source: 'excel', aggregate_report: { totalCandidates: 0, subjects: [] },
     });
     expect(res.status).toBe(400);
+  });
+
+  it('rejects a hard validation violation (negative number) without touching the database', async () => {
+    const broken = { ...AGGREGATE_REPORT, subjects: [{ ...AGGREGATE_REPORT.subjects[0], absent: { boys: -1, girls: 0 } }] };
+    const res = await request(buildApp()).post('/api/admin/exam-results/batches').send({
+      exam_body: 'WAEC', year: 2021, source: 'excel', aggregate_report: broken,
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/negative/i);
+    expect(mockClientQuery).not.toHaveBeenCalled();
+  });
+
+  it('rejects a duplicate subject name', async () => {
+    const broken = { ...AGGREGATE_REPORT, subjects: [AGGREGATE_REPORT.subjects[0], AGGREGATE_REPORT.subjects[0]] };
+    const res = await request(buildApp()).post('/api/admin/exam-results/batches').send({
+      exam_body: 'WAEC', year: 2021, source: 'excel', aggregate_report: broken,
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/more than once/i);
+  });
+
+  it('accepts a soft-warning-triggering but not hard-blocked report (Presented/grade mismatch is advisory only)', async () => {
+    mockClientQuery
+      .mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 'batch-excel-2' }] }).mockResolvedValueOnce({ rows: [] });
+    const inconsistent = {
+      ...AGGREGATE_REPORT,
+      subjects: [{ ...AGGREGATE_REPORT.subjects[0], presented: { boys: 5, girls: 5 } }], // doesn't match its own grade counts
+    };
+    const res = await request(buildApp()).post('/api/admin/exam-results/batches').send({
+      exam_body: 'WAEC', year: 2021, source: 'excel', aggregate_report: inconsistent,
+    });
+    expect(res.status).toBe(201);
   });
 
   it('saves an excel-sourced batch with zero candidate/grade inserts', async () => {

@@ -43,6 +43,71 @@ function blankSubject(): AggregateSubject {
 }
 const numCellCls = 'w-12 rounded border border-slate-200 px-1 py-0.5 text-center text-xs';
 
+const WAEC_CORE_SUBJECTS = ['English Language', 'Mathematics', 'Integrated Science', 'Social Studies'];
+interface LiveWarning { type: string; message: string }
+
+function sumGradesByGender(dist: Record<string, GenderPair>, gender: 'boys' | 'girls') {
+  return Object.values(dist).reduce((s, d) => s + (d[gender] || 0), 0);
+}
+
+// Mirrors backend/src/utils/examAggregateValidation.js's
+// validateAggregateReportHard/Soft — deliberately duplicated (not shared
+// across the Node/browser boundary) so the review table can re-check live
+// as the admin edits, while the backend still enforces the hard blocks as
+// the final gate at save time regardless of what the client computed.
+function computeHardErrors(subjects: AggregateSubject[]): string[] {
+  const errors: string[] = [];
+  if (subjects.length === 0) { errors.push('At least one subject is required.'); return errors; }
+  const seen = new Set<string>();
+  for (const s of subjects) {
+    const name = s.name.trim();
+    if (!name) { errors.push('Every subject needs a name.'); continue; }
+    const key = name.toLowerCase();
+    if (seen.has(key)) errors.push(`"${name}" appears more than once.`);
+    seen.add(key);
+  }
+  return errors;
+}
+
+function computeLiveWarnings(subjects: AggregateSubject[], totalCandidates: number, summary: AggregateSummary | null): LiveWarning[] {
+  const warnings: LiveWarning[] = [];
+
+  for (const s of subjects) {
+    const name = s.name || '(unnamed)';
+    const gradeSumB = sumGradesByGender(s.gradeDistribution, 'boys');
+    const gradeSumG = sumGradesByGender(s.gradeDistribution, 'girls');
+    const bOff = s.presented.boys !== gradeSumB + s.cancelled.boys;
+    const gOff = s.presented.girls !== gradeSumG + s.cancelled.girls;
+    if (bOff || gOff) {
+      const parts: string[] = [];
+      if (bOff) parts.push(`Boys: Presented ${s.presented.boys} vs grade counts + Cancelled ${gradeSumB + s.cancelled.boys}`);
+      if (gOff) parts.push(`Girls: Presented ${s.presented.girls} vs grade counts + Cancelled ${gradeSumG + s.cancelled.girls}`);
+      warnings.push({ type: 'presented_mismatch', message: `"${name}": ${parts.join('; ')}.` });
+    }
+    if (s.registered.boys !== s.presented.boys + s.absent.boys || s.registered.girls !== s.presented.girls + s.absent.girls) {
+      warnings.push({ type: 'registered_mismatch', message: `"${name}": Registered (${s.registered.boys + s.registered.girls}) doesn't equal Presented + Absent (${s.presented.boys + s.absent.boys + s.presented.girls + s.absent.girls}).` });
+    }
+  }
+
+  const coreSubjects = subjects.filter(s => WAEC_CORE_SUBJECTS.includes(s.name) || s.isCore);
+  if (coreSubjects.length === 0) {
+    warnings.push({ type: 'no_core_subjects', message: 'None of the four WASSCE core subjects (English Language, Mathematics, Integrated Science, Social Studies) are present.' });
+  } else {
+    const totals = coreSubjects.map(s => s.presented.boys + s.presented.girls);
+    const maxP = Math.max(...totals), minP = Math.min(...totals);
+    if (maxP !== minP) warnings.push({ type: 'core_subject_mismatch', message: `The core subjects don't all have the same Presented total (ranges from ${minP} to ${maxP}) — every candidate sits all four.` });
+    if (totalCandidates !== maxP) warnings.push({ type: 'total_mismatch', message: `Total Candidates (${totalCandidates}) doesn't match the core subjects' own Presented total (${maxP}).` });
+  }
+
+  if (summary) {
+    const bucketSum = Object.values(summary.buckets).reduce((a, b) => a + b, 0);
+    const summarySum = bucketSum + summary.failures + summary.noResultCandidates;
+    if (summarySum !== totalCandidates) warnings.push({ type: 'summary_mismatch', message: `Summary of Subjects Passed totals ${summarySum} candidates, but Total Candidates is ${totalCandidates}.` });
+  }
+
+  return warnings;
+}
+
 const inputCls = 'mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-600';
 const WARNING_LABELS: Record<string, string> = {
   unrecognized_subject: 'Unrecognized subject',
@@ -69,7 +134,8 @@ function presentedBySubject(candidates: ParsedCandidate[]) {
 interface ExcelReviewProps {
   year: number; setYear: (y: number) => void;
   subjects: AggregateSubject[]; total: number; setTotal: (n: number) => void;
-  summary: AggregateSummary | null; warnings: { type: string; message: string }[];
+  summary: AggregateSummary | null;
+  structuralWarnings: LiveWarning[]; liveWarnings: LiveWarning[]; hardErrors: string[];
   onUpdateSubject: <K extends keyof AggregateSubject>(idx: number, field: K, value: AggregateSubject[K]) => void;
   onUpdateGender: (idx: number, field: 'registered' | 'presented' | 'absent' | 'cancelled', gender: 'boys' | 'girls', raw: string) => void;
   onUpdateGrade: (idx: number, grade: string, gender: 'boys' | 'girls', raw: string) => void;
@@ -84,13 +150,25 @@ interface ExcelReviewProps {
 // extracted field is editable before saving, same spirit as the
 // PDF/paste path's Registered/Absent table, just covering every column
 // since there's no candidate-level data underneath this to re-derive
-// Presented/grade counts from if a cell is wrong.
+// Presented/grade counts from if a cell is wrong. Validation warnings
+// (hard blocks + soft consistency checks) re-run live via
+// computeHardErrors/computeLiveWarnings as the admin edits, mirroring
+// backend/src/utils/examAggregateValidation.js so the final server-side
+// save-time check rarely surprises anyone.
 function ExcelReview({
-  year, setYear, subjects, total, setTotal, summary, warnings,
+  year, setYear, subjects, total, setTotal, summary,
+  structuralWarnings, liveWarnings, hardErrors,
   onUpdateSubject, onUpdateGender, onUpdateGrade, onAddSubject, onRemoveSubject,
   onUpdateSummaryField, onUpdateBucket, saveError, saving, onStartOver, onSave,
 }: ExcelReviewProps) {
   const maxBucket = Math.max(8, ...Object.keys(summary?.buckets ?? {}).map(Number));
+  // Subject names mentioned in a live warning get a visual flag on their
+  // row — otherwise the admin has to cross-reference warning text against
+  // a 28-column table by eye.
+  const flaggedSubjects = new Set(
+    subjects.filter(s => liveWarnings.some(w => w.message.includes(`"${s.name}"`))).map(s => s.name)
+  );
+  const allWarnings = [...structuralWarnings, ...liveWarnings];
   return (
     <>
       <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-3">
@@ -107,11 +185,20 @@ function ExcelReview({
         <p className="text-xs text-slate-400">Extracted from an Excel Analysis Report — review every number below before saving. There are no individual candidate records for a year imported this way.</p>
       </section>
 
-      {warnings.length > 0 && (
+      {hardErrors.length > 0 && (
+        <section className="bg-red-50 rounded-xl border border-red-200 p-5 space-y-2">
+          <h2 className="text-sm font-semibold text-red-800">Fix before saving</h2>
+          <ul className="text-sm text-red-800 space-y-1">
+            {hardErrors.map((e, i) => <li key={i}>{e}</li>)}
+          </ul>
+        </section>
+      )}
+
+      {allWarnings.length > 0 && (
         <section className="bg-amber-50 rounded-xl border border-amber-200 p-5 space-y-2">
-          <h2 className="text-sm font-semibold text-amber-800">{warnings.length} warning{warnings.length === 1 ? '' : 's'}</h2>
+          <h2 className="text-sm font-semibold text-amber-800">{allWarnings.length} warning{allWarnings.length === 1 ? '' : 's'}</h2>
           <ul className="text-sm text-amber-800 space-y-1 max-h-48 overflow-y-auto">
-            {warnings.map((w, i) => <li key={i}>{w.message}</li>)}
+            {allWarnings.map((w, i) => <li key={i}>{w.message}</li>)}
           </ul>
         </section>
       )}
@@ -146,9 +233,9 @@ function ExcelReview({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {subjects.map((s, idx) => (
-                <tr key={idx}>
-                  <td className="py-1.5 pr-2 sticky left-0 bg-white">
-                    <input className="w-40 rounded border border-slate-200 px-1.5 py-0.5 text-xs" value={s.name} onChange={e => onUpdateSubject(idx, 'name', e.target.value)} />
+                <tr key={idx} className={flaggedSubjects.has(s.name) ? 'bg-amber-50/60' : undefined}>
+                  <td className="py-1.5 pr-2 sticky left-0 bg-white" title={flaggedSubjects.has(s.name) ? 'This subject has a warning — see above' : undefined}>
+                    <input className={`w-40 rounded border px-1.5 py-0.5 text-xs ${flaggedSubjects.has(s.name) ? 'border-amber-300' : 'border-slate-200'}`} value={s.name} onChange={e => onUpdateSubject(idx, 'name', e.target.value)} />
                   </td>
                   <td className="text-center px-1">
                     <input type="checkbox" checked={s.isCore} onChange={e => onUpdateSubject(idx, 'isCore', e.target.checked)} className="accent-[#145C44]" />
@@ -199,7 +286,7 @@ function ExcelReview({
       {saveError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{saveError}</p>}
       <div className="flex justify-end gap-3">
         <Button variant="secondary" onClick={onStartOver}>Start over</Button>
-        <Button onClick={onSave} loading={saving} disabled={!subjects.length}>Confirm &amp; Save</Button>
+        <Button onClick={onSave} loading={saving} disabled={!subjects.length || hardErrors.length > 0}>Confirm &amp; Save</Button>
       </div>
     </>
   );
@@ -224,10 +311,21 @@ export default function WaecImportPage() {
   // is entirely different (per-subject aggregate counts, no candidates).
   const [excelSheets, setExcelSheets] = useState<ExcelSheet[] | null>(null);
   const [excelSheetIdx, setExcelSheetIdx] = useState<number | null>(null);
-  const [excelWarnings, setExcelWarnings] = useState<{ type: string; message: string }[]>([]);
+  // Structural warnings from the original file (unrecognized subject,
+  // count mismatch, etc.) — these came from the server's one-time parse
+  // and can't meaningfully be recomputed as the admin edits numbers.
+  const [excelStructuralWarnings, setExcelStructuralWarnings] = useState<LiveWarning[]>([]);
   const [excelSubjects, setExcelSubjects] = useState<AggregateSubject[]>([]);
   const [excelTotal, setExcelTotal] = useState(0);
   const [excelSummary, setExcelSummary] = useState<AggregateSummary | null>(null);
+
+  // Consistency warnings (Presented vs grade counts, etc.) re-derived live
+  // on every edit, and the hard blocks gating Confirm & Save — mirrors
+  // backend/src/utils/examAggregateValidation.js so what the admin sees
+  // here matches what the server will actually enforce at save time.
+  const excelLiveWarnings = useMemo(() => computeLiveWarnings(excelSubjects, excelTotal, excelSummary), [excelSubjects, excelTotal, excelSummary]);
+  const excelHardErrors = useMemo(() => computeHardErrors(excelSubjects), [excelSubjects]);
+  const SOFT_WARNING_TYPES = new Set(['presented_mismatch', 'registered_mismatch', 'core_subject_mismatch', 'total_mismatch', 'no_core_subjects', 'summary_mismatch']);
 
   const subjectPresented = useMemo(() => (result ? presentedBySubject(result.candidates) : new Map()), [result]);
 
@@ -275,7 +373,11 @@ export default function WaecImportPage() {
   function selectExcelSheet(sheets: ExcelSheet[], idx: number) {
     const sheet = sheets[idx];
     setExcelSheetIdx(idx);
-    setExcelWarnings(sheet.warnings);
+    // The server's response includes both structural warnings AND the
+    // same soft consistency checks computed live below — keep only the
+    // structural ones here so a check isn't shown twice (once stale from
+    // parse time, once live) as the admin starts editing.
+    setExcelStructuralWarnings(sheet.warnings.filter(w => !SOFT_WARNING_TYPES.has(w.type)));
     setExcelSubjects(sheet.subjects.map(s => ({ ...s, gradeDistribution: { ...blankGradeDistribution(), ...s.gradeDistribution } })));
     setExcelTotal(sheet.totalCandidates);
     setExcelSummary(sheet.summaryOfPasses);
@@ -305,7 +407,7 @@ export default function WaecImportPage() {
   }
 
   function startOverExcel() {
-    setExcelSheets(null); setExcelSheetIdx(null); setExcelSubjects([]); setExcelWarnings([]);
+    setExcelSheets(null); setExcelSheetIdx(null); setExcelSubjects([]); setExcelStructuralWarnings([]);
     if (excelFileRef.current) excelFileRef.current.value = '';
   }
 
@@ -352,7 +454,8 @@ export default function WaecImportPage() {
         <ExcelReview
           year={year} setYear={setYear}
           subjects={excelSubjects} total={excelTotal} setTotal={setExcelTotal}
-          summary={excelSummary} warnings={excelWarnings}
+          summary={excelSummary}
+          structuralWarnings={excelStructuralWarnings} liveWarnings={excelLiveWarnings} hardErrors={excelHardErrors}
           onUpdateSubject={updateExcelSubject} onUpdateGender={updateExcelGender} onUpdateGrade={updateExcelGrade}
           onAddSubject={addExcelSubject} onRemoveSubject={removeExcelSubject}
           onUpdateSummaryField={updateExcelSummaryField} onUpdateBucket={updateExcelBucket}

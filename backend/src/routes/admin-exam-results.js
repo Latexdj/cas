@@ -10,6 +10,7 @@ const { computeReport } = require('../utils/examResultsReport');
 const { computeReportFromAggregate } = require('../utils/examResultsAggregate');
 const { computeAnalytics } = require('../utils/examAnalytics');
 const { parseAggregateWorkbook } = require('../utils/waecExcelAggregateParser');
+const { validateAggregateReportHard, validateAggregateReportSoft } = require('../utils/examAggregateValidation');
 const { WAEC_CORE_SUBJECTS } = require('../utils/waecSubjects');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -187,6 +188,15 @@ router.post('/parse-excel', upload.single('file'), async (req, res, next) => {
     if (!result.sheets.length) {
       return res.status(400).json({ error: 'Could not find a results-analysis table in this workbook (expected a Registered/Presented/Absent column header row).' });
     }
+    // Consistency warnings (Presented vs grade counts, Registered vs
+    // Presented+Absent, core-subject/total agreement) alongside the
+    // parser's own structural warnings (unrecognized subject, etc.) —
+    // the review screen re-checks these live as the admin edits, but
+    // this gives a complete picture immediately, including anomalies
+    // already present in the source file before any edit happens.
+    for (const sheet of result.sheets) {
+      sheet.warnings = [...sheet.warnings, ...validateAggregateReportSoft(sheet)];
+    }
     res.json(result);
   } catch (err) { next(err); }
 });
@@ -227,6 +237,16 @@ router.post('/batches', async (req, res, next) => {
     if (source === 'excel') {
       if (!aggregate_report || !Array.isArray(aggregate_report.subjects) || !aggregate_report.subjects.length) {
         return res.status(400).json({ error: 'aggregate_report with at least one subject is required.' });
+      }
+      // Hard-block checks only (negative numbers, duplicate/blank subject
+      // names) — there's no raw listing to re-parse for this source, so
+      // these are the one gate standing between a crafted/buggy request
+      // and genuinely broken stored data. Soft consistency warnings
+      // (Presented vs grade counts, etc.) are advisory only and were
+      // already shown on the review screen; they don't block saving.
+      const hardErrors = validateAggregateReportHard(aggregate_report);
+      if (hardErrors.length) {
+        return res.status(400).json({ error: hardErrors[0], errors: hardErrors });
       }
     } else {
       if (!raw_text || !raw_text.trim()) return res.status(400).json({ error: 'raw_text is required.' });
