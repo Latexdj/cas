@@ -2833,6 +2833,16 @@ async function runMigrations() {
     `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admission_applications year-scoped index_number:', e.message); }
 
+    // ── Widen admission_applications phone columns ────────────────────────────
+    // mobile_number/guardian_mobile were VARCHAR(10), which only fits a bare
+    // local number with no formatting — a country code, spaces, or dashes
+    // (e.g. "+233 24 400 0000") overflows it and Postgres throws a 22001
+    // ("value too long") on save, surfacing as a 500 on the edit/create form.
+    try {
+    await pool.query(`ALTER TABLE admission_applications ALTER COLUMN mobile_number TYPE TEXT`);
+    await pool.query(`ALTER TABLE admission_applications ALTER COLUMN guardian_mobile TYPE TEXT`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] admission_applications widen phone columns:', e.message); }
+
     // ── General letters: title-only recipient, signer title, Through, cc ──────
     try {
     await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS ext_recipient_title TEXT`);
