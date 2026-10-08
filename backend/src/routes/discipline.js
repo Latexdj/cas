@@ -7,6 +7,7 @@ const { uploadDocument }          = require('../services/storage.service');
 const { generateAndUploadPDF }    = require('../services/pdf.service');
 const { queryFlaggedStudents, queryFlaggedTeachers, queryThresholds } = require('../utils/discipline-flags');
 const { returnLetterForCorrection, resubmitLetter, getReturnHistory } = require('../services/letterApproval.service');
+const { sanitizeRichText } = require('../utils/richTextSanitizer');
 
 router.use(authenticate, requireActiveSubscription, checkModuleAccess('discipline'));
 
@@ -125,7 +126,7 @@ router.post('/queries', adminOnly, async (req, res, next) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'issued',$12,$13)
        RETURNING *, issued_date::text, response_deadline::text`,
       [req.schoolId, teacher_id, req.user.id, req.user.name || 'Management',
-       category, category_other?.trim() || null, subject.trim(), body.trim(),
+       category, category_other?.trim() || null, subject.trim(), sanitizeRichText(body.trim()),
        issued_date || new Date().toISOString().slice(0,10),
        response_deadline || null, academic_year_id || null,
        ref_number, signature_url]
@@ -363,7 +364,7 @@ router.post('/letters', adminOnly, async (req, res, next) => {
        FROM ins JOIN schools sch ON sch.id = ins.school_id`,
       [req.schoolId, student_id, req.user.id, req.user.name || 'Management',
        letter_type, offense_category, offense_other?.trim() || null,
-       subject.trim(), body.trim(),
+       subject.trim(), sanitizeRichText(body.trim()),
        issued_date || new Date().toISOString().slice(0,10),
        academic_year_id || null, semester ? Number(semester) : null,
        initialStatus, requiresApproval,

@@ -4,6 +4,8 @@ import { api } from '@/lib/api';
 import { PrintLetterModal } from '@/components/PrintLetterModal';
 import { StructuredIntake } from '@/components/StructuredIntake';
 import { INTAKE_FIELDS } from '@/lib/intake-fields';
+import { RichTextEditor } from '@/components/RichTextEditor';
+import { plainTextToHtml, isHtmlEmpty } from '@/lib/richText';
 
 type ChatMsg = { role: 'user' | 'assistant'; content: string; intakeCard?: boolean; };
 type GroundingClause = { section_ref: string | null; document_title: string; chunk_preview?: string };
@@ -354,7 +356,7 @@ export default function GeneralLettersPage() {
   }
 
   async function resubmitLetter() {
-    if (!viewLetter || !returnEditBody.trim()) { setResubmitErr('Body text is required'); return; }
+    if (!viewLetter || isHtmlEmpty(returnEditBody)) { setResubmitErr('Body text is required'); return; }
     const isExternal = returnEditRecipientType === 'external' || returnEditRecipientType === 'parent';
     if (isExternal && !returnEditExtName.trim() && !returnEditExtTitle.trim()) {
       setResubmitErr('Provide a recipient name or a title/office'); return;
@@ -407,8 +409,6 @@ export default function GeneralLettersPage() {
   const [newContactAddr, setNewContactAddr] = useState('');
   const [savingContact, setSavingContact]   = useState(false);
 
-  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
-
   // AI drafting state — scoped to the create modal
   const [showChat, setShowChat]                   = useState(false);
   const [chatSessionId, setChatSessionId]         = useState('');
@@ -420,14 +420,6 @@ export default function GeneralLettersPage() {
   const [draftLetterId, setDraftLetterId]         = useState('');
   const [chatOpeningMessage, setChatOpeningMessage] = useState('');
   const [intakeSubmitted, setIntakeSubmitted]     = useState(false);
-
-  // Auto-grow body textarea
-  useEffect(() => {
-    const el = bodyRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 320)}px`;
-  }, [form.body]);
 
   const load = async () => {
     setLoading(true);
@@ -643,7 +635,7 @@ export default function GeneralLettersPage() {
     if (showChat && draftLetterId) {
       const lastAI = [...chatMessages].reverse().find(m => m.role === 'assistant');
       if (lastAI?.content?.trim()) {
-        effectiveBody = lastAI.content;
+        effectiveBody = plainTextToHtml(lastAI.content);
         setField('body', effectiveBody);
         setShowChat(false);
       }
@@ -652,7 +644,7 @@ export default function GeneralLettersPage() {
     if (!form.classification) { setSaveErr('Select a classification.'); return; }
     if (!form.recipient_type) { setSaveErr('Select a recipient type.'); return; }
     if (!form.subject.trim()) { setSaveErr('Subject is required.'); return; }
-    if (!effectiveBody.trim()) { setSaveErr('Body is required.'); return; }
+    if (isHtmlEmpty(effectiveBody)) { setSaveErr('Body is required.'); return; }
 
     const isExternal = form.recipient_type === 'external' || form.recipient_type === 'parent';
     if (isExternal && !form.ext_recipient_name.trim() && !form.ext_recipient_title.trim()) {
@@ -1213,7 +1205,7 @@ export default function GeneralLettersPage() {
                   onSend={sendChatMessage}
                   loading={chatLoading}
                   error={chatError}
-                  onUseDraft={text => { setField('body', text); setShowChat(false); }}
+                  onUseDraft={text => { setField('body', plainTextToHtml(text)); setShowChat(false); }}
                   onClose={() => { setShowChat(false); setIntakeSubmitted(false); }}
                   intakeSubmitted={intakeSubmitted}
                   onIntakeSubmit={handleIntakeSubmit}
@@ -1221,13 +1213,11 @@ export default function GeneralLettersPage() {
                   sessionId={chatSessionId}
                 />
               ) : (
-                <textarea
-                  ref={bodyRef}
+                <RichTextEditor
                   value={form.body}
-                  onChange={e => setField('body', e.target.value)}
+                  onChange={html => setField('body', html)}
                   placeholder="Write the letter body here (between salutation and sign-off)…"
-                  rows={6}
-                  style={{ ...inputStyle, resize: 'none', overflowY: 'auto', minHeight: 120 }}
+                  minHeight={160}
                 />
               )}
 
@@ -1528,7 +1518,7 @@ export default function GeneralLettersPage() {
                       messages={returnedChatMessages} input={returnedChatInput}
                       onInputChange={setReturnedChatInput} onSend={sendReturnedChatMessage}
                       loading={returnedChatLoading} error={returnedChatErr}
-                      onUseDraft={text => { setReturnEditBody(text); setShowReturnedChat(false); }}
+                      onUseDraft={text => { setReturnEditBody(plainTextToHtml(text)); setShowReturnedChat(false); }}
                       onClose={() => setShowReturnedChat(false)}
                       intakeSubmitted={true}
                       onIntakeSubmit={() => {}}
@@ -1536,8 +1526,7 @@ export default function GeneralLettersPage() {
                       sessionId={viewLetter.draft_session_id ?? ''}
                     />
                   ) : (
-                    <textarea value={returnEditBody} onChange={e => setReturnEditBody(e.target.value)} rows={6}
-                      style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
+                    <RichTextEditor value={returnEditBody} onChange={setReturnEditBody} minHeight={140} />
                   )}
                 </div>
 
@@ -1557,9 +1546,13 @@ export default function GeneralLettersPage() {
                   padding: '14px 16px', background: C.bg, borderRadius: 8,
                   fontSize: 14, lineHeight: 1.7, color: C.dark,
                   whiteSpace: 'pre-wrap', border: `1px solid ${C.border}`,
-                }}>
-                  {viewLetter.body}
-                </div>
+                }}
+                  // Rich HTML from the shared RichTextEditor (sanitized server-side at
+                  // write time) for a letter issued after it was introduced; a legacy
+                  // plain-text body with no tags of its own, which the pre-wrap above
+                  // still renders correctly since it has no block tags to collapse.
+                  dangerouslySetInnerHTML={{ __html: viewLetter.body ?? '' }}
+                />
               </div>
             )}
 

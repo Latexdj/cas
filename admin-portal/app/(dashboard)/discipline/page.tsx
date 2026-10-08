@@ -4,6 +4,8 @@ import { api } from '@/lib/api';
 import { PrintLetterModal } from '@/components/PrintLetterModal';
 import { StructuredIntake } from '@/components/StructuredIntake';
 import { INTAKE_FIELDS } from '@/lib/intake-fields';
+import { RichTextEditor } from '@/components/RichTextEditor';
+import { plainTextToHtml, isHtmlEmpty } from '@/lib/richText';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -442,7 +444,7 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
     if (!selectedTeacher) { setError('Select a teacher'); return; }
     if (!category) { setError('Select a category'); return; }
     if (!subject.trim()) { setError('Subject is required'); return; }
-    if (!body.trim()) { setError('Body text is required'); return; }
+    if (isHtmlEmpty(body)) { setError('Body text is required'); return; }
     setSaving(true); setError('');
     try {
       const { data } = await api.post<TeacherQuery>('/api/discipline/queries', {
@@ -541,7 +543,7 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
                 messages={chatMessages} input={chatInput}
                 onInputChange={setChatInput} onSend={sendQueryChatMessage}
                 loading={chatLoading} error={chatError}
-                onUseDraft={text => { setBody(text); setShowChat(false); setSessionStarted(false); }}
+                onUseDraft={text => { setBody(plainTextToHtml(text)); setShowChat(false); setSessionStarted(false); }}
                 onClose={() => { setShowChat(false); setSessionStarted(false); setIntakeSubmitted(false); }}
                 groundingClauses={groundingClauses}
                 sessionStarted={sessionStarted}
@@ -552,9 +554,7 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
                 sessionId={chatSessionId}
               />
             ) : (
-              <textarea value={body} onChange={e => setBody(e.target.value)} rows={5}
-                placeholder="Describe the issue in detail…"
-                style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+              <RichTextEditor value={body} onChange={setBody} placeholder="Describe the issue in detail…" minHeight={110} />
             )}
           </div>
 
@@ -724,7 +724,7 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
     if (!letterType) { setError('Select a letter type'); return; }
     if (!offenseCat) { setError('Select an offense category'); return; }
     if (!subject.trim()) { setError('Subject is required'); return; }
-    if (!body.trim()) { setError('Body text is required'); return; }
+    if (isHtmlEmpty(body)) { setError('Body text is required'); return; }
     setSaving(true); setError('');
     try {
       const { data } = await api.post<DisciplinaryLetter>('/api/discipline/letters', {
@@ -854,7 +854,7 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
                 messages={chatMessages} input={chatInput}
                 onInputChange={setChatInput} onSend={sendLetterChatMessage}
                 loading={chatLoading} error={chatError}
-                onUseDraft={text => { setBody(text); setShowChat(false); setSessionStarted(false); }}
+                onUseDraft={text => { setBody(plainTextToHtml(text)); setShowChat(false); setSessionStarted(false); }}
                 onClose={() => { setShowChat(false); setSessionStarted(false); setIntakeSubmitted(false); }}
                 groundingClauses={groundingClauses}
                 sessionStarted={sessionStarted}
@@ -865,9 +865,7 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
                 sessionId={chatSessionId}
               />
             ) : (
-              <textarea value={body} onChange={e => setBody(e.target.value)} rows={6}
-                placeholder="Write the full letter content here…"
-                style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+              <RichTextEditor value={body} onChange={setBody} placeholder="Write the full letter content here…" minHeight={140} />
             )}
           </div>
 
@@ -1010,7 +1008,7 @@ function QueryDetailPanel({ query, onClose, onUpdate, onPrint }: {
       {/* Query body */}
       <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
         <p style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Query</p>
-        <p style={{ fontSize: 13, color: C.dark, lineHeight: 1.65, whiteSpace: 'pre-wrap', margin: 0 }}>{query.body}</p>
+        <div style={{ fontSize: 13, color: C.dark, lineHeight: 1.65, whiteSpace: 'pre-wrap', margin: 0 }} dangerouslySetInnerHTML={{ __html: query.body ?? '' }} />
       </div>
 
       {/* PDF section */}
@@ -1147,7 +1145,7 @@ function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
   }
 
   async function resubmit() {
-    if (!editBody.trim()) { setResubmitError('Body text is required'); return; }
+    if (isHtmlEmpty(editBody)) { setResubmitError('Body text is required'); return; }
     setResubmitting(true); setResubmitError('');
     try {
       const { data } = await api.patch<DisciplinaryLetter>(`/api/discipline/letters/${letter.id}/resubmit`, { subject: editSubject, body: editBody });
@@ -1235,7 +1233,7 @@ function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
       {/* Formal letter body */}
       <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: '20px 22px', marginBottom: 16, fontFamily: 'Georgia, serif' }}>
         <p style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 10, fontFamily: 'sans-serif', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Letter Content</p>
-        <p style={{ fontSize: 13, color: C.dark, lineHeight: 1.75, whiteSpace: 'pre-wrap', margin: 0 }}>{letter.body}</p>
+        <div style={{ fontSize: 13, color: C.dark, lineHeight: 1.75, whiteSpace: 'pre-wrap', margin: 0 }} dangerouslySetInnerHTML={{ __html: letter.body ?? '' }} />
       </div>
 
       {/* PDF section */}
@@ -1325,7 +1323,7 @@ function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
                 messages={returnedChatMessages} input={returnedChatInput}
                 onInputChange={setReturnedChatInput} onSend={sendReturnedChatMessage}
                 loading={returnedChatLoading} error={returnedChatError}
-                onUseDraft={text => { setEditBody(text); setShowReturnedChat(false); }}
+                onUseDraft={text => { setEditBody(plainTextToHtml(text)); setShowReturnedChat(false); }}
                 onClose={() => setShowReturnedChat(false)}
                 groundingClauses={[]}
                 sessionStarted={true}
@@ -1336,8 +1334,7 @@ function LetterDetailPanel({ letter, onClose, onUpdate, onPrint }: {
                 sessionId={letter.draft_session_id ?? ''}
               />
             ) : (
-              <textarea value={editBody} onChange={e => setEditBody(e.target.value)} rows={6}
-                style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none', resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              <RichTextEditor value={editBody} onChange={setEditBody} minHeight={140} />
             )}
           </div>
 

@@ -5,6 +5,7 @@ const { authenticate, managementOnly, requireActiveSubscription } = require('../
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { generateAndUploadPDF } = require('../services/pdf.service');
 const { returnLetterForCorrection, resubmitLetter, getReturnHistory } = require('../services/letterApproval.service');
+const { sanitizeRichText } = require('../utils/richTextSanitizer');
 
 router.use(authenticate, requireActiveSubscription, checkModuleAccess('discipline'));
 
@@ -201,7 +202,7 @@ router.post('/', adminOrManagement, async (req, res, next) => {
         ext_recipient_name?.trim() || null, ext_recipient_title?.trim() || null,
         ext_recipient_org?.trim() || null, ext_recipient_address?.trim() || null,
         through_office?.trim() || null, cc?.trim() || null,
-        subject.trim(), (body?.trim() || ''), sensitive,
+        subject.trim(), sanitizeRichText(body?.trim() || ''), sensitive,
         issued_date || null, academic_year_id || null,
         ref_number, computed_status, requires_approval,
       ]
@@ -240,7 +241,7 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
            status = $4, requires_approval = $5, updated_at = now()
        WHERE id = $6 AND school_id = $7
        RETURNING *, issued_date::text`,
-      [body.trim(), ref_number, signature_url, new_status, requires_approval, req.params.id, req.schoolId]
+      [sanitizeRichText(body.trim()), ref_number, signature_url, new_status, requires_approval, req.params.id, req.schoolId]
     );
     res.json(rows[0]);
   } catch (err) { next(err); }

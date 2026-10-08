@@ -29,6 +29,17 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
+// A letter body is either rich HTML from the shared TipTap editor (sanitized
+// server-side at write time — see utils/richTextSanitizer.js — so safe to
+// emit unescaped here) or, for a letter issued before that editor existed,
+// plain text with no markup of its own. Detect which by whether it starts
+// with a tag at all; a legacy plain-text body still needs esc() + its raw
+// line breaks preserved, exactly as this always rendered before.
+function renderBody(body) {
+  if (/^\s*</.test(body || '')) return body || '';
+  return `<div style="white-space:pre-wrap;">${esc(body || '')}</div>`;
+}
+
 // Frontend/backend can't share one module here (separate npm packages,
 // separate runtimes, no monorepo tooling) -- admin-portal/components/
 // PrintLetterModal.tsx has the client-side twin of this exact function, used
@@ -376,7 +387,7 @@ function buildLetterHTML({ letter, school, recipientType, letterKind = 'discipli
     <div><strong>SUBJECT:</strong> ${esc(letter.subject)}</div>
   </div>
   <div style="border-top:1px solid #000;margin:0 0 28px;"></div>
-  <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;text-align:justify;">${esc(letter.body)}</div>
+  <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;text-align:justify;">${renderBody(letter.body)}</div>
   <div style="margin-top:40px;font-size:11pt;">
     <div style="font-weight:bold;">${esc(letter.issued_by_name ?? '')}</div>
     ${letter.issued_by_title ? `<div style="font-size:10pt;color:#4A3F32;">${esc(letter.issued_by_title)}</div>` : ''}
@@ -410,7 +421,7 @@ function buildLetterHTML({ letter, school, recipientType, letterKind = 'discipli
     RE: ${esc(letter.subject)}
   </div>
   ${salutation}
-  <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;text-align:justify;">${esc(letter.body)}</div>
+  <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;text-align:justify;">${renderBody(letter.body)}</div>
   ${renderSignoff({
     letterKind, sigHtml, issuedByName: signatoryName, issuedByTitle: letter.issued_by_title,
     schoolName: school.name, throughOffice: letter.through_office, cc: letter.cc,
@@ -439,7 +450,7 @@ function buildLetterHTML({ letter, school, recipientType, letterKind = 'discipli
     ${esc(letter.subject)}
   </div>
   <p style="margin:0 0 16px;font-size:11pt;">Dear ${esc(firstWord(recipientName))},</p>
-  <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;white-space:pre-wrap;text-align:justify;">${esc(letter.body)}</div>
+  <div style="margin:0 0 40px;font-size:11pt;line-height:1.8;text-align:justify;">${renderBody(letter.body)}</div>
   ${renderSignoff({
     letterKind, sigHtml, issuedByName: signatoryName, issuedByTitle: letter.issued_by_title,
     schoolName: school.name, throughOffice: letter.through_office, cc: letter.cc,

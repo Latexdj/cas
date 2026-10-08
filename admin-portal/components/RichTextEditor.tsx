@@ -123,6 +123,10 @@ const selectCls = 'h-7 rounded border border-slate-200 bg-white text-xs text-sla
 function Toolbar({ editor }: { editor: Editor | null }) {
   if (!editor) return null;
 
+  const currentBlock = editor.isActive('heading', { level: 1 }) ? 'h1'
+    : editor.isActive('heading', { level: 2 }) ? 'h2'
+    : editor.isActive('heading', { level: 3 }) ? 'h3'
+    : 'p';
   const currentFont = FONTS.find(f => editor.isActive('textStyle', { fontFamily: f.value }))?.value ?? '';
   const currentSize = FONT_SIZES.find(s => editor.isActive('textStyle', { fontSize: s })) ?? '';
   const currentLH   = editor.getAttributes('paragraph').lineHeight ?? '';
@@ -158,6 +162,21 @@ function Toolbar({ editor }: { editor: Editor | null }) {
       <ToolBtn title="Underline" active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}>
         <span className="underline text-xs font-medium">U</span>
       </ToolBtn>
+
+      <Divider />
+
+      {/* Block type (paragraph / headings) */}
+      <select title="Paragraph style" value={currentBlock} className={`${selectCls} w-[6rem]`}
+        onChange={e => {
+          const v = e.target.value;
+          if (v === 'p') editor.chain().focus().setParagraph().run();
+          else editor.chain().focus().toggleHeading({ level: Number(v.slice(1)) as 1 | 2 | 3 }).run();
+        }}>
+        <option value="p">Paragraph</option>
+        <option value="h1">Heading 1</option>
+        <option value="h2">Heading 2</option>
+        <option value="h3">Heading 3</option>
+      </select>
 
       <Divider />
 
@@ -304,6 +323,9 @@ export function RichTextEditor({ value, onChange, placeholder, minHeight = 400 }
       <Toolbar editor={editor} />
       <style>{`
         .ProseMirror p { margin: 0 0 10px; }
+        .ProseMirror h1 { font-size: 1.5em; font-weight: 700; margin: 0 0 12px; }
+        .ProseMirror h2 { font-size: 1.25em; font-weight: 700; margin: 0 0 10px; }
+        .ProseMirror h3 { font-size: 1.1em; font-weight: 700; margin: 0 0 8px; }
         .ProseMirror ul { margin: 0 0 10px; padding-left: 22px; list-style-type: disc; }
         .ProseMirror ol { margin: 0 0 10px; padding-left: 22px; list-style-type: decimal; }
         .ProseMirror li { margin-bottom: 3px; display: list-item; }

@@ -1,6 +1,7 @@
 'use strict';
 const pool = require('../config/db');
 const { isBlocked } = require('../utils/letterSensitivity');
+const { sanitizeRichText } = require('../utils/richTextSanitizer');
 
 const SESSION_EXTENSION = '48 hours';
 
@@ -107,7 +108,7 @@ async function resubmitLetter({ table, letterId, schoolId, subject, body, extraF
     `body = COALESCE($2, body)`,
     `updated_at = now()`,
   ];
-  const params = [subject || null, body || null];
+  const params = [subject || null, body ? sanitizeRichText(body) : null];
 
   for (const [column, value] of Object.entries(extraFields || {})) {
     params.push(value);

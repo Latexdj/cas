@@ -1,38 +1,21 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
-const sanitizeHtml = require('sanitize-html');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { uploadFile } = require('../services/storage.service');
 const { findOversizedField } = require('../utils/websiteValidation');
+const { sanitizeRichText } = require('../utils/richTextSanitizer');
 
 router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('website'));
 
-// First place admin-authored rich text (from the existing Tiptap
-// RichTextEditor, previously only ever rendered back to the authoring admin
-// or into a server-generated PDF) reaches anonymous public visitors — so
-// every write sanitizes server-side before it touches the database. The
-// allowlist mirrors exactly what RichTextEditor.tsx can actually produce.
+// First place admin-authored rich text (from the shared Tiptap
+// RichTextEditor) reaches anonymous public visitors — so every write
+// sanitizes server-side before it touches the database. See
+// utils/richTextSanitizer.js (shared with letter bodies, which have the
+// same "render admin-authored HTML back out" shape, just to a private
+// audience instead of a public one).
 function sanitizePageContent(html) {
-  if (!html) return html;
-  return sanitizeHtml(html, {
-    allowedTags: ['p', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'br', 'span', 'img'],
-    allowedAttributes: {
-      a: ['href', 'target', 'rel'],
-      img: ['src', 'alt'],
-      '*': ['style'],
-    },
-    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
-    allowedStyles: {
-      '*': {
-        'font-family':      [/^[\w\s,'"-]+$/],
-        'font-size':        [/^\d+(\.\d+)?pt$/],
-        'line-height':      [/^[\d.]+$/],
-        'list-style-type':  [/^(disc|circle|square|decimal|lower-alpha|upper-alpha|lower-roman|upper-roman)$/],
-        'text-align':       [/^(left|center|right|justify)$/],
-      },
-    },
-  });
+  return sanitizeRichText(html);
 }
 
 // Page slugs become a public URL segment (/site/<slug>/<pageSlug>) that an
