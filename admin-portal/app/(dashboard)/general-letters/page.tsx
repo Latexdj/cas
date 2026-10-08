@@ -38,6 +38,8 @@ type Letter = {
   is_sensitive: boolean; issued_date: string; status: string;
   requires_approval: boolean; approved_by_name: string | null;
   approved_at: string | null; issued_by_name: string; body?: string;
+  issued_as: string;
+  requires_acceptance: boolean; accepted_at: string | null; declined_at: string | null; decline_reason: string | null;
   pdf_url?: string | null; created_at: string; draft_session_id?: string | null;
   return_history?: { id: string; reason: string; returned_by_name?: string; returned_at: string }[];
 };
@@ -53,6 +55,7 @@ type FormState = {
   ext_recipient_org: string; ext_recipient_address: string;
   issued_by_title: string; through_office: string; cc: string;
   subject: string; body: string; is_sensitive: boolean; issued_date: string;
+  issued_as: string; requires_acceptance: boolean;
 };
 
 const EMPTY_FORM: FormState = {
@@ -63,7 +66,13 @@ const EMPTY_FORM: FormState = {
   issued_by_title: '', through_office: '', cc: '',
   subject: '', body: '', is_sensitive: false,
   issued_date: new Date().toISOString().slice(0, 10),
+  issued_as: 'on_behalf_of_head', requires_acceptance: false,
 };
+
+const ISSUED_AS_OPTIONS = [
+  { value: 'on_behalf_of_head', label: 'On behalf of the Head', hint: "Prints with the Head's name and signature — requires the Head's approval before issuing." },
+  { value: 'own_office', label: 'From my own office', hint: 'Prints with your own name, no signature image — "Signed," with your name underneath.' },
+];
 
 const CLASSIFICATIONS = [
   { value: 'parent_communication',    label: 'Parent Communication' },
@@ -550,6 +559,8 @@ export default function GeneralLettersPage() {
         body:                     '',
         is_sensitive:             form.is_sensitive,
         issued_date:              form.issued_date,
+        issued_as:                form.issued_as,
+        requires_acceptance:      form.requires_acceptance,
         status:                   'draft',
       });
       const letterId: string = draftRes.data.id;
@@ -676,6 +687,8 @@ export default function GeneralLettersPage() {
           body:                     effectiveBody,
           is_sensitive:             form.is_sensitive,
           issued_date:              form.issued_date,
+          issued_as:                form.issued_as,
+          requires_acceptance:      form.requires_acceptance,
         });
       }
       setCreateOpen(false);
@@ -740,7 +753,7 @@ export default function GeneralLettersPage() {
 
   // ── Compute approval trigger explanation for UI ─────────────────────────────
   const willRequireApproval =
-    form.classification === 'external_official' || form.is_sensitive;
+    form.classification === 'external_official' || form.is_sensitive || form.issued_as === 'on_behalf_of_head';
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -901,6 +914,32 @@ export default function GeneralLettersPage() {
               </select>
             </Field>
 
+            {/* Issued as — own office vs on behalf of the Head */}
+            <Field label="Issued As" required>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {ISSUED_AS_OPTIONS.map(opt => (
+                  <label key={opt.value}
+                    style={{
+                      display: 'flex', gap: 10, cursor: 'pointer', alignItems: 'flex-start',
+                      padding: '10px 12px', borderRadius: 8,
+                      border: `1.5px solid ${form.issued_as === opt.value ? C.mid : C.border}`,
+                      background: form.issued_as === opt.value ? '#E8F4EE' : C.card,
+                    }}>
+                    <input
+                      type="radio" name="issued_as" value={opt.value}
+                      checked={form.issued_as === opt.value}
+                      onChange={() => setField('issued_as', opt.value)}
+                      style={{ marginTop: 2, accentColor: C.forest }}
+                    />
+                    <div>
+                      <span style={{ fontWeight: 700, fontSize: 13, color: C.dark }}>{opt.label}</span>
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: C.muted, lineHeight: 1.5 }}>{opt.hint}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </Field>
+
             {/* Sensitivity declaration */}
             <div style={{
               borderRadius: 8, padding: '14px 16px', marginBottom: 20,
@@ -935,12 +974,12 @@ export default function GeneralLettersPage() {
                 fontSize: 12, color: C.warning,
               }}>
                 <strong>Approval required</strong> —{' '}
-                {form.classification === 'external_official' && form.is_sensitive
-                  ? 'external official letter and marked sensitive'
-                  : form.classification === 'external_official'
-                  ? 'external official letters require principal approval before issuing'
-                  : 'sensitive letters require principal approval before issuing'}
-                . Status will be set to <em>Pending Approval</em>.
+                {[
+                  form.classification === 'external_official' && 'external official letters',
+                  form.is_sensitive && 'sensitive letters',
+                  form.issued_as === 'on_behalf_of_head' && "letters issued on behalf of the Head",
+                ].filter(Boolean).join(', ')}
+                {' '}require principal approval before issuing. Status will be set to <em>Pending Approval</em>.
               </div>
             )}
 
@@ -1033,6 +1072,33 @@ export default function GeneralLettersPage() {
                   </div>
                 )}
               </Field>
+            )}
+
+            {/* Requires acceptance — teacher recipients only (e.g. a letter of appointment) */}
+            {form.recipient_type === 'teacher' && (
+              <div style={{
+                borderRadius: 8, padding: '12px 14px', marginBottom: 16,
+                border: `1.5px solid ${form.requires_acceptance ? C.mid : C.border}`,
+                background: form.requires_acceptance ? '#E8F4EE' : C.bg,
+              }}>
+                <label style={{ display: 'flex', gap: 10, cursor: 'pointer', alignItems: 'flex-start' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.requires_acceptance}
+                    onChange={e => setField('requires_acceptance', e.target.checked)}
+                    style={{ marginTop: 2, accentColor: C.mid, width: 16, height: 16, flexShrink: 0 }}
+                  />
+                  <div>
+                    <span style={{ fontWeight: 700, fontSize: 13, color: C.dark }}>
+                      Requires the teacher&apos;s acceptance
+                    </span>
+                    <p style={{ margin: '4px 0 0', fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+                      For letters like an appointment that need a formal yes/no response.
+                      The teacher will see this letter under &quot;My Letters&quot; and must Accept or Decline it.
+                    </p>
+                  </div>
+                </label>
+              </div>
             )}
 
             {/* Recipient picker — external/parent */}
@@ -1330,6 +1396,7 @@ export default function GeneralLettersPage() {
                 ['Recipient type', recipientLabel(viewLetter.recipient_type)],
                 ['Issued date', viewLetter.issued_date],
                 ['Issued by', viewLetter.issued_by_name],
+                ['Issued as', viewLetter.issued_as === 'own_office' ? "Own office (no signature)" : 'On behalf of the Head'],
                 ['Issued', viewLetter.created_at ? new Date(viewLetter.created_at).toLocaleDateString() : '—'],
               ].map(([k, v]) => (
                 <div key={String(k)}>
@@ -1348,6 +1415,26 @@ export default function GeneralLettersPage() {
                 {viewLetter.ext_recipient_name && <p style={{ margin: 0, fontWeight: 600, color: C.dark }}>{viewLetter.ext_recipient_name}</p>}
                 {viewLetter.ext_recipient_title && <p style={{ margin: '2px 0 0', fontWeight: 600, color: C.dark }}>{viewLetter.ext_recipient_title}</p>}
                 {viewLetter.ext_recipient_org && <p style={{ margin: '2px 0 0', color: C.muted, fontSize: 13 }}>{viewLetter.ext_recipient_org}</p>}
+              </div>
+            )}
+
+            {viewLetter.requires_acceptance && (
+              <div style={{
+                marginBottom: 16, padding: '12px 14px', borderRadius: 8,
+                background: viewLetter.accepted_at ? C.successBg : viewLetter.declined_at ? C.dangerBg : C.warningBg,
+                border: `1px solid ${(viewLetter.accepted_at ? C.success : viewLetter.declined_at ? C.danger : C.warning)}44`,
+              }}>
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Acceptance</p>
+                {viewLetter.accepted_at ? (
+                  <p style={{ margin: '4px 0 0', fontWeight: 700, color: C.success }}>Accepted on {new Date(viewLetter.accepted_at).toLocaleDateString()}</p>
+                ) : viewLetter.declined_at ? (
+                  <>
+                    <p style={{ margin: '4px 0 0', fontWeight: 700, color: C.danger }}>Declined on {new Date(viewLetter.declined_at).toLocaleDateString()}</p>
+                    {viewLetter.decline_reason && <p style={{ margin: '4px 0 0', fontSize: 13, color: C.dark }}>&quot;{viewLetter.decline_reason}&quot;</p>}
+                  </>
+                ) : (
+                  <p style={{ margin: '4px 0 0', fontWeight: 700, color: C.warning }}>Awaiting the teacher&apos;s response</p>
+                )}
               </div>
             )}
 
@@ -1656,6 +1743,7 @@ export default function GeneralLettersPage() {
             issued_by_name:          viewLetter.issued_by_name,
             issued_by_signature_url: viewLetter.issued_by_signature_url ?? undefined,
             issued_by_title:         viewLetter.issued_by_title ?? undefined,
+            issued_as:               viewLetter.issued_as,
             through_office:          viewLetter.through_office  ?? undefined,
             cc:                      viewLetter.cc              ?? undefined,
             // External

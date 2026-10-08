@@ -329,15 +329,19 @@ function renderSignoff({ letterKind, sigHtml, issuedByName, issuedByTitle, schoo
 }
 
 function buildLetterHTML({ letter, school, recipientType, letterKind = 'discipline', watermark = false }) {
-  const sigUrl = letter.issued_by_signature_url || school.headmaster_signature_url;
-  // The signature image is always the headmaster's (issued_by_signature_url
-  // is itself set to headmaster_signature_url at creation, never a distinct
-  // per-issuer signature — see generateRefNumber() in general-letters.js and
-  // discipline.js) — so the printed name under it must be the headmaster's
-  // name too, not whichever staff member drafted/issued the letter in the
-  // system (that person is still tracked separately as issued_by_name, shown
-  // in the admin UI's "Issued by" field, just not printed on the letter).
-  const signatoryName = school.headmaster_name || 'The Headmaster';
+  // A general letter issued "from the admin's own office" (letter.issued_as
+  // === 'own_office') prints with that admin's own name and no signature
+  // image — it isn't the Head's letter, so it shouldn't carry the Head's
+  // signature. Every other case (discipline queries/letters, which don't
+  // have this distinction at all, and every general letter issued "on
+  // behalf of the Head" — the default, and the only behavior that existed
+  // before issued_as was introduced) keeps using the Head's name+signature,
+  // same as always. issued_by_id/issued_by_name on the letter record still
+  // always identify the real submitting account regardless of this choice
+  // — this only changes what prints.
+  const ownOffice = letterKind === 'general' && letter.issued_as === 'own_office';
+  const sigUrl = ownOffice ? null : (letter.issued_by_signature_url || school.headmaster_signature_url);
+  const signatoryName = ownOffice ? (letter.issued_by_name || '') : (school.headmaster_name || 'The Headmaster');
 
   const letterheadHtml = renderLetterhead(school);
 

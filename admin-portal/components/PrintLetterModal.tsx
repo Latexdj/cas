@@ -11,6 +11,7 @@ interface PrintLetterModalProps {
     issued_by_name: string;
     issued_by_signature_url?: string;
     issued_by_title?: string;
+    issued_as?: string;
     through_office?: string;
     cc?: string;
     // Internal recipients
@@ -33,6 +34,7 @@ interface PrintLetterModalProps {
     email?: string;
     letterhead_url?: string;
     headmaster_signature_url?: string;
+    headmaster_name?: string;
     logo_url?: string;
     motto?: string;
   };
@@ -113,7 +115,14 @@ function renderSignoff({ letterKind, sigHtml, issuedByName, issuedByTitle, schoo
 }
 
 export function PrintLetterModal({ open, onClose, letter, school, recipientType, letterKind = 'discipline' }: PrintLetterModalProps) {
-  const sigUrl = letter.issued_by_signature_url || school.headmaster_signature_url;
+  // Keep in sync with backend/src/services/pdf.service.js's buildLetterHTML —
+  // a general letter issued "from the admin's own office" prints with that
+  // admin's own name and no signature image, since it isn't the Head's
+  // letter. Every other case (discipline, or a general letter issued "on
+  // behalf of the Head") keeps the Head's name+signature, as always.
+  const ownOffice = letterKind === 'general' && letter.issued_as === 'own_office';
+  const sigUrl = ownOffice ? undefined : (letter.issued_by_signature_url || school.headmaster_signature_url);
+  const signatoryName = ownOffice ? (letter.issued_by_name || '') : (school.headmaster_name || 'The Headmaster');
 
   function buildLetterHTML() {
     const letterheadHtml = school.letterhead_url
@@ -133,7 +142,7 @@ export function PrintLetterModal({ open, onClose, letter, school, recipientType,
       : `<div style="margin-top:48px;"></div>`;
 
     const signoff = renderSignoff({
-      letterKind, sigHtml, issuedByName: letter.issued_by_name, issuedByTitle: letter.issued_by_title,
+      letterKind, sigHtml, issuedByName: signatoryName, issuedByTitle: letter.issued_by_title,
       schoolName: school.name, throughOffice: letter.through_office, cc: letter.cc,
     });
 

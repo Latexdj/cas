@@ -22,9 +22,30 @@ function adminOrManagement(req, res, next) {
 
 const VALID_CLASSIFICATIONS = ['parent_communication', 'external_official', 'internal_administrative', 'other'];
 const VALID_RECIPIENT_TYPES  = ['student', 'teacher', 'parent', 'external'];
+const VALID_ISSUED_AS = ['own_office', 'on_behalf_of_head'];
 
-function computeRequiresApproval(classification, is_sensitive) {
-  return classification === 'external_official' || is_sensitive === true;
+// issued_as === 'on_behalf_of_head' puts the Head's actual name and
+// signature on the letter (see pdf.service.js's buildLetterHTML), so it
+// needs the Head's actual sign-off before going out, same as any other
+// letter that invokes an authority beyond the issuing admin's own.
+function computeRequiresApproval(classification, is_sensitive, issued_as) {
+  return classification === 'external_official' || is_sensitive === true || issued_as === 'on_behalf_of_head';
+}
+
+// Only recipient_type === 'teacher' has an in-app surface to be notified on
+// (see GET /mine below) — student/parent/external recipients have no portal
+// account this fires into.
+async function notifyTeacherIfIssued(letter) {
+  if (letter.recipient_type !== 'teacher' || !letter.internal_recipient_id) return;
+  await pool.query(
+    `INSERT INTO notifications (school_id, user_id, user_type, message, link)
+     VALUES ($1, $2, 'teacher', $3, $4)`,
+    [
+      letter.school_id, letter.internal_recipient_id,
+      letter.requires_acceptance ? `New letter requiring your response: ${letter.subject}` : `New letter: ${letter.subject}`,
+      `/teacher/letters/${letter.id}`,
+    ]
+  );
 }
 
 async function generateRefNumber(schoolId) {
@@ -116,7 +137,8 @@ router.get('/', adminOrManagement, async (req, res, next) => {
               gl.internal_recipient_id, gl.internal_recipient_table,
               gl.subject, gl.is_sensitive, gl.issued_date::text, gl.status,
               gl.requires_approval, gl.approved_by_name, gl.approved_at,
-              gl.issued_by_name, gl.created_at
+              gl.issued_by_name, gl.issued_as, gl.created_at,
+              gl.requires_acceptance, gl.accepted_at, gl.declined_at, gl.decline_reason
        FROM general_letters gl
        WHERE gl.school_id = $1${where}
        ORDER BY gl.created_at DESC`,
@@ -137,10 +159,13 @@ router.post('/', adminOrManagement, async (req, res, next) => {
       ext_recipient_name, ext_recipient_title, ext_recipient_org, ext_recipient_address,
       issued_by_title, through_office, cc,
       subject, body, is_sensitive, issued_date, academic_year_id,
+      issued_as, requires_acceptance,
       status: requestedStatus,
     } = req.body;
 
     const savingAsDraft = requestedStatus === 'draft';
+    const issuedAs = VALID_ISSUED_AS.includes(issued_as) ? issued_as : 'on_behalf_of_head';
+    const requiresAcceptance = requires_acceptance === true || requires_acceptance === 'true';
 
     if (!VALID_CLASSIFICATIONS.includes(classification))
       return res.status(400).json({ error: 'Invalid classification' });
@@ -171,7 +196,7 @@ router.post('/', adminOrManagement, async (req, res, next) => {
 
     const { issued_by_id, issued_by_name } = await resolveIssuedBy(req);
     const sensitive = is_sensitive === true || is_sensitive === 'true';
-    const requires_approval = computeRequiresApproval(classification, sensitive);
+    const requires_approval = computeRequiresApproval(classification, sensitive, issuedAs);
 
     // Drafts skip ref_number generation — no counter is incremented until finalize.
     let ref_number = null, signature_url = null;
@@ -190,10 +215,10 @@ router.post('/', adminOrManagement, async (req, res, next) => {
          ext_recipient_name, ext_recipient_title, ext_recipient_org, ext_recipient_address,
          through_office, cc,
          subject, body, is_sensitive, issued_date, academic_year_id,
-         ref_number, status, requires_approval
+         ref_number, status, requires_approval, issued_as, requires_acceptance
        ) VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-         $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23
+         $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25
        ) RETURNING *, issued_date::text`,
       [
         req.schoolId, issued_by_id, issued_by_name, signature_url, issued_by_title?.trim() || null,
@@ -204,9 +229,10 @@ router.post('/', adminOrManagement, async (req, res, next) => {
         through_office?.trim() || null, cc?.trim() || null,
         subject.trim(), sanitizeRichText(body?.trim() || ''), sensitive,
         issued_date || null, academic_year_id || null,
-        ref_number, computed_status, requires_approval,
+        ref_number, computed_status, requires_approval, issuedAs, requiresAcceptance,
       ]
     );
+    if (computed_status === 'issued') await notifyTeacherIfIssued(rows[0]);
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -231,7 +257,7 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
 
     // Generate ref_number now that the letter is being issued
     const { ref_number, signature_url } = await generateRefNumber(req.schoolId);
-    const requires_approval = computeRequiresApproval(draft.classification, draft.is_sensitive);
+    const requires_approval = computeRequiresApproval(draft.classification, draft.is_sensitive, draft.issued_as);
     const new_status = requires_approval ? 'pending_approval' : 'issued';
 
     const { rows } = await pool.query(
@@ -243,6 +269,7 @@ router.patch('/:id/finalize', adminOrManagement, async (req, res, next) => {
        RETURNING *, issued_date::text`,
       [sanitizeRichText(body.trim()), ref_number, signature_url, new_status, requires_approval, req.params.id, req.schoolId]
     );
+    if (new_status === 'issued') await notifyTeacherIfIssued(rows[0]);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -307,9 +334,78 @@ router.post('/:id/pdf', adminOrManagement, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/general-letters/:id — fetch with resolved internal-recipient name
-router.get('/:id', adminOrManagement, async (req, res, next) => {
+// GET /api/general-letters/mine — teacher-facing letter list, scoped to
+// letters actually addressed to them. No adminOrManagement — any
+// authenticated teacher may call this. Must be defined before /:id.
+router.get('/mine', async (req, res, next) => {
   try {
+    if (req.user?.role !== 'teacher' && req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Teacher access only' });
+    }
+    const { rows } = await pool.query(
+      `SELECT id, ref_number, subject, issued_date::text, issued_by_name, issued_by_title,
+              classification, requires_acceptance, accepted_at, declined_at, decline_reason,
+              pdf_url, created_at
+       FROM general_letters
+       WHERE school_id = $1 AND recipient_type = 'teacher' AND internal_recipient_id = $2 AND status = 'issued'
+       ORDER BY created_at DESC`,
+      [req.schoolId, req.user.id]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/general-letters/:id/accept — teacher-only, own letter only.
+router.post('/:id/accept', async (req, res, next) => {
+  try {
+    if (req.user?.role !== 'teacher' && req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Teacher access only' });
+    }
+    const { rows } = await pool.query(
+      `UPDATE general_letters
+       SET accepted_at = now(), updated_at = now()
+       WHERE id = $1 AND school_id = $2 AND recipient_type = 'teacher' AND internal_recipient_id = $3
+         AND status = 'issued' AND requires_acceptance = true AND accepted_at IS NULL AND declined_at IS NULL
+       RETURNING id, accepted_at`,
+      [req.params.id, req.schoolId, req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Letter not found or already responded to' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// POST /api/general-letters/:id/decline — teacher-only, own letter only, requires a reason.
+router.post('/:id/decline', async (req, res, next) => {
+  try {
+    if (req.user?.role !== 'teacher' && req.user?.role !== 'admin') {
+      return res.status(403).json({ error: 'Teacher access only' });
+    }
+    const { reason } = req.body;
+    if (!reason?.trim()) return res.status(400).json({ error: 'A reason is required to decline' });
+    const { rows } = await pool.query(
+      `UPDATE general_letters
+       SET declined_at = now(), decline_reason = $1, updated_at = now()
+       WHERE id = $2 AND school_id = $3 AND recipient_type = 'teacher' AND internal_recipient_id = $4
+         AND status = 'issued' AND requires_acceptance = true AND accepted_at IS NULL AND declined_at IS NULL
+       RETURNING id, declined_at, decline_reason`,
+      [reason.trim(), req.params.id, req.schoolId, req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Letter not found or already responded to' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// GET /api/general-letters/:id — admin/management see any letter in their
+// school; a teacher may see one only if they're the actual recipient of it
+// (checked against internal_recipient_id, not inferred from role — mirrors
+// memos.js's GET /:id ownership check).
+router.get('/:id', async (req, res, next) => {
+  try {
+    const role = req.user?.role;
+    const isStaff = role === 'admin' || role === 'super_admin' || req.user?.type === 'management';
+    if (!isStaff && role !== 'teacher') {
+      return res.status(403).json({ error: 'Admin or management access required' });
+    }
     const { rows } = await pool.query(
       `SELECT gl.*, gl.issued_date::text,
               CASE WHEN gl.internal_recipient_table = 'students' THEN s.name
@@ -328,11 +424,14 @@ router.get('/:id', adminOrManagement, async (req, res, next) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found' });
     const letter = rows[0];
-    letter.return_history = await getReturnHistory({
+    if (!isStaff && !(letter.recipient_type === 'teacher' && letter.internal_recipient_id === req.user.id)) {
+      return res.status(404).json({ error: 'Letter not found' });
+    }
+    letter.return_history = isStaff ? await getReturnHistory({
       documentType: 'general_letter',
       letterId: letter.id,
       schoolId: req.schoolId,
-    });
+    }) : [];
     res.json(letter);
   } catch (err) { next(err); }
 });
@@ -350,6 +449,7 @@ router.patch('/:id/approve', managementOnly, async (req, res, next) => {
       [approver_name, req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Letter not found or not pending approval' });
+    await notifyTeacherIfIssued(rows[0]);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });

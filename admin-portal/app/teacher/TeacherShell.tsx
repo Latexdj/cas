@@ -31,7 +31,7 @@ const SECTIONS: Section[] = [
   { label: 'Attendance', hrefs: ['/teacher/submit', '/teacher/history', '/teacher/absences', '/teacher/meetings', '/teacher/invigilation', '/teacher/timetable'] },
   { label: 'Students', hrefs: ['/teacher/student-attendance'] },
   { label: 'Academics', hrefs: ['/teacher/assessments', '/teacher/results', '/teacher/lms'] },
-  { label: 'Administrative', hrefs: ['/teacher/absences/leaves', '/teacher/conduct', '/teacher/memos'] },
+  { label: 'Administrative', hrefs: ['/teacher/absences/leaves', '/teacher/conduct', '/teacher/memos', '/teacher/letters'] },
   { label: 'Responsibilities', hrefs: ['/teacher/form-class', '/teacher/hod', '/teacher/hod/inventory', '/teacher/house-students', '/teacher/resumption', '/teacher/roll-call', '/teacher/library', '/teacher/clearance'] },
   { label: 'Account', hrefs: ['/teacher/notifications', '/teacher/profile'] },
 ];
@@ -231,6 +231,17 @@ const NAV_ITEMS: NavItem[] = [
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+      </svg>
+    ),
+  },
+  {
+    href:  '/teacher/letters',
+    label: 'My Letters',
+    module: 'discipline',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M4 4h16v16H4z" />
+        <path d="M22 6l-10 7L2 6" />
       </svg>
     ),
   },
@@ -667,8 +678,14 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
       </aside>
 
       {/* ── Main content ── */}
-      <div className="flex-1 flex flex-col md:ml-60 print:ml-0 min-h-screen">
-        <main className="flex-1 pb-20 md:pb-6 print:pb-0">{children}</main>
+      {/* min-w-0 on both this flex item (row flex container's child) and <main>
+          below (its own flex-col child) breaks flex's default min-width:auto
+          sizing at both levels — without it, a page with a long unbreakable
+          text run (e.g. a long letter subject) forces this whole column wider
+          than the viewport instead of letting the page's own truncation CSS
+          clip it. */}
+      <div className="flex-1 flex flex-col md:ml-60 print:ml-0 min-h-screen min-w-0">
+        <main className="flex-1 pb-20 md:pb-6 print:pb-0 min-w-0">{children}</main>
       </div>
 
       {/* ── Mobile: More bottom-sheet backdrop ── */}

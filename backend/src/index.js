@@ -2858,6 +2858,33 @@ async function runMigrations() {
     `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] general_letters title/through/cc fields:', e.message); }
 
+    // ── General letters: issuer identity + recipient acceptance ───────────────
+    // issued_as distinguishes a letter genuinely signed by the admin issuing it
+    // ("own_office" — their own name, no signature image) from one that invokes
+    // the Head's authority ("on_behalf_of_head" — the Head's name AND signature
+    // print on the letter, same as every letter did unconditionally before this
+    // column existed — hence that value is the default, not "own_office", so
+    // every pre-existing letter keeps rendering exactly as it always did).
+    // issued_by_id/issued_by_name already record which real account authored
+    // the letter regardless of issued_as — this column only changes what prints.
+    try {
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS issued_as TEXT NOT NULL DEFAULT 'on_behalf_of_head'`);
+    await pool.query(`ALTER TABLE general_letters DROP CONSTRAINT IF EXISTS general_letters_issued_as_check`);
+    await pool.query(`
+      ALTER TABLE general_letters ADD CONSTRAINT general_letters_issued_as_check
+        CHECK (issued_as IN ('own_office','on_behalf_of_head'))
+    `);
+    // requires_acceptance: an admin can flag a letter (e.g. a letter of
+    // appointment) as needing the recipient's formal response; accepted_at/
+    // declined_at/decline_reason capture that response once given. Orthogonal
+    // to `status` — a letter is "issued" the moment it's sent, acceptance is
+    // a separate, later action by the recipient.
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS requires_acceptance BOOLEAN NOT NULL DEFAULT false`);
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS declined_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE general_letters ADD COLUMN IF NOT EXISTS decline_reason TEXT`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] general_letters issued_as + acceptance fields:', e.message); }
+
     // ── Fees: stop student deletion from silently destroying financial records ──
     // student_bills.student_id and fee_payments.student_id were ON DELETE CASCADE,
     // so DELETE /api/students/:id (students.js) would wipe a student's entire
