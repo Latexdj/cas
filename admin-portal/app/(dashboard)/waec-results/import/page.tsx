@@ -14,6 +14,14 @@ interface ParseResult {
   source: 'upload' | 'paste'; rawText: string;
 }
 interface RegEntry { registeredBoys: number; registeredGirls: number; absentBoys: number; absentGirls: number }
+// Locally we only ever collect Absent — Registered is computed (Presented
+// + Cancelled + Absent is an identity, not independently entered data),
+// then folded into the RegEntry shape the backend already expects only
+// at save time. This removes the one field on this path that could
+// previously go out of sync with no cross-check: Registered used to
+// default to Presented and silently stay stale if an admin corrected
+// Absent without also bumping it.
+interface AbsentEntry { absentBoys: number; absentGirls: number }
 
 const WAEC_GRADE_ORDER = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9'];
 interface GenderPair { boys: number; girls: number }
@@ -116,6 +124,8 @@ const WARNING_LABELS: Record<string, string> = {
   duplicate_candidate: 'Duplicate candidate',
   parse_failure: 'Parse failure',
   count_mismatch: 'Candidate count mismatch',
+  core_subject_mismatch: 'Core subjects don’t agree',
+  summary_mismatch: 'Doesn’t match WAEC’s own summary',
 };
 
 function presentedBySubject(candidates: ParsedCandidate[]) {
@@ -123,6 +133,23 @@ function presentedBySubject(candidates: ParsedCandidate[]) {
   for (const c of candidates) {
     for (const g of c.grades) {
       if (g.grade === 'X') continue;
+      if (!map.has(g.subjectName)) map.set(g.subjectName, { boys: 0, girls: 0 });
+      const entry = map.get(g.subjectName)!;
+      if (c.gender === 'Male') entry.boys++; else entry.girls++;
+    }
+  }
+  return map;
+}
+
+// Cancelled papers (grade = X) per subject — a registered candidate who
+// sat the paper but whose result was cancelled/withheld is neither
+// Presented nor Absent, a third category Registered must also account
+// for (Registered = Presented + Cancelled + Absent; see AbsentEntry below).
+function cancelledBySubject(candidates: ParsedCandidate[]) {
+  const map = new Map<string, { boys: number; girls: number }>();
+  for (const c of candidates) {
+    for (const g of c.grades) {
+      if (g.grade !== 'X') continue;
       if (!map.has(g.subjectName)) map.set(g.subjectName, { boys: 0, girls: 0 });
       const entry = map.get(g.subjectName)!;
       if (c.gender === 'Male') entry.boys++; else entry.girls++;
@@ -300,7 +327,7 @@ export default function WaecImportPage() {
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState('');
   const [result, setResult] = useState<ParseResult | null>(null);
-  const [registeredData, setRegisteredData] = useState<Record<string, RegEntry>>({});
+  const [absentData, setAbsentData] = useState<Record<string, AbsentEntry>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -328,6 +355,7 @@ export default function WaecImportPage() {
   const SOFT_WARNING_TYPES = new Set(['presented_mismatch', 'registered_mismatch', 'core_subject_mismatch', 'total_mismatch', 'no_core_subjects', 'summary_mismatch']);
 
   const subjectPresented = useMemo(() => (result ? presentedBySubject(result.candidates) : new Map()), [result]);
+  const subjectCancelled = useMemo(() => (result ? cancelledBySubject(result.candidates) : new Map()), [result]);
 
   async function doParse() {
     setParsing(true); setParseError('');
@@ -345,11 +373,11 @@ export default function WaecImportPage() {
       }
       setResult(data);
       if (data.year) setYear(data.year);
-      const defaults: Record<string, RegEntry> = {};
-      for (const [subject, { boys, girls }] of presentedBySubject(data.candidates)) {
-        defaults[subject] = { registeredBoys: boys, registeredGirls: girls, absentBoys: 0, absentGirls: 0 };
+      const defaults: Record<string, AbsentEntry> = {};
+      for (const [subject] of presentedBySubject(data.candidates)) {
+        defaults[subject] = { absentBoys: 0, absentGirls: 0 };
       }
-      setRegisteredData(defaults);
+      setAbsentData(defaults);
     } catch (e: unknown) {
       setParseError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Could not parse this listing.');
     } finally { setParsing(false); }
@@ -424,15 +452,29 @@ export default function WaecImportPage() {
     } finally { setSaving(false); }
   }
 
-  function updateReg(subject: string, field: keyof RegEntry, value: string) {
+  function updateAbsent(subject: string, field: keyof AbsentEntry, value: string) {
     const n = Math.max(0, parseInt(value, 10) || 0);
-    setRegisteredData(prev => ({ ...prev, [subject]: { ...prev[subject], [field]: n } }));
+    setAbsentData(prev => ({ ...prev, [subject]: { ...prev[subject], [field]: n } }));
   }
 
   async function confirmSave() {
     if (!result) return;
     setSaving(true); setSaveError('');
     try {
+      // Registered is computed here (Presented + Cancelled + Absent) at
+      // the point of saving, not stored as its own editable field — see
+      // AbsentEntry's comment for why.
+      const registeredData: Record<string, RegEntry> = {};
+      for (const [subject, presented] of subjectPresented) {
+        const cancelled = subjectCancelled.get(subject) ?? { boys: 0, girls: 0 };
+        const absent = absentData[subject] ?? { absentBoys: 0, absentGirls: 0 };
+        registeredData[subject] = {
+          registeredBoys: presented.boys + cancelled.boys + absent.absentBoys,
+          registeredGirls: presented.girls + cancelled.girls + absent.absentGirls,
+          absentBoys: absent.absentBoys,
+          absentGirls: absent.absentGirls,
+        };
+      }
       const { data } = await api.post('/api/admin/exam-results/batches', {
         exam_body: 'WAEC', year, source: result.source, raw_text: result.rawText,
         school_number: result.schoolNumber, registered_data: registeredData,
@@ -535,7 +577,7 @@ export default function WaecImportPage() {
           <section className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-4">
             <div>
               <h2 className="text-sm font-semibold text-slate-500">Registered / Absent</h2>
-              <p className="text-xs text-slate-400 mt-0.5">The listing only includes candidates who have results, so these aren&apos;t detected automatically — review and correct them per subject before saving.</p>
+              <p className="text-xs text-slate-400 mt-0.5">The listing only includes candidates who have results, so Absent isn&apos;t detected automatically — enter it per subject below. Registered is computed (Presented + Cancelled + Absent) rather than entered, so it can never fall out of sync.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -544,32 +586,35 @@ export default function WaecImportPage() {
                     <th className="text-left py-1.5 pr-3">Subject</th>
                     <th className="text-center py-1.5 px-2">Presented (B)</th>
                     <th className="text-center py-1.5 px-2">Presented (G)</th>
-                    <th className="text-center py-1.5 px-2">Registered (B)</th>
-                    <th className="text-center py-1.5 px-2">Registered (G)</th>
+                    <th className="text-center py-1.5 px-2">Cancelled (B)</th>
+                    <th className="text-center py-1.5 px-2">Cancelled (G)</th>
                     <th className="text-center py-1.5 px-2">Absent (B)</th>
                     <th className="text-center py-1.5 px-2">Absent (G)</th>
+                    <th className="text-center py-1.5 px-2">Registered (B)</th>
+                    <th className="text-center py-1.5 px-2">Registered (G)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {[...subjectPresented.entries()].map(([subject, presented]) => {
-                    const reg = registeredData[subject] ?? { registeredBoys: 0, registeredGirls: 0, absentBoys: 0, absentGirls: 0 };
+                    const cancelled = subjectCancelled.get(subject) ?? { boys: 0, girls: 0 };
+                    const absent = absentData[subject] ?? { absentBoys: 0, absentGirls: 0 };
+                    const registeredBoys = presented.boys + cancelled.boys + absent.absentBoys;
+                    const registeredGirls = presented.girls + cancelled.girls + absent.absentGirls;
                     return (
                       <tr key={subject}>
                         <td className="py-1.5 pr-3 font-medium text-slate-700">{subject}</td>
                         <td className="text-center py-1.5 px-2 text-slate-400">{presented.boys}</td>
                         <td className="text-center py-1.5 px-2 text-slate-400">{presented.girls}</td>
+                        <td className="text-center py-1.5 px-2 text-slate-400">{cancelled.boys}</td>
+                        <td className="text-center py-1.5 px-2 text-slate-400">{cancelled.girls}</td>
                         <td className="text-center py-1.5 px-2">
-                          <input type="number" min={0} className="w-14 rounded border border-slate-200 px-1 py-0.5 text-center" value={reg.registeredBoys} onChange={e => updateReg(subject, 'registeredBoys', e.target.value)} />
+                          <input type="number" min={0} className="w-14 rounded border border-slate-200 px-1 py-0.5 text-center" value={absent.absentBoys} onChange={e => updateAbsent(subject, 'absentBoys', e.target.value)} />
                         </td>
                         <td className="text-center py-1.5 px-2">
-                          <input type="number" min={0} className="w-14 rounded border border-slate-200 px-1 py-0.5 text-center" value={reg.registeredGirls} onChange={e => updateReg(subject, 'registeredGirls', e.target.value)} />
+                          <input type="number" min={0} className="w-14 rounded border border-slate-200 px-1 py-0.5 text-center" value={absent.absentGirls} onChange={e => updateAbsent(subject, 'absentGirls', e.target.value)} />
                         </td>
-                        <td className="text-center py-1.5 px-2">
-                          <input type="number" min={0} className="w-14 rounded border border-slate-200 px-1 py-0.5 text-center" value={reg.absentBoys} onChange={e => updateReg(subject, 'absentBoys', e.target.value)} />
-                        </td>
-                        <td className="text-center py-1.5 px-2">
-                          <input type="number" min={0} className="w-14 rounded border border-slate-200 px-1 py-0.5 text-center" value={reg.absentGirls} onChange={e => updateReg(subject, 'absentGirls', e.target.value)} />
-                        </td>
+                        <td className="text-center py-1.5 px-2 font-semibold text-slate-600" title="Computed: Presented + Cancelled + Absent">{registeredBoys}</td>
+                        <td className="text-center py-1.5 px-2 font-semibold text-slate-600" title="Computed: Presented + Cancelled + Absent">{registeredGirls}</td>
                       </tr>
                     );
                   })}

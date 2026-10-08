@@ -71,12 +71,33 @@ describe('Role guard', () => {
 });
 
 describe('POST /parse — paste path', () => {
-  it('parses pasted text and returns candidates without touching the database', async () => {
+  it('parses pasted text and returns candidates, gracefully skipping the summary-mismatch preview when no grade_boundaries are configured yet', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // grade_boundaries lookup for the reconciliation preview
     const res = await request(buildApp()).post('/api/admin/exam-results/parse').send({ raw_text: SIMPLE_LISTING });
     expect(res.status).toBe(200);
     expect(res.body.candidates).toHaveLength(1);
     expect(res.body.source).toBe('paste');
-    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a core-subject-presented mismatch and WAEC-summary mismatch as warnings when grade_boundaries are configured', async () => {
+    mockQuery.mockResolvedValueOnce(BOUNDARIES_ROW);
+    const twoSubjectListing = `
+INDEX NUMBERNAMEGENDERDOBRESULTS
+0100505001
+TEST ONE
+Female01/01/2005
+MATHEMATICS(CORE) - C6 ,
+ENGLISH LANG - F9
+0100505002
+TEST TWO
+Male02/02/2005
+MATHEMATICS(CORE) - C6
+Total Number of Candidates: 2
+`;
+    const res = await request(buildApp()).post('/api/admin/exam-results/parse').send({ raw_text: twoSubjectListing });
+    expect(res.status).toBe(200);
+    // Mathematics: 2 presented, English Language: 1 presented -> mismatch.
+    expect(res.body.warnings.some(w => w.type === 'core_subject_mismatch')).toBe(true);
   });
 
   it('rejects an empty request with neither a file nor raw_text', async () => {

@@ -11,6 +11,7 @@ const { computeReportFromAggregate } = require('../utils/examResultsAggregate');
 const { computeAnalytics } = require('../utils/examAnalytics');
 const { parseAggregateWorkbook } = require('../utils/waecExcelAggregateParser');
 const { validateAggregateReportHard, validateAggregateReportSoft } = require('../utils/examAggregateValidation');
+const { validateListingWarnings } = require('../utils/examListingValidation');
 const { WAEC_CORE_SUBJECTS } = require('../utils/waecSubjects');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -169,6 +170,32 @@ router.post('/parse', upload.single('pdf'), async (req, res, next) => {
     }
 
     const parsed = parseWaecListing(rawText);
+
+    // Reconciliation checks, same spirit as the Excel aggregate path's:
+    // core subjects should all show the same number of candidates
+    // presented (catches a subject whose grade silently failed to parse
+    // for some candidates), and WAEC's own printed summary vs what we'd
+    // compute from these candidates — normally only surfaced on the
+    // saved report page, pulled forward to the review step here so an
+    // admin finds out before committing, not after. Both need
+    // grade_boundaries to grade against; if this school hasn't set them
+    // up yet, skip silently rather than failing the whole preview (the
+    // existing /batches/:id/report endpoint is the one that actually
+    // requires them, at save+view time).
+    const listingWarnings = validateListingWarnings({ candidates: parsed.candidates, coreSubjects: WAEC_CORE_SUBJECTS });
+    let summaryMismatches = [];
+    if (parsed.candidates.length) {
+      const gradeBoundaries = await getGradeBoundaries(req.schoolId, 'WAEC');
+      if (gradeBoundaries.length) {
+        const preview = computeReport({
+          candidates: parsed.candidates, gradeBoundaries, registeredData: null,
+          coreSubjects: WAEC_CORE_SUBJECTS, officialSummary: parsed.officialSummary,
+        });
+        summaryMismatches = preview.summaryMismatches.map(message => ({ type: 'summary_mismatch', message }));
+      }
+    }
+    parsed.warnings = [...parsed.warnings, ...listingWarnings, ...summaryMismatches];
+
     res.json({ ...parsed, source, rawText });
   } catch (err) { next(err); }
 });
