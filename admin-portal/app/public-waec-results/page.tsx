@@ -1,15 +1,30 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/Button';
 import { publicApi } from '@/lib/api';
 
+const C = {
+  forest: '#0B3D2E', mid: '#145C44', gold: '#C8973A',
+  bg: '#F5F0E8', card: '#FDFAF5', border: '#E2D9CC',
+  dark: '#2C2218', mid2: '#4A3F32', muted: '#8C7E6E',
+  danger: '#B83232', dangerBg: '#FEF2F2',
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '9px 12px', border: `1px solid ${C.border}`,
+  borderRadius: 6, fontSize: 14, background: '#fff', color: C.dark,
+  outline: 'none', boxSizing: 'border-box',
+};
+const labelStyle: React.CSSProperties = {
+  display: 'block', fontSize: 12, fontWeight: 600,
+  color: C.mid2, marginBottom: 6,
+};
+
 export default function PublicWaecResultsCheckoutPage() {
-  const router = useRouter();
-  const [rawText, setRawText] = useState('');
-  const [amount, setAmount] = useState('2000');
-  const [paymentReference, setPaymentReference] = useState('');
+  const [contactName, setContactName] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [schoolNameHint, setSchoolNameHint] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -17,130 +32,117 @@ export default function PublicWaecResultsCheckoutPage() {
     event.preventDefault();
     setError('');
 
-    if (!rawText.trim()) {
-      setError('Paste the WAEC results listing first.');
+    if (!contactName.trim() || !contactEmail.trim()) {
+      setError('Your name and email are required.');
       return;
     }
 
     try {
       setLoading(true);
-      const { data } = await publicApi.post('/api/public/waec-results/checkout', {
-        raw_text: rawText,
-        amount: Number(amount || 0),
-        payment_reference: paymentReference || 'public-waec-demo',
+      const { data } = await publicApi.post('/api/public/waec-results/initialize', {
+        contact_name: contactName,
+        contact_email: contactEmail,
+        contact_phone: contactPhone || undefined,
+        school_name_hint: schoolNameHint || undefined,
       });
 
-      if (data?.id) {
-        router.push(`/public-waec-results/${data.id}`);
+      if (data?.authorization_url) {
+        window.location.href = data.authorization_url;
         return;
       }
 
-      setError(data?.error || 'The checkout could not be completed.');
+      setError(data?.error || 'The checkout could not be started.');
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Could not generate the WAEC report right now.');
+      setError(err?.response?.data?.error || 'Could not start the checkout right now.');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-800">
-      <div className="mx-auto max-w-6xl grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="mb-8">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#145C44]">WAEC Analytics</p>
-            <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900">Generate your public WASSCE analysis report</h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500">
-              Paste the WAEC results listing, pay the analysis fee, and receive a computed grade and pass-rate summary instantly.
-            </p>
-          </div>
+    <div style={{ minHeight: '100vh', background: C.bg }}>
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: '48px 24px' }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: C.forest, margin: 0 }}>
+          Get a WASSCE results analysis
+        </h1>
+        <p style={{ fontSize: 14, color: C.muted, marginTop: 8, lineHeight: 1.6 }}>
+          Pay GHS 30, then paste your school's WAEC results listing for an instant
+          subject-by-subject pass rate and grade breakdown.
+        </p>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 20, marginTop: 24 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: C.mid2, margin: '0 0 10px' }}>What's in the report</p>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.dark, lineHeight: 1.8 }}>
+            <li>Subject-by-subject pass percentages</li>
+            <li>Total candidate summary and no-result counts</li>
+            <li>Grade distribution across A1 to F9</li>
+            <li>A comparison against WAEC's own printed summary</li>
+          </ul>
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ marginTop: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
             <div>
-              <label htmlFor="waec-results" className="mb-2 block text-sm font-semibold text-slate-700">
-                WAEC results listing
-              </label>
-              <textarea
-                id="waec-results"
-                value={rawText}
-                onChange={(event) => setRawText(event.target.value)}
-                placeholder="Paste the full WAEC results text here..."
-                className="min-h-[420px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-inner outline-none transition focus:border-[#145C44] focus:bg-white"
+              <label style={labelStyle}>Your name</label>
+              <input
+                value={contactName}
+                onChange={(event) => setContactName(event.target.value)}
+                placeholder="Full name"
+                style={inputStyle}
               />
             </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="amount" className="mb-2 block text-sm font-semibold text-slate-700">Analysis fee (GHS)</label>
-                <input
-                  id="amount"
-                  type="number"
-                  min="0"
-                  step="50"
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#145C44] focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="reference" className="mb-2 block text-sm font-semibold text-slate-700">Payment reference</label>
-                <input
-                  id="reference"
-                  value={paymentReference}
-                  onChange={(event) => setPaymentReference(event.target.value)}
-                  placeholder="Optional reference"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#145C44] focus:bg-white"
-                />
-              </div>
+            <div>
+              <label style={labelStyle}>Email</label>
+              <input
+                type="email"
+                value={contactEmail}
+                onChange={(event) => setContactEmail(event.target.value)}
+                placeholder="you@school.edu.gh"
+                style={inputStyle}
+              />
             </div>
-
-            {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" loading={loading} className="min-w-[220px]" size="lg">
-                {loading ? 'Processing...' : 'Pay & Generate Report'}
-              </Button>
-              <p className="text-xs text-slate-500">Instant access after payment confirmation.</p>
+            <div>
+              <label style={labelStyle}>Phone (optional)</label>
+              <input
+                value={contactPhone}
+                onChange={(event) => setContactPhone(event.target.value)}
+                placeholder="024 xxx xxxx"
+                style={inputStyle}
+              />
             </div>
-          </form>
-        </section>
-
-        <aside className="space-y-5">
-          <div className="rounded-3xl border border-[#145C44]/10 bg-[#145C44] p-6 text-white shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-100">Included</p>
-            <h2 className="mt-4 text-xl font-bold">What you get</h2>
-            <ul className="mt-4 space-y-3 text-sm text-emerald-50">
-              <li>• Subject-by-subject pass percentages</li>
-              <li>• Total candidate summary and no-result counts</li>
-              <li>• Grade distribution across A1–F9</li>
-              <li>• Official WAEC summary comparison</li>
-            </ul>
+            <div>
+              <label style={labelStyle}>School name (optional)</label>
+              <input
+                value={schoolNameHint}
+                onChange={(event) => setSchoolNameHint(event.target.value)}
+                placeholder="Your school's name"
+                style={inputStyle}
+              />
+            </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-900">How it works</h3>
-            <ol className="mt-4 space-y-4 text-sm text-slate-600">
-              <li>
-                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">1</span>
-                Paste or upload the WAEC listing text.
-              </li>
-              <li>
-                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">2</span>
-                Complete the secure checkout and submit.
-              </li>
-              <li>
-                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">3</span>
-                Receive the analysis report and key metrics.
-              </li>
-            </ol>
-          </div>
-        </aside>
+          {error && (
+            <div style={{ marginTop: 16, padding: '10px 14px', borderRadius: 6, background: C.dangerBg, border: `1px solid #F3C6C6`, color: C.danger, fontSize: 13 }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              marginTop: 20, padding: '11px 20px', borderRadius: 6, border: 'none',
+              background: C.mid, color: '#fff', fontSize: 14, fontWeight: 600,
+              cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.6 : 1,
+            }}
+          >
+            {loading ? 'Starting checkout…' : 'Pay GHS 30 and continue'}
+          </button>
+          <p style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>
+            You'll paste the results listing right after payment. Nothing is saved until then.
+          </p>
+        </form>
       </div>
-    </main>
+    </div>
   );
 }

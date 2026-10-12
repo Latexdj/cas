@@ -61,7 +61,7 @@ const adminWebsiteMenuRoutes    = require('./routes/admin-website-menu');
 const adminWebsiteGalleryRoutes = require('./routes/admin-website-gallery');
 const adminWebsiteContactRoutes = require('./routes/admin-website-contact');
 const adminExamResultsRoutes    = require('./routes/admin-exam-results');
-const publicWaecResultsRoutes   = require('./routes/public-waec-results');
+const { router: publicWaecResultsRoutes, webhookHandler: publicWaecWebhookHandler } = require('./routes/public-waec-results');
 const schoolModulesRoutes     = require('./routes/schoolModules');
 const resultSubmissionsRoutes = require('./routes/result-submissions');
 const monitoringRoutes        = require('./routes/assessment-monitoring');
@@ -106,6 +106,11 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+// Paystack signs the exact raw request body — this must be registered
+// ahead of the global JSON parser below, or the signature check would run
+// against an already-parsed/re-serialized body and never match.
+app.post('/api/public/waec-results/webhook', express.raw({ type: 'application/json' }), publicWaecWebhookHandler);
 
 // 50 mb limit to handle base64 classroom photos and PDF document uploads
 app.use(express.json({ limit: '50mb' }));
@@ -2628,6 +2633,26 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_general_letters_school ON general_letters(school_id, created_at DESC)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] general_letters + external_contacts:', e.message); }
+
+    try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public_waec_results (
+        id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        contact_name        TEXT        NOT NULL,
+        contact_email       TEXT        NOT NULL,
+        contact_phone       TEXT,
+        school_name_hint    TEXT,
+        amount_pesewas      INTEGER     NOT NULL DEFAULT 3000,
+        paystack_reference  TEXT        NOT NULL UNIQUE,
+        status              TEXT        NOT NULL DEFAULT 'pending'
+                              CHECK (status IN ('pending','paid','completed','failed')),
+        paid_at             TIMESTAMPTZ,
+        report              JSONB,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_public_waec_results_reference ON public_waec_results(paystack_reference)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] public_waec_results:', e.message); }
 
     try {
     await pool.query(`

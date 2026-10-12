@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { publicApi } from '@/lib/api';
 
@@ -9,7 +8,7 @@ interface SubjectSummary {
   name: string;
   isCore: boolean;
   percentagePass: { boys: number; girls: number; total: number };
-  gradeDistribution: Record<string, { boys: number; girls: number }>; 
+  gradeDistribution: Record<string, { boys: number; girls: number }>;
   registered: { boys: number; girls: number; total: number };
   presented: { boys: number; girls: number; total: number };
   absent: { boys: number; girls: number; total: number };
@@ -28,6 +27,17 @@ interface PublicReport {
   warnings: string[];
   summaryMismatches: string[];
 }
+
+const C = {
+  forest: '#0B3D2E', mid: '#145C44', mid2: '#4A3F32',
+  bg: '#F5F0E8', card: '#FDFAF5', border: '#E2D9CC',
+  dark: '#2C2218', muted: '#8C7E6E',
+  danger: '#B83232', dangerBg: '#FEF2F2',
+  success: '#2D7A4F', successBg: '#E8F4EE',
+  warning: '#C8780A', warningBg: '#FDF3E3',
+};
+
+const SALES_EMAIL = process.env.NEXT_PUBLIC_CAS_SALES_EMAIL || 'hello@casattendance.com';
 
 export default function PublicWaecReportPage() {
   const { id } = useParams<{ id: string }>();
@@ -52,26 +62,27 @@ export default function PublicWaecReportPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10">
-        <div className="mx-auto max-w-4xl rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#145C44] border-t-transparent" />
-          <p className="mt-4 text-sm text-slate-500">Loading your WAEC analysis report…</p>
-        </div>
-      </main>
+      <Centered>
+        <div
+          className="w-8 h-8 rounded-full border-2 border-b-transparent animate-spin"
+          style={{ borderColor: C.mid, borderBottomColor: 'transparent', margin: '0 auto' }}
+        />
+        <p style={{ marginTop: 16, fontSize: 13, color: C.muted }}>Loading your WAEC analysis report.</p>
+      </Centered>
     );
   }
 
   if (error || !report) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10">
-        <div className="mx-auto max-w-xl rounded-3xl border border-red-200 bg-white p-8 text-center shadow-sm">
-          <p className="text-xl font-bold text-slate-900">Report unavailable</p>
-          <p className="mt-3 text-sm text-slate-500">{error || 'No analysis report was found for this payment.'}</p>
-          <Link href="/public-waec-results" className="mt-6 inline-block text-sm font-semibold text-[#145C44] hover:underline">
-            Try another WAEC analysis
-          </Link>
-        </div>
-      </main>
+      <Centered>
+        <p style={{ fontSize: 17, fontWeight: 700, color: C.dark, margin: 0 }}>Report unavailable</p>
+        <p style={{ fontSize: 13, color: C.muted, marginTop: 8, lineHeight: 1.6 }}>
+          {error || 'No analysis report was found for this payment.'}
+        </p>
+        <a href="/public-waec-results" style={{ display: 'inline-block', marginTop: 16, fontSize: 13, fontWeight: 600, color: C.mid }}>
+          Start another WAEC analysis
+        </a>
+      </Centered>
     );
   }
 
@@ -80,120 +91,142 @@ export default function PublicWaecReportPage() {
     : 0;
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-800">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+    <div style={{ minHeight: '100vh', background: C.bg }}>
+      <div style={{ maxWidth: 880, margin: '0 auto', padding: '40px 24px 56px' }}>
+        <a href="/public-waec-results" style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>
+          Back to WAEC checkout
+        </a>
+
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
           <div>
-            <Link href="/public-waec-results" className="text-xs font-semibold uppercase tracking-[0.15em] text-slate-400 hover:text-slate-600">← WAEC checkout</Link>
-            <h1 className="mt-2 text-3xl font-black text-slate-900">{report.schoolName || 'WAEC'} {report.year} Analysis</h1>
-            <p className="mt-1 text-sm text-slate-500">{report.examBody} • {report.totalCandidates} candidates</p>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: C.forest, margin: 0 }}>
+              {report.schoolName || 'WAEC'} {report.year} analysis
+            </h1>
+            <p style={{ fontSize: 13, color: C.muted, marginTop: 6 }}>
+              {report.examBody} · {report.totalCandidates} candidates
+            </p>
           </div>
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-right">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Average pass rate</p>
-            <p className="text-2xl font-black text-emerald-800">{overallPass}%</p>
+          <div style={{ background: C.successBg, border: '1px solid #C8E3D3', borderRadius: 8, padding: '10px 16px', textAlign: 'right' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: C.success, margin: 0 }}>Average pass rate</p>
+            <p style={{ fontSize: 22, fontWeight: 700, color: C.forest, margin: '2px 0 0' }}>{overallPass}%</p>
           </div>
         </div>
 
-        <section className="grid gap-4 md:grid-cols-4">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginTop: 24 }}>
           <StatCard label="Candidates" value={String(report.totalCandidates)} />
-          <StatCard label="Failures" value={String(report.summaryOfPasses.failures || 0)} tone="amber" />
-          <StatCard label="No result" value={String(report.summaryOfPasses.noResultCandidates || 0)} tone="slate" />
-          <StatCard label="School no." value={report.schoolNumber || '—'} tone="green" />
-        </section>
+          <StatCard label="Failures" value={String(report.summaryOfPasses.failures || 0)} tone="warning" />
+          <StatCard label="No result" value={String(report.summaryOfPasses.noResultCandidates || 0)} />
+          <StatCard label="School no." value={report.schoolNumber || '—'} tone="success" />
+        </div>
 
         {report.warnings?.length > 0 && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            {report.warnings.map((warning, idx) => <p key={idx}>{warning}</p>)}
+          <div style={{ marginTop: 20, padding: 14, borderRadius: 8, background: C.warningBg, border: '1px solid #EBD3A0' }}>
+            {report.warnings.map((warning, idx) => (
+              <p key={idx} style={{ fontSize: 13, color: '#8A5A08', margin: idx > 0 ? '6px 0 0' : 0 }}>{warning}</p>
+            ))}
           </div>
         )}
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.14em] text-slate-500">Subject summary</h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50 text-slate-500">
-                <tr>
-                  <th className="px-3 py-2 font-semibold">Subject</th>
-                  <th className="px-3 py-2 font-semibold">Registered</th>
-                  <th className="px-3 py-2 font-semibold">Presented</th>
-                  <th className="px-3 py-2 font-semibold">Pass%</th>
-                  <th className="px-3 py-2 font-semibold">A1–C6</th>
+        <div style={{ marginTop: 24, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 20 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: C.mid2, margin: '0 0 14px' }}>Subject summary</p>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                  {['Subject', 'Registered', 'Presented', 'Pass %', 'A1 to C6'].map((h) => (
+                    <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: C.muted }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {report.subjects.map((subject) => {
+              <tbody>
+                {report.subjects.map((subject, i) => {
                   const gradeTotal = Object.values(subject.gradeDistribution).reduce((sum, item) => sum + (item?.boys || 0) + (item?.girls || 0), 0);
                   return (
-                    <tr key={subject.name} className="align-top">
-                      <td className="px-3 py-2 font-medium text-slate-700">{subject.name}</td>
-                      <td className="px-3 py-2 text-slate-600">{subject.registered.total}</td>
-                      <td className="px-3 py-2 text-slate-600">{subject.presented.total}</td>
-                      <td className="px-3 py-2 text-slate-600">{subject.percentagePass.total}%</td>
-                      <td className="px-3 py-2 text-slate-600">{gradeTotal}</td>
+                    <tr key={subject.name} style={{ borderBottom: i < report.subjects.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                      <td style={{ padding: '9px 12px', fontWeight: 600, color: C.dark }}>{subject.name}</td>
+                      <td style={{ padding: '9px 12px', color: C.mid2 }}>{subject.registered.total}</td>
+                      <td style={{ padding: '9px 12px', color: C.mid2 }}>{subject.presented.total}</td>
+                      <td style={{ padding: '9px 12px', color: C.mid2 }}>{subject.percentagePass.total}%</td>
+                      <td style={{ padding: '9px 12px', color: C.mid2 }}>{gradeTotal}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-        </section>
+        </div>
 
-        <section className="grid gap-6 lg:grid-cols-2">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.14em] text-slate-500">Summary of passes</h2>
-            <div className="space-y-2 text-sm text-slate-600">
-              {Object.entries(report.summaryOfPasses.buckets)
-                .sort(([a], [b]) => Number(b) - Number(a))
-                .map(([count, value]) => (
-                  <div key={count} className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <span>{count} pass{Number(count) === 1 ? '' : 'es'}</span>
-                    <strong className="text-slate-800">{value}</strong>
-                  </div>
-                ))}
-              <div className="flex items-center justify-between pt-2">
-                <span>Failures</span>
-                <strong className="text-slate-800">{report.summaryOfPasses.failures}</strong>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>No result</span>
-                <strong className="text-slate-800">{report.summaryOfPasses.noResultCandidates}</strong>
-              </div>
-            </div>
+        <div style={{ display: 'grid', gridTemplateColumns: report.officialSummary ? 'repeat(auto-fit, minmax(280px, 1fr))' : '1fr', gap: 16, marginTop: 20 }}>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 18 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: C.mid2, margin: '0 0 12px' }}>Summary of passes</p>
+            {Object.entries(report.summaryOfPasses.buckets)
+              .sort(([a], [b]) => Number(b) - Number(a))
+              .map(([count, value]) => (
+                <Row key={count} label={`${count} pass${Number(count) === 1 ? '' : 'es'}`} value={value} />
+              ))}
+            <Row label="Failures" value={report.summaryOfPasses.failures} />
+            <Row label="No result" value={report.summaryOfPasses.noResultCandidates} last />
           </div>
 
           {report.officialSummary && (
-            <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.14em] text-slate-500">WAEC summary</h2>
-              <div className="space-y-2 text-sm text-slate-600">
-                {Object.entries(report.officialSummary)
-                  .filter(([key]) => key !== 'buckets' && key !== 'totalCandidates')
-                  .map(([key, value]) => (
-                    <div key={key} className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <span>{key}</span>
-                      <strong className="text-slate-800">{String(value ?? 0)}</strong>
-                    </div>
-                  ))}
-              </div>
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 18 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: C.mid2, margin: '0 0 12px' }}>WAEC's own summary</p>
+              {Object.entries(report.officialSummary)
+                .filter(([key]) => key !== 'buckets' && key !== 'totalCandidates')
+                .map(([key, value], i, arr) => (
+                  <Row key={key} label={key} value={String(value ?? 0)} last={i === arr.length - 1} />
+                ))}
             </div>
           )}
-        </section>
+        </div>
+
+        <div style={{ marginTop: 32, background: C.forest, borderRadius: 10, padding: '28px 28px 30px', color: '#fff' }}>
+          <h2 style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>Inside CAS, this runs automatically every year</h2>
+          <p style={{ fontSize: 13, color: '#D7E8DD', marginTop: 10, lineHeight: 1.7, maxWidth: 560 }}>
+            CAS computes this same analysis the moment results are entered, alongside attendance,
+            discipline, fees, and every other record your school keeps. We have your details and
+            will follow up with a free walkthrough for your school.
+          </p>
+          <a
+            href={`mailto:${SALES_EMAIL}?subject=${encodeURIComponent(`CAS demo request, ${report.schoolName || 'my school'}`)}`}
+            style={{ display: 'inline-block', marginTop: 16, padding: '10px 18px', borderRadius: 6, background: '#fff', color: C.forest, fontSize: 13, fontWeight: 700 }}
+          >
+            Talk to us about CAS for your school
+          </a>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
 
-function StatCard({ label, value, tone = 'default' }: { label: string; value: string; tone?: 'default' | 'amber' | 'slate' | 'green' }) {
+function StatCard({ label, value, tone = 'default' }: { label: string; value: string; tone?: 'default' | 'warning' | 'success' }) {
   const tones = {
-    default: 'border-slate-200 bg-white text-slate-900',
-    amber: 'border-amber-200 bg-amber-50 text-amber-900',
-    slate: 'border-slate-200 bg-slate-100 text-slate-900',
-    green: 'border-emerald-200 bg-emerald-50 text-emerald-900',
-  };
+    default: { bg: C.card, border: C.border, text: C.dark },
+    warning: { bg: C.warningBg, border: '#EBD3A0', text: '#8A5A08' },
+    success: { bg: C.successBg, border: '#C8E3D3', text: C.forest },
+  }[tone];
 
   return (
-    <div className={`rounded-2xl border p-4 shadow-sm ${tones[tone]}`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-black">{value}</p>
+    <div style={{ borderRadius: 8, border: `1px solid ${tones.border}`, background: tones.bg, padding: 14 }}>
+      <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>{label}</p>
+      <p style={{ fontSize: 20, fontWeight: 700, color: tones.text, margin: '6px 0 0' }}>{value}</p>
+    </div>
+  );
+}
+
+function Row({ label, value, last }: { label: string; value: string | number; last?: boolean }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 0', borderBottom: last ? 'none' : `1px solid ${C.border}`, fontSize: 13 }}>
+      <span style={{ color: C.mid2 }}>{label}</span>
+      <strong style={{ color: C.dark }}>{value}</strong>
+    </div>
+  );
+}
+
+function Centered({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ maxWidth: 360, textAlign: 'center' }}>{children}</div>
     </div>
   );
 }

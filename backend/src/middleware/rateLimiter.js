@@ -42,4 +42,25 @@ const contactFormLimiter = makeLimiter({
   message:       'Too many messages sent. Please wait 15 minutes before trying again.',
 });
 
-module.exports = { loginLimiter, schoolLookupLimiter, superAdminLimiter, contactFormLimiter };
+/** POST /api/public/waec-results/initialize — a public, unauthenticated checkout start */
+const publicWaecInitLimiter = makeLimiter({
+  max:           10,
+  windowMinutes: 15,
+  message:       'Too many attempts. Please wait 15 minutes before trying again.',
+});
+
+/** POST /api/public/waec-results/:id/generate — a public, unauthenticated report generation */
+const publicWaecGenerateLimiter = makeLimiter({
+  max:           10,
+  windowMinutes: 15,
+  message:       'Too many attempts. Please wait 15 minutes before trying again.',
+});
+
+module.exports = {
+  loginLimiter,
+  schoolLookupLimiter,
+  superAdminLimiter,
+  contactFormLimiter,
+  publicWaecInitLimiter,
+  publicWaecGenerateLimiter,
+};
