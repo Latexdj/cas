@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { publicApi } from '@/lib/api';
 
@@ -17,6 +17,14 @@ const C = {
 };
 
 export default function PublicWaecPastePage() {
+  return (
+    <Suspense fallback={<Centered><p style={{ fontSize: 13, color: C.muted }}>Loading.</p></Centered>}>
+      <PastePageContent />
+    </Suspense>
+  );
+}
+
+function PastePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
