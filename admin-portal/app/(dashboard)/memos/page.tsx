@@ -168,6 +168,7 @@ export default function MemosPage() {
   const [memos, setMemos]     = useState<Memo[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMemo, setViewMemo] = useState<Memo | null>(null);
+  const [search, setSearch]   = useState('');
 
   async function openView(memo: Memo) {
     setViewMemo(memo); // instant feedback with what the list already has
@@ -354,6 +355,13 @@ export default function MemosPage() {
     t.name.toLowerCase().includes(teacherSearch.toLowerCase())
   );
 
+  // Search by ref number, subject, audience, or who issued it.
+  const searchQuery = search.trim().toLowerCase();
+  const filteredMemos = searchQuery
+    ? memos.filter(m => [m.ref_number, m.subject, m.audience_label, m.issued_by_name]
+        .some(f => f?.toLowerCase().includes(searchQuery)))
+    : memos;
+
   return (
     <div style={{ padding: 24, maxWidth: 1000, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -369,12 +377,29 @@ export default function MemosPage() {
         >+ New Memo</button>
       </div>
 
+      {memos.length > 0 && (
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by ref, subject, audience, or issuer…"
+          style={{ ...inputStyle, width: 300, marginBottom: 16 }}
+        />
+      )}
+
       {loading ? (
         <p style={{ color: C.muted, fontSize: 14 }}>Loading…</p>
       ) : memos.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '56px 24px', color: C.muted, border: `1px dashed ${C.border}`, borderRadius: 10 }}>
           <p style={{ fontSize: 15, margin: 0 }}>No memos yet.</p>
           <p style={{ fontSize: 13, marginTop: 6 }}>Click <strong>+ New Memo</strong> to issue the first one.</p>
+        </div>
+      ) : filteredMemos.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '56px 24px', color: C.muted, border: `1px dashed ${C.border}`, borderRadius: 10 }}>
+          <p style={{ fontSize: 15, margin: 0 }}>No memos match &quot;{search}&quot;.</p>
+          <p style={{ fontSize: 13, marginTop: 6 }}>
+            <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: C.mid, fontWeight: 600, cursor: 'pointer', padding: 0, fontSize: 13 }}>Clear search</button>
+          </p>
         </div>
       ) : (
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
@@ -387,8 +412,8 @@ export default function MemosPage() {
               </tr>
             </thead>
             <tbody>
-              {memos.map((m, i) => (
-                <tr key={m.id} style={{ borderBottom: i < memos.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+              {filteredMemos.map((m, i) => (
+                <tr key={m.id} style={{ borderBottom: i < filteredMemos.length - 1 ? `1px solid ${C.border}` : 'none' }}>
                   <td style={{ padding: '10px 14px', color: C.mid, fontWeight: 600, whiteSpace: 'nowrap' }}>{m.ref_number ?? '—'}</td>
                   <td style={{ padding: '10px 14px', color: C.dark, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.subject}</td>
                   <td style={{ padding: '10px 14px', color: C.mid2 }}>{m.audience_label}</td>

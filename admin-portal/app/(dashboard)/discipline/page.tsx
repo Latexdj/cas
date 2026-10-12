@@ -1707,7 +1707,7 @@ export default function DisciplinePage() {
   const [queries, setQueries] = useState<TeacherQuery[]>([]);
   const [queryStats, setQueryStats] = useState<QueryStats | null>(null);
   const [selectedQuery, setSelectedQuery] = useState<TeacherQuery | null>(null);
-  const [qTeacherFilter, setQTeacherFilter] = useState('');
+  const [qSearch, setQSearch] = useState('');
   const [qCatFilter, setQCatFilter] = useState('');
   const [qStatusFilter, setQStatusFilter] = useState('');
   const [showIssueQuery, setShowIssueQuery] = useState(false);
@@ -1717,7 +1717,7 @@ export default function DisciplinePage() {
   const [letterStats, setLetterStats] = useState<LetterStats | null>(null);
   const [selectedLetter, setSelectedLetter] = useState<DisciplinaryLetter | null>(null);
   const [lClassFilter, setLClassFilter] = useState('');
-  const [lNameFilter, setLNameFilter] = useState('');
+  const [lSearch, setLSearch] = useState('');
   const [lTypeFilter, setLTypeFilter] = useState('');
   const [lStatusFilter, setLStatusFilter] = useState('');
   const [showIssueLetter, setShowIssueLetter] = useState(false);
@@ -1756,26 +1756,34 @@ export default function DisciplinePage() {
     load();
   }, []);
 
-  // Filtered queries
+  // Filtered queries — search matches teacher name, subject, ref number, or
+  // category (including a custom "Other" reason), so a query can be found
+  // without remembering exactly who it was issued to.
   const filteredQueries = useMemo(() => {
-    return queries.filter(q => {
-      if (qTeacherFilter && !q.teacher_name.toLowerCase().includes(qTeacherFilter.toLowerCase())) return false;
-      if (qCatFilter && q.category !== qCatFilter) return false;
-      if (qStatusFilter && q.status !== qStatusFilter) return false;
+    const q = qSearch.trim().toLowerCase();
+    return queries.filter(query => {
+      if (q && ![query.teacher_name, query.subject, query.ref_number, query.category_other, catLabel(query.category, QUERY_CATS)]
+        .some(f => f?.toLowerCase().includes(q))) return false;
+      if (qCatFilter && query.category !== qCatFilter) return false;
+      if (qStatusFilter && query.status !== qStatusFilter) return false;
       return true;
     });
-  }, [queries, qTeacherFilter, qCatFilter, qStatusFilter]);
+  }, [queries, qSearch, qCatFilter, qStatusFilter]);
 
-  // Filtered letters
+  // Filtered letters — search matches student name, subject, ref number, or
+  // offense (including "Other"); class stays its own filter since it's a
+  // precise, high-value narrowing an admin reaches for separately.
   const filteredLetters = useMemo(() => {
+    const q = lSearch.trim().toLowerCase();
     return letters.filter(l => {
       if (lClassFilter && !l.class_name.toLowerCase().includes(lClassFilter.toLowerCase())) return false;
-      if (lNameFilter && !l.student_name.toLowerCase().includes(lNameFilter.toLowerCase())) return false;
+      if (q && ![l.student_name, l.subject, l.ref_number, l.offense_other, catLabel(l.offense_category, OFFENSE_CATS)]
+        .some(f => f?.toLowerCase().includes(q))) return false;
       if (lTypeFilter && l.letter_type !== lTypeFilter) return false;
       if (lStatusFilter && l.status !== lStatusFilter) return false;
       return true;
     });
-  }, [letters, lClassFilter, lNameFilter, lTypeFilter, lStatusFilter]);
+  }, [letters, lClassFilter, lSearch, lTypeFilter, lStatusFilter]);
 
   const inputStyle: React.CSSProperties = {
     border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', fontSize: 13,
@@ -1832,8 +1840,8 @@ export default function DisciplinePage() {
 
           {/* Toolbar */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 16 }}>
-            <input value={qTeacherFilter} onChange={e => setQTeacherFilter(e.target.value)}
-              placeholder="Filter by teacher…" style={{ ...inputStyle, minWidth: 180 }} />
+            <input value={qSearch} onChange={e => setQSearch(e.target.value)}
+              placeholder="Search by teacher, subject, or ref…" style={{ ...inputStyle, minWidth: 220 }} />
             <select value={qCatFilter} onChange={e => setQCatFilter(e.target.value)} style={{ ...selectStyle, minWidth: 160 }}>
               <option value="">All categories</option>
               {QUERY_CATS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -1860,7 +1868,9 @@ export default function DisciplinePage() {
                   <path d="M8 44V4h20l12 12v28H8z"/><path d="M28 4v12h12"/><path d="M16 20h16M16 28h10"/>
                 </svg>
                 <p style={{ fontSize: 14, fontWeight: 700, color: C.muted }}>No queries found</p>
-                <p style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>Issue a query to a teacher to get started.</p>
+                <p style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
+                  {queries.length === 0 ? 'Issue a query to a teacher to get started.' : 'No queries match the current search or filters.'}
+                </p>
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
@@ -1934,8 +1944,8 @@ export default function DisciplinePage() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 16 }}>
             <input value={lClassFilter} onChange={e => setLClassFilter(e.target.value)}
               placeholder="Filter by class…" style={{ ...inputStyle, minWidth: 140 }} />
-            <input value={lNameFilter} onChange={e => setLNameFilter(e.target.value)}
-              placeholder="Filter by student name…" style={{ ...inputStyle, minWidth: 180 }} />
+            <input value={lSearch} onChange={e => setLSearch(e.target.value)}
+              placeholder="Search by student, subject, or ref…" style={{ ...inputStyle, minWidth: 220 }} />
             <select value={lTypeFilter} onChange={e => setLTypeFilter(e.target.value)} style={{ ...selectStyle, minWidth: 150 }}>
               <option value="">All types</option>
               {LETTER_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -1964,7 +1974,9 @@ export default function DisciplinePage() {
                   <path d="M6 12h36M6 12v30a2 2 0 002 2h28a2 2 0 002-2V12M10 12V8a2 2 0 012-2h16a2 2 0 012 2v4"/>
                 </svg>
                 <p style={{ fontSize: 14, fontWeight: 700, color: C.muted }}>No disciplinary letters</p>
-                <p style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>No letters match the current filters. Issue one to get started.</p>
+                <p style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
+                  {letters.length === 0 ? 'Issue one to get started.' : 'No letters match the current search or filters.'}
+                </p>
               </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>

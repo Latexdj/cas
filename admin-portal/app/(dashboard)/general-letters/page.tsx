@@ -269,6 +269,7 @@ export function GeneralLettersModule({ apiClient = defaultApi, defaultStatusFilt
   const [loading, setLoading]           = useState(true);
   const [filterStatus, setFilterStatus] = useState(defaultStatusFilter);
   const [filterClass, setFilterClass]   = useState('');
+  const [search, setSearch]             = useState('');
 
   const [createOpen, setCreateOpen]     = useState(false);
   const [viewLetter, setViewLetter]     = useState<Letter | null>(null);
@@ -880,6 +881,18 @@ export function GeneralLettersModule({ apiClient = defaultApi, defaultStatusFilt
   const willRequireApproval =
     form.classification === 'external_official' || form.is_sensitive || form.issued_as === 'on_behalf_of_head';
 
+  // Client-side search over whatever the status/classification filters already
+  // loaded — ref number, subject, recipient (whichever of the four possible
+  // recipient fields applies), and who issued it.
+  const searchQuery = search.trim().toLowerCase();
+  const filteredLetters = searchQuery
+    ? letters.filter(l => [
+        l.ref_number, l.subject, l.internal_recipient_name,
+        l.ext_recipient_name, l.ext_recipient_title, l.ext_recipient_org,
+        l.issued_by_name,
+      ].some(f => f?.toLowerCase().includes(searchQuery)))
+    : letters;
+
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div style={{ padding: '24px 28px', maxWidth: 1100, fontFamily: 'inherit' }}>
@@ -911,7 +924,14 @@ export function GeneralLettersModule({ apiClient = defaultApi, defaultStatusFilt
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by ref, subject, recipient, or issuer…"
+          style={{ ...inputStyle, width: 280 }}
+        />
         <select
           value={filterStatus}
           onChange={e => setFilterStatus(e.target.value)}
@@ -946,6 +966,16 @@ export function GeneralLettersModule({ apiClient = defaultApi, defaultStatusFilt
           <p style={{ fontSize: 15, margin: 0 }}>No letters yet.</p>
           <p style={{ fontSize: 13, marginTop: 6 }}>Click <strong>+ New Letter</strong> to issue the first one.</p>
         </div>
+      ) : filteredLetters.length === 0 ? (
+        <div style={{
+          textAlign: 'center', padding: '56px 24px', color: C.muted,
+          border: `1px dashed ${C.border}`, borderRadius: 10,
+        }}>
+          <p style={{ fontSize: 15, margin: 0 }}>No letters match &quot;{search}&quot;.</p>
+          <p style={{ fontSize: 13, marginTop: 6 }}>
+            <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', color: C.mid, fontWeight: 600, cursor: 'pointer', padding: 0, fontSize: 13 }}>Clear search</button>
+          </p>
+        </div>
       ) : (
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -962,10 +992,10 @@ export function GeneralLettersModule({ apiClient = defaultApi, defaultStatusFilt
               </tr>
             </thead>
             <tbody>
-              {letters.map((l, i) => (
+              {filteredLetters.map((l, i) => (
                 <tr
                   key={l.id}
-                  style={{ borderBottom: i < letters.length - 1 ? `1px solid ${C.border}` : 'none' }}
+                  style={{ borderBottom: i < filteredLetters.length - 1 ? `1px solid ${C.border}` : 'none' }}
                 >
                   <td style={{ padding: '10px 14px', color: C.mid, fontWeight: 600, whiteSpace: 'nowrap' }}>
                     {l.ref_number ?? '—'}
