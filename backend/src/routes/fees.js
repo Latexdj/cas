@@ -321,12 +321,24 @@ router.post('/schedules/:id/generate', adminOnly, async (req, res, next) => {
     if (schedule.semester) parts.push(`${periodLabel} ${schedule.semester}`);
     const description = parts.join(' — ');
 
+    // An "Any Year" schedule (academic_year_id IS NULL) targets whoever is
+    // currently enrolled whenever Generate is clicked, but the bills it
+    // produces still need a real year for reporting — otherwise they can
+    // never match a year-scoped filter (NULL = '<year>' is never true in
+    // SQL), so they'd silently vanish from every per-year Arrears/by-schedule
+    // report while still counting in the All Years total. Resolve the
+    // school's current year at generation time for the bill only; the
+    // schedule itself stays year-agnostic so it keeps re-targeting whoever's
+    // currently enrolled the next time it's run.
+    const billAcademicYearId = schedule.academic_year_id
+      || (await getCurrentYearSem(req.schoolId)).yearId;
+
     // Single bulk INSERT — avoids N+1 timeouts on large student populations
     const params = [
       req.schoolId,              // $1
       schedule.fee_item_id,      // $2
       schedule.id,               // $3
-      schedule.academic_year_id, // $4
+      billAcademicYearId,        // $4
       schedule.semester,         // $5
       description,               // $6
       schedule.amount,           // $7
@@ -374,14 +386,17 @@ router.post('/schedules/:id/generate', adminOnly, async (req, res, next) => {
     // isn't silently changed underneath them, since retroactively raising
     // or lowering it would create a confusing under/over-payment with no
     // admin awareness that it happened.
+    // Also self-heals any straggler bill still sitting at academic_year_id
+    // NULL from before the fix above existed — COALESCE only fills the gap,
+    // never overwrites a bill that already has a real year.
     const { rows: updatedRows } = await pool.query(
       `UPDATE student_bills sb
-       SET amount = $2, due_date = $3, description = $4
+       SET amount = $2, due_date = $3, description = $4, academic_year_id = COALESCE(sb.academic_year_id, $5)
        WHERE sb.fee_schedule_id = $1
          AND NOT EXISTS (SELECT 1 FROM fee_payments fp WHERE fp.bill_id = sb.id)
-         AND (sb.amount IS DISTINCT FROM $2 OR sb.due_date IS DISTINCT FROM $3 OR sb.description IS DISTINCT FROM $4)
+         AND (sb.amount IS DISTINCT FROM $2 OR sb.due_date IS DISTINCT FROM $3 OR sb.description IS DISTINCT FROM $4 OR sb.academic_year_id IS NULL)
        RETURNING sb.id`,
-      [schedule.id, schedule.amount, schedule.due_date, description]
+      [schedule.id, schedule.amount, schedule.due_date, description, billAcademicYearId]
     );
 
     const { rows: [{ count: skippedPaid }] } = await pool.query(
