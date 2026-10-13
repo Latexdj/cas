@@ -1149,6 +1149,11 @@ async function runMigrations() {
         created_at       TIMESTAMPTZ DEFAULT now()
       )
     `);
+    // Explicit hand-picked roster for an optional fee that applies to only
+    // some students in a class (e.g. bus fees) — mutually exclusive with
+    // class_name; when set, Generate Bills targets exactly these students
+    // instead of resolving a class roster.
+    await pool.query(`ALTER TABLE fee_schedules ADD COLUMN IF NOT EXISTS student_ids UUID[]`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS student_bills (
         id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -46,6 +46,13 @@ async function findConflictingSchedules(dbClient, schoolId, { feeItemId, academi
   return rows;
 }
 
+// A hand-picked student list is a deliberate, individually-reviewed action —
+// unlike a class/level schedule (which can silently overlap another one
+// covering the same class), there's no meaningful "overlapping scope" check
+// to run here beyond what the admin already sees on screen while picking
+// names, so student_ids-targeted schedules skip findConflictingSchedules
+// entirely rather than approximating one.
+
 // ── Fee Items ─────────────────────────────────────────────────────────────────
 
 router.get('/items', accountsAccess, async (req, res, next) => {
@@ -121,11 +128,13 @@ router.get('/schedules', adminOnly, async (req, res, next) => {
 
 router.post('/schedules', adminOnly, async (req, res, next) => {
   try {
-    const { fee_item_id, academic_year_id, semester, class_name, amount, due_date, confirm_duplicate } = req.body;
+    const { fee_item_id, academic_year_id, semester, class_name, student_ids, amount, due_date, confirm_duplicate } = req.body;
     if (!fee_item_id) return res.status(400).json({ error: 'Fee item is required.' });
     if (!amount || isNaN(amount) || Number(amount) <= 0) return res.status(400).json({ error: 'A valid amount is required.' });
+    const studentIds = Array.isArray(student_ids) && student_ids.length ? student_ids : null;
+    if (student_ids && !studentIds) return res.status(400).json({ error: 'Select at least one student.' });
 
-    if (!confirm_duplicate) {
+    if (!confirm_duplicate && !studentIds) {
       const conflicts = await findConflictingSchedules(pool, req.schoolId, {
         feeItemId: fee_item_id, academicYearId: academic_year_id, semester, className: class_name,
       });
@@ -139,10 +148,10 @@ router.post('/schedules', adminOnly, async (req, res, next) => {
     }
 
     const { rows } = await pool.query(
-      `INSERT INTO fee_schedules (school_id, fee_item_id, academic_year_id, semester, class_name, amount, due_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *, due_date::text AS due_date`,
+      `INSERT INTO fee_schedules (school_id, fee_item_id, academic_year_id, semester, class_name, student_ids, amount, due_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *, due_date::text AS due_date`,
       [req.schoolId, fee_item_id, academic_year_id || null, semester || null,
-       class_name?.trim() || null, Number(amount), due_date || null]
+       studentIds ? null : (class_name?.trim() || null), studentIds, Number(amount), due_date || null]
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
@@ -150,11 +159,13 @@ router.post('/schedules', adminOnly, async (req, res, next) => {
 
 router.put('/schedules/:id', adminOnly, async (req, res, next) => {
   try {
-    const { fee_item_id, academic_year_id, semester, class_name, amount, due_date, confirm_duplicate } = req.body;
+    const { fee_item_id, academic_year_id, semester, class_name, student_ids, amount, due_date, confirm_duplicate } = req.body;
     if (!fee_item_id) return res.status(400).json({ error: 'Fee item is required.' });
     if (!amount || isNaN(amount) || Number(amount) <= 0) return res.status(400).json({ error: 'A valid amount is required.' });
+    const studentIds = Array.isArray(student_ids) && student_ids.length ? student_ids : null;
+    if (student_ids && !studentIds) return res.status(400).json({ error: 'Select at least one student.' });
 
-    if (!confirm_duplicate) {
+    if (!confirm_duplicate && !studentIds) {
       const conflicts = await findConflictingSchedules(pool, req.schoolId, {
         feeItemId: fee_item_id, academicYearId: academic_year_id, semester, className: class_name, excludeId: req.params.id,
       });
@@ -169,13 +180,33 @@ router.put('/schedules/:id', adminOnly, async (req, res, next) => {
 
     const { rows } = await pool.query(
       `UPDATE fee_schedules SET fee_item_id=$1, academic_year_id=$2, semester=$3,
-         class_name=$4, amount=$5, due_date=$6
-       WHERE id=$7 AND school_id=$8 RETURNING *, due_date::text AS due_date`,
+         class_name=$4, student_ids=$5, amount=$6, due_date=$7
+       WHERE id=$8 AND school_id=$9 RETURNING *, due_date::text AS due_date`,
       [fee_item_id, academic_year_id || null, semester || null,
-       class_name?.trim() || null, Number(amount), due_date || null, req.params.id, req.schoolId]
+       studentIds ? null : (class_name?.trim() || null), studentIds, Number(amount), due_date || null, req.params.id, req.schoolId]
     );
     if (!rows[0]) return res.status(404).json({ error: 'Not found.' });
     res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// GET /api/fees/schedules/:id/students — resolves a student_ids-targeted
+// schedule's hand-picked roster to names/codes for the edit modal (the
+// schedule row itself only stores raw UUIDs).
+router.get('/schedules/:id/students', adminOnly, async (req, res, next) => {
+  try {
+    const { rows: schedRows } = await pool.query(
+      `SELECT student_ids FROM fee_schedules WHERE id=$1 AND school_id=$2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!schedRows.length) return res.status(404).json({ error: 'Not found.' });
+    const ids = schedRows[0].student_ids || [];
+    if (!ids.length) return res.json([]);
+    const { rows } = await pool.query(
+      `SELECT id, name, student_code, class_name FROM students WHERE id = ANY($1::uuid[]) AND school_id=$2 ORDER BY name`,
+      [ids, req.schoolId]
+    );
+    res.json(rows);
   } catch (err) { next(err); }
 });
 
@@ -345,7 +376,12 @@ router.post('/schedules/:id/generate', adminOnly, async (req, res, next) => {
       schedule.due_date,         // $8
     ];
     let classClause = '';
-    if (schedule.class_name) {
+    if (schedule.student_ids && schedule.student_ids.length) {
+      // Hand-picked roster (e.g. bus fees) — targets exactly these students,
+      // whichever of them are still active, no class/term resolution involved.
+      classClause = 'AND s.id = ANY($9::uuid[])';
+      params.push(schedule.student_ids);
+    } else if (schedule.class_name) {
       if (schedule.academic_year_id) {
         // Targets a specific term — resolve who was actually in this class
         // during that term via class_history, not who is in it right now.
@@ -441,7 +477,9 @@ router.get('/schedules/missing-bills', adminOnly, async (req, res, next) => {
     const results = [];
     for (const schedule of schedules) {
       let targetIds;
-      if (schedule.class_name && schedule.academic_year_id) {
+      if (schedule.student_ids && schedule.student_ids.length) {
+        targetIds = schedule.student_ids;
+      } else if (schedule.class_name && schedule.academic_year_id) {
         targetIds = await getClassRoster(req.schoolId, schedule.class_name, schedule.academic_year_id, schedule.semester);
       } else if (schedule.class_name) {
         const { rows } = await pool.query(
@@ -469,7 +507,7 @@ router.get('/schedules/missing-bills', adminOnly, async (req, res, next) => {
       if (missing.length) {
         results.push({
           schedule_id: schedule.id, fee_item_name: schedule.fee_item_name,
-          class_name: schedule.class_name, amount: schedule.amount,
+          class_name: schedule.class_name, student_ids: schedule.student_ids, amount: schedule.amount,
           missing_count: missing.length, missing_students: missing,
         });
       }

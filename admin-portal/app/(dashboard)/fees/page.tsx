@@ -14,7 +14,7 @@ interface FeeItem {
 interface FeeSchedule {
   id: string; fee_item_id: string; fee_item_name: string;
   academic_year_id: string | null; academic_year_name: string | null;
-  semester: number | null; class_name: string | null;
+  semester: number | null; class_name: string | null; student_ids: string[] | null;
   amount: string; due_date: string | null; created_at: string;
 }
 interface StudentBill {
@@ -49,7 +49,7 @@ interface UnscheduledGroup {
   earliest_created_at: string; latest_created_at: string;
 }
 interface MissingBillsGroup {
-  schedule_id: string; fee_item_name: string | null; class_name: string | null; amount: string;
+  schedule_id: string; fee_item_name: string | null; class_name: string | null; student_ids: string[] | null; amount: string;
   missing_count: number;
   missing_students: { id: string; name: string; student_code: string; class_name: string }[];
 }
@@ -248,23 +248,56 @@ function SchedulesTab({
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FeeSchedule | null>(null);
   const [form, setForm] = useState({ fee_item_id: '', academic_year_id: '', semester: '', class_name: '', amount: '', due_date: '' });
-  const [targetMode, setTargetMode] = useState<'all' | 'class' | 'level'>('all');
+  const [targetMode, setTargetMode] = useState<'all' | 'class' | 'level' | 'students'>('all');
   const [levelId, setLevelId] = useState('');
+  const [selectedStudents, setSelectedStudents] = useState<{ id: string; name: string; student_code: string }[]>([]);
+  const [studentQuery, setStudentQuery] = useState('');
+  const [studentResults, setStudentResults] = useState<{ id: string; name: string; student_code: string; class_name: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState<string | null>(null);
   const [genMsg, setGenMsg] = useState<string | null>(null);
   const [err, setErr] = useState('');
 
+  useEffect(() => {
+    if (studentQuery.trim().length < 2) { setStudentResults([]); return; }
+    const t = setTimeout(async () => {
+      try {
+        const r = await api.get('/api/fees/students/search', { params: { q: studentQuery } });
+        setStudentResults(r.data);
+      } catch { setStudentResults([]); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [studentQuery]);
+
+  function addSelectedStudent(s: { id: string; name: string; student_code: string }) {
+    if (!selectedStudents.some(x => x.id === s.id)) setSelectedStudents(prev => [...prev, { id: s.id, name: s.name, student_code: s.student_code }]);
+    setStudentQuery(''); setStudentResults([]);
+  }
+  function removeSelectedStudent(id: string) {
+    setSelectedStudents(prev => prev.filter(s => s.id !== id));
+  }
+
   function openNew() {
     setEditing(null);
     setForm({ fee_item_id: '', academic_year_id: '', semester: '', class_name: '', amount: '', due_date: '' });
-    setTargetMode('all'); setLevelId('');
+    setTargetMode('all'); setLevelId(''); setSelectedStudents([]); setStudentQuery(''); setStudentResults([]);
     setErr(''); setShowModal(true);
   }
-  function openEdit(s: FeeSchedule) {
+  async function openEdit(s: FeeSchedule) {
     setEditing(s);
     setForm({ fee_item_id: s.fee_item_id, academic_year_id: s.academic_year_id ?? '', semester: s.semester?.toString() ?? '', class_name: s.class_name ?? '', amount: s.amount, due_date: s.due_date ?? '' });
-    setTargetMode(s.class_name ? 'class' : 'all'); setLevelId('');
+    setLevelId(''); setStudentQuery(''); setStudentResults([]);
+    if (s.student_ids?.length) {
+      setTargetMode('students');
+      setSelectedStudents([]);
+      try {
+        const r = await api.get(`/api/fees/schedules/${s.id}/students`);
+        setSelectedStudents(r.data.map((st: { id: string; name: string; student_code: string }) => ({ id: st.id, name: st.name, student_code: st.student_code })));
+      } catch { /* edit modal still opens; roster re-fetch failing isn't fatal */ }
+    } else {
+      setTargetMode(s.class_name ? 'class' : 'all');
+      setSelectedStudents([]);
+    }
     setErr(''); setShowModal(true);
   }
 
@@ -302,7 +335,11 @@ function SchedulesTab({
         return;
       }
 
-      const body = { ...form, semester: form.semester ? Number(form.semester) : null };
+      const body: Record<string, unknown> = { ...form, semester: form.semester ? Number(form.semester) : null };
+      if (targetMode === 'students') {
+        body.class_name = '';
+        body.student_ids = selectedStudents.map(s => s.id);
+      }
       try {
         if (editing) await api.put(`/api/fees/schedules/${editing.id}`, body);
         else await api.post('/api/fees/schedules', body);
@@ -373,7 +410,11 @@ function SchedulesTab({
             {(scheduleRows as typeof schedules).map(s => (
               <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                 <td style={{ padding: '10px 12px', fontWeight: 600 }}>{s.fee_item_name}</td>
-                <td style={{ padding: '10px 12px' }}>{s.class_name ?? <span style={{ color: '#94a3b8' }}>All Classes</span>}</td>
+                <td style={{ padding: '10px 12px' }}>
+                  {s.student_ids?.length
+                    ? `${s.student_ids.length} selected student${s.student_ids.length === 1 ? '' : 's'}`
+                    : (s.class_name ?? <span style={{ color: '#94a3b8' }}>All Classes</span>)}
+                </td>
                 <td style={{ padding: '10px 12px', color: '#64748b' }}>
                   {[s.academic_year_name, s.semester ? `Semester ${s.semester}` : null].filter(Boolean).join(' / ') || '—'}
                 </td>
@@ -424,12 +465,17 @@ function SchedulesTab({
             <div>
               <label style={labelStyle}>Applies To</label>
               <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                {([['all', 'All Classes'], ['class', 'One Class'], ['level', 'A Form/Level']] as const).map(([mode, label]) => (
+                {([['all', 'All Classes'], ['class', 'One Class'], ['level', 'A Form/Level'], ['students', 'Selected Students']] as const).map(([mode, label]) => (
                   <button
                     key={mode}
                     type="button"
                     disabled={mode === 'level' && !!editing}
-                    onClick={() => { setTargetMode(mode); if (mode !== 'class') setForm(f => ({ ...f, class_name: '' })); if (mode !== 'level') setLevelId(''); }}
+                    onClick={() => {
+                      setTargetMode(mode);
+                      if (mode !== 'class') setForm(f => ({ ...f, class_name: '' }));
+                      if (mode !== 'level') setLevelId('');
+                      if (mode !== 'students') { setSelectedStudents([]); setStudentQuery(''); setStudentResults([]); }
+                    }}
                     style={{
                       flex: 1, padding: '6px 8px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: mode === 'level' && editing ? 'not-allowed' : 'pointer',
                       border: targetMode === mode ? '1.5px solid #145C44' : '1.5px solid #e2e8f0',
@@ -457,6 +503,47 @@ function SchedulesTab({
                   </p>
                 </>
               )}
+              {targetMode === 'students' && (
+                <div>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      style={inputStyle}
+                      value={studentQuery}
+                      onChange={e => setStudentQuery(e.target.value)}
+                      placeholder="Search by name or student code…"
+                    />
+                    {studentResults.length > 0 && (
+                      <div style={{ position: 'absolute', zIndex: 10, top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, marginTop: 4, maxHeight: 180, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+                        {studentResults.map(s => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => addSelectedStudent(s)}
+                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', fontSize: 13, background: 'none', border: 'none', borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
+                          >
+                            {s.name} <span style={{ color: '#94a3b8', fontSize: 12 }}>· {s.student_code} · {s.class_name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {selectedStudents.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                      {selectedStudents.map(s => (
+                        <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 999, background: '#f0fdf4', border: '1px solid #bbf7d0', fontSize: 12, color: '#166534' }}>
+                          {s.name}
+                          <button type="button" onClick={() => removeSelectedStudent(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', fontWeight: 700, lineHeight: 1, padding: 0 }}>
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 1l8 8M9 1l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 8 }}>
+                    {selectedStudents.length} student{selectedStudents.length === 1 ? '' : 's'} selected. For an optional fee that only applies to some students (e.g. bus fees), search and add each one individually.
+                  </p>
+                </div>
+              )}
             </div>
             <div>
               <label style={labelStyle}>Amount (GH₵) *</label>
@@ -472,7 +559,7 @@ function SchedulesTab({
               <button
                 style={btnPrimary}
                 onClick={save}
-                disabled={saving || !form.fee_item_id || !form.amount || (targetMode === 'level' && !levelId)}
+                disabled={saving || !form.fee_item_id || !form.amount || (targetMode === 'level' && !levelId) || (targetMode === 'students' && selectedStudents.length === 0)}
               >{saving ? 'Saving…' : targetMode === 'level' ? 'Apply to Level' : 'Save'}</button>
             </div>
           </div>
@@ -1177,7 +1264,7 @@ function MissingBillsTab({ onGenerated }: { onGenerated: () => void }) {
             <div key={g.schedule_id} style={{ border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontWeight: 700, fontSize: 14 }}>{g.fee_item_name ?? '—'} <span style={{ color: '#94a3b8', fontWeight: 400 }}>· {g.class_name ?? 'All Classes'}</span></p>
+                  <p style={{ fontWeight: 700, fontSize: 14 }}>{g.fee_item_name ?? '—'} <span style={{ color: '#94a3b8', fontWeight: 400 }}>· {g.student_ids?.length ? 'Selected students' : (g.class_name ?? 'All Classes')}</span></p>
                   <p style={{ fontSize: 12, color: '#64748b' }}>{fmt(g.amount)} · {g.missing_count} student(s) missing a bill</p>
                 </div>
                 <button style={btnSecondary} onClick={() => setExpanded(expanded === g.schedule_id ? null : g.schedule_id)}>
