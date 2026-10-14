@@ -22,12 +22,15 @@ async function getGradeScale(schoolId) {
 }
 
 function assignGrade(total, scale) {
+  // Bands are usually entered with whole-number bounds (B2 70-79, A1 80-100),
+  // so a computed total such as 79.5 falls between two bands. Match on the
+  // lower bound: the grade is the highest band whose min_score is reached.
+  let best = null;
   for (const row of scale) {
-    if (total >= parseFloat(row.min_score) && total <= parseFloat(row.max_score)) {
-      return row.grade;
-    }
+    const min = parseFloat(row.min_score);
+    if (total >= min && (best === null || min > parseFloat(best.min_score))) best = row;
   }
-  return 'F9';
+  return best ? best.grade : 'F9';
 }
 
 // ── TERMS ─────────────────────────────────────────────────────────────────────
