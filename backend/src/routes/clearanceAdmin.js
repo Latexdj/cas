@@ -394,8 +394,10 @@ router.get('/students/:studentId', async (req, res, next) => {
     const student = sRows[0];
 
     const { rows: clRows } = await pool.query(
-      `SELECT sc.id, sc.is_fully_cleared, sc.initiated_at, sc.fully_cleared_at,
-              sci.id AS item_id, sci.office_id, sci.status, sci.notes, sci.actioned_at,
+      // id must be the clearance ITEM's id: the admin page keys rows by it
+      // and sends it back as item_id when overriding an office.
+      `SELECT sc.id AS clearance_id, sc.is_fully_cleared, sc.initiated_at, sc.fully_cleared_at,
+              sci.id, sci.office_id, sci.status, sci.notes, sci.actioned_at,
               co.name AS office_name, co.office_type, co.sort_order,
               t.name AS actioned_by_teacher, ss2.name AS actioned_by_staff
        FROM student_clearances sc
