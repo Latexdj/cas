@@ -120,7 +120,7 @@ export default function SuperAdminDashboard() {
         {stats.map(s => (
           <div key={s.label} className="bg-slate-800 border border-slate-700 rounded-xl p-5">
             <p className="text-3xl font-bold" style={{ color: s.color }}>
-              {loading ? 'â€”' : s.value}
+              {loading ? '—' : s.value}
             </p>
             <p className="text-xs text-slate-400 mt-1 font-medium">{s.label}</p>
           </div>
@@ -178,7 +178,7 @@ export default function SuperAdminDashboard() {
                   {actionLabel(log.action)}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-xs text-slate-300 truncate">{log.entity_name ?? 'â€”'}</p>
+                  <p className="text-xs text-slate-300 truncate">{log.entity_name ?? '—'}</p>
                   <p className="text-[10px] text-slate-500">{new Date(log.created_at).toLocaleString()}</p>
                 </div>
               </div>
@@ -204,7 +204,7 @@ export default function SuperAdminDashboard() {
                 <div className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-700/50 transition-colors cursor-pointer">
                   <div>
                     <p className="text-sm font-semibold text-white">{s.name}</p>
-                    <p className="text-xs text-slate-400">{s.code} Â· {s.active_teachers} teachers Â· Added {fmtDate(s.created_at)}</p>
+                    <p className="text-xs text-slate-400">{s.code} · {s.active_teachers} teachers · Added {fmtDate(s.created_at)}</p>
                   </div>
                   <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                     s.subscription_status === 'active' ? 'bg-green-900/50 text-[#5DAA82]' :

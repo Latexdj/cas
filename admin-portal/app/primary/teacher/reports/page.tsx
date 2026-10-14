@@ -193,7 +193,7 @@ export default function PrimaryTeacherReportsPage() {
       <div className="flex gap-3">
         <select value={termId} onChange={e => setTermId(e.target.value)}
           className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm bg-white">
-          <option value="">Select termâ€¦</option>
+          <option value="">Select term…</option>
           {terms.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
       </div>
@@ -249,7 +249,7 @@ export default function PrimaryTeacherReportsPage() {
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4 flex items-center justify-between">
                 <div>
                   <p className="font-bold text-slate-900">{fullReport.student.surname}{fullReport.student.other_names ? ` ${fullReport.student.other_names}` : ''}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{fullReport.student.class_name} Â· {fullReport.term.name}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{fullReport.student.class_name} · {fullReport.term.name}</p>
                 </div>
                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_BADGE[selStudent.status] ?? STATUS_BADGE.draft}`}>
                   {selStudent.status}
@@ -272,11 +272,11 @@ export default function PrimaryTeacherReportsPage() {
                       {fullReport.scores.map(s => (
                         <tr key={s.subject_name} className="hover:bg-[#F5F0E8]">
                           <td className="px-3 py-2 font-medium text-slate-800">{s.subject_name}</td>
-                          <td className="px-3 py-2 text-slate-600">{s.class_score ?? 'â€”'}</td>
-                          <td className="px-3 py-2 text-slate-600">{s.exam_score ?? 'â€”'}</td>
-                          <td className="px-3 py-2 font-semibold text-slate-900">{s.total ?? 'â€”'}</td>
-                          <td className="px-3 py-2 font-bold text-[#145C44]">{s.grade ?? 'â€”'}</td>
-                          <td className="px-3 py-2 text-slate-600">{s.position ?? 'â€”'}</td>
+                          <td className="px-3 py-2 text-slate-600">{s.class_score ?? '—'}</td>
+                          <td className="px-3 py-2 text-slate-600">{s.exam_score ?? '—'}</td>
+                          <td className="px-3 py-2 font-semibold text-slate-900">{s.total ?? '—'}</td>
+                          <td className="px-3 py-2 font-bold text-[#145C44]">{s.grade ?? '—'}</td>
+                          <td className="px-3 py-2 text-slate-600">{s.position ?? '—'}</td>
                         </tr>
                       ))}
                     </tbody>
