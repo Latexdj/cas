@@ -2760,10 +2760,15 @@ router.post('/assessments', async (req, res, next) => {
     try {
       await client.query('BEGIN');
       if (mode.max_instances != null) {
+        // Postgres refuses FOR UPDATE on an aggregate, so lock the mode row
+        // instead: concurrent creates for this mode wait here, then count.
+        await client.query(
+          `SELECT 1 FROM primary_assessment_modes WHERE id=$1 AND school_id=$2 FOR UPDATE`,
+          [mode_id, req.schoolId]
+        );
         const { rows: existing } = await client.query(
           `SELECT COUNT(*) FROM primary_assessments
-           WHERE school_id=$1 AND term_id=$2 AND subject_id=$3 AND mode_id=$4
-           FOR UPDATE`,
+           WHERE school_id=$1 AND term_id=$2 AND subject_id=$3 AND mode_id=$4`,
           [req.schoolId, term_id, subject_id, mode_id]
         );
         if (parseInt(existing[0].count) >= mode.max_instances) {
