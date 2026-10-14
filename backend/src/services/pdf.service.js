@@ -1249,14 +1249,17 @@ async function generateExamAnalysisReportPDFBuffer(report, school) {
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
-    return await page.pdf({
+    // puppeteer-core 22+ returns a Uint8Array, which Express's res.send()
+    // serializes as a JSON object of byte indices instead of sending the
+    // bytes — wrap it so both export routes send a real PDF.
+    return Buffer.from(await page.pdf({
       format: 'A3', landscape: true, printBackground: true,
       margin: { top: '10mm', right: '10mm', bottom: '14mm', left: '10mm' },
       displayHeaderFooter: true,
       headerTemplate: '<div></div>',
       footerTemplate: `<div style="width:100%;font-size:7pt;color:${EXAM_MUTED};display:flex;justify-content:space-between;padding:0 10mm;">
         <span>CAS Services</span><span class="pageNumber"></span>/<span class="totalPages"></span></div>`,
-    });
+    }));
   } finally {
     await browser.close();
   }
