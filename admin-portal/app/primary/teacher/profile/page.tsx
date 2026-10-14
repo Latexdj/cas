@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { api } from '@/lib/api';
+import { teacherApi as api } from '@/lib/teacher-api';
 
 interface Profile {
   id: string; name: string; teacher_code: string; email: string;

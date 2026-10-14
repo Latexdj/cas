@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { teacherApi as api } from '@/lib/teacher-api';
 
 interface Student { id: string; surname: string; other_names: string | null; admission_number: string; }
 interface AttendanceRow {

@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { teacherApi as api } from '@/lib/teacher-api';
 import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 interface Term   { id: string; name: string; is_current: boolean; }

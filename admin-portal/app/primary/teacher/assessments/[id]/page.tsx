@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import { teacherApi as api } from '@/lib/teacher-api';
 
 interface Assessment {
   id: string; title: string; mode_name: string; ca_weight: number;
