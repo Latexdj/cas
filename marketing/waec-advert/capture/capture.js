@@ -105,13 +105,13 @@ const SCENES = {
     // L4: an absentee in Mathematics.
     const mathsAbsentBoys = 'tr:has(td:text-is("Mathematics")) input >> nth=0';
     await r.at(W('import', 4, 'Enter') - 0.1);
-    await r.camOn('tr:has(td:text-is("Mathematics"))', 1.9, 0.8, { dx: 150 });
+    await r.camOn('tr:has(td:text-is("Mathematics"))', 1.4, 0.8, { dx: 60 });
     await r.click(mathsAbsentBoys);
     await page.keyboard.press('Control+A');
     await r.at(W('import', 4, 'absentees') + 0.25);
     await r.type('1');
     await r.at(W('import', 4, 'registered') - 0.4);
-    r.cam({ x: 640, y: r.cursor.y, zoom: 1.9 }, 1.1);
+    r.cam({ x: 600, y: r.cursor.y, zoom: 1.4 }, 1.1);
     await r.scroll('tr:has(td:text-is("Mathematics"))', { dx: 400, dur: 1.0 });
     await r.moveTo('tr:has(td:text-is("Mathematics")) td >> nth=7', { offset: { x: 0.5, y: 0.6 } });
     // L5: confirm and save.
@@ -247,8 +247,8 @@ const SCENES = {
     await r.click(subject);
     await page.selectOption(subject, 'Mathematics');
     r.log({ type: 'select', value: 'Mathematics' });
-    await sleep(400 * K);
-    await r.camOn('tbody tr >> nth=1', 1.45, 0.9, { dx: 40, dy: 40 });
+    await sleep(150 * K);
+    await r.camOn('tbody tr >> nth=1', 1.15, 0.7, { dx: 0, dy: 160 });
     await r.at(dur('rankings'));
     await r.stop();
   },
