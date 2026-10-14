@@ -110,6 +110,11 @@ def call(path, body=None, token=None, method=None):
 
 def base():
     sql("ALTER TABLE students ADD COLUMN IF NOT EXISTS house TEXT; ALTER TABLE students ADD COLUMN IF NOT EXISTS picture_url TEXT")
+    # Tables that reference these students/teachers (absences come from the
+    # app's own absence-check job; the rest from the Assessment advert's seed).
+    sql(f"DELETE FROM absences WHERE school_id='{SCHOOL}'; DELETE FROM result_submissions WHERE school_id='{SCHOOL}';"
+        f"DELETE FROM exam_scores WHERE school_id='{SCHOOL}'; DELETE FROM assessments WHERE school_id='{SCHOOL}';"
+        f"DELETE FROM timetable WHERE school_id='{SCHOOL}'; DELETE FROM report_remarks WHERE school_id='{SCHOOL}'")
     sql(f"DELETE FROM student_clearances WHERE school_id='{SCHOOL}'; DELETE FROM clearance_offices WHERE school_id='{SCHOOL}';"
         f"DELETE FROM fee_payments WHERE school_id='{SCHOOL}'; DELETE FROM student_bills WHERE school_id='{SCHOOL}';"
         f"DELETE FROM fee_items WHERE school_id='{SCHOOL}'; DELETE FROM students WHERE school_id='{SCHOOL}';"

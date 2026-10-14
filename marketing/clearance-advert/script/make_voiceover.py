@@ -108,7 +108,14 @@ def main():
         for li, line in enumerate(scene["lines"]):
             say = line.get("say", line["text"])
             ph = phonemize(tok, say)
-            audio, sr = kokoro.create(ph, voice=spec["voice"], speed=spec["speed"], is_phonemes=True)
+            # The fp16 model returns empty audio for a few phoneme sequences;
+            # a 1-2% speed change sidesteps it without audibly changing pace.
+            for speed in (spec["speed"], spec["speed"] * 1.02, spec["speed"] * 0.98, spec["speed"] * 1.04):
+                audio, sr = kokoro.create(ph, voice=spec["voice"], speed=speed, is_phonemes=True)
+                if len(audio) > 0.04 * SR * len(line["text"]) ** 0.5:
+                    break
+            else:
+                raise RuntimeError(f"TTS produced no audio for: {line['text']}")
             assert sr == SR
             audio = trim(audio.astype(np.float32))
             name = f"{scene['id']}_{li}.wav"

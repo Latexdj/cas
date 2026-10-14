@@ -15,7 +15,7 @@ login: the admin, a teacher (the librarian), a non-teaching staff member
 | 0:38 | Start clearance | Initiate Batch Clearance → 3 final-year classes → 120 students initiated |
 | 0:51 | Teacher portal | The Library's queue; look up AKW22101 and clear; look up AKW22102 and mark Not Cleared with a reason |
 | 1:07 | Staff portal | Dining Hall clears a student from the staff portal |
-| 1:12 | Student portal | AKW22102 on a phone: Action Required, 7 of 9, the Library's reason, and the Accounts Office item from unpaid fees (GH₵ 450) |
+| 1:13 | Student portal | AKW22102 on a phone: Action Required, 7 of 9, the Library's reason, and the Accounts Office item from unpaid fees (GH₵ 450) |
 | 1:21 | Admin overview | Filter by class and status, open a student, override an office with a note |
 | 1:35 | Principal's portal | Totals, then the certificate check on AKW22102: not fully cleared, Library and Sports pending |
 | 1:45 | End card | CAS · Comprehensive Academic Suite, "Clearance without the queues", LatexTech, +233 24 8234 649 |
