@@ -376,12 +376,18 @@ export default function StudentResultsPage() {
           #student-print-area {
             display: block !important;
             visibility: visible !important;
-            position: fixed !important;
+            /* position: fixed anchors to each page's viewport in paged media,
+               so Chromium/Firefox re-render this whole block on every page
+               instead of letting it flow across pages once — the cause of
+               "2-3 pages of the same report" when the card's content is
+               taller than a single A4 page. absolute keeps it off-screen on
+               the normal (non-print) layout while letting print pagination
+               flow through it exactly once. */
+            position: absolute !important;
             top: 0 !important;
             left: 0 !important;
             width: 100% !important;
             background: white;
-            z-index: 9999;
           }
           #student-print-area * {
             visibility: visible !important;
