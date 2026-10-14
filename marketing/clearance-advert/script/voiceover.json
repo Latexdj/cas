@@ -1,0 +1,171 @@
+{
+  "voice": "af_heart",
+  "speed": 1.0,
+  "note": "text = caption wording; say = what the TTS reads when pronunciation needs help. gapBefore = silence before a scene's first line; holdAfter = extra time after a line for the on-screen action to finish. Figures (120 students, 48 fully cleared) are the demo school's data as the app reports it.",
+  "scenes": [
+    {
+      "id": "hook",
+      "gapBefore": 0.6,
+      "lines": [
+        {
+          "text": "It's clearance week."
+        },
+        {
+          "text": "Every final-year student needs a signature from every office before they collect their certificate."
+        },
+        {
+          "text": "Library. Labs. Dining hall. Housemaster."
+        },
+        {
+          "text": "Long queues, lost forms, and nobody knows who still owes what."
+        }
+      ]
+    },
+    {
+      "id": "intro",
+      "gapBefore": 0.5,
+      "lines": [
+        {
+          "text": "CAS moves the whole clearance online.",
+          "say": "{CAS} moves the whole clearance online."
+        }
+      ]
+    },
+    {
+      "id": "setup",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "Set up your offices once: the library, labs, stores, heads of department and housemasters."
+        },
+        {
+          "text": "Add a new office, like the ICT lab.",
+          "holdAfter": 2.2
+        },
+        {
+          "text": "Then assign the teacher who signs for it.",
+          "holdAfter": 1.6
+        },
+        {
+          "text": "Non-teaching staff get their own staff accounts."
+        }
+      ]
+    },
+    {
+      "id": "initiate",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "When your final-year students are ready, initiate a batch."
+        },
+        {
+          "text": "Pick their classes, and click Initiate.",
+          "holdAfter": 1.3
+        },
+        {
+          "text": "120 students, each with their own checklist, matched to their programme and house.",
+          "say": "One hundred and twenty students, each with their own checklist, matched to their programme and house."
+        }
+      ]
+    },
+    {
+      "id": "office",
+      "gapBefore": 0.9,
+      "lines": [
+        {
+          "text": "Each office sees only the students waiting on it."
+        },
+        {
+          "text": "Look up a student by ID,",
+          "holdAfter": 1.3
+        },
+        {
+          "text": "and clear them in one tap.",
+          "holdAfter": 0.5
+        },
+        {
+          "text": "Still owing?",
+          "holdAfter": 1.7
+        },
+        {
+          "text": "Mark them not cleared, and record exactly why.",
+          "holdAfter": 2.4
+        }
+      ]
+    },
+    {
+      "id": "staff",
+      "gapBefore": 0.7,
+      "lines": [
+        {
+          "text": "Non-teaching staff do the same from the staff portal.",
+          "holdAfter": 0.8
+        }
+      ]
+    },
+    {
+      "id": "student",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "Students follow their own clearance from their phone."
+        },
+        {
+          "text": "They see which offices have cleared them, and what is still outstanding."
+        },
+        {
+          "text": "Unpaid fees appear automatically from the accounts records.",
+          "holdAfter": 0.4
+        }
+      ]
+    },
+    {
+      "id": "admin",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "In the admin portal, every student's progress is live."
+        },
+        {
+          "text": "Filter by class or status, and open any student to see each office.",
+          "holdAfter": 0.6
+        },
+        {
+          "text": "Need to step in? Override any office, with a note.",
+          "holdAfter": 1.4
+        }
+      ]
+    },
+    {
+      "id": "principal",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "Your head of school sees the totals at a glance."
+        },
+        {
+          "text": "And before a certificate goes out, one check shows whether the student is fully cleared.",
+          "holdAfter": 1.2
+        }
+      ]
+    },
+    {
+      "id": "cta",
+      "gapBefore": 1.0,
+      "lines": [
+        {
+          "text": "CAS. Comprehensive Academic Suite.",
+          "say": "{CAS}. Comprehensive Academic Suite."
+        },
+        {
+          "text": "Clearance without the queues."
+        },
+        {
+          "text": "Call LatexTech on 024 8234 649 for a free walkthrough.",
+          "say": "Call Latex Tech on, zero two four, eight two three four, six four nine, for a free walkthrough.",
+          "holdAfter": 2.5
+        }
+      ]
+    }
+  ]
+}
