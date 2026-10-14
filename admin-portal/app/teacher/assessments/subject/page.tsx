@@ -617,10 +617,11 @@ function SubjectContent() {
         </div>
       )}
 
-      {/* FAB */}
+      {/* FAB — sits above the floating Help button (bottom-20 / md:bottom-6,
+          44px tall), which otherwise covers it in the same corner. */}
       <button
         onClick={() => setShowModal(true)}
-        className="fixed bottom-24 right-5 md:bottom-8 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl z-10 transition-transform "
+        className="fixed bottom-36 right-5 md:bottom-20 w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white text-2xl z-10 transition-transform "
         style={{ background: primary }}
       >
         +
