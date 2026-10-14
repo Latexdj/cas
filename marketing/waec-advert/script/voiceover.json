@@ -1,0 +1,154 @@
+{
+  "voice": "af_heart",
+  "speed": 1.0,
+  "note": "text = subtitle wording; say = what the TTS reads when pronunciation needs help. Figures come from the demo school's data as computed by the app itself.",
+  "scenes": [
+    {
+      "id": "hook",
+      "lines": [
+        {
+          "text": "WASSCE results are out.",
+          "say": "Wassy results are out."
+        },
+        {
+          "text": "Now the Education Office wants your analysis report."
+        },
+        {
+          "text": "Every subject. Boys and girls. A1 to F9.",
+          "say": "Every subject. Boys and girls. A1 to F9."
+        },
+        {
+          "text": "For most schools, that means days of counting by hand."
+        }
+      ]
+    },
+    {
+      "id": "intro",
+      "lines": [
+        {
+          "text": "With CAS, it takes about a minute.",
+          "say": "With {CAS}, it takes about a minute."
+        }
+      ]
+    },
+    {
+      "id": "import",
+      "lines": [
+        {
+          "text": "Open WAEC Results and import the new year.",
+          "say": "Open, wake results, and import the new year."
+        },
+        {
+          "text": "Upload the PDF listing, paste the text, or bring in an old Excel report."
+        },
+        {
+          "text": "Paste the listing straight from the WAEC portal, then click Parse.",
+          "say": "Paste the listing straight from the wake portal, then click Parse."
+        },
+        {
+          "text": "CAS reads every candidate: 112 students, every subject, every grade.",
+          "say": "{CAS} reads every candidate. One hundred and twelve students, every subject, every grade."
+        },
+        {
+          "text": "Enter any absentees, and registered totals work themselves out."
+        },
+        {
+          "text": "Confirm and save."
+        }
+      ]
+    },
+    {
+      "id": "report",
+      "lines": [
+        {
+          "text": "Your 2025 analysis report is ready."
+        },
+        {
+          "text": "Pass rates for every subject, colour-coded so weak spots stand out."
+        },
+        {
+          "text": "The full grade distribution, by boys, girls and total."
+        },
+        {
+          "text": "And CAS checks its own count against WAEC's printed summary.",
+          "say": "And {CAS} checks its own count against wake's printed summary."
+        }
+      ]
+    },
+    {
+      "id": "export",
+      "lines": [
+        {
+          "text": "Export it to Excel or PDF, ready to print and submit."
+        }
+      ]
+    },
+    {
+      "id": "analytics",
+      "lines": [
+        {
+          "text": "Every year you import builds your school's history."
+        },
+        {
+          "text": "Overall pass rate: 58% in 2023. 80% in 2025.",
+          "say": "Overall pass rate. Fifty-eight percent in twenty twenty-three. Eighty percent in twenty twenty-five."
+        },
+        {
+          "text": "Pick a subject to see its trend and grade spread.",
+          "say": "Pick a subject to see its trend, and grade spread."
+        },
+        {
+          "text": "Mathematics: up from 40% to 68%.",
+          "say": "Mathematics. Up from forty percent, to sixty-eight."
+        }
+      ]
+    },
+    {
+      "id": "rankings",
+      "lines": [
+        {
+          "text": "Rankings list every candidate by best-six aggregate."
+        },
+        {
+          "text": "Filter by gender, or by a single subject."
+        }
+      ]
+    },
+    {
+      "id": "lookup",
+      "lines": [
+        {
+          "text": "Need one student's results? Search by name or index number."
+        },
+        {
+          "text": "Grades and aggregate, in seconds."
+        }
+      ]
+    },
+    {
+      "id": "principal",
+      "lines": [
+        {
+          "text": "And your head of school sees the same reports in the principal's portal."
+        }
+      ]
+    },
+    {
+      "id": "cta",
+      "lines": [
+        {
+          "text": "CAS. Comprehensive Academic Suite.",
+          "say": "{CAS}. Comprehensive Academic Suite."
+        },
+        {
+          "text": "WAEC results analysis in minutes.",
+          "say": "Wake results analysis, in minutes."
+        },
+        {
+          "text": "Call LatexTech on 024 8234 649 for a free walkthrough.",
+          "say": "Call Latex Tech on, zero two four, eight two three four, six four nine, for a free walkthrough."
+        }
+      ]
+    }
+  ]
+}
