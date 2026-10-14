@@ -1,6 +1,7 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { publicApi } from '@/lib/api';
 
 const C = {
@@ -21,12 +22,20 @@ const labelStyle: React.CSSProperties = {
 };
 
 export default function PublicWaecResultsCheckoutPage() {
+  const router = useRouter();
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [schoolNameHint, setSchoolNameHint] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [paymentRequired, setPaymentRequired] = useState(true);
+
+  useEffect(() => {
+    publicApi.get('/api/public/waec-results/config')
+      .then(({ data }) => setPaymentRequired(data?.payment_required !== false))
+      .catch(() => {});
+  }, []);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -51,6 +60,11 @@ export default function PublicWaecResultsCheckoutPage() {
         return;
       }
 
+      if (data?.id) {
+        router.push(`/public-waec-results/paste?id=${data.id}`);
+        return;
+      }
+
       setError(data?.error || 'The checkout could not be started.');
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Could not start the checkout right now.');
@@ -66,9 +80,16 @@ export default function PublicWaecResultsCheckoutPage() {
           Get a WASSCE results analysis
         </h1>
         <p style={{ fontSize: 14, color: C.muted, marginTop: 8, lineHeight: 1.6 }}>
-          Pay GHS 30, then paste your school's WAEC results listing for an instant
-          subject-by-subject pass rate and grade breakdown.
+          {paymentRequired
+            ? "Pay GHS 30, then paste your school's WAEC results listing for an instant subject-by-subject pass rate and grade breakdown."
+            : "Paste your school's WAEC results listing for an instant subject-by-subject pass rate and grade breakdown."}
         </p>
+
+        {!paymentRequired && (
+          <div style={{ marginTop: 14, padding: '8px 14px', borderRadius: 6, background: '#FDF3E3', border: '1px solid #EBD3A0', color: '#8A5A08', fontSize: 12, fontWeight: 600 }}>
+            Test mode: no payment is being collected right now.
+          </div>
+        )}
 
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 20, marginTop: 24 }}>
           <p style={{ fontSize: 13, fontWeight: 600, color: C.mid2, margin: '0 0 10px' }}>What's in the report</p>
@@ -136,10 +157,12 @@ export default function PublicWaecResultsCheckoutPage() {
               cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.6 : 1,
             }}
           >
-            {loading ? 'Starting checkout…' : 'Pay GHS 30 and continue'}
+            {loading ? 'Starting…' : paymentRequired ? 'Pay GHS 30 and continue' : 'Continue'}
           </button>
           <p style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>
-            You'll paste the results listing right after payment. Nothing is saved until then.
+            {paymentRequired
+              ? "You'll paste the results listing right after payment. Nothing is saved until then."
+              : "You'll paste the results listing on the next screen. Nothing is saved until then."}
           </p>
         </form>
       </div>

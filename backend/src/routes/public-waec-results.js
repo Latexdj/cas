@@ -11,6 +11,12 @@ const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const REPORT_PRICE_PESEWAS = 3000; // GHS 30, fixed server-side — never trust a client-supplied amount
 const PASTE_PAGE_URL = process.env.PUBLIC_WAEC_PASTE_URL || 'http://localhost:3001/public-waec-results/paste';
 
+// Temporary testing toggle, set PUBLIC_WAEC_SKIP_PAYMENT=true to let schools
+// try the full analyse/download flow with no Paystack involved at all before
+// payment is turned on for real. Flip it off (or unset it) to go live —
+// nothing else in this file changes.
+const SKIP_PAYMENT = process.env.PUBLIC_WAEC_SKIP_PAYMENT === 'true';
+
 const PUBLIC_GRADE_BOUNDARIES = [
   { grade: 'A1', remark: 'Excellent', sort_order: 1 },
   { grade: 'B2', remark: 'Very Good', sort_order: 2 },
@@ -45,6 +51,10 @@ function buildPublicReport(rawText) {
   };
 }
 
+router.get('/config', (req, res) => {
+  res.json({ payment_required: !SKIP_PAYMENT, amount_pesewas: REPORT_PRICE_PESEWAS });
+});
+
 router.post('/initialize', publicWaecInitLimiter, async (req, res, next) => {
   try {
     const contactName = typeof req.body?.contact_name === 'string' ? req.body.contact_name.trim() : '';
@@ -56,11 +66,23 @@ router.post('/initialize', publicWaecInitLimiter, async (req, res, next) => {
     if (!contactEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
       return res.status(400).json({ error: 'A valid email is required.' });
     }
+
+    const reference = `pub-waec-${SKIP_PAYMENT ? 'test-' : ''}${crypto.randomUUID()}`;
+
+    if (SKIP_PAYMENT) {
+      const { rows } = await pool.query(
+        `INSERT INTO public_waec_results
+           (contact_name, contact_email, contact_phone, school_name_hint, amount_pesewas, paystack_reference, status, paid_at)
+         VALUES ($1, $2, $3, $4, $5, $6, 'paid', now())
+         RETURNING id`,
+        [contactName, contactEmail, contactPhone, schoolNameHint, REPORT_PRICE_PESEWAS, reference]
+      );
+      return res.json({ id: rows[0].id, authorization_url: null });
+    }
+
     if (!PAYSTACK_SECRET_KEY) {
       return res.status(500).json({ error: 'Payments are not configured. Please try again later.' });
     }
-
-    const reference = `pub-waec-${crypto.randomUUID()}`;
 
     const { rows } = await pool.query(
       `INSERT INTO public_waec_results
