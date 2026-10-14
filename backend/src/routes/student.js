@@ -842,13 +842,15 @@ router.get('/fees', checkModuleAccess('fees'), async (req, res, next) => {
 
     const [billsRes, paymentsRes] = await Promise.all([
       pool.query(
-        `SELECT sb.id, sb.label, sb.amount, sb.due_date, sb.created_at,
-                fi.name AS fee_item_name, fs.name AS schedule_name,
+        // student_bills has description (not label) and fee_schedules has
+        // no name column — alias to the field names the student Fees page
+        // reads instead of selecting columns that don't exist.
+        `SELECT sb.id, sb.description AS label, sb.amount, sb.due_date, sb.created_at,
+                fi.name AS fee_item_name, NULL::text AS schedule_name,
                 COALESCE(p.paid, 0) AS amount_paid,
                 sb.amount - COALESCE(p.paid, 0) AS balance
          FROM student_bills sb
          LEFT JOIN fee_items fi ON fi.id = sb.fee_item_id
-         LEFT JOIN fee_schedules fs ON fs.id = sb.fee_schedule_id
          LEFT JOIN (
            SELECT bill_id, SUM(amount) AS paid
            FROM fee_payments WHERE school_id=$1 GROUP BY bill_id
@@ -859,8 +861,8 @@ router.get('/fees', checkModuleAccess('fees'), async (req, res, next) => {
       ),
       pool.query(
         `SELECT fp.id, fp.amount, fp.payment_date, fp.payment_method,
-                fp.receipt_number, fp.notes,
-                fi.name AS fee_item_name, sb.label AS bill_label
+                fp.receipt_no AS receipt_number, fp.notes,
+                fi.name AS fee_item_name, sb.description AS bill_label
          FROM fee_payments fp
          JOIN student_bills sb ON sb.id = fp.bill_id
          LEFT JOIN fee_items fi ON fi.id = sb.fee_item_id
