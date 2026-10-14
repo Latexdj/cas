@@ -1,0 +1,242 @@
+{
+  "voice": "af_heart",
+  "speed": 1.0,
+  "note": "text = caption wording; say = what the TTS reads when pronunciation needs help. gapBefore = silence before a scene's first line; holdAfter = extra time after a line for the on-screen action to finish. All figures on screen are the demo school's data as the app computes it.",
+  "scenes": [
+    {
+      "id": "hook",
+      "gapBefore": 0.6,
+      "lines": [
+        {
+          "text": "A primary school runs on paper."
+        },
+        {
+          "text": "Registers to tick. Exercises to mark. Every score added up by hand."
+        },
+        {
+          "text": "Then, at the end of term, a report card written out for every child."
+        }
+      ]
+    },
+    {
+      "id": "intro",
+      "gapBefore": 0.5,
+      "lines": [
+        {
+          "text": "CAS runs your whole primary school, from KG 1 to Basic 6, in one place.",
+          "say": "{CAS} runs your whole primary school, from K.G. one to Basic six, in one place."
+        }
+      ]
+    },
+    {
+      "id": "dashboard",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "The headteacher sees the school at a glance: pupils, classes and today's attendance.",
+          "holdAfter": 0.8
+        }
+      ]
+    },
+    {
+      "id": "setup",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "Set it up once.",
+          "holdAfter": 0.2
+        },
+        {
+          "text": "Each class and its class teacher,",
+          "holdAfter": 1.8
+        },
+        {
+          "text": "the subjects each class takes,",
+          "holdAfter": 1.6
+        },
+        {
+          "text": "the GES grading scale,",
+          "say": "the G.E.S. grading scale,",
+          "holdAfter": 2.2
+        },
+        {
+          "text": "and how much each kind of assessment counts.",
+          "holdAfter": 0.8
+        }
+      ]
+    },
+    {
+      "id": "pupils",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "Every pupil has a full record:",
+          "holdAfter": 0.3
+        },
+        {
+          "text": "admission details, NHIS number and blood group, and both parents' contacts.",
+          "say": "admission details, N.H.I.S. number and blood group, and both parents' contacts.",
+          "holdAfter": 1.2
+        }
+      ]
+    },
+    {
+      "id": "clockin",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "Teachers clock in from their phones.",
+          "holdAfter": 0.4
+        },
+        {
+          "text": "A photo, and a GPS check that they're really on school grounds.",
+          "holdAfter": 1.6
+        }
+      ]
+    },
+    {
+      "id": "register",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "The class register takes a few taps.",
+          "holdAfter": 1.3
+        },
+        {
+          "text": "Mark everyone present, change the few who aren't, and save.",
+          "holdAfter": 1.2
+        }
+      ]
+    },
+    {
+      "id": "assess",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "Exercises, tests and projects go in as they happen.",
+          "holdAfter": 3.4
+        },
+        {
+          "text": "Type the marks straight in,",
+          "holdAfter": 2.6
+        },
+        {
+          "text": "and CAS works out every pupil's class score, weighted the way you set it.",
+          "say": "and {CAS} works out every pupil's class score, weighted the way you set it.",
+          "holdAfter": 0.8
+        }
+      ]
+    },
+    {
+      "id": "scores",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "Totals, grades and positions follow for every subject.",
+          "holdAfter": 1.0
+        }
+      ]
+    },
+    {
+      "id": "reports",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "At the end of term, each report card puts itself together:",
+          "holdAfter": 0.3
+        },
+        {
+          "text": "every subject, and attendance for the term.",
+          "holdAfter": 2.2
+        },
+        {
+          "text": "Rate the pupil's conduct,",
+          "holdAfter": 2.6
+        },
+        {
+          "text": "add your remark,",
+          "holdAfter": 2.4
+        },
+        {
+          "text": "and submit it to the headteacher.",
+          "holdAfter": 0.8
+        }
+      ]
+    },
+    {
+      "id": "approve",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "The headteacher follows every class's progress,",
+          "holdAfter": 2.6
+        },
+        {
+          "text": "adds a remark, and approves, or sends it back with a reason.",
+          "holdAfter": 1.8
+        }
+      ]
+    },
+    {
+      "id": "staff",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "Every clock-in reaches the office, GPS-verified.",
+          "holdAfter": 0.6
+        },
+        {
+          "text": "Leave requests come in for approval too.",
+          "holdAfter": 1.2
+        }
+      ]
+    },
+    {
+      "id": "cashbook",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "The Capitation Grant cash book records every receipt and payment,",
+          "holdAfter": 0.4
+        },
+        {
+          "text": "by GES expenditure head,",
+          "say": "by G.E.S. expenditure head,",
+          "holdAfter": 3.8
+        },
+        {
+          "text": "with the balance always up to date.",
+          "holdAfter": 0.8
+        }
+      ]
+    },
+    {
+      "id": "yearend",
+      "gapBefore": 0.8,
+      "lines": [
+        {
+          "text": "And at the end of the year, promote every class and graduate Basic 6 in one step.",
+          "holdAfter": 1.6
+        }
+      ]
+    },
+    {
+      "id": "cta",
+      "gapBefore": 1.0,
+      "lines": [
+        {
+          "text": "CAS. Comprehensive Academic Suite.",
+          "say": "{CAS}. Comprehensive Academic Suite."
+        },
+        {
+          "text": "Your whole primary school, in one place."
+        },
+        {
+          "text": "Call LatexTech on 024 8234 649 for a free walkthrough.",
+          "say": "Call Latex Tech on, zero two four, eight two three four, six four nine, for a free walkthrough.",
+          "holdAfter": 2.5
+        }
+      ]
+    }
+  ]
+}
