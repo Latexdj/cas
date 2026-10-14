@@ -307,7 +307,7 @@ export default function PrimaryTeacherReportsPage() {
               {/* Affective ratings */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 space-y-3">
                 <p className="text-xs font-semibold text-slate-500 font-medium">Affective Domain</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {AFFECTIVE.map(trait => (
                     <div key={trait} className="flex items-center justify-between">
                       <span className="text-xs text-slate-700">{trait}</span>
