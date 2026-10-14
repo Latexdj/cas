@@ -1,0 +1,95 @@
+{
+  "voice": "af_heart",
+  "speed": 1.0,
+  "note": "text = caption wording; say = what the TTS reads when pronunciation needs help. gapBefore = silence before a scene's first line; holdAfter = extra time after a line for the on-screen action to finish. All figures on screen are the demo school's data as the app computes it.",
+  "scenes": [
+    {
+      "id": "hook", "gapBefore": 0.6,
+      "lines": [
+        { "text": "End of semester." },
+        { "text": "Class tests, assignments, project work, exam scripts." },
+        { "text": "Every score copied into a mark book, added up and ranked by hand." },
+        { "text": "One slip, and a report card is wrong." }
+      ]
+    },
+    {
+      "id": "intro", "gapBefore": 0.5,
+      "lines": [
+        { "text": "CAS takes every score straight to the report card.", "say": "{CAS} takes every score straight to the report card." }
+      ]
+    },
+    {
+      "id": "setup", "gapBefore": 0.8,
+      "lines": [
+        { "text": "Set your continuous assessment once: class tests, assignments and project work, each with its weight." }
+      ]
+    },
+    {
+      "id": "teacher", "gapBefore": 0.8,
+      "lines": [
+        { "text": "Teachers see their own subjects and classes.", "holdAfter": 0.3 },
+        { "text": "Try to submit too early, and CAS shows exactly what's missing.", "say": "Try to submit too early, and {CAS} shows exactly what's missing.", "holdAfter": 1.2 },
+        { "text": "Here, the project work.", "holdAfter": 0.2 },
+        { "text": "Add it in a few taps.", "holdAfter": 2.4 },
+        { "text": "Type scores straight into the class list,", "holdAfter": 2.2 },
+        { "text": "or upload the whole class from Excel.", "holdAfter": 1.6 }
+      ]
+    },
+    {
+      "id": "submit", "gapBefore": 0.8,
+      "lines": [
+        { "text": "Now every check passes.", "holdAfter": 0.4 },
+        { "text": "Submit to the head of department.", "holdAfter": 1.0 }
+      ]
+    },
+    {
+      "id": "hod", "gapBefore": 0.8,
+      "lines": [
+        { "text": "The head of department sees every subject waiting for review." },
+        { "text": "Check the scores, then approve, or send it back with a reason.", "holdAfter": 1.2 }
+      ]
+    },
+    {
+      "id": "approvals", "gapBefore": 0.8,
+      "lines": [
+        { "text": "The admin gives the final approval,", "holdAfter": 1.0 },
+        { "text": "then publishes results for the school in one click.", "holdAfter": 0.8 }
+      ]
+    },
+    {
+      "id": "tracker", "gapBefore": 0.8,
+      "lines": [
+        { "text": "Along the way, the Assessment Tracker shows every teacher's progress." },
+        { "text": "And Outstanding Submissions shows exactly who is still behind.", "holdAfter": 0.6 }
+      ]
+    },
+    {
+      "id": "results", "gapBefore": 0.8,
+      "lines": [
+        { "text": "Report cards build themselves: CA, exam, total, grade and position for every subject.", "holdAfter": 0.6 },
+        { "text": "Add the form teacher's remarks, and print the whole class at once.", "holdAfter": 2.6 }
+      ]
+    },
+    {
+      "id": "student", "gapBefore": 0.8,
+      "lines": [
+        { "text": "Students see their report card the moment it's published,", "holdAfter": 0.2 },
+        { "text": "with the class average beside every subject.", "holdAfter": 0.6 }
+      ]
+    },
+    {
+      "id": "transcript", "gapBefore": 0.8,
+      "lines": [
+        { "text": "And every semester adds to the student's full transcript.", "holdAfter": 1.0 }
+      ]
+    },
+    {
+      "id": "cta", "gapBefore": 1.0,
+      "lines": [
+        { "text": "CAS. Comprehensive Academic Suite.", "say": "{CAS}. Comprehensive Academic Suite." },
+        { "text": "Scores in. Report cards out." },
+        { "text": "Call LatexTech on 024 8234 649 for a free walkthrough.", "say": "Call Latex Tech on, zero two four, eight two three four, six four nine, for a free walkthrough.", "holdAfter": 2.5 }
+      ]
+    }
+  ]
+}
