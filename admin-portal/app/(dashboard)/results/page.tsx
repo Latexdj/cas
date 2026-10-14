@@ -694,10 +694,13 @@ export default function ResultsPage() {
         }
         @media print {
           body * { visibility: hidden; }
+          /* absolute, not fixed: Chrome repeats a fixed element on every
+             printed page instead of paginating it, so "Print All" stopped
+             after as many cards as the results page itself is tall. */
           #print-area {
             display: block !important;
             visibility: visible !important;
-            position: fixed !important;
+            position: absolute !important;
             top: 0 !important;
             left: 0 !important;
             width: 100% !important;
