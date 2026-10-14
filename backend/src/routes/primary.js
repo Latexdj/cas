@@ -993,6 +993,15 @@ router.get('/subjects', async (req, res, next) => {
     const params = [req.schoolId];
     let filter = '';
     if (class_name) { params.push(class_name); filter = `AND LOWER(class_name) = LOWER($${params.length})`; }
+    // Teachers only see the subjects of the class(es) they teach this year.
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    if (!isAdmin) {
+      params.push(req.user.id);
+      filter += ` AND LOWER(class_name) IN (
+        SELECT LOWER(ct.class_name) FROM primary_class_teachers ct
+        JOIN academic_years ay ON ay.id = ct.academic_year_id
+        WHERE ct.school_id = $1 AND ct.teacher_id = $${params.length} AND ay.is_current = true)`;
+    }
     const { rows } = await pool.query(
       `SELECT * FROM primary_subjects WHERE school_id = $1 ${filter} ORDER BY class_name, sort_order, subject_name`,
       params

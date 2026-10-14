@@ -187,7 +187,7 @@ export default function PrimaryScoresAdminPage() {
         )}
         {activeSubject && (
           <span className="text-xs text-slate-500 ml-auto">
-            Class: <strong>{activeSubject.max_class_score}</strong> + Exam: <strong>{activeSubject.max_exam_score}</strong> = <strong>{activeSubject.max_class_score + activeSubject.max_exam_score}</strong>
+            Class: <strong>{activeSubject.max_class_score}</strong> + Exam: <strong>{activeSubject.max_exam_score}</strong> = <strong>{Number(activeSubject.max_class_score) + Number(activeSubject.max_exam_score)}</strong>
           </span>
         )}
       </div>

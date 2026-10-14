@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { teacherApi as api } from '@/lib/teacher-api';
 import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 interface Term { id: string; name: string; is_current: boolean; }
@@ -125,7 +125,7 @@ export default function PrimaryScoresPage() {
         )}
         {activeSubject && (
           <span className="text-xs text-slate-500 self-center">
-            Class: <strong>{activeSubject.max_class_score}</strong> + Exam: <strong>{activeSubject.max_exam_score}</strong> = <strong>{activeSubject.max_class_score + activeSubject.max_exam_score}</strong>
+            Class: <strong>{activeSubject.max_class_score}</strong> + Exam: <strong>{activeSubject.max_exam_score}</strong> = <strong>{Number(activeSubject.max_class_score) + Number(activeSubject.max_exam_score)}</strong>
           </span>
         )}
       </div>
