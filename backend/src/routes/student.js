@@ -196,8 +196,11 @@ router.get('/results', async (req, res, next) => {
         total     = caScore !== null && examScore !== null ? caScore + examScore : null;
       }
 
+      // Grade the same rounded total that's displayed (as routes/results.js
+      // does for admin report cards) — grading the raw 54.7 gave C5 next to
+      // a displayed 55, which is a C4.
       const { grade, remark } = total !== null
-        ? getGrade(total, boundaries, student.exam_body)
+        ? getGrade(Math.round(total), boundaries, student.exam_body)
         : { grade: 'N/A', remark: '' };
 
       subjects.push({
