@@ -59,7 +59,12 @@ export default function TeacherProfilePage() {
   async function save() {
     setSaving(true); setError(''); setSuccess('');
     try {
-      const { data } = await api.patch<Profile>('/api/teachers/me/profile', form);
+      // date_of_birth is deliberately excluded here — the backend requires
+      // admin approval for it (same as every other official-record field),
+      // and unconditionally rejects any request that even includes the key,
+      // which previously broke saving every other field on this page too.
+      const { date_of_birth, ...editableFields } = form;
+      const { data } = await api.patch<Profile>('/api/teachers/me/profile', editableFields);
       setProfile(prev => ({ ...prev!, ...data }));
       setEditing(false);
       setSuccess('Profile updated successfully.');
@@ -170,8 +175,9 @@ export default function TeacherProfilePage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Date of Birth</label>
-                  <input type="date" value={form.date_of_birth} onChange={e => setForm(f => ({ ...f, date_of_birth: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                  <input type="date" value={form.date_of_birth} disabled
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-slate-500" />
+                  <p className="text-[11px] text-slate-400 mt-1">Contact your administrator to change your date of birth.</p>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Religion</label>

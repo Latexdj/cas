@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
+import { validateMinAge } from '@/lib/validations';
+
+const APPLICANT_MIN_AGE_YEARS = 10;
 
 interface Application {
   id: string; index_number: string | null; admission_number: string; form_token: string;
@@ -291,6 +294,8 @@ export default function ApplicationsPage() {
   }
 
   async function submitDirect(confirmDuplicate = false) {
+    const dobErr = validateMinAge(directForm.date_of_birth, APPLICANT_MIN_AGE_YEARS, 'Date of birth');
+    if (dobErr) { setDirectError(dobErr); return; }
     setDirectError('');
     setDirectSaving(true);
     try {
@@ -349,6 +354,8 @@ export default function ApplicationsPage() {
 
   async function submitEdit() {
     if (!selected) return;
+    const dobErr = validateMinAge(editForm.date_of_birth, APPLICANT_MIN_AGE_YEARS, 'Date of birth');
+    if (dobErr) { setEditError(dobErr); return; }
     setEditError('');
     setEditSaving(true);
     try {

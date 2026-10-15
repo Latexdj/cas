@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
+import { validateMinAge } from '@/lib/validations';
+
+const PRIMARY_STUDENT_MIN_AGE_YEARS = 2;
 
 interface Student {
   id: string; admission_number: string; surname: string; other_names: string | null;
@@ -129,6 +132,8 @@ export default function PrimaryStudentsPage() {
     if (!form.admission_number.trim() || !form.surname.trim() || !form.class_name) {
       setSaveError('Admission number, surname, and class are required.'); return;
     }
+    const dobErr = validateMinAge(form.date_of_birth, PRIMARY_STUDENT_MIN_AGE_YEARS, "Student's date of birth");
+    if (dobErr) { setSaveError(dobErr); return; }
     setSaving(true); setSaveError('');
     try {
       if (editing) {

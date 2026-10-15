@@ -2,6 +2,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { publicApi } from '@/lib/api';
+import { validateMinAge } from '@/lib/validations';
+
+const APPLICANT_MIN_AGE_YEARS = 10;
 
 interface Application {
   id: string; admission_number: string; form_token: string; status: string; form_step: number;
@@ -94,6 +97,8 @@ export default function ApplicationFormPage() {
     setForm(p => ({ ...p, [k]: e.target.value }));
 
   async function saveAndNext() {
+    const dobErr = validateMinAge(form.date_of_birth, APPLICANT_MIN_AGE_YEARS, 'Date of birth');
+    if (dobErr) { setError(dobErr); return; }
     setSaving(true); setError('');
     try {
       const { data } = await publicApi.patch(`/api/admissions/${slug}/apply/${token}`, {

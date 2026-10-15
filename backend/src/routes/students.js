@@ -8,6 +8,9 @@ const { uploadFile } = require('../services/storage.service');
 const { promoteClass } = require('../services/promotion.service');
 const { recordClassChange } = require('../services/classHistory.service');
 const { getCurrentYearSem } = require('../utils/school-context');
+const { minAgeError } = require('../utils/dateValidation');
+
+const STUDENT_MIN_AGE_YEARS = 10; // SHS — prevents entering today's date (or similar) as a birthday
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -22,6 +25,8 @@ function validateStudentFields(fields) {
     errors.push('Guardian mobile must be 10 digits starting with 0');
   if (fields.ghana_card_number && !GHANA_CARD_RE.test(fields.ghana_card_number))
     errors.push('Ghana Card must be in the format GHA-XXXXXXXXX-X (e.g. GHA-715422858-2)');
+  const dobErr = minAgeError(fields.date_of_birth, STUDENT_MIN_AGE_YEARS, "Student's date of birth");
+  if (dobErr) errors.push(dobErr);
   return errors;
 }
 
@@ -313,6 +318,9 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       if (!name)      { errors.push({ row: rowNum, message: 'Name is required' });  continue; }
       if (!className) { errors.push({ row: rowNum, message: 'Class is required' }); continue; }
 
+      const dobErr = minAgeError(date_of_birth, STUDENT_MIN_AGE_YEARS, 'Date of birth');
+      if (dobErr) { errors.push({ row: rowNum, message: dobErr }); continue; }
+
       let programId = null;
       if (programName) {
         programId = programByName.get(programName.toLowerCase()) ?? null;
@@ -461,7 +469,8 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
       add('name',                  name || undefined);
       add('class_name',            className || undefined);
       add('jhs_index_number',      String(row[5] ?? '').trim() || undefined);
-      add('date_of_birth',         toISODate(row[6]));
+      const dobUpd = toISODate(row[6]);
+      add('date_of_birth',         dobUpd);
       add('gender',                normalizeGender(String(row[7] ?? '')) || undefined);
       add('hometown',              String(row[8] ?? '').trim() || undefined);
       add('residential_address',   String(row[9] ?? '').trim() || undefined);
@@ -495,6 +504,7 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
         mobile_number:    sets.some(s => s.startsWith('mobile_number')) ? params[sets.findIndex(s => s.startsWith('mobile_number'))] : null,
         guardian_mobile:  sets.some(s => s.startsWith('guardian_mobile')) ? params[sets.findIndex(s => s.startsWith('guardian_mobile'))] : null,
         ghana_card_number: sets.some(s => s.startsWith('ghana_card_number')) ? params[sets.findIndex(s => s.startsWith('ghana_card_number'))] : null,
+        date_of_birth:    dobUpd,
       });
       if (fieldErrors.length) { errors.push({ row: rowNum, message: fieldErrors.join('; ') }); continue; }
 

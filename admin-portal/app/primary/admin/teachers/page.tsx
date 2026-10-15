@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'reac
 import { api } from '@/lib/api';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
+import { validateMinAge } from '@/lib/validations';
+
+const TEACHER_MIN_AGE_YEARS = 18;
 
 interface Teacher {
   id: string; name: string; teacher_code: string; email: string | null;
@@ -76,6 +79,8 @@ export default function PrimaryTeachersPage() {
   async function save() {
     if (!form.teacher_code.trim() || !form.name.trim())
       return setError('Teacher ID and name are required.');
+    const dobErr = validateMinAge(form.date_of_birth, TEACHER_MIN_AGE_YEARS, "Staff member's date of birth");
+    if (dobErr) return setError(dobErr);
     setSaving(true); setError('');
     try {
       if (editId) {

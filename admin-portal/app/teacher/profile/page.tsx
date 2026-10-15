@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTeacher, getTeacherColors, clearTeacher } from '@/lib/teacher-auth';
-import { validateGhanaCard, validateNTC, validatePhone, validateSSF } from '@/lib/validations';
+import { validateGhanaCard, validateMinAge, validateNTC, validatePhone, validateSSF } from '@/lib/validations';
 import { teacherApi } from '@/lib/teacher-api';
 
 const GENDERS   = ['Male', 'Female'];
@@ -428,6 +428,9 @@ export default function ProfilePage() {
       setOfficialError('A supporting document is required for this change.');
       return;
     }
+
+    const dobErr = validateMinAge(officialForm.date_of_birth, 18, 'Date of birth');
+    if (dobErr) { setOfficialError(dobErr); return; }
 
     setOfficialSaving(true); setOfficialError('');
     try {

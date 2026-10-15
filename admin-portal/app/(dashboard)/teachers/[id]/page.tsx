@@ -387,7 +387,7 @@ export default function TeacherProfilePage() {
             <EditField label="Email"      name="email" value={form.email} onChange={set} type="email" />
             <EditField label="Phone"      name="phone" value={form.phone} onChange={set} error={fieldErrors.phone} />
             <EditField label="Gender"     name="gender" value={form.gender} onChange={set} options={GENDERS} />
-            <EditField label="Date of Birth" name="date_of_birth" value={form.date_of_birth} onChange={set} type="date" />
+            <EditField label="Date of Birth" name="date_of_birth" value={form.date_of_birth} onChange={set} type="date" error={fieldErrors.date_of_birth} />
             <EditField label="Hometown"   name="hometown" value={form.hometown} onChange={set} />
             <div className="sm:col-span-2 lg:col-span-2">
               <EditField label="Residential Address" name="residential_address" value={form.residential_address} onChange={set} />

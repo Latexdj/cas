@@ -723,7 +723,8 @@ export default function StudentsPage() {
                     </div>
                     <div>
                       <label className="text-xs font-semibold block mb-1" style={{ color: '#64748B' }}>Date of Birth</label>
-                      <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: '#E2D9CC', color: '#1C1208' }} value={form.date_of_birth} onChange={sf('date_of_birth')} />
+                      <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm" style={{ borderColor: fieldErrors.date_of_birth ? '#F87171' : '#E2D9CC', color: '#1C1208' }} value={form.date_of_birth} onChange={sf('date_of_birth')} />
+                      {fieldErrors.date_of_birth && <p className="text-xs mt-0.5" style={{ color: '#DC2626' }}>{fieldErrors.date_of_birth}</p>}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">

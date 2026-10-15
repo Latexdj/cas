@@ -865,7 +865,7 @@ export default function TeachersPage() {
                     <option value="Female">Female</option>
                   </select>
                 </div>
-                <Input label="Date of Birth" type="date" value={form.date_of_birth ?? ''} onChange={field('date_of_birth')} />
+                <Input label="Date of Birth" type="date" value={form.date_of_birth ?? ''} onChange={field('date_of_birth')} error={fieldErrors.date_of_birth} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <Input label="Hometown" value={form.hometown ?? ''} onChange={field('hometown')} />

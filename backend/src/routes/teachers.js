@@ -8,6 +8,9 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 const { uploadFile, uploadDocument } = require('../services/storage.service');
 const { notifyTeacherProfileRequestSubmitted } = require('../services/notification.service');
 const { getAdminAllowedModules, getEnabledModules, LICENSABLE_MODULE_KEYS } = require('../services/modules.service');
+const { minAgeError } = require('../utils/dateValidation');
+
+const TEACHER_MIN_AGE_YEARS = 18; // prevents entering today's date (or similar) as a birthday
 
 // Only an unrestricted admin (or super_admin) may create/edit admin-level
 // access — granting is_admin, or scoping allowed_modules at creation time.
@@ -98,6 +101,8 @@ function validateTeacherFields(fields) {
     const val = validateDropdownOption(fields.association, ASSOCIATION_OPTIONS, 'Association', fields.association_other);
     if (val) errors.push(val);
   }
+  const dobErr = minAgeError(fields.date_of_birth, TEACHER_MIN_AGE_YEARS, "Staff member's date of birth");
+  if (dobErr) errors.push(dobErr);
   return errors;
 }
 
@@ -1512,7 +1517,8 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
         if (['Male','Female'].includes(g)) add('gender', g);
         else errors.push({ row: rowNum, message: `Invalid gender "${genderRaw}" — use Male or Female` });
       }
-      add('date_of_birth',              toISODate(row[8]));
+      const dobUpd = toISODate(row[8]);
+      add('date_of_birth',              dobUpd);
       add('registered_number',          String(row[9]  ?? '').trim() || undefined);
       add('ntc_number',                 String(row[10] ?? '').trim() || undefined);
       add('ssf_number',                 String(row[11] ?? '').trim() || undefined);
@@ -1547,6 +1553,7 @@ router.post('/bulk-update', adminOnly, upload.single('file'), async (req, res, n
         ghana_card_number:      sets.some(s => s.startsWith('ghana_card_number'))      ? params[sets.findIndex(s => s.startsWith('ghana_card_number'))]      : null,
         ntc_number:             sets.some(s => s.startsWith('ntc_number'))             ? params[sets.findIndex(s => s.startsWith('ntc_number'))]             : null,
         ssf_number:             sets.some(s => s.startsWith('ssf_number'))             ? params[sets.findIndex(s => s.startsWith('ssf_number'))]             : null,
+        date_of_birth:          dobUpd,
       });
       if (fieldValidationErrors.length) { errors.push({ row: rowNum, message: fieldValidationErrors.join('; ') }); continue; }
 

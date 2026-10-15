@@ -4,6 +4,9 @@ const { uploadFile } = require('../services/storage.service');
 const { generateAdmissionNumber, assignHouse } = require('../services/admissions.service');
 const { generateAdmissionLetterPDF } = require('../services/pdf.service');
 const { isModuleEnabledForSchool } = require('../middleware/moduleAccess');
+const { minAgeError } = require('../utils/dateValidation');
+
+const APPLICANT_MIN_AGE_YEARS = 10; // same floor as the SHS student record this application becomes
 
 // This is the public applicant-facing portal — there's no JWT/req.schoolId
 // here, so checkModuleAccess doesn't apply. Every route below resolves the
@@ -137,6 +140,9 @@ router.patch('/:slug/apply/:token', async (req, res, next) => {
     }
 
     const f = req.body;
+    const dobErr = minAgeError(f.date_of_birth, APPLICANT_MIN_AGE_YEARS, 'Date of birth');
+    if (dobErr) return res.status(400).json({ error: dobErr });
+
     await pool.query(
       `UPDATE admission_applications SET
         full_name              = COALESCE($1,  full_name),

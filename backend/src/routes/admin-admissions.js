@@ -8,6 +8,9 @@ const { uploadFile } = require('../services/storage.service');
 const { generateAdmissionNumber, assignHouse } = require('../services/admissions.service');
 const { generateAdmissionLetterPDF, validateTemplate } = require('../services/pdf.service');
 const { generateBillsForNewStudent } = require('../services/billing.service');
+const { minAgeError } = require('../utils/dateValidation');
+
+const APPLICANT_MIN_AGE_YEARS = 10; // same floor as the SHS student record this application becomes
 
 router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('admissions'));
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -385,6 +388,8 @@ router.patch('/applications/:id', async (req, res, next) => {
         if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
           return res.status(400).json({ error: `"${value}" isn't a valid date of birth. Please re-enter it.` });
         }
+        const dobErr = minAgeError(value, APPLICANT_MIN_AGE_YEARS, 'Date of birth');
+        if (dobErr) return res.status(400).json({ error: dobErr });
       }
       else if (TRIM_TO_NULL_FIELDS.has(key)) value = value?.trim() || null;
 
@@ -486,6 +491,9 @@ router.post('/applications/manual', async (req, res, next) => {
     if (!residential_status)       return res.status(400).json({ error: 'Residential status is required.' });
     if (!program_id)               return res.status(400).json({ error: 'Program is required.' });
     if (!direct_reason?.trim())    return res.status(400).json({ error: 'Reason for direct admission is required.' });
+
+    const dobErr = minAgeError(date_of_birth, APPLICANT_MIN_AGE_YEARS, 'Date of birth');
+    if (dobErr) return res.status(400).json({ error: dobErr });
 
     const idx = index_number?.trim().toUpperCase() || null;
 

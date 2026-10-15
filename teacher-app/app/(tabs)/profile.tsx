@@ -456,6 +456,18 @@ export default function ProfileScreen() {
       if (payload[key] === '') payload[key] = null as any;
     });
 
+    if (payload.date_of_birth) {
+      const dob = new Date(payload.date_of_birth);
+      if (!isNaN(dob.getTime())) {
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        const monthDiff = today.getMonth() - dob.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) age--;
+        if (dob.getTime() > today.getTime()) { Alert.alert('Invalid date', 'Date of birth cannot be in the future.'); return; }
+        if (age < 18) { Alert.alert('Invalid date', 'Date of birth implies an age under 18 years.'); return; }
+      }
+    }
+
     try {
       setOfficialSaving(true);
       const res = await api.post('/api/teachers/me/profile-requests', {

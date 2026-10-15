@@ -6,7 +6,10 @@ const XLSX    = require('xlsx');
 const ExcelJS = require('exceljs');
 const { uploadFile } = require('../services/storage.service');
 const { createNotification, sendTeacherEmail } = require('../services/notification.service');
+const { minAgeError } = require('../utils/dateValidation');
 const upload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+const PRIMARY_STUDENT_MIN_AGE_YEARS = 2; // prevents entering today's date (or similar) as a birthday
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -260,6 +263,9 @@ router.post('/students', adminOnly, async (req, res, next) => {
     if (!admission_number || !surname || !class_name)
       return res.status(400).json({ error: 'admission_number, surname, class_name are required' });
 
+    const dobErr = minAgeError(date_of_birth, PRIMARY_STUDENT_MIN_AGE_YEARS, "Student's date of birth");
+    if (dobErr) return res.status(400).json({ error: dobErr });
+
     const { rows } = await pool.query(
       `INSERT INTO primary_students (
         school_id, admission_number, surname, other_names, preferred_name,
@@ -326,6 +332,9 @@ router.put('/students/:id', adminOnly, async (req, res, next) => {
       emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
       picture_data,
     } = req.body;
+
+    const dobErr = minAgeError(date_of_birth, PRIMARY_STUDENT_MIN_AGE_YEARS, "Student's date of birth");
+    if (dobErr) return res.status(400).json({ error: dobErr });
 
     const { rows } = await pool.query(
       `UPDATE primary_students SET
@@ -568,6 +577,9 @@ router.post('/students/upload', adminOnly, upload.single('file'), async (req, re
         if (dob instanceof Date) dobStr = dob.toISOString().slice(0, 10);
         else if (dob && String(dob).trim()) dobStr = String(dob).trim().slice(0, 10);
 
+        const dobErr = minAgeError(dobStr, PRIMARY_STUDENT_MIN_AGE_YEARS, 'Date of birth');
+        if (dobErr) { errors.push(`Row ${i + 2}: ${dobErr}`); continue; }
+
         const { rows: r } = await client.query(
           `INSERT INTO primary_students
              (school_id, admission_number, surname, other_names, sex, date_of_birth, class_name, status,
@@ -632,7 +644,11 @@ router.post('/students/bulk-update', adminOnly, upload.single('file'), async (re
           let dobStr = null;
           if (dob instanceof Date) dobStr = dob.toISOString().slice(0, 10);
           else if (String(dob).trim()) dobStr = String(dob).trim().slice(0, 10);
-          if (dobStr) { fields.push(`date_of_birth=$${vals.length + 1}`); vals.push(dobStr); }
+          if (dobStr) {
+            const dobErr = minAgeError(dobStr, PRIMARY_STUDENT_MIN_AGE_YEARS, 'Date of birth');
+            if (dobErr) { errors.push(`Row ${i + 2}: ${dobErr}`); continue; }
+            fields.push(`date_of_birth=$${vals.length + 1}`); vals.push(dobStr);
+          }
         }
         if (!fields.length) continue;
         fields.push('updated_at=now()');

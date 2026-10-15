@@ -414,7 +414,7 @@ export default function StudentProfilePage() {
               </select>
             </div>
             <EditField label="Gender"       name="gender"         value={form.gender}         onChange={set} options={GENDERS} />
-            <EditField label="Date of Birth" name="date_of_birth" value={form.date_of_birth}  onChange={set} type="date" />
+            <EditField label="Date of Birth" name="date_of_birth" value={form.date_of_birth}  onChange={set} type="date" error={fieldErrors.date_of_birth} />
             <EditField label="JHS Index No." name="jhs_index_number" value={form.jhs_index_number} onChange={set} />
             <EditField label="Aggregate"    name="aggregate"      value={form.aggregate}      onChange={set} type="number" />
             <div>
