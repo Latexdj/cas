@@ -109,13 +109,26 @@ const RESULT_PAIR_RE = new RegExp(`^(.+?)\\s*-?\\s*(${GRADE_ALTERNATION})$`, 'i'
 // "LIT-IN-" + "ENGLISH" -> "LIT-IN-ENGLISH", "ADAMA N-" + "MANKU-ANU" ->
 // "ADAMA N-MANKU-ANU"), anything else was a real word/field break and
 // needs a space.
+//
+// Builds an array of pieces and joins once, rather than repeatedly
+// appending to a growing string — `out.endsWith('-')` on every iteration
+// forces V8 to flatten the (lazily-concatenated) accumulator each time,
+// making the naive version O(n²) in total document length. A large real
+// listing (thousands of candidates, tens of thousands of lines) measured
+// at 40+ seconds for /generate before this fix, consistent with that
+// quadratic blowup, and is effectively instant after it. The last
+// character of the accumulator built so far is always the last character
+// of whichever line was most recently appended, so checking the PREVIOUS
+// line directly (a short, fixed-size string) instead of the whole
+// accumulator is exactly equivalent, just O(1) instead of O(n).
 function joinFragments(lines) {
-  let out = '';
-  for (const line of lines) {
-    if (!out) { out = line; continue; }
-    out += out.endsWith('-') ? line : ` ${line}`;
+  const parts = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (i === 0) { parts.push(line); continue; }
+    parts.push(lines[i - 1].endsWith('-') ? line : ` ${line}`);
   }
-  return out;
+  return parts.join('');
 }
 
 function extractHeaderMetadata(lines) {
