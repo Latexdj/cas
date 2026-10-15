@@ -42,6 +42,8 @@ export interface TeacherProfile extends Teacher {
   ghana_card_number: string | null;
   certificate_url: string | null;
   certificate_filename: string | null;
+  promotion_letter_url: string | null;
+  promotion_letter_filename: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   schedule?: { id: string; day_of_week: number; start_time: string; end_time: string; subject: string; class_names: string }[];

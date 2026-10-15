@@ -121,9 +121,18 @@ export default function TeacherProfilePage() {
 
   const photoRef = useRef<HTMLInputElement>(null);
   const certRef  = useRef<HTMLInputElement>(null);
+  const promoRef = useRef<HTMLInputElement>(null);
+  const otherDocRef = useRef<HTMLInputElement>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [certUploading,  setCertUploading]  = useState(false);
+  const [promoUploading, setPromoUploading] = useState(false);
   const [uploadErr,      setUploadErr]      = useState('');
+
+  const [profileRequests, setProfileRequests] = useState<any[]>([]);
+  const [otherDocs, setOtherDocs] = useState<any[]>([]);
+  const [otherDocLabel, setOtherDocLabel] = useState('');
+  const [otherDocUploading, setOtherDocUploading] = useState(false);
+  const [otherDocErr, setOtherDocErr] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -137,6 +146,18 @@ export default function TeacherProfilePage() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    // Full request history (all statuses), and this teacher's "other"
+    // documents — neither was ever fetched here before, which is why the
+    // Documents section used to show nothing beyond the certificate slot.
+    api.get('/api/admin/teacher-profile-requests', { params: { teacherId: id, status: 'All' } })
+      .then(r => setProfileRequests(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setProfileRequests([]));
+    api.get(`/api/teachers/${id}/documents`)
+      .then(r => setOtherDocs(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setOtherDocs([]));
+  }, [id]);
 
   function toForm(p: TeacherProfile): Record<string, string> {
     return {
@@ -218,6 +239,48 @@ export default function TeacherProfilePage() {
       setProfile(p => p ? { ...p, certificate_url: data.certificate_url, certificate_filename: data.certificate_filename } : p);
     } catch { setUploadErr('Certificate upload failed'); }
     finally { setCertUploading(false); }
+  }
+
+  async function uploadPromotionLetter(file: File) {
+    setPromoUploading(true); setUploadErr('');
+    try {
+      const b64 = await new Promise<string>((res, rej) => {
+        const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      const { data } = await api.post<{ promotion_letter_url: string; promotion_letter_filename: string }>(
+        `/api/teachers/${id}/promotion-letter`,
+        { documentBase64: b64, documentFilename: file.name }
+      );
+      setProfile(p => p ? { ...p, promotion_letter_url: data.promotion_letter_url, promotion_letter_filename: data.promotion_letter_filename } : p);
+    } catch { setUploadErr('Promotion letter upload failed'); }
+    finally { setPromoUploading(false); }
+  }
+
+  async function uploadOtherDoc(file: File) {
+    if (!otherDocLabel.trim()) { setOtherDocErr('Give this document a label first.'); return; }
+    setOtherDocUploading(true); setOtherDocErr('');
+    try {
+      const b64 = await new Promise<string>((res, rej) => {
+        const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      const { data } = await api.post(`/api/teachers/${id}/documents`, {
+        label: otherDocLabel, documentBase64: b64, documentFilename: file.name,
+      });
+      setOtherDocs(prev => [data, ...prev]);
+      setOtherDocLabel('');
+    } catch (err: unknown) {
+      setOtherDocErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Document upload failed');
+    } finally { setOtherDocUploading(false); }
+  }
+
+  async function deleteOtherDoc(docId: string) {
+    if (!confirm('Delete this document?')) return;
+    try {
+      await api.delete(`/api/teachers/${id}/documents/${docId}`);
+      setOtherDocs(prev => prev.filter(d => d.id !== docId));
+    } catch { alert('Could not delete this document.'); }
   }
 
   if (loading) {
@@ -476,8 +539,120 @@ export default function TeacherProfilePage() {
             <input ref={certRef} type="file" accept=".pdf,.doc,.docx" className="hidden"
               onChange={e => { if (e.target.files?.[0]) uploadCert(e.target.files[0]); }} />
           </div>
+
+          {/* Current Promotion Letter */}
+          <div className="flex-1 min-w-[200px] border border-dashed border-gray-200 rounded-xl p-4">
+            <p className="text-xs font-semibold text-gray-500 mb-2">Current Promotion Letter</p>
+            {profile.promotion_letter_url ? (
+              <div className="flex items-center gap-2 mb-2">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-5 h-5 text-[#145C44] shrink-0">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
+                </svg>
+                <a href={profile.promotion_letter_url} target="_blank" rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:underline truncate max-w-[180px]">
+                  {profile.promotion_letter_filename ?? 'View Promotion Letter'}
+                </a>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-300 italic mb-2">No promotion letter uploaded</p>
+            )}
+            <button onClick={() => promoRef.current?.click()} disabled={promoUploading}
+              className="text-xs text-blue-600 hover:text-blue-700 font-semibold disabled:opacity-50">
+              {promoUploading ? 'Uploading…' : profile.promotion_letter_url ? 'Replace' : 'Upload Promotion Letter'}
+            </button>
+            <input ref={promoRef} type="file" accept=".pdf,.doc,.docx" className="hidden"
+              onChange={e => { if (e.target.files?.[0]) uploadPromotionLetter(e.target.files[0]); }} />
+          </div>
+        </div>
+
+        {/* Other documents — open-ended, labelled by whoever uploads them */}
+        <div className="px-5 pb-5">
+          <p className="text-xs font-semibold text-gray-500 mb-2 mt-1">Other Documents</p>
+          {otherDocs.length === 0 && <p className="text-xs text-gray-300 italic mb-3">No other documents uploaded.</p>}
+          {otherDocs.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {otherDocs.map(doc => (
+                <div key={doc.id} className="flex items-center justify-between gap-2 border border-gray-100 rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-4 h-4 text-[#145C44] shrink-0">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-gray-700 truncate">{doc.label}</p>
+                      <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline truncate block">
+                        {doc.filename ?? 'View document'}
+                      </a>
+                    </div>
+                  </div>
+                  <button onClick={() => deleteOtherDoc(doc.id)} className="text-xs text-red-500 hover:text-red-700 font-semibold shrink-0">
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <input
+              value={otherDocLabel}
+              onChange={e => setOtherDocLabel(e.target.value)}
+              placeholder="Document label (e.g. NSS Certificate)"
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button onClick={() => otherDocRef.current?.click()} disabled={otherDocUploading}
+              className="text-xs text-blue-600 hover:text-blue-700 font-semibold disabled:opacity-50 whitespace-nowrap">
+              {otherDocUploading ? 'Uploading…' : 'Add Document'}
+            </button>
+            <input ref={otherDocRef} type="file" accept=".pdf,.doc,.docx" className="hidden"
+              onChange={e => { if (e.target.files?.[0]) uploadOtherDoc(e.target.files[0]); }} />
+          </div>
+          {otherDocErr && <p className="text-xs text-red-500 mt-1">{otherDocErr}</p>}
         </div>
       </div>
+
+      {/* Official update requests — the supporting document attached to each
+          request stays on the request row permanently (approval only copies
+          field values onto the teacher record, it never touches the request
+          or its document), but this page previously never fetched this data
+          at all, so a reviewed request's document was invisible here. */}
+      {profileRequests.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-5">
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Official Update Requests</h3>
+          </div>
+          <div className="p-5 space-y-3">
+            {profileRequests.map((request) => {
+              const pillClass = request.status === 'Pending'
+                ? 'border-amber-300 bg-amber-50 text-amber-700'
+                : request.status === 'Approved'
+                  ? 'border-green-300 bg-green-50 text-green-700'
+                  : 'border-red-300 bg-red-50 text-red-700';
+              return (
+                <div key={request.id} className="border border-gray-100 rounded-lg p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-gray-400">
+                      Submitted {request.submitted_at ? String(request.submitted_at).slice(0, 10) : '—'}
+                    </p>
+                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${pillClass}`}>
+                      {request.status}
+                    </span>
+                  </div>
+                  {request.review_note && <p className="text-xs text-gray-700 mt-2">{request.review_note}</p>}
+                  <div className="mt-2">
+                    {request.supporting_document_url ? (
+                      <a href={request.supporting_document_url} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline font-semibold">
+                        {request.supporting_document_filename || 'View submitted document'}
+                      </a>
+                    ) : (
+                      <p className="text-xs text-gray-300 italic">No supporting document attached.</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

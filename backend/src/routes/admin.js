@@ -31,18 +31,28 @@ router.use(authenticate, requireActiveSubscription, adminOnly);
 // GET /api/admin/teacher-profile-requests — review queue for teacher profile change requests
 router.get('/teacher-profile-requests', async (req, res, next) => {
   try {
-    const status = ['Pending', 'Approved', 'Rejected'].includes(String(req.query.status || 'Pending'))
-      ? String(req.query.status || 'Pending')
-      : 'Pending';
+    // status=All drops the status filter entirely — used by the teacher
+    // detail page to show one teacher's full request history (including
+    // the supporting documents on already-Approved/Rejected requests,
+    // which the review queue's default Pending-only view never surfaces).
+    const requestedStatus = String(req.query.status || 'Pending');
+    const status = requestedStatus === 'All'
+      ? 'All'
+      : ['Pending', 'Approved', 'Rejected'].includes(requestedStatus) ? requestedStatus : 'Pending';
     const { teacherId } = req.query;
 
     let sql = `
       SELECT r.*, t.name AS teacher_name, t.email AS teacher_email, t.teacher_code
       FROM teacher_profile_update_requests r
       JOIN teachers t ON t.id = r.teacher_id
-      WHERE r.school_id = $1 AND r.status = $2
+      WHERE r.school_id = $1
     `;
-    const params = [req.schoolId, status];
+    const params = [req.schoolId];
+
+    if (status !== 'All') {
+      sql += ` AND r.status = $${params.length + 1}`;
+      params.push(status);
+    }
 
     if (teacherId) {
       sql += ` AND r.teacher_id = $${params.length + 1}`;

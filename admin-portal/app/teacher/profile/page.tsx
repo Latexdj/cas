@@ -43,6 +43,8 @@ interface TeacherProfile {
   ghana_card_number: string | null;
   certificate_url: string | null;
   certificate_filename: string | null;
+  promotion_letter_url: string | null;
+  promotion_letter_filename: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   photo_url: string | null;
@@ -132,6 +134,8 @@ export default function ProfilePage() {
   const router  = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const certRef = useRef<HTMLInputElement>(null);
+  const promoRef = useRef<HTMLInputElement>(null);
+  const otherDocRef = useRef<HTMLInputElement>(null);
 
   const [primary,  setPrimary]  = useState('#2ab289');
   const [profile,  setProfile]  = useState<TeacherProfile | null>(null);
@@ -140,6 +144,11 @@ export default function ProfilePage() {
   const [photoLoading, setPhotoLoading] = useState(false);
   const [photoError,   setPhotoError]   = useState('');
   const [certLoading,  setCertLoading]  = useState(false);
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [otherDocs, setOtherDocs] = useState<any[]>([]);
+  const [otherDocLabel, setOtherDocLabel] = useState('');
+  const [otherDocUploading, setOtherDocUploading] = useState(false);
+  const [otherDocErr, setOtherDocErr] = useState('');
   const [pendingRequest, setPendingRequest] = useState<any>(null);
   const [profileRequests, setProfileRequests] = useState<any[]>([]);
 
@@ -184,6 +193,9 @@ export default function ProfilePage() {
     teacherApi.get<{ id: string; name: string }[]>('/api/subjects').then(r => {
       setSubjects(Array.isArray(r.data) ? r.data : []);
     }).catch(() => setSubjects([]));
+    teacherApi.get('/api/teachers/me/documents').then(r => {
+      setOtherDocs(Array.isArray(r.data) ? r.data : []);
+    }).catch(() => setOtherDocs([]));
   }, []);
 
   async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -213,6 +225,51 @@ export default function ProfilePage() {
       setProfile(p => p ? { ...p, certificate_url: res.data.certificate_url, certificate_filename: res.data.certificate_filename } : p);
     } catch { alert('Failed to upload certificate.'); }
     finally { setCertLoading(false); if (certRef.current) certRef.current.value = ''; }
+  }
+
+  async function handlePromoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPromoLoading(true);
+    try {
+      const documentBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await teacherApi.patch('/api/teachers/me/promotion-letter', { documentBase64, documentFilename: file.name });
+      setProfile(p => p ? { ...p, promotion_letter_url: res.data.promotion_letter_url, promotion_letter_filename: res.data.promotion_letter_filename } : p);
+    } catch { alert('Failed to upload promotion letter.'); }
+    finally { setPromoLoading(false); if (promoRef.current) promoRef.current.value = ''; }
+  }
+
+  async function handleOtherDocChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!otherDocLabel.trim()) { setOtherDocErr('Give this document a label first.'); return; }
+    setOtherDocUploading(true); setOtherDocErr('');
+    try {
+      const documentBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await teacherApi.post('/api/teachers/me/documents', { label: otherDocLabel, documentBase64, documentFilename: file.name });
+      setOtherDocs(prev => [res.data, ...prev]);
+      setOtherDocLabel('');
+    } catch (err: unknown) {
+      setOtherDocErr((err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Document upload failed.');
+    } finally { setOtherDocUploading(false); if (otherDocRef.current) otherDocRef.current.value = ''; }
+  }
+
+  async function deleteOtherDoc(docId: string) {
+    if (!confirm('Delete this document?')) return;
+    try {
+      await teacherApi.delete(`/api/teachers/me/documents/${docId}`);
+      setOtherDocs(prev => prev.filter((d: any) => d.id !== docId));
+    } catch { alert('Could not delete this document.'); }
   }
 
   function touchField(field: string) {
@@ -578,6 +635,66 @@ export default function ProfilePage() {
             style={{ borderColor: primary, color: primary }}>
             {certLoading ? 'Uploading…' : profile?.certificate_url ? 'Replace' : 'Upload'}
           </button>
+        </div>
+
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#F4EFE6]">
+          <div className="flex-1 mr-3">
+            <p className="text-xs text-[#8C7E6E] mb-1">Current Promotion Letter</p>
+            {profile?.promotion_letter_url ? (
+              <a href={profile.promotion_letter_url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: primary }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5">
+                  <path strokeLinecap="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
+                </svg>
+                {profile.promotion_letter_filename ?? 'View Promotion Letter'}
+              </a>
+            ) : (
+              <p className="text-xs text-[#C0B5A5] italic">No promotion letter uploaded</p>
+            )}
+          </div>
+          <input ref={promoRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handlePromoChange} />
+          <button onClick={() => promoRef.current?.click()} disabled={promoLoading}
+            className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold border disabled:opacity-40"
+            style={{ borderColor: primary, color: primary }}>
+            {promoLoading ? 'Uploading…' : profile?.promotion_letter_url ? 'Replace' : 'Upload'}
+          </button>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-[#F4EFE6]">
+          <p className="text-xs text-[#8C7E6E] mb-2">Other Documents</p>
+          {otherDocs.length === 0 && <p className="text-xs text-[#C0B5A5] italic mb-2">No other documents uploaded.</p>}
+          {otherDocs.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {otherDocs.map((doc: any) => (
+                <div key={doc.id} className="flex items-center justify-between gap-2 border border-[#F4EFE6] rounded-lg px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-[#2C2218] truncate">{doc.label}</p>
+                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="text-xs hover:underline truncate block" style={{ color: primary }}>
+                      {doc.filename ?? 'View document'}
+                    </a>
+                  </div>
+                  <button onClick={() => deleteOtherDoc(doc.id)} className="text-xs text-[#B83232] font-semibold shrink-0">
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <input
+              value={otherDocLabel}
+              onChange={e => setOtherDocLabel(e.target.value)}
+              placeholder="Document label (e.g. NSS Certificate)"
+              className="flex-1 border border-[#E2D9CC] rounded-xl px-3 py-2 text-xs text-[#2C2218] focus:outline-none"
+            />
+            <input ref={otherDocRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleOtherDocChange} />
+            <button onClick={() => otherDocRef.current?.click()} disabled={otherDocUploading}
+              className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold border disabled:opacity-40 whitespace-nowrap"
+              style={{ borderColor: primary, color: primary }}>
+              {otherDocUploading ? 'Uploading…' : 'Add'}
+            </button>
+          </div>
+          {otherDocErr && <p className="text-xs text-[#B83232] mt-1">{otherDocErr}</p>}
         </div>
       </div>
 

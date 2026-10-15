@@ -58,6 +58,8 @@ interface TeacherProfile {
   ghana_card_number: string | null;
   certificate_url: string | null;
   certificate_filename: string | null;
+  promotion_letter_url: string | null;
+  promotion_letter_filename: string | null;
   emergency_contact_name: string | null;
   emergency_contact_phone: string | null;
   photo_url: string | null;
@@ -193,6 +195,10 @@ export default function ProfileScreen() {
   const [changing,         setChanging]         = useState(false);
 
   const [certUploading, setCertUploading] = useState(false);
+  const [promoUploading, setPromoUploading] = useState(false);
+  const [otherDocs, setOtherDocs] = useState<any[]>([]);
+  const [otherDocLabel, setOtherDocLabel] = useState('');
+  const [otherDocUploading, setOtherDocUploading] = useState(false);
   const [pendingRequest, setPendingRequest] = useState<any>(null);
   const [profileRequests, setProfileRequests] = useState<any[]>([]);
   const [showOfficialModal, setShowOfficialModal] = useState(false);
@@ -214,6 +220,13 @@ export default function ProfileScreen() {
       } catch {
         setPendingRequest(null);
         setProfileRequests([]);
+      }
+
+      try {
+        const docsRes = await api.get<any[]>('/api/teachers/me/documents');
+        setOtherDocs(Array.isArray(docsRes.data) ? docsRes.data : []);
+      } catch {
+        setOtherDocs([]);
       }
     };
 
@@ -343,6 +356,73 @@ export default function ProfileScreen() {
     } catch {
       Alert.alert('Error', 'Could not upload certificate.');
     } finally { setCertUploading(false); }
+  }
+
+  async function pickPromotionLetter() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'application/msword',
+               'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setPromoUploading(true);
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+        const ext  = asset.name.slice(asset.name.lastIndexOf('.')).toLowerCase();
+        const mime = ext === '.pdf'  ? 'application/pdf'
+                   : ext === '.docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                   :                   'application/msword';
+        const documentBase64 = `data:${mime};base64,${base64}`;
+        const res = await api.patch('/api/teachers/me/promotion-letter', { documentBase64, documentFilename: asset.name });
+        setProfile(p => p ? { ...p, promotion_letter_url: res.data.promotion_letter_url, promotion_letter_filename: res.data.promotion_letter_filename } : p);
+        Alert.alert('Uploaded', 'Promotion letter uploaded successfully.');
+      }
+    } catch {
+      Alert.alert('Error', 'Could not upload promotion letter.');
+    } finally { setPromoUploading(false); }
+  }
+
+  async function pickOtherDocument() {
+    if (!otherDocLabel.trim()) { Alert.alert('Label required', 'Give this document a label first.'); return; }
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'application/msword',
+               'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setOtherDocUploading(true);
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+        const ext  = asset.name.slice(asset.name.lastIndexOf('.')).toLowerCase();
+        const mime = ext === '.pdf'  ? 'application/pdf'
+                   : ext === '.docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                   :                   'application/msword';
+        const documentBase64 = `data:${mime};base64,${base64}`;
+        const res = await api.post('/api/teachers/me/documents', { label: otherDocLabel, documentBase64, documentFilename: asset.name });
+        setOtherDocs(prev => [res.data, ...prev]);
+        setOtherDocLabel('');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.response?.data?.error ?? 'Could not upload document.');
+    } finally { setOtherDocUploading(false); }
+  }
+
+  function deleteOtherDoc(docId: string) {
+    Alert.alert('Delete document', 'Are you sure you want to delete this document?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await api.delete(`/api/teachers/me/documents/${docId}`);
+            setOtherDocs(prev => prev.filter((d) => d.id !== docId));
+          } catch {
+            Alert.alert('Error', 'Could not delete this document.');
+          }
+        },
+      },
+    ]);
   }
 
   async function pickOfficialDocument() {
@@ -564,6 +644,65 @@ export default function ProfileScreen() {
                     </Text>
                 }
               </TouchableOpacity>
+            </View>
+
+            <View style={[styles.docRow, { borderTopWidth: 1, borderTopColor: '#F4EFE6' }]}>
+              <View style={styles.flex1}>
+                <Text style={styles.docLabel}>Current Promotion Letter</Text>
+                {profile?.promotion_letter_filename
+                  ? <Text style={[styles.docFile, { color: Colors.primary }]} numberOfLines={1}>📄 {profile.promotion_letter_filename}</Text>
+                  : <Text style={styles.docNone}>No promotion letter uploaded</Text>
+                }
+              </View>
+              <TouchableOpacity
+                style={[styles.uploadDocBtn, { borderColor: Colors.primary }]}
+                onPress={pickPromotionLetter}
+                disabled={promoUploading}
+              >
+                {promoUploading
+                  ? <ActivityIndicator size="small" color={Colors.primary} />
+                  : <Text style={[styles.uploadDocBtnText, { color: Colors.primary }]}>
+                      {profile?.promotion_letter_url ? 'Replace' : 'Upload'}
+                    </Text>
+                }
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.otherDocsBlock, { borderTopWidth: 1, borderTopColor: '#F4EFE6' }]}>
+              <Text style={styles.docLabel}>Other Documents</Text>
+              {otherDocs.length === 0 && <Text style={[styles.docNone, { marginTop: 4 }]}>No other documents uploaded.</Text>}
+              {otherDocs.map((doc) => (
+                <View key={doc.id} style={styles.otherDocRow}>
+                  <View style={styles.flex1}>
+                    <Text style={styles.otherDocRowLabel} numberOfLines={1}>{doc.label}</Text>
+                    <TouchableOpacity onPress={() => Linking.openURL(doc.file_url)}>
+                      <Text style={[styles.docFile, { color: Colors.primary }]} numberOfLines={1}>📄 {doc.filename ?? 'View document'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity onPress={() => deleteOtherDoc(doc.id)}>
+                    <Text style={styles.deleteDocText}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              <View style={styles.otherDocAddRow}>
+                <TextInput
+                  value={otherDocLabel}
+                  onChangeText={setOtherDocLabel}
+                  placeholder="Document label (e.g. NSS Certificate)"
+                  placeholderTextColor="#C0B5A5"
+                  style={styles.otherDocInput}
+                />
+                <TouchableOpacity
+                  style={[styles.uploadDocBtn, { borderColor: Colors.primary }]}
+                  onPress={pickOtherDocument}
+                  disabled={otherDocUploading}
+                >
+                  {otherDocUploading
+                    ? <ActivityIndicator size="small" color={Colors.primary} />
+                    : <Text style={[styles.uploadDocBtnText, { color: Colors.primary }]}>Add</Text>
+                  }
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -866,6 +1005,12 @@ const styles = StyleSheet.create({
   docNone:         { fontSize: 12, color: '#C0B5A5', fontStyle: 'italic' },
   uploadDocBtn:    { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginLeft: 12 },
   uploadDocBtnText:{ fontSize: 12, fontWeight: '700' },
+  otherDocsBlock:     { paddingHorizontal: 16, paddingVertical: 12 },
+  otherDocRow:        { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  otherDocRowLabel:   { fontSize: 12, fontWeight: '600', color: '#1C1208', marginBottom: 2 },
+  otherDocAddRow:     { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
+  otherDocInput:      { flex: 1, borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 12, color: '#1C1208' },
+  deleteDocText:      { fontSize: 12, fontWeight: '700', color: '#B83232', marginLeft: 8 },
   requestRow:         { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F4EFE6' },
   requestRowLast:     { borderBottomWidth: 0 },
   requestRowHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

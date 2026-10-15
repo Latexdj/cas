@@ -155,7 +155,8 @@ const TEACHER_PROFILE_COLUMNS = `id, teacher_code, name, email, phone, departmen
               certificate_url, certificate_filename, emergency_contact_name, emergency_contact_phone,
               area_of_specialization, date_of_first_appointment, date_promoted_to_current_rank,
               year_posted_to_present_station, currently_teaching_subject_ids,
-              date_obtained_academic_qualification, date_obtained_professional_qualification`;
+              date_obtained_academic_qualification, date_obtained_professional_qualification,
+              promotion_letter_url, promotion_letter_filename`;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -1306,6 +1307,133 @@ router.post('/:id/certificate', adminOnly, async (req, res, next) => {
     );
     if (!rowCount) return res.status(404).json({ error: 'Teacher not found' });
     res.json({ certificate_url: url, certificate_filename: filename });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/teachers/me/promotion-letter — teacher uploads own current promotion letter.
+// Single replaceable slot, same shape as /me/certificate — "current" means
+// only the latest matters, no history is kept of prior promotion letters.
+router.patch('/me/promotion-letter', async (req, res, next) => {
+  try {
+    const { documentBase64, documentFilename } = req.body;
+    if (!documentBase64 || !documentFilename) {
+      return res.status(400).json({ error: 'documentBase64 and documentFilename are required' });
+    }
+    const { url, filename } = await uploadDocument(documentBase64, documentFilename, `teacher-promotion-letters/${req.schoolId}`);
+    await pool.query(
+      `UPDATE teachers SET promotion_letter_url = $1, promotion_letter_filename = $2, updated_at = now()
+       WHERE id = $3 AND school_id = $4`,
+      [url, filename, req.user.id, req.schoolId]
+    );
+    res.json({ promotion_letter_url: url, promotion_letter_filename: filename });
+  } catch (err) { next(err); }
+});
+
+// POST /api/teachers/:id/promotion-letter — admin uploads a promotion letter for a teacher
+router.post('/:id/promotion-letter', adminOnly, async (req, res, next) => {
+  try {
+    const { documentBase64, documentFilename } = req.body;
+    if (!documentBase64 || !documentFilename) {
+      return res.status(400).json({ error: 'documentBase64 and documentFilename are required' });
+    }
+    const { url, filename } = await uploadDocument(documentBase64, documentFilename, `teacher-promotion-letters/${req.schoolId}`);
+    const { rowCount } = await pool.query(
+      `UPDATE teachers SET promotion_letter_url = $1, promotion_letter_filename = $2, updated_at = now()
+       WHERE id = $3 AND school_id = $4`,
+      [url, filename, req.params.id, req.schoolId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Teacher not found' });
+    res.json({ promotion_letter_url: url, promotion_letter_filename: filename });
+  } catch (err) { next(err); }
+});
+
+// ── Other documents ──────────────────────────────────────────────────────────
+// Open-ended, teacher-labelled documents (e.g. "NSS Certificate", "Marriage
+// Certificate") — unlike the certificate/promotion-letter slots, any number
+// can exist at once, so these live in their own table rather than fixed
+// columns.
+
+// GET /api/teachers/me/documents — list teacher's own "other" documents
+router.get('/me/documents', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM teacher_documents WHERE teacher_id = $1 AND school_id = $2 ORDER BY created_at DESC`,
+      [req.user.id, req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/teachers/me/documents — teacher uploads a new "other" document
+router.post('/me/documents', async (req, res, next) => {
+  try {
+    const { label, documentBase64, documentFilename } = req.body;
+    if (!label?.trim()) return res.status(400).json({ error: 'A label for this document is required.' });
+    if (!documentBase64 || !documentFilename) {
+      return res.status(400).json({ error: 'documentBase64 and documentFilename are required' });
+    }
+    const { url, filename } = await uploadDocument(documentBase64, documentFilename, `teacher-documents/${req.schoolId}`);
+    const { rows } = await pool.query(
+      `INSERT INTO teacher_documents (school_id, teacher_id, label, file_url, filename)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [req.schoolId, req.user.id, label.trim(), url, filename]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/teachers/me/documents/:docId — teacher removes one of their own documents
+router.delete('/me/documents/:docId', async (req, res, next) => {
+  try {
+    const { rowCount } = await pool.query(
+      `DELETE FROM teacher_documents WHERE id = $1 AND teacher_id = $2 AND school_id = $3`,
+      [req.params.docId, req.user.id, req.schoolId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Document not found' });
+    res.json({ message: 'Deleted.' });
+  } catch (err) { next(err); }
+});
+
+// GET /api/teachers/:id/documents — admin views a teacher's "other" documents
+router.get('/:id/documents', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM teacher_documents WHERE teacher_id = $1 AND school_id = $2 ORDER BY created_at DESC`,
+      [req.params.id, req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /api/teachers/:id/documents — admin uploads an "other" document for a teacher
+router.post('/:id/documents', adminOnly, async (req, res, next) => {
+  try {
+    const { label, documentBase64, documentFilename } = req.body;
+    if (!label?.trim()) return res.status(400).json({ error: 'A label for this document is required.' });
+    if (!documentBase64 || !documentFilename) {
+      return res.status(400).json({ error: 'documentBase64 and documentFilename are required' });
+    }
+    const { rows: teacherRows } = await pool.query(`SELECT id FROM teachers WHERE id = $1 AND school_id = $2`, [req.params.id, req.schoolId]);
+    if (!teacherRows.length) return res.status(404).json({ error: 'Teacher not found' });
+    const { url, filename } = await uploadDocument(documentBase64, documentFilename, `teacher-documents/${req.schoolId}`);
+    const { rows } = await pool.query(
+      `INSERT INTO teacher_documents (school_id, teacher_id, label, file_url, filename)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [req.schoolId, req.params.id, label.trim(), url, filename]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/teachers/:id/documents/:docId — admin removes a teacher's document
+router.delete('/:id/documents/:docId', adminOnly, async (req, res, next) => {
+  try {
+    const { rowCount } = await pool.query(
+      `DELETE FROM teacher_documents WHERE id = $1 AND teacher_id = $2 AND school_id = $3`,
+      [req.params.docId, req.params.id, req.schoolId]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Document not found' });
+    res.json({ message: 'Deleted.' });
   } catch (err) { next(err); }
 });
 

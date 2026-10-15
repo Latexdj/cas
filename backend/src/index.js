@@ -2834,6 +2834,25 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS date_obtained_professional_qualification DATE`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] teacher professional profile fields:', e.message); }
 
+    // ── Teacher documents: current promotion letter (single slot, same shape
+    // as certificate_url/filename) + open-ended labelled "other" documents ──
+    try {
+    await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS promotion_letter_url TEXT`);
+    await pool.query(`ALTER TABLE teachers ADD COLUMN IF NOT EXISTS promotion_letter_filename TEXT`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS teacher_documents (
+        id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id  UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        teacher_id UUID        NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        label      TEXT        NOT NULL,
+        file_url   TEXT        NOT NULL,
+        filename   TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_teacher_documents_teacher ON teacher_documents(teacher_id, created_at DESC)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] teacher_documents + promotion letter:', e.message); }
+
     // ── Class levels (secondary schools: Form/Year grouping above classes) ────
     try {
     await pool.query(`
