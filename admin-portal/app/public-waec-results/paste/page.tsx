@@ -66,14 +66,23 @@ function PastePageContent() {
 
     try {
       setSubmitting(true);
-      const { data } = await publicApi.post(`/api/public/waec-results/${id}/generate`, { raw_text: rawText });
+      // A large listing (many hundreds of candidates) plus a cold/slow
+      // backend instance can take longer than the client's default 15s
+      // timeout to parse, compute, and transfer back — this is the one
+      // call in the flow that does real work, so it gets more headroom.
+      const { data } = await publicApi.post(`/api/public/waec-results/${id}/generate`, { raw_text: rawText }, { timeout: 60000 });
       if (data?.report) {
         router.push(`/public-waec-results/${id}`);
         return;
       }
       setError(data?.error || 'The report could not be generated.');
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Could not generate the report right now.');
+      const isTimeout = err?.code === 'ECONNABORTED' || /timeout/i.test(err?.message || '');
+      setError(
+        isTimeout
+          ? "This is taking longer than expected — the server may be slow to respond. Please try again; it's usually faster the second time."
+          : err?.response?.data?.error || 'Could not generate the report right now.'
+      );
     } finally {
       setSubmitting(false);
     }
