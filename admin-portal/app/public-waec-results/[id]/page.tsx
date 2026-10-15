@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { publicApi } from '@/lib/api';
+import { isNetworkError, withRetry } from '@/lib/retry';
 
 interface SubjectSummary {
   name: string;
@@ -48,11 +49,15 @@ export default function PublicWaecReportPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const { data } = await publicApi.get(`/api/public/waec-results/${id}/report`);
+      const { data } = await withRetry(() => publicApi.get(`/api/public/waec-results/${id}/report`));
       setReport(data.report ?? null);
       setError('');
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'This WAEC report could not be loaded.');
+      setError(
+        isNetworkError(err)
+          ? 'Could not reach the server. Please check your connection and try again.'
+          : err?.response?.data?.error || 'This WAEC report could not be loaded.'
+      );
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@
 import { FormEvent, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { publicApi } from '@/lib/api';
+import { isNetworkError, withRetry } from '@/lib/retry';
 
 type Status = 'checking' | 'pending' | 'paid' | 'failed' | 'completed' | 'not_found';
 
@@ -48,7 +49,17 @@ function PastePageContent() {
         attemptRef.current += 1;
         setTimeout(checkStatus, delay);
       }
-    } catch {
+    } catch (err) {
+      // A connection-level failure (backend asleep/cold) is not the same as
+      // a genuine 404 — retry on the same backoff schedule instead of
+      // telling a visitor their payment "wasn't found" when the real
+      // problem is the server hadn't woken up yet.
+      if (isNetworkError(err) && attemptRef.current < POLL_DELAYS_MS.length) {
+        const delay = POLL_DELAYS_MS[attemptRef.current];
+        attemptRef.current += 1;
+        setTimeout(checkStatus, delay);
+        return;
+      }
       setStatus('not_found');
     }
   }, [id]);
@@ -70,7 +81,12 @@ function PastePageContent() {
       // backend instance can take longer than the client's default 15s
       // timeout to parse, compute, and transfer back — this is the one
       // call in the flow that does real work, so it gets more headroom.
-      const { data } = await publicApi.post(`/api/public/waec-results/${id}/generate`, { raw_text: rawText }, { timeout: 60000 });
+      // withRetry additionally absorbs a connection-level failure (backend
+      // asleep, not even responding yet) by retrying with backoff instead
+      // of failing on the visitor's very first attempt.
+      const { data } = await withRetry(() =>
+        publicApi.post(`/api/public/waec-results/${id}/generate`, { raw_text: rawText }, { timeout: 60000 })
+      );
       if (data?.report) {
         router.push(`/public-waec-results/${id}`);
         return;
@@ -79,7 +95,7 @@ function PastePageContent() {
     } catch (err: any) {
       const isTimeout = err?.code === 'ECONNABORTED' || /timeout/i.test(err?.message || '');
       setError(
-        isTimeout
+        isTimeout || isNetworkError(err)
           ? "This is taking longer than expected — the server may be slow to respond. Please try again; it's usually faster the second time."
           : err?.response?.data?.error || 'Could not generate the report right now.'
       );

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { publicApi } from '@/lib/api';
+import { isNetworkError, withRetry } from '@/lib/retry';
 
 const C = {
   forest: '#0B3D2E', mid: '#145C44', gold: '#C8973A',
@@ -32,7 +33,7 @@ export default function PublicWaecResultsCheckoutPage() {
   const [paymentRequired, setPaymentRequired] = useState(true);
 
   useEffect(() => {
-    publicApi.get('/api/public/waec-results/config')
+    withRetry(() => publicApi.get('/api/public/waec-results/config'))
       .then(({ data }) => setPaymentRequired(data?.payment_required !== false))
       .catch(() => {});
   }, []);
@@ -48,12 +49,16 @@ export default function PublicWaecResultsCheckoutPage() {
 
     try {
       setLoading(true);
-      const { data } = await publicApi.post('/api/public/waec-results/initialize', {
+      // The backend can be slow to wake up on its very first request after
+      // sitting idle — retry on a connection-level failure (nothing came
+      // back to catch) rather than failing outright on the visitor's
+      // very first attempt.
+      const { data } = await withRetry(() => publicApi.post('/api/public/waec-results/initialize', {
         contact_name: contactName,
         contact_email: contactEmail,
         contact_phone: contactPhone || undefined,
         school_name_hint: schoolNameHint || undefined,
-      });
+      }, { timeout: 30000 }));
 
       if (data?.authorization_url) {
         window.location.href = data.authorization_url;
@@ -67,7 +72,11 @@ export default function PublicWaecResultsCheckoutPage() {
 
       setError(data?.error || 'The checkout could not be started.');
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Could not start the checkout right now.');
+      setError(
+        isNetworkError(err)
+          ? 'Could not reach the server. Please check your connection and try again.'
+          : err?.response?.data?.error || 'Could not start the checkout right now.'
+      );
     } finally {
       setLoading(false);
     }
