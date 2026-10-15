@@ -141,6 +141,7 @@ export default function ProfilePage() {
   const [photoError,   setPhotoError]   = useState('');
   const [certLoading,  setCertLoading]  = useState(false);
   const [pendingRequest, setPendingRequest] = useState<any>(null);
+  const [profileRequests, setProfileRequests] = useState<any[]>([]);
 
   const [showEdit, setShowEdit] = useState(false);
   const [showOfficialRequest, setShowOfficialRequest] = useState(false);
@@ -173,10 +174,12 @@ export default function ProfilePage() {
       setProfile(r.data);
       return teacherApi.get('/api/teachers/me/profile-requests');
     }).then((reqRes) => {
-      const nextPending = Array.isArray(reqRes.data) ? reqRes.data.find((req: any) => req.status === 'Pending') ?? null : null;
-      setPendingRequest(nextPending);
+      const requests = Array.isArray(reqRes.data) ? reqRes.data : [];
+      setProfileRequests(requests);
+      setPendingRequest(requests.find((req: any) => req.status === 'Pending') ?? null);
     }).catch(() => {
       setPendingRequest(null);
+      setProfileRequests([]);
     });
     teacherApi.get<{ id: string; name: string }[]>('/api/subjects').then(r => {
       setSubjects(Array.isArray(r.data) ? r.data : []);
@@ -377,6 +380,7 @@ export default function ProfilePage() {
         documentFilename: officialDocName || undefined,
       });
       setPendingRequest(res.data);
+      setProfileRequests(prev => [res.data, ...prev]);
       setShowOfficialRequest(false);
     } catch (err: unknown) {
       const e = err as { response?: { data?: { error?: string } }; code?: string };
@@ -576,6 +580,57 @@ export default function ProfilePage() {
           </button>
         </div>
       </div>
+
+      {/* Official update requests — the supporting document attached to each
+          request stays on that request row forever (approval only copies the
+          field values onto the profile, it never deletes the request or its
+          document), but previously this page only ever showed the single
+          currently-Pending one and dropped it the moment it moved to
+          Approved/Rejected, with no other page a teacher could check — from
+          their side the document looked like it had vanished. */}
+      {profileRequests.length > 0 && (
+        <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-4 mb-4">
+          <p className="text-xs font-bold font-medium text-[#8C7E6E] mb-3">Official Update Requests</p>
+          <div className="space-y-3">
+            {profileRequests.map((request) => {
+              const pillColors = request.status === 'Pending'
+                ? { border: '#D5B14A', bg: '#FFF7D6', text: '#7A5C00' }
+                : request.status === 'Approved'
+                  ? { border: '#145C44', bg: '#E8F4EE', text: '#145C44' }
+                  : { border: '#B83232', bg: '#FEF2F2', text: '#B83232' };
+              return (
+                <div key={request.id} className="border border-[#F4EFE6] rounded-lg p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-[#8C7E6E]">
+                      Submitted {request.submitted_at ? String(request.submitted_at).slice(0, 10) : '—'}
+                    </p>
+                    <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+                      style={{ borderColor: pillColors.border, background: pillColors.bg, color: pillColors.text }}>
+                      {request.status}
+                    </span>
+                  </div>
+                  {request.review_note && (
+                    <p className="text-xs text-[#2C2218] mt-2">{request.review_note}</p>
+                  )}
+                  <div className="mt-2">
+                    {request.supporting_document_url ? (
+                      <a href={request.supporting_document_url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: primary }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-3.5 h-3.5">
+                          <path strokeLinecap="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" />
+                        </svg>
+                        {request.supporting_document_filename || 'View submitted document'}
+                      </a>
+                    ) : (
+                      <p className="text-xs text-[#C0B5A5] italic">No supporting document attached.</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Change Password */}
       <div className="bg-white rounded-xl border border-[#E2D9CC] shadow-sm p-5 mb-4">

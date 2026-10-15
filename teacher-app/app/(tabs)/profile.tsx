@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput,
+  Alert, Image, Linking, Modal, ScrollView, StyleSheet, Text, TextInput,
   TouchableOpacity, View, ActivityIndicator,
 } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -194,6 +194,7 @@ export default function ProfileScreen() {
 
   const [certUploading, setCertUploading] = useState(false);
   const [pendingRequest, setPendingRequest] = useState<any>(null);
+  const [profileRequests, setProfileRequests] = useState<any[]>([]);
   const [showOfficialModal, setShowOfficialModal] = useState(false);
   const [officialForm, setOfficialForm] = useState<Record<string, string>>({});
   const [officialSaving, setOfficialSaving] = useState(false);
@@ -207,10 +208,12 @@ export default function ProfileScreen() {
         setProfile(profileRes.data);
 
         const requestsRes = await api.get<any[]>('/api/teachers/me/profile-requests');
-        const nextPending = [...requestsRes.data].find((request) => request.status === 'Pending') ?? null;
-        setPendingRequest(nextPending);
+        const requests = Array.isArray(requestsRes.data) ? requestsRes.data : [];
+        setProfileRequests(requests);
+        setPendingRequest(requests.find((request) => request.status === 'Pending') ?? null);
       } catch {
         setPendingRequest(null);
+        setProfileRequests([]);
       }
     };
 
@@ -381,6 +384,7 @@ export default function ProfileScreen() {
         documentFilename: officialDocumentName || undefined,
       });
       setPendingRequest(res.data);
+      setProfileRequests(prev => [res.data, ...prev]);
       setShowOfficialModal(false);
       Alert.alert('Request Submitted', 'Your official profile change has been sent for administrative review.');
     } catch (err: any) {
@@ -563,6 +567,51 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
+
+        {/* Official update requests — the supporting document attached to
+            each request stays on it forever (approval only copies field
+            values onto the profile, it never deletes the request), but this
+            screen previously only ever showed the single currently-Pending
+            one and dropped it once it moved to Approved/Rejected, with no
+            other screen to check — from a teacher's side the document
+            looked like it had vanished. */}
+        {profileRequests.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Official Update Requests</Text>
+            <View style={styles.infoCard}>
+              {profileRequests.map((request, i) => {
+                const pill = request.status === 'Pending' ? styles.statusPillPending
+                  : request.status === 'Approved' ? styles.statusPillApproved
+                  : styles.statusPillRejected;
+                const pillText = request.status === 'Pending' ? styles.statusPillTextPending
+                  : request.status === 'Approved' ? styles.statusPillTextApproved
+                  : styles.statusPillTextRejected;
+                return (
+                  <View key={request.id} style={[styles.requestRow, i === profileRequests.length - 1 && styles.requestRowLast]}>
+                    <View style={styles.requestRowHeader}>
+                      <Text style={styles.docLabel}>
+                        Submitted {request.submitted_at ? String(request.submitted_at).slice(0, 10) : '—'}
+                      </Text>
+                      <View style={[styles.statusPill, pill]}>
+                        <Text style={[styles.statusPillText, pillText]}>{request.status}</Text>
+                      </View>
+                    </View>
+                    {request.review_note ? <Text style={styles.requestNote}>{request.review_note}</Text> : null}
+                    {request.supporting_document_url ? (
+                      <TouchableOpacity onPress={() => Linking.openURL(request.supporting_document_url)}>
+                        <Text style={[styles.docFile, { color: Colors.primary, marginTop: 4 }]} numberOfLines={1}>
+                          📄 {request.supporting_document_filename || 'View submitted document'}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <Text style={[styles.docNone, { marginTop: 4 }]}>No supporting document attached.</Text>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* Change Password */}
         <View style={styles.section}>
@@ -817,6 +866,18 @@ const styles = StyleSheet.create({
   docNone:         { fontSize: 12, color: '#C0B5A5', fontStyle: 'italic' },
   uploadDocBtn:    { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginLeft: 12 },
   uploadDocBtnText:{ fontSize: 12, fontWeight: '700' },
+  requestRow:         { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F4EFE6' },
+  requestRowLast:     { borderBottomWidth: 0 },
+  requestRowHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  requestNote:        { fontSize: 12, color: '#1C1208', marginTop: 6 },
+  statusPill:          { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20, borderWidth: 1 },
+  statusPillText:      { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  statusPillPending:   { backgroundColor: '#FFF7D6', borderColor: '#D5B14A' },
+  statusPillTextPending:  { color: '#7A5C00' },
+  statusPillApproved:  { backgroundColor: '#E8F4EE', borderColor: '#145C44' },
+  statusPillTextApproved: { color: '#145C44' },
+  statusPillRejected:  { backgroundColor: '#FEF2F2', borderColor: '#B83232' },
+  statusPillTextRejected: { color: '#B83232' },
   logout:          { marginHorizontal: 16, marginTop: 8 },
   credit:          { alignItems: 'center', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 32 },
   creditDivider:   { width: 48, height: 1, backgroundColor: '#E2D9CC', marginBottom: 16 },
