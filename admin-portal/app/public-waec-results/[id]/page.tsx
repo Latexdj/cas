@@ -59,6 +59,11 @@ const C = {
 
 const SALES_EMAIL = process.env.NEXT_PUBLIC_CAS_SALES_EMAIL || 'hello@casattendance.com';
 
+// WAEC's "credit" band — the grades most Ghanaian tertiary admissions treat
+// as a real pass requirement, stricter than the broad "didn't fail" (A1-E8)
+// definition the Pass % column uses.
+const CREDIT_GRADES = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6'];
+
 export default function PublicWaecReportPage() {
   const { id } = useParams<{ id: string }>();
   const [report, setReport] = useState<PublicReport | null>(null);
@@ -202,21 +207,32 @@ export default function PublicWaecReportPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                  {['Subject', 'Registered', 'Presented', 'Pass %', 'A1 to C6'].map((h) => (
+                  {['Subject', 'Registered', 'Presented', 'Pass % (A1–E8)', 'Credit % (A1–C6)'].map((h) => (
                     <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: C.muted }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {report.subjects.map((subject, i) => {
-                  const gradeTotal = Object.values(subject.gradeDistribution).reduce((sum, item) => sum + (item?.boys || 0) + (item?.girls || 0), 0);
+                  // Was previously summing every grade bucket (A1 through
+                  // F9, i.e. effectively all of Presented again) under an
+                  // "A1 to C6" label — fixed to actually total just the
+                  // credit grades, and expressed as a % of Presented
+                  // (matching how Pass % is computed) rather than a raw count.
+                  const creditTotal = CREDIT_GRADES.reduce((sum, g) => {
+                    const d = subject.gradeDistribution[g];
+                    return sum + (d ? (d.boys || 0) + (d.girls || 0) : 0);
+                  }, 0);
+                  const creditPct = subject.presented.total > 0
+                    ? Math.round((creditTotal / subject.presented.total) * 1000) / 10
+                    : 0;
                   return (
                     <tr key={subject.name} style={{ borderBottom: i < report.subjects.length - 1 ? `1px solid ${C.border}` : 'none' }}>
                       <td style={{ padding: '9px 12px', fontWeight: 600, color: C.dark }}>{subject.name}</td>
                       <td style={{ padding: '9px 12px', color: C.mid2 }}>{subject.registered.total}</td>
                       <td style={{ padding: '9px 12px', color: C.mid2 }}>{subject.presented.total}</td>
                       <td style={{ padding: '9px 12px', color: C.mid2 }}>{subject.percentagePass.total}%</td>
-                      <td style={{ padding: '9px 12px', color: C.mid2 }}>{gradeTotal}</td>
+                      <td style={{ padding: '9px 12px', color: C.mid2 }}>{creditPct}%</td>
                     </tr>
                   );
                 })}
