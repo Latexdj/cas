@@ -607,6 +607,11 @@ async function buildRankings(schoolId, year) {
   ]);
 
   const gradePoints = computeGradePoints(gradeBoundaries);
+  // Lets the client classify pass/credit for a subject-filtered summary
+  // using this school's own remark labels rather than assuming the
+  // standard WAEC A1-F9 scale (schools can rename/reorder boundaries).
+  const gradeRemarks = {};
+  for (const b of gradeBoundaries) gradeRemarks[b.grade] = b.remark || '';
   const subjectSet = new Set();
   const candidates = [];
   for (const c of candidateResult.rows) {
@@ -623,7 +628,7 @@ async function buildRankings(schoolId, year) {
   const subjects = [...subjectSet].sort((a, b) =>
     (WAEC_CORE_SUBJECTS.includes(a) ? 0 : 1) - (WAEC_CORE_SUBJECTS.includes(b) ? 0 : 1) || a.localeCompare(b)
   );
-  return { year, gradePoints, subjects, candidates };
+  return { year, gradePoints, gradeRemarks, subjects, candidates };
 }
 
 router.get('/rankings', async (req, res, next) => {

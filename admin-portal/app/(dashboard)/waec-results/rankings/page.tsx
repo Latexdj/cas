@@ -8,7 +8,57 @@ interface Candidate {
   indexNumber: string; name: string; gender: string;
   grades: Record<string, string>; bestSixAggregate: number; subjectsCounted: number;
 }
-interface Rankings { year: number; gradePoints: Record<string, number>; subjects: string[]; candidates: Candidate[] }
+interface Rankings {
+  year: number; gradePoints: Record<string, number>; gradeRemarks: Record<string, string>;
+  subjects: string[]; candidates: Candidate[];
+}
+
+type ExportRow = (string | number)[];
+
+async function exportRankingsExcel(filename: string, headers: string[], rows: ExportRow[], summary: [string, string | number][]) {
+  const XLSX = await import('xlsx');
+  const aoa: ExportRow[] = [];
+  if (summary.length) {
+    aoa.push(['Summary']);
+    summary.forEach(([label, value]) => aoa.push([label, value]));
+    aoa.push([]);
+  }
+  aoa.push(headers, ...rows);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = headers.map(() => ({ wch: 20 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Rankings');
+  XLSX.writeFile(wb, `${filename}.xlsx`);
+}
+
+async function exportRankingsPdf(filename: string, title: string, subtitle: string, head: string[], body: ExportRow[], summaryLines: string[]) {
+  const { default: jsPDF } = await import('jspdf');
+  // jspdf-autotable v5 dropped the doc.autoTable() instance patch in favor
+  // of a plain exported function called as autoTable(doc, options).
+  const { default: autoTable } = await import('jspdf-autotable');
+  const doc = new jsPDF({ orientation: 'landscape' });
+  doc.setFontSize(14);
+  doc.text(title, 14, 16);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(subtitle, 14, 23);
+  let startY = 28;
+  if (summaryLines.length) {
+    doc.setFontSize(9);
+    doc.setTextColor(60);
+    summaryLines.forEach((line, i) => doc.text(line, 14, startY + i * 5));
+    startY += summaryLines.length * 5 + 4;
+  }
+  autoTable(doc, {
+    head: [head],
+    body,
+    startY,
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: [20, 92, 68], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+  });
+  doc.save(`${filename}.pdf`);
+}
 
 export default function WaecRankingsPage() {
   const [batches, setBatches] = useState<Batch[] | null>(null);
@@ -18,6 +68,7 @@ export default function WaecRankingsPage() {
   const [data, setData] = useState<Rankings | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [exporting, setExporting] = useState<'xlsx' | 'pdf' | null>(null);
 
   useEffect(() => {
     api.get<Batch[]>('/api/admin/exam-results/batches', { params: { exam_body: 'WAEC' } })
@@ -56,12 +107,94 @@ export default function WaecRankingsPage() {
     return list;
   }, [data, gender, subject]);
 
+  // Only meaningful once a single subject is picked — classifies each
+  // candidate's grade using this school's own grade_boundaries remarks
+  // (not the standard WAEC letters), so a school with custom boundaries
+  // still gets an accurate pass/credit split.
+  const subjectSummary = useMemo(() => {
+    if (!data || !subject) return null;
+    const remarks = data.gradeRemarks || {};
+    const distribution: Record<string, number> = {};
+    let passCount = 0, creditCount = 0;
+    for (const c of rows) {
+      const grade = c.grades[subject];
+      distribution[grade] = (distribution[grade] || 0) + 1;
+      const remark = (remarks[grade] || '').toUpperCase();
+      if (remark !== 'FAIL') passCount++;
+      if (remark === 'CREDIT') creditCount++;
+    }
+    const presented = rows.length;
+    const pct = (n: number) => (presented > 0 ? Math.round((n / presented) * 1000) / 10 : 0);
+    const failCount = presented - passCount;
+    return {
+      presented, passCount, passPct: pct(passCount), creditCount, creditPct: pct(creditCount),
+      failCount, failPct: pct(failCount),
+      distribution: Object.entries(distribution).sort(([a], [b]) => (data.gradePoints[a] ?? 99) - (data.gradePoints[b] ?? 99)),
+    };
+  }, [data, subject, rows]);
+
+  function buildExportTable(): { headers: string[]; body: ExportRow[] } {
+    const headers = ['#', 'Name', 'Index Number', 'Gender', ...(subject ? [subject] : []), 'Best-6 Aggregate'];
+    const body: ExportRow[] = rows.map((c, i) => [
+      i + 1, c.name, c.indexNumber, c.gender,
+      ...(subject ? [c.grades[subject] ?? ''] : []),
+      c.subjectsCounted < 6 ? `${c.bestSixAggregate} (${c.subjectsCounted} subj.)` : c.bestSixAggregate,
+    ]);
+    return { headers, body };
+  }
+
+  function buildSummaryPairs(): [string, string | number][] {
+    if (!subjectSummary) return [];
+    return [
+      ['Subject', subject],
+      ['Presented', subjectSummary.presented],
+      ['Pass', `${subjectSummary.passCount} (${subjectSummary.passPct}%)`],
+      ['Credit', `${subjectSummary.creditCount} (${subjectSummary.creditPct}%)`],
+      ['Fail', `${subjectSummary.failCount} (${subjectSummary.failPct}%)`],
+    ];
+  }
+
+  function buildSummaryLines(): string[] {
+    return buildSummaryPairs().map(([label, value]) => `${label}: ${value}`);
+  }
+
+  async function handleExport(format: 'xlsx' | 'pdf') {
+    if (!data) return;
+    setExporting(format);
+    try {
+      const { headers, body } = buildExportTable();
+      const filenameBase = `waec-rankings-${data.year}${subject ? `-${subject.replace(/\s+/g, '-')}` : ''}`;
+      const subtitle = `${data.year} · ${subject || 'Best-6 aggregate (all subjects)'}${gender ? ` · ${gender}` : ''}`;
+      if (format === 'xlsx') {
+        await exportRankingsExcel(filenameBase, headers, body, buildSummaryPairs());
+      } else {
+        await exportRankingsPdf(filenameBase, 'WAEC Rankings', subtitle, headers, body, buildSummaryLines());
+      }
+    } finally {
+      setExporting(null);
+    }
+  }
+
   return (
     <div className="space-y-6 max-w-5xl">
-      <div>
-        <Link href="/waec-results" className="text-xs font-semibold text-slate-400 hover:text-slate-600">&larr; WAEC Results</Link>
-        <h1 className="text-2xl font-bold text-slate-900 mt-1">Rankings</h1>
-        <p className="text-sm text-slate-400 mt-0.5">Best to worst performing students, by best-6 aggregate (or a single subject).</p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <Link href="/waec-results" className="text-xs font-semibold text-slate-400 hover:text-slate-600">&larr; WAEC Results</Link>
+          <h1 className="text-2xl font-bold text-slate-900 mt-1">Rankings</h1>
+          <p className="text-sm text-slate-400 mt-0.5">Best to worst performing students, by best-6 aggregate (or a single subject).</p>
+        </div>
+        {data && rows.length > 0 && (
+          <div className="flex gap-2">
+            <button onClick={() => handleExport('xlsx')} disabled={exporting !== null}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#145C44] hover:bg-[#0f4a36] disabled:opacity-50">
+              {exporting === 'xlsx' ? 'Exporting…' : 'Export Excel'}
+            </button>
+            <button onClick={() => handleExport('pdf')} disabled={exporting !== null}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-50">
+              {exporting === 'pdf' ? 'Exporting…' : 'Export PDF'}
+            </button>
+          </div>
+        )}
       </div>
 
       {batches && batches.length === 0 ? (
@@ -102,6 +235,25 @@ export default function WaecRankingsPage() {
 
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3">{error}</p>}
 
+          {subjectSummary && (
+            <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
+              <p className="text-xs font-semibold text-slate-500 mb-3">{subject} summary</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                <SummaryStat label="Presented" value={String(subjectSummary.presented)} />
+                <SummaryStat label="Pass" value={`${subjectSummary.passCount} (${subjectSummary.passPct}%)`} tone="success" />
+                <SummaryStat label="Credit" value={`${subjectSummary.creditCount} (${subjectSummary.creditPct}%)`} tone="success" />
+                <SummaryStat label="Fail" value={`${subjectSummary.failCount} (${subjectSummary.failPct}%)`} tone="danger" />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {subjectSummary.distribution.map(([grade, count]) => (
+                  <span key={grade} className="text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1">
+                    {grade}: {count}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {loading ? (
             <p className="text-sm text-slate-400">Loading…</p>
           ) : rows.length === 0 ? (
@@ -138,6 +290,20 @@ export default function WaecRankingsPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function SummaryStat({ label, value, tone = 'default' }: { label: string; value: string; tone?: 'default' | 'success' | 'danger' }) {
+  const colors = {
+    default: 'text-slate-800',
+    success: 'text-[#145C44]',
+    danger: 'text-red-600',
+  }[tone];
+  return (
+    <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
+      <p className={`text-base font-bold mt-0.5 ${colors}`}>{value}</p>
     </div>
   );
 }
