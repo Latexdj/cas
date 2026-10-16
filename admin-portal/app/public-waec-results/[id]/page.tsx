@@ -16,6 +16,12 @@ interface SubjectSummary {
   cancelled: { boys: number; girls: number; total: number };
 }
 
+interface ParseWarning {
+  type: string;
+  message: string;
+  indexNumber?: string;
+}
+
 interface PublicReport {
   year: number;
   schoolName: string;
@@ -25,8 +31,20 @@ interface PublicReport {
   subjects: SubjectSummary[];
   summaryOfPasses: { buckets: Record<string, number>; failures: number; noResultCandidates: number };
   officialSummary: Record<string, any> | null;
-  warnings: string[];
+  warnings: ParseWarning[];
   summaryMismatches: string[];
+}
+
+// The parser emits one warning per affected candidate (e.g. "DAGAARE is not
+// a recognized subject" shows up once per candidate who took it), which for
+// a real school can mean hundreds of near-duplicate lines. Collapsing to
+// one line per distinct message, with an affected-candidate count, is both
+// the useful summary a reader actually wants and what keeps this block from
+// rendering a thousand near-identical <p> tags.
+function summarizeWarnings(warnings: ParseWarning[]): { message: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const w of warnings) counts.set(w.message, (counts.get(w.message) ?? 0) + 1);
+  return Array.from(counts.entries()).map(([message, count]) => ({ message, count }));
 }
 
 const C = {
@@ -126,8 +144,13 @@ export default function PublicWaecReportPage() {
 
         {report.warnings?.length > 0 && (
           <div style={{ marginTop: 20, padding: 14, borderRadius: 8, background: C.warningBg, border: '1px solid #EBD3A0' }}>
-            {report.warnings.map((warning, idx) => (
-              <p key={idx} style={{ fontSize: 13, color: '#8A5A08', margin: idx > 0 ? '6px 0 0' : 0 }}>{warning}</p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#8A5A08', margin: '0 0 6px' }}>
+              {report.warnings.length} note{report.warnings.length === 1 ? '' : 's'} from reading this listing
+            </p>
+            {summarizeWarnings(report.warnings).map((w, idx) => (
+              <p key={idx} style={{ fontSize: 13, color: '#8A5A08', margin: idx > 0 ? '6px 0 0' : 0 }}>
+                {w.message}{w.count > 1 ? ` (${w.count} candidates)` : ''}
+              </p>
             ))}
           </div>
         )}
