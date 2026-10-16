@@ -8,8 +8,29 @@ const QRCode    = require('qrcode');
 const https     = require('https');
 const http      = require('http');
 const supabase  = require('../config/supabase');
+const { renderSubjectPassRateChartSVG } = require('../utils/waecChartSvg');
 
 const BUCKET = process.env.STORAGE_BUCKET || 'attendance-photos';
+
+// chromium.args (from @sparticuz/chromium) is a Lambda/Linux-specific flag
+// set — --single-process, --no-zygote, --use-gl=angle/--use-angle=
+// swiftshader, --headless='shell', etc. — tuned for the *specific* Chromium
+// binary that package's own executablePath() resolves to. resolveChromePath()
+// only uses that binary on Linux; everywhere else (Windows/macOS local dev)
+// it launches a normal installed Chrome instead, and those same flags crash
+// it outright on launch ("Failed to launch the browser process: Code:
+// 2147483651", confirmed directly — no stderr, no error message, just a
+// dead child process) rather than merely being ignored. Scoping
+// chromium.args to Linux only means production (which always resolves the
+// matching @sparticuz/chromium binary) is byte-for-byte unaffected, while
+// local Windows/macOS dev — previously unable to generate a single PDF —
+// now can.
+function chromeLaunchArgs() {
+  return [
+    ...(process.platform === 'linux' ? (chromium.args ?? []) : []),
+    '--no-sandbox', '--disable-setuid-sandbox',
+  ];
+}
 
 // Converts a hex color to rgba() so we can produce tints without an extra dep.
 function hexRgba(hex, alpha) {
@@ -470,7 +491,7 @@ async function _renderToPDF(html, filePath, options = {}) {
   const { footerTemplate = null, bottomMargin = '22mm' } = options;
   const executablePath = await resolveChromePath();
   const browser = await puppeteer.launch({
-    args:            [...(chromium.args ?? []), '--no-sandbox', '--disable-setuid-sandbox'],
+    args:            chromeLaunchArgs(),
     defaultViewport: chromium.defaultViewport,
     executablePath,
     headless:        true,
@@ -899,7 +920,7 @@ async function generateCardBuffer({ student, card, school }) {
   const html            = buildCardHTML({ student, card, school, qrDataUrl });
   const executablePath  = await resolveChromePath();
   const browser         = await puppeteer.launch({
-    args:            [...(chromium.args ?? []), '--no-sandbox', '--disable-setuid-sandbox'],
+    args:            chromeLaunchArgs(),
     defaultViewport: null,
     executablePath,
     headless:        true,
@@ -911,10 +932,17 @@ async function generateCardBuffer({ student, card, school }) {
     await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
     // Let @page { size: 85.6mm 54mm } govern; do not pass width/height here
     // so Puppeteer produces a 2-page PDF (front + back).
-    pdfBuffer = await page.pdf({
+    // Buffer.from(...): puppeteer-core 25.x's page.pdf() returns a plain
+    // Uint8Array, not a Node Buffer (confirmed directly — Buffer.isBuffer()
+    // is false on the raw result) — res.send() on a Uint8Array doesn't
+    // recognize it as binary and JSON-serializes it byte-by-byte instead of
+    // sending the actual PDF/PNG bytes. Every Puppeteer output in this file
+    // gets wrapped the same way, at the point it's captured, rather than
+    // leaving it to each caller to remember.
+    pdfBuffer = Buffer.from(await page.pdf({
       printBackground: true,
       margin:          { top: '0', right: '0', bottom: '0', left: '0' },
-    });
+    }));
   } finally {
     await browser.close();
   }
@@ -1002,7 +1030,7 @@ async function generateBatchAndUpload({ entries, schoolId }) {
   const html            = buildBatchHTML(entries);
   const executablePath  = await resolveChromePath();
   const browser         = await puppeteer.launch({
-    args:            [...(chromium.args ?? []), '--no-sandbox', '--disable-setuid-sandbox'],
+    args:            chromeLaunchArgs(),
     defaultViewport: null,
     executablePath,
     headless:        true,
@@ -1016,11 +1044,14 @@ async function generateBatchAndUpload({ entries, schoolId }) {
     // many external photos are in the document. Timeout is generous for large
     // whole-school batches (87+ A4 pages on slow hardware).
     await page.setContent(html, { waitUntil: 'load', timeout: 300000 });
-    pdfBuffer = await page.pdf({
+    // Buffer.from(...): see the matching comment on generateCardBuffer —
+    // page.pdf() returns a Uint8Array, not a Node Buffer, on this
+    // puppeteer-core version.
+    pdfBuffer = Buffer.from(await page.pdf({
       format:          'A4',
       printBackground: true,
       margin:          { top: '0', right: '0', bottom: '0', left: '0' },
-    });
+    }));
   } finally {
     await browser.close();
   }
@@ -1059,7 +1090,7 @@ async function generateCardPng({ student, card, school }) {
 
   const executablePath = await resolveChromePath();
   const browser = await puppeteer.launch({
-    args:            [...(chromium.args ?? []), '--no-sandbox', '--disable-setuid-sandbox'],
+    args:            chromeLaunchArgs(),
     defaultViewport: { width: 324, height: 204, deviceScaleFactor: 2 },
     executablePath,
     headless:        true,
@@ -1069,7 +1100,9 @@ async function generateCardPng({ student, card, school }) {
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
-    pngBuffer = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 324, height: 204 } });
+    // Buffer.from(...): see generateCardBuffer's comment — page.screenshot()
+    // returns a Uint8Array on this puppeteer-core version, not a Buffer.
+    pngBuffer = Buffer.from(await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 324, height: 204 } }));
   } finally {
     await browser.close();
   }
@@ -1104,7 +1137,7 @@ function examPassRateColor(pct) {
   return EXAM_STATUS_BAD;
 }
 
-function buildExamAnalysisReportHTML(report, school) {
+function buildExamAnalysisReportHTML(report, school, { includeChart = false } = {}) {
   const colCount = 1 + 3 * 3 + WAEC_GRADE_ORDER.length * 3 + 3;
 
   const subjectRow = (s, zebra) => {
@@ -1196,6 +1229,7 @@ function buildExamAnalysisReportHTML(report, school) {
     .card-table .num { text-align: right; font-weight: bold; }
 
     .mismatch-note { margin-top: 14px; padding: 8px 12px; border-left: 3px solid ${EXAM_STATUS_WARN}; background: ${EXAM_GOLD_TINT}; font-size: 8pt; color: #4A3F32; font-style: italic; }
+    .chart-wrap { margin: 10px 0 18px; text-align: center; }
   </style></head><body>
     <div class="letterhead">
       <h1>${esc(school.name)}</h1>
@@ -1205,6 +1239,8 @@ function buildExamAnalysisReportHTML(report, school) {
         <span>Generated ${generatedOn}</span>
       </div>
     </div>
+
+    ${includeChart ? `<div class="chart-wrap">${renderSubjectPassRateChartSVG(report.subjects, { width: 1000, height: 340 })}</div>` : ''}
 
     <table class="report">
       <thead>
@@ -1237,11 +1273,11 @@ function buildExamAnalysisReportHTML(report, school) {
 // Returns a PDF buffer directly (no Supabase upload) — the report is
 // always computed live and re-exportable on demand, so persisting every
 // export attempt to storage would just accumulate orphaned files.
-async function generateExamAnalysisReportPDFBuffer(report, school) {
-  const html = buildExamAnalysisReportHTML(report, school);
+async function generateExamAnalysisReportPDFBuffer(report, school, { includeChart = false } = {}) {
+  const html = buildExamAnalysisReportHTML(report, school, { includeChart });
   const executablePath = await resolveChromePath();
   const browser = await puppeteer.launch({
-    args:            [...(chromium.args ?? []), '--no-sandbox', '--disable-setuid-sandbox'],
+    args:            chromeLaunchArgs(),
     defaultViewport: chromium.defaultViewport,
     executablePath,
     headless:        true,
@@ -1249,14 +1285,40 @@ async function generateExamAnalysisReportPDFBuffer(report, school) {
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
-    return await page.pdf({
+    // Buffer.from(...): see generateCardBuffer's comment — page.pdf()
+    // returns a Uint8Array on this puppeteer-core version, not a Buffer.
+    return Buffer.from(await page.pdf({
       format: 'A3', landscape: true, printBackground: true,
       margin: { top: '10mm', right: '10mm', bottom: '14mm', left: '10mm' },
       displayHeaderFooter: true,
       headerTemplate: '<div></div>',
       footerTemplate: `<div style="width:100%;font-size:7pt;color:${EXAM_MUTED};display:flex;justify-content:space-between;padding:0 10mm;">
         <span>CAS Services</span><span class="pageNumber"></span>/<span class="totalPages"></span></div>`,
-    });
+    }));
+  } finally {
+    await browser.close();
+  }
+}
+
+// PNG screenshot of the same SVG chart — used to embed it as a real image
+// in the Excel export (ExcelJS has no native chart object, only
+// worksheet.addImage; see services/publicWaecExport.service.js).
+async function generateChartPngBuffer(subjects, { width = 820, height = 380 } = {}) {
+  const svg = renderSubjectPassRateChartSVG(subjects, { width, height });
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>* { margin: 0; padding: 0; } body { background: #fff; }</style></head><body>${svg}</body></html>`;
+  const executablePath = await resolveChromePath();
+  const browser = await puppeteer.launch({
+    args:            chromeLaunchArgs(),
+    defaultViewport: { width, height, deviceScaleFactor: 2 },
+    executablePath,
+    headless:        true,
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
+    // Buffer.from(...): see generateCardBuffer's comment — page.screenshot()
+    // returns a Uint8Array on this puppeteer-core version, not a Buffer.
+    return Buffer.from(await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width, height } }));
   } finally {
     await browser.close();
   }
@@ -1269,5 +1331,5 @@ module.exports = {
   buildCardMarkup, buildCardBackMarkup, buildCardHTML, generateCardBuffer,
   buildBatchHTML, generateBatchAndUpload,
   generateCardPng,
-  buildExamAnalysisReportHTML, generateExamAnalysisReportPDFBuffer,
+  buildExamAnalysisReportHTML, generateExamAnalysisReportPDFBuffer, generateChartPngBuffer,
 };

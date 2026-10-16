@@ -1,11 +1,22 @@
 'use strict';
 
 const crypto = require('crypto');
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
 const router = require('express').Router();
 const pool = require('../config/db');
 const { parseWaecListing } = require('../utils/waecParser');
 const { computeReport } = require('../utils/examResultsReport');
-const { publicWaecInitLimiter, publicWaecGenerateLimiter } = require('../middleware/rateLimiter');
+const { publicWaecInitLimiter, publicWaecGenerateLimiter, publicWaecDownloadLimiter } = require('../middleware/rateLimiter');
+// publicWaecExport.service.js is required lazily, inside the two download
+// route handlers below, not here — it pulls in pdf.service.js, which pulls
+// in @sparticuz/chromium (ESM-only; Jest's CJS transform can't parse it at
+// require-time). Every other route in this codebase that touches
+// pdf.service.js requires it the same lazy way for the same reason; an
+// eager top-level require here would crash this whole file — and every
+// test that imports it — before a single test runs.
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const REPORT_PRICE_PESEWAS = 3000; // GHS 30, fixed server-side — never trust a client-supplied amount
@@ -43,6 +54,12 @@ function buildPublicReport(rawText) {
 
   return {
     ...report,
+    // Never set anywhere else in this flow (the admin-side equivalent
+    // pulls it from a saved batch row, which doesn't exist here) — both
+    // the web report header and the PDF/Excel templates reused from
+    // publicWaecExport.service.js reference report.examBody, so it needs
+    // a real value, not undefined.
+    examBody: 'WASSCE',
     schoolName: parsed.schoolName,
     schoolNumber: parsed.schoolNumber,
     year: parsed.year,
@@ -167,10 +184,21 @@ router.get('/:id/status', async (req, res, next) => {
   }
 });
 
-router.post('/:id/generate', publicWaecGenerateLimiter, async (req, res, next) => {
+// Accepts either a pasted listing ({ raw_text } JSON body) or a PDF upload
+// (multipart, field "pdf") — same dual-mode contract as the admin-side
+// POST /admin/exam-results/parse, extracted with the same pdf-parse call.
+router.post('/:id/generate', publicWaecGenerateLimiter, upload.single('pdf'), async (req, res, next) => {
   try {
-    const rawText = typeof req.body?.raw_text === 'string' ? req.body.raw_text.trim() : '';
-    if (!rawText) return res.status(400).json({ error: 'raw_text is required.' });
+    let rawText;
+    if (req.file) {
+      if (req.file.mimetype !== 'application/pdf') return res.status(400).json({ error: 'Uploaded file must be a PDF.' });
+      // pdf-parse/PDF.js fails with Node's Buffer type on Node >=24 — Uint8Array works on all versions.
+      const parsed = await pdfParse(new Uint8Array(req.file.buffer));
+      rawText = parsed.text;
+    } else {
+      rawText = typeof req.body?.raw_text === 'string' ? req.body.raw_text.trim() : '';
+    }
+    if (!rawText) return res.status(400).json({ error: 'Upload a PDF or paste the listing text.' });
 
     const { id } = req.params;
     const { rows } = await pool.query(
@@ -228,32 +256,73 @@ async function verifyWithPaystack(id) {
   return confirmed;
 }
 
+// Shared by /:id/report and both /:id/download.* routes — a completed
+// report is the one state all three need, so the "not found yet" /
+// "not generated yet" distinction (and the JSONB-string-or-object
+// normalization) only needs writing once.
+async function loadCompletedReport(id) {
+  const { rows } = await pool.query(
+    `SELECT id, status, report, created_at FROM public_waec_results WHERE id = $1`,
+    [id]
+  );
+  if (!rows.length) return { error: 'Public WAEC analysis not found.', status: 404 };
+
+  const record = rows[0];
+  if (record.status !== 'completed') return { error: 'This analysis has not been generated yet.', status: 404 };
+
+  let report = record.report;
+  if (typeof report === 'string') {
+    try { report = JSON.parse(report); } catch (e) { report = {}; }
+  }
+  return { record, report };
+}
+
 router.get('/:id/report', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT id, status, report, created_at FROM public_waec_results WHERE id = $1`,
-      [req.params.id]
-    );
-
-    if (!rows.length) {
-      return res.status(404).json({ error: 'Public WAEC analysis not found.' });
-    }
-
-    const record = rows[0];
-    if (record.status !== 'completed') {
-      return res.status(404).json({ error: 'This analysis has not been generated yet.' });
-    }
-
-    let report = record.report;
-    if (typeof report === 'string') {
-      try { report = JSON.parse(report); } catch (e) { report = {}; }
-    }
-
+    const { record, report, error, status } = await loadCompletedReport(req.params.id);
+    if (error) return res.status(status).json({ error });
     return res.json({ id: record.id, created_at: record.created_at, report });
   } catch (err) {
     if (err && err.code === '22P02') {
       return res.status(404).json({ error: 'Public WAEC analysis not found.' });
     }
+    return next(err);
+  }
+});
+
+function downloadFilename(report, extension) {
+  const slug = (report.schoolName || 'waec-results').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  return `${slug || 'waec-results'}-${report.year || ''}-analysis.${extension}`.replace(/--+/g, '-');
+}
+
+router.get('/:id/download.pdf', publicWaecDownloadLimiter, async (req, res, next) => {
+  try {
+    const { report, error, status } = await loadCompletedReport(req.params.id);
+    if (error) return res.status(status).json({ error });
+
+    const { generatePublicWaecPDFBuffer } = require('../services/publicWaecExport.service');
+    const pdfBuffer = await generatePublicWaecPDFBuffer(report);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadFilename(report, 'pdf')}"`);
+    return res.send(pdfBuffer);
+  } catch (err) {
+    if (err && err.code === '22P02') return res.status(404).json({ error: 'Public WAEC analysis not found.' });
+    return next(err);
+  }
+});
+
+router.get('/:id/download.xlsx', publicWaecDownloadLimiter, async (req, res, next) => {
+  try {
+    const { report, error, status } = await loadCompletedReport(req.params.id);
+    if (error) return res.status(status).json({ error });
+
+    const { generatePublicWaecExcelBuffer } = require('../services/publicWaecExport.service');
+    const excelBuffer = await generatePublicWaecExcelBuffer(report);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadFilename(report, 'xlsx')}"`);
+    return res.send(excelBuffer);
+  } catch (err) {
+    if (err && err.code === '22P02') return res.status(404).json({ error: 'Public WAEC analysis not found.' });
     return next(err);
   }
 });

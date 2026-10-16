@@ -56,6 +56,15 @@ const publicWaecGenerateLimiter = makeLimiter({
   message:       'Too many attempts. Please wait 15 minutes before trying again.',
 });
 
+/** GET /api/public/waec-results/:id/download.(pdf|xlsx) — each launches a
+ *  headless-Chromium render, so it's rate-limited like /generate even
+ *  though it's a GET, not just a lighter read. */
+const publicWaecDownloadLimiter = makeLimiter({
+  max:           15,
+  windowMinutes: 15,
+  message:       'Too many download attempts. Please wait 15 minutes before trying again.',
+});
+
 module.exports = {
   loginLimiter,
   schoolLookupLimiter,
@@ -63,4 +72,5 @@ module.exports = {
   contactFormLimiter,
   publicWaecInitLimiter,
   publicWaecGenerateLimiter,
+  publicWaecDownloadLimiter,
 };

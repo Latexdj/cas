@@ -31,10 +31,13 @@ function PastePageContent() {
   const id = searchParams.get('id');
 
   const [status, setStatus] = useState<Status>('checking');
+  const [mode, setMode] = useState<'paste' | 'upload'>('paste');
   const [rawText, setRawText] = useState('');
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const attemptRef = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const checkStatus = useCallback(async () => {
     if (!id) {
@@ -70,7 +73,11 @@ function PastePageContent() {
     event.preventDefault();
     setError('');
 
-    if (!rawText.trim()) {
+    if (mode === 'upload' && !pdfFile) {
+      setError('Choose a PDF file first.');
+      return;
+    }
+    if (mode === 'paste' && !rawText.trim()) {
       setError('Paste the WAEC results listing first.');
       return;
     }
@@ -87,8 +94,17 @@ function PastePageContent() {
       // Render cold spell ran a full 32s with every connection refused
       // outright, longer than the default retry budget (~19s) covers, so
       // this call gets a wider one (~74s of gaps across 5 attempts).
+      // Built fresh inside the retried callback (not once outside it) so a
+      // retry always sends a live payload rather than a possibly-stale one.
       const { data } = await withRetry(
-        () => publicApi.post(`/api/public/waec-results/${id}/generate`, { raw_text: rawText }, { timeout: 60000 }),
+        () => {
+          if (mode === 'upload' && pdfFile) {
+            const formData = new FormData();
+            formData.append('pdf', pdfFile);
+            return publicApi.post(`/api/public/waec-results/${id}/generate`, formData, { timeout: 60000 });
+          }
+          return publicApi.post(`/api/public/waec-results/${id}/generate`, { raw_text: rawText }, { timeout: 60000 });
+        },
         [3000, 6000, 10000, 15000, 20000, 20000]
       );
       if (data?.report) {
@@ -146,24 +162,75 @@ function PastePageContent() {
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '48px 24px' }}>
         <p style={{ fontSize: 12, fontWeight: 700, color: C.success, margin: 0 }}>Payment confirmed</p>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: C.forest, margin: '6px 0 0' }}>
-          Paste your WAEC results listing
+          Add your WAEC results listing
         </h1>
         <p style={{ fontSize: 13, color: C.muted, marginTop: 8, lineHeight: 1.6 }}>
           Nothing is saved until you submit. The listing is used only to generate your report.
         </p>
 
-        <form onSubmit={handleSubmit} style={{ marginTop: 20 }}>
-          <textarea
-            value={rawText}
-            onChange={(event) => setRawText(event.target.value)}
-            placeholder="Paste the full WAEC results text here…"
-            style={{
-              width: '100%', minHeight: 380, padding: '12px 14px', borderRadius: 8,
-              border: `1px solid ${C.border}`, background: '#fff', color: C.dark,
-              fontSize: 13, lineHeight: 1.6, outline: 'none', boxSizing: 'border-box',
-              fontFamily: 'inherit', resize: 'vertical',
-            }}
-          />
+        <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+          {(['paste', 'upload'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              style={{
+                padding: '7px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                border: `1px solid ${mode === m ? C.mid : C.border}`,
+                background: mode === m ? C.mid : '#fff',
+                color: mode === m ? '#fff' : C.muted,
+              }}
+            >
+              {m === 'paste' ? 'Paste text' : 'Upload PDF'}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={handleSubmit} style={{ marginTop: 14 }}>
+          {mode === 'paste' ? (
+            <textarea
+              value={rawText}
+              onChange={(event) => setRawText(event.target.value)}
+              placeholder="Paste the full WAEC results text here…"
+              style={{
+                width: '100%', minHeight: 380, padding: '12px 14px', borderRadius: 8,
+                border: `1px solid ${C.border}`, background: '#fff', color: C.dark,
+                fontSize: 13, lineHeight: 1.6, outline: 'none', boxSizing: 'border-box',
+                fontFamily: 'inherit', resize: 'vertical',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                padding: '28px 20px', borderRadius: 8, border: `1.5px dashed ${C.border}`,
+                background: '#fff', textAlign: 'center',
+              }}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf"
+                onChange={(event) => setPdfFile(event.target.files?.[0] ?? null)}
+                style={{ display: 'none' }}
+              />
+              <p style={{ fontSize: 13, color: C.dark, fontWeight: 600, margin: 0 }}>
+                {pdfFile ? pdfFile.name : 'Choose your WAEC results listing PDF'}
+              </p>
+              <p style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
+                The PDF saved or printed from WAEC's results listing page.
+              </p>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  marginTop: 14, padding: '8px 16px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                  border: `1px solid ${C.mid}`, background: '#fff', color: C.mid, cursor: 'pointer',
+                }}
+              >
+                {pdfFile ? 'Choose a different file' : 'Choose file'}
+              </button>
+            </div>
+          )}
 
           {error && (
             <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 6, background: C.dangerBg, border: '1px solid #F3C6C6', color: C.danger, fontSize: 13 }}>

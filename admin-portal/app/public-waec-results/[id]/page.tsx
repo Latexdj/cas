@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { publicApi } from '@/lib/api';
 import { isNetworkError, withRetry } from '@/lib/retry';
 
@@ -113,14 +114,34 @@ export default function PublicWaecReportPage() {
     ? Math.round((report.subjects.reduce((total, subject) => total + subject.percentagePass.total, 0) / report.subjects.length) * 10) / 10
     : 0;
 
+  const downloadBase = `${publicApi.defaults.baseURL}/api/public/waec-results/${id}`;
+  const chartData = report.subjects.map((s) => ({ name: s.name, passRate: s.percentagePass.total }));
+  const passRateColor = (pct: number) => (pct >= 75 ? C.success : pct >= 50 ? C.warning : C.danger);
+
   return (
     <div style={{ minHeight: '100vh', background: C.bg }}>
       <div style={{ maxWidth: 880, margin: '0 auto', padding: '40px 24px 56px' }}>
-        <a href="/public-waec-results" style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>
-          Back to WAEC checkout
-        </a>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <a href="/public-waec-results" style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>
+            Back to WAEC checkout
+          </a>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <a
+              href={`${downloadBase}/download.pdf`}
+              style={{ fontSize: 12, fontWeight: 600, color: C.mid, border: `1px solid ${C.mid}`, borderRadius: 6, padding: '7px 14px', textDecoration: 'none' }}
+            >
+              Download PDF
+            </a>
+            <a
+              href={`${downloadBase}/download.xlsx`}
+              style={{ fontSize: 12, fontWeight: 600, color: '#fff', background: C.mid, borderRadius: 6, padding: '7px 14px', textDecoration: 'none' }}
+            >
+              Download Excel
+            </a>
+          </div>
+        </div>
 
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginTop: 18, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 700, color: C.forest, margin: 0 }}>
               {report.schoolName || 'WAEC'} {report.year} analysis
@@ -141,6 +162,26 @@ export default function PublicWaecReportPage() {
           <StatCard label="No result" value={String(report.summaryOfPasses.noResultCandidates || 0)} />
           <StatCard label="School no." value={report.schoolNumber || '—'} tone="success" />
         </div>
+
+        {chartData.length > 0 && (
+          <div style={{ marginTop: 20, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '18px 10px 8px 0' }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: C.mid2, margin: '0 0 4px', paddingLeft: 18 }}>Percentage pass by subject</p>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={chartData} margin={{ top: 16, right: 16, left: 0, bottom: 56 }}>
+                <CartesianGrid vertical={false} stroke={C.border} />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: C.muted }} axisLine={{ stroke: C.border }} tickLine={false} angle={-45} textAnchor="end" interval={0} height={70} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: C.muted }} axisLine={false} tickLine={false} unit="%" />
+                <Tooltip formatter={((value: any) => [`${value}%`, 'Pass rate']) as any} contentStyle={{ fontSize: 12, borderRadius: 6, borderColor: C.border }} />
+                <Bar dataKey="passRate" name="Pass rate" radius={[4, 4, 0, 0]} maxBarSize={36}>
+                  <LabelList dataKey="passRate" position="top" fontSize={10} formatter={(v?: React.ReactNode) => `${v}%`} fill={C.dark} />
+                  {chartData.map((entry, i) => (
+                    <Cell key={i} fill={passRateColor(entry.passRate)} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {report.warnings?.length > 0 && (
           <div style={{ marginTop: 20, padding: 14, borderRadius: 8, background: C.warningBg, border: '1px solid #EBD3A0' }}>
