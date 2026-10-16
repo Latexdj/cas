@@ -1,32 +1,106 @@
 // Maps WAEC's raw printed subject labels (as they appear in a results
-// listing) to a clean display name. Built from three real years of this
-// school's listings (2023-2025) — covers every subject seen so far. A
-// label not in this map still gets imported (title-cased, used as-is) but
-// is flagged as an "unrecognized subject" warning by the parser, so
-// coverage gaps surface instead of silently mislabeling something.
+// listing) to a clean display name. Originally built from three real years
+// of one school's listings (2023-2025) only — which meant any other real
+// school offering a subject that school didn't (Government, Islamic
+// Religious Studies, a Ghanaian language, French, a Business or Visual Arts
+// elective...) got flagged "not a recognized subject", alarming a
+// non-technical reader into fearing a wrong analysis over a completely
+// standard WASSCE subject. Expanded to the full WASSCE catalogue (Core,
+// General Science, General Arts, Business, Home Economics, Visual Arts,
+// Agriculture, Technical/Vocational, and languages) so that gap doesn't
+// recur. A label still not in this map is imported (title-cased, used
+// as-is) and flagged as an "unrecognized subject" warning — real coverage
+// gaps still surface, they just shouldn't be the common case anymore.
 const WAEC_SUBJECT_NAMES = {
+  // ── Core (every candidate) ──────────────────────────────────────────────
   'ENGLISH LANG': 'English Language',
+  'ENGLISH LANGUAGE': 'English Language',
   'MATHEMATICS(CORE)': 'Mathematics',
+  'MATHEMATICS': 'Mathematics',
   'INTEGRATED SCIENCE': 'Integrated Science',
   'SOCIAL STUDIES': 'Social Studies',
-  'ECONOMICS': 'Economics',
-  'LIT-IN-ENGLISH': 'Literature in English',
-  'CHRISTIAN REL STUD': 'Christian Religious Studies',
-  'HISTORY': 'History',
-  'MGT IN LIVING': 'Management in Living',
+
+  // ── General Science ──────────────────────────────────────────────────────
+  'MATHEMATICS(ELECTIVE)': 'Mathematics (Elective)',
+  'ELECTIVE MATHEMATICS': 'Mathematics (Elective)',
+  'FURTHER MATHEMATICS': 'Further Mathematics',
+  'PHYSICS': 'Physics',
+  'CHEMISTRY': 'Chemistry',
   'BIOLOGY': 'Biology',
-  'FOODS & NUTRITION': 'Food and Nutrition',
-  // A results LISTING prints WAEC's own abbreviated codes (above); a
-  // school's own Excel Analysis Report spells subjects out in full
-  // instead (waecExcelAggregateParser.js's source). Both need to resolve
-  // to the same canonical name or the same subject fragments into two
-  // separate entries across years in Analytics.
-  'ENGLISH LANGUAGE': 'English Language',
-  'MATHEMATICS': 'Mathematics',
-  'CHRISTIAN RELIGIOUS STUDIES': 'Christian Religious Studies',
-  'MANAGEMENT IN LIVING': 'Management in Living',
-  'FOOD AND NUTRITION': 'Food and Nutrition',
+  'AGRICULTURAL SCIENCE': 'Agricultural Science',
+
+  // ── General Arts ─────────────────────────────────────────────────────────
+  'ECONOMICS': 'Economics',
+  'GEOGRAPHY': 'Geography',
+  'GOVERNMENT': 'Government',
+  'HISTORY': 'History',
+  'LIT-IN-ENGLISH': 'Literature in English',
   'LITERATURE IN ENGLISH': 'Literature in English',
+  'CHRISTIAN REL STUD': 'Christian Religious Studies',
+  'CHRISTIAN RELIGIOUS STUDIES': 'Christian Religious Studies',
+  'ISLAMIC RELIGIOUS STUDIES': 'Islamic Religious Studies',
+  'FRENCH': 'French',
+  'ARABIC': 'Arabic',
+  // Ghanaian languages
+  'AKAN': 'Akan',
+  'TWI': 'Akan',
+  'FANTE': 'Akan',
+  'DAGAARE': 'Dagaare',
+  'DAGBANI': 'Dagbani',
+  'DANGME': 'Dangme',
+  'EWE': 'Ewe',
+  'GA': 'Ga',
+  'GONJA': 'Gonja',
+  'KASEM': 'Kasem',
+  'NZEMA': 'Nzema',
+
+  // ── Business ─────────────────────────────────────────────────────────────
+  'BUSINESS MANAGEMENT': 'Business Management',
+  'FINANCIAL ACCOUNTING': 'Financial Accounting',
+  'PRINCIPLE OF COST ACCOUNTING': 'Principles of Cost Accounting',
+  'PRINCIPLES OF COST ACCOUNTING': 'Principles of Cost Accounting',
+  'COSTING': 'Principles of Cost Accounting',
+  'OFFICE PRACTICE': 'Office Practice',
+  'TYPEWRITING': 'Typewriting',
+  'SHORTHAND': 'Shorthand',
+
+  // ── Home Economics ───────────────────────────────────────────────────────
+  'MGT IN LIVING': 'Management in Living',
+  'MANAGEMENT IN LIVING': 'Management in Living',
+  'MANAGEMENT-IN-LIVING': 'Management in Living',
+  'FOODS & NUTRITION': 'Food and Nutrition',
+  'FOOD AND NUTRITION': 'Food and Nutrition',
+  'CLOTHING & TEXTILES': 'Clothing & Textiles',
+  'CLOTHING AND TEXTILES': 'Clothing & Textiles',
+
+  // ── Visual Arts ──────────────────────────────────────────────────────────
+  'GENERAL KNOWLEDGE IN ART': 'General Knowledge in Art',
+  'GRAPHIC DESIGN': 'Graphic Design',
+  'PICTURE MAKING': 'Picture Making',
+  'LEATHERWORK': 'Leatherwork',
+  'CERAMICS': 'Ceramics',
+  'SCULPTURE': 'Sculpture',
+  'TEXTILES': 'Textiles',
+  'BASKETRY': 'Basketry',
+  'JEWELLERY': 'Jewellery',
+  'CARVING': 'Carving',
+
+  // ── Agriculture ──────────────────────────────────────────────────────────
+  'GENERAL AGRICULTURE': 'General Agriculture',
+  'ANIMAL HUSBANDRY': 'Animal Husbandry',
+  'HORTICULTURE': 'Horticulture',
+  'FISHERIES': 'Fisheries',
+
+  // ── Technical / Vocational ───────────────────────────────────────────────
+  'APPLIED ELECTRICITY': 'Applied Electricity',
+  'AUTO MECHANICS': 'Auto Mechanics',
+  'BUILDING CONSTRUCTION': 'Building Construction',
+  'ELECTRONICS': 'Electronics',
+  'METAL WORK': 'Metal Work',
+  'TECHNICAL DRAWING': 'Technical Drawing',
+  'WOODWORK': 'Woodwork',
+  'WELDING AND FABRICATION': 'Welding and Fabrication Engineering Craft Practice',
+  'WELDING AND FABRICATION ENGINEERING CRAFT PRACTICE': 'Welding and Fabrication Engineering Craft Practice',
 };
 
 // The four subjects every WASSCE candidate takes, regardless of program —
@@ -34,9 +108,17 @@ const WAEC_SUBJECT_NAMES = {
 const WAEC_CORE_SUBJECTS = ['English Language', 'Mathematics', 'Integrated Science', 'Social Studies'];
 
 // WAEC grade codes, in the order they appear in a results listing. 'X'
-// denotes a cancelled/withheld paper — not a real grade, handled
-// separately from the grade_boundaries lookup (which only has A1-F9).
-const WAEC_GRADE_CODES = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9', 'X'];
+// denotes a cancelled/withheld paper and '*' a paper with no result
+// recorded — neither is a real grade, both handled the same way
+// (excluded from presented/pass counts) separately from the
+// grade_boundaries lookup, which only has A1-F9. 'P' (seen on at least one
+// real listing, e.g. a Clothing & Textiles practical) is a genuine
+// pass/fail-only outcome some subjects use instead of the 9-point scale —
+// unlike X/*, it's still a real result, so it stays out of that exclusion
+// set and is just not matched against the A1-F9 boundaries (no pass/fail
+// claim is made about it either way).
+const WAEC_GRADE_CODES = ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9', 'X', '*', 'P'];
+const NO_RESULT_GRADES = new Set(['X', '*']);
 
 function titleCase(str) {
   return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
@@ -69,4 +151,4 @@ function normalizeSubjectName(rawLabel) {
   return { name: titleCase(trimmed), recognized: false };
 }
 
-module.exports = { WAEC_SUBJECT_NAMES, WAEC_CORE_SUBJECTS, WAEC_GRADE_CODES, normalizeSubjectName };
+module.exports = { WAEC_SUBJECT_NAMES, WAEC_CORE_SUBJECTS, WAEC_GRADE_CODES, NO_RESULT_GRADES, normalizeSubjectName };

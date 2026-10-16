@@ -1,5 +1,7 @@
 'use strict';
 
+const { NO_RESULT_GRADES } = require('./waecSubjects');
+
 // Computes the GES-style Analysis Report from a batch's parsed candidates
 // and this school's grade_boundaries.
 //
@@ -58,7 +60,7 @@ function computeReport({ candidates, gradeBoundaries, registeredData, coreSubjec
       const g = c.grades.find(x => x.subjectName === name);
       if (!g) continue;
       const key = c.gender === 'Male' ? 'boys' : 'girls';
-      if (g.grade === 'X') { cancelled[key]++; continue; }
+      if (NO_RESULT_GRADES.has(g.grade)) { cancelled[key]++; continue; }
       presented[key]++;
       if (!gradeDistribution[g.grade]) gradeDistribution[g.grade] = { boys: 0, girls: 0 };
       gradeDistribution[g.grade][key]++;
@@ -116,7 +118,7 @@ function computeReport({ candidates, gradeBoundaries, registeredData, coreSubjec
   let failures = 0;
   let noResultCandidates = 0;
   for (const c of candidates) {
-    const realGrades = c.grades.filter(g => g.grade !== 'X');
+    const realGrades = c.grades.filter(g => !NO_RESULT_GRADES.has(g.grade));
     if (c.grades.length > 0 && realGrades.length === 0) { noResultCandidates++; continue; }
     const passCount = realGrades.filter(g => isPassingGrade(g.grade)).length;
     if (passCount === 0) failures++;

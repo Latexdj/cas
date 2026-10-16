@@ -347,14 +347,14 @@ INDEX NUMBERNAMEGENDERDOBRESULTS
 0100505099
 TEST CANDIDATE
 Female01/01/2005
-FRENCH - B2 ,
+XYLOPHONE STUDIES - B2 ,
 MATHEMATICS(CORE) - A1
 Total Number of Candidates: 1
 `;
     const result = parseWaecListing(fixture);
     expect(result.candidates).toHaveLength(1);
     expect(result.warnings.some(w => w.type === 'unrecognized_subject')).toBe(true);
-    expect(result.candidates[0].grades.find(g => g.subjectRaw === 'FRENCH').subjectName).toBe('French');
+    expect(result.candidates[0].grades.find(g => g.subjectRaw === 'XYLOPHONE STUDIES').subjectName).toBe('Xylophone Studies');
   });
 
   it('flags a declared-vs-parsed candidate count mismatch', () => {
@@ -485,11 +485,11 @@ Total Number of Candidates: 1
     const fixture = `
 INDEX NUMBER NAME GENDER DOB RESULTS
 0100505001 TEST CANDIDATE Female 01/01/2005
-ELECTIVE MATHEMATICS - B2
+XYLOPHONE STUDIES - B2
 Total Number of Candidates: 1
 `;
     const result = parseWaecListing(fixture);
     expect(result.warnings.some(w => w.type === 'unrecognized_subject')).toBe(true);
-    expect(result.candidates[0].grades[0].subjectName).toBe('Elective Mathematics');
+    expect(result.candidates[0].grades[0].subjectName).toBe('Xylophone Studies');
   });
 });

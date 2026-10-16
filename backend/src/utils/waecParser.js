@@ -95,7 +95,10 @@ function parseOfficialSummary(lines) {
 // candidates entirely, merging them into the previous one's block.
 const INDEX_NUMBER_RE = /(?<!\d)\d{10}(?!\d)/g;
 const GENDER_DOB_RE = /(Male|Female)\s*(\d{2}\/\d{2}\/\d{4})/;
-const GRADE_ALTERNATION = WAEC_GRADE_CODES.join('|');
+// '*' is a real grade code (WAEC_GRADE_CODES) but a regex metacharacter —
+// must be escaped before joining into an alternation, or it's parsed as
+// "zero-or-more of the preceding token" instead of a literal asterisk.
+const GRADE_ALTERNATION = WAEC_GRADE_CODES.map(g => g.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
 // The hyphen is optional — a real browser copy-paste was observed
 // consistently dropping it for "INTEGRATED SCIENCE" specifically (every
 // occurrence in that paste read "INTEGRATED SCIENCE F9", not

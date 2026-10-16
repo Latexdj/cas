@@ -1,5 +1,7 @@
 'use strict';
 
+const { NO_RESULT_GRADES } = require('./waecSubjects');
+
 // Soft, informational warnings for a parsed WAEC listing — same
 // { type, message } shape waecParser.js's own warnings use, appended
 // alongside them. Checked once at parse/review time, not live-rechecked
@@ -15,7 +17,7 @@ function validateListingWarnings({ candidates, coreSubjects }) {
   const presentedBySubject = new Map();
   for (const c of candidates) {
     for (const g of c.grades) {
-      if (g.grade === 'X') continue;
+      if (NO_RESULT_GRADES.has(g.grade)) continue;
       presentedBySubject.set(g.subjectName, (presentedBySubject.get(g.subjectName) || 0) + 1);
     }
   }

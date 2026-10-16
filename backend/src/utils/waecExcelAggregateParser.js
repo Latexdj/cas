@@ -2,7 +2,11 @@
 const ExcelJS = require('exceljs');
 const { WAEC_GRADE_CODES, normalizeSubjectName } = require('./waecSubjects');
 
-const GRADES = WAEC_GRADE_CODES.filter(g => g !== 'X'); // A1..F9, in order
+// A1..F9 only — this file reads a school's own Excel Analysis Report,
+// whose column layout is always exactly the 9-point scale (unlike a raw
+// results listing, which can also print 'X'/'*'/'P' in a candidate's
+// grade field; those aren't columns in this spreadsheet format).
+const GRADES = WAEC_GRADE_CODES.filter(g => !['X', '*', 'P'].includes(g));
 
 // Resolves a cell to plain text, unwrapping rich-text runs. Does NOT try
 // to resolve formulas to text (callers that need a formula's value use
