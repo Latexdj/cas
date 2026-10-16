@@ -7,6 +7,7 @@ const router = require('express').Router();
 const pool = require('../config/db');
 const { parseWaecListing } = require('../utils/waecParser');
 const { computeReport } = require('../utils/examResultsReport');
+const { computeGradePoints, computeBestSixAggregate } = require('../utils/examResultsRanking');
 const { publicWaecInitLimiter, publicWaecGenerateLimiter, publicWaecDownloadLimiter } = require('../middleware/rateLimiter');
 // publicWaecExport.service.js is required lazily, inside the two download
 // route handlers below, not here — it pulls in pdf.service.js, which pulls
@@ -42,6 +43,28 @@ const PUBLIC_GRADE_BOUNDARIES = [
 
 const CORE_SUBJECTS = ['English Language', 'Mathematics', 'Integrated Science', 'Social Studies'];
 
+// Best-to-worst leaderboard by best-6 aggregate, same shape/definition as
+// the admin-side buildRankings() in admin-exam-results.js — a candidate
+// with no scoreable grade at all (wholly absent/cancelled) has no
+// aggregate and is dropped, same "no result" definition used report-wide.
+// Unlike the admin tool there's no saved batch to re-query, so this runs
+// once against the just-parsed candidates at generate time and the result
+// is persisted straight into the report JSONB alongside everything else.
+function buildPublicRankings(candidates) {
+  const gradePoints = computeGradePoints(PUBLIC_GRADE_BOUNDARIES);
+  const ranked = [];
+  for (const c of candidates) {
+    const best = computeBestSixAggregate(c.grades, gradePoints);
+    if (!best) continue;
+    ranked.push({
+      indexNumber: c.indexNumber, name: c.name, gender: c.gender,
+      bestSixAggregate: best.aggregate, subjectsCounted: best.subjectsCounted,
+    });
+  }
+  ranked.sort((a, b) => a.bestSixAggregate - b.bestSixAggregate);
+  return ranked;
+}
+
 function buildPublicReport(rawText) {
   const parsed = parseWaecListing(rawText);
   const report = computeReport({
@@ -65,6 +88,7 @@ function buildPublicReport(rawText) {
     year: parsed.year,
     declaredTotal: parsed.declaredTotal,
     warnings: parsed.warnings || [],
+    rankings: buildPublicRankings(parsed.candidates),
   };
 }
 

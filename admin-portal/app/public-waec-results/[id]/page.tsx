@@ -23,6 +23,14 @@ interface ParseWarning {
   indexNumber?: string;
 }
 
+interface RankedCandidate {
+  indexNumber: string;
+  name: string;
+  gender: string;
+  bestSixAggregate: number;
+  subjectsCounted: number;
+}
+
 interface PublicReport {
   year: number;
   schoolName: string;
@@ -34,6 +42,7 @@ interface PublicReport {
   officialSummary: Record<string, any> | null;
   warnings: ParseWarning[];
   summaryMismatches: string[];
+  rankings: RankedCandidate[];
 }
 
 // The parser emits one warning per affected candidate (e.g. "DAGAARE is not
@@ -240,6 +249,38 @@ export default function PublicWaecReportPage() {
             </table>
           </div>
         </div>
+
+        {report.rankings?.length > 0 && (
+          <div style={{ marginTop: 24, background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 20 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: C.mid2, margin: '0 0 4px' }}>Rankings</p>
+            <p style={{ fontSize: 12, color: C.muted, margin: '0 0 14px' }}>Best to worst, by best-6 aggregate (lower is better).</p>
+            <div style={{ overflowX: 'auto', maxHeight: 480, overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                    {['#', 'Name', 'Index Number', 'Gender', 'Best-6 Aggregate'].map((h) => (
+                      <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: C.muted, position: 'sticky', top: 0, background: C.card }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.rankings.map((c, i) => (
+                    <tr key={c.indexNumber} style={{ borderBottom: i < report.rankings.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                      <td style={{ padding: '9px 12px', color: C.muted }}>{i + 1}</td>
+                      <td style={{ padding: '9px 12px', fontWeight: 600, color: C.dark }}>{c.name}</td>
+                      <td style={{ padding: '9px 12px', color: C.mid2, fontFamily: 'monospace', fontSize: 12 }}>{c.indexNumber}</td>
+                      <td style={{ padding: '9px 12px', color: C.mid2 }}>{c.gender}</td>
+                      <td style={{ padding: '9px 12px', fontWeight: 600, color: C.mid }}>
+                        {c.bestSixAggregate}
+                        {c.subjectsCounted < 6 && <span style={{ color: C.muted, fontWeight: 400 }}> ({c.subjectsCounted} subj.)</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: report.officialSummary ? 'repeat(auto-fit, minmax(280px, 1fr))' : '1fr', gap: 16, marginTop: 20 }}>
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: 18 }}>
