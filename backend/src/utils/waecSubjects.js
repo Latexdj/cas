@@ -5,12 +5,15 @@
 // Religious Studies, a Ghanaian language, French, a Business or Visual Arts
 // elective...) got flagged "not a recognized subject", alarming a
 // non-technical reader into fearing a wrong analysis over a completely
-// standard WASSCE subject. Expanded to the full WASSCE catalogue (Core,
-// General Science, General Arts, Business, Home Economics, Visual Arts,
-// Agriculture, Technical/Vocational, and languages) so that gap doesn't
-// recur. A label still not in this map is imported (title-cased, used
-// as-is) and flagged as an "unrecognized subject" warning — real coverage
-// gaps still surface, they just shouldn't be the common case anymore.
+// standard WASSCE subject. Expanded to the full WASSCE catalogue — first to
+// the common cross-programme set, then cross-checked line-by-line against
+// WAEC Ghana's own published programme/subject list
+// (https://waecgh.org/home/wassce-school/: Core, Agricultural, Business
+// [Accounting/Secretarial], Technical, Vocational [Home Economics/Visual
+// Arts], and General [Arts/Science] programmes) so that gap doesn't recur.
+// A label still not in this map is imported (title-cased, used as-is) and
+// flagged as an "unrecognized subject" warning — real coverage gaps still
+// surface, they just shouldn't be the common case anymore.
 const WAEC_SUBJECT_NAMES = {
   // ── Core (every candidate) ──────────────────────────────────────────────
   'ENGLISH LANG': 'English Language',
@@ -39,12 +42,22 @@ const WAEC_SUBJECT_NAMES = {
   'CHRISTIAN REL STUD': 'Christian Religious Studies',
   'CHRISTIAN RELIGIOUS STUDIES': 'Christian Religious Studies',
   'ISLAMIC RELIGIOUS STUDIES': 'Islamic Religious Studies',
+  'WEST AFRICA TRADITIONAL RELIGION': 'West Africa Traditional Religion',
+  'WEST AFRICAN TRADITIONAL RELIGION': 'West Africa Traditional Religion',
   'FRENCH': 'French',
   'ARABIC': 'Arabic',
-  // Ghanaian languages
+  'MUSIC': 'Music',
+  // Ghanaian languages — WAEC examines Twi as two distinct papers
+  // (Akuapem and Asante), so those stay separate from the generic 'TWI'/
+  // 'AKAN'/'FANTE' fallback, which a listing may print without specifying
+  // the variant.
   'AKAN': 'Akan',
   'TWI': 'Akan',
   'FANTE': 'Akan',
+  'TWI (AKUAPEM)': 'Twi (Akuapem)',
+  'TWI AKUAPEM': 'Twi (Akuapem)',
+  'TWI (ASANTE)': 'Twi (Asante)',
+  'TWI ASANTE': 'Twi (Asante)',
   'DAGAARE': 'Dagaare',
   'DAGBANI': 'Dagbani',
   'DANGME': 'Dangme',
@@ -61,8 +74,12 @@ const WAEC_SUBJECT_NAMES = {
   'PRINCIPLES OF COST ACCOUNTING': 'Principles of Cost Accounting',
   'COSTING': 'Principles of Cost Accounting',
   'OFFICE PRACTICE': 'Office Practice',
+  'CLERICAL OFFICE DUTIES': 'Clerical Office Duties',
   'TYPEWRITING': 'Typewriting',
   'SHORTHAND': 'Shorthand',
+  'ICT(ELECTIVE)': 'ICT (Elective)',
+  'ICT ELECTIVE': 'ICT (Elective)',
+  'ICT': 'ICT (Elective)',
 
   // ── Home Economics ───────────────────────────────────────────────────────
   'MGT IN LIVING': 'Management in Living',
@@ -88,8 +105,10 @@ const WAEC_SUBJECT_NAMES = {
   // ── Agriculture ──────────────────────────────────────────────────────────
   'GENERAL AGRICULTURE': 'General Agriculture',
   'ANIMAL HUSBANDRY': 'Animal Husbandry',
-  'HORTICULTURE': 'Horticulture',
+  'CROP HUSBANDRY AND HORTICULTURE': 'Crop Husbandry and Horticulture',
+  'HORTICULTURE': 'Crop Husbandry and Horticulture',
   'FISHERIES': 'Fisheries',
+  'FORESTRY': 'Forestry',
 
   // ── Technical / Vocational ───────────────────────────────────────────────
   'APPLIED ELECTRICITY': 'Applied Electricity',
