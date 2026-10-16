@@ -52,13 +52,18 @@ export default function PublicWaecResultsCheckoutPage() {
       // The backend can be slow to wake up on its very first request after
       // sitting idle — retry on a connection-level failure (nothing came
       // back to catch) rather than failing outright on the visitor's
-      // very first attempt.
-      const { data } = await withRetry(() => publicApi.post('/api/public/waec-results/initialize', {
-        contact_name: contactName,
-        contact_email: contactEmail,
-        contact_phone: contactPhone || undefined,
-        school_name_hint: schoolNameHint || undefined,
-      }, { timeout: 30000 }));
+      // very first attempt. A directly-measured cold spell ran a full 32s
+      // with every connection refused outright, so this gets a wider
+      // budget than the 3-attempt default.
+      const { data } = await withRetry(
+        () => publicApi.post('/api/public/waec-results/initialize', {
+          contact_name: contactName,
+          contact_email: contactEmail,
+          contact_phone: contactPhone || undefined,
+          school_name_hint: schoolNameHint || undefined,
+        }, { timeout: 30000 }),
+        [3000, 6000, 10000, 15000, 20000]
+      );
 
       if (data?.authorization_url) {
         window.location.href = data.authorization_url;

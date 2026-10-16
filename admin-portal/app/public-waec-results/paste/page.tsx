@@ -83,9 +83,13 @@ function PastePageContent() {
       // call in the flow that does real work, so it gets more headroom.
       // withRetry additionally absorbs a connection-level failure (backend
       // asleep, not even responding yet) by retrying with backoff instead
-      // of failing on the visitor's very first attempt.
-      const { data } = await withRetry(() =>
-        publicApi.post(`/api/public/waec-results/${id}/generate`, { raw_text: rawText }, { timeout: 60000 })
+      // of failing on the visitor's very first attempt. A directly-measured
+      // Render cold spell ran a full 32s with every connection refused
+      // outright, longer than the default retry budget (~19s) covers, so
+      // this call gets a wider one (~74s of gaps across 5 attempts).
+      const { data } = await withRetry(
+        () => publicApi.post(`/api/public/waec-results/${id}/generate`, { raw_text: rawText }, { timeout: 60000 }),
+        [3000, 6000, 10000, 15000, 20000, 20000]
       );
       if (data?.report) {
         router.push(`/public-waec-results/${id}`);
