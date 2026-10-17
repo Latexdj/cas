@@ -1095,6 +1095,84 @@ router.get('/reports/student-status', accountsAccess, async (req, res, next) => 
   } catch (err) { next(err); }
 });
 
+// GET /api/fees/reports/billed-items — per-student amount billed for each
+// fee item (PTA Dues, Clinic Levy, etc.), pivoted so the accountant can see
+// "who owes what, per item" at a glance — the backing data for the Billed
+// Items report/print (a paper backup of what's been billed, to record
+// payments against by hand). Unlike /reports/student-status this is an
+// INNER join on student_bills: a student with no billed item has nothing to
+// show on a sheet whose whole point is "items billed", not "billed vs paid".
+// Same filter/auth conventions as the other accountsAccess reports above.
+router.get('/reports/billed-items', accountsAccess, async (req, res, next) => {
+  try {
+    const { year_id, level_id, enrollment_status } = req.query;
+
+    let classNames = null;
+    if (level_id) {
+      const { rows: classRows } = await pool.query(
+        `SELECT name FROM classes WHERE school_id = $1 AND level_id = $2`,
+        [req.schoolId, level_id]
+      );
+      classNames = classRows.map(r => r.name);
+      if (!classNames.length) return res.json({ items: [], rows: [], school: {} });
+    }
+
+    const conditions = ['s.school_id = $1'];
+    const params = [req.schoolId];
+    let i = 2;
+    const effectiveEnrollmentStatus = enrollment_status || 'Active';
+    if (effectiveEnrollmentStatus !== 'all') { conditions.push(`s.status = $${i++}`); params.push(effectiveEnrollmentStatus); }
+    if (classNames) { conditions.push(`s.class_name = ANY($${i++}::text[])`); params.push(classNames); }
+
+    const billConditions = ['sb.student_id = s.id', 'sb.fee_item_id IS NOT NULL'];
+    if (year_id) { billConditions.push(`sb.academic_year_id = $${i++}`); params.push(year_id); }
+
+    const { rows: flat } = await pool.query(
+      `SELECT s.id AS student_id, s.name AS student_name, s.student_code, s.class_name,
+              fi.id AS fee_item_id, fi.name AS fee_item_name, fi.created_at AS fee_item_created_at,
+              SUM(sb.amount) AS amount
+       FROM students s
+       JOIN student_bills sb ON ${billConditions.join(' AND ')}
+       JOIN fee_items fi ON fi.id = sb.fee_item_id
+       WHERE ${conditions.join(' AND ')}
+       GROUP BY s.id, s.name, s.student_code, s.class_name, fi.id, fi.name, fi.created_at`,
+      params
+    );
+
+    // Pivoted in JS rather than SQL crosstab (no extension dependency, and
+    // the item set is dynamic per filter) — one row per student with a
+    // sparse amounts-by-item-id map, same idea as a spreadsheet pivot.
+    const itemsById = new Map();
+    const studentsById = new Map();
+    for (const r of flat) {
+      if (!itemsById.has(r.fee_item_id)) {
+        itemsById.set(r.fee_item_id, { id: r.fee_item_id, name: r.fee_item_name, created_at: r.fee_item_created_at });
+      }
+      if (!studentsById.has(r.student_id)) {
+        studentsById.set(r.student_id, {
+          student_id: r.student_id, student_name: r.student_name, student_code: r.student_code,
+          class_name: r.class_name, amounts: {}, total: 0,
+        });
+      }
+      const entry = studentsById.get(r.student_id);
+      const amount = Number(r.amount);
+      entry.amounts[r.fee_item_id] = amount;
+      entry.total += amount;
+    }
+
+    const items = [...itemsById.values()]
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      .map(({ id, name }) => ({ id, name }));
+    const rows = [...studentsById.values()]
+      .sort((a, b) => (a.class_name || '').localeCompare(b.class_name || '') || a.student_name.localeCompare(b.student_name));
+
+    const { rows: schoolRows } = await pool.query(
+      `SELECT name, address, logo_url FROM schools WHERE id = $1`, [req.schoolId]
+    );
+    res.json({ items, rows, school: schoolRows[0] ?? {} });
+  } catch (err) { next(err); }
+});
+
 // GET /api/fees/students/search?q= — fast student search for Collections tab
 router.get('/students/search', accountsAccess, async (req, res, next) => {
   try {

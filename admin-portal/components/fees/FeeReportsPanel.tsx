@@ -1,7 +1,10 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import type { AxiosInstance } from 'axios';
-import { buildFeePaymentListHtml, computePaymentStatus, type FeeStatusRow } from '@/lib/fee-report-print';
+import {
+  buildFeePaymentListHtml, buildBlankPaymentTemplateHtml, computePaymentStatus,
+  type FeeStatusRow, type BilledItem, type BilledItemsRow,
+} from '@/lib/fee-report-print';
 import type { SlSchool } from '@/lib/sign-list-print';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; }
@@ -47,7 +50,7 @@ const labelCls = 'block text-xs font-semibold text-slate-500 dark:text-slate-400
 export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsProp }: {
   apiClient: AxiosInstance; years?: AcademicYear[]; levels?: ClassLevel[];
 }) {
-  const [subTab, setSubTab] = useState<'schedule' | 'student'>('schedule');
+  const [subTab, setSubTab] = useState<'schedule' | 'student' | 'billed-items'>('schedule');
   const [years, setYears] = useState<AcademicYear[]>(yearsProp ?? []);
   const [levels, setLevels] = useState<ClassLevel[]>(levelsProp ?? []);
 
@@ -108,6 +111,53 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
 
   useEffect(() => { if (subTab === 'student') loadStudents(); }, [subTab, loadStudents]);
 
+  // ── Billed Items ─────────────────────────────────────────────────────────
+  const [biYearId, setBiYearId] = useState('');
+  const [biLevelId, setBiLevelId] = useState('');
+  const [biEnrollment, setBiEnrollment] = useState<'Active' | 'Graduated' | 'Inactive' | 'all'>('Active');
+  const [biItems, setBiItems] = useState<BilledItem[]>([]);
+  const [biRows, setBiRows] = useState<BilledItemsRow[]>([]);
+  const [biSchool, setBiSchool] = useState<SlSchool>({});
+  const [biLoading, setBiLoading] = useState(false);
+
+  const loadBilledItems = useCallback(async () => {
+    setBiLoading(true);
+    try {
+      const r = await apiClient.get<{ items: BilledItem[]; rows: BilledItemsRow[]; school: SlSchool }>(
+        '/api/fees/reports/billed-items',
+        { params: { year_id: biYearId || undefined, level_id: biLevelId || undefined, enrollment_status: biEnrollment } }
+      );
+      setBiItems(r.data.items);
+      setBiRows(r.data.rows);
+      setBiSchool(r.data.school);
+    } catch { setBiItems([]); setBiRows([]); }
+    finally { setBiLoading(false); }
+  }, [biYearId, biLevelId, biEnrollment]);
+
+  useEffect(() => { if (subTab === 'billed-items') loadBilledItems(); }, [subTab, loadBilledItems]);
+
+  function printBlankTemplate() {
+    const filterParts: string[] = [];
+    filterParts.push(biYearId ? (years.find(y => y.id === biYearId)?.name ?? 'Selected Year') : 'All Time');
+    if (biLevelId) filterParts.push(levels.find(l => l.id === biLevelId)?.name ?? 'Selected Group');
+    if (biEnrollment !== 'all') filterParts.push(`${biEnrollment} Students`);
+
+    const html = buildBlankPaymentTemplateHtml({
+      title: 'Billed Items Payment Template',
+      filterLabel: filterParts.join(' · '),
+      asOfDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      items: biItems,
+      rows: biRows,
+      school: biSchool,
+    });
+    const w = window.open('', '_blank');
+    if (!w) { alert('Pop-ups are blocked. Please allow pop-ups for this site and try again.'); return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  }
+
   function drillIntoSchedule(row: ScheduleRow) {
     setScheduleFilter({ id: row.schedule_id, label: `${row.fee_item_name} — ${row.class_name ?? 'All Classes'}` });
     setSubTab('student');
@@ -140,14 +190,14 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        {(['schedule', 'student'] as const).map(t => (
+        {(['schedule', 'student', 'billed-items'] as const).map(t => (
           <button key={t} onClick={() => setSubTab(t)}
             className={`px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
               subTab === t
                 ? 'bg-[#145C44] border-[#145C44] text-white'
                 : 'border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-[#145C44]'
             }`}>
-            {t === 'schedule' ? 'By Schedule' : 'By Student'}
+            {t === 'schedule' ? 'By Schedule' : t === 'student' ? 'By Student' : 'Billed Items'}
           </button>
         ))}
       </div>
@@ -303,6 +353,76 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
                 )}
               </tbody>
             </table>
+          )}
+        </div>
+      )}
+
+      {subTab === 'billed-items' && (
+        <div className={`${card} p-4`}>
+          <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+            <div className="flex gap-3 flex-wrap items-end">
+              <div>
+                <label className={labelCls}>Academic Year</label>
+                <select className={inputCls} value={biYearId} onChange={e => setBiYearId(e.target.value)}>
+                  <option value="">All Time</option>
+                  {years.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (current)' : ''}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Year Group</label>
+                <select className={inputCls} value={biLevelId} onChange={e => setBiLevelId(e.target.value)}>
+                  <option value="">All Year Groups</option>
+                  {levels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Enrollment</label>
+                <select className={inputCls} value={biEnrollment} onChange={e => setBiEnrollment(e.target.value as typeof biEnrollment)}>
+                  <option value="Active">Active</option>
+                  <option value="Graduated">Graduated</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="all">All Students</option>
+                </select>
+              </div>
+            </div>
+            <button onClick={printBlankTemplate} disabled={biLoading || biRows.length === 0}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#145C44] disabled:opacity-40">
+              Print Payment Template
+            </button>
+          </div>
+
+          {biLoading ? (
+            <p className="text-sm text-slate-400 text-center py-8">Loading…</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    {['Name', 'Student ID', 'Class', ...biItems.map(it => it.name), 'Total'].map(h => (
+                      <th key={h} className="px-3 py-2 text-left text-xs font-bold text-slate-500 uppercase whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {biRows.map(r => (
+                    <tr key={r.student_id} className="border-b border-slate-100 dark:border-slate-700/50">
+                      <td className="px-3 py-2 font-medium text-slate-900 dark:text-white whitespace-nowrap">{r.student_name}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap">{r.student_code}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap">{r.class_name}</td>
+                      {biItems.map(it => (
+                        <td key={it.id} className="px-3 py-2 text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                          {r.amounts[it.id] ? fmtGHS(r.amounts[it.id]) : '—'}
+                        </td>
+                      ))}
+                      <td className="px-3 py-2 font-semibold text-[#145C44] whitespace-nowrap">{fmtGHS(r.total)}</td>
+                    </tr>
+                  ))}
+                  {biRows.length === 0 && (
+                    <tr><td colSpan={4 + biItems.length} className="px-3 py-8 text-center text-slate-400">No billed students match this filter.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
