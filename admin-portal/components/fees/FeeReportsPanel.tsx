@@ -398,9 +398,16 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700">
-                    {['Name', 'Student ID', 'Class', ...biItems.map(it => it.name), 'Total'].map(h => (
-                      <th key={h} className="px-3 py-2 text-left text-xs font-bold text-slate-500 uppercase whitespace-nowrap">{h}</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-slate-500 uppercase whitespace-nowrap">Name</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-slate-500 uppercase whitespace-nowrap">Student ID</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-slate-500 uppercase whitespace-nowrap">Class</th>
+                    {biItems.map(it => (
+                      <th key={it.id} className="px-3 py-2 text-left text-xs font-bold text-slate-500 uppercase whitespace-nowrap">
+                        {it.name}<span className="block normal-case font-normal text-slate-400">Paid</span>
+                      </th>
                     ))}
+                    <th className="px-3 py-2 text-left text-xs font-bold text-slate-500 uppercase whitespace-nowrap">Total Billed</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-slate-500 uppercase whitespace-nowrap">Balance</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -411,14 +418,17 @@ export function FeeReportsPanel({ apiClient, years: yearsProp, levels: levelsPro
                       <td className="px-3 py-2 text-slate-600 dark:text-slate-300 whitespace-nowrap">{r.class_name}</td>
                       {biItems.map(it => (
                         <td key={it.id} className="px-3 py-2 text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                          {r.amounts[it.id] ? fmtGHS(r.amounts[it.id]) : '—'}
+                          {r.paid[it.id] ? fmtGHS(r.paid[it.id]) : '—'}
                         </td>
                       ))}
-                      <td className="px-3 py-2 font-semibold text-[#145C44] whitespace-nowrap">{fmtGHS(r.total)}</td>
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-200 whitespace-nowrap">{fmtGHS(r.total_billed)}</td>
+                      <td className="px-3 py-2 font-semibold whitespace-nowrap" style={{ color: r.balance > 0 ? '#991b1b' : '#166534' }}>
+                        {fmtGHS(r.balance)}
+                      </td>
                     </tr>
                   ))}
                   {biRows.length === 0 && (
-                    <tr><td colSpan={4 + biItems.length} className="px-3 py-8 text-center text-slate-400">No billed students match this filter.</td></tr>
+                    <tr><td colSpan={5 + biItems.length} className="px-3 py-8 text-center text-slate-400">No billed students match this filter.</td></tr>
                   )}
                 </tbody>
               </table>

@@ -19,8 +19,10 @@ export interface BilledItemsRow {
   student_name: string;
   student_code: string;
   class_name: string;
-  amounts: Record<string, number>;
-  total: number;
+  paid: Record<string, number>;
+  total_billed: number;
+  total_paid: number;
+  balance: number;
 }
 
 export function computePaymentStatus(row: { total_billed: number; total_paid: number }): 'Paid' | 'Partial' | 'Unpaid' {
@@ -164,13 +166,13 @@ tfoot td { border: 1px solid #333; padding: 6px 8px; font-size: 11px; font-weigh
 </html>`;
 }
 
-// A blank paper backup of the billed-items sheet: student/class/item
-// amounts are pre-filled from what's actually been billed (so the
-// accountant knows what each line owes at a glance), but Date and
-// Transaction ID are left empty for handwriting payments in as they come
-// in — same table convention as the PTA-contributions spreadsheet this
-// mirrors (one column per billed item, a running total column), reusing
-// this file's established print-page CSS rather than a second style block.
+// A blank paper backup of the billed-items sheet: only student identity
+// (name/student ID/class) is pre-filled — every money cell (Date,
+// Transaction ID, each billed item's amount, the total) is left blank for
+// the accountant to record by hand as payments come in, same table
+// convention as the PTA-contributions spreadsheet this mirrors (one column
+// per billed item, a total column), reusing this file's established
+// print-page CSS rather than a second style block.
 export function buildBlankPaymentTemplateHtml(opts: {
   title: string;
   filterLabel: string;
@@ -182,9 +184,13 @@ export function buildBlankPaymentTemplateHtml(opts: {
   const { title, filterLabel, asOfDate, items, rows, school } = opts;
   const colCount = 5 + items.length + 1;
 
-  const itemTotals = items.map(it => rows.reduce((s, r) => s + Number(r.amounts[it.id] || 0), 0));
-  const grandTotal = rows.reduce((s, r) => s + Number(r.total), 0);
-
+  // Deliberately blank: this sheet exists so the accountant can write in
+  // what was actually paid, by hand, as a paper backup — pre-printing the
+  // billed figures here would just be guessing at what he's about to record
+  // and risks being read as the answer instead of a blank to fill in. Only
+  // student identity (name/ID/class) is known in advance, so only that gets
+  // pre-filled; every money column, including the item headers' totals, is
+  // left empty for pen and paper.
   const bodyRows = rows.map((r, i) => `
     <tr>
       <td class="no">${i + 1}</td>
@@ -193,8 +199,8 @@ export function buildBlankPaymentTemplateHtml(opts: {
       <td>${escHtml(r.class_name ?? '')}</td>
       <td class="blank"></td>
       <td class="blank"></td>
-      ${items.map(it => `<td style="text-align:right">${fmtGHS(Number(r.amounts[it.id] || 0))}</td>`).join('')}
-      <td style="text-align:right;font-weight:700">${fmtGHS(Number(r.total))}</td>
+      ${items.map(() => `<td class="blank"></td>`).join('')}
+      <td class="blank"></td>
     </tr>`).join('');
 
   const logoHtml = school.logo_url
@@ -275,8 +281,8 @@ tfoot td { border: 1px solid #333; padding: 6px 6px; font-size: 11px; font-weigh
   <tfoot>
     <tr>
       <td colspan="6" style="text-align:right">Totals</td>
-      ${itemTotals.map(t => `<td style="text-align:right">${fmtGHS(t)}</td>`).join('')}
-      <td style="text-align:right">${fmtGHS(grandTotal)}</td>
+      ${items.map(() => `<td class="blank"></td>`).join('')}
+      <td class="blank"></td>
     </tr>
   </tfoot>
 </table>

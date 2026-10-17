@@ -1095,13 +1095,16 @@ router.get('/reports/student-status', accountsAccess, async (req, res, next) => 
   } catch (err) { next(err); }
 });
 
-// GET /api/fees/reports/billed-items — per-student amount billed for each
+// GET /api/fees/reports/billed-items — per-student amount PAID toward each
 // fee item (PTA Dues, Clinic Levy, etc.), pivoted so the accountant can see
-// "who owes what, per item" at a glance — the backing data for the Billed
-// Items report/print (a paper backup of what's been billed, to record
-// payments against by hand). Unlike /reports/student-status this is an
-// INNER join on student_bills: a student with no billed item has nothing to
-// show on a sheet whose whole point is "items billed", not "billed vs paid".
+// "who's paid what, per item, and what's left" at a glance — the backing
+// data for the Billed Items report/print. Deliberately shows paid (not
+// billed) per item: the billed amount is already visible on the Schedules
+// tab, so repeating it here per item was redundant — what's actually useful
+// on this view is progress against it and the remaining balance. Unlike
+// /reports/student-status this is an INNER join on student_bills: a student
+// with no billed item has nothing to show on a sheet whose whole point is
+// "items billed", not "billed vs paid" for every student regardless.
 // Same filter/auth conventions as the other accountsAccess reports above.
 router.get('/reports/billed-items', accountsAccess, async (req, res, next) => {
   try {
@@ -1127,13 +1130,20 @@ router.get('/reports/billed-items', accountsAccess, async (req, res, next) => {
     const billConditions = ['sb.student_id = s.id', 'sb.fee_item_id IS NOT NULL'];
     if (year_id) { billConditions.push(`sb.academic_year_id = $${i++}`); params.push(year_id); }
 
+    // Payments are pre-aggregated per bill_id before joining to student_bills
+    // (same idiom as /reports/arrears and /reports/by-schedule above) so a
+    // bill with more than one payment against it never fans out and
+    // double-counts either the billed or paid side.
     const { rows: flat } = await pool.query(
       `SELECT s.id AS student_id, s.name AS student_name, s.student_code, s.class_name,
               fi.id AS fee_item_id, fi.name AS fee_item_name, fi.created_at AS fee_item_created_at,
-              SUM(sb.amount) AS amount
+              SUM(sb.amount) AS billed, COALESCE(SUM(p.paid), 0) AS paid
        FROM students s
        JOIN student_bills sb ON ${billConditions.join(' AND ')}
        JOIN fee_items fi ON fi.id = sb.fee_item_id
+       LEFT JOIN (
+         SELECT bill_id, SUM(amount) AS paid FROM fee_payments WHERE school_id = $1 GROUP BY bill_id
+       ) p ON p.bill_id = sb.id
        WHERE ${conditions.join(' AND ')}
        GROUP BY s.id, s.name, s.student_code, s.class_name, fi.id, fi.name, fi.created_at`,
       params
@@ -1141,7 +1151,7 @@ router.get('/reports/billed-items', accountsAccess, async (req, res, next) => {
 
     // Pivoted in JS rather than SQL crosstab (no extension dependency, and
     // the item set is dynamic per filter) — one row per student with a
-    // sparse amounts-by-item-id map, same idea as a spreadsheet pivot.
+    // sparse paid-by-item-id map, same idea as a spreadsheet pivot.
     const itemsById = new Map();
     const studentsById = new Map();
     for (const r of flat) {
@@ -1151,19 +1161,22 @@ router.get('/reports/billed-items', accountsAccess, async (req, res, next) => {
       if (!studentsById.has(r.student_id)) {
         studentsById.set(r.student_id, {
           student_id: r.student_id, student_name: r.student_name, student_code: r.student_code,
-          class_name: r.class_name, amounts: {}, total: 0,
+          class_name: r.class_name, paid: {}, total_billed: 0, total_paid: 0,
         });
       }
       const entry = studentsById.get(r.student_id);
-      const amount = Number(r.amount);
-      entry.amounts[r.fee_item_id] = amount;
-      entry.total += amount;
+      const billed = Number(r.billed);
+      const paid = Number(r.paid);
+      entry.paid[r.fee_item_id] = paid;
+      entry.total_billed += billed;
+      entry.total_paid += paid;
     }
 
     const items = [...itemsById.values()]
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
       .map(({ id, name }) => ({ id, name }));
     const rows = [...studentsById.values()]
+      .map(r => ({ ...r, balance: r.total_billed - r.total_paid }))
       .sort((a, b) => (a.class_name || '').localeCompare(b.class_name || '') || a.student_name.localeCompare(b.student_name));
 
     const { rows: schoolRows } = await pool.query(
