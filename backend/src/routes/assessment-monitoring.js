@@ -52,9 +52,21 @@ router.get('/', async (req, res, next) => {
 
         UNION
 
+        -- Only an assessment with at least one real score/absent mark counts
+        -- as "the outgoing teacher's already-completed work" worth keeping
+        -- visible after a reassignment — an assessment row can exist with
+        -- zero assessment_scores (created, then abandoned, never touched),
+        -- and without this guard that empty shell alone resurrects a teacher
+        -- who no longer has any real connection to this class/subject/period,
+        -- showing up as a confusing "not started" entry next to the real
+        -- (current) teacher who has actually done the work.
         SELECT DISTINCT a.teacher_id, LOWER(a.subject) AS subject_key, a.subject, a.class_name
         FROM assessments a
         WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
+          AND EXISTS (
+            SELECT 1 FROM assessment_scores asc1
+            WHERE asc1.assessment_id = a.id AND (asc1.score IS NOT NULL OR asc1.absent = true)
+          )
 
         UNION
 
