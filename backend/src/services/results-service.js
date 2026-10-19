@@ -30,8 +30,11 @@ async function computeStudentResult(schoolId, studentId, academicYearId, semeste
 
   // The student's class AS OF this period, not their current class_name —
   // a promoted student's historical scores are tagged with their old class.
-  const class_name = await resolveStudentClassAtPeriod(schoolId, studentId, currentClassName, academicYearId, sem);
-  const roster = await getClassRoster(schoolId, class_name, academicYearId, sem);
+  // A results lookup (including AI remarks for an already-graduated
+  // student's final report card), not a live tracker — see
+  // classHistory.service.js's includeInactive doc comment.
+  const class_name = await resolveStudentClassAtPeriod(schoolId, studentId, currentClassName, academicYearId, sem, { includeInactive: true });
+  const roster = await getClassRoster(schoolId, class_name, academicYearId, sem, { includeInactive: true });
 
   // Fetch all class-level data in parallel
   const [schoolRow, modesRow, boundariesRow, studentsRow, assessmentsRow, examScoresRow, importedRes, attRes] =

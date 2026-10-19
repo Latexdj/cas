@@ -41,7 +41,13 @@ function buildGradeFn(boundaries) {
 // without attendance — callers append that separately as needed.
 async function assembleResults(schoolId, academic_year_id, semester, class_name) {
   const semInt = parseInt(semester);
-  const roster = await getClassRoster(schoolId, class_name, academic_year_id, semInt);
+  // This is a results *lookup*, not a live-progress tracker — a since-
+  // graduated or withdrawn student's own historical results must still be
+  // reachable here, so the roster includes them regardless of current status
+  // (see getClassRoster's includeInactive doc comment for the incident this
+  // fixes: an entire imported 2024/2025 dataset was invisible for any
+  // student who had since graduated).
+  const roster = await getClassRoster(schoolId, class_name, academic_year_id, semInt, { includeInactive: true });
 
   const [schoolRow, modesRow, boundariesRow, studentsRow] = await Promise.all([
     pool.query(`SELECT ca_percentage FROM schools WHERE id = $1`, [schoolId]),
@@ -858,7 +864,12 @@ router.get('/transcript/:student_id', async (req, res, next) => {
       // semester's ranking).
       let class_position = null, class_total = null;
       try {
-        const rosterIds = await getClassRoster(req.schoolId, ec, yearId, semester);
+        // Same reasoning as assembleResults() above: a transcript is itself a
+        // historical document (very often generated for an already-graduated
+        // student), so the ranking pool must include graduated/withdrawn
+        // classmates too, or the position/class_total shown would silently
+        // shrink to whoever's still Active.
+        const rosterIds = await getClassRoster(req.schoolId, ec, yearId, semester, { includeInactive: true });
         const classmates = rosterIds.map(id => ({ id }));
         if (classmates.length > 1 && average != null) {
           const ids = classmates.map(c => c.id);

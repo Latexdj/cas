@@ -70,11 +70,46 @@ describe('resolveClassFromHistory', () => {
       expect(resolveClassFromHistory(history, '2A', [YEAR_2025_START, 1], createdAt, YEAR_2026_START)).toBe('1A');
     });
 
-    it('falls through to null when createdAt/existenceCutoff are unavailable (pre-existing behavior unaffected)', () => {
+    it('resolves normally when createdAt/existenceCutoff are unavailable (pre-existing behavior unaffected)', () => {
       const history = [
         { fromClass: '1D', toClass: '2D', source: 'promotion', period: [YEAR_2025_START, 1] },
       ];
       expect(resolveClassFromHistory(history, '2D', [YEAR_2024_START, 2], null, null)).toBe('1D');
+    });
+
+    // Regression test for the second real St. Augustine's incident, found
+    // while diagnosing why an imported 2024/2025 dataset was invisible: the
+    // entire school's student population (active and graduated alike) was
+    // bulk-migrated into the system in May 2026, including class_history
+    // rows backfilled to reconstruct each student's placement in prior
+    // years/semesters. Every one of those students' createdAt therefore
+    // postdates the 2025/2026 cutoff, which — before this fix — made the
+    // existence guard wrongly null out their 2024/2025 class even though a
+    // 'backfill' row exists specifically to state what it was.
+    it('trusts a backfill row over the existence guard, even when createdAt is from a later bulk migration', () => {
+      const createdAt = new Date('2026-05-27').getTime(); // bulk-migration date, long after either year
+      const history = [
+        { fromClass: '2GEE', toClass: '3GEE', source: 'backfill', period: [YEAR_2025_START, 2] },
+      ];
+      // Target: 2024/2025 Sem 1 — before the backfilled transition, and
+      // before the student's own createdAt. The live-sourced test above
+      // returns null for exactly this createdAt/cutoff relationship; a
+      // backfill-sourced row must not.
+      const resolved = resolveClassFromHistory(
+        history, '3GEE', [YEAR_2024_START, 1], createdAt, YEAR_2025_START
+      );
+      expect(resolved).toBe('2GEE');
+    });
+
+    it('still applies the existence guard when a live-sourced row is what decides the answer, even alongside an unrelated backfill row', () => {
+      const createdAt = new Date('2026-10-02').getTime();
+      const history = [
+        { fromClass: '1E', toClass: '1D', source: 'manual_edit', period: [YEAR_2026_START, 1] },
+      ];
+      // Same shape as the first regression test — included here to make the
+      // live-vs-backfill distinction explicit side by side with the test
+      // above, rather than relying on a reader to cross-reference it.
+      expect(resolveClassFromHistory(history, '1D', [YEAR_2025_START, 2], createdAt, YEAR_2026_START)).toBeNull();
     });
   });
 });

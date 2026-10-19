@@ -162,43 +162,75 @@ const comparePeriod = (a, b) => a[0] - b[0] || a[1] - b[1];
 // for "existed in the system by this point"; it's an approximation (a bulk
 // data migration could set it later than a student's real enrollment), but
 // a large, systematic error is worse than this smaller one.
-function resolveClassFromHistory(historyRows, currentClassName, targetPeriod, createdAtMs, existenceCutoffMs) {
+function resolveClassFromHistory(historyRows, currentClassName, targetPeriod, createdAtMs, existenceCutoffMs, trustCreatedAt = true) {
   // A student who didn't exist yet as of targetPeriod cannot have been in
-  // any class during it, full stop — this must be checked before walking
-  // history rows below, not only in the no-history branch. Confirmed via a
-  // real regression: a newly admitted student (created well into the new
-  // academic year) who then got even one manual class correction shortly
-  // after admission still has their very first post-admission class_name
-  // recorded as that history row's fromClass. The walk below treats a
-  // row's fromClass as valid for any period strictly before that row,
-  // which — without this guard — includes periods before the student
-  // existed at all: St. Augustine's 2025/2026 Sem 2 roster for 1D/1E/1B
-  // was showing dozens of 2026/2027 Form 1 intake students who'd simply
-  // had their initial class corrected once, weeks after being created.
-  if (createdAtMs != null && existenceCutoffMs != null && createdAtMs >= existenceCutoffMs) {
-    return null;
-  }
+  // any class during it, full stop — confirmed via a real regression: a
+  // newly admitted student (created well into the new academic year) who
+  // then got one manual class correction shortly after admission still has
+  // their very first post-admission class_name recorded as that history
+  // row's fromClass, which an unguarded walk treats as valid for any period
+  // strictly before that row — including periods before the student
+  // existed. St. Augustine's 2025/2026 Sem 2 roster for 1D/1E/1B was
+  // showing dozens of 2026/2027 Form 1 intake who'd simply had their
+  // initial class corrected once, weeks after being created.
+  //
+  // But createdAt is only a proxy for "existed by this point" — it's when
+  // the *database row* was created, and a bulk historical-data migration
+  // creates every row on the migration date, not each student's real
+  // enrollment date. trustCreatedAt lets a caller say "don't apply this
+  // heuristic here": results.js/student.js pass false when assembling a
+  // historical results VIEW (not a live completion tracker), because taking
+  // this guard at face value broke a real school's entire pre-migration
+  // history — an imported 2024/2025 dataset became unreachable for ~500
+  // students, active and graduated alike, because their student records
+  // (and, for the ones with no further transitions, nothing else to go on)
+  // were all created in a single May 2026 migration, well after the
+  // 2025/2026 cutoff this check compares against. A 'backfill' class_history
+  // row is exempted unconditionally regardless of trustCreatedAt — it exists
+  // precisely to encode reconstructed historical truth independent of when
+  // it was entered, so it must never be second-guessed by this heuristic.
+  const notYetExisted = () =>
+    trustCreatedAt && createdAtMs != null && existenceCutoffMs != null && createdAtMs >= existenceCutoffMs;
+
   if (!historyRows || historyRows.length === 0) {
-    return currentClassName;
+    return notYetExisted() ? null : currentClassName;
   }
-  let resolved = null;
   for (const row of historyRows) {
     const cmp = comparePeriod(row.period, targetPeriod);
     const alreadyTransitioned = row.source === 'backfill' ? cmp < 0 : cmp <= 0;
-    if (alreadyTransitioned) resolved = row.toClass;
-    else { resolved = row.fromClass; break; }
+    if (!alreadyTransitioned) {
+      if (row.source !== 'backfill' && notYetExisted()) return null;
+      return row.fromClass;
+    }
   }
-  return resolved;
+  // Every row is already-transitioned as of targetPeriod — resolve to the
+  // most recent known class (historyRows is chronologically sorted by both
+  // callers), the same answer the no-history branch gives for a current
+  // period.
+  return historyRows[historyRows.length - 1].toClass;
 }
 
-// getClassRoster(schoolId, className, academicYearId, semester)
+// getClassRoster(schoolId, className, academicYearId, semester, options)
 // Returns the array of student_ids enrolled in className during that
 // specific (academicYearId, semester) period — resolving each candidate's
 // class at that period via class_history rather than trusting their current
 // students.class_name, which only reflects who is in the class *right now*.
 // See CAS-CLASS-HISTORY-DESIGN.md Section 4 for the algorithm.
-async function getClassRoster(schoolId, className, academicYearId, semester) {
+//
+// options.includeInactive (default false): whether to include students whose
+// CURRENT status isn't 'Active' (graduated/withdrawn/inactive). The default
+// excludes them — right for live, ongoing-work views (the assessment
+// tracker, result-submissions readiness) where nobody is ever going to enter
+// a graduated student's scores. It's wrong for anything reviewing *past*
+// results: a since-graduated cohort's own final-year results become
+// unreachable otherwise, even though the data is sitting right there in
+// results_import — confirmed as a real incident where 228 of 519 students
+// behind an imported 2024/2025 dataset had since graduated (another 32 gone
+// inactive), making every one of them invisible to the results-viewing
+// endpoints in results.js despite the import itself having succeeded.
+async function getClassRoster(schoolId, className, academicYearId, semester, options = {}) {
   const targetSemester = parseInt(semester);
+  const { includeInactive = false } = options;
 
   // Candidate pool: everyone currently in this class, plus anyone whose
   // class_history ever mentions this class (as either endpoint of a
@@ -207,7 +239,7 @@ async function getClassRoster(schoolId, className, academicYearId, semester) {
   const { rows: candidateRows } = await pool.query(
     `SELECT DISTINCT s.id, s.class_name, s.created_at
      FROM students s
-     WHERE s.school_id = $1 AND s.status = 'Active'
+     WHERE s.school_id = $1 ${includeInactive ? '' : "AND s.status = 'Active'"}
        AND (
          LOWER(s.class_name) = LOWER($2)
          OR EXISTS (
@@ -251,23 +283,32 @@ async function getClassRoster(schoolId, className, academicYearId, semester) {
     });
   }
 
+  // includeInactive callers are reviewing past results, not tracking live
+  // work — the created-at existence heuristic is exactly what broke for
+  // them (see resolveClassFromHistory's trustCreatedAt doc comment), so it
+  // rides the same flag rather than adding a third option with the same
+  // underlying motivation.
   const roster = [];
   for (const candidate of candidateRows) {
     const createdAtMs = candidate.created_at ? new Date(candidate.created_at).getTime() : null;
-    const resolved = resolveClassFromHistory(historyByStudent.get(candidate.id), candidate.class_name, targetPeriod, createdAtMs, existenceCutoffMs);
+    const resolved = resolveClassFromHistory(
+      historyByStudent.get(candidate.id), candidate.class_name, targetPeriod, createdAtMs, existenceCutoffMs, !includeInactive
+    );
     if (resolved && resolved.toLowerCase() === className.toLowerCase()) roster.push(candidate.id);
   }
   return roster;
 }
 
-// resolveStudentClassAtPeriod(schoolId, studentId, currentClassName, academicYearId, semester)
+// resolveStudentClassAtPeriod(schoolId, studentId, currentClassName, academicYearId, semester, options)
 // The single-student inverse of getClassRoster(): what class was THIS
 // student in as of that period? Needed by call sites that derive their
 // target class_name from the student's own (current) record — e.g. a
 // promoted student viewing their own past results — rather than being
-// handed a class_name by the caller.
-async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName, academicYearId, semester) {
+// handed a class_name by the caller. options.includeInactive — see
+// getClassRoster's doc comment; same meaning, same default.
+async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName, academicYearId, semester, options = {}) {
   const targetSemester = parseInt(semester);
+  const { includeInactive = false } = options;
   const { rows: historyRows } = await pool.query(
     `SELECT ch.from_class, ch.to_class, ch.semester, ch.source,
             COALESCE(ay.start_date, ay.created_at) AS ordinal_date
@@ -289,7 +330,7 @@ async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName
     period: [new Date(r.ordinal_date).getTime(), r.semester],
   }));
 
-  return resolveClassFromHistory(history, currentClassName, [targetOrdinalMs, targetSemester], createdAtMs, existenceCutoffMs);
+  return resolveClassFromHistory(history, currentClassName, [targetOrdinalMs, targetSemester], createdAtMs, existenceCutoffMs, !includeInactive);
 }
 
 module.exports = {
