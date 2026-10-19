@@ -163,10 +163,23 @@ const comparePeriod = (a, b) => a[0] - b[0] || a[1] - b[1];
 // data migration could set it later than a student's real enrollment), but
 // a large, systematic error is worse than this smaller one.
 function resolveClassFromHistory(historyRows, currentClassName, targetPeriod, createdAtMs, existenceCutoffMs) {
+  // A student who didn't exist yet as of targetPeriod cannot have been in
+  // any class during it, full stop — this must be checked before walking
+  // history rows below, not only in the no-history branch. Confirmed via a
+  // real regression: a newly admitted student (created well into the new
+  // academic year) who then got even one manual class correction shortly
+  // after admission still has their very first post-admission class_name
+  // recorded as that history row's fromClass. The walk below treats a
+  // row's fromClass as valid for any period strictly before that row,
+  // which — without this guard — includes periods before the student
+  // existed at all: St. Augustine's 2025/2026 Sem 2 roster for 1D/1E/1B
+  // was showing dozens of 2026/2027 Form 1 intake students who'd simply
+  // had their initial class corrected once, weeks after being created.
+  if (createdAtMs != null && existenceCutoffMs != null && createdAtMs >= existenceCutoffMs) {
+    return null;
+  }
   if (!historyRows || historyRows.length === 0) {
-    return createdAtMs != null && existenceCutoffMs != null && createdAtMs >= existenceCutoffMs
-      ? null
-      : currentClassName;
+    return currentClassName;
   }
   let resolved = null;
   for (const row of historyRows) {
@@ -279,4 +292,9 @@ async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName
   return resolveClassFromHistory(history, currentClassName, [targetOrdinalMs, targetSemester], createdAtMs, existenceCutoffMs);
 }
 
-module.exports = { recordClassChange, getClassRoster, resolveStudentClassAtPeriod, mapWithLimit, getStudentEnrollmentYears };
+module.exports = {
+  recordClassChange, getClassRoster, resolveStudentClassAtPeriod, mapWithLimit, getStudentEnrollmentYears,
+  // Exported for direct unit testing — pure function, no DB access of its
+  // own, and the core logic worth pinning down with tests in isolation.
+  resolveClassFromHistory,
+};
