@@ -351,11 +351,19 @@ router.post('/upload', adminOnly, upload.single('file'), async (req, res, next) 
       );
     }
 
-    // Bulk insert timetable entries
+    // Bulk insert timetable entries. ON CONFLICT against uq_timetable_slot
+    // (school, teacher, day, start, end, year, semester) makes a re-run of
+    // this same import idempotent — a retried/duplicate upload (e.g. a slow
+    // request the client gave up on and resubmitted) updates each slot in
+    // place instead of piling up duplicate rows, which is exactly what
+    // produced ~660 duplicate rows for one school before this constraint
+    // existed.
     for (const r of valid) {
       await client.query(
         `INSERT INTO timetable (school_id, teacher_id, day_of_week, start_time, end_time, subject, class_names, academic_year_id, semester)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+         ON CONFLICT (school_id, teacher_id, day_of_week, start_time, end_time, academic_year_id, semester)
+         DO UPDATE SET subject = EXCLUDED.subject, class_names = EXCLUDED.class_names, updated_at = now()`,
         [req.schoolId, r.teacherId, r.dayOfWeek, r.startTime, r.endTime, r.subject, r.classNames, academic_year_id, semInt]
       );
     }
@@ -628,11 +636,23 @@ router.post('/', adminOnly, async (req, res, next) => {
     if (!day_of_week || !start_time || !end_time || !teacher_id || !subject || !class_names || !academic_year_id || !semester) {
       return res.status(400).json({ error: 'All fields are required including academic_year_id and semester' });
     }
-    const { rows } = await pool.query(
-      `INSERT INTO timetable (school_id, day_of_week, start_time, end_time, teacher_id, subject, class_names, academic_year_id, semester)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [req.schoolId, day_of_week, start_time, end_time, teacher_id, subject.trim(), class_names.trim(), academic_year_id, parseInt(semester)]
-    );
+    let rows;
+    try {
+      ({ rows } = await pool.query(
+        `INSERT INTO timetable (school_id, day_of_week, start_time, end_time, teacher_id, subject, class_names, academic_year_id, semester)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [req.schoolId, day_of_week, start_time, end_time, teacher_id, subject.trim(), class_names.trim(), academic_year_id, parseInt(semester)]
+      ));
+    } catch (e) {
+      // uq_timetable_slot — this teacher already has an entry at this exact
+      // day/start/end/year/semester. A manual single create is a deliberate
+      // action, so surface it clearly rather than silently overwriting
+      // (unlike the bulk upload below, which treats a repeat as "update").
+      if (e.code === '23505') {
+        return res.status(409).json({ error: 'This teacher already has a timetable entry at this exact day and time. Edit the existing entry instead.' });
+      }
+      throw e;
+    }
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });

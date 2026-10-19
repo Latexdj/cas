@@ -3317,6 +3317,27 @@ async function runMigrations() {
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_menu_items_school ON website_menu_items(school_id)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] website_menu_items parent_id SET NULL + index:', e.message); }
 
+    // Guards against the exact incident that produced ~660 duplicate rows for
+    // one school: a slow bulk timetable upload whose client request timed
+    // out and got retried while the server-side import had actually already
+    // succeeded. end_time is part of the key (not just start_time) so a
+    // genuine teacher double-booking with two DIFFERENT lesson lengths at the
+    // same start time is never blocked by this — only an exact repeat of the
+    // same slot is. The matching INSERT paths (POST / and POST /upload in
+    // routes/timetable.js) use ON CONFLICT ... DO UPDATE against this
+    // constraint, so re-running an import updates the existing slot in place
+    // instead of erroring or duplicating.
+    try {
+      await pool.query(`
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_timetable_slot') THEN
+            ALTER TABLE timetable ADD CONSTRAINT uq_timetable_slot
+              UNIQUE (school_id, teacher_id, day_of_week, start_time, end_time, academic_year_id, semester);
+          END IF;
+        END $$
+      `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] timetable unique slot constraint:', e.message); }
+
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
     } else {
