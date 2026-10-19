@@ -417,4 +417,4 @@ router.get('/visits/:id/print', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-module.exports = router;
+module.exports = { router, clinicStaffOnly };

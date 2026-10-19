@@ -16,6 +16,9 @@ interface Visit {
   attended_by_staff_name: string | null; attended_by_teacher_name: string | null;
 }
 
+interface DispenseItem { id: string; name: string; unit: string; quantity_on_hand: number; is_active: boolean; }
+interface DispensedLine { id: string; item_name: string; unit: string; quantity: number; notes: string | null; created_at: string; }
+
 const OUTCOMES = [
   { value: 'returned_to_class',   label: 'Returned to class' },
   { value: 'sent_home',           label: 'Sent home' },
@@ -39,6 +42,14 @@ export default function ClinicVisitDetailPage() {
     diagnosis_notes: '', treatment_given: '', notes: '',
   });
 
+  const [dispensed, setDispensed] = useState<DispensedLine[]>([]);
+  const [catalog, setCatalog] = useState<DispenseItem[]>([]);
+  const [dispenseItemId, setDispenseItemId] = useState('');
+  const [dispenseQty, setDispenseQty] = useState('1');
+  const [dispenseNotes, setDispenseNotes] = useState('');
+  const [dispensing, setDispensing] = useState(false);
+  const [dispenseError, setDispenseError] = useState('');
+
   function load() {
     setLoading(true);
     api.get<Visit>(`/api/clinic/visits/${id}`).then(r => {
@@ -52,8 +63,39 @@ export default function ClinicVisitDetailPage() {
         notes: r.data.notes ?? '',
       });
     }).catch(() => {}).finally(() => setLoading(false));
+    loadDispensed();
   }
   useEffect(load, [id]);
+
+  function loadDispensed() {
+    api.get<DispensedLine[]>(`/api/clinic-inventory/visits/${id}/dispensed`)
+      .then(r => setDispensed(r.data)).catch(() => {});
+  }
+
+  useEffect(() => {
+    api.get<DispenseItem[]>('/api/clinic-inventory/items', { params: { active_only: 'true' } })
+      .then(r => setCatalog(r.data)).catch(() => {});
+  }, []);
+
+  async function dispenseItem() {
+    if (!dispenseItemId) { setDispenseError('Select an item'); return; }
+    const qty = Number(dispenseQty);
+    if (!qty || qty <= 0) { setDispenseError('Enter a valid quantity'); return; }
+    setDispensing(true); setDispenseError('');
+    try {
+      await api.post(`/api/clinic-inventory/items/${dispenseItemId}/dispense`, {
+        quantity: qty, clinic_visit_id: id, notes: dispenseNotes || undefined,
+      });
+      setDispenseItemId(''); setDispenseQty('1'); setDispenseNotes('');
+      loadDispensed();
+      api.get<DispenseItem[]>('/api/clinic-inventory/items', { params: { active_only: 'true' } })
+        .then(r => setCatalog(r.data)).catch(() => {});
+    } catch (e: any) {
+      setDispenseError(e?.response?.data?.error ?? 'Could not dispense this item, try again');
+    } finally {
+      setDispensing(false);
+    }
+  }
 
   async function saveClinicalFields() {
     setSaving(true); setError('');
@@ -171,6 +213,50 @@ export default function ClinicVisitDetailPage() {
             <Button variant="secondary" onClick={saveClinicalFields} loading={saving}>Save</Button>
           </div>
         )}
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 p-5 shadow-sm space-y-3">
+        <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Dispensed items</h2>
+        {dispensed.length === 0 ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">Nothing dispensed for this visit yet.</p>
+        ) : (
+          <div className="divide-y divide-slate-100 dark:divide-slate-700">
+            {dispensed.map(d => (
+              <div key={d.id} className="flex items-center justify-between py-2 text-sm">
+                <div>
+                  <p className="text-slate-900 dark:text-white">{d.item_name} &times; {d.quantity} {d.unit}</p>
+                  {d.notes && <p className="text-xs text-slate-500 dark:text-slate-400">{d.notes}</p>}
+                </div>
+                <p className="text-xs text-slate-400">{new Date(d.created_at).toLocaleTimeString()}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {visit.status === 'open' && (
+          <div className="flex flex-wrap items-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+            <div className="flex-1 min-w-[160px]">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 block mb-1">Item</label>
+              <select className="w-full rounded-lg px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                value={dispenseItemId} onChange={e => setDispenseItemId(e.target.value)}>
+                <option value="">Select…</option>
+                {catalog.map(c => <option key={c.id} value={c.id} disabled={c.quantity_on_hand <= 0}>{c.name} ({c.quantity_on_hand} {c.unit} left)</option>)}
+              </select>
+            </div>
+            <div className="w-24">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 block mb-1">Qty</label>
+              <input type="number" min="1" className="w-full rounded-lg px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                value={dispenseQty} onChange={e => setDispenseQty(e.target.value)} />
+            </div>
+            <div className="flex-1 min-w-[160px]">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 block mb-1">Notes (optional)</label>
+              <input className="w-full rounded-lg px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                value={dispenseNotes} onChange={e => setDispenseNotes(e.target.value)} />
+            </div>
+            <Button onClick={dispenseItem} loading={dispensing}>Add</Button>
+          </div>
+        )}
+        {dispenseError && <p className="text-xs text-red-500">{dispenseError}</p>}
       </div>
 
       {visit.status === 'open' ? (

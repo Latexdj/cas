@@ -42,7 +42,8 @@ const clearanceStaffRoutes    = require('./routes/clearanceStaff');
 const { router: libraryAdminRoutes }  = require('./routes/libraryAdmin');
 const libraryRoutes           = require('./routes/library');
 const clinicAdminRoutes       = require('./routes/clinicAdmin');
-const clinicRoutes            = require('./routes/clinic');
+const { router: clinicRoutes, clinicStaffOnly } = require('./routes/clinic');
+const clinicInventoryRoutes   = require('./routes/clinicInventory');
 const schoolStaffRoutes       = require('./routes/schoolStaff');
 const responsibilitiesRoutes  = require('./routes/responsibilities');
 const hodRoutes               = require('./routes/hod');
@@ -158,6 +159,7 @@ app.use('/api/library-admin',      libraryAdminRoutes);
 app.use('/api/library',            libraryRoutes);
 app.use('/api/clinic-admin',       clinicAdminRoutes);
 app.use('/api/clinic',             clinicRoutes);
+app.use('/api/clinic-inventory',   clinicInventoryRoutes);
 app.use('/api/school-staff',       schoolStaffRoutes);
 app.use('/api/responsibilities',   responsibilitiesRoutes);
 app.use('/api/hod',                hodRoutes);
@@ -2202,6 +2204,44 @@ async function runMigrations() {
           UNIQUE (school_id)
         )
       `);
+
+      // ── Clinic dispensary (drugs/consumables) ──────────────────────────────
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS clinic_inventory_items (
+          id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id         UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          name              TEXT        NOT NULL,
+          category          TEXT        NOT NULL DEFAULT 'medication' CHECK (category IN ('medication','consumable')),
+          unit              TEXT        NOT NULL DEFAULT 'unit',
+          quantity_on_hand  INTEGER     NOT NULL DEFAULT 0 CHECK (quantity_on_hand >= 0),
+          reorder_level     INTEGER     NOT NULL DEFAULT 0,
+          batch_number      TEXT,
+          expiry_date       DATE,
+          notes             TEXT,
+          is_active         BOOLEAN     NOT NULL DEFAULT true,
+          created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+          updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+          UNIQUE (school_id, name)
+        )
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS clinic_inventory_transactions (
+          id                      UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id               UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          item_id                 UUID        NOT NULL REFERENCES clinic_inventory_items(id) ON DELETE RESTRICT,
+          type                    TEXT        NOT NULL CHECK (type IN ('restock','dispensed','written_off')),
+          quantity                INTEGER     NOT NULL CHECK (quantity > 0),
+          clinic_visit_id         UUID        REFERENCES clinic_visits(id) ON DELETE SET NULL,
+          dispensed_by_staff_id   UUID        REFERENCES school_staff(id) ON DELETE SET NULL,
+          dispensed_by_teacher_id UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+          notes                   TEXT,
+          created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_clinic_inv_txn_school ON clinic_inventory_transactions(school_id, created_at DESC)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_clinic_inv_txn_item   ON clinic_inventory_transactions(item_id, created_at DESC)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_clinic_inv_txn_visit  ON clinic_inventory_transactions(clinic_visit_id)`);
     } catch (e) {
       _migFailures++;
       console.error('[MIGRATION FAILED] school-clinic:', e.message);
