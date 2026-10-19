@@ -230,9 +230,14 @@ export default function TimetablePage() {
     setUploading(true); setUploadErr(''); setUploadResult(null);
     try {
       const fd = new FormData(); fd.append('file', file);
+      // A full school timetable is hundreds of rows, each inserted with its
+      // own sequential DB round-trip server-side (same reason bulk-update
+      // below already gets a wider budget) — the default 15s client timeout
+      // was firing well before the server finished and actually imported.
       const { data } = await api.post<UploadResult>(
         `/api/timetable/upload?replace=${replaceAll}&academic_year_id=${selYearId}&semester=${selSemester}`,
-        fd
+        fd,
+        { timeout: 120000 }
       );
       setUploadResult(data);
       await load(selYearId, selSemester);
