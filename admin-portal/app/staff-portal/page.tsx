@@ -89,11 +89,31 @@ const STATUS_STYLE = {
   pending:     { badge: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400', label: 'Pending'    },
 };
 
-type Section     = 'clearance' | 'library' | 'inventory' | 'accounts';
+// ─── Clinic types ─────────────────────────────────────────────────────────────
+interface ClinicPerson { id: string; name: string; student_code?: string; teacher_code?: string; class_name?: string; department?: string; }
+interface ClinicVisit {
+  id: string; patient_type: 'student' | 'teacher'; patient_name: string;
+  student_code: string | null; class_name: string | null; teacher_code: string | null;
+  complaint: string; severity: string; status: string; outcome: string | null;
+  visit_date: string; arrived_at: string;
+}
+interface ClinicDashboard {
+  open_visits: ClinicVisit[]; today_visits: number; severity_breakdown: { severity: string; count: number }[];
+}
+const CLINIC_OUTCOMES = [
+  { value: 'returned_to_class',    label: 'Returned to class' },
+  { value: 'sent_home',            label: 'Sent home' },
+  { value: 'referred_to_hospital', label: 'Referred to hospital' },
+  { value: 'admitted_in_clinic',   label: 'Admitted in clinic' },
+  { value: 'other',                label: 'Other' },
+];
+
+type Section     = 'clearance' | 'library' | 'inventory' | 'accounts' | 'clinic';
 type ClTab       = 'pending' | 'lookup' | 'history';
 type LibTab      = 'dashboard' | 'issue' | 'return' | 'overdue';
 type AcctTab     = 'dashboard' | 'collect' | 'reports';
 type InvTab      = 'items' | 'issue' | 'return' | 'sign-list';
+type ClinicTab   = 'dashboard' | 'new-visit' | 'open' | 'history';
 
 interface SlFilters {
   classes: string[];
@@ -113,8 +133,9 @@ export default function StaffPortalPage() {
   const hasCl   = staffRoles.includes('clearance');
   const hasInv  = staffRoles.includes('inventory');
   const hasAcc  = staffRoles.includes('accounts');
+  const hasClinic = staffRoles.includes('clinic');
 
-  const defaultSection: Section = hasCl ? 'clearance' : hasLib ? 'library' : hasInv ? 'inventory' : 'accounts';
+  const defaultSection: Section = hasCl ? 'clearance' : hasLib ? 'library' : hasInv ? 'inventory' : hasAcc ? 'accounts' : 'clinic';
   const [section, setSection] = useState<Section>(defaultSection);
 
   // ── Clearance state ─────────────────────────────────────────────────────────
@@ -236,6 +257,27 @@ export default function StaffPortalPage() {
 
   const acctDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Clinic state ─────────────────────────────────────────────────────────────
+  const [clinicTab,       setClinicTab]       = useState<ClinicTab>('dashboard');
+  const [clinicDash,      setClinicDash]      = useState<ClinicDashboard | null>(null);
+  const [clinicDashLoad,  setClinicDashLoad]  = useState(false);
+
+  const [clinicHistory,     setClinicHistory]     = useState<ClinicVisit[]>([]);
+  const [clinicHistoryLoad, setClinicHistoryLoad] = useState(false);
+
+  const [cnPatientType,   setCnPatientType]   = useState<'student' | 'teacher'>('student');
+  const [cnQuery,         setCnQuery]         = useState('');
+  const [cnResults,       setCnResults]       = useState<ClinicPerson[]>([]);
+  const [cnSelected,      setCnSelected]      = useState<ClinicPerson | null>(null);
+  const [cnComplaint,     setCnComplaint]     = useState('');
+  const [cnSeverity,      setCnSeverity]      = useState('minor');
+  const [cnSaving,        setCnSaving]        = useState(false);
+  const [cnError,         setCnError]         = useState('');
+  const cnDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [cvClosing,  setCvClosing]  = useState<string | null>(null);
+  const [cvOutcome,  setCvOutcome]  = useState<Record<string, string>>({});
+
   // ── Initial load ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!hasCl) return;
@@ -260,8 +302,11 @@ export default function StaffPortalPage() {
       api.get<FeeItem[]>('/api/fees/items').then(r => setAcctItems(r.data)).catch(() => {});
     }
     if (section === 'accounts' && acctTab === 'dashboard') loadAcctDashboard();
+    if (section === 'clinic' && (clinicTab === 'dashboard' || clinicTab === 'open')) loadClinicDashboard();
+    if (section === 'clinic' && clinicTab === 'new-visit') { setCnSelected(null); setCnQuery(''); setCnComplaint(''); setCnError(''); }
+    if (section === 'clinic' && clinicTab === 'history') loadClinicHistory();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section, libTab, invTab, acctTab]);
+  }, [section, libTab, invTab, acctTab, clinicTab]);
 
   // ── Accounts dashboard ───────────────────────────────────────────────────────
   async function loadAcctDashboard() {
@@ -610,6 +655,65 @@ export default function StaffPortalPage() {
     }
   }
 
+  // ── Clinic helpers ────────────────────────────────────────────────────────────
+  function loadClinicDashboard() {
+    setClinicDashLoad(true);
+    api.get<ClinicDashboard>('/api/clinic/dashboard')
+      .then(r => setClinicDash(r.data)).catch(() => {}).finally(() => setClinicDashLoad(false));
+  }
+
+  function loadClinicHistory() {
+    setClinicHistoryLoad(true);
+    api.get<ClinicVisit[]>('/api/clinic/visits', { params: { status: 'closed' } })
+      .then(r => setClinicHistory(r.data)).catch(() => {}).finally(() => setClinicHistoryLoad(false));
+  }
+
+  useEffect(() => {
+    if (cnQuery.trim().length < 2) { setCnResults([]); return; }
+    if (cnDebounceRef.current) clearTimeout(cnDebounceRef.current);
+    cnDebounceRef.current = setTimeout(() => {
+      const endpoint = cnPatientType === 'student' ? '/api/clinic/students/search' : '/api/clinic/teachers/search';
+      api.get<ClinicPerson[]>(endpoint, { params: { q: cnQuery.trim() } })
+        .then(r => setCnResults(r.data)).catch(() => setCnResults([]));
+    }, 300);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cnQuery, cnPatientType]);
+
+  async function submitClinicVisit() {
+    if (!cnSelected) { setCnError('Select who this visit is for.'); return; }
+    if (!cnComplaint.trim()) { setCnError('Enter the reason for the visit.'); return; }
+    setCnSaving(true); setCnError('');
+    try {
+      await api.post('/api/clinic/visits', {
+        patient_type: cnPatientType,
+        student_id: cnPatientType === 'student' ? cnSelected.id : undefined,
+        teacher_id: cnPatientType === 'teacher' ? cnSelected.id : undefined,
+        complaint: cnComplaint.trim(),
+        severity: cnSeverity,
+      });
+      setCnSelected(null); setCnQuery(''); setCnComplaint(''); setCnSeverity('minor');
+      setClinicTab('open');
+      loadClinicDashboard();
+    } catch (e: any) {
+      setCnError(e?.response?.data?.error ?? 'Could not log the visit, try again.');
+    } finally {
+      setCnSaving(false);
+    }
+  }
+
+  async function closeClinicVisit(visitId: string) {
+    const outcome = cvOutcome[visitId] ?? 'returned_to_class';
+    setCvClosing(visitId);
+    try {
+      await api.post(`/api/clinic/visits/${visitId}/close`, { outcome });
+      loadClinicDashboard();
+    } catch (e: any) {
+      alert(e?.response?.data?.error ?? 'Could not close the visit.');
+    } finally {
+      setCvClosing(null);
+    }
+  }
+
   const filteredPending = officeFilter ? pending.filter(p => p.office_id === officeFilter) : pending;
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -625,15 +729,15 @@ export default function StaffPortalPage() {
       </div>
 
       {/* Section switcher (shown when user has more than one role) */}
-      {([hasCl, hasLib, hasInv, hasAcc].filter(Boolean).length > 1) && (
+      {([hasCl, hasLib, hasInv, hasAcc, hasClinic].filter(Boolean).length > 1) && (
         <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
-          {([hasCl && 'clearance', hasLib && 'library', hasInv && 'inventory', hasAcc && 'accounts'] as (Section | false)[])
+          {([hasCl && 'clearance', hasLib && 'library', hasInv && 'inventory', hasAcc && 'accounts', hasClinic && 'clinic'] as (Section | false)[])
             .filter((s): s is Section => !!s)
             .map(s => (
               <button key={s} onClick={() => setSection(s)}
                 className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors capitalize ${section === s ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                 style={section === s ? { background: primary } : {}}>
-                {s === 'clearance' ? 'Clearance' : s === 'library' ? 'Library' : s === 'inventory' ? 'Inventory' : 'Accounts'}
+                {s === 'clearance' ? 'Clearance' : s === 'library' ? 'Library' : s === 'inventory' ? 'Inventory' : s === 'accounts' ? 'Accounts' : 'Clinic'}
               </button>
             ))}
         </div>
@@ -1445,6 +1549,169 @@ export default function StaffPortalPage() {
           )}
 
           {acctTab === 'reports' && <FeeReportsPanel apiClient={api} />}
+        </div>
+      )}
+
+      {/* ── Clinic Section ────────────────────────────────────────────────── */}
+      {hasClinic && section === 'clinic' && (
+        <div className="space-y-4">
+          <div className="flex gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1">
+            {([
+              ['dashboard', 'Dashboard'],
+              ['new-visit', 'New Visit'],
+              ['open',      `Open${clinicDash && clinicDash.open_visits.length > 0 ? ` (${clinicDash.open_visits.length})` : ''}`],
+              ['history',   'History'],
+            ] as const).map(([key, label]) => (
+              <button key={key} onClick={() => setClinicTab(key)}
+                className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${clinicTab === key ? 'text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                style={clinicTab === key ? { background: primary } : {}}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {clinicTab === 'dashboard' && (
+            <div className="space-y-4">
+              {clinicDashLoad ? <p className="text-sm text-slate-500">Loading…</p> : clinicDash ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: "Today's Visits",     value: clinicDash.today_visits, color: primary },
+                    { label: 'Currently in Clinic', value: clinicDash.open_visits.length, color: '#C8780A' },
+                    { label: 'Minor Today',        value: clinicDash.severity_breakdown.find(b => b.severity === 'minor')?.count ?? 0, color: '#2D7A4F' },
+                    { label: 'Serious Today',       value: clinicDash.severity_breakdown.find(b => b.severity === 'serious')?.count ?? 0, color: '#B83232' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full rounded-l-xl" style={{ backgroundColor: color }} />
+                      <p className="text-xs font-semibold text-slate-400 font-medium">{label}</p>
+                      <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          {clinicTab === 'new-visit' && (
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                {(['student', 'teacher'] as const).map(t => (
+                  <button key={t} onClick={() => { setCnPatientType(t); setCnSelected(null); setCnQuery(''); setCnResults([]); }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${cnPatientType === t ? 'text-white' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-600'}`}
+                    style={cnPatientType === t ? { background: primary } : {}}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+
+              {cnSelected ? (
+                <div className="flex items-center justify-between bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3">
+                  <div>
+                    <p className="font-bold text-slate-800 dark:text-white">{cnSelected.name}</p>
+                    <p className="text-xs text-slate-400">{cnSelected.student_code ?? cnSelected.teacher_code}{cnSelected.class_name ? ` · ${cnSelected.class_name}` : ''}</p>
+                  </div>
+                  <button className="text-xs text-slate-500 hover:text-slate-700" onClick={() => setCnSelected(null)}>Change</button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <input value={cnQuery} onChange={e => setCnQuery(e.target.value)}
+                    placeholder={cnPatientType === 'student' ? 'Find student by name or code…' : 'Find staff by name or code…'}
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+                  {cnResults.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                      {cnResults.map(p => (
+                        <button key={p.id} className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700"
+                          onClick={() => { setCnSelected(p); setCnResults([]); }}>
+                          <p className="font-medium text-slate-900 dark:text-white">{p.name}</p>
+                          <p className="text-xs text-slate-500">{p.student_code ?? p.teacher_code}{p.class_name ? ` · ${p.class_name}` : ''}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Reason for visit</label>
+                <textarea value={cnComplaint} onChange={e => setCnComplaint(e.target.value)} rows={3}
+                  placeholder="e.g. headache, stomach pain, fever…"
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]" />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 font-medium block mb-1.5">Severity</label>
+                <select value={cnSeverity} onChange={e => setCnSeverity(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl px-3 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#145C44]">
+                  <option value="minor">Minor</option>
+                  <option value="moderate">Moderate</option>
+                  <option value="serious">Serious</option>
+                </select>
+              </div>
+
+              {cnError && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">{cnError}</p>}
+
+              <button onClick={submitClinicVisit} disabled={cnSaving}
+                className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50" style={{ background: primary }}>
+                {cnSaving ? 'Logging…' : 'Log visit'}
+              </button>
+            </div>
+          )}
+
+          {clinicTab === 'open' && (
+            <div className="space-y-3">
+              {clinicDashLoad ? <p className="text-sm text-slate-500">Loading…</p> : !clinicDash || clinicDash.open_visits.length === 0 ? (
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-10 text-center text-slate-400 text-sm">Nobody is currently in the clinic.</div>
+              ) : (
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700 overflow-hidden">
+                  {clinicDash.open_visits.map(v => (
+                    <div key={v.id} className="p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800 dark:text-white">{v.patient_name}{v.class_name ? <span className="text-slate-400 font-normal"> · {v.class_name}</span> : null}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{v.complaint}</p>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          v.severity === 'serious' ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                          v.severity === 'moderate' ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                          'bg-[#E8F4EE] text-[#145C44] dark:bg-green-900/30 dark:text-[#2ab289]'
+                        }`}>{v.severity}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <select value={cvOutcome[v.id] ?? 'returned_to_class'} onChange={e => setCvOutcome(p => ({ ...p, [v.id]: e.target.value }))}
+                          className="flex-1 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                          {CLINIC_OUTCOMES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                        <button onClick={() => closeClinicVisit(v.id)} disabled={cvClosing === v.id}
+                          className="text-xs font-semibold px-4 py-1.5 rounded-lg text-white shrink-0 disabled:opacity-50" style={{ background: primary }}>
+                          {cvClosing === v.id ? 'Closing…' : 'Close'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {clinicTab === 'history' && (
+            <div className="space-y-3">
+              {clinicHistoryLoad ? <p className="text-sm text-slate-500">Loading…</p> : clinicHistory.length === 0 ? (
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-10 text-center text-slate-400 text-sm">No closed visits yet.</div>
+              ) : (
+                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700 overflow-hidden">
+                  {clinicHistory.map(v => (
+                    <div key={v.id} className="flex items-center justify-between px-4 py-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{v.patient_name}{v.class_name ? <span className="text-slate-400 font-normal"> · {v.class_name}</span> : null}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{v.complaint}</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">{v.visit_date}</p>
+                      </div>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 capitalize shrink-0">{CLINIC_OUTCOMES.find(o => o.value === v.outcome)?.label ?? v.outcome}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

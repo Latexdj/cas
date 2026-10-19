@@ -17,7 +17,7 @@ type Section = { label: string; hrefs: string[] };
 const SECTIONS: Section[] = [
   { label: 'Overview', hrefs: ['/student'] },
   { label: 'Academics', hrefs: ['/student/results', '/student/lms', '/student/lms/pasco', '/student/timetable', '/student/calendar'] },
-  { label: 'Records', hrefs: ['/student/attendance', '/student/conduct', '/student/clearance', '/student/exeat'] },
+  { label: 'Records', hrefs: ['/student/attendance', '/student/conduct', '/student/clearance', '/student/exeat', '/student/clinic'] },
   { label: 'Services', hrefs: ['/student/fees', '/student/library'] },
   { label: 'Account', hrefs: ['/student/profile'] },
 ];
@@ -151,6 +151,15 @@ const NAV_ITEMS: NavItem[] = [
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M13 4h3a2 2 0 012 2v14" /><path d="M2 20h3" /><path d="M13 20h9" />
         <path d="M10 12v.01" /><path d="M13 4.562v16.157a1 1 0 01-1.242.97L4 20V5.562a2 2 0 011.515-1.94l6-1.5a1 1 0 011.485.94z" />
+      </svg>
+    ),
+  },
+  {
+    href: '/student/clinic',
+    label: 'Clinic',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M12 2.25c-2.1 2.1-4.5 3.9-4.5 7.5a4.5 4.5 0 109 0c0-3.6-2.4-5.4-4.5-7.5zM9 15.75h6M12 12.75v6" />
       </svg>
     ),
   },

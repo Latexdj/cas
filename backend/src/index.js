@@ -41,6 +41,8 @@ const { router: clearanceAdminRoutes } = require('./routes/clearanceAdmin');
 const clearanceStaffRoutes    = require('./routes/clearanceStaff');
 const { router: libraryAdminRoutes }  = require('./routes/libraryAdmin');
 const libraryRoutes           = require('./routes/library');
+const clinicAdminRoutes       = require('./routes/clinicAdmin');
+const clinicRoutes            = require('./routes/clinic');
 const schoolStaffRoutes       = require('./routes/schoolStaff');
 const responsibilitiesRoutes  = require('./routes/responsibilities');
 const hodRoutes               = require('./routes/hod');
@@ -154,6 +156,8 @@ app.use('/api/clearance-admin',    clearanceAdminRoutes);
 app.use('/api/clearance',          clearanceStaffRoutes);
 app.use('/api/library-admin',      libraryAdminRoutes);
 app.use('/api/library',            libraryRoutes);
+app.use('/api/clinic-admin',       clinicAdminRoutes);
+app.use('/api/clinic',             clinicRoutes);
 app.use('/api/school-staff',       schoolStaffRoutes);
 app.use('/api/responsibilities',   responsibilitiesRoutes);
 app.use('/api/hod',                hodRoutes);
@@ -2099,6 +2103,16 @@ async function runMigrations() {
           CHECK (role IN ('clearance','library','inventory','accounts'));
       EXCEPTION WHEN OTHERS THEN NULL; END $$
     `);
+    // Fix school_staff_roles CHECK constraint to allow 'clinic' role
+    // (school nurse / clinic staff — see routes/clinic.js)
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE school_staff_roles DROP CONSTRAINT IF EXISTS school_staff_roles_role_check;
+        ALTER TABLE school_staff_roles
+          ADD CONSTRAINT school_staff_roles_role_check
+          CHECK (role IN ('clearance','library','inventory','accounts','clinic'));
+      EXCEPTION WHEN OTHERS THEN NULL; END $$
+    `);
 
     // ── Year of admission ─────────────────────────────────────────────────────
     await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS year_of_admission SMALLINT`);
@@ -2123,6 +2137,74 @@ async function runMigrations() {
     } catch (e) {
       _migFailures++;
       console.error('[MIGRATION FAILED] base-migration-block:', e.message);
+    }
+
+    // ── School Clinic ─────────────────────────────────────────────────────────
+    // Isolated try/catch so a failure elsewhere never blocks these tables.
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS clinic_visits (
+          id                     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id              UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          patient_type           TEXT        NOT NULL CHECK (patient_type IN ('student','teacher')),
+          student_id             UUID        REFERENCES students(id) ON DELETE CASCADE,
+          teacher_id             UUID        REFERENCES teachers(id) ON DELETE CASCADE,
+          visit_date             DATE        NOT NULL DEFAULT CURRENT_DATE,
+          arrived_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+          referred_by_teacher_id UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+          complaint              TEXT        NOT NULL,
+          vitals_temp_c          NUMERIC(4,1),
+          vitals_bp              TEXT,
+          vitals_pulse           INTEGER,
+          diagnosis_notes        TEXT,
+          treatment_given        TEXT,
+          outcome                TEXT        CHECK (outcome IN ('returned_to_class','sent_home','referred_to_hospital','admitted_in_clinic','other')),
+          severity               TEXT        NOT NULL DEFAULT 'minor' CHECK (severity IN ('minor','moderate','serious')),
+          status                 TEXT        NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed')),
+          closed_at              TIMESTAMPTZ,
+          attended_by_staff_id   UUID        REFERENCES school_staff(id) ON DELETE SET NULL,
+          attended_by_teacher_id UUID        REFERENCES teachers(id) ON DELETE SET NULL,
+          sms_sent               BOOLEAN     NOT NULL DEFAULT false,
+          notes                  TEXT,
+          created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+          CONSTRAINT clinic_visits_patient_check CHECK (
+            (patient_type = 'student' AND student_id IS NOT NULL AND teacher_id IS NULL) OR
+            (patient_type = 'teacher' AND teacher_id IS NOT NULL AND student_id IS NULL)
+          )
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_clinic_visits_school_status ON clinic_visits(school_id, status)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_clinic_visits_student ON clinic_visits(student_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_clinic_visits_teacher ON clinic_visits(teacher_id)`);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS student_health_profiles (
+          id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id           UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          student_id          UUID        NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+          blood_group         TEXT,
+          genotype            TEXT,
+          known_allergies     TEXT,
+          known_conditions    TEXT,
+          current_medications TEXT,
+          updated_by_staff_id UUID        REFERENCES school_staff(id) ON DELETE SET NULL,
+          updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+          UNIQUE (student_id)
+        )
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS clinic_settings (
+          id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id           UUID        NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          sms_on_every_visit  BOOLEAN     NOT NULL DEFAULT false,
+          sms_on_serious_only BOOLEAN     NOT NULL DEFAULT true,
+          UNIQUE (school_id)
+        )
+      `);
+    } catch (e) {
+      _migFailures++;
+      console.error('[MIGRATION FAILED] school-clinic:', e.message);
     }
 
     // ── Invigilation / Exam management ───────────────────────────────────────
