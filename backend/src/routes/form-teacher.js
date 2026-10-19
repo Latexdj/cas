@@ -73,7 +73,8 @@ router.get('/students', async (req, res, next) => {
          COUNT(*)                                      AS total,
          COUNT(*) FILTER (WHERE r.status = 'Present') AS present,
          COUNT(*) FILTER (WHERE r.status = 'Absent')  AS absent,
-         COUNT(*) FILTER (WHERE r.status = 'Late')    AS late
+         COUNT(*) FILTER (WHERE r.status = 'Late')    AS late,
+         COUNT(*) FILTER (WHERE r.status = 'Excused') AS excused
        FROM student_attendance_records r
        JOIN student_attendance_sessions s ON s.id = r.session_id
        WHERE s.school_id = $1 AND s.academic_year_id = $2 ${semClause}
@@ -87,9 +88,11 @@ router.get('/students', async (req, res, next) => {
       const total   = parseInt(r.total);
       const present = parseInt(r.present);
       const late    = parseInt(r.late);
+      const excused = parseInt(r.excused);
+      const rateBase = total - excused;
       attMap[r.student_id] = {
-        present, absent: parseInt(r.absent), late, total,
-        pct: total > 0 ? Math.round(((present + late) / total) * 100) : null,
+        present, absent: parseInt(r.absent), late, excused, total,
+        pct: rateBase > 0 ? Math.round(((present + late) / rateBase) * 100) : null,
       };
     }
 
@@ -140,7 +143,8 @@ router.get('/attendance', async (req, res, next) => {
          COUNT(*)                                      AS total,
          COUNT(*) FILTER (WHERE r.status = 'Present') AS present,
          COUNT(*) FILTER (WHERE r.status = 'Absent')  AS absent,
-         COUNT(*) FILTER (WHERE r.status = 'Late')    AS late
+         COUNT(*) FILTER (WHERE r.status = 'Late')    AS late,
+         COUNT(*) FILTER (WHERE r.status = 'Excused') AS excused
        FROM student_attendance_records r
        JOIN student_attendance_sessions s  ON s.id  = r.session_id
        JOIN students                   st ON st.id = r.student_id
@@ -153,12 +157,13 @@ router.get('/attendance', async (req, res, next) => {
     );
 
     res.json(rows.map(r => {
-      const total = parseInt(r.total), present = parseInt(r.present), late = parseInt(r.late);
+      const total = parseInt(r.total), present = parseInt(r.present), late = parseInt(r.late), excused = parseInt(r.excused);
+      const rateBase = total - excused;
       return {
         student_id: r.student_id, name: r.name,
         student_code: r.student_code, picture_url: r.picture_url, gender: r.gender,
-        present, absent: parseInt(r.absent), late, total,
-        pct: total > 0 ? Math.round(((present + late) / total) * 100) : null,
+        present, absent: parseInt(r.absent), late, excused, total,
+        pct: rateBase > 0 ? Math.round(((present + late) / rateBase) * 100) : null,
       };
     }));
   } catch (err) { next(err); }

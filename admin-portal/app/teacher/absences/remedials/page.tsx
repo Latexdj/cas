@@ -28,7 +28,7 @@ interface StudentRecord {
   student_code: string;
   name: string;
   class_name: string;
-  status: 'Present' | 'Absent' | 'Late' | null;
+  status: 'Present' | 'Absent' | 'Late' | 'Excused' | null;
 }
 
 function fmt(iso: string) {
@@ -113,7 +113,7 @@ function RegisterModal({
   const [loading,     setLoading]     = useState(true);
   const [submitting,  setSubmitting]  = useState(false);
   const [error,       setError]       = useState('');
-  const [statuses,    setStatuses]    = useState<Record<string, 'Present' | 'Absent' | 'Late'>>({});
+  const [statuses,    setStatuses]    = useState<Record<string, 'Present' | 'Absent' | 'Late' | 'Excused'>>({});
 
   useEffect(() => {
     (async () => {
@@ -121,8 +121,8 @@ function RegisterModal({
         const res = await teacherApi.get(`/api/remedial/${remedial.id}/register`);
         const data: { students: StudentRecord[] } = res.data;
         setStudents(data.students);
-        const init: Record<string, 'Present' | 'Absent' | 'Late'> = {};
-        data.students.forEach(s => { init[s.id] = (s.status as 'Present' | 'Absent' | 'Late') || 'Present'; });
+        const init: Record<string, 'Present' | 'Absent' | 'Late' | 'Excused'> = {};
+        data.students.forEach(s => { init[s.id] = s.status || 'Present'; });
         setStatuses(init);
       } catch {
         setError('Could not load student list.');
@@ -166,11 +166,13 @@ function RegisterModal({
   const present = students.filter(s => (statuses[s.id] || 'Present') === 'Present').length;
   const absent  = students.filter(s => statuses[s.id] === 'Absent').length;
   const late    = students.filter(s => statuses[s.id] === 'Late').length;
+  const excused = students.filter(s => statuses[s.id] === 'Excused').length;
   const isMerged = new Set(students.map(s => s.class_name)).size > 1;
 
-  function statusBadge(s: 'Present' | 'Absent' | 'Late') {
+  function statusBadge(s: 'Present' | 'Absent' | 'Late' | 'Excused') {
     if (s === 'Present') return { bg: '#E8F4EE', color: '#145C44', label: 'P' };
     if (s === 'Absent')  return { bg: '#FEF2F2', color: '#B83232', label: 'A' };
+    if (s === 'Excused') return { bg: '#EFF6FF', color: '#1D4ED8', label: 'E' };
     return { bg: '#FEF9C3', color: '#92400E', label: 'L' };
   }
 
@@ -240,6 +242,7 @@ function RegisterModal({
           <span className="text-[#145C44] dark:text-[#2ab289]">Present: {present}</span>
           <span className="text-[#B83232]">Absent: {absent}</span>
           <span className="text-amber-700 dark:text-amber-400">Late: {late}</span>
+          {excused > 0 && <span className="text-blue-700 dark:text-blue-400">Excused: {excused}</span>}
         </div>
         <button
           onClick={submit}

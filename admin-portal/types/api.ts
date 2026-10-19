@@ -173,7 +173,7 @@ export interface StudentResult {
   class_total?: number;
   ca_percentage: number;
   exam_percentage: number;
-  attendance: { present: number; late: number; absent: number; total: number } | null;
+  attendance: { present: number; late: number; absent: number; excused: number; total: number } | null;
 }
 
 export interface ReportRemark {
@@ -303,12 +303,13 @@ export interface StudentAttendanceSession {
   present: number;
   absent: number;
   late: number;
+  excused: number;
   created_at: string;
 }
 
 export interface StudentAttendanceRecord {
   id: string;
-  status: 'Present' | 'Absent' | 'Late';
+  status: 'Present' | 'Absent' | 'Late' | 'Excused';
   updated_at: string;
   student_id: string;
   student_code: string;
@@ -400,6 +401,7 @@ export interface FormTeacherStudent {
     present: number;
     absent: number;
     late: number;
+    excused: number;
     total: number;
     pct: number | null;
   };

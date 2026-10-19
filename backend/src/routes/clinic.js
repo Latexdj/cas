@@ -417,4 +417,21 @@ router.get('/visits/:id/print', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-module.exports = { router, clinicStaffOnly };
+// Students who should be auto-excused from attendance on `date`: anyone
+// with a clinic visit that's still open, or closed with an outcome serious
+// enough to plausibly cover the rest of the school day. A visit closed as
+// 'returned_to_class' does NOT qualify — there's no period-level timing on
+// student_attendance_records to know which single lesson a brief visit
+// overlapped, so that case is left to the teacher's direct judgment.
+async function getExcusedStudentIds(schoolId, studentIds, date) {
+  if (!studentIds.length) return new Set();
+  const { rows } = await pool.query(
+    `SELECT DISTINCT student_id FROM clinic_visits
+     WHERE school_id = $1 AND visit_date = $2 AND student_id = ANY($3::uuid[])
+       AND (status = 'open' OR outcome IN ('sent_home','referred_to_hospital','admitted_in_clinic'))`,
+    [schoolId, date, studentIds]
+  );
+  return new Set(rows.map(r => r.student_id));
+}
+
+module.exports = { router, clinicStaffOnly, getExcusedStudentIds };

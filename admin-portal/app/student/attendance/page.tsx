@@ -8,13 +8,14 @@ import { useSessionFilter } from '@/hooks/useSessionFilter';
 import { Pagination } from '@/components/ui/Pagination';
 
 interface AcademicYear { id: string; name: string; is_current: boolean; current_semester: number; }
-interface AttSummary { present: number; absent: number; late: number; total: number; rate: number | null; }
-interface Session { id: string; date: string; subject: string; class_name: string; semester: number; teacher_name: string | null; status: 'Present' | 'Absent' | 'Late'; }
+interface AttSummary { present: number; absent: number; late: number; excused: number; total: number; rate: number | null; }
+interface Session { id: string; date: string; subject: string; class_name: string; semester: number; teacher_name: string | null; status: 'Present' | 'Absent' | 'Late' | 'Excused'; }
 
 const STATUS_STYLE: Record<string, { bg: string; text: string }> = {
   Present: { bg: 'bg-[#E8F4EE]',    text: 'text-[#145C44]'  },
   Absent:  { bg: 'bg-[#FEF2F2]',    text: 'text-[#B83232]'  },
   Late:    { bg: 'bg-amber-50',     text: 'text-amber-700'  },
+  Excused: { bg: 'bg-blue-50',      text: 'text-blue-700'   },
 };
 
 export default function StudentAttendancePage() {
@@ -90,11 +91,12 @@ export default function StudentAttendancePage() {
                 {rate !== null ? `${rate}%` : '—'}
               </span>
             </div>
-            <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-4 gap-3 mb-4">
               {[
                 { label: 'Present', value: summary.present, bg: 'bg-[#E8F4EE]', text: 'text-[#145C44]' },
                 { label: 'Absent',  value: summary.absent,  bg: 'bg-[#FEF2F2]', text: 'text-[#B83232]' },
                 { label: 'Late',    value: summary.late,    bg: 'bg-amber-50', text: 'text-amber-700' },
+                { label: 'Excused', value: summary.excused, bg: 'bg-blue-50',  text: 'text-blue-700'  },
               ].map(({ label, value, bg, text }) => (
                 <div key={label} className={`rounded-xl p-3 text-center ${bg}`}>
                   <p className={`text-2xl font-bold ${text}`}>{value}</p>

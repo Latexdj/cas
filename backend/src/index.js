@@ -2116,6 +2116,18 @@ async function runMigrations() {
       EXCEPTION WHEN OTHERS THEN NULL; END $$
     `);
 
+    // Fix student_attendance_records CHECK constraint to allow an
+    // 'Excused' status (auto-applied when a student has a qualifying
+    // open/serious clinic visit — see routes/clinic.js's getExcusedStudentIds)
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE student_attendance_records DROP CONSTRAINT IF EXISTS student_attendance_records_status_check;
+        ALTER TABLE student_attendance_records
+          ADD CONSTRAINT student_attendance_records_status_check
+          CHECK (status IN ('Present','Absent','Late','Excused'));
+      EXCEPTION WHEN OTHERS THEN NULL; END $$
+    `);
+
     // ── Year of admission ─────────────────────────────────────────────────────
     await pool.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS year_of_admission SMALLINT`);
     // Backfill codes in {prefix}{4-digit-seq}{2-digit-year} format (e.g. STU000124 → 2024)

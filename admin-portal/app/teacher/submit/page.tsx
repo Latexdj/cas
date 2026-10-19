@@ -56,11 +56,12 @@ interface StudentSession {
   present: number;
   absent: number;
   late: number;
+  excused: number;
 }
 
 interface SessionRecord {
   id: string;
-  status: 'Present' | 'Absent' | 'Late';
+  status: 'Present' | 'Absent' | 'Late' | 'Excused';
   student_id: string;
   student_code: string;
   name: string;
@@ -76,6 +77,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   Present: { bg: '#E8F4EE', color: '#145C44' },
   Absent:  { bg: '#FEF2F2', color: '#B83232' },
   Late:    { bg: '#FFFBEB', color: '#D97706' },
+  Excused: { bg: '#EFF6FF', color: '#1D4ED8' },
 };
 
 function isEditWindowOpen(sessionDate: string, lessonEndTime: string | null): boolean {
@@ -372,58 +374,39 @@ export default function SubmitPage() {
     }
   }
 
+  function recountSession<T extends StudentSession>(session: T, records: SessionRecord[]): T {
+    return {
+      ...session,
+      present: records.filter(r => r.status === 'Present').length,
+      absent:  records.filter(r => r.status === 'Absent').length,
+      late:    records.filter(r => r.status === 'Late').length,
+      excused: records.filter(r => r.status === 'Excused').length,
+    };
+  }
+
   async function updateEditRecordStatus(recordId: string, newStatus: 'Present' | 'Absent' | 'Late') {
     if (!editDetail) return;
     const oldRecord = editDetail.records.find(r => r.id === recordId);
     if (!oldRecord || oldRecord.status === newStatus) return;
-    const oldStatus = oldRecord.status;
     const sessionId = editDetail.session.id;
-
-    setEditDetail(prev => {
-      if (!prev) return prev;
-      const updated = prev.records.map(r => r.id === recordId ? { ...r, status: newStatus } : r);
-      return {
-        ...prev,
-        records: updated,
-        session: {
-          ...prev.session,
-          present: updated.filter(r => r.status === 'Present').length,
-          absent:  updated.filter(r => r.status === 'Absent').length,
-          late:    updated.filter(r => r.status === 'Late').length,
-        },
-      };
-    });
-    setTodaySessions(prev => prev.map(s => s.id === sessionId ? {
-      ...s,
-      present: s.present + (newStatus === 'Present' ? 1 : 0) - (oldStatus === 'Present' ? 1 : 0),
-      absent:  s.absent  + (newStatus === 'Absent'  ? 1 : 0) - (oldStatus === 'Absent'  ? 1 : 0),
-      late:    s.late    + (newStatus === 'Late'    ? 1 : 0) - (oldStatus === 'Late'    ? 1 : 0),
-    } : s));
 
     setEditRecordLoading(recordId); setEditModalError('');
     try {
-      await teacherApi.patch(`/api/student-attendance/records/${recordId}`, { status: newStatus });
-    } catch (err: unknown) {
+      // The server may store 'Excused' instead of the submitted status if
+      // this student has a qualifying clinic visit — use its returned
+      // status, not the one we sent, so counts stay accurate.
+      const { data } = await teacherApi.patch<{ status: SessionRecord['status'] }>(
+        `/api/student-attendance/records/${recordId}`, { status: newStatus }
+      );
       setEditDetail(prev => {
         if (!prev) return prev;
-        const reverted = prev.records.map(r => r.id === recordId ? { ...r, status: oldStatus } : r);
-        return {
-          ...prev,
-          records: reverted,
-          session: {
-            ...prev.session,
-            present: reverted.filter(r => r.status === 'Present').length,
-            absent:  reverted.filter(r => r.status === 'Absent').length,
-            late:    reverted.filter(r => r.status === 'Late').length,
-          },
-        };
+        const updated = prev.records.map(r => r.id === recordId ? { ...r, status: data.status } : r);
+        return { ...prev, records: updated, session: recountSession(prev.session, updated) };
       });
-      setTodaySessions(prev => prev.map(s => s.id === sessionId ? {
-        ...s,
-        present: s.present - (newStatus === 'Present' ? 1 : 0) + (oldStatus === 'Present' ? 1 : 0),
-        absent:  s.absent  - (newStatus === 'Absent'  ? 1 : 0) + (oldStatus === 'Absent'  ? 1 : 0),
-        late:    s.late    - (newStatus === 'Late'    ? 1 : 0) + (oldStatus === 'Late'    ? 1 : 0),
-      } : s));
+      setTodaySessions(prev => prev.map(s => s.id === sessionId
+        ? recountSession(s, editDetail.records.map(r => r.id === recordId ? { ...r, status: data.status } : r))
+        : s));
+    } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setEditModalError(msg ?? 'Failed to update status. Please try again.');
     } finally {
@@ -979,6 +962,9 @@ export default function SubmitPage() {
                   <span style={{ color: '#B83232' }}>{editDetail.records.filter(r => r.status === 'Absent').length} Absent</span>
                   {editDetail.records.filter(r => r.status === 'Late').length > 0 && (
                     <span style={{ color: '#D97706' }}>{editDetail.records.filter(r => r.status === 'Late').length} Late</span>
+                  )}
+                  {editDetail.records.filter(r => r.status === 'Excused').length > 0 && (
+                    <span style={{ color: '#1D4ED8' }}>{editDetail.records.filter(r => r.status === 'Excused').length} Excused</span>
                   )}
                 </div>
               )}

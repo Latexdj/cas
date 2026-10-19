@@ -290,7 +290,8 @@ router.get('/', async (req, res, next) => {
               COUNT(*)::int                                          AS total,
               COUNT(*) FILTER (WHERE sar.status = 'Present')::int   AS present,
               COUNT(*) FILTER (WHERE sar.status = 'Late')::int      AS late,
-              COUNT(*) FILTER (WHERE sar.status = 'Absent')::int    AS absent
+              COUNT(*) FILTER (WHERE sar.status = 'Absent')::int    AS absent,
+              COUNT(*) FILTER (WHERE sar.status = 'Excused')::int   AS excused
        FROM student_attendance_records sar
        JOIN student_attendance_sessions sas ON sas.id = sar.session_id
        WHERE sas.school_id = $1
@@ -301,7 +302,7 @@ router.get('/', async (req, res, next) => {
       [req.schoolId, academic_year_id, parseInt(semester), class_name]
     );
     const attMap = {};
-    for (const r of attRows) attMap[r.student_id] = { present: r.present, late: r.late, absent: r.absent, total: r.total };
+    for (const r of attRows) attMap[r.student_id] = { present: r.present, late: r.late, absent: r.absent, excused: r.excused, total: r.total };
     for (const r of results) r.attendance = attMap[r.student_id] ?? null;
 
     res.json(results);

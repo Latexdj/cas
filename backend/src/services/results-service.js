@@ -83,7 +83,8 @@ async function computeStudentResult(schoolId, studentId, academicYearId, semeste
                 COUNT(*)::int                                         AS total,
                 COUNT(*) FILTER (WHERE sar.status = 'Present')::int  AS present,
                 COUNT(*) FILTER (WHERE sar.status = 'Late')::int     AS late,
-                COUNT(*) FILTER (WHERE sar.status = 'Absent')::int   AS absent
+                COUNT(*) FILTER (WHERE sar.status = 'Absent')::int   AS absent,
+                COUNT(*) FILTER (WHERE sar.status = 'Excused')::int  AS excused
          FROM student_attendance_records sar
          JOIN student_attendance_sessions sas ON sas.id = sar.session_id
          WHERE sas.school_id = $1 AND sas.academic_year_id = $2 AND sas.semester = $3
@@ -225,8 +226,8 @@ async function computeStudentResult(schoolId, studentId, academicYearId, semeste
 
   // Attach attendance
   const attMap = {};
-  for (const r of attRows) attMap[r.student_id] = { present: r.present, late: r.late, absent: r.absent };
-  for (const r of results) r.attendance = attMap[r.student_id] ?? { present: 0, late: 0, absent: 0 };
+  for (const r of attRows) attMap[r.student_id] = { present: r.present, late: r.late, absent: r.absent, excused: r.excused };
+  for (const r of results) r.attendance = attMap[r.student_id] ?? { present: 0, late: 0, absent: 0, excused: 0 };
 
   // Return only the target student (but positions are computed across the full class)
   const target = results.find(r => r.student_id === studentId);

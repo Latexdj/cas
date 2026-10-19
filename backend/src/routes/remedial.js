@@ -5,6 +5,7 @@ const { verifyLocation } = require('../services/geo.service');
 const { uploadPhoto } = require('../services/storage.service');
 const { sendRemedialScheduledNotification } = require('../services/email.service');
 const { createNotification, sendTeacherEmail } = require('../services/notification.service');
+const { getExcusedStudentIds } = require('./clinic');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -283,7 +284,9 @@ router.post('/:id/register', async (req, res, next) => {
     );
     const yearId = ayRows[0]?.id || null;
     const sem    = ayRows[0]?.current_semester || null;
-    const validStatuses = new Set(['Present', 'Absent', 'Late']);
+    const validStatuses = new Set(['Present', 'Absent', 'Late', 'Excused']);
+    const uniqueStudentIds = [...new Set(records.map(r => r.studentId).filter(Boolean))];
+    const excusedIds = await getExcusedStudentIds(req.schoolId, uniqueStudentIds, rl.remedial_date);
 
     const client = await pool.connect();
     try {
@@ -309,7 +312,8 @@ router.post('/:id/register', async (req, res, next) => {
       }
 
       for (const rec of records) {
-        const status = validStatuses.has(rec.status) ? rec.status : 'Present';
+        let status = validStatuses.has(rec.status) ? rec.status : 'Present';
+        if (status === 'Absent' && excusedIds.has(rec.studentId)) status = 'Excused';
         await client.query(
           `INSERT INTO student_attendance_records (school_id, session_id, student_id, status)
            VALUES ($1,$2,$3,$4)`,
@@ -319,9 +323,10 @@ router.post('/:id/register', async (req, res, next) => {
 
       await client.query('COMMIT');
       const present = records.filter(r => r.status === 'Present').length;
-      const absent  = records.filter(r => r.status === 'Absent').length;
+      const absent  = records.filter(r => r.status === 'Absent' && !excusedIds.has(r.studentId)).length;
       const late    = records.filter(r => r.status === 'Late').length;
-      res.json({ sessionId, total: records.length, present, absent, late });
+      const excused = records.filter(r => r.status === 'Absent' && excusedIds.has(r.studentId)).length;
+      res.json({ sessionId, total: records.length, present, absent, late, excused });
     } catch (e) { await client.query('ROLLBACK'); throw e; }
     finally { client.release(); }
   } catch (err) { next(err); }

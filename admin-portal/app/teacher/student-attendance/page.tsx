@@ -15,11 +15,12 @@ interface StudentSession {
   present: number;
   absent: number;
   late: number;
+  excused: number;
 }
 
 interface SessionRecord {
   id: string;
-  status: 'Present' | 'Absent' | 'Late';
+  status: 'Present' | 'Absent' | 'Late' | 'Excused';
   student_id: string;
   student_code: string;
   name: string;
@@ -40,6 +41,7 @@ interface AtRiskStudent {
   present: number;
   absent: number;
   late: number;
+  excused: number;
   present_pct: number | null;
 }
 
@@ -55,6 +57,7 @@ const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   Present: { bg: '#E8F4EE', color: '#145C44' },
   Absent:  { bg: '#FEF2F2', color: '#B83232' },
   Late:    { bg: '#FFFBEB', color: '#D97706' },
+  Excused: { bg: '#EFF6FF', color: '#1D4ED8' },
 };
 
 const RISK_THRESHOLD = 75;
@@ -155,58 +158,39 @@ export default function StudentAttendancePage() {
     }
   }
 
+  function recountSession<T extends StudentSession>(session: T, records: SessionRecord[]): T {
+    return {
+      ...session,
+      present: records.filter(r => r.status === 'Present').length,
+      absent:  records.filter(r => r.status === 'Absent').length,
+      late:    records.filter(r => r.status === 'Late').length,
+      excused: records.filter(r => r.status === 'Excused').length,
+    };
+  }
+
   async function updateRecordStatus(recordId: string, newStatus: 'Present' | 'Absent' | 'Late') {
     if (!detail) return;
     const oldRecord = detail.records.find(r => r.id === recordId);
     if (!oldRecord || oldRecord.status === newStatus) return;
-    const oldStatus = oldRecord.status;
     const sessionId = detail.session.id;
-
-    setDetail(prev => {
-      if (!prev) return prev;
-      const updated = prev.records.map(r => r.id === recordId ? { ...r, status: newStatus } : r);
-      return {
-        ...prev,
-        records: updated,
-        session: {
-          ...prev.session,
-          present: updated.filter(r => r.status === 'Present').length,
-          absent:  updated.filter(r => r.status === 'Absent').length,
-          late:    updated.filter(r => r.status === 'Late').length,
-        },
-      };
-    });
-    setSessions(prev => prev.map(s => s.id === sessionId ? {
-      ...s,
-      present: s.present + (newStatus === 'Present' ? 1 : 0) - (oldStatus === 'Present' ? 1 : 0),
-      absent:  s.absent  + (newStatus === 'Absent'  ? 1 : 0) - (oldStatus === 'Absent'  ? 1 : 0),
-      late:    s.late    + (newStatus === 'Late'    ? 1 : 0) - (oldStatus === 'Late'    ? 1 : 0),
-    } : s));
 
     setEditLoading(recordId); setEditError('');
     try {
-      await teacherApi.patch(`/api/student-attendance/records/${recordId}`, { status: newStatus });
-    } catch (err: unknown) {
+      // The server may store 'Excused' instead of the submitted status if
+      // this student has a qualifying clinic visit — use its returned
+      // status, not the one we sent, so counts stay accurate.
+      const { data } = await teacherApi.patch<{ status: SessionRecord['status'] }>(
+        `/api/student-attendance/records/${recordId}`, { status: newStatus }
+      );
       setDetail(prev => {
         if (!prev) return prev;
-        const reverted = prev.records.map(r => r.id === recordId ? { ...r, status: oldStatus } : r);
-        return {
-          ...prev,
-          records: reverted,
-          session: {
-            ...prev.session,
-            present: reverted.filter(r => r.status === 'Present').length,
-            absent:  reverted.filter(r => r.status === 'Absent').length,
-            late:    reverted.filter(r => r.status === 'Late').length,
-          },
-        };
+        const updated = prev.records.map(r => r.id === recordId ? { ...r, status: data.status } : r);
+        return { ...prev, records: updated, session: recountSession(prev.session, updated) };
       });
-      setSessions(prev => prev.map(s => s.id === sessionId ? {
-        ...s,
-        present: s.present - (newStatus === 'Present' ? 1 : 0) + (oldStatus === 'Present' ? 1 : 0),
-        absent:  s.absent  - (newStatus === 'Absent'  ? 1 : 0) + (oldStatus === 'Absent'  ? 1 : 0),
-        late:    s.late    - (newStatus === 'Late'    ? 1 : 0) + (oldStatus === 'Late'    ? 1 : 0),
-      } : s));
+      setSessions(prev => prev.map(s => s.id === sessionId
+        ? recountSession(s, detail.records.map(r => r.id === recordId ? { ...r, status: data.status } : r))
+        : s));
+    } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setEditError(msg ?? 'Failed to update status. Please try again.');
     } finally {
@@ -311,6 +295,7 @@ export default function StudentAttendancePage() {
                           { label: 'Present', val: sess.present, color: '#145C44', bg: '#E8F4EE' },
                           { label: 'Absent',  val: sess.absent,  color: '#B83232', bg: '#FEF2F2' },
                           { label: 'Late',    val: sess.late,    color: '#D97706', bg: '#FFFBEB' },
+                          { label: 'Excused', val: sess.excused, color: '#1D4ED8', bg: '#EFF6FF' },
                         ].map(({ label, val, color, bg }) => (
                           <div key={label} className="flex-1 rounded-lg py-1.5 text-center" style={{ background: bg }}>
                             <p className="text-base font-bold" style={{ color }}>{val}</p>
@@ -392,6 +377,9 @@ export default function StudentAttendancePage() {
                       <span style={{ color: '#B83232' }}>{detail.records.filter(r => r.status === 'Absent').length} Absent</span>
                       {detail.records.filter(r => r.status === 'Late').length > 0 && (
                         <span style={{ color: '#D97706' }}>{detail.records.filter(r => r.status === 'Late').length} Late</span>
+                      )}
+                      {detail.records.filter(r => r.status === 'Excused').length > 0 && (
+                        <span style={{ color: '#1D4ED8' }}>{detail.records.filter(r => r.status === 'Excused').length} Excused</span>
                       )}
                     </div>
                   )}

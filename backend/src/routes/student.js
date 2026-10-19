@@ -305,7 +305,8 @@ router.get('/results', async (req, res, next) => {
       `SELECT COUNT(*)::int                                          AS total,
               COUNT(*) FILTER (WHERE sar.status = 'Present')::int   AS present,
               COUNT(*) FILTER (WHERE sar.status = 'Late')::int      AS late,
-              COUNT(*) FILTER (WHERE sar.status = 'Absent')::int    AS absent
+              COUNT(*) FILTER (WHERE sar.status = 'Absent')::int    AS absent,
+              COUNT(*) FILTER (WHERE sar.status = 'Excused')::int   AS excused
        FROM student_attendance_records sar
        JOIN student_attendance_sessions sas ON sas.id = sar.session_id
        WHERE sas.school_id = $1
@@ -518,11 +519,13 @@ router.get('/attendance', async (req, res, next) => {
     const present = sessions.filter(s => s.status === 'Present').length;
     const absent  = sessions.filter(s => s.status === 'Absent').length;
     const late    = sessions.filter(s => s.status === 'Late').length;
+    const excused = sessions.filter(s => s.status === 'Excused').length;
     const total   = sessions.length;
-    const rate    = total > 0 ? Math.round(((present + late * 0.5) / total) * 100 * 10) / 10 : null;
+    const rateBase = total - excused;
+    const rate    = rateBase > 0 ? Math.round(((present + late * 0.5) / rateBase) * 100 * 10) / 10 : null;
 
     res.json({
-      summary: { present, absent, late, total, rate },
+      summary: { present, absent, late, excused, total, rate },
       sessions,
     });
   } catch (err) { next(err); }

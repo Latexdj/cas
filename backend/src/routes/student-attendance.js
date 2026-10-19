@@ -1,6 +1,7 @@
 ﻿const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { getExcusedStudentIds } = require('./clinic');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -75,15 +76,15 @@ router.post('/submit', async (req, res, next) => {
       );
       const sessionId = sessRows[0].id;
 
-      const validStatuses = new Set(['Present', 'Absent', 'Late']);
+      const excusedIds = await getExcusedStudentIds(req.schoolId, uniqueStudentIds, today);
+      const validStatuses = new Set(['Present', 'Absent', 'Late', 'Excused']);
       const bulkValues = [];
       const bulkParams = [];
       records.forEach((rec, i) => {
         const b = i * 4;
-        bulkParams.push(
-          req.schoolId, sessionId, rec.studentId,
-          validStatuses.has(rec.status) ? rec.status : 'Present'
-        );
+        let status = validStatuses.has(rec.status) ? rec.status : 'Present';
+        if (status === 'Absent' && excusedIds.has(rec.studentId)) status = 'Excused';
+        bulkParams.push(req.schoolId, sessionId, rec.studentId, status);
         bulkValues.push(`($${b+1},$${b+2},$${b+3},$${b+4})`);
       });
       await client.query(
@@ -126,8 +127,9 @@ router.post('/submit', async (req, res, next) => {
 
       await client.query('COMMIT');
       const present = records.filter(r => r.status === 'Present').length;
-      const absent  = records.filter(r => r.status === 'Absent').length;
-      res.status(201).json({ sessionId, total: records.length, present, absent });
+      const absent  = records.filter(r => r.status === 'Absent' && !excusedIds.has(r.studentId)).length;
+      const excused = records.filter(r => r.status === 'Absent' && excusedIds.has(r.studentId)).length;
+      res.status(201).json({ sessionId, total: records.length, present, absent, excused });
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -148,7 +150,8 @@ router.get('/today/:teacherId', async (req, res, next) => {
       `SELECT s.id, s.subject, s.class_name, s.lesson_end_time, s.created_at,
               COUNT(r.id)::int                                              AS total,
               SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END)::int   AS present,
-              SUM(CASE WHEN r.status = 'Absent'  THEN 1 ELSE 0 END)::int   AS absent
+              SUM(CASE WHEN r.status = 'Absent'  THEN 1 ELSE 0 END)::int   AS absent,
+              SUM(CASE WHEN r.status = 'Excused' THEN 1 ELSE 0 END)::int   AS excused
        FROM student_attendance_sessions s
        LEFT JOIN student_attendance_records r ON r.session_id = s.id
        WHERE s.school_id = $1 AND s.date = $2 AND s.teacher_id = $3
@@ -188,12 +191,12 @@ router.get('/session/:sessionId', async (req, res, next) => {
 router.patch('/records/:id', async (req, res, next) => {
   try {
     const { status } = req.body;
-    if (!['Present', 'Absent', 'Late'].includes(status)) {
-      return res.status(400).json({ error: 'status must be Present, Absent, or Late' });
+    if (!['Present', 'Absent', 'Late', 'Excused'].includes(status)) {
+      return res.status(400).json({ error: 'status must be Present, Absent, Late, or Excused' });
     }
 
     const { rows } = await pool.query(
-      `SELECT r.id, r.session_id, s.date::text, s.lesson_end_time, s.teacher_id
+      `SELECT r.id, r.session_id, r.student_id, s.date::text, s.lesson_end_time, s.teacher_id
        FROM student_attendance_records r
        JOIN student_attendance_sessions s ON s.id = r.session_id
        WHERE r.id = $1 AND r.school_id = $2`,
@@ -213,10 +216,16 @@ router.patch('/records/:id', async (req, res, next) => {
       }
     }
 
+    let finalStatus = status;
+    if (finalStatus === 'Absent') {
+      const excusedIds = await getExcusedStudentIds(req.schoolId, [rec.student_id], rec.date);
+      if (excusedIds.has(rec.student_id)) finalStatus = 'Excused';
+    }
+
     const { rows: updated } = await pool.query(
       `UPDATE student_attendance_records SET status = $1, updated_at = now()
        WHERE id = $2 RETURNING id, status, updated_at`,
-      [status, req.params.id]
+      [finalStatus, req.params.id]
     );
     res.json(updated[0]);
   } catch (err) { next(err); }
@@ -239,7 +248,8 @@ router.get('/teacher/:teacherId', async (req, res, next) => {
               COUNT(r.id)::int                                             AS total,
               SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END)::int  AS present,
               SUM(CASE WHEN r.status = 'Absent'  THEN 1 ELSE 0 END)::int  AS absent,
-              SUM(CASE WHEN r.status = 'Late'    THEN 1 ELSE 0 END)::int  AS late
+              SUM(CASE WHEN r.status = 'Late'    THEN 1 ELSE 0 END)::int  AS late,
+              SUM(CASE WHEN r.status = 'Excused' THEN 1 ELSE 0 END)::int  AS excused
        FROM student_attendance_sessions s
        LEFT JOIN student_attendance_records r ON r.session_id = s.id
        WHERE ${conds.join(' AND ')}
@@ -270,8 +280,10 @@ router.get('/report/students', adminOnly, async (req, res, next) => {
          SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END)::int  AS present,
          SUM(CASE WHEN r.status = 'Absent'  THEN 1 ELSE 0 END)::int  AS absent,
          SUM(CASE WHEN r.status = 'Late'    THEN 1 ELSE 0 END)::int  AS late,
-         CASE WHEN COUNT(r.id) = 0 THEN NULL
-              ELSE ROUND(100.0 * SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END) / COUNT(r.id), 1)
+         SUM(CASE WHEN r.status = 'Excused' THEN 1 ELSE 0 END)::int  AS excused,
+         CASE WHEN COUNT(r.id) - SUM(CASE WHEN r.status = 'Excused' THEN 1 ELSE 0 END) = 0 THEN NULL
+              ELSE ROUND(100.0 * SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END)
+                   / (COUNT(r.id) - SUM(CASE WHEN r.status = 'Excused' THEN 1 ELSE 0 END)), 1)
          END AS present_pct
        FROM student_attendance_records r
        JOIN students st ON st.id = r.student_id
@@ -305,8 +317,10 @@ router.get('/report/teacher/:teacherId/students', async (req, res, next) => {
          SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END)::int  AS present,
          SUM(CASE WHEN r.status = 'Absent'  THEN 1 ELSE 0 END)::int  AS absent,
          SUM(CASE WHEN r.status = 'Late'    THEN 1 ELSE 0 END)::int  AS late,
-         CASE WHEN COUNT(r.id) = 0 THEN NULL
-              ELSE ROUND(100.0 * SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END) / COUNT(r.id), 1)
+         SUM(CASE WHEN r.status = 'Excused' THEN 1 ELSE 0 END)::int  AS excused,
+         CASE WHEN COUNT(r.id) - SUM(CASE WHEN r.status = 'Excused' THEN 1 ELSE 0 END) = 0 THEN NULL
+              ELSE ROUND(100.0 * SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END)
+                   / (COUNT(r.id) - SUM(CASE WHEN r.status = 'Excused' THEN 1 ELSE 0 END)), 1)
          END AS present_pct
        FROM student_attendance_records r
        JOIN students st ON st.id = r.student_id
@@ -341,7 +355,8 @@ router.get('/', adminOnly, async (req, res, next) => {
               COUNT(r.id)::int                                             AS total,
               SUM(CASE WHEN r.status = 'Present' THEN 1 ELSE 0 END)::int  AS present,
               SUM(CASE WHEN r.status = 'Absent'  THEN 1 ELSE 0 END)::int  AS absent,
-              SUM(CASE WHEN r.status = 'Late'    THEN 1 ELSE 0 END)::int  AS late
+              SUM(CASE WHEN r.status = 'Late'    THEN 1 ELSE 0 END)::int  AS late,
+              SUM(CASE WHEN r.status = 'Excused' THEN 1 ELSE 0 END)::int  AS excused
        FROM student_attendance_sessions s
        LEFT JOIN teachers te ON te.id = s.teacher_id
        LEFT JOIN student_attendance_records r ON r.session_id = s.id

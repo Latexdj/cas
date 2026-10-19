@@ -67,6 +67,7 @@ interface StudentReport {
   present: number;
   absent: number;
   late: number;
+  excused: number;
   present_pct: number | null;
 }
 
@@ -99,6 +100,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   Present: { bg: '#DCFCE7', color: '#145C44' },
   Absent:  { bg: '#FEF2F2', color: '#DC2626' },
   Late:    { bg: '#FFFBEB', color: '#D97706' },
+  Excused: { bg: '#EFF6FF', color: '#1D4ED8' },
 };
 
 const today = new Date().toISOString().slice(0, 10);
@@ -208,10 +210,15 @@ export default function StudentAttendancePage() {
   async function saveStatus(recordId: string, status: string) {
     setSavingId(recordId); setEditError('');
     try {
-      await api.patch(`/api/student-attendance/records/${recordId}`, { status });
+      // The server may store 'Excused' instead of the submitted status if
+      // this student has a qualifying clinic visit — use its returned
+      // status, not the one we sent, so the display stays accurate.
+      const { data } = await api.patch<{ status: StudentAttendanceRecord['status'] }>(
+        `/api/student-attendance/records/${recordId}`, { status }
+      );
       setDetail(prev => prev ? {
         ...prev,
-        records: prev.records.map(r => r.id === recordId ? { ...r, status: status as 'Present' | 'Absent' | 'Late' } : r),
+        records: prev.records.map(r => r.id === recordId ? { ...r, status: data.status } : r),
       } : null);
       setEditingId(null);
     } catch (e: unknown) {
@@ -246,20 +253,20 @@ export default function StudentAttendancePage() {
       const repSubtitle = [repYearName,  repSemLabel,  reportClass, `${reportFrom} – ${reportTo}`].filter(Boolean).join(' · ');
 
       if (key === 'sess-xlsx') {
-        const headers = ['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Total'];
-        const rows: Row[] = sessions.map(s => [fmtDate(s.date), s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.total]);
+        const headers = ['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Excused', 'Total'];
+        const rows: Row[] = sessions.map(s => [fmtDate(s.date), s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.excused ?? 0, s.total]);
         await exportExcel(`student-sessions-${from}-${to}`, headers, rows);
       } else if (key === 'sess-pdf') {
-        const head = ['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Total'];
-        const body: Row[] = sessions.map(s => [fmtDate(s.date), s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.total]);
+        const head = ['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Excused', 'Total'];
+        const body: Row[] = sessions.map(s => [fmtDate(s.date), s.class_name, s.subject, s.teacher_name, s.present, s.absent, s.late ?? 0, s.excused ?? 0, s.total]);
         await exportPdf(`student-sessions-${from}-${to}`, 'Student Attendance Sessions', subtitle, head, body);
       } else if (key === 'rep-xlsx') {
-        const headers = ['Student ID', 'Name', 'Class', 'Sessions', 'Present', 'Absent', 'Late', 'Attendance %'];
-        const rows: Row[] = report.map(r => [r.student_code, r.name, r.class_name, r.total_sessions, r.present, r.absent, r.late, r.present_pct !== null ? `${r.present_pct}%` : '—']);
+        const headers = ['Student ID', 'Name', 'Class', 'Sessions', 'Present', 'Absent', 'Late', 'Excused', 'Attendance %'];
+        const rows: Row[] = report.map(r => [r.student_code, r.name, r.class_name, r.total_sessions, r.present, r.absent, r.late, r.excused, r.present_pct !== null ? `${r.present_pct}%` : '—']);
         await exportExcel(`student-report-${reportFrom}-${reportTo}`, headers, rows);
       } else if (key === 'rep-pdf') {
-        const head = ['Student ID', 'Name', 'Class', 'Sessions', 'Present', 'Absent', 'Late', 'Attendance %'];
-        const body: Row[] = report.map(r => [r.student_code, r.name, r.class_name, r.total_sessions, r.present, r.absent, r.late, r.present_pct !== null ? `${r.present_pct}%` : '—']);
+        const head = ['Student ID', 'Name', 'Class', 'Sessions', 'Present', 'Absent', 'Late', 'Excused', 'Attendance %'];
+        const body: Row[] = report.map(r => [r.student_code, r.name, r.class_name, r.total_sessions, r.present, r.absent, r.late, r.excused, r.present_pct !== null ? `${r.present_pct}%` : '—']);
         await exportPdf(`student-report-${reportFrom}-${reportTo}`, 'Student Attendance Report', repSubtitle, head, body);
       }
     } finally {
@@ -344,7 +351,7 @@ export default function StudentAttendancePage() {
                 <table className="min-w-[1000px] w-full text-sm">
                   <thead>
                     <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
-                      {['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Total', ''].map(h => (
+                      {['Date', 'Class', 'Subject', 'Teacher', 'Present', 'Absent', 'Late', 'Excused', 'Total', ''].map(h => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
                       ))}
                     </tr>
@@ -361,6 +368,7 @@ export default function StudentAttendancePage() {
                         <td className="px-4 py-3 font-mono font-bold" style={{ color: '#145C44' }}>{s.present}</td>
                         <td className="px-4 py-3 font-mono font-bold" style={{ color: s.absent > 0 ? '#DC2626' : '#94A3B8' }}>{s.absent}</td>
                         <td className="px-4 py-3 font-mono font-bold" style={{ color: s.late > 0 ? '#D97706' : '#94A3B8' }}>{s.late}</td>
+                        <td className="px-4 py-3 font-mono font-bold" style={{ color: s.excused > 0 ? '#1D4ED8' : '#94A3B8' }}>{s.excused ?? 0}</td>
                         <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{s.total}</td>
                         <td className="px-4 py-3 text-xs font-semibold" style={{ color: '#2563EB' }}>View →</td>
                       </tr>
@@ -448,7 +456,7 @@ export default function StudentAttendancePage() {
                 <table className="min-w-[850px] w-full text-sm">
                   <thead>
                     <tr style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: '#F5F0E8' }}>
-                      {['ID', 'Name', 'Class', 'Sessions', 'Present', 'Absent', 'Late', 'Attendance %'].map(h => (
+                      {['ID', 'Name', 'Class', 'Sessions', 'Present', 'Absent', 'Late', 'Excused', 'Attendance %'].map(h => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium" style={{ color: '#94A3B8' }}>{h}</th>
                       ))}
                     </tr>
@@ -467,6 +475,7 @@ export default function StudentAttendancePage() {
                         <td className="px-4 py-3 font-mono font-bold text-center" style={{ color: '#145C44' }}>{r.present}</td>
                         <td className="px-4 py-3 font-mono font-bold text-center" style={{ color: r.absent > 0 ? '#DC2626' : '#94A3B8' }}>{r.absent}</td>
                         <td className="px-4 py-3 font-mono font-bold text-center" style={{ color: r.late > 0 ? '#D97706' : '#94A3B8' }}>{r.late}</td>
+                        <td className="px-4 py-3 font-mono font-bold text-center" style={{ color: r.excused > 0 ? '#1D4ED8' : '#94A3B8' }}>{r.excused}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <div className="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden" style={{ minWidth: 60 }}>
@@ -507,6 +516,9 @@ export default function StudentAttendancePage() {
                   <span className="font-bold" style={{ color: '#DC2626' }}>{detail.records.filter(r => r.status === 'Absent').length} Absent</span>
                   {detail.records.filter(r => r.status === 'Late').length > 0 && (
                     <span className="font-bold" style={{ color: '#D97706' }}>{detail.records.filter(r => r.status === 'Late').length} Late</span>
+                  )}
+                  {detail.records.filter(r => r.status === 'Excused').length > 0 && (
+                    <span className="font-bold" style={{ color: '#1D4ED8' }}>{detail.records.filter(r => r.status === 'Excused').length} Excused</span>
                   )}
                 </div>
               )}

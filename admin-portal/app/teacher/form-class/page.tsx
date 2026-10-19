@@ -185,7 +185,7 @@ function StudentDrawer({
 }: {
   student: FormTeacherStudent;
   remark: ReportRemark | null;
-  attRow: { present: number; absent: number; late: number; total: number; pct: number | null } | null;
+  attRow: { present: number; absent: number; late: number; excused: number; total: number; pct: number | null } | null;
   result: StudentResult | null;
   resultsLoading?: boolean;
   onClose: () => void;
@@ -218,8 +218,8 @@ function StudentDrawer({
           {attRow && (
             <div className="bg-[#F5F0E8] rounded-xl p-3">
               <p className="text-xs font-semibold text-slate-500 font-medium mb-2">Attendance</p>
-              <div className="grid grid-cols-4 gap-2 text-center">
-                {[['Present', attRow.present, 'text-[#145C44]'], ['Absent', attRow.absent, 'text-[#B83232]'], ['Late', attRow.late, 'text-amber-600'], ['Total', attRow.total, 'text-slate-700']].map(([label, val, color]) => (
+              <div className="grid grid-cols-5 gap-2 text-center">
+                {[['Present', attRow.present, 'text-[#145C44]'], ['Absent', attRow.absent, 'text-[#B83232]'], ['Late', attRow.late, 'text-amber-600'], ['Excused', attRow.excused, 'text-blue-700'], ['Total', attRow.total, 'text-slate-700']].map(([label, val, color]) => (
                   <div key={String(label)}>
                     <p className={`text-lg font-bold ${color}`}>{val}</p>
                     <p className="text-[10px] text-slate-400">{label}</p>
@@ -293,7 +293,7 @@ export default function FormClassPage() {
   const [semester,   setSemester]   = useSessionFilter('teacher-form-class:semester', '1');
   const [assignment, setAssignment] = useState<FormTeacherAssignment | null | undefined>(undefined); // undefined = loading
   const [students,   setStudents]   = useState<FormTeacherStudent[]>([]);
-  const [attData,    setAttData]    = useState<Record<string, { present: number; absent: number; late: number; total: number; pct: number | null }>>({});
+  const [attData,    setAttData]    = useState<Record<string, { present: number; absent: number; late: number; excused: number; total: number; pct: number | null }>>({});
   const [resultsData, setResultsData] = useState<StudentResult[]>([]);
   const [remarksMap,     setRemarksMap]     = useState<Record<string, ReportRemark>>({});
   const [draft,          setDraft]          = useState<Record<string, ReportRemark>>({});
@@ -765,13 +765,14 @@ export default function FormClassPage() {
                       <th className="px-4 py-2.5 text-center">Present</th>
                       <th className="px-4 py-2.5 text-center">Absent</th>
                       <th className="px-4 py-2.5 text-center">Late</th>
+                      <th className="px-4 py-2.5 text-center">Excused</th>
                       <th className="px-4 py-2.5 text-center">Total</th>
                       <th className="px-4 py-2.5 text-center">Rate</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {Object.values(attData).length === 0 && !loadingTab ? (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">No attendance records found for this semester</td></tr>
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-sm">No attendance records found for this semester</td></tr>
                     ) : (
                       Object.entries(attData)
                         .sort(([, a], [, b]) => (b.pct ?? 0) - (a.pct ?? 0))
@@ -793,6 +794,7 @@ export default function FormClassPage() {
                               <td className="px-4 py-2.5 text-center text-[#145C44] font-semibold text-xs">{row.present}</td>
                               <td className="px-4 py-2.5 text-center text-[#B83232] font-semibold text-xs">{row.absent}</td>
                               <td className="px-4 py-2.5 text-center text-amber-600 font-semibold text-xs">{row.late}</td>
+                              <td className="px-4 py-2.5 text-center text-blue-700 font-semibold text-xs">{row.excused}</td>
                               <td className="px-4 py-2.5 text-center text-slate-600 text-xs">{row.total}</td>
                               <td className="px-4 py-2.5 text-center"><AttPill pct={row.pct} /></td>
                             </tr>
