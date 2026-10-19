@@ -57,7 +57,7 @@ export default function ProspectusPage() {
         residential_status: form.residential_status,
         file_data: fileB64,
         file_name: form.file_name,
-      });
+      }, { timeout: 60000 });
       setForm({ program_id: '', gender: 'All', residential_status: 'All', file_name: '' });
       setFileB64('');
       if (fileRef.current) fileRef.current.value = '';

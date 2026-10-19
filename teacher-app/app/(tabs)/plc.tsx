@@ -244,7 +244,7 @@ export default function PlcScreen() {
         gpsCoordinates: gps,
         imageBase64:    photoBase64,
         photoSizeKb:    photoSizeKb ?? undefined,
-      });
+      }, { timeout: 60000 });
       Alert.alert('PLC Attendance Recorded', 'Your attendance for today\'s PLC session has been submitted.');
       resetForm();
       await loadToday();

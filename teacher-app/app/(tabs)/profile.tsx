@@ -253,7 +253,7 @@ export default function ProfileScreen() {
         { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG, base64: true },
       );
       const dataUrl = `data:image/jpeg;base64,${compressed.base64}`;
-      const res = await api.patch('/api/teachers/me/photo', { imageBase64: dataUrl });
+      const res = await api.patch('/api/teachers/me/photo', { imageBase64: dataUrl }, { timeout: 60000 });
       setProfile(p => p ? { ...p, photo_url: res.data.photo_url } : p);
     } catch {
       Alert.alert('Error', 'Could not upload photo. Please try again.');
@@ -349,7 +349,7 @@ export default function ProfileScreen() {
                    : ext === '.docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                    :                   'application/msword';
         const documentBase64 = `data:${mime};base64,${base64}`;
-        const res = await api.patch('/api/teachers/me/certificate', { documentBase64, documentFilename: asset.name });
+        const res = await api.patch('/api/teachers/me/certificate', { documentBase64, documentFilename: asset.name }, { timeout: 60000 });
         setProfile(p => p ? { ...p, certificate_url: res.data.certificate_url, certificate_filename: res.data.certificate_filename } : p);
         Alert.alert('Uploaded', 'Certificate uploaded successfully.');
       }
@@ -374,7 +374,7 @@ export default function ProfileScreen() {
                    : ext === '.docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                    :                   'application/msword';
         const documentBase64 = `data:${mime};base64,${base64}`;
-        const res = await api.patch('/api/teachers/me/promotion-letter', { documentBase64, documentFilename: asset.name });
+        const res = await api.patch('/api/teachers/me/promotion-letter', { documentBase64, documentFilename: asset.name }, { timeout: 60000 });
         setProfile(p => p ? { ...p, promotion_letter_url: res.data.promotion_letter_url, promotion_letter_filename: res.data.promotion_letter_filename } : p);
         Alert.alert('Uploaded', 'Promotion letter uploaded successfully.');
       }
@@ -400,7 +400,7 @@ export default function ProfileScreen() {
                    : ext === '.docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                    :                   'application/msword';
         const documentBase64 = `data:${mime};base64,${base64}`;
-        const res = await api.post('/api/teachers/me/documents', { label: otherDocLabel, documentBase64, documentFilename: asset.name });
+        const res = await api.post('/api/teachers/me/documents', { label: otherDocLabel, documentBase64, documentFilename: asset.name }, { timeout: 60000 });
         setOtherDocs(prev => [res.data, ...prev]);
         setOtherDocLabel('');
       }
@@ -474,7 +474,7 @@ export default function ProfileScreen() {
         ...payload,
         documentBase64: officialDocumentBase64 || undefined,
         documentFilename: officialDocumentName || undefined,
-      });
+      }, { timeout: 60000 });
       setPendingRequest(res.data);
       setProfileRequests(prev => [res.data, ...prev]);
       setShowOfficialModal(false);

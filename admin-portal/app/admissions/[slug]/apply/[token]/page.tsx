@@ -116,9 +116,12 @@ export default function ApplicationFormPage() {
     if (!picB64 && !beceB64) { setStep(5); return; }
     setUploading(true); setError('');
     try {
+      // An anonymous applicant on a slow mobile connection uploading a
+      // passport photo + a scanned BECE results sheet — the same risk the
+      // public WAEC tool's upload already guards against with a wider budget.
       await publicApi.post(`/api/admissions/${slug}/apply/${token}/upload`, {
         picture_data: picB64 || undefined, bece_data: beceB64 || undefined,
-      });
+      }, { timeout: 60000 });
       await publicApi.patch(`/api/admissions/${slug}/apply/${token}`, { form_step: 5 });
       await load(); setStep(5);
       window.scrollTo({ top: 0, behavior: 'smooth' });

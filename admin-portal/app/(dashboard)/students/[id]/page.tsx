@@ -286,7 +286,7 @@ export default function StudentProfilePage() {
         const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej;
         r.readAsDataURL(file);
       });
-      const { data } = await api.post<{ picture_url: string }>(`/api/students/${id}/picture`, { imageBase64: b64 });
+      const { data } = await api.post<{ picture_url: string }>(`/api/students/${id}/picture`, { imageBase64: b64 }, { timeout: 60000 });
       setProfile(p => p ? { ...p, picture_url: data.picture_url } : p);
     } catch { setUploadErr('Photo upload failed'); }
     finally { setPhotoUploading(false); }

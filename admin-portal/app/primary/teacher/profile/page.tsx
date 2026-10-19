@@ -85,7 +85,7 @@ export default function TeacherProfilePage() {
         reader.onerror = rej;
         reader.readAsDataURL(file);
       });
-      const { data } = await api.patch<{ photo_url: string }>('/api/teachers/me/photo', { imageBase64: base64 });
+      const { data } = await api.patch<{ photo_url: string }>('/api/teachers/me/photo', { imageBase64: base64 }, { timeout: 60000 });
       setProfile(prev => prev ? { ...prev, photo_url: data.photo_url } : prev);
     } catch (e: unknown) {
       setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to upload photo');

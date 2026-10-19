@@ -512,7 +512,7 @@ function MinutesModal({ meeting, onClose, onSaved }: { meeting: Meeting; onClose
       await api.post(`/api/meetings/${meeting.id}/minutes`, {
         fileBase64: dataUrl,
         filename:   file.name,
-      });
+      }, { timeout: 60000 });
       onSaved();
       onClose();
     } catch (err: unknown) {

@@ -307,7 +307,7 @@ export default function SubmitScreen() {
         return;
       }
 
-      const res = await api.post<{ record: { id: string } }>('/api/attendance/submit', payload);
+      const res = await api.post<{ record: { id: string } }>('/api/attendance/submit', payload, { timeout: 60000 });
       const newAttendanceId = res.data.record?.id || null;
 
       // Persist checkpoint so Step 2 can be resumed if a phone call interrupts the flow

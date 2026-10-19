@@ -129,7 +129,7 @@ export default function MyAttendancePage() {
     setStep('submitting'); setError('');
     try {
       const endpoint = action === 'in' ? '/api/primary/me/attendance/clock-in' : '/api/primary/me/attendance/clock-out';
-      await api.post(endpoint, { photo, gps });
+      await api.post(endpoint, { photo, gps }, { timeout: 60000 });
       await loadToday();
       if (termId) {
         const r = await api.get<TermRecord[]>(`/api/primary/me/attendance?term_id=${termId}`);

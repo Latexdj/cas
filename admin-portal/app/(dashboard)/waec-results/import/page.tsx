@@ -366,10 +366,10 @@ export default function WaecImportPage() {
         if (!file) { setParseError('Choose a PDF file.'); setParsing(false); return; }
         const fd = new FormData();
         fd.append('pdf', file);
-        ({ data } = await api.post('/api/admin/exam-results/parse', fd));
+        ({ data } = await api.post('/api/admin/exam-results/parse', fd, { timeout: 60000 }));
       } else {
         if (!pasteText.trim()) { setParseError('Paste the listing text first.'); setParsing(false); return; }
-        ({ data } = await api.post('/api/admin/exam-results/parse', { raw_text: pasteText }));
+        ({ data } = await api.post('/api/admin/exam-results/parse', { raw_text: pasteText }, { timeout: 60000 }));
       }
       setResult(data);
       if (data.year) setYear(data.year);
@@ -390,7 +390,7 @@ export default function WaecImportPage() {
       if (!file) { setParseError('Choose an Excel (.xlsx) file.'); setParsing(false); return; }
       const fd = new FormData();
       fd.append('file', file);
-      const { data } = await api.post<{ sheets: ExcelSheet[] }>('/api/admin/exam-results/parse-excel', fd);
+      const { data } = await api.post<{ sheets: ExcelSheet[] }>('/api/admin/exam-results/parse-excel', fd, { timeout: 60000 });
       setExcelSheets(data.sheets);
       if (data.sheets.length === 1) selectExcelSheet(data.sheets, 0);
     } catch (e: unknown) {

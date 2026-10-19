@@ -133,7 +133,7 @@ export default function PrimaryTeachersPage() {
       const fd = new FormData();
       fd.append('file', impFile);
       const { data } = await api.post('/api/teachers/upload?school_level=primary', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000,
       });
       setImpResult({ inserted: data.inserted, errors: data.errors ?? [] });
       if (!data.errors?.length) load();

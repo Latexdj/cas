@@ -43,7 +43,7 @@ export default function PlacementPage() {
     setUploading(true); setResult(null);
     try {
       const fd = new FormData(); fd.append('file', file);
-      const { data } = await api.post('/api/admin/admissions/placement/upload', fd);
+      const { data } = await api.post('/api/admin/admissions/placement/upload', fd, { timeout: 120000 });
       setResult(data); await load();
       if (fileRef.current) fileRef.current.value = '';
     } catch (err: unknown) {

@@ -354,7 +354,7 @@ export default function PolicyDocumentsPage() {
       const fd = new FormData();
       fd.append('pdf', file);
       const { data } = await api.post<{ text: string; pages: number }>(
-        `/api/policy-documents/${sel.id}/extract-pdf`, fd
+        `/api/policy-documents/${sel.id}/extract-pdf`, fd, { timeout: 60000 }
       );
       setPdfText(data.text);
     } catch (e: unknown) {
@@ -385,8 +385,11 @@ export default function PolicyDocumentsPage() {
     try {
       const fd = new FormData();
       fd.append('pdf', file);
+      // Chunking + embedding (an external Voyage AI call) + per-chunk inserts
+      // for a multi-page policy document can genuinely take a while — same
+      // generous budget as the other bulk-write uploads in this app.
       const { data } = await api.post<{ chunks_created: number; chunks: { chunk_index: number; section_hint: string | null; chunk_preview: string }[] }>(
-        `/api/policy-documents/${sel.id}/process-rag`, fd
+        `/api/policy-documents/${sel.id}/process-rag`, fd, { timeout: 120000 }
       );
       setRagChunks(data.chunks);
       loadRagStatus(sel.id);

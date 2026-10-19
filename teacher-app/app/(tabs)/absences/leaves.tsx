@@ -99,7 +99,7 @@ export default function LeavesScreen() {
       await api.post('/api/teacher-excuses', {
         teacherId: user!.id, dateFrom, dateTo, type: leaveType, reason: reason.trim(),
         documentBase64, documentFilename: docName ?? undefined,
-      });
+      }, { timeout: 60000 });
       setShowForm(false);
       setReason(''); setDateFrom(todayStr()); setDateTo(todayStr()); setLeaveType('Sick Leave');
       setDocUri(null); setDocName(null);

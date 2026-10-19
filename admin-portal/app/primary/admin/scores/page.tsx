@@ -126,7 +126,7 @@ export default function PrimaryScoresAdminPage() {
       fd.append('term_id', termId);
       if (uploadModal === 'single') fd.append('subject_id', selSubject);
       const endpoint = uploadModal === 'single' ? '/api/primary/scores/upload' : '/api/primary/scores/class-upload';
-      const { data } = await api.post(endpoint, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post(endpoint, fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
       setUploadResult({ count: data.count, errors: data.errors ?? [] });
       if (!data.errors?.length) load();
     } catch (e: unknown) {

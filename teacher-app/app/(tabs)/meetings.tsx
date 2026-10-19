@@ -317,7 +317,7 @@ export default function MeetingsScreen() {
         gpsCoordinates: gps,
         imageBase64:    photoBase64,
         photoSizeKb:    photoSizeKb ?? undefined,
-      });
+      }, { timeout: 60000 });
       Alert.alert('Attendance Recorded', `Your attendance for "${activeMeeting.title}" has been submitted.`);
       resetSharedForm();
       closeForm();
@@ -346,7 +346,7 @@ export default function MeetingsScreen() {
         gpsCoordinates: gps,
         imageBase64:    photoBase64,
         photoSizeKb:    photoSizeKb ?? undefined,
-      });
+      }, { timeout: 60000 });
       Alert.alert('PLC Attendance Recorded', "Your attendance for today's PLC session has been submitted.");
       setAgenda('');
       resetSharedForm();

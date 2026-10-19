@@ -147,7 +147,7 @@ export default function NewCyclePage() {
     setUploading(true); setUploadResult(null); setUploadError('');
     try {
       const fd = new FormData(); fd.append('file', file);
-      const { data } = await api.post<UploadResult>('/api/admin/admissions/placement/upload', fd);
+      const { data } = await api.post<UploadResult>('/api/admin/admissions/placement/upload', fd, { timeout: 120000 });
       setUploadResult(data);
       if (fileRef.current) fileRef.current.value = '';
     } catch (e: unknown) {

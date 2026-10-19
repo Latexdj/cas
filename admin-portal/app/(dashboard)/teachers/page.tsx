@@ -140,7 +140,7 @@ export default function TeachersPage() {
     setUploading(true); setUploadErr(''); setUploadResult(null);
     try {
       const fd = new FormData(); fd.append('file', file);
-      const { data } = await api.post<UploadResult>('/api/teachers/upload', fd);
+      const { data } = await api.post<UploadResult>('/api/teachers/upload', fd, { timeout: 120000 });
       setUploadResult(data);
       await load();
       if (fileRef.current) fileRef.current.value = '';

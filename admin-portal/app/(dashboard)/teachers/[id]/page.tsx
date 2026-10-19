@@ -219,7 +219,7 @@ export default function TeacherProfilePage() {
         const r = new FileReader(); r.onload = () => res(r.result as string); r.onerror = rej;
         r.readAsDataURL(file);
       });
-      const { data } = await api.post<{ photo_url: string }>(`/api/teachers/${id}/photo`, { imageBase64: b64 });
+      const { data } = await api.post<{ photo_url: string }>(`/api/teachers/${id}/photo`, { imageBase64: b64 }, { timeout: 60000 });
       setProfile(p => p ? { ...p, photo_url: data.photo_url } : p);
     } catch { setUploadErr('Photo upload failed'); }
     finally { setPhotoUploading(false); }
@@ -234,7 +234,8 @@ export default function TeacherProfilePage() {
       });
       const { data } = await api.post<{ certificate_url: string; certificate_filename: string }>(
         `/api/teachers/${id}/certificate`,
-        { documentBase64: b64, documentFilename: file.name }
+        { documentBase64: b64, documentFilename: file.name },
+        { timeout: 60000 }
       );
       setProfile(p => p ? { ...p, certificate_url: data.certificate_url, certificate_filename: data.certificate_filename } : p);
     } catch { setUploadErr('Certificate upload failed'); }
@@ -250,7 +251,8 @@ export default function TeacherProfilePage() {
       });
       const { data } = await api.post<{ promotion_letter_url: string; promotion_letter_filename: string }>(
         `/api/teachers/${id}/promotion-letter`,
-        { documentBase64: b64, documentFilename: file.name }
+        { documentBase64: b64, documentFilename: file.name },
+        { timeout: 60000 }
       );
       setProfile(p => p ? { ...p, promotion_letter_url: data.promotion_letter_url, promotion_letter_filename: data.promotion_letter_filename } : p);
     } catch { setUploadErr('Promotion letter upload failed'); }
@@ -267,7 +269,7 @@ export default function TeacherProfilePage() {
       });
       const { data } = await api.post(`/api/teachers/${id}/documents`, {
         label: otherDocLabel, documentBase64: b64, documentFilename: file.name,
-      });
+      }, { timeout: 60000 });
       setOtherDocs(prev => [data, ...prev]);
       setOtherDocLabel('');
     } catch (err: unknown) {

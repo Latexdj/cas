@@ -381,7 +381,7 @@ export default function StudentsPage() {
       // uploadFile on the backend expects the full data URI (data:image/...;base64,...)
       const dataUrl = reader.result as string;
       try {
-        await api.post(`/api/students/${studentId}/picture`, { imageBase64: dataUrl });
+        await api.post(`/api/students/${studentId}/picture`, { imageBase64: dataUrl }, { timeout: 60000 });
         setMissingPhotos(prev => prev ? prev.filter(s => s.id !== studentId) : prev);
       } catch { /* keep in list — upload failed */ }
       setMissingUploading(prev => { const n = new Set(prev); n.delete(studentId); return n; });

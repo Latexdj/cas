@@ -121,7 +121,7 @@ function SubjectsTab() {
     try {
       const fd = new FormData(); fd.append('file', file);
       const { data } = await api.post<UploadResult>('/api/subjects/upload', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000,
       });
       setResult(data);
       await load();

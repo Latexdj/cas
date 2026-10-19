@@ -136,10 +136,12 @@ export default function PrimaryStudentsPage() {
     if (dobErr) { setSaveError(dobErr); return; }
     setSaving(true); setSaveError('');
     try {
+      // A profile photo (base64) can ride along in `form.picture_data`, so this
+      // gets the same wider upload-safe budget as other base64 image writes.
       if (editing) {
-        await api.put(`/api/primary/students/${editing.id}`, form);
+        await api.put(`/api/primary/students/${editing.id}`, form, { timeout: 60000 });
       } else {
-        await api.post('/api/primary/students', form);
+        await api.post('/api/primary/students', form, { timeout: 60000 });
       }
       setShowForm(false); load();
     } catch (e: unknown) {
@@ -168,7 +170,7 @@ export default function PrimaryStudentsPage() {
     setImpLoading(true); setImpResult(null);
     try {
       const fd = new FormData(); fd.append('file', impFile);
-      const { data } = await api.post('/api/primary/students/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post('/api/primary/students/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
       setImpResult({ inserted: data.inserted, errors: data.errors ?? [] });
       if (!data.errors?.length) load();
     } catch (e: unknown) {
@@ -182,7 +184,7 @@ export default function PrimaryStudentsPage() {
     setImpLoading(true); setImpResult(null);
     try {
       const fd = new FormData(); fd.append('file', updFile);
-      const { data } = await api.post('/api/primary/students/bulk-update', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post('/api/primary/students/bulk-update', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
       setImpResult({ updated: data.updated, errors: data.errors ?? [] });
       if (!data.errors?.length) load();
     } catch (e: unknown) {
