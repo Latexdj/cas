@@ -766,21 +766,29 @@ router.get('/transcript/:student_id', async (req, res, next) => {
       ),
     ]);
 
-    // Determine unique periods (yearId:semester) and their class_name
+    // Determine unique periods (yearId:semester) and their class_name.
+    // caRes/examRes rows each carry the real class_name recorded at the time
+    // the score was entered, so those are confirmed. results_import has no
+    // class_name column at all (see classHistory.service.js's doc comment on
+    // why the class_history backfill can't use it either) — when a period's
+    // ONLY evidence is an import row, falling back to the student's CURRENT
+    // class_name is a guess, not a fact: reported as a real incident (a
+    // Form-3 student's Form-1/2024-2025 transcript entry showed their
+    // Form-2 class instead). Marked unconfirmed rather than asserted.
     const periodMap = {};
     for (const r of caRes.rows) {
       const key = `${r.academic_year_id}:${r.semester}`;
-      if (!periodMap[key]) periodMap[key] = { yearId: r.academic_year_id, semester: parseInt(r.semester), className: r.class_name };
-      else if (!periodMap[key].className) periodMap[key].className = r.class_name;
+      if (!periodMap[key]) periodMap[key] = { yearId: r.academic_year_id, semester: parseInt(r.semester), className: r.class_name, classNameConfirmed: true };
+      else if (!periodMap[key].className) { periodMap[key].className = r.class_name; periodMap[key].classNameConfirmed = true; }
     }
     for (const r of examRes.rows) {
       const key = `${r.academic_year_id}:${r.semester}`;
-      if (!periodMap[key]) periodMap[key] = { yearId: r.academic_year_id, semester: parseInt(r.semester), className: r.class_name };
-      else if (!periodMap[key].className) periodMap[key].className = r.class_name;
+      if (!periodMap[key]) periodMap[key] = { yearId: r.academic_year_id, semester: parseInt(r.semester), className: r.class_name, classNameConfirmed: true };
+      else if (!periodMap[key].className) { periodMap[key].className = r.class_name; periodMap[key].classNameConfirmed = true; }
     }
     for (const r of importRes.rows) {
       const key = `${r.academic_year_id}:${r.semester}`;
-      if (!periodMap[key]) periodMap[key] = { yearId: r.academic_year_id, semester: parseInt(r.semester), className: student.class_name };
+      if (!periodMap[key]) periodMap[key] = { yearId: r.academic_year_id, semester: parseInt(r.semester), className: student.class_name, classNameConfirmed: false };
     }
 
     if (Object.keys(periodMap).length === 0) {
@@ -799,7 +807,7 @@ router.get('/transcript/:student_id', async (req, res, next) => {
     const yearNameMap = {};
     for (const y of yearRows) yearNameMap[y.id] = y.name;
 
-    const semesters = await Promise.all(Object.values(periodMap).map(async ({ yearId, semester, className }) => {
+    const semesters = await Promise.all(Object.values(periodMap).map(async ({ yearId, semester, className, classNameConfirmed }) => {
       const ec = className || student.class_name;
 
       // Build per-subject maps for this student / period
@@ -935,7 +943,7 @@ router.get('/transcript/:student_id', async (req, res, next) => {
 
       return {
         year_id: yearId, academic_year: yearNameMap[yearId] || yearId,
-        semester, class_name: ec,
+        semester, class_name: ec, class_name_confirmed: classNameConfirmed,
         subjects: subjects.sort((a, b) => a.subject.localeCompare(b.subject)),
         average, overall_grade: overallGrade.grade, class_position, class_total,
       };

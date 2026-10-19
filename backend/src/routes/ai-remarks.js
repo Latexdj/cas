@@ -214,11 +214,21 @@ router.post('/draft-remark', async (req, res, next) => {
       return res.status(503).json({ error: 'Draft unavailable — AI not configured. Please write the remark directly.' });
     }
 
+    // studentResult.class_name can be an extrapolated guess for a period
+    // before any real class_history evidence exists for this student (see
+    // classHistory.service.js's resolveClassFromHistory doc comment) — never
+    // let the AI state a specific class in generated remark text unless the
+    // system actually knows it, or a wrong class name ends up printed on a
+    // report card as if it were fact.
+    const displayClassName = studentResult.class_name_confirmed === false
+      ? 'not recorded for this period'
+      : studentResult.class_name;
+
     // Build context from server-fetched data (client-supplied context fields are never used)
     const ctx = track === 'secondary_overall'
       ? {
           student_name:   studentResult.student_name,
-          class_name:     studentResult.class_name,
+          class_name:     displayClassName,
           year_name,
           semester:       sem,
           subjects:       studentResult.subjects,
@@ -231,7 +241,7 @@ router.post('/draft-remark', async (req, res, next) => {
         }
       : {
           student_name:     studentResult.student_name,
-          class_name:       studentResult.class_name,
+          class_name:       displayClassName,
           year_name,
           semester:         sem,
           subject_name:     subject,

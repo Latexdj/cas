@@ -688,7 +688,7 @@ router.get('/bills', accountsAccess, async (req, res, next) => {
     const filtered = await mapWithLimit(rows, 3, async (r) => {
       let resolvedClass = r.class_name;
       if (r.academic_year_id != null && r.semester != null) {
-        resolvedClass = await resolveStudentClassAtPeriod(req.schoolId, r.student_id, r.class_name, r.academic_year_id, r.semester);
+        ({ className: resolvedClass } = await resolveStudentClassAtPeriod(req.schoolId, r.student_id, r.class_name, r.academic_year_id, r.semester));
       }
       return resolvedClass?.toLowerCase() === class_name.toLowerCase() ? r : null;
     });
@@ -776,7 +776,7 @@ router.get('/payments', accountsAccess, async (req, res, next) => {
     const filtered = await mapWithLimit(rows, 3, async (r) => {
       let resolvedClass = r.class_name;
       if (r.bill_academic_year_id != null && r.bill_semester != null) {
-        resolvedClass = await resolveStudentClassAtPeriod(req.schoolId, r.student_id, r.class_name, r.bill_academic_year_id, r.bill_semester);
+        ({ className: resolvedClass } = await resolveStudentClassAtPeriod(req.schoolId, r.student_id, r.class_name, r.bill_academic_year_id, r.bill_semester));
       }
       return resolvedClass?.toLowerCase() === class_name.toLowerCase() ? r : null;
     });
@@ -899,7 +899,7 @@ router.get('/reports/arrears', adminOnly, async (req, res, next) => {
     if (!canResolveHistorically) return res.json(rows);
 
     const filtered = await mapWithLimit(rows, 3, async (r) => {
-      const resolvedClass = await resolveStudentClassAtPeriod(req.schoolId, r.student_id, r.class_name, year_id, semester);
+      const { className: resolvedClass } = await resolveStudentClassAtPeriod(req.schoolId, r.student_id, r.class_name, year_id, semester);
       return resolvedClass?.toLowerCase() === class_name.toLowerCase() ? r : null;
     });
     res.json(filtered.filter(Boolean));

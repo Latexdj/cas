@@ -419,6 +419,10 @@ export interface TranscriptSemester {
   academic_year: string;
   semester: 1 | 2;
   class_name: string;
+  // false when this semester's only evidence is imported historical results
+  // (which carry no class of their own) and class_name is a fallback, not a
+  // confirmed record — see backend classHistory.service.js for why.
+  class_name_confirmed: boolean;
   subjects: TranscriptSubject[];
   average: number | null;
   overall_grade: string;

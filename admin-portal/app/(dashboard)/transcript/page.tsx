@@ -142,7 +142,9 @@ function TranscriptDocument({ transcript, school, issueDate, cumulativeAvg, tota
         <div key={`${sem.year_id}:${sem.semester}`} style={{ marginBottom: '8px', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
           <div style={{ background: GREEN, color: '#fff', padding: '3px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '3px 3px 0 0', fontSize: '8pt' }}>
             <span style={{ fontWeight: 700 }}>{sem.academic_year} — Semester {sem.semester}
-              <span style={{ fontWeight: 400, fontSize: '7pt', marginLeft: '8px', opacity: 0.85 }}>({sem.class_name})</span>
+              <span style={{ fontWeight: 400, fontSize: '7pt', marginLeft: '8px', opacity: 0.85 }}>
+                ({sem.class_name_confirmed ? sem.class_name : 'class not recorded'})
+              </span>
             </span>
             <span style={{ fontSize: '7.5pt' }}>
               Avg: <b>{sem.average ?? '—'}</b>
@@ -537,7 +539,9 @@ export default function TranscriptPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-slate-800">
                           {sem.academic_year} — Semester {sem.semester}
-                          <span className="ml-2 text-xs font-normal text-slate-400">{sem.class_name}</span>
+                          <span className="ml-2 text-xs font-normal text-slate-400">
+                            {sem.class_name_confirmed ? sem.class_name : 'class not recorded'}
+                          </span>
                         </p>
                         <p className="text-xs text-slate-500 mt-0.5">
                           {sem.subjects.length} subject{sem.subjects.length !== 1 ? 's' : ''}

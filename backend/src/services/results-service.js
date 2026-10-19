@@ -33,7 +33,8 @@ async function computeStudentResult(schoolId, studentId, academicYearId, semeste
   // A results lookup (including AI remarks for an already-graduated
   // student's final report card), not a live tracker — see
   // classHistory.service.js's includeInactive doc comment.
-  const class_name = await resolveStudentClassAtPeriod(schoolId, studentId, currentClassName, academicYearId, sem, { includeInactive: true });
+  const { className: class_name, confirmed: class_name_confirmed } =
+    await resolveStudentClassAtPeriod(schoolId, studentId, currentClassName, academicYearId, sem, { includeInactive: true });
   const roster = await getClassRoster(schoolId, class_name, academicYearId, sem, { includeInactive: true });
 
   // Fetch all class-level data in parallel
@@ -230,7 +231,7 @@ async function computeStudentResult(schoolId, studentId, academicYearId, semeste
   // Return only the target student (but positions are computed across the full class)
   const target = results.find(r => r.student_id === studentId);
   return target
-    ? { ...target, student_name, class_name }
+    ? { ...target, student_name, class_name, class_name_confirmed }
     : null;
 }
 

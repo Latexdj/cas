@@ -16,7 +16,7 @@ describe('resolveClassFromHistory', () => {
       const resolved = resolveClassFromHistory(
         [], '1D', [YEAR_2025_START, 2], createdAt, YEAR_2026_START
       );
-      expect(resolved).toBe('1D');
+      expect(resolved).toEqual({ className: '1D', confirmed: true });
     });
 
     it('resolves to null when the student was created after the existence cutoff', () => {
@@ -24,7 +24,7 @@ describe('resolveClassFromHistory', () => {
       const resolved = resolveClassFromHistory(
         [], '1D', [YEAR_2025_START, 2], createdAt, YEAR_2026_START
       );
-      expect(resolved).toBeNull();
+      expect(resolved).toEqual({ className: null, confirmed: true });
     });
   });
 
@@ -44,7 +44,7 @@ describe('resolveClassFromHistory', () => {
       const resolved = resolveClassFromHistory(
         history, '1D', [YEAR_2025_START, 2], createdAt, YEAR_2026_START
       );
-      expect(resolved).toBeNull();
+      expect(resolved).toEqual({ className: null, confirmed: true });
     });
 
     it('still resolves a legitimate promotion for a student who existed by targetPeriod', () => {
@@ -52,13 +52,18 @@ describe('resolveClassFromHistory', () => {
       const history = [
         { fromClass: '1D', toClass: '2D', source: 'promotion', period: [YEAR_2025_START, 1] },
       ];
-      // Resolving for 2024/2025 Sem 2 (before the promotion) -> still in 1D.
-      expect(resolveClassFromHistory(history, '2D', [YEAR_2024_START, 2], createdAt, YEAR_2025_START)).toBe('1D');
-      // Resolving for 2025/2026 Sem 1 (at/after the promotion) -> now in 2D.
-      expect(resolveClassFromHistory(history, '2D', [YEAR_2025_START, 1], createdAt, YEAR_2026_START)).toBe('2D');
+      // Resolving for 2024/2025 Sem 2 (before the promotion) -> still in 1D,
+      // but unconfirmed: this is the ONLY (earliest) history row, so this
+      // period is extrapolated from it, not evidenced by it.
+      expect(resolveClassFromHistory(history, '2D', [YEAR_2024_START, 2], createdAt, YEAR_2025_START))
+        .toEqual({ className: '1D', confirmed: false });
+      // Resolving for 2025/2026 Sem 1 (at/after the promotion) -> now in 2D,
+      // and confirmed: this period is exactly what the row evidences.
+      expect(resolveClassFromHistory(history, '2D', [YEAR_2025_START, 1], createdAt, YEAR_2026_START))
+        .toEqual({ className: '2D', confirmed: true });
     });
 
-    it('treats a backfill row boundary as exclusive (the anchor period itself resolves to the old class)', () => {
+    it('treats a backfill row boundary as exclusive AND confirmed (the anchor period IS the evidence point)', () => {
       const createdAt = new Date('2024-09-15').getTime();
       const history = [
         { fromClass: '1A', toClass: '2A', source: 'backfill', period: [YEAR_2025_START, 1] },
@@ -66,15 +71,20 @@ describe('resolveClassFromHistory', () => {
       // At the exact backfilled period, a backfill row is exclusive (cmp < 0,
       // not <= 0) so it resolves to the OLD class, not the new one — this is
       // what keeps a backfilled student's own evidence-bearing period
-      // pointing at the class that evidence came from.
-      expect(resolveClassFromHistory(history, '2A', [YEAR_2025_START, 1], createdAt, YEAR_2026_START)).toBe('1A');
+      // pointing at the class that evidence came from. Confirmed, even as
+      // the only row: a backfill row's anchor period is, by construction,
+      // "the last period with direct evidence in the old class" — it's not
+      // extrapolation, it's the evidence itself.
+      expect(resolveClassFromHistory(history, '2A', [YEAR_2025_START, 1], createdAt, YEAR_2026_START))
+        .toEqual({ className: '1A', confirmed: true });
     });
 
     it('resolves normally when createdAt/existenceCutoff are unavailable (pre-existing behavior unaffected)', () => {
       const history = [
         { fromClass: '1D', toClass: '2D', source: 'promotion', period: [YEAR_2025_START, 1] },
       ];
-      expect(resolveClassFromHistory(history, '2D', [YEAR_2024_START, 2], null, null)).toBe('1D');
+      expect(resolveClassFromHistory(history, '2D', [YEAR_2024_START, 2], null, null))
+        .toEqual({ className: '1D', confirmed: false });
     });
 
     // Regression test for the second real St. Augustine's incident, found
@@ -98,7 +108,7 @@ describe('resolveClassFromHistory', () => {
       const resolved = resolveClassFromHistory(
         history, '3GEE', [YEAR_2024_START, 1], createdAt, YEAR_2025_START
       );
-      expect(resolved).toBe('2GEE');
+      expect(resolved).toEqual({ className: '2GEE', confirmed: false });
     });
 
     it('still applies the existence guard when a live-sourced row is what decides the answer, even alongside an unrelated backfill row', () => {
@@ -109,7 +119,48 @@ describe('resolveClassFromHistory', () => {
       // Same shape as the first regression test — included here to make the
       // live-vs-backfill distinction explicit side by side with the test
       // above, rather than relying on a reader to cross-reference it.
-      expect(resolveClassFromHistory(history, '1D', [YEAR_2025_START, 2], createdAt, YEAR_2026_START)).toBeNull();
+      expect(resolveClassFromHistory(history, '1D', [YEAR_2025_START, 2], createdAt, YEAR_2026_START))
+        .toEqual({ className: null, confirmed: true });
+    });
+
+    // Regression test for the third real St. Augustine's incident: printing
+    // a Form-3 student's Form-1 (2024/2025) results showed their Form-2
+    // (2025/2026) class "2A" instead of "1A" — class_history only goes back
+    // as far as the backfill script's own earliest evidence (assessment/exam
+    // scores), which for this student starts at the 2A->3A promotion. There
+    // is no row recording an earlier 1A->2A transition because no live
+    // evidence of it exists (results_import, where the 2024/2025 data
+    // actually lives, has no class_name column). confirmed:false is the
+    // signal callers use to show "not recorded" instead of asserting "1A"
+    // was never seen" — see this test and the "backfill row... after the
+    // date it's first evidenced" case above for the shared confirmed:false
+    // mechanics (precedes the array's first row).
+    it('flags confirmed:false when extrapolating to a period before the earliest known class_history row, regardless of source', () => {
+      const createdAt = new Date('2024-09-15').getTime();
+      const history = [
+        { fromClass: '2A', toClass: '3A', source: 'backfill', period: [YEAR_2026_START, 1] },
+      ];
+      const resolved = resolveClassFromHistory(
+        history, '3A', [YEAR_2024_START, 1], createdAt, YEAR_2025_START
+      );
+      expect(resolved).toEqual({ className: '2A', confirmed: false });
+    });
+
+    it('is confirmed when a period falls within two known transitions, not just at or after the latest one', () => {
+      const createdAt = new Date('2024-09-15').getTime();
+      const history = [
+        { fromClass: '1A', toClass: '2A', source: 'backfill', period: [YEAR_2025_START, 1] },
+        { fromClass: '2A', toClass: '3A', source: 'backfill', period: [YEAR_2026_START, 1] },
+      ];
+      // Resolving for 2025/2026 Sem 2 -- after the first transition, before
+      // the second -- is real evidence-spanned territory (the first row IS
+      // the evidence for this exact span), not extrapolation beyond it.
+      expect(resolveClassFromHistory(history, '3A', [YEAR_2025_START, 2], createdAt, YEAR_2026_START))
+        .toEqual({ className: '2A', confirmed: true });
+      // But 2024/2025 — before BOTH rows — is still extrapolation from the
+      // earliest one.
+      expect(resolveClassFromHistory(history, '3A', [YEAR_2024_START, 2], createdAt, YEAR_2025_START))
+        .toEqual({ className: '1A', confirmed: false });
     });
   });
 });

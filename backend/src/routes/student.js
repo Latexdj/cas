@@ -95,7 +95,7 @@ router.get('/results', async (req, res, next) => {
     // The class this student was actually in during this period, not their
     // current class — a promoted student's historical scores are tagged
     // with their old class (see CAS-CLASS-HISTORY-DESIGN.md Section 4).
-    const className = await resolveStudentClassAtPeriod(req.schoolId, student.id, student.class_name, academic_year_id, semInt, { includeInactive: true });
+    const { className } = await resolveStudentClassAtPeriod(req.schoolId, student.id, student.class_name, academic_year_id, semInt, { includeInactive: true });
 
     const [schoolRow, modesRow, boundariesRow] = await Promise.all([
       pool.query(`SELECT ca_percentage FROM schools WHERE id = $1`, [req.schoolId]),

@@ -210,22 +210,42 @@ function resolveClassFromHistory(historyRows, currentClassName, targetPeriod, cr
   const notYetExisted = () =>
     trustCreatedAt && createdAtMs != null && existenceCutoffMs != null && createdAtMs >= existenceCutoffMs;
 
+  // Returns { className, confirmed }. confirmed is false only for the one
+  // case this function cannot actually know the answer to: targetPeriod
+  // precedes the EARLIEST class_history row we have for this student, so
+  // row.fromClass is pure extrapolation from the nearest evidence we DO
+  // have, not a real record of that earlier period. Reported as a real
+  // incident: printing a Form-3 student's Form-1 (2024/2025) results showed
+  // their Form-2 (2025/2026) class "2A" instead — class_history only goes
+  // back to their 2A->3A promotion (the earliest live evidence found by the
+  // backfill script, which can't use results_import as evidence since that
+  // table has no class_name column at all), so there was nothing earlier to
+  // walk to. Every other branch (a row within/after the known history, or
+  // the very last toClass for a current-ish period) reflects a real
+  // recorded transition and stays confirmed.
   if (!historyRows || historyRows.length === 0) {
-    return notYetExisted() ? null : currentClassName;
+    return { className: notYetExisted() ? null : currentClassName, confirmed: true };
   }
-  for (const row of historyRows) {
+  for (let i = 0; i < historyRows.length; i++) {
+    const row = historyRows[i];
     const cmp = comparePeriod(row.period, targetPeriod);
     const alreadyTransitioned = row.source === 'backfill' ? cmp < 0 : cmp <= 0;
     if (!alreadyTransitioned) {
-      if (row.source !== 'backfill' && notYetExisted()) return null;
-      return row.fromClass;
+      if (row.source !== 'backfill' && notYetExisted()) return { className: null, confirmed: true };
+      // A backfill row's own anchor period (cmp === 0, exact match) IS the
+      // real evidence point itself — "the last period with direct evidence
+      // in the old class" (see the big comment above) — so resolving
+      // exactly there is confirmed even as the first/only row. Anything
+      // strictly before that anchor (cmp > 0) is extrapolation beyond it.
+      const confirmed = i > 0 || (row.source === 'backfill' && cmp === 0);
+      return { className: row.fromClass, confirmed };
     }
   }
   // Every row is already-transitioned as of targetPeriod — resolve to the
   // most recent known class (historyRows is chronologically sorted by both
   // callers), the same answer the no-history branch gives for a current
   // period.
-  return historyRows[historyRows.length - 1].toClass;
+  return { className: historyRows[historyRows.length - 1].toClass, confirmed: true };
 }
 
 // getClassRoster(schoolId, className, academicYearId, semester, options)
@@ -306,10 +326,14 @@ async function getClassRoster(schoolId, className, academicYearId, semester, opt
   // them (see resolveClassFromHistory's trustCreatedAt doc comment), so it
   // rides the same flag rather than adding a third option with the same
   // underlying motivation.
+  // Roster membership only needs the best-available class name, confirmed
+  // or not — an extrapolated guess is still the right signal for "who to
+  // include," it's only unsafe to print as a confident label (see
+  // resolveStudentClassAtPeriod, which callers use for that).
   const roster = [];
   for (const candidate of candidateRows) {
     const createdAtMs = candidate.created_at ? new Date(candidate.created_at).getTime() : null;
-    const resolved = resolveClassFromHistory(
+    const { className: resolved } = resolveClassFromHistory(
       historyByStudent.get(candidate.id), candidate.class_name, targetPeriod, createdAtMs, existenceCutoffMs, !includeInactive
     );
     if (resolved && resolved.toLowerCase() === className.toLowerCase()) roster.push(candidate.id);
@@ -324,6 +348,12 @@ async function getClassRoster(schoolId, className, academicYearId, semester, opt
 // promoted student viewing their own past results — rather than being
 // handed a class_name by the caller. options.includeInactive — see
 // getClassRoster's doc comment; same meaning, same default.
+// Returns { className, confirmed } — see resolveClassFromHistory's doc
+// comment for what confirmed:false means and when it happens. A caller
+// that only needs the string for roster matching (fees.js, student.js's
+// own-results lookup) can destructure just { className }; a caller that
+// DISPLAYS the class name to a human (results-service.js, used by
+// ai-remarks.js's generated report-card text) must check confirmed first.
 async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName, academicYearId, semester, options = {}) {
   const targetSemester = parseInt(semester);
   const { includeInactive = false } = options;
