@@ -483,6 +483,7 @@ export default function StudentsPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" onClick={() => { setBatchOpen(true); setBatchJob(null); setBatchRunning(false); }}>⬜ ID Cards</Button>
+          <Link href="/id-cards/scan"><Button variant="secondary" size="sm">▣ Scan ID Card</Button></Link>
           <Link href="/id-cards"><Button variant="secondary" size="sm">⚑ Scan Audit</Button></Link>
           <Button variant="secondary" size="sm" onClick={printStudents}>⎙ Print List</Button>
           <Button variant="secondary" size="sm" onClick={() => { setFromClass(''); setToClass(''); setActionResult(''); setModal('graduate'); }}>Graduate Class</Button>

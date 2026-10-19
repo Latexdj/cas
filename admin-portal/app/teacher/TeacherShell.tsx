@@ -31,7 +31,7 @@ const SECTIONS: Section[] = [
   { label: 'Attendance', hrefs: ['/teacher/submit', '/teacher/history', '/teacher/absences', '/teacher/meetings', '/teacher/invigilation', '/teacher/timetable'] },
   { label: 'Students', hrefs: ['/teacher/student-attendance'] },
   { label: 'Academics', hrefs: ['/teacher/assessments', '/teacher/results', '/teacher/lms'] },
-  { label: 'Administrative', hrefs: ['/teacher/absences/leaves', '/teacher/conduct', '/teacher/memos', '/teacher/letters', '/teacher/clinic'] },
+  { label: 'Administrative', hrefs: ['/teacher/absences/leaves', '/teacher/conduct', '/teacher/memos', '/teacher/letters', '/teacher/clinic', '/teacher/id-scan'] },
   { label: 'Responsibilities', hrefs: ['/teacher/form-class', '/teacher/hod', '/teacher/hod/inventory', '/teacher/house-students', '/teacher/resumption', '/teacher/roll-call', '/teacher/library', '/teacher/clearance'] },
   { label: 'Account', hrefs: ['/teacher/notifications', '/teacher/profile'] },
 ];
@@ -241,6 +241,17 @@ const NAV_ITEMS: NavItem[] = [
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
         <path d="M12 2.25c-2.1 2.1-4.5 3.9-4.5 7.5a4.5 4.5 0 109 0c0-3.6-2.4-5.4-4.5-7.5zM9 15.75h6M12 12.75v6" />
+      </svg>
+    ),
+  },
+  {
+    href:  '/teacher/id-scan',
+    label: 'Scan ID Card',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <rect x="3" y="3" width="5" height="5" rx="1" /><rect x="16" y="3" width="5" height="5" rx="1" />
+        <rect x="3" y="16" width="5" height="5" rx="1" /><rect x="10" y="10" width="4" height="4" rx="0.5" />
+        <path d="M16 10h5M16 14h3M21 14v2M10 3v5M10 16v5M3 10h5" />
       </svg>
     ),
   },
