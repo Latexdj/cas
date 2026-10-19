@@ -91,6 +91,18 @@ async function getNextYearOrdinalMs(schoolId, academicYearId) {
 //      student's real enrollment; see the same caveat on resolveClassFromHistory
 //      above), so a year with real recorded data must never be hidden just
 //      because the date heuristic alone would have excluded it.
+//
+// Confirmed as a real gap: a currently-enrolled (Active, Form 1 -> Form 3)
+// student's class_history is only backfilled as far back as their most
+// recent promotion, so for an even-older year the date heuristic in (a) can
+// fail too (a bulk migration's created_at postdates that old year's own
+// "next year" cutoff) with nothing in (b) to catch it either, if the only
+// evidence for that year is imported historical results — results_import
+// wasn't in the (b) list at all. A student could see 2025/2026 (their most
+// recent class_history transition lands there) but never 2024/2025, despite
+// real imported results existing for it. assessment_scores closes the same
+// kind of gap for live-entered CA scores, which weren't covered by
+// exam_scores alone.
 async function getStudentEnrollmentYears(schoolId, studentId) {
   const { rows } = await pool.query(
     `SELECT ay.id, ay.name, ay.is_current, ay.current_semester
@@ -111,6 +123,12 @@ async function getStudentEnrollmentYears(schoolId, studentId) {
            )
          )
          OR EXISTS (SELECT 1 FROM exam_scores es WHERE es.student_id = s.id AND es.academic_year_id = ay.id)
+         OR EXISTS (SELECT 1 FROM results_import ri WHERE ri.student_id = s.id AND ri.academic_year_id = ay.id)
+         OR EXISTS (
+           SELECT 1 FROM assessment_scores asc1
+           JOIN assessments a ON a.id = asc1.assessment_id
+           WHERE asc1.student_id = s.id AND a.academic_year_id = ay.id
+         )
          OR EXISTS (SELECT 1 FROM student_bills sb WHERE sb.student_id = s.id AND sb.academic_year_id = ay.id)
          OR EXISTS (SELECT 1 FROM class_history ch WHERE ch.student_id = s.id AND ch.academic_year_id = ay.id)
          OR EXISTS (
