@@ -452,7 +452,9 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
-      <HelpWidget apiClient={principalApi} navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
+      {pathname === '/principal' && (
+        <HelpWidget apiClient={principalApi} navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
+      )}
     </div>
   );
 }

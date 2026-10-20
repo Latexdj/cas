@@ -697,7 +697,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </div>
       </div>
     </aside>
-    <HelpWidget navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
+    {pathname === '/dashboard' && (
+      <HelpWidget navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
+    )}
     </>
   );
 }

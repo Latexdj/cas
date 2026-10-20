@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { StatCard } from '@/components/ui/Card';
+import { UnreadNotificationsBanner } from '@/components/UnreadNotificationsBanner';
 import { Button } from '@/components/ui/Button';
 import { useSessionFilter } from '@/hooks/useSessionFilter';
 import type { AdminStats, AcademicYear, ClassroomStatus, TeacherAttendanceSummary, PlcAttendanceSummary } from '@/types/api';
@@ -564,6 +565,8 @@ export default function DashboardPage() {
           onCleared={load}
         />
       )}
+
+      <UnreadNotificationsBanner apiClient={api} />
 
       {/* School status banner */}
       {dayStatus && dayStatus.status !== 'normal' && (() => {

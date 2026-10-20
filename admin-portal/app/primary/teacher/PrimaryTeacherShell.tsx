@@ -137,7 +137,9 @@ export default function PrimaryTeacherShell({ children }: { children: React.Reac
           {children}
         </main>
       </div>
-      <HelpWidget apiClient={teacherApi} navItems={NAV.map((i): HelpNavItem => ({ label: i.label, href: i.href }))} />
+      {pathname === '/primary/teacher' && (
+        <HelpWidget apiClient={teacherApi} navItems={NAV.map((i): HelpNavItem => ({ label: i.label, href: i.href }))} />
+      )}
     </div>
   );
 }

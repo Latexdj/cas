@@ -785,7 +785,9 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <HelpWidget apiClient={teacherApi} navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
+      {pathname === '/teacher' && (
+        <HelpWidget apiClient={teacherApi} navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
+      )}
 
       {/* ── Mobile bottom tab bar ── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 flex" style={{ height: 60, backgroundColor: dk.tabBarBg, borderTop: `1px solid ${dk.border}` }}>

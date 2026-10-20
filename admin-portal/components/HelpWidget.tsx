@@ -23,6 +23,71 @@ export function HelpWidget({ apiClient, navItems }: { apiClient?: AxiosInstance;
   const [sessionId, setSessionId] = useState('');
   const [starting,  setStarting]  = useState(false);
 
+  // Draggable button position — null means "use the default bottom-right
+  // placement"; once the viewer drags it, we switch to explicit top/left
+  // coordinates and remember the choice per-viewer (localStorage), the same
+  // way this app already remembers things like the sidebar's open section.
+  const BUTTON_SIZE = 44;
+  const POS_KEY = 'cas_help_widget_pos';
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const draggingRef = useRef(false);
+  const movedRef    = useRef(false);
+  const dragStartRef = useRef<{ x: number; y: number; btnX: number; btnY: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+
+  function clamp(x: number, y: number) {
+    const maxX = Math.max(0, window.innerWidth - BUTTON_SIZE);
+    const maxY = Math.max(0, window.innerHeight - BUTTON_SIZE);
+    return { x: Math.min(Math.max(0, x), maxX), y: Math.min(Math.max(0, y), maxY) };
+  }
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(POS_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (typeof saved.x === 'number' && typeof saved.y === 'number') setPos(clamp(saved.x, saved.y));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    function onResize() {
+      setPos(prev => prev ? clamp(prev.x, prev.y) : prev);
+    }
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  function handlePointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    draggingRef.current = true;
+    movedRef.current = false;
+    dragStartRef.current = { x: e.clientX, y: e.clientY, btnX: rect.left, btnY: rect.top };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+    if (!draggingRef.current || !dragStartRef.current) return;
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) movedRef.current = true;
+    if (movedRef.current) {
+      setPos(clamp(dragStartRef.current.btnX + dx, dragStartRef.current.btnY + dy));
+    }
+  }
+
+  function handlePointerUp() {
+    draggingRef.current = false;
+    if (movedRef.current) {
+      setPos(prev => {
+        if (prev) { try { localStorage.setItem(POS_KEY, JSON.stringify(prev)); } catch { /* ignore */ } }
+        return prev;
+      });
+    }
+  }
+
   const endRef   = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -81,16 +146,23 @@ export function HelpWidget({ apiClient, navItems }: { apiClient?: AxiosInstance;
 
   return (
     <>
-      {/* Floating button */}
+      {/* Floating button — draggable; falls back to the default bottom-right
+          spot until the viewer moves it at least once. */}
       <button
-        onClick={openPanel}
-        aria-label="Open Help"
-        className="print:hidden fixed bottom-20 right-6 md:bottom-6"
+        ref={btnRef}
+        onClick={() => { if (!movedRef.current) openPanel(); }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        aria-label="Open Help (drag to move)"
+        className={pos ? 'print:hidden fixed' : 'print:hidden fixed bottom-20 right-6 md:bottom-6'}
         style={{
+          ...(pos ? { left: pos.x, top: pos.y } : {}),
           zIndex: 9000,
-          width: 44, height: 44, borderRadius: '50%',
+          width: BUTTON_SIZE, height: BUTTON_SIZE, borderRadius: '50%',
           background: C.mid, color: '#fff',
-          border: 'none', cursor: 'pointer',
+          border: 'none', cursor: 'grab',
+          touchAction: 'none',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
           fontSize: 20, fontWeight: 700, lineHeight: 1,

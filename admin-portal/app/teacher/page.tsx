@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTeacher, getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import { UnreadNotificationsBanner } from '@/components/UnreadNotificationsBanner';
 
 interface TimetableSlot {
   id: string;
@@ -178,6 +179,8 @@ export default function TeacherDashboardPage() {
       {error && (
         <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 mb-4">{error}</p>
       )}
+
+      <UnreadNotificationsBanner apiClient={teacherApi} className="mb-4" />
 
       {/* School status banner */}
       {dayStatus && dayStatus.status !== 'normal' && (() => {

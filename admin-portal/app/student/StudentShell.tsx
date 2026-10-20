@@ -370,7 +370,9 @@ export default function StudentShell({ children }: { children: ReactNode }) {
         <main className="flex-1 pb-20 md:pb-6">{children}</main>
       </div>
 
-      <HelpWidget apiClient={studentApi} navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
+      {pathname === '/student' && (
+        <HelpWidget apiClient={studentApi} navItems={visibleSections.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.label, label: i.label, href: i.href })))} />
+      )}
 
       {/* ── Mobile More backdrop ── */}
       {moreOpen && (

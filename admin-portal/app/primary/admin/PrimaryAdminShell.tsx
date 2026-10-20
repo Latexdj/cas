@@ -269,7 +269,9 @@ export default function PrimaryAdminShell({ children }: { children: React.ReactN
           {children}
         </main>
       </div>
-      <HelpWidget navItems={SECTIONS.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.title, label: i.label, href: i.href })))} />
+      {pathname === '/primary/admin/dashboard' && (
+        <HelpWidget navItems={SECTIONS.flatMap(s => s.items.map((i): HelpNavItem => ({ section: s.title, label: i.label, href: i.href })))} />
+      )}
     </div>
   );
 }
