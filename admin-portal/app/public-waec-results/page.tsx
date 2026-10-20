@@ -99,6 +99,14 @@ export default function PublicWaecResultsCheckoutPage() {
             : "Paste your school's WAEC results listing for an instant subject-by-subject pass rate and grade breakdown."}
         </p>
 
+        <p style={{ fontSize: 12, color: C.muted, marginTop: 10 }}>
+          Already paid before?{' '}
+          <a href="/public-waec-results/account/login" style={{ color: C.mid, fontWeight: 600 }}>Log in</a>
+          {' '}or{' '}
+          <a href="/public-waec-results/account/signup" style={{ color: C.mid, fontWeight: 600 }}>create an account</a>
+          {' '}to keep track of your analyses.
+        </p>
+
         {!paymentRequired && (
           <div style={{ marginTop: 14, padding: '8px 14px', borderRadius: 6, background: '#FDF3E3', border: '1px solid #EBD3A0', color: '#8A5A08', fontSize: 12, fontWeight: 600 }}>
             Test mode: no payment is being collected right now.

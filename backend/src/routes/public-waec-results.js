@@ -9,6 +9,7 @@ const { parseWaecListing } = require('../utils/waecParser');
 const { computeReport } = require('../utils/examResultsReport');
 const { computeGradePoints, computeBestSixAggregate } = require('../utils/examResultsRanking');
 const { publicWaecInitLimiter, publicWaecGenerateLimiter, publicWaecDownloadLimiter } = require('../middleware/rateLimiter');
+const { authenticate } = require('../middleware/auth');
 // publicWaecExport.service.js is required lazily, inside the two download
 // route handlers below, not here — it pulls in pdf.service.js, which pulls
 // in @sparticuz/chromium (ESM-only; Jest's CJS transform can't parse it at
@@ -28,6 +29,34 @@ const PASTE_PAGE_URL = process.env.PUBLIC_WAEC_PASTE_URL || 'http://localhost:30
 // payment is turned on for real. Flip it off (or unset it) to go live —
 // nothing else in this file changes.
 const SKIP_PAYMENT = process.env.PUBLIC_WAEC_SKIP_PAYMENT === 'true';
+
+function requirePublicWaecUser(req, res, next) {
+  if (req.user?.role !== 'public_waec_user') return res.status(403).json({ error: 'Account access required.' });
+  next();
+}
+
+// A report's id is a UUID primary key in exactly one of two tables: the
+// anonymous one-off flow's public_waec_results, or an account purchase's
+// public_waec_purchases. Every id-keyed route below (status/generate/report/
+// download/verify) needs to work the same regardless of which flow created
+// the row, so this resolves which table owns a given id once, and every
+// query that follows interpolates that resolved, hardcoded table name
+// (never request input) into the SQL.
+const REPORT_TABLES = ['public_waec_results', 'public_waec_purchases'];
+async function findTableForId(id) {
+  for (const table of REPORT_TABLES) {
+    const { rows } = await pool.query(`SELECT 1 FROM ${table} WHERE id = $1`, [id]);
+    if (rows.length) return table;
+  }
+  return null;
+}
+
+// Account-flow references are minted with this prefix (see POST
+// /account/initialize below) specifically so the webhook and the Paystack
+// verify fallback can route to the right table without a lookup.
+function tableForReference(reference) {
+  return reference.startsWith('pub-waec-acct-') ? 'public_waec_purchases' : 'public_waec_results';
+}
 
 const PUBLIC_GRADE_BOUNDARIES = [
   { grade: 'A1', remark: 'Excellent', sort_order: 1 },
@@ -161,6 +190,86 @@ router.post('/initialize', publicWaecInitLimiter, async (req, res, next) => {
   }
 });
 
+// Same checkout mechanics as the anonymous POST /initialize above, but for
+// a logged-in public_waec_user: no contact-info form (the account already
+// has name/email on file), and the row lands in public_waec_purchases
+// rather than public_waec_results so it shows up in that account's
+// GET /account/purchases history.
+router.post('/account/initialize', authenticate, requirePublicWaecUser, publicWaecInitLimiter, async (req, res, next) => {
+  try {
+    const { rows: userRows } = await pool.query(`SELECT email FROM public_waec_users WHERE id = $1`, [req.user.id]);
+    if (!userRows.length) return res.status(404).json({ error: 'Account not found.' });
+    const { email } = userRows[0];
+
+    const reference = `pub-waec-acct-${SKIP_PAYMENT ? 'test-' : ''}${crypto.randomUUID()}`;
+
+    if (SKIP_PAYMENT) {
+      const { rows } = await pool.query(
+        `INSERT INTO public_waec_purchases (user_id, amount_pesewas, paystack_reference, status, paid_at)
+         VALUES ($1, $2, $3, 'paid', now())
+         RETURNING id`,
+        [req.user.id, REPORT_PRICE_PESEWAS, reference]
+      );
+      return res.json({ id: rows[0].id, authorization_url: null });
+    }
+
+    if (!PAYSTACK_SECRET_KEY) {
+      return res.status(500).json({ error: 'Payments are not configured. Please try again later.' });
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO public_waec_purchases (user_id, amount_pesewas, paystack_reference)
+       VALUES ($1, $2, $3)
+       RETURNING id`,
+      [req.user.id, REPORT_PRICE_PESEWAS, reference]
+    );
+    const id = rows[0].id;
+
+    const paystackRes = await fetch('https://api.paystack.co/transaction/initialize', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        amount: REPORT_PRICE_PESEWAS,
+        currency: 'GHS',
+        reference,
+        callback_url: `${PASTE_PAGE_URL}?id=${id}`,
+      }),
+    });
+    const paystackData = await paystackRes.json().catch(() => ({}));
+
+    if (!paystackRes.ok || !paystackData?.status) {
+      await pool.query(`UPDATE public_waec_purchases SET status = 'failed' WHERE id = $1`, [id]);
+      return res.status(502).json({ error: 'Could not start the payment. Please try again.' });
+    }
+
+    return res.json({ id, authorization_url: paystackData.data.authorization_url });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.get('/account/purchases', authenticate, requirePublicWaecUser, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, status, paid_at, created_at,
+              report->>'schoolName' AS school_name,
+              report->>'year' AS year,
+              report->>'totalCandidates' AS total_candidates
+       FROM public_waec_purchases
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [req.user.id]
+    );
+    return res.json({ purchases: rows });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 // Mounted directly in index.js with express.raw() ahead of the global JSON
 // parser — Paystack's signature is computed over the exact raw request
 // body, so it must never pass through express.json() first.
@@ -181,8 +290,9 @@ async function webhookHandler(req, res) {
     if (event?.event === 'charge.success') {
       const reference = event.data?.reference;
       if (reference) {
+        const table = tableForReference(reference);
         await pool.query(
-          `UPDATE public_waec_results
+          `UPDATE ${table}
            SET status = 'paid', paid_at = now()
            WHERE paystack_reference = $1 AND status = 'pending'`,
           [reference]
@@ -196,11 +306,12 @@ async function webhookHandler(req, res) {
 
 router.get('/:id/status', async (req, res, next) => {
   try {
+    const table = await findTableForId(req.params.id);
+    if (!table) return res.status(404).json({ error: 'Not found.' });
     const { rows } = await pool.query(
-      `SELECT status FROM public_waec_results WHERE id = $1`,
+      `SELECT status FROM ${table} WHERE id = $1`,
       [req.params.id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Not found.' });
     return res.json({ status: rows[0].status });
   } catch (err) {
     if (err && err.code === '22P02') return res.status(404).json({ error: 'Not found.' });
@@ -225,11 +336,13 @@ router.post('/:id/generate', publicWaecGenerateLimiter, upload.single('pdf'), as
     if (!rawText) return res.status(400).json({ error: 'Upload a PDF or paste the listing text.' });
 
     const { id } = req.params;
+    const table = await findTableForId(id);
+    if (!table) return res.status(404).json({ error: 'Not found.' });
+
     const { rows } = await pool.query(
-      `SELECT status FROM public_waec_results WHERE id = $1`,
+      `SELECT status FROM ${table} WHERE id = $1`,
       [id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Not found.' });
 
     const { status } = rows[0];
     if (status === 'completed') {
@@ -238,14 +351,14 @@ router.post('/:id/generate', publicWaecGenerateLimiter, upload.single('pdf'), as
     if (status !== 'paid') {
       // Paystack's webhook can lag behind a Mobile Money confirmation —
       // double-check directly with Paystack before giving up.
-      const verified = await verifyWithPaystack(id);
+      const verified = await verifyWithPaystack(id, table);
       if (!verified) return res.status(402).json({ error: 'Payment has not been confirmed yet.' });
     }
 
     const report = buildPublicReport(rawText);
 
     await pool.query(
-      `UPDATE public_waec_results
+      `UPDATE ${table}
        SET status = 'completed', report = $2::jsonb
        WHERE id = $1`,
       [id, JSON.stringify(report)]
@@ -257,10 +370,10 @@ router.post('/:id/generate', publicWaecGenerateLimiter, upload.single('pdf'), as
   }
 });
 
-async function verifyWithPaystack(id) {
+async function verifyWithPaystack(id, table) {
   if (!PAYSTACK_SECRET_KEY) return false;
   const { rows } = await pool.query(
-    `SELECT paystack_reference, status FROM public_waec_results WHERE id = $1`,
+    `SELECT paystack_reference, status FROM ${table} WHERE id = $1`,
     [id]
   );
   if (!rows.length) return false;
@@ -273,7 +386,7 @@ async function verifyWithPaystack(id) {
   const confirmed = res.ok && data?.data?.status === 'success';
   if (confirmed) {
     await pool.query(
-      `UPDATE public_waec_results SET status = 'paid', paid_at = now() WHERE id = $1 AND status = 'pending'`,
+      `UPDATE ${table} SET status = 'paid', paid_at = now() WHERE id = $1 AND status = 'pending'`,
       [id]
     );
   }
@@ -285,8 +398,11 @@ async function verifyWithPaystack(id) {
 // "not generated yet" distinction (and the JSONB-string-or-object
 // normalization) only needs writing once.
 async function loadCompletedReport(id) {
+  const table = await findTableForId(id);
+  if (!table) return { error: 'Public WAEC analysis not found.', status: 404 };
+
   const { rows } = await pool.query(
-    `SELECT id, status, report, created_at FROM public_waec_results WHERE id = $1`,
+    `SELECT id, status, report, created_at FROM ${table} WHERE id = $1`,
     [id]
   );
   if (!rows.length) return { error: 'Public WAEC analysis not found.', status: 404 };

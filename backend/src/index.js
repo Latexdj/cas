@@ -65,6 +65,7 @@ const adminWebsiteGalleryRoutes = require('./routes/admin-website-gallery');
 const adminWebsiteContactRoutes = require('./routes/admin-website-contact');
 const adminExamResultsRoutes    = require('./routes/admin-exam-results');
 const { router: publicWaecResultsRoutes, webhookHandler: publicWaecWebhookHandler } = require('./routes/public-waec-results');
+const publicWaecAuthRoutes = require('./routes/public-waec-auth');
 const schoolModulesRoutes     = require('./routes/schoolModules');
 const resultSubmissionsRoutes = require('./routes/result-submissions');
 const monitoringRoutes        = require('./routes/assessment-monitoring');
@@ -181,6 +182,7 @@ app.use('/api/admin/website/gallery', adminWebsiteGalleryRoutes);
 app.use('/api/admin/website/contact', adminWebsiteContactRoutes);
 app.use('/api/admin/exam-results', adminExamResultsRoutes);
 app.use('/api/public/waec-results', publicWaecResultsRoutes);
+app.use('/api/public/waec-auth',    publicWaecAuthRoutes);
 app.use('/api/school-modules',        schoolModulesRoutes);
 app.use('/api/result-submissions',    resultSubmissionsRoutes);
 app.use('/api/assessment-monitoring', monitoringRoutes);
@@ -2792,6 +2794,34 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_public_waec_results_reference ON public_waec_results(paystack_reference)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] public_waec_results:', e.message); }
+
+    try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public_waec_users (
+        id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        name           TEXT        NOT NULL,
+        email          TEXT        NOT NULL UNIQUE,
+        password_hash  TEXT        NOT NULL,
+        phone          TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public_waec_purchases (
+        id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id             UUID        NOT NULL REFERENCES public_waec_users(id) ON DELETE CASCADE,
+        amount_pesewas      INTEGER     NOT NULL DEFAULT 3000,
+        paystack_reference  TEXT        NOT NULL UNIQUE,
+        status              TEXT        NOT NULL DEFAULT 'pending'
+                              CHECK (status IN ('pending','paid','completed','failed')),
+        paid_at             TIMESTAMPTZ,
+        report              JSONB,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_public_waec_purchases_user ON public_waec_purchases(user_id, created_at DESC)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_public_waec_purchases_reference ON public_waec_purchases(paystack_reference)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] public_waec_users + public_waec_purchases:', e.message); }
 
     try {
     await pool.query(`

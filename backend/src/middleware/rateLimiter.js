@@ -65,6 +65,14 @@ const publicWaecDownloadLimiter = makeLimiter({
   message:       'Too many download attempts. Please wait 15 minutes before trying again.',
 });
 
+/** POST /api/public/waec-auth/(signup|login) — a public, unauthenticated account login */
+const publicWaecAuthLimiter = makeLimiter({
+  max:            20,
+  windowMinutes:  15,
+  skipSuccessful: true,
+  message:        'Too many attempts. Please wait 15 minutes before trying again.',
+});
+
 module.exports = {
   loginLimiter,
   schoolLookupLimiter,
@@ -73,4 +81,5 @@ module.exports = {
   publicWaecInitLimiter,
   publicWaecGenerateLimiter,
   publicWaecDownloadLimiter,
+  publicWaecAuthLimiter,
 };
