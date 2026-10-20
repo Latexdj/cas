@@ -8,7 +8,7 @@ import { Pagination, Th } from '@/components/ui/Pagination';
 
 type MeetingType = 'PLC' | 'Morning Briefing' | 'Staff Meeting' | 'PTA' | 'Other';
 type RepeatMode  = 'none' | 'daily' | 'weekly';
-type Tab         = 'meetings' | 'attendance' | 'absences';
+type Tab         = 'meetings' | 'attendance' | 'absences' | 'report';
 
 interface Location {
   id: string;
@@ -56,6 +56,15 @@ interface Teacher {
   department: string | null;
 }
 
+interface ReportRow {
+  date: string;
+  meeting_title: string;
+  meeting_type: MeetingType;
+  teacher_name: string;
+  gender: string;
+  status: 'Present' | 'Absent' | 'Excused';
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MEETING_TYPES: MeetingType[] = ['PLC', 'Morning Briefing', 'Staff Meeting', 'PTA', 'Other'];
@@ -89,6 +98,108 @@ function dayName(dateStr: string) {
   const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number);
   if (!y || !m || !d) return '';
   return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short' });
+}
+
+// ─── Gender summary + export (Report tab) ──────────────────────────────────────
+
+type Row = (string | number | null)[];
+const GENDERS = ['Male', 'Female', 'Not Specified'] as const;
+
+interface GenderSummaryRow {
+  gender: string;
+  present: number;
+  absent: number;
+  excused: number;
+  rate: number | null;
+}
+
+function computeGenderSummary(rows: ReportRow[]): GenderSummaryRow[] {
+  return GENDERS.map(gender => {
+    const forGender = rows.filter(r => r.gender === gender);
+    const present = forGender.filter(r => r.status === 'Present').length;
+    const absent  = forGender.filter(r => r.status === 'Absent').length;
+    const excused = forGender.filter(r => r.status === 'Excused').length;
+    const base = present + absent; // excused doesn't count against the rate
+    return { gender, present, absent, excused, rate: base > 0 ? Math.round((present / base) * 1000) / 10 : null };
+  });
+}
+
+async function exportMeetingsExcel(filename: string, summary: GenderSummaryRow[], detail: Row[], detailHeaders: string[]) {
+  const XLSX = await import('xlsx');
+  const summaryHeaders = ['Gender', 'Present', 'Absent', 'Excused', 'Attendance Rate'];
+  const summaryRows: Row[] = summary.map(s => [s.gender, s.present, s.absent, s.excused, s.rate !== null ? `${s.rate}%` : '—']);
+  const summaryWs = XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]);
+  summaryWs['!cols'] = summaryHeaders.map(() => ({ wch: 18 }));
+  const detailWs = XLSX.utils.aoa_to_sheet([detailHeaders, ...detail]);
+  detailWs['!cols'] = detailHeaders.map(() => ({ wch: 18 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+  XLSX.utils.book_append_sheet(wb, detailWs, 'Detail');
+  XLSX.writeFile(wb, `${filename}.xlsx`);
+}
+
+async function exportMeetingsPdf(
+  filename: string, title: string, subtitle: string,
+  summary: GenderSummaryRow[], detail: Row[], detailHeaders: string[],
+) {
+  const { default: jsPDF } = await import('jspdf');
+  // Call as a plain function (autoTable(doc, opts)), not doc.autoTable(opts)
+  // — the prototype-patching side-effect import doesn't reliably attach to
+  // the same jsPDF class instance under this app's dev bundler, which left
+  // every PDF export in the app silently broken (doc.autoTable is not a
+  // function). The functional form still populates doc.lastAutoTable.finalY
+  // for stacking a second table, so positioning logic is unaffected.
+  const { default: autoTable } = await import('jspdf-autotable');
+  const doc = new jsPDF({ orientation: 'landscape' });
+  doc.setFontSize(14);
+  doc.text(title, 14, 16);
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text(subtitle, 14, 23);
+
+  autoTable(doc, {
+    head: [['Gender', 'Present', 'Absent', 'Excused', 'Attendance Rate']],
+    body: summary.map(s => [s.gender, s.present, s.absent, s.excused, s.rate !== null ? `${s.rate}%` : '—']),
+    startY: 28,
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: [20, 92, 68], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+  });
+
+  const finalY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 28;
+  autoTable(doc, {
+    head: [detailHeaders],
+    body: detail,
+    startY: finalY + 10,
+    styles: { fontSize: 8, cellPadding: 3 },
+    headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+  });
+
+  doc.save(`${filename}.pdf`);
+}
+
+function ExportButton({ label, color, loading, disabled, onClick }: {
+  label: string; color: string; loading: boolean; disabled: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading || disabled}
+      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all disabled:opacity-40"
+      style={{ borderColor: color, color, background: 'white' }}
+    >
+      {loading
+        ? <span className="w-3.5 h-3.5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: color, borderTopColor: 'transparent' }} />
+        : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+      }
+      {label}
+    </button>
+  );
 }
 
 /** Estimate number of occurrences when repeating from `start` until `end`. */
@@ -1222,6 +1333,9 @@ export default function MeetingsPage() {
   const [meetings,   setMeetings]   = useState<Meeting[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [absences,   setAbsences]   = useState<AbsenceRecord[]>([]);
+  const [report,     setReport]     = useState<ReportRow[]>([]);
+  const [reportLoaded, setReportLoaded] = useState(false);
+  const [exporting,  setExporting]  = useState<'xlsx' | 'pdf' | null>(null);
   const [locations,  setLocations]  = useState<Location[]>([]);
   const [loading,    setLoading]    = useState(true);
 
@@ -1276,6 +1390,16 @@ export default function MeetingsPage() {
     setAbsences(data);
   }, [aFrom, aTo]);
 
+  const loadReport = useCallback(async (): Promise<ReportRow[]> => {
+    if (!aFrom || !aTo) { setReport([]); setReportLoaded(true); return []; }
+    const params: Record<string, string> = { from: aFrom, to: aTo };
+    if (aType) params.type = aType;
+    const { data } = await api.get<ReportRow[]>('/api/meetings/report', { params });
+    setReport(data);
+    setReportLoaded(true);
+    return data;
+  }, [aFrom, aTo, aType]);
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     await Promise.allSettled([loadMeetings(), loadAttendance(), loadAbsences()]);
@@ -1295,8 +1419,29 @@ export default function MeetingsPage() {
   async function searchAttendanceAbsences(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await Promise.allSettled([loadAttendance(), loadAbsences()]);
+    await Promise.allSettled([loadAttendance(), loadAbsences(), loadReport()]);
     setLoading(false);
+  }
+
+  const reportDetailHeaders = ['Date', 'Meeting', 'Type', 'Teacher', 'Gender', 'Status'];
+
+  async function doExportMeetings(kind: 'xlsx' | 'pdf') {
+    if (!aFrom || !aTo) { alert('Select a From and To date first.'); return; }
+    setExporting(kind);
+    try {
+      const rows = await loadReport();
+      const summary = computeGenderSummary(rows);
+      const detail: Row[] = rows.map(r => [fmtDate(r.date), r.meeting_title, r.meeting_type, r.teacher_name, r.gender, r.status]);
+      const subtitle = [`${aFrom} – ${aTo}`, aType].filter(Boolean).join(' · ');
+      const filename = `meetings-report-${aFrom}-${aTo}`;
+      if (kind === 'xlsx') {
+        await exportMeetingsExcel(filename, summary, detail, reportDetailHeaders);
+      } else {
+        await exportMeetingsPdf(filename, 'Meetings Attendance & Absence Report', subtitle, summary, detail, reportDetailHeaders);
+      }
+    } finally {
+      setExporting(null);
+    }
   }
 
   // ── Actions ────────────────────────────────────────────────────
@@ -1348,6 +1493,7 @@ export default function MeetingsPage() {
     ['meetings',   'Meetings'],
     ['attendance', 'Attendance'],
     ['absences',   'Absences'],
+    ['report',     'Report'],
   ];
 
   // ── Render ─────────────────────────────────────────────────────
@@ -1428,7 +1574,7 @@ export default function MeetingsPage() {
             <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">To</label>
             <input type="date" className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]" value={aTo} onChange={e => setATo(e.target.value)} />
           </div>
-          {tab === 'attendance' && (
+          {(tab === 'attendance' || tab === 'report') && (
             <div>
               <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">Type</label>
               <select
@@ -1681,6 +1827,48 @@ export default function MeetingsPage() {
           )}
           {tab === 'absences' && (
             <Pagination page={absencePage} pageSize={absencePageSize} total={absenceTotal} onPage={setAbsencePage} onPageSize={(p) => { setAbsencePageSize(p); setAbsencePage(1); }} />
+          )}
+
+          {/* ════ Report tab ════ */}
+          {tab === 'report' && (
+            <div className="space-y-4">
+              <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm font-bold text-slate-700">Gender summary</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {aFrom && aTo ? `${fmtDate(aFrom)} – ${fmtDate(aTo)}` : 'Pick a date range and click Search'}
+                      {aType ? ` · ${aType}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <ExportButton label="Export Excel" color="#145C44" loading={exporting === 'xlsx'} disabled={exporting !== null} onClick={() => doExportMeetings('xlsx')} />
+                    <ExportButton label="Export PDF" color="#B45309" loading={exporting === 'pdf'} disabled={exporting !== null} onClick={() => doExportMeetings('pdf')} />
+                  </div>
+                </div>
+
+                {!aFrom || !aTo ? (
+                  <p className="text-sm text-slate-400 py-6 text-center">Select a date range above and click Search to preview the summary.</p>
+                ) : !reportLoaded ? (
+                  <p className="text-sm text-slate-400 py-6 text-center">Click Search to load the report for this range.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {computeGenderSummary(report).map(s => (
+                      <div key={s.gender} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                        <p className="text-xs font-semibold text-slate-500">{s.gender}</p>
+                        <p className="text-2xl font-bold text-slate-800 mt-1">{s.rate !== null ? `${s.rate}%` : '—'}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">attendance rate</p>
+                        <div className="flex gap-3 mt-3 text-xs">
+                          <span style={{ color: '#145C44' }} className="font-semibold">{s.present} present</span>
+                          <span style={{ color: '#DC2626' }} className="font-semibold">{s.absent} absent</span>
+                          <span style={{ color: '#7E22CE' }} className="font-semibold">{s.excused} excused</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </>
       )}

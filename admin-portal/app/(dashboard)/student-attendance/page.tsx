@@ -27,14 +27,18 @@ async function exportPdf(
   body: Row[],
 ) {
   const { default: jsPDF } = await import('jspdf');
-  await import('jspdf-autotable');
+  // Call as a plain function (autoTable(doc, opts)), not doc.autoTable(opts)
+  // — the prototype-patching side-effect import doesn't reliably attach to
+  // the same jsPDF class instance under this app's dev bundler, which left
+  // this export silently broken (doc.autoTable is not a function).
+  const { default: autoTable } = await import('jspdf-autotable');
   const doc = new jsPDF({ orientation: 'landscape' });
   doc.setFontSize(14);
   doc.text(title, 14, 16);
   doc.setFontSize(9);
   doc.setTextColor(100);
   doc.text(subtitle, 14, 23);
-  (doc as unknown as { autoTable: (o: object) => void }).autoTable({
+  autoTable(doc, {
     head: [head],
     body,
     startY: 28,

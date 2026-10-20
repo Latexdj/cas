@@ -350,6 +350,55 @@ router.get('/summary', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/meetings/report â€” admin: flat attendance/absence/excused rows for
+// a date range, one row per active teacher per meeting occurrence. Absence
+// is computed live (same eligibility rules as POST /:id/generate-absences)
+// rather than read from meeting_absences, so the report is accurate even for
+// meetings nobody ever ran that manual step on. Powers the Excel/PDF export
+// with a gender breakdown on the admin-portal Meetings "Report" tab.
+router.get('/report', adminOnly, async (req, res, next) => {
+  try {
+    const { from, to, type } = req.query;
+    if (!from || !to) return res.status(400).json({ error: 'from and to are required' });
+
+    const { rows } = await pool.query(
+      `WITH mtgs AS (
+         SELECT id AS meeting_id, date, meeting_type, title
+         FROM meetings
+         WHERE school_id = $1 AND date BETWEEN $2 AND $3
+           AND ($4::text IS NULL OR meeting_type = $4)
+       ),
+       active_teachers AS (
+         SELECT id, name, gender FROM teachers WHERE school_id = $1 AND status = 'Active'
+       ),
+       expected AS (
+         SELECT mtgs.meeting_id, mtgs.date, mtgs.meeting_type, mtgs.title AS meeting_title,
+                at.id AS teacher_id, at.name AS teacher_name, at.gender
+         FROM mtgs CROSS JOIN active_teachers at
+       ),
+       excused AS (
+         SELECT teacher_id, date_from, date_to FROM teacher_excuses
+         WHERE school_id = $1 AND status = 'Approved'
+       )
+       SELECT e.date::text, e.meeting_title, e.meeting_type, e.teacher_name,
+              COALESCE(e.gender, 'Not Specified') AS gender,
+              CASE
+                WHEN a.teacher_id IS NOT NULL THEN 'Present'
+                WHEN ex.teacher_id IS NOT NULL THEN 'Excused'
+                ELSE 'Absent'
+              END AS status
+       FROM expected e
+       LEFT JOIN meeting_attendance a
+         ON a.meeting_id = e.meeting_id AND a.teacher_id = e.teacher_id AND a.date = e.date
+       LEFT JOIN excused ex ON ex.teacher_id = e.teacher_id AND e.date BETWEEN ex.date_from AND ex.date_to
+       ORDER BY e.date, e.meeting_title, e.teacher_name`,
+      [req.schoolId, from, to, type || null]
+    );
+
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // GET /api/meetings/attendance â€” admin list attendance records
 router.get('/attendance', adminOnly, async (req, res, next) => {
   try {
