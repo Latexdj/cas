@@ -145,6 +145,32 @@ async function getStudentEnrollmentYears(schoolId, studentId) {
 
 const comparePeriod = (a, b) => a[0] - b[0] || a[1] - b[1];
 
+// Which of these students have real, recorded evidence of existing during
+// academicYearId — an exam score, a CA score, or an imported result row. The
+// one legitimate exception to trusting created_at (see resolveClassFromHistory's
+// doc comment on notYetExisted): a bulk migration can post-date a student's
+// created_at well past their real enrollment, but it can't fake evidence
+// rows for a year they were never in. Used as the escape hatch for
+// includeInactive callers only — see getClassRoster/resolveStudentClassAtPeriod.
+async function studentsWithEvidence(schoolId, studentIds, academicYearId) {
+  if (!studentIds.length) return new Set();
+  const { rows } = await pool.query(
+    `SELECT DISTINCT student_id FROM (
+       SELECT student_id FROM exam_scores
+       WHERE school_id = $1 AND academic_year_id = $2 AND student_id = ANY($3::uuid[])
+       UNION ALL
+       SELECT asc1.student_id FROM assessment_scores asc1
+       JOIN assessments a ON a.id = asc1.assessment_id
+       WHERE a.school_id = $1 AND a.academic_year_id = $2 AND asc1.student_id = ANY($3::uuid[])
+       UNION ALL
+       SELECT student_id FROM results_import
+       WHERE school_id = $1 AND academic_year_id = $2 AND student_id = ANY($3::uuid[])
+     ) evidence`,
+    [schoolId, academicYearId, studentIds]
+  );
+  return new Set(rows.map(r => r.student_id));
+}
+
 // Walks one student's chronologically-ordered class_history rows to find
 // their class as of targetPeriod — the shared core of both getClassRoster()
 // (many candidates, one target class) and resolveStudentClassAtPeriod() (one
@@ -180,7 +206,37 @@ const comparePeriod = (a, b) => a[0] - b[0] || a[1] - b[1];
 // for "existed in the system by this point"; it's an approximation (a bulk
 // data migration could set it later than a student's real enrollment), but
 // a large, systematic error is worse than this smaller one.
-function resolveClassFromHistory(historyRows, currentClassName, targetPeriod, createdAtMs, existenceCutoffMs, trustCreatedAt = true) {
+//
+// This guard is now ALWAYS applied — there is no caller-supplied escape
+// hatch to disable it. There used to be one (a `trustCreatedAt` flag that
+// results.js/student.js/results-service.js passed false for, to assemble
+// historical results VIEWS rather than live trackers), because applying
+// this guard at face value once broke a real school's entire pre-migration
+// history: an imported 2024/2025 dataset became unreachable for ~500
+// students, active and graduated alike, because their student records were
+// all created in a single May 2026 migration, well after the 2025/2026
+// cutoff this check compares against. But blanket-disabling the guard for
+// every includeInactive caller reintroduced the ORIGINAL bug it was added to
+// fix, just scoped to results-viewing endpoints instead of live trackers: a
+// since-reused class label (next year's brand-new Form 1 intake landing in
+// the same "1A"/"1B"/etc. names as last year's cohort) meant those brand-new
+// students — created well after last year ended, no class_history yet —
+// got silently counted into LAST year's roster for that class, showing up
+// to teachers as "students with no results entered" who were never actually
+// theirs. Confirmed live: St. Augustine's 2025/2026 Sem 2 roster for class
+// "1A" included 18 of this year's new intake this way, "1B" included 41.
+//
+// The actual fix for the migration incident is evidence, not a blanket
+// disable: getClassRoster()/resolveStudentClassAtPeriod() call
+// studentsWithEvidence() to re-include a student this guard excludes, but
+// ONLY if they have a real exam score, CA score, or imported result row for
+// that specific academic year — something a bulk migration's bad
+// created_at can't fake, and something this year's brand-new intake never
+// has for a year that predates their existence. A 'backfill' class_history
+// row is exempted from this guard entirely, regardless — it exists
+// precisely to encode reconstructed historical truth independent of when it
+// was entered, so it must never be second-guessed by this heuristic.
+function resolveClassFromHistory(historyRows, currentClassName, targetPeriod, createdAtMs, existenceCutoffMs) {
   // A student who didn't exist yet as of targetPeriod cannot have been in
   // any class during it, full stop — confirmed via a real regression: a
   // newly admitted student (created well into the new academic year) who
@@ -191,24 +247,8 @@ function resolveClassFromHistory(historyRows, currentClassName, targetPeriod, cr
   // existed. St. Augustine's 2025/2026 Sem 2 roster for 1D/1E/1B was
   // showing dozens of 2026/2027 Form 1 intake who'd simply had their
   // initial class corrected once, weeks after being created.
-  //
-  // But createdAt is only a proxy for "existed by this point" — it's when
-  // the *database row* was created, and a bulk historical-data migration
-  // creates every row on the migration date, not each student's real
-  // enrollment date. trustCreatedAt lets a caller say "don't apply this
-  // heuristic here": results.js/student.js pass false when assembling a
-  // historical results VIEW (not a live completion tracker), because taking
-  // this guard at face value broke a real school's entire pre-migration
-  // history — an imported 2024/2025 dataset became unreachable for ~500
-  // students, active and graduated alike, because their student records
-  // (and, for the ones with no further transitions, nothing else to go on)
-  // were all created in a single May 2026 migration, well after the
-  // 2025/2026 cutoff this check compares against. A 'backfill' class_history
-  // row is exempted unconditionally regardless of trustCreatedAt — it exists
-  // precisely to encode reconstructed historical truth independent of when
-  // it was entered, so it must never be second-guessed by this heuristic.
   const notYetExisted = () =>
-    trustCreatedAt && createdAtMs != null && existenceCutoffMs != null && createdAtMs >= existenceCutoffMs;
+    createdAtMs != null && existenceCutoffMs != null && createdAtMs >= existenceCutoffMs;
 
   // Returns { className, confirmed }. confirmed is false only for the one
   // case this function cannot actually know the answer to: targetPeriod
@@ -321,23 +361,41 @@ async function getClassRoster(schoolId, className, academicYearId, semester, opt
     });
   }
 
-  // includeInactive callers are reviewing past results, not tracking live
-  // work — the created-at existence heuristic is exactly what broke for
-  // them (see resolveClassFromHistory's trustCreatedAt doc comment), so it
-  // rides the same flag rather than adding a third option with the same
-  // underlying motivation.
   // Roster membership only needs the best-available class name, confirmed
   // or not — an extrapolated guess is still the right signal for "who to
   // include," it's only unsafe to print as a confident label (see
   // resolveStudentClassAtPeriod, which callers use for that).
   const roster = [];
+  const excludedByExistenceGuard = [];
   for (const candidate of candidateRows) {
     const createdAtMs = candidate.created_at ? new Date(candidate.created_at).getTime() : null;
     const { className: resolved } = resolveClassFromHistory(
-      historyByStudent.get(candidate.id), candidate.class_name, targetPeriod, createdAtMs, existenceCutoffMs, !includeInactive
+      historyByStudent.get(candidate.id), candidate.class_name, targetPeriod, createdAtMs, existenceCutoffMs
     );
-    if (resolved && resolved.toLowerCase() === className.toLowerCase()) roster.push(candidate.id);
+    if (resolved && resolved.toLowerCase() === className.toLowerCase()) {
+      roster.push(candidate.id);
+    } else if (resolved === null && includeInactive) {
+      excludedByExistenceGuard.push(candidate);
+    }
   }
+
+  // includeInactive callers are reviewing past results, not tracking live
+  // work, so they get one further pass: a candidate the existence guard
+  // excluded is still included if they have real recorded evidence for this
+  // exact academic year — see studentsWithEvidence's doc comment for why
+  // this, and not a blanket bypass, is what the old bulk-migration incident
+  // actually needed.
+  if (excludedByExistenceGuard.length) {
+    const evidenceIds = await studentsWithEvidence(
+      schoolId, excludedByExistenceGuard.map(c => c.id), academicYearId
+    );
+    for (const candidate of excludedByExistenceGuard) {
+      if (evidenceIds.has(candidate.id) && candidate.class_name.toLowerCase() === className.toLowerCase()) {
+        roster.push(candidate.id);
+      }
+    }
+  }
+
   return roster;
 }
 
@@ -378,7 +436,18 @@ async function resolveStudentClassAtPeriod(schoolId, studentId, currentClassName
     period: [new Date(r.ordinal_date).getTime(), r.semester],
   }));
 
-  return resolveClassFromHistory(history, currentClassName, [targetOrdinalMs, targetSemester], createdAtMs, existenceCutoffMs, !includeInactive);
+  const resolved = resolveClassFromHistory(history, currentClassName, [targetOrdinalMs, targetSemester], createdAtMs, existenceCutoffMs);
+  if (resolved.className !== null || !includeInactive) return resolved;
+
+  // Same evidence-based escape hatch as getClassRoster — see
+  // studentsWithEvidence's doc comment. Not confirmed: this is a guess
+  // (their current class name) backed only by evidence that they existed
+  // that year, not by any record of what class they were actually in.
+  const evidenceIds = await studentsWithEvidence(schoolId, [studentId], academicYearId);
+  if (evidenceIds.has(studentId)) {
+    return { className: currentClassName, confirmed: false };
+  }
+  return resolved;
 }
 
 module.exports = {
