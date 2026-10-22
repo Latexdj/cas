@@ -62,6 +62,34 @@ router.post('/login', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+/* POST /api/principal/auth/refresh — re-issues a fresh management token for
+   the session-expiry warning banner's "Stay logged in" button. Re-checks the
+   account the same way /login does (Active, management_role still set) so a
+   revoked management account can't extend its way back in. */
+router.post('/refresh', async (req, res, next) => {
+  try {
+    const header = req.headers.authorization;
+    if (!header?.startsWith('Bearer ')) return res.status(401).json({ error: 'No token' });
+    let payload;
+    try { payload = jwt.verify(header.slice(7), process.env.JWT_SECRET); }
+    catch { return res.status(401).json({ error: 'Invalid or expired token' }); }
+    if (payload.type !== 'management') return res.status(401).json({ error: 'Wrong token type' });
+
+    const { rows } = await pool.query(
+      `SELECT id FROM teachers WHERE id = $1 AND status = 'Active' AND management_role IS NOT NULL`,
+      [payload.id]
+    );
+    if (!rows.length) return res.status(401).json({ error: 'Account not found or management access revoked' });
+
+    const token = jwt.sign(
+      { id: payload.id, schoolId: payload.schoolId, role: payload.role, type: 'management' },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    res.json({ token });
+  } catch (err) { next(err); }
+});
+
 /* GET /api/principal/auth/me */
 router.get('/me', async (req, res, next) => {
   try {

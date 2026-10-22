@@ -1,7 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { saveUser } from '@/lib/auth';
+import { consumeSessionExpiredNotice } from '@/lib/session-expiry';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
@@ -11,6 +12,10 @@ export default function LoginPage() {
   const [password,   setPassword]   = useState('');
   const [error,      setError]      = useState('');
   const [loading,    setLoading]    = useState(false);
+
+  useEffect(() => {
+    if (consumeSessionExpiredNotice()) setError('Your session expired. Please log in again.');
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

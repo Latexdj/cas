@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getSAToken, clearSASession, touchSAActivity } from './super-admin-auth';
+import { isSilentRequest, markSessionExpired } from './session-expiry';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -15,8 +16,10 @@ saApi.interceptors.request.use((config) => {
 saApi.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401 || err.response?.status === 403) {
+    const status = err.response?.status;
+    if ((status === 401 || status === 403) && !isSilentRequest(err.config?.headers)) {
       clearSASession();
+      if (status === 401) markSessionExpired();
       if (typeof window !== 'undefined') window.location.href = '/super-admin/login';
     }
     return Promise.reject(err);

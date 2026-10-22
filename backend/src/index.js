@@ -108,7 +108,9 @@ const allowedOrigins = process.env.CORS_ORIGIN
 app.use(cors({
   origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  // X-Silent-Auth: marks a background request (e.g. notification polling) as
+  // one whose 401 shouldn't force-logout the user — see lib/session-expiry.ts.
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Silent-Auth'],
 }));
 
 // Paystack signs the exact raw request body — this must be registered

@@ -5,7 +5,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { getPrincipal, clearPrincipal, getRoleLabel, type PrincipalUser } from '@/lib/principal-auth';
 import { principalApi } from '@/lib/principal-api';
+import { markSessionExpired } from '@/lib/session-expiry';
 import { HelpWidget, HelpNavItem } from '@/components/HelpWidget';
+import { SessionExpiryWarning } from '@/components/SessionExpiryWarning';
 import { useEnabledModules } from '@/hooks/useEnabledModules';
 
 type NavItem = { href: string; label: string; icon: ReactNode; module?: string };
@@ -401,8 +403,15 @@ export default function PrincipalShell({ children }: { children: ReactNode }) {
 
   const currentLabel = visibleSections.flatMap(s => s.items).find(i => isActive(i.href))?.label ?? 'Dashboard';
 
+  function handleSessionExpire() {
+    clearPrincipal();
+    markSessionExpired();
+    window.location.href = '/principal/login';
+  }
+
   return (
     <div className="flex min-h-screen" style={{ background: dark ? '#0E1A0C' : '#F5F0E8' }}>
+      <SessionExpiryWarning apiClient={principalApi} tokenKey="cas_p_token" refreshPath="/api/principal/auth/refresh" onExpire={handleSessionExpire} />
       {/* Mobile overlay */}
       {sideOpen && (
         <div

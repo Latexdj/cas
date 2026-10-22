@@ -4,6 +4,9 @@ import { useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { isSALoggedIn, clearSASession, touchSAActivity } from '@/lib/super-admin-auth';
+import { saApi } from '@/lib/super-admin-api';
+import { markSessionExpired } from '@/lib/session-expiry';
+import { SessionExpiryWarning } from '@/components/SessionExpiryWarning';
 
 const NAV = [
   { href: '/super-admin',          label: 'Dashboard',  icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -45,8 +48,15 @@ export default function SuperAdminShell({ children }: { children: React.ReactNod
     router.replace('/super-admin/login');
   }
 
+  function handleSessionExpire() {
+    clearSASession();
+    markSessionExpired();
+    window.location.href = '/super-admin/login';
+  }
+
   return (
     <div className="flex h-screen" style={{ background: '#0E1A0C' }}>
+      <SessionExpiryWarning apiClient={saApi} tokenKey="cas_sa_token" refreshPath="/api/auth/refresh" onExpire={handleSessionExpire} />
       {/* Sidebar */}
       <aside className="w-56 shrink-0 flex flex-col" style={{ backgroundColor: '#0B3D2E', borderRight: '1px solid #2A3D28' }}>
         {/* Logo */}

@@ -1,9 +1,10 @@
 ﻿'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import axios from 'axios';
 import { saveTeacher, saveTeacherColors, getSchoolCode, getTeacherColors } from '@/lib/teacher-auth';
+import { consumeSessionExpiredNotice } from '@/lib/session-expiry';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -13,6 +14,10 @@ export default function TeacherLoginPage() {
   const [loading,   setLoading]   = useState(false);
   const [error,     setError]     = useState('');
   const [showPass,  setShowPass]  = useState(false);
+
+  useEffect(() => {
+    if (consumeSessionExpiredNotice()) setError('Your session expired. Please log in again.');
+  }, []);
 
   const colors = typeof window !== 'undefined' ? getTeacherColors() : { primary: '#2ab289', accent: '#1a8a6a' };
 

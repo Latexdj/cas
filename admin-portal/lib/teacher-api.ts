@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { isSilentRequest, markSessionExpired } from './session-expiry';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -21,9 +22,10 @@ teacherApi.interceptors.request.use((config) => {
 teacherApi.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401 && typeof window !== 'undefined') {
+    if (err.response?.status === 401 && typeof window !== 'undefined' && !isSilentRequest(err.config?.headers)) {
       localStorage.removeItem('cas_t_token');
       localStorage.removeItem('cas_t_user');
+      markSessionExpired();
       window.location.href = '/teacher/login';
     }
     return Promise.reject(err);

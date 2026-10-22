@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { silentRequestConfig } from '@/lib/session-expiry';
 
 interface Notification {
   id:         string;
@@ -18,7 +19,10 @@ export function NotificationsBell() {
 
   async function fetchNotifs() {
     try {
-      const { data } = await api.get<Notification[]>('/api/result-submissions/notifications');
+      // Background poll — silent so an expired token here doesn't force-
+      // logout someone mid-task; the session-expiry warning banner handles
+      // that case with actual warning instead.
+      const { data } = await api.get<Notification[]>('/api/result-submissions/notifications', silentRequestConfig());
       setNotifs(data);
       setUnreadCount(data.filter(n => !n.is_read).length);
     } catch { /* non-fatal */ }

@@ -6,7 +6,9 @@ import { useTheme } from 'next-themes';
 import Link from 'next/link';
 import { getStudent, getStudentSchoolCode, getStudentColors, clearStudent } from '@/lib/student-auth';
 import { studentApi } from '@/lib/student-api';
+import { markSessionExpired } from '@/lib/session-expiry';
 import { HelpWidget, HelpNavItem } from '@/components/HelpWidget';
+import { SessionExpiryWarning } from '@/components/SessionExpiryWarning';
 
 const PRIMARY = '#3B82F6';
 
@@ -261,8 +263,15 @@ export default function StudentShell({ children }: { children: ReactNode }) {
   const sidebarBg       = isDark ? '#0B3D2E' : '#FDFAF5';
   const sidebarBorder   = isDark ? 'rgba(255,255,255,0.08)' : '#E2D9CC';
 
+  function handleSessionExpire() {
+    clearStudent();
+    markSessionExpired();
+    window.location.href = '/student/login';
+  }
+
   return (
     <div className="min-h-screen flex" style={{ background: isDark ? '#0E1A0C' : '#F5F0E8' }}>
+      <SessionExpiryWarning apiClient={studentApi} tokenKey="cas_s_token" refreshPath="/api/auth/refresh" onExpire={handleSessionExpire} />
 
       {/* ── Desktop sidebar ── */}
       <aside className="hidden md:flex flex-col w-60 shrink-0 fixed top-0 left-0 h-full z-20 shadow-sm"

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { saveSAToken, isSALoggedIn } from '@/lib/super-admin-auth';
+import { consumeSessionExpiredNotice } from '@/lib/session-expiry';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -17,6 +18,10 @@ export default function SuperAdminLoginPage() {
   useEffect(() => {
     if (isSALoggedIn()) router.replace('/super-admin');
   }, [router]);
+
+  useEffect(() => {
+    if (consumeSessionExpiredNotice()) setError('Your session expired. Please log in again.');
+  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();

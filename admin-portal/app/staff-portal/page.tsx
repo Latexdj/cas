@@ -1,18 +1,11 @@
 ﻿'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import axios from 'axios';
 import { buildSignListHtml, type SlRecipient, type SlSchool } from '@/lib/sign-list-print';
 import { FeeReportsPanel } from '@/components/fees/FeeReportsPanel';
 import { IdCardScanner } from '@/components/IdCardScanner';
-import { getStaffUser, getStaffColors, getStaffToken } from './layout';
-
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
-
-function staffApi() {
-  const token = getStaffToken();
-  return axios.create({ baseURL: BASE, headers: { Authorization: `Bearer ${token}` } });
-}
+import { staffApi } from '@/lib/staff-api';
+import { getStaffUser, getStaffColors } from './layout';
 
 // ─── Clearance types ──────────────────────────────────────────────────────────
 interface Office { id: string; name: string; office_type: string; sort_order: number; }
@@ -131,7 +124,7 @@ export default function StaffPortalPage() {
   const user   = typeof window !== 'undefined' ? getStaffUser() : null;
   const colors = typeof window !== 'undefined' ? getStaffColors() : { primary: '#1a5c38', logoUrl: null };
   const primary = colors.primary;
-  const api    = staffApi();
+  const api    = staffApi;
 
   const staffRoles: string[] = user?.staffRoles ?? [];
   const hasLib  = staffRoles.includes('library');

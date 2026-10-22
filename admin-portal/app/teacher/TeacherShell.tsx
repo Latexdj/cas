@@ -4,10 +4,12 @@ import { ReactNode, useEffect, useState, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
-import { getTeacher, getSchoolCode, getTeacherColors } from '@/lib/teacher-auth';
+import { getTeacher, getSchoolCode, getTeacherColors, clearTeacher } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
+import { markSessionExpired, silentRequestConfig } from '@/lib/session-expiry';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { HelpWidget, HelpNavItem } from '@/components/HelpWidget';
+import { SessionExpiryWarning } from '@/components/SessionExpiryWarning';
 import { useEnabledModules } from '@/hooks/useEnabledModules';
 
 interface NavItem {
@@ -410,7 +412,10 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
 
   const fetchUnread = useCallback(async () => {
     try {
-      const { data } = await teacherApi.get<Array<{ id: string; message: string; link: string | null; is_read: boolean; created_at: string }>>('/api/result-submissions/notifications');
+      // Background poll — silent so an expired token here doesn't
+      // force-logout someone mid-task; the session-expiry warning banner
+      // handles that case with actual warning instead.
+      const { data } = await teacherApi.get<Array<{ id: string; message: string; link: string | null; is_read: boolean; created_at: string }>>('/api/result-submissions/notifications', silentRequestConfig());
       setNotifs(data);
       setUnreadCount(data.filter(n => !n.is_read).length);
     } catch { /* ignore */ }
@@ -524,8 +529,15 @@ export default function TeacherShell({ children }: { children: ReactNode }) {
 
   if (NO_SHELL_PATHS.includes(pathname)) return <>{children}</>;
 
+  function handleSessionExpire() {
+    clearTeacher();
+    markSessionExpired();
+    window.location.href = '/teacher/login';
+  }
+
   return (
     <div className="min-h-screen flex" style={{ background: dk.pageBg }}>
+      <SessionExpiryWarning apiClient={teacherApi} tokenKey="cas_t_token" refreshPath="/api/auth/refresh" onExpire={handleSessionExpire} />
 
       {/* ── Desktop sidebar ── */}
       <aside className="hidden md:flex flex-col w-60 shrink-0 fixed top-0 left-0 h-full z-20 shadow-sm print:hidden"

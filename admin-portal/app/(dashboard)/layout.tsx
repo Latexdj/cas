@@ -2,8 +2,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { getUser } from '@/lib/auth';
+import { api } from '@/lib/api';
+import { markSessionExpired } from '@/lib/session-expiry';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
+import { SessionExpiryWarning } from '@/components/SessionExpiryWarning';
 
 const pageTitles: Record<string, string> = {
   '/dashboard':          'Dashboard',
@@ -70,6 +73,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const title = pageTitles[pathname] ?? 'Admin Portal';
 
+  function handleSessionExpire() {
+    localStorage.removeItem('cas_token');
+    localStorage.removeItem('cas_user');
+    markSessionExpired();
+    window.location.href = '/login';
+  }
+
   return (
     // print:h-auto + print:overflow-visible: this shell fixes itself to the
     // viewport height with internal scrolling for the normal app UI, but that
@@ -77,6 +87,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // renders one viewport-height's worth of a height-constrained, overflow-
     // hidden container. Printing needs the real, full content height instead.
     <div className="flex h-screen overflow-hidden print:h-auto print:overflow-visible">
+      <SessionExpiryWarning apiClient={api} tokenKey="cas_token" refreshPath="/api/auth/refresh" onExpire={handleSessionExpire} />
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div

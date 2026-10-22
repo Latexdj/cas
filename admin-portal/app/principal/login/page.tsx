@@ -1,8 +1,9 @@
 'use client';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { principalApi } from '@/lib/principal-api';
 import { savePrincipal, type PrincipalUser } from '@/lib/principal-auth';
+import { consumeSessionExpiredNotice } from '@/lib/session-expiry';
 
 export default function PrincipalLoginPage() {
   const router = useRouter();
@@ -11,6 +12,10 @@ export default function PrincipalLoginPage() {
   const [pin,             setPin]             = useState('');
   const [error,           setError]           = useState('');
   const [loading,         setLoading]         = useState(false);
+
+  useEffect(() => {
+    if (consumeSessionExpiredNotice()) setError('Your session expired. Please log in again.');
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

@@ -8,6 +8,26 @@ function signToken(payload, expiresIn) {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
 }
 
+// Matches each role's own expiry at login (see the /login handlers below) —
+// kept as one map so a session extension always lasts exactly as long as a
+// fresh login would, never longer.
+const SESSION_EXPIRY_BY_ROLE = {
+  teacher: '8h', admin: '8h', student: '12h', staff: '12h', super_admin: '24h',
+};
+
+// POST /api/auth/refresh — re-issues a fresh token for the caller's own
+// session, used by the session-expiry warning banner's "Stay logged in"
+// button. Gated by authenticate, which already re-validates the account is
+// still Active (teacher/admin/student/staff) before handing out a new
+// token — a deactivated account can't extend its way back in.
+router.post('/refresh', require('../middleware/auth').authenticate, async (req, res, next) => {
+  try {
+    const { iat, exp, ...payload } = req.user;
+    const expiresIn = SESSION_EXPIRY_BY_ROLE[payload.role] || '8h';
+    res.json({ token: signToken(payload, expiresIn) });
+  } catch (err) { next(err); }
+});
+
 // GET /api/auth/school/:code — public, resolves a school code to its name
 router.get('/school/:code', schoolLookupLimiter, async (req, res, next) => {
   try {

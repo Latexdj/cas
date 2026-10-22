@@ -1,8 +1,9 @@
 ﻿'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
+import { consumeSessionExpiredNotice } from '@/lib/session-expiry';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -13,6 +14,10 @@ export default function StaffLoginPage() {
   const [password,   setPassword]   = useState('');
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState('');
+
+  useEffect(() => {
+    if (consumeSessionExpiredNotice()) setError('Your session expired. Please log in again.');
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

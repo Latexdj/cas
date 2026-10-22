@@ -3,11 +3,12 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import axios from 'axios';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { staffApi } from '@/lib/staff-api';
+import { SessionExpiryWarning } from '@/components/SessionExpiryWarning';
+import { markSessionExpired } from '@/lib/session-expiry';
 
 const NO_SHELL = ['/staff-portal/login'];
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 export interface StaffUser {
   id: string; name: string; email?: string; role: string; staffRoles: string[]; schoolId: string;
@@ -80,12 +81,11 @@ export default function StaffPortalLayout({ children }: { children: ReactNode })
     }
     setCredSaving(true);
     try {
-      const token = getStaffToken();
-      const res = await axios.post(`${BASE}/api/auth/change-password`, {
+      const res = await staffApi.post('/api/auth/change-password', {
         currentPassword: credForm.currentPassword,
         newPassword: wantsPasswordChange ? credForm.newPassword : undefined,
         newEmail: wantsEmailChange ? credForm.newEmail.trim() : undefined,
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      });
 
       const updatedEmail = res.data.email ?? email;
       setEmail(updatedEmail);
@@ -116,8 +116,19 @@ export default function StaffPortalLayout({ children }: { children: ReactNode })
     router.replace('/staff-portal/login');
   }
 
+  function handleSessionExpire() {
+    markSessionExpired();
+    handleLogout();
+  }
+
   return (
     <div className={`min-h-screen ${isDark ? 'bg-slate-900' : 'bg-slate-50'}`}>
+      <SessionExpiryWarning
+        apiClient={staffApi}
+        tokenKey="cas_st_token"
+        refreshPath="/api/auth/refresh"
+        onExpire={handleSessionExpire}
+      />
       <header className={`px-4 md:px-6 py-3 flex items-center gap-3 ${isDark ? 'bg-slate-800 border-b border-slate-700' : 'bg-white border-b border-slate-200'}`}>
         {logoUrl ? (
           <img src={logoUrl} alt="logo" className="w-8 h-8 rounded-lg object-cover shrink-0" />
