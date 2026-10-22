@@ -174,8 +174,15 @@ export function IdCardScanner({ apiClient }: { apiClient: AxiosInstance }) {
           ) : result.kind === 'valid' ? (
             <>
               <div className="flex items-center gap-3">
-                {result.data.student?.photo_url && (
+                {result.data.student?.photo_url ? (
                   <img src={result.data.student.photo_url} alt="" className="w-14 h-14 rounded-xl object-cover border border-slate-200 dark:border-slate-600" />
+                ) : result.data.student && (
+                  <div className="w-14 h-14 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 flex items-center justify-center shrink-0">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-7 h-7 text-slate-400 dark:text-slate-500">
+                      <circle cx="12" cy="8" r="3.5" />
+                      <path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" />
+                    </svg>
+                  </div>
                 )}
                 <div>
                   <p className="text-base font-bold text-slate-900 dark:text-white">{result.data.student?.name ?? 'Valid CAS student'}</p>
