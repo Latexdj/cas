@@ -46,7 +46,7 @@ interface ReadinessCheck {
   examScoredCount: number;
   examComplete: boolean;
   missingModes: string[];
-  incompleteAssessments: Array<{ id: string; label: string; modeName: string; actedOn: number }>;
+  incompleteAssessments: Array<{ id: string; label: string; modeName: string; actedOn: number; teacherName: string; isOwn: boolean }>;
   canSubmit: boolean;
 }
 
@@ -235,38 +235,14 @@ function SubjectContent() {
     setReadinessLoading(true);
     setReadinessError('');
     try {
-      // Exam scores: fetch student rows to count completeness
-      const examRes = await teacherApi.get<{ score: number | null }[]>('/api/exam-scores', {
+      // Server-side check, not computed from locally-loaded data — this
+      // subject/class can be taught by more than one teacher, and only the
+      // backend can see every co-teacher's assessments, not just this
+      // teacher's own (which is all `assessments`/`activeModes` below hold).
+      const { data } = await teacherApi.get<ReadinessCheck>('/api/result-submissions/readiness-check', {
         params: { academic_year_id: year_id, semester, subject, class_name },
       });
-      const examRows = examRes.data ?? [];
-      const totalStudents = examRows.length;
-      const examScoredCount = examRows.filter(r => r.score !== null).length;
-      const examComplete = totalStudents > 0 && examScoredCount === totalStudents;
-
-      // CA mode completeness from data already loaded on the page
-      const missingModes = activeModes
-        .filter(m => (modeUsage[m.id] ?? 0) === 0)
-        .map(m => m.name);
-
-      // Per-assessment completeness: which assessments have students not yet acted on?
-      const incompleteAssessments = assessments
-        .filter(a => a.score_count < (a.total_students ?? totalStudents))
-        .map(a => ({
-          id: a.id,
-          label: a.title ?? a.mode_name,
-          modeName: a.mode_name,
-          actedOn: a.score_count,
-        }));
-
-      setReadiness({
-        totalStudents,
-        examScoredCount,
-        examComplete,
-        missingModes,
-        incompleteAssessments,
-        canSubmit: examComplete && missingModes.length === 0 && incompleteAssessments.length === 0,
-      });
+      setReadiness(data);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setReadinessError(msg ?? 'Could not load submission check. Please try again.');
@@ -867,12 +843,15 @@ function SubjectContent() {
                 {readiness.missingModes.map(name => (
                   <CheckRow key={name} ok={false} label={`${name} — no assessment created yet`} blocking={true} />
                 ))}
-                {/* Assessments where not all students are acted on */}
+                {/* Assessments where not all students are acted on — including a
+                    co-teacher's, for subjects more than one teacher teaches */}
                 {readiness.incompleteAssessments.map(a => (
                   <CheckRow
                     key={a.id}
                     ok={false}
-                    label={`${a.label} (${a.modeName}) — ${a.actedOn}/${readiness.totalStudents} students scored/absent`}
+                    label={a.isOwn
+                      ? `${a.label} (${a.modeName}) — ${a.actedOn}/${readiness.totalStudents} students scored/absent`
+                      : `${a.label} (${a.modeName}) by co-teacher ${a.teacherName} — ${a.actedOn}/${readiness.totalStudents} students scored/absent`}
                     blocking={true}
                   />
                 ))}

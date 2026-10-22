@@ -605,18 +605,22 @@ router.get('/submission-readiness', adminOnly, async (req, res, next) => {
          ORDER BY m.sort_order`,
         p
       ),
-      // assessments where some students are still not acted on (no score & not absent)
+      // assessments where some students are still not acted on (no score & not absent) —
+      // from ANY teacher sharing this subject/class/period, same as POST /submit's check,
+      // so a co-teacher's leftover assessment is visible to the admin by name, not just a block.
       pool.query(
         `SELECT a.id,
                 COALESCE(a.title, m.name || ' #' || ROW_NUMBER() OVER (PARTITION BY a.mode_id ORDER BY a.created_at)) AS label,
                 m.name AS mode_name,
+                COALESCE(t.name, 'a former teacher') AS teacher_name,
                 COUNT(DISTINCT CASE WHEN (sc.score IS NOT NULL OR sc.absent = true) AND sc.student_id = ANY($6::uuid[]) THEN sc.student_id END)::int AS acted_on
          FROM assessments a
          JOIN assessment_modes m ON m.id = a.mode_id
+         LEFT JOIN teachers t ON t.id = a.teacher_id
          LEFT JOIN assessment_scores sc ON sc.assessment_id = a.id
          WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
            AND LOWER(a.subject)=LOWER($4) AND LOWER(a.class_name)=LOWER($5)
-         GROUP BY a.id, m.name, m.id`,
+         GROUP BY a.id, m.name, m.id, t.name`,
         [...p, roster]
       ),
     ]);
@@ -626,11 +630,12 @@ router.get('/submission-readiness', adminOnly, async (req, res, next) => {
     const examComplete   = totalStudents > 0 && examScoredCount === totalStudents;
     const missingModes   = missingModesRes.rows.map(r => r.name);
     const assessments    = incompleteRes.rows.map(r => ({
-      label:    r.label,
-      modeName: r.mode_name,
-      actedOn:  r.acted_on,
-      total:    totalStudents,
-      complete: r.acted_on >= totalStudents,
+      label:       r.label,
+      modeName:    r.mode_name,
+      teacherName: r.teacher_name,
+      actedOn:     r.acted_on,
+      total:       totalStudents,
+      complete:    r.acted_on >= totalStudents,
     }));
 
     res.json({
@@ -654,8 +659,9 @@ router.get('/readiness-check', async (req, res, next) => {
     const sem = parseInt(semester);
     const p   = [req.schoolId, academic_year_id, sem, subject, class_name];
     const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, sem);
+    const totalStudents = roster.length;
 
-    const [examRes, missingRes, scoredExamRes, scoredCaRes] = await Promise.all([
+    const [examRes, missingRes, scoredExamRes, scoredCaRes, incompleteRes] = await Promise.all([
       // A: any exam score entered?
       pool.query(
         `SELECT COUNT(*) AS cnt FROM exam_scores
@@ -695,22 +701,48 @@ router.get('/readiness-check', async (req, res, next) => {
            AND asc2.student_id = ANY($6::uuid[])`,
         [...p, roster]
       ),
+      // F: assessments where some students are still not acted on — from ANY
+      // teacher sharing this subject/class/period, not just the caller, so a
+      // co-teacher's incomplete assessment shows up here before the teacher
+      // even attempts to submit (POST /submit enforces the same check).
+      pool.query(
+        `SELECT a.id, a.teacher_id, COALESCE(t.name, 'a former teacher') AS teacher_name,
+                COALESCE(a.title, m.name || ' #' || ROW_NUMBER() OVER (PARTITION BY a.mode_id ORDER BY a.created_at)) AS label,
+                m.name AS mode_name,
+                COUNT(DISTINCT CASE WHEN (sc.score IS NOT NULL OR sc.absent = true) AND sc.student_id = ANY($6::uuid[]) THEN sc.student_id END)::int AS acted_on
+         FROM assessments a
+         JOIN assessment_modes m ON m.id = a.mode_id
+         LEFT JOIN teachers t ON t.id = a.teacher_id
+         LEFT JOIN assessment_scores sc ON sc.assessment_id = a.id
+         WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
+           AND LOWER(a.subject)=LOWER($4) AND LOWER(a.class_name)=LOWER($5)
+         GROUP BY a.id, a.teacher_id, t.name, m.name, m.id
+         HAVING COUNT(DISTINCT CASE WHEN (sc.score IS NOT NULL OR sc.absent = true) AND sc.student_id = ANY($6::uuid[]) THEN sc.student_id END) < $7`,
+        [...p, roster, totalStudents]
+      ),
     ]);
 
-    const totalStudents    = roster.length;
     const examScoredCount  = parseInt(scoredExamRes.rows[0].cnt);
     const examComplete     = totalStudents > 0 && examScoredCount === totalStudents;
     const missingModes     = missingRes.rows.map(r => r.name);
     const studentsWithoutAnyCA = Math.max(0, totalStudents - parseInt(scoredCaRes.rows[0].cnt));
+    const incompleteAssessments = incompleteRes.rows.map(r => ({
+      id:          r.id,
+      label:       r.label,
+      modeName:    r.mode_name,
+      actedOn:     r.acted_on,
+      teacherName: r.teacher_name,
+      isOwn:       r.teacher_id === req.user.id,
+    }));
 
     res.json({
       examScoredCount,
       examComplete,
       totalStudents,
       missingModes,
-      incompleteAssessments: [],
+      incompleteAssessments,
       studentsWithoutAnyCA,
-      canSubmit: examComplete && missingModes.length === 0,
+      canSubmit: examComplete && missingModes.length === 0 && incompleteAssessments.length === 0,
     });
   } catch (err) { next(err); }
 });
@@ -769,28 +801,50 @@ router.post('/submit', async (req, res, next) => {
       return res.status(400).json({ error: `Missing assessments for: ${names}. Every CA mode must have at least one assessment before submitting.` });
     }
 
-    // Check C: every CA assessment owned by this teacher must have ALL students acted on
-    // (scored or absent). We scope to teacher_id so the check is consistent with what
-    // the teacher sees in their UI — assessments created by other teachers or via admin
-    // actions are not the submitting teacher's responsibility to complete.
+    // Check C: every CA assessment for this subject/class/period — from ANY
+    // teacher, not just the submitter — must have ALL students acted on
+    // (scored or absent). A shared subject's CA grade is computed from every
+    // teacher's assessments, so a co-teacher's incomplete one blocks the
+    // subject regardless of who created it. Scoped to the whole subject+
+    // class+period (not teacher_id) specifically so a co-teacher's leftover
+    // or forgotten assessment can't silently sit in the table and only
+    // surface as a mysterious block at HOD/admin approval — the submitting
+    // teacher is told exactly whose assessment is holding things up.
     const { rows: incomplete } = await pool.query(
-      `SELECT a.id,
+      `SELECT a.id, a.teacher_id,
+              COALESCE(t.name, 'a former teacher') AS teacher_name,
               COALESCE(a.title, m.name || ' #' || ROW_NUMBER() OVER (PARTITION BY a.mode_id ORDER BY a.created_at)) AS label,
               COUNT(DISTINCT CASE WHEN (sc.score IS NOT NULL OR sc.absent = true) AND sc.student_id = ANY($6::uuid[]) THEN sc.student_id END)::int AS acted_on
        FROM assessments a
        JOIN assessment_modes m ON m.id = a.mode_id
+       LEFT JOIN teachers t ON t.id = a.teacher_id
        LEFT JOIN assessment_scores sc ON sc.assessment_id = a.id
        WHERE a.school_id=$1 AND a.academic_year_id=$2 AND a.semester=$3
          AND LOWER(a.subject)=LOWER($4) AND LOWER(a.class_name)=LOWER($5)
-         AND a.teacher_id = $8
-       GROUP BY a.id, m.name, m.id
+       GROUP BY a.id, a.teacher_id, t.name, m.name, m.id
        HAVING COUNT(DISTINCT CASE WHEN (sc.score IS NOT NULL OR sc.absent = true) AND sc.student_id = ANY($6::uuid[]) THEN sc.student_id END) < $7`,
-      [...p, roster, totalStudents, req.user.id]
+      [...p, roster, totalStudents]
     );
     if (incomplete.length) {
-      const names = incomplete.map(a => `"${a.label}" (${a.acted_on}/${totalStudents})`).join(', ');
+      const own = incomplete.filter(a => a.teacher_id === req.user.id);
+      const others = incomplete.filter(a => a.teacher_id !== req.user.id);
+      const sentences = [];
+      if (own.length) {
+        const names = own.map(a => `"${a.label}" (${a.acted_on}/${totalStudents})`).join(', ');
+        sentences.push(`You have an incomplete assessment: ${names}.`);
+      }
+      if (others.length) {
+        const byTeacher = new Map();
+        for (const a of others) {
+          if (!byTeacher.has(a.teacher_name)) byTeacher.set(a.teacher_name, []);
+          byTeacher.get(a.teacher_name).push(`"${a.label}" (${a.acted_on}/${totalStudents})`);
+        }
+        for (const [teacherName, labels] of byTeacher) {
+          sentences.push(`Co-teacher ${teacherName} has an incomplete assessment for this subject: ${labels.join(', ')}.`);
+        }
+      }
       return res.status(400).json({
-        error: `Some assessments are incomplete: ${names}. All students must have a score or be marked absent before submitting.`,
+        error: `Cannot submit — not every student has a score or an absence marked yet. ${sentences.join(' ')} All students must have a score or be marked absent before this subject can be submitted.`,
       });
     }
 

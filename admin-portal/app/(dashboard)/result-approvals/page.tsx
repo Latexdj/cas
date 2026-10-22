@@ -34,7 +34,7 @@ const SUB_STATUS: Record<string, { label: string; color: string; bg: string }> =
   published:      { label: 'Published',      color: '#0B3D2E', bg: '#D1EAD9' },
 };
 
-interface AssessmentCheck { label: string; modeName: string; actedOn: number; total: number; complete: boolean; }
+interface AssessmentCheck { label: string; modeName: string; teacherName: string; actedOn: number; total: number; complete: boolean; }
 interface ReadinessData {
   totalStudents:  number;
   examScoredCount: number;
@@ -392,7 +392,7 @@ export default function ResultApprovalsPage() {
                         ))}
                         {readiness.assessments.map(a => (
                           <div key={a.label} style={rowStyle}>
-                            <span style={{ display: 'flex', alignItems: 'center' }}>{tick(a.complete)}<span style={{ color: '#374151' }}>{a.label} <span style={{ color: '#94A3B8', fontSize: 11 }}>({a.modeName})</span></span></span>
+                            <span style={{ display: 'flex', alignItems: 'center' }}>{tick(a.complete)}<span style={{ color: '#374151' }}>{a.label} <span style={{ color: '#94A3B8', fontSize: 11 }}>({a.modeName} — by {a.teacherName})</span></span></span>
                             <span style={{ fontWeight: 600, color: a.complete ? '#145C44' : '#DC2626' }}>{a.actedOn} / {a.total} students</span>
                           </div>
                         ))}
