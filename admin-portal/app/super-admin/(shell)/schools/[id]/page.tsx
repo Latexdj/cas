@@ -59,6 +59,7 @@ const LICENSABLE_ROWS: { label: string; keys: string[] }[] = [
   { label: 'Website',          keys: ['website'] },
   { label: 'Exam Results Analysis', keys: ['exam_results'] },
   { label: 'Clinic',           keys: ['clinic'] },
+  { label: 'Board Reports',    keys: ['board_reports'] },
 ];
 
 function fmtDate(iso: string | null) {

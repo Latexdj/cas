@@ -6,6 +6,7 @@ const ALL_MODULE_KEYS = [
   'remedial_lessons', 'assessments', 'houses',
   'exeat', 'clearance', 'library', 'classroom_qr', 'fees', 'inventory',
   'admissions', 'lms', 'discipline', 'website', 'exam_results', 'clinic',
+  'board_reports',
 ];
 
 // `licensable` marks which modules can ever be toggled off for a school via
@@ -40,6 +41,7 @@ const MODULE_REGISTRY = [
   { key: 'website',            label: 'Website',              description: 'Public school website / landing page builder',                     core: false, licensable: true,  defaultFor: 'all' },
   { key: 'exam_results',       label: 'Exam Results Analysis', description: 'WAEC results listing import and GES-style Analysis Report generation', core: false, licensable: true,  defaultFor: ['SHS','Technical'] },
   { key: 'clinic',             label: 'School Clinic',        description: 'Student and staff clinic visit logging and health records',         core: false, licensable: true,  defaultFor: ['SHS'] },
+  { key: 'board_reports',      label: 'Board Reports',        description: 'AI-drafted board reports grounded in the school\'s own recorded data', core: false, licensable: true,  defaultFor: [] },
 ];
 
 function defaultModulesForType(schoolType, schoolCategory) {

@@ -7,7 +7,27 @@ const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { fetchChunksRAG } = require('../utils/rag');
 const { isBlocked } = require('../utils/letterSensitivity');
 
-router.use(authenticate, requireActiveSubscription, checkModuleAccess('discipline'));
+router.use(authenticate, requireActiveSubscription);
+
+// Every document_type here used to be gated on the single 'discipline'
+// module via router.use. board_report sessions are gated on their own
+// 'board_reports' module key instead — a school can have one enabled
+// without the other, so the check has to run per-type, after the type is
+// known, rather than once for the whole router.
+function moduleKeyForDocType(documentType) {
+  return documentType === 'board_report' ? 'board_reports' : 'discipline';
+}
+
+// Runs checkModuleAccess's middleware without the full Express next()
+// machinery. On denial, checkModuleAccess already sent the response itself
+// (403 JSON) — this returns false in that case so the caller just stops;
+// it never double-sends.
+async function passesModuleGate(req, res, moduleKey) {
+  let allowed = false, caughtErr = null;
+  await checkModuleAccess(moduleKey)(req, res, (err) => { if (err) caughtErr = err; else allowed = true; });
+  if (caughtErr) throw caughtErr;
+  return allowed;
+}
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -184,6 +204,23 @@ Your role:
 - Keep the tone direct, clear, and professional — internal staff communication, not a formal letter to an external party
 - Write as a school administrator addressing colleagues, not as if addressing one specific named individual`;
 
+  } else if (documentType === 'board_report') {
+    base = `You are assisting an admin at ${schoolName} in writing a report for the school board, covering ${metadata?.period_label ?? 'the selected period'}.
+
+GROUNDING DATA — the only facts you may state (embedded below as structured figures):
+────────────────────────────────────────
+${JSON.stringify(metadata?.facts ?? {}, null, 2)}
+────────────────────────────────────────
+
+Your role:
+- Write a complete, multi-section narrative report. Do not ask clarifying questions first — all the facts you need are in the block above; write the full report immediately.
+- Use ONLY the figures in the GROUNDING DATA block. Never state a number, percentage, or count that is not present there, and never estimate or infer one that isn't.
+- If a section's underlying data is empty or absent from the block, say so plainly (e.g. "No clinic visits were logged this period") rather than omitting the section or inventing content.
+- Structure the report into clearly labeled sections, each with its own header written in plain ALL-CAPS text on its own line (e.g. "ACADEMIC PERFORMANCE", "ATTENDANCE", "DISCIPLINE", "EXEAT", "CLINIC", "FINANCE", "ENROLLMENT") — do not use markdown headers (#, ##) or bold for these, just the plain capitalized line.
+- Open with a brief executive summary section before the detailed sections.
+- Write in a formal, analytical register suited to a board audience: note trends, flag concerns, highlight improvements, but never speculate beyond what the figures show.
+- When asked to revise (e.g. "shorten the discipline section", "emphasize the pass rate"), return the full report again with that section changed, not just the changed section in isolation.`;
+
   } else {
     // teacher_query (default fallback)
     base = `You are assisting an admin at ${schoolName} in drafting a formal query letter to a teacher.
@@ -304,8 +341,15 @@ router.post('/start', adminOrManagement, async (req, res, next) => {
   try {
     const { document_type, metadata } = req.body;
 
-    if (!['teacher_query', 'student_letter', 'general_letter', 'memo'].includes(document_type)) {
-      return res.status(400).json({ error: 'document_type must be teacher_query, student_letter, general_letter, or memo' });
+    if (!['teacher_query', 'student_letter', 'general_letter', 'memo', 'board_report'].includes(document_type)) {
+      return res.status(400).json({ error: 'document_type must be teacher_query, student_letter, general_letter, memo, or board_report' });
+    }
+    if (!(await passesModuleGate(req, res, moduleKeyForDocType(document_type)))) return;
+    // board_report sessions are created directly by POST /api/board-report/generate
+    // (it already has its own subject-less facts payload) — this /start route
+    // is for the conversational-intake document types only.
+    if (document_type === 'board_report') {
+      return res.status(400).json({ error: 'board_report sessions are created via POST /api/board-report/generate' });
     }
     if (!metadata?.subject?.trim()) {
       return res.status(400).json({ error: 'metadata.subject is required' });
@@ -426,6 +470,7 @@ router.post('/:session_id/message', adminOrManagement, async (req, res, next) =>
     if (!sRows.length) return res.status(404).json({ error: 'Session not found' });
 
     const session = sRows[0];
+    if (!(await passesModuleGate(req, res, moduleKeyForDocType(session.document_type)))) return;
     if (session.finalized_at) return res.status(400).json({ error: 'Session already finalized' });
     if (new Date(session.expires_at) < new Date()) {
       return res.status(400).json({ error: 'Session expired — please start a new draft session' });
@@ -457,7 +502,7 @@ router.post('/:session_id/message', adminOrManagement, async (req, res, next) =>
 
     const response = await anthropic.messages.create({
       model:      'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
+      max_tokens: session.document_type === 'board_report' ? 4000 : 1500,
       system:     systemPrompt,
       messages:   updatedMessages,
     });
@@ -479,6 +524,13 @@ router.post('/:session_id/message', adminOrManagement, async (req, res, next) =>
 // Returns: { messages }
 router.patch('/:session_id/finalize', adminOrManagement, async (req, res, next) => {
   try {
+    const { rows: typeRows } = await pool.query(
+      `SELECT document_type FROM letter_draft_sessions WHERE id = $1 AND school_id = $2`,
+      [req.params.session_id, req.schoolId]
+    );
+    if (!typeRows.length) return res.status(404).json({ error: 'Session not found or already finalized' });
+    if (!(await passesModuleGate(req, res, moduleKeyForDocType(typeRows[0].document_type)))) return;
+
     const { rows } = await pool.query(
       `UPDATE letter_draft_sessions
        SET finalized_at = now(), updated_at = now()
@@ -501,8 +553,15 @@ router.get('/:session_id', async (req, res, next) => {
       [req.params.session_id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Session not found' });
+    if (!(await passesModuleGate(req, res, moduleKeyForDocType(rows[0].document_type)))) return;
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
 
 module.exports = router;
+// Reused by board-report.js's POST /generate, which makes its own first
+// Claude call directly (the board_report type skips the clarifying-questions
+// intake every other document_type goes through via /start).
+module.exports.buildSystemPrompt = buildSystemPrompt;
+module.exports.stripMarkdown = stripMarkdown;
+module.exports.stripConversationalFraming = stripConversationalFraming;

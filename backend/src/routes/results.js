@@ -347,12 +347,11 @@ async function loadTermTrend(schoolId, effectiveStatus) {
 // the number that actually matches a student's report card. The one
 // exception is the by_term trend (see loadTermTrend) which stays on the
 // cheaper exam_scores-only average for performance reasons.
-router.get('/analytics', adminOnly, async (req, res, next) => {
-  try {
-    const { academic_year_id, semester, status } = req.query;
-    if (!academic_year_id || !semester) {
-      return res.status(400).json({ error: 'academic_year_id and semester are required' });
-    }
+// computeResultsAnalytics: extracted so other routes (the board-report
+// aggregator) can reuse the exact same pass-rate/grade-distribution numbers
+// this page shows, rather than a second computation that could drift out of
+// sync with it — same convention as computeAssessmentMonitorRows.
+async function computeResultsAnalytics(schoolId, academicYearId, semester, status) {
     const semInt = parseInt(semester);
     const effectiveStatus = status || 'Active';
 
@@ -362,7 +361,7 @@ router.get('/analytics', adminOnly, async (req, res, next) => {
          UNION
          SELECT class_name FROM assessments WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
        ) t WHERE class_name IS NOT NULL`,
-      [req.schoolId, academic_year_id, semInt]
+      [schoolId, academicYearId, semInt]
     );
     const classNames = classRows.map(r => r.class_name);
 
@@ -371,13 +370,13 @@ router.get('/analytics', adminOnly, async (req, res, next) => {
     // (same simplification the older ACADEMIC_REPORTS already accept),
     // since the full CA+exam blend across every term * class would mean
     // re-running assembleResults() for the school's entire history.
-    const byTerm = await loadTermTrend(req.schoolId, effectiveStatus);
+    const byTerm = await loadTermTrend(schoolId, effectiveStatus);
 
     if (!classNames.length) {
-      return res.json({
+      return {
         summary: { total_students: 0, average: null, pass_rate: null, highest_class_avg: null, lowest_class_avg: null },
         by_class: [], by_subject: [], grade_distribution: [], by_term: byTerm,
-      });
+      };
     }
 
     // Sequential, not Promise.all — assembleResults() itself opens several
@@ -387,7 +386,7 @@ router.get('/analytics', adminOnly, async (req, res, next) => {
     // latency is a fair trade for not falling over under load.
     const classResults = [];
     for (const cn of classNames) {
-      classResults.push(await assembleResults(req.schoolId, academic_year_id, semInt, cn));
+      classResults.push(await assembleResults(schoolId, academicYearId, semInt, cn));
     }
 
     // Active by default, 'all' to include graduated — same parameterized
@@ -396,7 +395,7 @@ router.get('/analytics', adminOnly, async (req, res, next) => {
     if (effectiveStatus !== 'all') {
       const allStudentIds = [...new Set(classResults.flatMap(cr => cr.results.map(r => r.student_id)))];
       const { rows: statusRows } = allStudentIds.length
-        ? await pool.query(`SELECT id, status FROM students WHERE school_id = $1 AND id = ANY($2::uuid[])`, [req.schoolId, allStudentIds])
+        ? await pool.query(`SELECT id, status FROM students WHERE school_id = $1 AND id = ANY($2::uuid[])`, [schoolId, allStudentIds])
         : { rows: [] };
       statusByStudent = new Map(statusRows.map(r => [r.id, r.status]));
     }
@@ -475,7 +474,7 @@ router.get('/analytics', adminOnly, async (req, res, next) => {
       }))
       .sort((a, b) => a.exam_body.localeCompare(b.exam_body));
 
-    res.json({
+    return {
       summary: {
         total_students: overallCount,
         average: overallCount ? Math.round((overallSum / overallCount) * 10) / 10 : null,
@@ -487,7 +486,16 @@ router.get('/analytics', adminOnly, async (req, res, next) => {
       by_subject: bySubject,
       grade_distribution: gradeDistribution,
       by_term: byTerm,
-    });
+    };
+}
+
+router.get('/analytics', adminOnly, async (req, res, next) => {
+  try {
+    const { academic_year_id, semester, status } = req.query;
+    if (!academic_year_id || !semester) {
+      return res.status(400).json({ error: 'academic_year_id and semester are required' });
+    }
+    res.json(await computeResultsAnalytics(req.schoolId, academic_year_id, semester, status));
   } catch (err) { next(err); }
 });
 
@@ -971,3 +979,4 @@ module.exports = router;
 // CA+exam blend rather than maintaining two implementations of it.
 module.exports.assembleResults = assembleResults;
 module.exports.loadTermTrend = loadTermTrend;
+module.exports.computeResultsAnalytics = computeResultsAnalytics;

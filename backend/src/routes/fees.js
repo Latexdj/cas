@@ -1363,4 +1363,49 @@ router.get('/reports/income-vs-expenditure', adminOnly, async (req, res, next) =
   } catch (err) { next(err); }
 });
 
+// GET /api/fees/reports/summary — period-scoped version of /stats, for the
+// board-report aggregator. Billed/collected/outstanding are scoped by
+// year_id/semester (student_bills carries both, same as /reports/arrears);
+// expenses have no period column of their own, only expense_date, so they're
+// scoped by from/to instead — callers resolve their chosen academic
+// year/semester to a date range themselves (same convention already used by
+// /reports/income-vs-expenditure above).
+router.get('/reports/summary', adminOnly, async (req, res, next) => {
+  try {
+    const { year_id, semester, from, to } = req.query;
+    const billParams = [req.schoolId];
+    let billClause = 'sb.school_id = $1';
+    if (year_id)  { billParams.push(year_id);        billClause += ` AND sb.academic_year_id = $${billParams.length}`; }
+    if (semester) { billParams.push(Number(semester)); billClause += ` AND sb.semester = $${billParams.length}`; }
+
+    const expenseParams = [req.schoolId];
+    let expenseClause = 'se.school_id = $1';
+    if (from) { expenseParams.push(from); expenseClause += ` AND se.expense_date >= $${expenseParams.length}`; }
+    if (to)   { expenseParams.push(to);   expenseClause += ` AND se.expense_date <= $${expenseParams.length}`; }
+
+    const [billedRes, collectedRes, expenseRes] = await Promise.all([
+      pool.query(`SELECT COALESCE(SUM(sb.amount),0) AS total, COUNT(DISTINCT sb.student_id)::int AS students FROM student_bills sb WHERE ${billClause}`, billParams),
+      pool.query(
+        `SELECT COALESCE(SUM(fp.amount),0) AS total
+         FROM fee_payments fp JOIN student_bills sb ON sb.id = fp.bill_id
+         WHERE ${billClause.replace(/sb\./g, 'sb.')}`,
+        billParams
+      ),
+      pool.query(`SELECT COALESCE(SUM(se.amount),0) AS total FROM school_expenses se WHERE ${expenseClause}`, expenseParams),
+    ]);
+
+    const total_billed    = Number(billedRes.rows[0].total);
+    const total_collected = Number(collectedRes.rows[0].total);
+    const total_expenses  = Number(expenseRes.rows[0].total);
+    res.json({
+      total_billed,
+      total_collected,
+      outstanding:         total_billed - total_collected,
+      total_expenses,
+      net_position:        total_collected - total_expenses,
+      students_with_bills: billedRes.rows[0].students,
+    });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

@@ -461,6 +461,55 @@ router.post('/:id/return', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /api/exeat/summary  (admin — optional from/to departure_date range) ──
+// exeats has no academic_year_id/semester column, only departure_date, so
+// callers (including the board-report aggregator) resolve a period to a
+// date range themselves and pass from/to — same convention GET / already
+// uses for its own from/to filters.
+router.get('/summary', adminOnly, async (req, res, next) => {
+  try {
+    await autoMarkOverdue(req.schoolId);
+    const { from, to } = req.query;
+    const params  = [req.schoolId];
+    const filters = [];
+    if (from) { params.push(from); filters.push(`departure_date >= $${params.length}`); }
+    if (to)   { params.push(to);   filters.push(`departure_date <= $${params.length}`); }
+    const extra = filters.length ? 'AND ' + filters.join(' AND ') : '';
+
+    const { rows } = await pool.query(
+      `SELECT
+         COUNT(*)                                                     AS total,
+         COUNT(*) FILTER (WHERE exeat_type = 'internal')              AS internal,
+         COUNT(*) FILTER (WHERE exeat_type = 'external')              AS external,
+         COUNT(*) FILTER (WHERE status = 'pending')                   AS pending,
+         COUNT(*) FILTER (WHERE status = 'active')                    AS active,
+         COUNT(*) FILTER (WHERE status = 'returned')                  AS returned,
+         COUNT(*) FILTER (WHERE status = 'overdue')                   AS overdue,
+         COUNT(*) FILTER (WHERE status = 'rejected')                  AS rejected,
+         AVG(
+           EXTRACT(EPOCH FROM (
+             (actual_return_date::timestamp + actual_return_time) -
+             (departure_date::timestamp + departure_time)
+           )) / 3600.0
+         ) FILTER (WHERE status = 'returned' AND actual_return_date IS NOT NULL) AS avg_duration_hours
+       FROM exeats WHERE school_id = $1 ${extra}`,
+      params
+    );
+    const r = rows[0];
+    res.json({
+      total: parseInt(r.total),
+      internal: parseInt(r.internal),
+      external: parseInt(r.external),
+      pending: parseInt(r.pending),
+      active: parseInt(r.active),
+      returned: parseInt(r.returned),
+      overdue: parseInt(r.overdue),
+      rejected: parseInt(r.rejected),
+      avg_duration_hours: r.avg_duration_hours != null ? Math.round(parseFloat(r.avg_duration_hours) * 10) / 10 : null,
+    });
+  } catch (err) { next(err); }
+});
+
 // ── POST /api/exeat/:id/reject ────────────────────────────────────────────────
 router.post('/:id/reject', async (req, res, next) => {
   try {

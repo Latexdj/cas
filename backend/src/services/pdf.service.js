@@ -1324,6 +1324,132 @@ async function generateChartPngBuffer(subjects, { width = 820, height = 380 } = 
   }
 }
 
+// ── Board Report ──────────────────────────────────────────────────────────
+
+// Splits the AI's plain-text output into sections on its own ALL-CAPS
+// header lines (the system prompt instructs it to write exactly these, with
+// no markdown) — a header line is short, non-empty, and contains no
+// lowercase letters.
+function splitReportIntoSections(reportText) {
+  const lines = (reportText || '').split('\n');
+  const isHeaderLine = (line) => {
+    const t = line.trim();
+    if (!t || t.length > 70) return false;
+    return /[A-Z]/.test(t) && !/[a-z]/.test(t) && /^[A-Z0-9 &\-,']+$/.test(t);
+  };
+  const sections = [];
+  let current = { header: null, body: [] };
+  for (const line of lines) {
+    if (isHeaderLine(line)) {
+      if (current.header || current.body.some(l => l.trim())) sections.push(current);
+      current = { header: line.trim(), body: [] };
+    } else {
+      current.body.push(line);
+    }
+  }
+  if (current.header || current.body.some(l => l.trim())) sections.push(current);
+  return sections;
+}
+
+// Maps a parsed section header back to the one facts sub-object it narrates,
+// so the Key Figures table under it is never AI-transcribed — same figures
+// the prompt itself was grounded on.
+function factsForSectionHeader(header, facts) {
+  if (/ACADEM|RESULT/i.test(header)) return { label: 'Academic Performance', data: { ...facts.academics, by_class: undefined, by_subject: undefined, result_entry: undefined } };
+  if (/ATTEND/i.test(header)) return { label: 'Attendance', data: { staff: facts.attendance?.staff, students: facts.attendance?.students } };
+  if (/DISCIPLIN|CONDUCT/i.test(header)) return { label: 'Discipline', data: facts.discipline };
+  if (/EXEAT/i.test(header)) return { label: 'Exeat', data: facts.exeat };
+  if (/CLINIC|HEALTH/i.test(header)) return { label: 'Clinic', data: { ...facts.clinic, by_severity: undefined, by_outcome: undefined, by_patient_type: undefined } };
+  if (/FINANC|FEE|BUDGET/i.test(header)) return { label: 'Finance', data: facts.finance };
+  if (/ENROL/i.test(header)) return { label: 'Enrollment', data: { total_active_students: facts.enrollment?.total_active_students } };
+  return null;
+}
+
+// Flattens one level of nested objects into "parent child" labels; arrays
+// are skipped (the AI narrative already covers them — this table is a
+// compact numeric appendix, not a full data dump).
+function flattenFacts(obj, prefix = '') {
+  const out = [];
+  for (const [k, v] of Object.entries(obj || {})) {
+    if (v == null || Array.isArray(v)) continue;
+    const label = prefix ? `${prefix} ${k}` : k;
+    if (typeof v === 'object') { out.push(...flattenFacts(v, label)); continue; }
+    out.push([label.replace(/_/g, ' '), v]);
+  }
+  return out;
+}
+
+function buildBoardReportHTML(reportText, facts, school) {
+  const sections = splitReportIntoSections(reportText);
+  const generatedOn = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  const sectionHTML = sections.map(s => {
+    const paragraphs = s.body.join('\n').split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    const bodyHTML = paragraphs.map(p => `<p style="margin:0 0 10px;">${esc(p).replace(/\n/g, '<br/>')}</p>`).join('');
+    const figures = s.header ? factsForSectionHeader(s.header, facts) : null;
+    const rows = figures ? flattenFacts(figures.data) : [];
+    const figuresHTML = rows.length
+      ? `<table class="figures"><tr><td colspan="2" class="figures-title">${esc(figures.label)} — Key Figures</td></tr>
+         ${rows.map(([label, value]) => `<tr><td>${esc(label)}</td><td class="num">${esc(String(value))}</td></tr>`).join('')}
+         </table>`
+      : '';
+    return `<div class="section">
+      ${s.header ? `<h3>${esc(s.header)}</h3>` : ''}
+      ${bodyHTML}
+      ${figuresHTML}
+    </div>`;
+  }).join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light"><style>
+    * { box-sizing: border-box; }
+    html, body { background: #FFFFFF; }
+    body { font-family: Georgia, 'Times New Roman', serif; font-size: 11pt; color: #2A2620; line-height: 1.6; margin: 0; }
+    .meta-bar { display: flex; justify-content: space-between; font-size: 8pt; color: #7A7266; margin-bottom: 18px; font-family: Arial, Helvetica, sans-serif; }
+    .section { margin-bottom: 20px; page-break-inside: avoid; }
+    .section h3 { font-size: 11.5pt; letter-spacing: 0.03em; color: #0B3D2E; border-bottom: 1.5px solid #0B3D2E; padding-bottom: 4px; margin: 0 0 10px; font-family: Arial, Helvetica, sans-serif; }
+    table.figures { width: 100%; border-collapse: collapse; margin-top: 6px; font-family: Arial, Helvetica, sans-serif; font-size: 8.5pt; }
+    table.figures td { border: 1px solid #DDD6C8; padding: 3px 8px; }
+    table.figures .figures-title { background: #F4EFE3; font-weight: bold; color: #0B3D2E; }
+    table.figures .num { text-align: right; font-weight: bold; width: 110px; }
+  </style></head><body>
+    ${renderLetterhead(school)}
+    <div class="meta-bar">
+      <span>Board Report — ${esc(facts?.period?.period_label ?? '')}</span>
+      <span>Generated ${generatedOn}</span>
+    </div>
+    ${sectionHTML}
+  </body></html>`;
+}
+
+// Returns a PDF buffer directly (no Supabase upload) — same rationale as
+// generateExamAnalysisReportPDFBuffer: the report is always computed live
+// and re-exportable on demand, so persisting every export attempt to
+// storage would just accumulate orphaned files.
+async function generateBoardReportPDFBuffer(reportText, facts, school) {
+  const html = buildBoardReportHTML(reportText, facts, school);
+  const executablePath = await resolveChromePath();
+  const browser = await puppeteer.launch({
+    args:            chromeLaunchArgs(),
+    defaultViewport: chromium.defaultViewport,
+    executablePath,
+    headless:        true,
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
+    return Buffer.from(await page.pdf({
+      format: 'A4', landscape: false, printBackground: true,
+      margin: { top: '18mm', right: '18mm', bottom: '16mm', left: '18mm' },
+      displayHeaderFooter: true,
+      headerTemplate: '<div></div>',
+      footerTemplate: `<div style="width:100%;font-size:7pt;color:#7A7266;display:flex;justify-content:space-between;padding:0 18mm;font-family:Arial,Helvetica,sans-serif;">
+        <span>CAS Services</span><span class="pageNumber"></span>/<span class="totalPages"></span></div>`,
+    }));
+  } finally {
+    await browser.close();
+  }
+}
+
 module.exports = {
   generateAndUploadPDF, buildLetterHTML,
   buildAdmissionLetterHTML, generateAdmissionLetterPDF,
@@ -1332,4 +1458,5 @@ module.exports = {
   buildBatchHTML, generateBatchAndUpload,
   generateCardPng,
   buildExamAnalysisReportHTML, generateExamAnalysisReportPDFBuffer, generateChartPngBuffer,
+  buildBoardReportHTML, generateBoardReportPDFBuffer,
 };

@@ -77,6 +77,7 @@ const examsRoutes             = require('./routes/exams');
 const noticesRoutes           = require('./routes/notices');
 const disciplineRoutes        = require('./routes/discipline');
 const letterChatRoutes        = require('./routes/letter-chat');
+const boardReportRoutes       = require('./routes/board-report');
 const helpChatRoutes          = require('./routes/help-chat');
 const policyDocumentsRoutes   = require('./routes/policy-documents');
 const resumptionRoutes        = require('./routes/resumption');
@@ -199,6 +200,7 @@ app.use('/api/general-letters',       require('./routes/general-letters'));
 app.use('/api/memos',                 require('./routes/memos'));
 app.use('/api/admin-module-access',   require('./routes/admin-module-access'));
 app.use('/api/letter-chat',           letterChatRoutes);
+app.use('/api/board-report',          boardReportRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
 app.use('/api/resumption',            resumptionRoutes);
 app.use('/api/roll-call',             rollCallRoutes);
@@ -3214,6 +3216,19 @@ async function runMigrations() {
         EXCEPTION WHEN OTHERS THEN NULL; END $$
       `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] memo schema:', e.message); }
+
+    // Widen letter_draft_sessions.document_type again to add 'board_report' —
+    // same drop/recreate pattern as the 'memo' addition just above.
+    try {
+      await pool.query(`
+        DO $$ BEGIN
+          ALTER TABLE letter_draft_sessions DROP CONSTRAINT IF EXISTS letter_draft_sessions_document_type_check;
+          ALTER TABLE letter_draft_sessions
+            ADD CONSTRAINT letter_draft_sessions_document_type_check
+            CHECK (document_type IN ('teacher_query','student_letter','general_letter','memo','board_report'));
+        EXCEPTION WHEN OTHERS THEN NULL; END $$
+      `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] board_report schema:', e.message); }
 
     // ── Per-admin module access scoping ──────────────────────────────────────
     // Absence of rows for a teacher_id = unrestricted (full access to whatever

@@ -69,7 +69,10 @@ router.get('/queries', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/discipline/queries/stats
+// GET /api/discipline/queries/stats — optional academic_year_id (teacher_queries
+// has no semester column, so that's the only period filter available here).
+// Omitted, behaves exactly as before (all-time) for the existing Discipline
+// page; the board-report aggregator always passes it.
 router.get('/queries/stats', async (req, res, next) => {
   try {
     const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
@@ -78,7 +81,11 @@ router.get('/queries/stats', async (req, res, next) => {
     if (!isAdmin) {
       if (req.user.role !== 'teacher') return res.status(403).json({ error: 'Access denied' });
       params.push(req.user.id);
-      extra = ` AND teacher_id = $${params.length}`;
+      extra += ` AND teacher_id = $${params.length}`;
+    }
+    if (req.query.academic_year_id) {
+      params.push(req.query.academic_year_id);
+      extra += ` AND academic_year_id = $${params.length}`;
     }
     const { rows } = await pool.query(
       `SELECT
@@ -353,8 +360,21 @@ router.get('/letters', adminOnly, async (req, res, next) => {
 });
 
 // GET /api/discipline/letters/stats (admin)
+// Optional academic_year_id/semester — omitted, behaves exactly as before
+// (all-time) for the existing Discipline page; the board-report aggregator
+// always passes both.
 router.get('/letters/stats', adminOnly, async (req, res, next) => {
   try {
+    const params = [req.schoolId];
+    let extra = '';
+    if (req.query.academic_year_id) {
+      params.push(req.query.academic_year_id);
+      extra += ` AND academic_year_id = $${params.length}`;
+    }
+    if (req.query.semester) {
+      params.push(req.query.semester);
+      extra += ` AND semester = $${params.length}`;
+    }
     const { rows } = await pool.query(
       `SELECT
          COUNT(*)                                                          AS total,
@@ -365,8 +385,8 @@ router.get('/letters/stats', adminOnly, async (req, res, next) => {
          COUNT(*) FILTER (WHERE letter_type = 'final_warning')            AS final_warning,
          COUNT(*) FILTER (WHERE letter_type = 'suspension')               AS suspension,
          COUNT(*) FILTER (WHERE letter_type = 'dismissal')                AS dismissal
-       FROM student_disciplinary_letters WHERE school_id = $1`,
-      [req.schoolId]
+       FROM student_disciplinary_letters WHERE school_id = $1${extra}`,
+      params
     );
     res.json(rows[0]);
   } catch (err) { next(err); }
