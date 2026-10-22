@@ -6,13 +6,12 @@ const { getClassRoster, mapWithLimit } = require('../services/classHistory.servi
 
 router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('assessments'));
 
-// GET /api/assessment-monitoring?academic_year_id=&semester=&department=&teacher_id=
-router.get('/', async (req, res, next) => {
-  try {
-    const { academic_year_id, semester, department, teacher_id } = req.query;
-    if (!academic_year_id || !semester) {
-      return res.status(400).json({ error: 'academic_year_id and semester are required' });
-    }
+// computeAssessmentMonitorRows: the full teacher x subject x class CA/exam
+// completeness computation, extracted so other routes (discipline.js's
+// missing-results queries) can reuse the exact same roster-correct numbers
+// and mode_breakdown shape the assessment tracker UI shows, instead of a
+// second, narrower reimplementation drifting out of sync with it.
+async function computeAssessmentMonitorRows(pool, schoolId, academicYearId, semester, { department, teacherId } = {}) {
     const semInt = parseInt(semester);
 
     // ── 1. All CA modes for this school ────────────────────────────────────────
@@ -20,14 +19,14 @@ router.get('/', async (req, res, next) => {
       `SELECT id, name, ca_contribution, max_instances, sort_order
        FROM assessment_modes WHERE school_id = $1
        ORDER BY sort_order, name`,
-      [req.schoolId]
+      [schoolId]
     );
 
     // ── 2. Build optional teacher/department filters ───────────────────────────
     const extraConds = [];
-    const params = [req.schoolId, academic_year_id, semInt];
+    const params = [schoolId, academicYearId, semInt];
     if (department) { params.push(department); extraConds.push(`te.department = $${params.length}`); }
-    if (teacher_id) { params.push(teacher_id); extraConds.push(`te.id = $${params.length}`); }
+    if (teacherId)  { params.push(teacherId);  extraConds.push(`te.id = $${params.length}`); }
     const extraWhere = extraConds.length ? 'AND ' + extraConds.join(' AND ') : '';
 
     // ── 3. Timetable matrix (teacher × subject × class) ───────────────────────
@@ -111,7 +110,7 @@ router.get('/', async (req, res, next) => {
     //        narrows the view down to one teacher's few rows.
     const distinctClasses = [...new Set(rows.map(r => r.class_name))];
     const rosterByClass = await mapWithLimit(distinctClasses, 3, async cls =>
-      [cls.toLowerCase(), await getClassRoster(req.schoolId, cls, academic_year_id, semInt)]
+      [cls.toLowerCase(), await getClassRoster(schoolId, cls, academicYearId, semInt)]
     );
     const rosterCountMap = Object.fromEntries(rosterByClass.map(([key, ids]) => [key, ids.length]));
     const rosterClassKeys  = [];
@@ -135,7 +134,7 @@ router.get('/', async (req, res, next) => {
          ON roster.class_key = LOWER(a.class_name) AND roster.student_id = asc2.student_id
        WHERE a.school_id = $1 AND a.academic_year_id = $2 AND a.semester = $3
        GROUP BY a.teacher_id, LOWER(a.subject), LOWER(a.class_name), a.mode_id`,
-      [req.schoolId, academic_year_id, semInt, rosterClassKeys, rosterStudentIds]
+      [schoolId, academicYearId, semInt, rosterClassKeys, rosterStudentIds]
     );
 
     // Index modeCounts by "teacherId|subjectKey|classKey|modeId"
@@ -157,7 +156,7 @@ router.get('/', async (req, res, next) => {
          ON roster.class_key = LOWER(es.class_name) AND roster.student_id = es.student_id
        WHERE es.school_id = $1 AND es.academic_year_id = $2 AND es.semester = $3
        GROUP BY es.teacher_id, LOWER(es.subject), LOWER(es.class_name)`,
-      [req.schoolId, academic_year_id, semInt, rosterClassKeys, rosterStudentIds]
+      [schoolId, academicYearId, semInt, rosterClassKeys, rosterStudentIds]
     );
 
     const examMap = {};
@@ -235,8 +234,20 @@ router.get('/', async (req, res, next) => {
       published:       withStatus.filter(r => r.status === 'published').length,
     };
 
-    res.json({ summary, rows: withStatus, modes });
+    return { summary, rows: withStatus, modes };
+}
+
+// GET /api/assessment-monitoring?academic_year_id=&semester=&department=&teacher_id=
+router.get('/', async (req, res, next) => {
+  try {
+    const { academic_year_id, semester, department, teacher_id } = req.query;
+    if (!academic_year_id || !semester) {
+      return res.status(400).json({ error: 'academic_year_id and semester are required' });
+    }
+    const result = await computeAssessmentMonitorRows(pool, req.schoolId, academic_year_id, semester, { department, teacherId: teacher_id });
+    res.json(result);
   } catch (err) { next(err); }
 });
 
 module.exports = router;
+module.exports.computeAssessmentMonitorRows = computeAssessmentMonitorRows;

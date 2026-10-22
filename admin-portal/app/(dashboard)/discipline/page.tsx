@@ -647,12 +647,38 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated, autoFill
 }
 
 // ─── Missing Results Modal ─────────────────────────────────────────────────────
-// Finds teachers with incomplete end-of-semester exam scores and hands off to
-// IssueQueryModal's autoFill flow, one teacher at a time — no bulk-issue here
-// by design, each query is reviewed and submitted individually.
+// Finds teachers with incomplete results and hands off to IssueQueryModal's
+// autoFill flow, one teacher at a time — no bulk-issue here by design, each
+// query is reviewed and submitted individually. The per-combo breakdown
+// (mode_breakdown + exam) is the exact same shape and numbers the Assessment
+// Tracker's own "Details" view shows, since both are computed by the same
+// backend function — entered vs. outstanding per CA mode, not just exam scores.
 
-interface MissingResultsCombo { subject: string; class_name: string; exam_scored: number; roster: number; submission_status: string; }
+interface MissingResultsModeBreakdown { mode_id: string; mode_name: string; max_instances: number | null; assessments_created: number; students_scored: number; }
+interface MissingResultsCombo {
+  subject: string; class_name: string; total_students: number;
+  exam_students_scored: number; exam_complete: boolean;
+  mode_breakdown: MissingResultsModeBreakdown[];
+  submission_status: string | null; status: string;
+}
 interface MissingResultsTeacher { teacher_id: string; teacher_name: string; department: string | null; email: string | null; teacher_code: string; combos: MissingResultsCombo[]; }
+
+// "Entered X, Y left" per outstanding item within one combo — CA modes with
+// no assessment created yet are called out separately from modes that are
+// genuinely partially scored, since those need different wording in a letter.
+function outstandingItems(c: MissingResultsCombo): string[] {
+  const items: string[] = [];
+  for (const m of c.mode_breakdown) {
+    if (m.assessments_created === 0) { items.push(`${m.mode_name}: no assessment created yet`); continue; }
+    if (m.students_scored < c.total_students) {
+      items.push(`${m.mode_name}: ${m.students_scored} of ${c.total_students} students scored, ${c.total_students - m.students_scored} left`);
+    }
+  }
+  if (!c.exam_complete) {
+    items.push(`Exam: ${c.exam_students_scored} of ${c.total_students} students scored, ${c.total_students - c.exam_students_scored} left`);
+  }
+  return items;
+}
 
 function buildMissingResultsAutoFill(t: MissingResultsTeacher, ayId: string, ayName: string, semester: string): QueryAutoFill {
   const deadline = new Date();
@@ -665,8 +691,7 @@ function buildMissingResultsAutoFill(t: MissingResultsTeacher, ayId: string, ayN
     : `Unentered ${ayName} Semester ${semester} Results — ${t.combos.length} Classes`;
 
   const incidentLines = t.combos.map(c => {
-    const missing = c.roster - c.exam_scored;
-    const base = `${c.subject} (${c.class_name}): ${c.exam_scored} of ${c.roster} students scored, ${missing} outstanding.`;
+    const base = `${c.subject} (${c.class_name}): ${outstandingItems(c).join('; ')}.`;
     return c.submission_status === 'rejected' ? `${base} This submission was returned for correction and has not been resubmitted.` : base;
   });
 
@@ -679,7 +704,7 @@ function buildMissingResultsAutoFill(t: MissingResultsTeacher, ayId: string, ayN
     academicYearId: ayId,
     deadline: deadlineStr,
     intake: {
-      incident: `As of today, end-of-semester exam results have not been fully entered into CAS for the following:\n\n${incidentLines.join('\n')}`,
+      incident: `As of today, results have not been fully entered into CAS for the following:\n\n${incidentLines.join('\n')}`,
       date_period: `${ayName}, Semester ${semester}`,
       prior_context: hasRejected ? 'One of these submissions was already returned for correction by the reviewing authority and has not been resubmitted.' : '',
       expected_response: `Written confirmation of when all outstanding results will be entered, by ${deadlineLabel}.`,
@@ -716,7 +741,16 @@ function MissingResultsModal({ academicYears, handledTeacherIds, onClose, onDraf
     } finally { setLoading(false); }
   }
 
-  const totalStudents = candidates.reduce((sum, t) => sum + t.combos.reduce((s, c) => s + (c.roster - c.exam_scored), 0), 0);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  function toggleExpanded(teacherId: string) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(teacherId)) next.delete(teacherId); else next.add(teacherId);
+      return next;
+    });
+  }
+
+  const totalCombos = candidates.reduce((sum, t) => sum + t.combos.length, 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(11,61,46,0.45)' }}>
@@ -726,7 +760,7 @@ function MissingResultsModal({ academicYears, handledTeacherIds, onClose, onDraf
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
         </div>
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>
-          Checks exam scores against each class's real roster for the period you pick. Drafting a query opens the same AI-assisted compose flow as "Issue Query" — review, edit, and submit each one yourself; nothing is sent automatically.
+          Checks every CA mode and exam scores against each class's real roster for the period you pick — same breakdown as the Assessment Tracker's "Details" view. Drafting a query opens the same AI-assisted compose flow as "Issue Query" — review, edit, and submit each one yourself; nothing is sent automatically.
         </p>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 18, flexWrap: 'wrap' }}>
@@ -762,23 +796,30 @@ function MissingResultsModal({ academicYears, handledTeacherIds, onClose, onDraf
         {checked && candidates.length > 0 && (
           <>
             <p style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>
-              {candidates.length} teacher{candidates.length !== 1 ? 's' : ''}, {totalStudents} student result{totalStudents !== 1 ? 's' : ''} outstanding.
+              {candidates.length} teacher{candidates.length !== 1 ? 's' : ''}, {totalCombos} subject/class combination{totalCombos !== 1 ? 's' : ''} incomplete.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {candidates.map(t => {
                 const handled = handledTeacherIds.has(t.teacher_id);
-                const missing = t.combos.reduce((s, c) => s + (c.roster - c.exam_scored), 0);
+                const isExpanded = expanded.has(t.teacher_id);
                 return (
                   <div key={t.teacher_id} style={{ border: `1px solid ${handled ? '#B8D9C8' : C.border}`, borderRadius: 10, padding: '12px 14px', background: handled ? '#F0FAF4' : '#fff' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-                      <div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 13, fontWeight: 700, color: C.dark, margin: 0 }}>
                           {t.teacher_name}{handled && <span style={{ color: C.success, fontWeight: 700, marginLeft: 8 }}>✓ Drafted</span>}
                         </p>
-                        <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>{t.department || '—'} · {missing} student result{missing !== 1 ? 's' : ''} outstanding</p>
-                        <p style={{ fontSize: 11, color: C.mid2, margin: '6px 0 0', lineHeight: 1.6 }}>
-                          {t.combos.map(c => `${c.subject} (${c.class_name}: ${c.exam_scored}/${c.roster})`).join(' · ')}
+                        <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>
+                          {t.department || '—'} · {t.combos.length} class{t.combos.length !== 1 ? 'es' : ''} incomplete
                         </p>
+                        <button onClick={() => toggleExpanded(t.teacher_id)}
+                          style={{ marginTop: 6, background: 'none', border: 'none', color: C.mid, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <svg viewBox="0 0 16 16" width={10} height={10} fill="none" stroke="currentColor" strokeWidth={2.5}
+                            style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
+                            <path d="M6 3l5 5-5 5" />
+                          </svg>
+                          {isExpanded ? 'Hide details' : 'Show details'}
+                        </button>
                       </div>
                       <button
                         onClick={() => onDraftQuery(buildMissingResultsAutoFill(t, ayId, ayName, semester))}
@@ -786,6 +827,48 @@ function MissingResultsModal({ academicYears, handledTeacherIds, onClose, onDraf
                         {handled ? 'Draft again' : 'Draft query'}
                       </button>
                     </div>
+
+                    {isExpanded && (
+                      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {t.combos.map((c, i) => (
+                          <div key={i} style={{ border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
+                            <div style={{ padding: '6px 10px', background: C.bg, fontSize: 11, fontWeight: 700, color: C.mid2, display: 'flex', justifyContent: 'space-between' }}>
+                              <span>{c.subject} · {c.class_name}</span>
+                              <span style={{ color: C.muted, fontWeight: 600 }}>{c.total_students} students{c.submission_status === 'rejected' ? ' · Rejected, not resubmitted' : ''}</span>
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                              <tbody>
+                                {c.mode_breakdown.map(m => {
+                                  const done = m.assessments_created >= 1 && c.total_students > 0 && m.students_scored >= c.total_students;
+                                  const started = m.assessments_created >= 1 || m.students_scored > 0;
+                                  return (
+                                    <tr key={m.mode_id} style={{ borderTop: `1px solid ${C.bg}` }}>
+                                      <td style={{ padding: '5px 10px', color: C.dark, fontWeight: 600 }}>{m.mode_name}</td>
+                                      <td style={{ padding: '5px 10px', textAlign: 'right', color: m.students_scored > 0 ? C.dark : C.muted }}>
+                                        {m.students_scored} / {c.total_students} entered
+                                      </td>
+                                      <td style={{ padding: '5px 10px 5px 0', textAlign: 'right', fontWeight: 700, color: done ? C.success : started ? C.warning : C.danger, whiteSpace: 'nowrap' }}>
+                                        {done ? '✓ Done' : started ? `⚠ ${c.total_students - m.students_scored} left` : '✗ Not started'}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                <tr style={{ borderTop: `1px solid ${C.bg}`, background: '#FAFAF8' }}>
+                                  <td style={{ padding: '5px 10px', color: C.dark, fontWeight: 600, fontStyle: 'italic' }}>Exam Scores</td>
+                                  <td style={{ padding: '5px 10px', textAlign: 'right', color: c.exam_students_scored > 0 ? C.dark : C.muted }}>
+                                    {c.exam_students_scored} / {c.total_students} entered
+                                  </td>
+                                  <td style={{ padding: '5px 10px 5px 0', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap',
+                                    color: c.exam_complete ? C.success : c.exam_students_scored > 0 ? C.warning : C.danger }}>
+                                    {c.exam_complete ? '✓ Done' : c.exam_students_scored > 0 ? `⚠ ${c.total_students - c.exam_students_scored} left` : '✗ Not started'}
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
