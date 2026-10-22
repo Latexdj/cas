@@ -8,6 +8,7 @@ const { generateAndUploadPDF }    = require('../services/pdf.service');
 const { queryFlaggedStudents, queryFlaggedTeachers, queryThresholds } = require('../utils/discipline-flags');
 const { returnLetterForCorrection, resubmitLetter, getReturnHistory } = require('../services/letterApproval.service');
 const { sanitizeRichText } = require('../utils/richTextSanitizer');
+const { getClassRoster, mapWithLimit } = require('../services/classHistory.service');
 
 router.use(authenticate, requireActiveSubscription, checkModuleAccess('discipline'));
 
@@ -93,6 +94,119 @@ router.get('/queries/stats', async (req, res, next) => {
       params
     );
     res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// GET /api/discipline/queries/missing-results — teachers with incomplete
+// end-of-semester exam scores for a given period, grouped by teacher, for
+// the "draft a query from this" flow in the frontend. Roster-aware (same
+// getClassRoster logic the rest of the results pipeline uses), not a raw
+// row-count check — a teacher only shows up here for a subject/class they
+// genuinely own students in for this exact period.
+router.get('/queries/missing-results', adminOnly, async (req, res, next) => {
+  try {
+    const { academic_year_id, semester } = req.query;
+    if (!academic_year_id || !semester) {
+      return res.status(400).json({ error: 'academic_year_id and semester are required' });
+    }
+    const sem = parseInt(semester);
+
+    // Candidate pool: every (teacher, subject, class) combo with any real
+    // footprint this period — assessments created, or a result submission —
+    // same "started or should have started" definition used elsewhere.
+    const { rows: combos } = await pool.query(
+      `SELECT DISTINCT subject, class_name, teacher_id FROM (
+         SELECT subject, class_name, teacher_id FROM assessments
+         WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3
+         UNION
+         SELECT rs.subject, rs.class_name, rs.teacher_id FROM result_submissions rs
+         WHERE rs.school_id = $1 AND rs.academic_year_id = $2 AND rs.semester = $3
+       ) x WHERE teacher_id IS NOT NULL`,
+      [req.schoolId, academic_year_id, sem]
+    );
+
+    // Roster per distinct class only needs computing once, not once per
+    // combo — several subjects/teachers usually share the same class. Fanned
+    // out with bounded concurrency (mapWithLimit, same convention used
+    // elsewhere against this pool) rather than one class at a time — with
+    // dozens of distinct classes behind a single-digit-ms-to-multi-second
+    // Supabase round trip, doing this sequentially is the difference between
+    // a few seconds and the better part of a minute.
+    const distinctClasses = [...new Set(combos.map(c => c.class_name))];
+    const rosterEntries = await mapWithLimit(distinctClasses, 3, async (className) =>
+      [className, await getClassRoster(req.schoolId, className, academic_year_id, sem)]
+    );
+    const rosterByClass = new Map(rosterEntries);
+
+    // Exam scores and submission statuses for the whole period, fetched once
+    // each — not once per combo (that was 2×168 round trips for this exact
+    // report). Per-student roster filtering happens in JS against the
+    // already-resolved roster sets above.
+    const comboKey = (subject, className) => `${subject.toLowerCase()}|${className.toLowerCase()}`;
+    const [examRows, subRows] = await Promise.all([
+      pool.query(
+        `SELECT student_id, subject, class_name FROM exam_scores
+         WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3 AND score IS NOT NULL`,
+        [req.schoolId, academic_year_id, sem]
+      ),
+      pool.query(
+        `SELECT subject, class_name, teacher_id, status FROM result_submissions
+         WHERE school_id = $1 AND academic_year_id = $2 AND semester = $3`,
+        [req.schoolId, academic_year_id, sem]
+      ),
+    ]);
+    const scoredByCombo = new Map(); // comboKey -> Set(student_id)
+    for (const r of examRows.rows) {
+      const key = comboKey(r.subject, r.class_name);
+      if (!scoredByCombo.has(key)) scoredByCombo.set(key, new Set());
+      scoredByCombo.get(key).add(r.student_id);
+    }
+    const subStatusByCombo = new Map(); // `${comboKey}|${teacher_id}` -> status
+    for (const r of subRows.rows) {
+      subStatusByCombo.set(`${comboKey(r.subject, r.class_name)}|${r.teacher_id}`, r.status);
+    }
+
+    const incomplete = [];
+    for (const c of combos) {
+      const roster = rosterByClass.get(c.class_name);
+      if (!roster.length) continue;
+
+      const scoredSet = scoredByCombo.get(comboKey(c.subject, c.class_name)) ?? new Set();
+      const examScored = roster.filter(id => scoredSet.has(id)).length;
+      if (examScored < roster.length) {
+        incomplete.push({
+          teacher_id: c.teacher_id, subject: c.subject, class_name: c.class_name,
+          exam_scored: examScored, roster: roster.length,
+          submission_status: subStatusByCombo.get(`${comboKey(c.subject, c.class_name)}|${c.teacher_id}`) ?? 'not_started',
+        });
+      }
+    }
+    if (!incomplete.length) return res.json([]);
+
+    const { rows: teacherRows } = await pool.query(
+      `SELECT id, name, department, email, teacher_code FROM teachers
+       WHERE id = ANY($1::uuid[]) AND school_id = $2`,
+      [[...new Set(incomplete.map(r => r.teacher_id))], req.schoolId]
+    );
+    const teacherById = Object.fromEntries(teacherRows.map(t => [t.id, t]));
+
+    const byTeacher = new Map();
+    for (const r of incomplete) {
+      const t = teacherById[r.teacher_id];
+      if (!t) continue; // teacher deleted/inactive since — skip rather than show a blank row
+      if (!byTeacher.has(r.teacher_id)) {
+        byTeacher.set(r.teacher_id, {
+          teacher_id: r.teacher_id, teacher_name: t.name, department: t.department,
+          email: t.email, teacher_code: t.teacher_code, combos: [],
+        });
+      }
+      byTeacher.get(r.teacher_id).combos.push({
+        subject: r.subject, class_name: r.class_name,
+        exam_scored: r.exam_scored, roster: r.roster, submission_status: r.submission_status,
+      });
+    }
+
+    res.json([...byTeacher.values()].sort((a, b) => b.combos.length - a.combos.length));
   } catch (err) { next(err); }
 });
 

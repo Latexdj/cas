@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { PrintLetterModal } from '@/components/PrintLetterModal';
 import { StructuredIntake } from '@/components/StructuredIntake';
-import { INTAKE_FIELDS } from '@/lib/intake-fields';
+import { INTAKE_FIELDS, assembleIntakeMessage } from '@/lib/intake-fields';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { plainTextToHtml, isHtmlEmpty } from '@/lib/richText';
 
@@ -346,20 +346,32 @@ function ChatPanel({ messages, input, onInputChange, onSend, loading, error, onU
 
 // ─── Issue Query Modal ────────────────────────────────────────────────────────
 
-function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
+interface QueryAutoFill {
+  teacher: Teacher;
+  category: string;
+  subject: string;
+  academicYearId?: string;
+  deadline?: string;
+  // Keyed by INTAKE_FIELDS.teacher_query[].key — same shape a human would
+  // have typed into the intake card, so the AI sees an identical prompt.
+  intake: Record<string, string>;
+}
+
+function IssueQueryModal({ teachers, academicYears, onClose, onCreated, autoFill }: {
   teachers: Teacher[]; academicYears: AcademicYear[];
   onClose: () => void; onCreated: (q: TeacherQuery) => void;
+  autoFill?: QueryAutoFill;
 }) {
   const [teacherSearch, setTeacherSearch] = useState('');
-  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
+  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(autoFill?.teacher ?? null);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [category, setCategory] = useState('');
+  const [category, setCategory] = useState(autoFill?.category ?? '');
   const [categoryOther, setCategoryOther] = useState('');
-  const [subject, setSubject] = useState('');
+  const [subject, setSubject] = useState(autoFill?.subject ?? '');
   const [body, setBody] = useState('');
   const [issuedDate, setIssuedDate] = useState(new Date().toISOString().slice(0, 10));
-  const [deadline, setDeadline] = useState('');
-  const [ayId, setAyId] = useState('');
+  const [deadline, setDeadline] = useState(autoFill?.deadline ?? '');
+  const [ayId, setAyId] = useState(autoFill?.academicYearId ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [showChat, setShowChat] = useState(false);
@@ -373,6 +385,42 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
   const [sessionStarted, setSessionStarted] = useState(false);
   const [chatOpeningMessage, setChatOpeningMessage] = useState('');
   const [intakeSubmitted, setIntakeSubmitted] = useState(false);
+  const autoStartedRef = useRef(false);
+
+  // Auto-fill flow (from the Missing Results panel): skip straight past the
+  // manual teacher/category/subject typing and the intake card, using the
+  // facts already computed from real data — the admin lands directly on a
+  // drafted letter to review, edit, or chat-refine before issuing.
+  useEffect(() => {
+    if (!autoFill || autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    (async () => {
+      setStartingChat(true); setChatError('');
+      try {
+        const { data } = await api.post<{ session_id: string; opening_message: string; grounding_clauses?: GroundingClause[] }>('/api/letter-chat/start', {
+          document_type: 'teacher_query',
+          metadata: { teacher_name: autoFill.teacher.name, department: autoFill.teacher.department, category: autoFill.category, subject: autoFill.subject },
+        });
+        setChatSessionId(data.session_id);
+        setChatOpeningMessage(data.opening_message);
+        setGroundingClauses(data.grounding_clauses ?? []);
+        setSessionStarted(true);
+        setShowChat(true);
+
+        const assembled = assembleIntakeMessage(INTAKE_FIELDS.teacher_query, autoFill.intake);
+        setChatMessages([{ role: 'user', content: assembled, intakeCard: true }]);
+        setIntakeSubmitted(true);
+        setChatLoading(true);
+        const msgRes = await api.post<{ role: string; content: string }>(`/api/letter-chat/${data.session_id}/message`, { content: assembled });
+        setChatMessages(prev => [...prev, { role: 'assistant', content: msgRes.data.content }]);
+      } catch (e: unknown) {
+        const err = e as { response?: { data?: { error?: string } } };
+        setChatError(err.response?.data?.error ?? 'Failed to auto-draft this query. You can still draft it manually below.');
+      } finally {
+        setStartingChat(false); setChatLoading(false);
+      }
+    })();
+  }, [autoFill]);
 
   const filteredTeachers = useMemo(() =>
     teachers.filter(t => t.name.toLowerCase().includes(teacherSearch.toLowerCase()) ||
@@ -593,6 +641,157 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated }: {
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Missing Results Modal ─────────────────────────────────────────────────────
+// Finds teachers with incomplete end-of-semester exam scores and hands off to
+// IssueQueryModal's autoFill flow, one teacher at a time — no bulk-issue here
+// by design, each query is reviewed and submitted individually.
+
+interface MissingResultsCombo { subject: string; class_name: string; exam_scored: number; roster: number; submission_status: string; }
+interface MissingResultsTeacher { teacher_id: string; teacher_name: string; department: string | null; email: string | null; teacher_code: string; combos: MissingResultsCombo[]; }
+
+function buildMissingResultsAutoFill(t: MissingResultsTeacher, ayId: string, ayName: string, semester: string): QueryAutoFill {
+  const deadline = new Date();
+  deadline.setDate(deadline.getDate() + 5);
+  const deadlineStr = deadline.toISOString().slice(0, 10);
+  const deadlineLabel = deadline.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const subject = t.combos.length === 1
+    ? `Unentered ${ayName} Semester ${semester} Results — ${t.combos[0].subject} (${t.combos[0].class_name})`
+    : `Unentered ${ayName} Semester ${semester} Results — ${t.combos.length} Classes`;
+
+  const incidentLines = t.combos.map(c => {
+    const missing = c.roster - c.exam_scored;
+    const base = `${c.subject} (${c.class_name}): ${c.exam_scored} of ${c.roster} students scored, ${missing} outstanding.`;
+    return c.submission_status === 'rejected' ? `${base} This submission was returned for correction and has not been resubmitted.` : base;
+  });
+
+  const hasRejected = t.combos.some(c => c.submission_status === 'rejected');
+
+  return {
+    teacher: { id: t.teacher_id, name: t.teacher_name, department: t.department ?? undefined, status: 'Active' },
+    category: 'poor_performance',
+    subject,
+    academicYearId: ayId,
+    deadline: deadlineStr,
+    intake: {
+      incident: `As of today, end-of-semester exam results have not been fully entered into CAS for the following:\n\n${incidentLines.join('\n')}`,
+      date_period: `${ayName}, Semester ${semester}`,
+      prior_context: hasRejected ? 'One of these submissions was already returned for correction by the reviewing authority and has not been resubmitted.' : '',
+      expected_response: `Written confirmation of when all outstanding results will be entered, by ${deadlineLabel}.`,
+    },
+  };
+}
+
+function MissingResultsModal({ academicYears, handledTeacherIds, onClose, onDraftQuery }: {
+  academicYears: AcademicYear[]; handledTeacherIds: Set<string>;
+  onClose: () => void; onDraftQuery: (autoFill: QueryAutoFill) => void;
+}) {
+  const currentYear = academicYears.find(ay => ay.is_current);
+  const [ayId, setAyId] = useState(currentYear?.id ?? academicYears[0]?.id ?? '');
+  const [semester, setSemester] = useState('2');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [candidates, setCandidates] = useState<MissingResultsTeacher[]>([]);
+  const [checked, setChecked] = useState(false);
+
+  const ayName = academicYears.find(ay => ay.id === ayId)?.name ?? '';
+
+  async function check() {
+    if (!ayId) { setError('Select an academic year'); return; }
+    setLoading(true); setError(''); setChecked(false);
+    try {
+      const { data } = await api.get<MissingResultsTeacher[]>('/api/discipline/queries/missing-results', {
+        params: { academic_year_id: ayId, semester },
+      });
+      setCandidates(data);
+      setChecked(true);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setError(err.response?.data?.error ?? 'Failed to check for missing results');
+    } finally { setLoading(false); }
+  }
+
+  const totalStudents = candidates.reduce((sum, t) => sum + t.combos.reduce((s, c) => s + (c.roster - c.exam_scored), 0), 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(11,61,46,0.45)' }}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 680, maxHeight: '92vh', overflow: 'auto', padding: 28, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <p style={{ fontWeight: 800, fontSize: 17, color: C.dark }}>Missing Results — Draft Queries</p>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
+        </div>
+        <p style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>
+          Checks exam scores against each class's real roster for the period you pick. Drafting a query opens the same AI-assisted compose flow as "Issue Query" — review, edit, and submit each one yourself; nothing is sent automatically.
+        </p>
+
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 18, flexWrap: 'wrap' }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 5 }}>Academic Year</label>
+            <select value={ayId} onChange={e => { setAyId(e.target.value); setChecked(false); }}
+              style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none', minWidth: 160 }}>
+              {academicYears.map(ay => <option key={ay.id} value={ay.id}>{ay.name}{ay.is_current ? ' (Current)' : ''}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 5 }}>Semester</label>
+            <select value={semester} onChange={e => { setSemester(e.target.value); setChecked(false); }}
+              style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none' }}>
+              <option value="1">Semester 1</option>
+              <option value="2">Semester 2</option>
+            </select>
+          </div>
+          <button onClick={check} disabled={loading}
+            style={{ padding: '9px 18px', borderRadius: 10, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 13, cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+            {loading ? 'Checking…' : 'Check'}
+          </button>
+        </div>
+
+        {error && <p style={{ fontSize: 12, color: C.danger, background: C.dangerBg, padding: '8px 12px', borderRadius: 8, marginBottom: 14 }}>{error}</p>}
+
+        {checked && candidates.length === 0 && !error && (
+          <p style={{ fontSize: 13, color: C.mid, background: '#E8F4EE', padding: '12px 14px', borderRadius: 10 }}>
+            No incomplete results found for {ayName} Semester {semester}.
+          </p>
+        )}
+
+        {checked && candidates.length > 0 && (
+          <>
+            <p style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>
+              {candidates.length} teacher{candidates.length !== 1 ? 's' : ''}, {totalStudents} student result{totalStudents !== 1 ? 's' : ''} outstanding.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {candidates.map(t => {
+                const handled = handledTeacherIds.has(t.teacher_id);
+                const missing = t.combos.reduce((s, c) => s + (c.roster - c.exam_scored), 0);
+                return (
+                  <div key={t.teacher_id} style={{ border: `1px solid ${handled ? '#B8D9C8' : C.border}`, borderRadius: 10, padding: '12px 14px', background: handled ? '#F0FAF4' : '#fff' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: C.dark, margin: 0 }}>
+                          {t.teacher_name}{handled && <span style={{ color: C.success, fontWeight: 700, marginLeft: 8 }}>✓ Drafted</span>}
+                        </p>
+                        <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>{t.department || '—'} · {missing} student result{missing !== 1 ? 's' : ''} outstanding</p>
+                        <p style={{ fontSize: 11, color: C.mid2, margin: '6px 0 0', lineHeight: 1.6 }}>
+                          {t.combos.map(c => `${c.subject} (${c.class_name}: ${c.exam_scored}/${c.roster})`).join(' · ')}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => onDraftQuery(buildMissingResultsAutoFill(t, ayId, ayName, semester))}
+                        style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.mid}`, background: handled ? '#fff' : '#E8F4EE', color: C.mid, fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        {handled ? 'Draft again' : 'Draft query'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -1711,6 +1910,9 @@ export default function DisciplinePage() {
   const [qCatFilter, setQCatFilter] = useState('');
   const [qStatusFilter, setQStatusFilter] = useState('');
   const [showIssueQuery, setShowIssueQuery] = useState(false);
+  const [showMissingResults, setShowMissingResults] = useState(false);
+  const [queryAutoFill, setQueryAutoFill] = useState<QueryAutoFill | null>(null);
+  const [handledTeacherIds, setHandledTeacherIds] = useState<Set<string>>(new Set());
 
   // Letters state
   const [letters, setLetters] = useState<DisciplinaryLetter[]>([]);
@@ -1853,6 +2055,11 @@ export default function DisciplinePage() {
               ))}
             </select>
             <div style={{ flex: 1 }} />
+            <button onClick={() => setShowMissingResults(true)}
+              style={{ padding: '8px 18px', borderRadius: 9, border: `1px solid ${C.mid}`, background: '#fff', color: C.mid, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg viewBox="0 0 16 16" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2}><path d="M8 1C4.13 1 1 3.7 1 7c0 1.4.54 2.68 1.44 3.7L1 15l4.5-1.36A7.1 7.1 0 008 14c3.87 0 7-2.7 7-6s-3.13-6-7-6z"/></svg>
+              Missing Results
+            </button>
             <button onClick={() => setShowIssueQuery(true)}
               style={{ padding: '8px 18px', borderRadius: 9, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
               <svg viewBox="0 0 16 16" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2}><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>
@@ -2034,12 +2241,27 @@ export default function DisciplinePage() {
       {tab === 'flagged' && <FlaggedPanel />}
 
       {/* Modals */}
-      {showIssueQuery && (
+      {showMissingResults && !queryAutoFill && (
+        <MissingResultsModal
+          academicYears={academicYears}
+          handledTeacherIds={handledTeacherIds}
+          onClose={() => setShowMissingResults(false)}
+          onDraftQuery={autoFill => setQueryAutoFill(autoFill)}
+        />
+      )}
+
+      {(showIssueQuery || queryAutoFill) && (
         <IssueQueryModal
           teachers={teachers}
           academicYears={academicYears}
-          onClose={() => setShowIssueQuery(false)}
-          onCreated={q => { setQueries(prev => [q, ...prev]); setShowIssueQuery(false); }}
+          autoFill={queryAutoFill ?? undefined}
+          onClose={() => { setShowIssueQuery(false); setQueryAutoFill(null); }}
+          onCreated={q => {
+            setQueries(prev => [q, ...prev]);
+            if (queryAutoFill) setHandledTeacherIds(prev => new Set(prev).add(queryAutoFill.teacher.id));
+            setShowIssueQuery(false);
+            setQueryAutoFill(null);
+          }}
         />
       )}
 
