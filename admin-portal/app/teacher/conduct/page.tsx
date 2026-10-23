@@ -9,6 +9,8 @@ interface TeacherQuery {
   teacher_response_text?: string; teacher_response_file_url?: string; teacher_response_file_name?: string;
   response_submitted_at?: string; resolution_notes?: string;
   resolved_by_name?: string; resolved_at?: string; created_at: string; academic_year_name?: string;
+  ref_number?: string | null; issued_by_signature_url?: string | null;
+  teacher_name?: string; department?: string | null;
 }
 
 const C = {
@@ -41,6 +43,10 @@ function statusBadge(status: string, deadline?: string) {
 function fmt(d?: string) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function firstWord(name?: string) {
+  return name ? name.split(' ')[0] : 'Sir/Madam';
 }
 
 function StatChip({ label, value, color }: { label: string; value: number; color?: string }) {
@@ -197,13 +203,43 @@ function ConductContent() {
                 {/* Expanded content */}
                 {isExpanded && (
                   <div style={{ borderTop: `1px solid ${C.border}`, padding: '16px 18px' }}>
-                    {/* Query body */}
-                    <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Query Details</p>
-                      {/* q.body is sanitized rich-text HTML (same editor the
-                          admin uses to write it) — rendering it as plain text
-                          showed the raw <p>/<br /> tags to the teacher. */}
-                      <div style={{ fontSize: 13, color: C.dark, lineHeight: 1.7, margin: 0 }} dangerouslySetInnerHTML={{ __html: q.body ?? '' }} />
+                    {/* Query body — styled as the actual letter the teacher
+                        received (Ref/Date, To:, underlined subject,
+                        salutation, signed off), matching the format the
+                        admin's print/PDF view already uses for this same
+                        query, instead of a plain text box. */}
+                    <div style={{
+                      background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12,
+                      padding: '26px 28px', marginBottom: 14, boxShadow: '0 1px 3px rgba(44,34,24,0.06)',
+                      fontFamily: 'Georgia, "Times New Roman", serif',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.mid2, marginBottom: 20 }}>
+                        <span><strong>Ref:</strong> {q.ref_number ?? '—'}</span>
+                        <span><strong>Date:</strong> {fmt(q.issued_date)}</span>
+                      </div>
+                      <div style={{ fontSize: 13, color: C.dark, lineHeight: 1.6, marginBottom: 20 }}>
+                        <div>To:</div>
+                        <div style={{ fontWeight: 700 }}>{q.teacher_name ?? ''}</div>
+                        {q.department && <div style={{ color: C.muted }}>{q.department}</div>}
+                      </div>
+                      <p style={{
+                        fontSize: 14, fontWeight: 700, textDecoration: 'underline', textTransform: 'uppercase',
+                        textAlign: 'center', color: C.dark, margin: '0 0 20px',
+                      }}>
+                        {q.subject}
+                      </p>
+                      <p style={{ fontSize: 13, color: C.dark, margin: '0 0 14px' }}>Dear {firstWord(q.teacher_name)},</p>
+                      <div style={{ fontSize: 13, color: C.dark, lineHeight: 1.8, textAlign: 'justify' }}
+                        dangerouslySetInnerHTML={{ __html: q.body ?? '' }} />
+                      <div style={{ marginTop: 28 }}>
+                        <p style={{ fontSize: 13, color: C.dark, margin: 0 }}>Yours faithfully,</p>
+                        {q.issued_by_signature_url ? (
+                          <img src={q.issued_by_signature_url} alt="Signature" style={{ display: 'block', maxHeight: 60, maxWidth: 160, marginTop: 8 }} />
+                        ) : <div style={{ height: 36 }} />}
+                        <div style={{ borderTop: `1px solid ${C.dark}`, width: 200, marginTop: 4, paddingTop: 6 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: C.dark }}>{q.issued_by_name}</div>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Response submitted */}
