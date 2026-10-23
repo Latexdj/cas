@@ -278,6 +278,8 @@ export default function PrincipalDisciplinePage() {
   const [queries, setQueries]             = useState<TeacherQuery[]>([]);
   const [queriesLoading, setQueriesLoading] = useState(true);
   const [selectedQuery, setSelectedQuery] = useState<TeacherQuery | null>(null);
+  const [querySearch, setQuerySearch]         = useState('');
+  const [queryCatFilter, setQueryCatFilter]   = useState('');
   const [queryStatusFilter, setQueryStatusFilter] = useState('');
 
   useEffect(() => {
@@ -295,7 +297,14 @@ export default function PrincipalDisciplinePage() {
   const queryOpen    = queries.filter(q => ['issued','acknowledged','responded'].includes(q.status)).length;
   const queryOverdue = queries.filter(q => q.response_deadline && new Date(q.response_deadline) < new Date() && !['responded','resolved','escalated','voided'].includes(q.status)).length;
   const queryResolved = queries.filter(q => q.status === 'resolved').length;
-  const filteredQueries = queryStatusFilter ? queries.filter(q => q.status === queryStatusFilter) : queries;
+  const filteredQueries = queries.filter(q => {
+    const s = querySearch.trim().toLowerCase();
+    if (s && ![q.teacher_name, q.subject, q.ref_number, q.department, q.category_other, QUERY_CAT_LABELS[q.category] ?? q.category]
+      .some(f => f?.toLowerCase().includes(s))) return false;
+    if (queryCatFilter && q.category !== queryCatFilter) return false;
+    if (queryStatusFilter && q.status !== queryStatusFilter) return false;
+    return true;
+  });
 
   async function approve(id: string) {
     setApproving(true); setApproveErr(''); setApproveOk(false);
@@ -559,7 +568,7 @@ export default function PrincipalDisciplinePage() {
       {/* ── Teacher Queries Tab ── */}
       {tab === 'queries' && (
         <div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
             {[
               { label: 'Total', value: queryTotal },
               { label: 'Open', value: queryOpen, color: C.warning },
@@ -571,7 +580,20 @@ export default function PrincipalDisciplinePage() {
                 <p style={{ fontSize: 20, fontWeight: 800, color: s.color ?? C.dark, margin: 0 }}>{s.value}</p>
               </div>
             ))}
-            <div style={{ flex: 1 }} />
+          </div>
+
+          {/* Search & filter toolbar */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 18 }}>
+            <input value={querySearch} onChange={e => setQuerySearch(e.target.value)}
+              placeholder="Search by teacher, department, subject, or ref…"
+              style={{ flex: '1 1 260px', minWidth: 220, border: `1px solid ${C.border}`, borderRadius: 9, padding: '8px 12px', fontSize: 12, background: '#fff', color: C.dark, outline: 'none' }} />
+            <select value={queryCatFilter} onChange={e => setQueryCatFilter(e.target.value)}
+              style={{ border: `1px solid ${C.border}`, borderRadius: 9, padding: '8px 12px', fontSize: 12, background: '#fff', color: C.dark, outline: 'none' }}>
+              <option value="">All categories</option>
+              {Object.entries(QUERY_CAT_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
             <select value={queryStatusFilter} onChange={e => setQueryStatusFilter(e.target.value)}
               style={{ border: `1px solid ${C.border}`, borderRadius: 9, padding: '8px 12px', fontSize: 12, background: '#fff', color: C.dark, outline: 'none' }}>
               <option value="">All statuses</option>
@@ -579,6 +601,12 @@ export default function PrincipalDisciplinePage() {
                 <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
               ))}
             </select>
+            {(querySearch || queryCatFilter || queryStatusFilter) && (
+              <button onClick={() => { setQuerySearch(''); setQueryCatFilter(''); setQueryStatusFilter(''); }}
+                style={{ border: `1px solid ${C.border}`, borderRadius: 9, padding: '8px 12px', fontSize: 12, background: C.card, color: C.muted, cursor: 'pointer' }}>
+                Clear
+              </button>
+            )}
           </div>
 
           {queriesLoading ? (
@@ -590,7 +618,9 @@ export default function PrincipalDisciplinePage() {
           ) : filteredQueries.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '48px 24px', background: C.card, borderRadius: 16, border: `1px solid ${C.border}` }}>
               <p style={{ fontWeight: 700, color: C.dark, marginBottom: 4 }}>No teacher queries</p>
-              <p style={{ fontSize: 13, color: C.muted }}>Queries issued to teachers by the admin will appear here.</p>
+              <p style={{ fontSize: 13, color: C.muted }}>
+                {queries.length === 0 ? 'Queries issued to teachers by the admin will appear here.' : 'No queries match the current search or filters.'}
+              </p>
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 10 }}>
