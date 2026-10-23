@@ -9,6 +9,14 @@ const { isBlocked } = require('../utils/letterSensitivity');
 
 router.use(authenticate, requireActiveSubscription);
 
+// Sonnet 5.5 (unlike the Haiku model this used to run on) does adaptive
+// thinking by default, which can put a `thinking` block ahead of the
+// `text` block in the response — content[0] is no longer reliably the
+// text, so find it by type instead of assuming its position.
+function extractText(content) {
+  return content?.find(b => b.type === 'text')?.text ?? '';
+}
+
 // Every document_type here used to be gated on the single 'discipline'
 // module via router.use. board_report sessions are gated on their own
 // 'board_reports' module key instead — a school can have one enabled
@@ -501,13 +509,13 @@ router.post('/:session_id/message', adminOrManagement, async (req, res, next) =>
     const updatedMessages = [...(session.messages ?? []), { role: 'user', content: content.trim() }];
 
     const response = await anthropic.messages.create({
-      model:      'claude-haiku-4-5-20251001',
+      model:      'claude-sonnet-5-5',
       max_tokens: session.document_type === 'board_report' ? 4000 : 1500,
       system:     systemPrompt,
       messages:   updatedMessages,
     });
 
-    const aiContent = stripConversationalFraming(stripMarkdown(response.content[0]?.text ?? ''));
+    const aiContent = stripConversationalFraming(stripMarkdown(extractText(response.content)));
     const finalMessages = [...updatedMessages, { role: 'assistant', content: aiContent }];
 
     await pool.query(
@@ -565,3 +573,4 @@ module.exports = router;
 module.exports.buildSystemPrompt = buildSystemPrompt;
 module.exports.stripMarkdown = stripMarkdown;
 module.exports.stripConversationalFraming = stripConversationalFraming;
+module.exports.extractText = extractText;

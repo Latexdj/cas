@@ -6,7 +6,7 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { computeBoardReportFacts } = require('../services/boardReport.service');
 const { generateBoardReportPDFBuffer } = require('../services/pdf.service');
-const { buildSystemPrompt, stripMarkdown, stripConversationalFraming } = require('./letter-chat');
+const { buildSystemPrompt, stripMarkdown, stripConversationalFraming, extractText } = require('./letter-chat');
 
 router.use(authenticate, requireActiveSubscription, adminOnly, checkModuleAccess('board_reports'));
 
@@ -68,12 +68,12 @@ router.post('/generate', async (req, res, next) => {
     const messages = [{ role: 'user', content: 'Write the full board report now.' }];
 
     const response = await anthropic.messages.create({
-      model:      'claude-haiku-4-5-20251001',
+      model:      'claude-sonnet-5-5',
       max_tokens: 4000,
       system:     systemPrompt,
       messages,
     });
-    const reportText = stripConversationalFraming(stripMarkdown(response.content[0]?.text ?? ''));
+    const reportText = stripConversationalFraming(stripMarkdown(extractText(response.content)));
     const finalMessages = [...messages, { role: 'assistant', content: reportText }];
 
     const { rows } = await pool.query(

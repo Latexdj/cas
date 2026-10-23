@@ -200,13 +200,19 @@ router.post('/:session_id/message', async (req, res, next) => {
     const newHistory = [...history, userMsg];
 
     const response = await anthropic.messages.create({
-      model:      'claude-haiku-4-5-20251001',
-      max_tokens: 600,
+      model:      'claude-sonnet-5-5',
+      // Sonnet 5.5 writes fuller answers than the Haiku model this used to
+      // run on — 600 was cutting multi-step how-to answers off mid-sentence.
+      max_tokens: 1000,
       system:     systemMsg?.content ?? '',
       messages:   newHistory,
     });
 
-    const raw = response.content[0]?.type === 'text' ? response.content[0].text : '';
+    // Sonnet 5.5 (unlike the Haiku model this used to run on) does adaptive
+    // thinking by default, which can put a `thinking` block ahead of the
+    // `text` block — find the text block by type rather than assuming
+    // index 0 is it.
+    const raw = response.content?.find(b => b.type === 'text')?.text ?? '';
     let reply = stripMarkdown(raw) || CANNED_NO_MATCH;
 
     // The model is instructed to prefix genuine no-match replies with

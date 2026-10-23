@@ -6,6 +6,14 @@ const { computeStudentResult, computePrimaryStudentResult } = require('../servic
 
 router.use(authenticate, requireActiveSubscription);
 
+// Sonnet 5.5 (unlike the Haiku model this used to run on) does adaptive
+// thinking by default, which can put a `thinking` block ahead of the
+// `text` block in the response — content[0] is no longer reliably the
+// text, so find it by type instead of assuming its position.
+function extractText(content) {
+  return content?.find(b => b.type === 'text')?.text ?? '';
+}
+
 // Per-school concurrency cap: max 5 simultaneous draft requests
 const inFlight = new Map();
 const MAX_CONCURRENT = 5;
@@ -126,13 +134,13 @@ router.post('/draft-remark', async (req, res, next) => {
       const client = new Anthropic({ apiKey: key });
       const prompt = buildPrimaryPrompt(ctx, examples);
       const message = await client.messages.create({
-        model:      'claude-haiku-4-5-20251001',
+        model:      'claude-sonnet-5-5',
         max_tokens: 256,
         system:     PRIMARY_SYSTEM_PROMPT,
         messages:   [{ role: 'user', content: prompt }],
       });
 
-      const draft = stripMarkdown(message.content?.[0]?.text?.trim() ?? '');
+      const draft = stripMarkdown(extractText(message.content).trim());
       return res.json({ draft });
     }
 
@@ -253,13 +261,13 @@ router.post('/draft-remark', async (req, res, next) => {
     const client = new Anthropic({ apiKey: key });
     const prompt = buildPrompt(track, ctx, examples);
     const message = await client.messages.create({
-      model:      'claude-haiku-4-5-20251001',
+      model:      'claude-sonnet-5-5',
       max_tokens: 256,
       system:     SYSTEM_PROMPT,
       messages:   [{ role: 'user', content: prompt }],
     });
 
-    const draft = stripMarkdown(message.content?.[0]?.text?.trim() ?? '');
+    const draft = stripMarkdown(extractText(message.content).trim());
     res.json({ draft });
   } catch (err) {
     console.error('[ai-remarks] error:', err.message);
