@@ -187,7 +187,10 @@ export default function TeacherConductPage() {
                     {/* Query body */}
                     <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
                       <p style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Query Details</p>
-                      <p style={{ fontSize: 13, color: C.dark, lineHeight: 1.7, whiteSpace: 'pre-wrap', margin: 0 }}>{q.body}</p>
+                      {/* q.body is sanitized rich-text HTML (same editor the
+                          admin uses to write it) — rendering it as plain text
+                          showed the raw <p>/<br /> tags to the teacher. */}
+                      <div style={{ fontSize: 13, color: C.dark, lineHeight: 1.7, margin: 0 }} dangerouslySetInnerHTML={{ __html: q.body ?? '' }} />
                     </div>
 
                     {/* Response submitted */}
