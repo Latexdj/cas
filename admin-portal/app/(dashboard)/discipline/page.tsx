@@ -64,11 +64,14 @@ interface TeacherQuery {
   teacher_response_text?: string; teacher_response_file_url?: string; teacher_response_file_name?: string;
   response_submitted_at?: string; resolution_notes?: string;
   resolved_by_name?: string; resolved_at?: string; created_at: string; issued_by_name: string;
-  teacher_id: string; teacher_name: string; department?: string; academic_year_name?: string;
+  teacher_id: string; teacher_name: string; department?: string;
+  academic_year_id?: string; academic_year_name?: string;
   ref_number?: string; issued_by_signature_url?: string; pdf_url?: string;
+  last_edited_by_name?: string; last_edited_at?: string;
+  voided_at?: string; voided_by_name?: string; void_reason?: string;
 }
 
-interface QueryStats { total: string; open: string; issued: string; responded: string; resolved: string; escalated: string; overdue: string; }
+interface QueryStats { total: string; open: string; issued: string; responded: string; resolved: string; escalated: string; draft: string; voided: string; overdue: string; }
 
 interface DisciplinaryLetter {
   id: string; letter_type: string; offense_category: string; offense_other?: string;
@@ -96,14 +99,16 @@ const C = {
 };
 
 function queryStatusBadge(status: string, deadline?: string): { label: string; color: string; bg: string } {
-  const isOverdue = deadline && new Date(deadline) < new Date() && !['responded','resolved','escalated'].includes(status);
+  const isOverdue = deadline && new Date(deadline) < new Date() && !['draft','responded','resolved','escalated','voided'].includes(status);
   if (isOverdue) return { label: 'Overdue', color: C.danger, bg: C.dangerBg };
   const map: Record<string, { label: string; color: string; bg: string }> = {
+    draft:        { label: 'Draft',        color: C.muted,    bg: C.bg },
     issued:       { label: 'Issued',       color: C.warning,  bg: C.warningBg },
     acknowledged: { label: 'Acknowledged', color: C.mid,      bg: '#E8F4EE' },
     responded:    { label: 'Responded',    color: C.forest,   bg: '#D1EAD9' },
     resolved:     { label: 'Resolved',     color: C.success,  bg: '#DCFCE7' },
     escalated:    { label: 'Escalated',    color: C.danger,   bg: C.dangerBg },
+    voided:       { label: 'Voided',       color: C.muted,    bg: '#EDE8DF' },
   };
   return map[status] ?? { label: status, color: C.muted, bg: C.bg };
 }
@@ -357,22 +362,31 @@ interface QueryAutoFill {
   intake: Record<string, string>;
 }
 
-function IssueQueryModal({ teachers, academicYears, onClose, onCreated, autoFill }: {
+function IssueQueryModal({ teachers, academicYears, onClose, onCreated, autoFill, editingQuery }: {
   teachers: Teacher[]; academicYears: AcademicYear[];
   onClose: () => void; onCreated: (q: TeacherQuery) => void;
   autoFill?: QueryAutoFill;
+  // When set, the modal edits this query instead of creating a new one —
+  // 'Save Draft'/'Issue Query' while it's still a draft, or a single 'Save
+  // Changes' once it's already been issued (re-notifies the teacher and
+  // clears the stale PDF on the backend).
+  editingQuery?: TeacherQuery;
 }) {
+  const isEditing = !!editingQuery;
+  const editingDraft = editingQuery?.status === 'draft';
   const [teacherSearch, setTeacherSearch] = useState('');
-  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(autoFill?.teacher ?? null);
+  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(
+    autoFill?.teacher ?? (editingQuery ? { id: editingQuery.teacher_id, name: editingQuery.teacher_name, department: editingQuery.department, status: 'Active' } : null)
+  );
   const [showDropdown, setShowDropdown] = useState(false);
-  const [category, setCategory] = useState(autoFill?.category ?? '');
-  const [categoryOther, setCategoryOther] = useState('');
-  const [subject, setSubject] = useState(autoFill?.subject ?? '');
-  const [body, setBody] = useState('');
-  const [issuedDate, setIssuedDate] = useState(new Date().toISOString().slice(0, 10));
-  const [deadline, setDeadline] = useState(autoFill?.deadline ?? '');
-  const [ayId, setAyId] = useState(autoFill?.academicYearId ?? '');
-  const [saving, setSaving] = useState(false);
+  const [category, setCategory] = useState(autoFill?.category ?? editingQuery?.category ?? '');
+  const [categoryOther, setCategoryOther] = useState(editingQuery?.category_other ?? '');
+  const [subject, setSubject] = useState(autoFill?.subject ?? editingQuery?.subject ?? '');
+  const [body, setBody] = useState(editingQuery?.body ?? '');
+  const [issuedDate, setIssuedDate] = useState(editingQuery?.issued_date ?? new Date().toISOString().slice(0, 10));
+  const [deadline, setDeadline] = useState(autoFill?.deadline ?? editingQuery?.response_deadline ?? '');
+  const [ayId, setAyId] = useState(autoFill?.academicYearId ?? editingQuery?.academic_year_id ?? '');
+  const [saving, setSaving] = useState<'draft' | 'issue' | false>(false);
   const [error, setError] = useState('');
   const [showChat, setShowChat] = useState(false);
   const [chatSessionId, setChatSessionId] = useState('');
@@ -488,22 +502,36 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated, autoFill
     } finally { setChatLoading(false); }
   }
 
-  async function submit() {
+  // asDraft: save without issuing (allowed from the manual create form, and
+  // while re-editing a query that's still a draft). Otherwise this issues —
+  // via POST for a new query, PATCH /:id/finalize for a draft being issued,
+  // or PATCH /:id to save changes to a query that's already out.
+  async function submit(asDraft: boolean) {
     if (!selectedTeacher) { setError('Select a teacher'); return; }
     if (!category) { setError('Select a category'); return; }
     if (!subject.trim()) { setError('Subject is required'); return; }
-    if (isHtmlEmpty(body)) { setError('Body text is required'); return; }
-    setSaving(true); setError('');
+    if (!asDraft && isHtmlEmpty(body)) { setError('Body text is required'); return; }
+    setSaving(asDraft ? 'draft' : 'issue'); setError('');
+    const payload = {
+      teacher_id: selectedTeacher.id, category, category_other: categoryOther || undefined,
+      subject, body, issued_date: issuedDate, response_deadline: deadline || undefined,
+      academic_year_id: ayId || undefined,
+    };
     try {
-      const { data } = await api.post<TeacherQuery>('/api/discipline/queries', {
-        teacher_id: selectedTeacher.id, category, category_other: categoryOther || undefined,
-        subject, body, issued_date: issuedDate, response_deadline: deadline || undefined,
-        academic_year_id: ayId || undefined,
-      });
+      let data: TeacherQuery;
+      if (isEditing && editingDraft && asDraft) {
+        ({ data } = await api.patch<TeacherQuery>(`/api/discipline/queries/${editingQuery!.id}`, payload));
+      } else if (isEditing && editingDraft && !asDraft) {
+        ({ data } = await api.patch<TeacherQuery>(`/api/discipline/queries/${editingQuery!.id}/finalize`, payload));
+      } else if (isEditing) {
+        ({ data } = await api.patch<TeacherQuery>(`/api/discipline/queries/${editingQuery!.id}`, payload));
+      } else {
+        ({ data } = await api.post<TeacherQuery>('/api/discipline/queries', { ...payload, status: asDraft ? 'draft' : undefined }));
+      }
       onCreated(data);
     } catch (e: unknown) {
       const err = e as { response?: { data?: { error?: string } } };
-      setError(err.response?.data?.error ?? 'Failed to issue query');
+      setError(err.response?.data?.error ?? 'Failed to save this query');
     } finally { setSaving(false); }
   }
 
@@ -511,7 +539,9 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated, autoFill
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(11,61,46,0.45)' }}>
       <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 580, maxHeight: '92vh', overflow: 'auto', padding: 28, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <p style={{ fontWeight: 800, fontSize: 17, color: C.dark }}>Issue Query to Teacher</p>
+          <p style={{ fontWeight: 800, fontSize: 17, color: C.dark }}>
+            {!isEditing ? 'Issue Query to Teacher' : editingDraft ? 'Continue Draft Query' : 'Edit Query'}
+          </p>
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
         </div>
 
@@ -636,8 +666,14 @@ function IssueQueryModal({ teachers, academicYears, onClose, onCreated, autoFill
 
           <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
             <button onClick={onClose} style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: `1px solid ${C.border}`, background: C.bg, color: C.mid2, fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-            <button onClick={submit} disabled={saving} style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, fontSize: 13 }}>
-              {saving ? 'Issuing…' : 'Issue Query'}
+            {(!isEditing || editingDraft) && (
+              <button onClick={() => submit(true)} disabled={!!saving}
+                style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: `1px solid ${C.mid}`, background: '#fff', color: C.mid, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, fontSize: 13 }}>
+                {saving === 'draft' ? 'Saving…' : 'Save as Draft'}
+              </button>
+            )}
+            <button onClick={() => submit(false)} disabled={!!saving} style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1, fontSize: 13 }}>
+              {saving === 'issue' ? 'Saving…' : isEditing && !editingDraft ? 'Save Changes' : 'Issue Query'}
             </button>
           </div>
         </div>
@@ -1194,8 +1230,9 @@ function IssueLetterModal({ students, academicYears, schoolInfo, onClose, onCrea
 
 // ─── Query Detail Panel ───────────────────────────────────────────────────────
 
-function QueryDetailPanel({ query, onClose, onUpdate, onPrint }: {
+function QueryDetailPanel({ query, onClose, onUpdate, onPrint, onEdit }: {
   query: TeacherQuery; onClose: () => void; onUpdate: (q: TeacherQuery) => void; onPrint: () => void;
+  onEdit: () => void;
 }) {
   const [resolveNotes, setResolveNotes] = useState('');
   const [escalateNotes, setEscalateNotes] = useState('');
@@ -1203,7 +1240,31 @@ function QueryDetailPanel({ query, onClose, onUpdate, onPrint }: {
   const [error, setError] = useState('');
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(query.pdf_url ?? '');
-  const isClosed = ['resolved', 'escalated'].includes(query.status);
+  const isDraft = query.status === 'draft';
+  const isVoided = query.status === 'voided';
+  const isClosed = ['resolved', 'escalated', 'voided', 'draft'].includes(query.status);
+  const isEditable = ['draft', 'issued', 'acknowledged', 'responded'].includes(query.status);
+  const isVoidable = ['issued', 'acknowledged', 'responded'].includes(query.status);
+
+  // Void (cancel) a query issued wrongly — not a hard delete, see backend
+  // comment on PATCH /:id/void for why the record is kept.
+  const [voidOpen, setVoidOpen] = useState(false);
+  const [voidReason, setVoidReason] = useState('');
+  const [voiding, setVoiding] = useState(false);
+  const [voidErr, setVoidErr] = useState('');
+
+  async function submitVoid() {
+    if (!voidReason.trim()) { setVoidErr('A reason is required.'); return; }
+    setVoiding(true); setVoidErr('');
+    try {
+      const { data } = await api.patch<TeacherQuery>(`/api/discipline/queries/${query.id}/void`, { reason: voidReason.trim() });
+      onUpdate(data);
+      setVoidOpen(false); setVoidReason('');
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setVoidErr(err.response?.data?.error ?? 'Failed to void this query.');
+    } finally { setVoiding(false); }
+  }
 
   async function generatePdf() {
     setGeneratingPdf(true);
@@ -1250,42 +1311,102 @@ function QueryDetailPanel({ query, onClose, onUpdate, onPrint }: {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <Badge label={sLabel} color={sColor} bg={sBg} />
-          <button onClick={onPrint} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, border: `1.5px solid ${C.mid}`, background: 'white', color: C.mid, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
-              <polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" />
-            </svg>
-            Print
-          </button>
+          {isEditable && (
+            <button onClick={onEdit} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, border: `1.5px solid ${C.mid}`, background: 'white', color: C.mid, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              {isDraft ? 'Continue' : 'Edit'}
+            </button>
+          )}
+          {!isDraft && (
+            <button onClick={onPrint} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, border: `1.5px solid ${C.mid}`, background: 'white', color: C.mid, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+                <polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" />
+              </svg>
+              Print
+            </button>
+          )}
+          {isVoidable && !voidOpen && (
+            <button onClick={() => { setVoidOpen(true); setVoidReason(''); setVoidErr(''); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, border: `1.5px solid ${C.danger}`, background: 'white', color: C.danger, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              Void
+            </button>
+          )}
           <button onClick={onClose} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: C.bg, color: C.muted, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
       </div>
 
-      {/* Timeline */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 18, overflowX: 'auto' }}>
-        {STEPS.map((step, idx) => {
-          const done = idx <= currentIdx || (query.status === 'escalated' && idx < 3);
-          const active = idx === currentIdx;
-          return (
-            <div key={step.key} style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 80 }}>
-                <div style={{ width: 28, height: 28, borderRadius: '50%', background: done ? C.mid : C.border, display: 'flex', alignItems: 'center', justifyContent: 'center', border: active ? `2px solid ${C.forest}` : 'none' }}>
-                  {done && <svg viewBox="0 0 12 12" width={12} height={12} fill="none" stroke="#fff" strokeWidth={2}><path d="M2 6l3 3 5-5"/></svg>}
-                </div>
-                <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: done ? C.mid : C.muted, marginTop: 4, whiteSpace: 'nowrap' }}>{step.label}</span>
-              </div>
-              {idx < STEPS.length - 1 && <div style={{ flex: 1, height: 2, background: idx < currentIdx ? C.mid : C.border, minWidth: 30, marginBottom: 16 }} />}
-            </div>
-          );
-        })}
-        {query.status === 'escalated' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 80 }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: C.danger, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg viewBox="0 0 12 12" width={12} height={12} fill="none" stroke="#fff" strokeWidth={2}><path d="M6 2v5M6 9.5v.5"/></svg>
-            </div>
-            <span style={{ fontSize: 10, fontWeight: 700, color: C.danger, marginTop: 4 }}>Escalated</span>
+      {/* Void confirmation */}
+      {voidOpen && (
+        <div style={{ background: C.dangerBg, border: `1px solid #FECACA`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: C.danger, marginBottom: 4 }}>Void this query — issued wrongly</p>
+          <p style={{ fontSize: 11, color: C.mid2, marginBottom: 8, lineHeight: 1.5 }}>
+            Kept on record as voided, no longer counted as open. A reason is required.
+          </p>
+          <textarea value={voidReason} onChange={e => setVoidReason(e.target.value)} rows={2}
+            style={{ width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', fontSize: 12, resize: 'vertical', fontFamily: 'inherit', outline: 'none', color: C.dark, background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
+          {voidErr && <p style={{ fontSize: 12, color: C.danger, marginBottom: 8 }}>{voidErr}</p>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => { setVoidOpen(false); setVoidReason(''); setVoidErr(''); }} disabled={voiding}
+              style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: `1px solid ${C.border}`, background: '#fff', color: C.mid2, fontWeight: 700, fontSize: 12, cursor: voiding ? 'not-allowed' : 'pointer' }}>
+              Cancel
+            </button>
+            <button onClick={submitVoid} disabled={voiding}
+              style={{ flex: 2, padding: '8px 0', borderRadius: 8, border: 'none', background: C.danger, color: '#fff', fontWeight: 800, fontSize: 12, cursor: voiding ? 'not-allowed' : 'pointer', opacity: voiding ? 0.6 : 1 }}>
+              {voiding ? 'Voiding…' : 'Confirm Void'}
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Draft notice */}
+      {isDraft && (
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: C.mid2, margin: 0 }}>
+            This query is still a draft — it has not been issued to {query.teacher_name}, and has no reference number yet.
+          </p>
+        </div>
+      )}
+
+      {/* Voided notice */}
+      {isVoided && (
+        <div style={{ background: '#EDE8DF', border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: C.mid2, margin: 0 }}>
+            Voided by {query.voided_by_name ?? 'an admin'}{query.voided_at ? ` on ${fmt(query.voided_at)}` : ''}
+            {query.void_reason ? <> — &quot;{query.void_reason}&quot;</> : ''}
+          </p>
+        </div>
+      )}
+
+      {/* Timeline */}
+      {!isDraft && !isVoided && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 18, overflowX: 'auto' }}>
+          {STEPS.map((step, idx) => {
+            const done = idx <= currentIdx || (query.status === 'escalated' && idx < 3);
+            const active = idx === currentIdx;
+            return (
+              <div key={step.key} style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 80 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: done ? C.mid : C.border, display: 'flex', alignItems: 'center', justifyContent: 'center', border: active ? `2px solid ${C.forest}` : 'none' }}>
+                    {done && <svg viewBox="0 0 12 12" width={12} height={12} fill="none" stroke="#fff" strokeWidth={2}><path d="M2 6l3 3 5-5"/></svg>}
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: done ? C.mid : C.muted, marginTop: 4, whiteSpace: 'nowrap' }}>{step.label}</span>
+                </div>
+                {idx < STEPS.length - 1 && <div style={{ flex: 1, height: 2, background: idx < currentIdx ? C.mid : C.border, minWidth: 30, marginBottom: 16 }} />}
+              </div>
+            );
+          })}
+          {query.status === 'escalated' && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 80 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: C.danger, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg viewBox="0 0 12 12" width={12} height={12} fill="none" stroke="#fff" strokeWidth={2}><path d="M6 2v5M6 9.5v.5"/></svg>
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 700, color: C.danger, marginTop: 4 }}>Escalated</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Query body */}
       <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
@@ -1294,20 +1415,22 @@ function QueryDetailPanel({ query, onClose, onUpdate, onPrint }: {
       </div>
 
       {/* PDF section */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        {pdfUrl ? (
-          <a href={pdfUrl} target="_blank" rel="noopener noreferrer"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: `1px solid ${C.mid}`, background: '#E8F4EE', color: C.mid, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
-            <svg viewBox="0 0 16 16" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 4a1 1 0 011-1h5l4 4v6a1 1 0 01-1 1H4a1 1 0 01-1-1V4z"/><path d="M9 3v4h4"/></svg>
-            Download PDF
-          </a>
-        ) : null}
-        <button onClick={generatePdf} disabled={generatingPdf}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.bg, color: C.mid2, fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: generatingPdf ? 0.6 : 1 }}>
-          <svg viewBox="0 0 16 16" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}><path d="M8 1v8M5 6l3 3 3-3M2 12v2h12v-2"/></svg>
-          {generatingPdf ? 'Generating…' : pdfUrl ? 'Regenerate PDF' : 'Generate PDF'}
-        </button>
-      </div>
+      {!isDraft && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          {pdfUrl ? (
+            <a href={pdfUrl} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: `1px solid ${C.mid}`, background: '#E8F4EE', color: C.mid, fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>
+              <svg viewBox="0 0 16 16" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 4a1 1 0 011-1h5l4 4v6a1 1 0 01-1 1H4a1 1 0 01-1-1V4z"/><path d="M9 3v4h4"/></svg>
+              Download PDF
+            </a>
+          ) : null}
+          <button onClick={generatePdf} disabled={generatingPdf}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: `1px solid ${C.border}`, background: C.bg, color: C.mid2, fontSize: 12, fontWeight: 600, cursor: 'pointer', opacity: generatingPdf ? 0.6 : 1 }}>
+            <svg viewBox="0 0 16 16" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2}><path d="M8 1v8M5 6l3 3 3-3M2 12v2h12v-2"/></svg>
+            {generatingPdf ? 'Generating…' : pdfUrl ? 'Regenerate PDF' : 'Generate PDF'}
+          </button>
+        </div>
+      )}
 
       {/* Teacher response */}
       {query.teacher_response_text && (
@@ -1995,6 +2118,7 @@ export default function DisciplinePage() {
   const [showIssueQuery, setShowIssueQuery] = useState(false);
   const [showMissingResults, setShowMissingResults] = useState(false);
   const [queryAutoFill, setQueryAutoFill] = useState<QueryAutoFill | null>(null);
+  const [editingQuery, setEditingQuery] = useState<TeacherQuery | null>(null);
   const [handledTeacherIds, setHandledTeacherIds] = useState<Set<string>>(new Set());
 
   // Letters state
@@ -2016,7 +2140,7 @@ export default function DisciplinePage() {
     async function load() {
       setLoading(true);
       const [qRes, qsRes, lRes, lsRes, tRes, sRes, ayRes, schRes] = await Promise.allSettled([
-        api.get<TeacherQuery[]>('/api/discipline/queries'),
+        api.get<TeacherQuery[]>('/api/discipline/queries?status=all'),
         api.get<QueryStats>('/api/discipline/queries/stats'),
         api.get<DisciplinaryLetter[]>('/api/discipline/letters'),
         api.get<LetterStats>('/api/discipline/letters/stats'),
@@ -2115,6 +2239,7 @@ export default function DisciplinePage() {
           {queryStats && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 20 }}>
               <StatCard label="Total" value={queryStats.total} />
+              <StatCard label="Drafts" value={queryStats.draft} />
               <StatCard label="Open" value={queryStats.open} color={C.warning} />
               <StatCard label="Overdue" value={queryStats.overdue} color={C.danger} />
               <StatCard label="Responded" value={queryStats.responded} color={C.mid} />
@@ -2133,7 +2258,7 @@ export default function DisciplinePage() {
             </select>
             <select value={qStatusFilter} onChange={e => setQStatusFilter(e.target.value)} style={{ ...selectStyle, minWidth: 140 }}>
               <option value="">All statuses</option>
-              {['issued','acknowledged','responded','resolved','escalated'].map(s => (
+              {['draft','issued','acknowledged','responded','resolved','escalated','voided'].map(s => (
                 <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
               ))}
             </select>
@@ -2198,6 +2323,7 @@ export default function DisciplinePage() {
                                     setSelectedQuery({ ...selectedQuery, ...updated });
                                   }}
                                   onPrint={() => { setPrintTarget(selectedQuery); setPrintRecipientType('teacher'); }}
+                                  onEdit={() => setEditingQuery(selectedQuery)}
                                 />
                               </td>
                             </tr>
@@ -2333,17 +2459,20 @@ export default function DisciplinePage() {
         />
       )}
 
-      {(showIssueQuery || queryAutoFill) && (
+      {(showIssueQuery || queryAutoFill || editingQuery) && (
         <IssueQueryModal
           teachers={teachers}
           academicYears={academicYears}
           autoFill={queryAutoFill ?? undefined}
-          onClose={() => { setShowIssueQuery(false); setQueryAutoFill(null); }}
+          editingQuery={editingQuery ?? undefined}
+          onClose={() => { setShowIssueQuery(false); setQueryAutoFill(null); setEditingQuery(null); }}
           onCreated={q => {
-            setQueries(prev => [q, ...prev]);
+            setQueries(prev => prev.some(x => x.id === q.id) ? prev.map(x => x.id === q.id ? q : x) : [q, ...prev]);
+            if (selectedQuery?.id === q.id) setSelectedQuery(q);
             if (queryAutoFill) setHandledTeacherIds(prev => new Set(prev).add(queryAutoFill.teacher.id));
             setShowIssueQuery(false);
             setQueryAutoFill(null);
+            setEditingQuery(null);
           }}
         />
       )}

@@ -3230,6 +3230,17 @@ async function runMigrations() {
       `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] board_report schema:', e.message); }
 
+    // teacher_queries draft/edit/void lifecycle — bringing it to parity with
+    // general_letters, which already has status:'draft', an edit-after-issue
+    // PATCH (clearing pdf_url), and a void action.
+    try {
+      await pool.query(`ALTER TABLE teacher_queries ADD COLUMN IF NOT EXISTS last_edited_by_name TEXT`);
+      await pool.query(`ALTER TABLE teacher_queries ADD COLUMN IF NOT EXISTS last_edited_at TIMESTAMPTZ`);
+      await pool.query(`ALTER TABLE teacher_queries ADD COLUMN IF NOT EXISTS voided_at TIMESTAMPTZ`);
+      await pool.query(`ALTER TABLE teacher_queries ADD COLUMN IF NOT EXISTS voided_by_name TEXT`);
+      await pool.query(`ALTER TABLE teacher_queries ADD COLUMN IF NOT EXISTS void_reason TEXT`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] teacher_queries draft/edit/void columns:', e.message); }
+
     // ── Per-admin module access scoping ──────────────────────────────────────
     // Absence of rows for a teacher_id = unrestricted (full access to whatever
     // the school licenses) — same fallback-when-empty idiom as school_modules

@@ -28,8 +28,44 @@ async function generateRefNumber(schoolId) {
 
 // ─── TEACHER QUERIES ──────────────────────────────────────────────────────────
 
+const QUERY_SELECT_FIELDS = `
+  tq.id, tq.ref_number, tq.category, tq.category_other, tq.subject, tq.body,
+  tq.issued_date::text, tq.response_deadline::text,
+  tq.status, tq.teacher_response_text,
+  tq.teacher_response_file_url, tq.teacher_response_file_name,
+  tq.response_submitted_at, tq.resolution_notes,
+  tq.resolved_by_name, tq.resolved_at, tq.created_at, tq.updated_at, tq.issued_by_name,
+  tq.issued_by_signature_url, tq.pdf_url, tq.academic_year_id,
+  tq.last_edited_by_name, tq.last_edited_at,
+  tq.voided_at, tq.voided_by_name, tq.void_reason,
+  t.id AS teacher_id, t.name AS teacher_name, t.department,
+  ay.name AS academic_year_name
+`;
+const QUERY_SELECT_FROM = `
+  FROM teacher_queries tq
+  JOIN teachers t ON t.id = tq.teacher_id
+  LEFT JOIN academic_years ay ON ay.id = tq.academic_year_id
+`;
+
+// Fetches one query with the same joined shape GET /queries returns — used
+// after every mutation (create/finalize/edit/void) so the response always
+// carries teacher_name/department/academic_year_name. A plain `RETURNING *`
+// only has raw teacher_queries columns, which previously made a just-issued
+// query show up in the admin table with no teacher name until the next
+// page load.
+async function fetchFullQuery(id, schoolId) {
+  const { rows } = await pool.query(
+    `SELECT ${QUERY_SELECT_FIELDS} ${QUERY_SELECT_FROM} WHERE tq.id = $1 AND tq.school_id = $2`,
+    [id, schoolId]
+  );
+  return rows[0] ?? null;
+}
+
 // GET /api/discipline/queries
-// Admin: all; Teacher: own only
+// Admin: all; Teacher: own only. Drafts are excluded by default (same
+// convention as general_letters) — a draft has no ref_number and may have
+// no body yet, so it shouldn't appear in the main issued-queries list until
+// finalized; pass status=draft explicitly to see them.
 router.get('/queries', async (req, res, next) => {
   try {
     const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
@@ -44,23 +80,18 @@ router.get('/queries', async (req, res, next) => {
 
     const { teacher_id, status, category, academic_year_id } = req.query;
     if (isAdmin && teacher_id)  { params.push(teacher_id);       extra += ` AND tq.teacher_id = $${params.length}`; }
-    if (status)                  { params.push(status);           extra += ` AND tq.status = $${params.length}`; }
+    // status=all is the escape hatch (same convention as fee reports'
+    // status=all) — includes drafts; omitted, drafts are excluded by
+    // default so an in-progress draft doesn't clutter the main list on
+    // every other page load.
+    if (status === 'all')        { /* no status filter */ }
+    else if (status)              { params.push(status);           extra += ` AND tq.status = $${params.length}`; }
+    else                          { extra += ` AND tq.status != 'draft'`; }
     if (category)                { params.push(category);         extra += ` AND tq.category = $${params.length}`; }
     if (academic_year_id)        { params.push(academic_year_id); extra += ` AND tq.academic_year_id = $${params.length}`; }
 
     const { rows } = await pool.query(
-      `SELECT tq.id, tq.ref_number, tq.category, tq.category_other, tq.subject, tq.body,
-              tq.issued_date::text, tq.response_deadline::text,
-              tq.status, tq.teacher_response_text,
-              tq.teacher_response_file_url, tq.teacher_response_file_name,
-              tq.response_submitted_at, tq.resolution_notes,
-              tq.resolved_by_name, tq.resolved_at, tq.created_at, tq.issued_by_name,
-              tq.issued_by_signature_url,
-              t.id AS teacher_id, t.name AS teacher_name, t.department,
-              ay.name AS academic_year_name
-       FROM teacher_queries tq
-       JOIN teachers t ON t.id = tq.teacher_id
-       LEFT JOIN academic_years ay ON ay.id = tq.academic_year_id
+      `SELECT ${QUERY_SELECT_FIELDS} ${QUERY_SELECT_FROM}
        WHERE tq.school_id = $1${extra}
        ORDER BY tq.created_at DESC`,
       params
@@ -89,14 +120,16 @@ router.get('/queries/stats', async (req, res, next) => {
     }
     const { rows } = await pool.query(
       `SELECT
-         COUNT(*)                                                                             AS total,
+         COUNT(*) FILTER (WHERE status != 'draft')                                          AS total,
          COUNT(*) FILTER (WHERE status IN ('issued','acknowledged','responded'))             AS open,
          COUNT(*) FILTER (WHERE status = 'issued')                                          AS issued,
          COUNT(*) FILTER (WHERE status = 'responded')                                       AS responded,
          COUNT(*) FILTER (WHERE status = 'resolved')                                        AS resolved,
          COUNT(*) FILTER (WHERE status = 'escalated')                                       AS escalated,
+         COUNT(*) FILTER (WHERE status = 'draft')                                           AS draft,
+         COUNT(*) FILTER (WHERE status = 'voided')                                          AS voided,
          COUNT(*) FILTER (WHERE response_deadline < CURRENT_DATE
-                           AND status NOT IN ('responded','resolved','escalated'))           AS overdue
+                           AND status NOT IN ('responded','resolved','escalated','voided','draft')) AS overdue
        FROM teacher_queries WHERE school_id = $1${extra}`,
       params
     );
@@ -156,16 +189,38 @@ router.get('/queries/missing-results', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+const VALID_QUERY_CATS = ['absenteeism','misconduct','insubordination','negligence','poor_performance','other'];
+
+async function notifyTeacherOfQuery(schoolId, teacherId, subject, { isEdit = false } = {}) {
+  await pool.query(
+    `INSERT INTO teacher_notifications (school_id, teacher_id, title, message)
+     VALUES ($1,$2,$3,$4)`,
+    [schoolId, teacherId, isEdit ? 'Query Updated' : 'New Query Issued',
+     isEdit
+       ? `A query issued to you has been updated: "${subject}". Please log in to review it.`
+       : `A query has been issued to you: "${subject}". Please log in to view and respond.`]
+  );
+}
+
 // POST /api/discipline/queries (admin only)
+// Pass status:'draft' to save a partially-filled query without issuing it —
+// teacher_id/category/subject are still required (same rule general_letters
+// uses for its own draft rows), only body is optional while draft. A draft
+// has no ref_number yet (generated at /finalize) and doesn't notify the
+// teacher. Non-draft (the default) behaves exactly as before.
 router.post('/queries', adminOnly, async (req, res, next) => {
   try {
     const { teacher_id, category, category_other, subject, body,
-            issued_date, response_deadline, academic_year_id } = req.body;
+            issued_date, response_deadline, academic_year_id,
+            status: requestedStatus } = req.body;
 
-    const VALID_CATS = ['absenteeism','misconduct','insubordination','negligence','poor_performance','other'];
-    if (!teacher_id || !category || !subject?.trim() || !body?.trim())
-      return res.status(400).json({ error: 'teacher_id, category, subject and body are required' });
-    if (!VALID_CATS.includes(category))
+    const savingAsDraft = requestedStatus === 'draft';
+
+    if (!teacher_id || !category || !subject?.trim())
+      return res.status(400).json({ error: 'teacher_id, category and subject are required' });
+    if (!savingAsDraft && !body?.trim())
+      return res.status(400).json({ error: 'body is required' });
+    if (!VALID_QUERY_CATS.includes(category))
       return res.status(400).json({ error: 'Invalid category' });
     if (category === 'other' && !category_other?.trim())
       return res.status(400).json({ error: 'Specify the reason when category is Other' });
@@ -175,7 +230,13 @@ router.post('/queries', adminOnly, async (req, res, next) => {
     );
     if (!tRows.length) return res.status(404).json({ error: 'Teacher not found' });
 
-    const { ref_number, signature_url } = await generateRefNumber(req.schoolId);
+    let ref_number = null, signature_url = null;
+    if (!savingAsDraft) {
+      const result = await generateRefNumber(req.schoolId);
+      ref_number = result.ref_number;
+      signature_url = result.signature_url;
+    }
+    const computed_status = savingAsDraft ? 'draft' : 'issued';
 
     const { rows } = await pool.query(
       `INSERT INTO teacher_queries
@@ -183,23 +244,149 @@ router.post('/queries', adminOnly, async (req, res, next) => {
           category, category_other, subject, body,
           issued_date, response_deadline, academic_year_id, status,
           ref_number, issued_by_signature_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'issued',$12,$13)
-       RETURNING *, issued_date::text, response_deadline::text`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       RETURNING id`,
       [req.schoolId, teacher_id, req.user.id, req.user.name || 'Management',
-       category, category_other?.trim() || null, subject.trim(), sanitizeRichText(body.trim()),
+       category, category_other?.trim() || null, subject.trim(), sanitizeRichText(body?.trim() || ''),
        issued_date || new Date().toISOString().slice(0,10),
-       response_deadline || null, academic_year_id || null,
+       response_deadline || null, academic_year_id || null, computed_status,
        ref_number, signature_url]
     );
 
+    if (!savingAsDraft) await notifyTeacherOfQuery(req.schoolId, teacher_id, subject.trim());
+
+    res.status(201).json(await fetchFullQuery(rows[0].id, req.schoolId));
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/discipline/queries/:id/finalize (admin only) — issues a draft:
+// generates the ref_number (none was allocated while it sat as a draft),
+// moves status to 'issued', and notifies the teacher. Must be defined
+// before GET/PATCH /queries/:id so Express doesn't match 'finalize' as an id.
+router.patch('/queries/:id/finalize', adminOnly, async (req, res, next) => {
+  try {
+    const { teacher_id, category, category_other, subject, body,
+            issued_date, response_deadline, academic_year_id } = req.body;
+
+    const { rows: existing } = await pool.query(
+      `SELECT * FROM teacher_queries WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!existing.length) return res.status(404).json({ error: 'Query not found' });
+    const draft = existing[0];
+    if (draft.status !== 'draft') {
+      return res.status(400).json({ error: 'Query is not a draft — use the edit action to change an issued query' });
+    }
+
+    const finalTeacherId = teacher_id || draft.teacher_id;
+    const finalCategory  = category || draft.category;
+    const finalSubject   = (subject ?? draft.subject)?.trim();
+    const finalBody      = body ?? draft.body;
+    if (!finalTeacherId || !finalCategory || !finalSubject?.trim() || !finalBody?.trim())
+      return res.status(400).json({ error: 'teacher_id, category, subject and body are required to issue a query' });
+    if (!VALID_QUERY_CATS.includes(finalCategory))
+      return res.status(400).json({ error: 'Invalid category' });
+
+    const { ref_number, signature_url } = await generateRefNumber(req.schoolId);
+
     await pool.query(
-      `INSERT INTO teacher_notifications (school_id, teacher_id, title, message)
-       VALUES ($1,$2,'New Query Issued',$3)`,
-      [req.schoolId, teacher_id,
-       `A query has been issued to you: "${subject.trim()}". Please log in to view and respond.`]
+      `UPDATE teacher_queries SET
+         teacher_id = $1, category = $2, category_other = $3, subject = $4, body = $5,
+         issued_date = $6, response_deadline = $7, academic_year_id = $8,
+         status = 'issued', ref_number = $9,
+         issued_by_signature_url = COALESCE(issued_by_signature_url, $10),
+         updated_at = now()
+       WHERE id = $11 AND school_id = $12`,
+      [finalTeacherId, finalCategory, category_other?.trim() || null, finalSubject, sanitizeRichText(finalBody.trim()),
+       issued_date || draft.issued_date, response_deadline ?? draft.response_deadline, academic_year_id ?? draft.academic_year_id,
+       ref_number, signature_url, req.params.id, req.schoolId]
     );
 
-    res.status(201).json(rows[0]);
+    await notifyTeacherOfQuery(req.schoolId, finalTeacherId, finalSubject);
+
+    res.json(await fetchFullQuery(req.params.id, req.schoolId));
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/discipline/queries/:id (admin only) — edit a query.
+// - While still a draft: updates fields in place, stays a draft, no
+//   notification (the teacher was never told about it).
+// - Once issued/acknowledged/responded: updates fields, clears the stale
+//   pdf_url (it no longer matches the content), records who/when, and
+//   re-notifies the teacher — same correction-after-the-fact capability
+//   general_letters already has.
+// - resolved/escalated/voided are terminal — not editable (mirrors
+//   general_letters treating voided as terminal).
+router.patch('/queries/:id', adminOnly, async (req, res, next) => {
+  try {
+    const { teacher_id, category, category_other, subject, body,
+            issued_date, response_deadline, academic_year_id } = req.body;
+
+    const { rows: existing } = await pool.query(
+      `SELECT * FROM teacher_queries WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!existing.length) return res.status(404).json({ error: 'Query not found' });
+    const current = existing[0];
+    if (!['draft', 'issued', 'acknowledged', 'responded'].includes(current.status)) {
+      return res.status(400).json({ error: `Cannot edit a query with status "${current.status}".` });
+    }
+
+    if (!teacher_id || !category || !subject?.trim() || !body?.trim())
+      return res.status(400).json({ error: 'teacher_id, category, subject and body are required' });
+    if (!VALID_QUERY_CATS.includes(category))
+      return res.status(400).json({ error: 'Invalid category' });
+    if (category === 'other' && !category_other?.trim())
+      return res.status(400).json({ error: 'Specify the reason when category is Other' });
+
+    const { rows: tRows } = await pool.query(
+      `SELECT id FROM teachers WHERE id = $1 AND school_id = $2`, [teacher_id, req.schoolId]
+    );
+    if (!tRows.length) return res.status(404).json({ error: 'Teacher not found' });
+
+    const isDraft = current.status === 'draft';
+    const editedByName = req.user.name || 'Management';
+
+    await pool.query(
+      `UPDATE teacher_queries SET
+         teacher_id = $1, category = $2, category_other = $3, subject = $4, body = $5,
+         issued_date = $6, response_deadline = $7, academic_year_id = $8,
+         pdf_url = CASE WHEN $9 THEN pdf_url ELSE NULL END,
+         last_edited_by_name = CASE WHEN $9 THEN last_edited_by_name ELSE $10 END,
+         last_edited_at = CASE WHEN $9 THEN last_edited_at ELSE now() END,
+         updated_at = now()
+       WHERE id = $11 AND school_id = $12`,
+      [teacher_id, category, category_other?.trim() || null, subject.trim(), sanitizeRichText(body.trim()),
+       issued_date || current.issued_date, response_deadline ?? current.response_deadline, academic_year_id ?? current.academic_year_id,
+       isDraft, editedByName, req.params.id, req.schoolId]
+    );
+
+    if (!isDraft) await notifyTeacherOfQuery(req.schoolId, teacher_id, subject.trim(), { isEdit: true });
+
+    res.json(await fetchFullQuery(req.params.id, req.schoolId));
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/discipline/queries/:id/void (admin only) — a query issued
+// wrongly. Not a hard delete, kept for audit (same transparency-over-
+// silent-removal approach as general_letters' void). Draft queries are
+// abandoned by simply never finalizing them, not voided (nothing was ever
+// issued to the teacher to need undoing).
+router.patch('/queries/:id/void', adminOnly, async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    if (!reason?.trim()) return res.status(400).json({ error: 'A reason is required to void a query' });
+
+    const { rows } = await pool.query(
+      `UPDATE teacher_queries
+       SET status = 'voided', voided_at = now(), voided_by_name = $1, void_reason = $2, updated_at = now()
+       WHERE id = $3 AND school_id = $4 AND status IN ('issued','acknowledged','responded')
+       RETURNING id`,
+      [req.user.name || 'Management', reason.trim(), req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Query not found or cannot be voided from its current status' });
+
+    res.json(await fetchFullQuery(req.params.id, req.schoolId));
   } catch (err) { next(err); }
 });
 
