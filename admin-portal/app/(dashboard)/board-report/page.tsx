@@ -76,17 +76,24 @@ export default function BoardReportPage() {
     if (!ayId) return;
     setGenerating(true); setError(''); setReport(''); setSessionId(''); setChatMessages([]);
     try {
+      // Computing facts for a full academic year (two semesters' worth of
+      // per-class result aggregation) plus the Claude call easily exceeds
+      // the global 15s axios timeout — this used to surface as a generic
+      // "Report generation failed" even when the backend was still working
+      // (and often had already finished by the time the client gave up).
       const { data } = await api.post('/api/board-report/generate', {
         academic_year_id: ayId,
         semester: semester || undefined,
-      });
+      }, { timeout: 120000 });
       setSessionId(data.session_id);
       setReport(data.report);
       setPeriodLabel(data.facts?.period?.period_label ?? '');
       const histRes = await api.get<HistoryItem[]>('/api/board-report/history');
       setHistory(histRes.data);
     } catch (err) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      const e = err as { code?: string; response?: { data?: { error?: string } } };
+      const msg = e.response?.data?.error
+        ?? (e.code === 'ECONNABORTED' ? 'This is taking longer than expected. The report may still finish on the server — check Past Reports in a moment before generating again.' : undefined);
       setError(msg ?? 'Report generation failed. Please try again.');
     } finally {
       setGenerating(false);
@@ -112,7 +119,7 @@ export default function BoardReportPage() {
     setChatMessages(m => [...m, { role: 'user', content }]);
     setChatInput(''); setChatLoading(true); setChatError('');
     try {
-      const { data } = await api.post(`/api/letter-chat/${sessionId}/message`, { content });
+      const { data } = await api.post(`/api/letter-chat/${sessionId}/message`, { content }, { timeout: 60000 });
       setChatMessages(m => [...m, { role: 'assistant', content: data.content }]);
       setReport(data.content);
     } catch {
@@ -127,7 +134,7 @@ export default function BoardReportPage() {
     if (!sessionId) return;
     setExporting(true);
     try {
-      const response = await api.get(`/api/board-report/${sessionId}/pdf`, { responseType: 'blob' });
+      const response = await api.get(`/api/board-report/${sessionId}/pdf`, { responseType: 'blob', timeout: 60000 });
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
