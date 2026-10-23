@@ -4,8 +4,6 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
-import { useTableControls } from '@/hooks/useTableControls';
-import { Pagination } from '@/components/ui/Pagination';
 
 interface ScoreRow {
   student_id: string;
@@ -171,7 +169,6 @@ function ScoresContent() {
   }
 
   const maxScore = assessment?.max_score ?? 100;
-  const { displayRows: pageRows, total: rowTotal, page: rowPage, setPage: setRowPage, pageSize: rowPageSize, setPageSize: setRowPageSize } = useTableControls(rows);
 
   return (
     <div className="min-h-screen pb-8" style={{ background: '#F4EFE6' }}>
@@ -248,7 +245,7 @@ function ScoresContent() {
             <p className="text-sm font-semibold text-[#8C7E6E]">No students found</p>
           </div>
         ) : (
-          (pageRows as typeof rows).map((row, index) => {
+          rows.map((row, index) => {
             const isAbsent = absents[row.student_id] ?? false;
             return (
               <div
@@ -303,8 +300,6 @@ function ScoresContent() {
           })
         )}
       </div>
-
-      <Pagination page={rowPage} pageSize={rowPageSize} total={rowTotal} onPage={setRowPage} onPageSize={(s) => { setRowPageSize(s); setRowPage(1); }} />
 
       {/* Save button — inline, after the student list */}
       {!loading && rows.length > 0 && (
