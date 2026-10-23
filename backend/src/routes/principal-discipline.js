@@ -55,6 +55,36 @@ router.get('/letters/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/principal/discipline/queries — read-only oversight list of all
+// teacher queries for the school (drafts excluded — nothing was issued yet,
+// so there's nothing for the principal to oversee). Same field shape as the
+// admin's own GET /api/discipline/queries so the frontend can reuse the same
+// rendering; principals view, they don't issue/edit/resolve/void here — that
+// stays admin-only via /api/discipline/queries/*.
+router.get('/queries', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT tq.id, tq.ref_number, tq.category, tq.category_other, tq.subject, tq.body,
+              tq.issued_date::text, tq.response_deadline::text,
+              tq.status, tq.teacher_response_text,
+              tq.teacher_response_file_url, tq.teacher_response_file_name,
+              tq.response_submitted_at, tq.resolution_notes,
+              tq.resolved_by_name, tq.resolved_at, tq.created_at, tq.issued_by_name,
+              tq.issued_by_signature_url, tq.pdf_url,
+              tq.voided_at, tq.voided_by_name, tq.void_reason,
+              t.id AS teacher_id, t.name AS teacher_name, t.department,
+              ay.name AS academic_year_name
+       FROM teacher_queries tq
+       JOIN teachers t ON t.id = tq.teacher_id
+       LEFT JOIN academic_years ay ON ay.id = tq.academic_year_id
+       WHERE tq.school_id = $1 AND tq.status != 'draft'
+       ORDER BY tq.created_at DESC`,
+      [req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 // GET /api/principal/discipline/flagged-students
 // principal/vice_principal: all student flags + teacher flags.
 // headmaster: only severity_score >= 2 (stale_serious_case + escalation_trajectory).

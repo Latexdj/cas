@@ -51,6 +51,17 @@ interface FlagThresholds {
 }
 interface FlaggedData { students: FlaggedStudent[]; teachers: FlaggedTeacher[]; thresholds: FlagThresholds; }
 
+interface TeacherQuery {
+  id: string; ref_number?: string | null; category: string; category_other?: string;
+  subject: string; body: string; issued_date: string; response_deadline?: string;
+  status: string; teacher_response_text?: string; teacher_response_file_url?: string;
+  teacher_response_file_name?: string; response_submitted_at?: string; resolution_notes?: string;
+  resolved_by_name?: string; resolved_at?: string; created_at: string; issued_by_name: string;
+  issued_by_signature_url?: string | null; pdf_url?: string | null;
+  voided_at?: string | null; voided_by_name?: string | null; void_reason?: string | null;
+  teacher_id: string; teacher_name: string; department?: string | null; academic_year_name?: string;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const LETTER_TYPE_LABELS: Record<string, string> = {
@@ -65,6 +76,29 @@ const OFFENSE_LABELS: Record<string, string> = {
   bullying_harassment: 'Bullying / Harassment', indecent_behavior: 'Indecent Behavior',
   vandalism: 'Vandalism', other: 'Other',
 };
+
+const QUERY_CAT_LABELS: Record<string, string> = {
+  absenteeism: 'Absenteeism', misconduct: 'Misconduct', insubordination: 'Insubordination',
+  negligence: 'Negligence of Duty', poor_performance: 'Poor Performance', other: 'Other',
+};
+
+function queryStatusBadge(status: string, deadline?: string) {
+  const isOverdue = deadline && new Date(deadline) < new Date() && !['draft','responded','resolved','escalated','voided'].includes(status);
+  if (isOverdue) return { label: 'Overdue', color: C.danger, bg: C.dangerBg };
+  const map: Record<string, { label: string; color: string; bg: string }> = {
+    issued:       { label: 'Issued',       color: C.warning, bg: C.warningBg },
+    acknowledged: { label: 'Acknowledged', color: C.mid,     bg: '#E8F4EE' },
+    responded:    { label: 'Responded',    color: C.forest,  bg: '#D1EAD9' },
+    resolved:     { label: 'Resolved',     color: C.success, bg: C.successBg },
+    escalated:    { label: 'Escalated',    color: C.danger,  bg: C.dangerBg },
+    voided:       { label: 'Voided',       color: C.muted,   bg: C.bg },
+  };
+  return map[status] ?? { label: status, color: C.muted, bg: C.bg };
+}
+
+function firstWord(name?: string) {
+  return name ? name.split(' ')[0] : 'Sir/Madam';
+}
 
 const FLAG_TYPE_LABELS: Record<string, string> = {
   stale_serious_case: 'Stale serious case', escalation_trajectory: 'Escalating severity',
@@ -228,7 +262,7 @@ function FlaggedPanel() {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function PrincipalDisciplinePage() {
-  const [tab, setTab]             = useState<'pending' | 'flagged'>('pending');
+  const [tab, setTab]             = useState<'pending' | 'flagged' | 'queries'>('pending');
   const [letters, setLetters]     = useState<PendingLetter[]>([]);
   const [loading, setLoading]     = useState(true);
   const [selected, setSelected]   = useState<PendingLetter | null>(null);
@@ -241,12 +275,27 @@ export default function PrincipalDisciplinePage() {
   const [returnErr, setReturnErr]           = useState('');
   const [returnOk, setReturnOk]             = useState(false);
 
+  const [queries, setQueries]             = useState<TeacherQuery[]>([]);
+  const [queriesLoading, setQueriesLoading] = useState(true);
+  const [selectedQuery, setSelectedQuery] = useState<TeacherQuery | null>(null);
+  const [queryStatusFilter, setQueryStatusFilter] = useState('');
+
   useEffect(() => {
     principalApi.get<PendingLetter[]>('/api/principal/discipline/letters')
       .then(r => setLetters(r.data))
       .catch(console.error)
       .finally(() => setLoading(false));
+    principalApi.get<TeacherQuery[]>('/api/principal/discipline/queries')
+      .then(r => setQueries(r.data))
+      .catch(console.error)
+      .finally(() => setQueriesLoading(false));
   }, []);
+
+  const queryTotal   = queries.length;
+  const queryOpen    = queries.filter(q => ['issued','acknowledged','responded'].includes(q.status)).length;
+  const queryOverdue = queries.filter(q => q.response_deadline && new Date(q.response_deadline) < new Date() && !['responded','resolved','escalated','voided'].includes(q.status)).length;
+  const queryResolved = queries.filter(q => q.status === 'resolved').length;
+  const filteredQueries = queryStatusFilter ? queries.filter(q => q.status === queryStatusFilter) : queries;
 
   async function approve(id: string) {
     setApproving(true); setApproveErr(''); setApproveOk(false);
@@ -280,18 +329,18 @@ export default function PrincipalDisciplinePage() {
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 20, fontWeight: 800, color: C.dark, margin: 0 }}>Discipline</h2>
         <p style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
-          Approve pending letters and review student behaviour patterns.
+          Approve pending letters, review teacher queries, and watch for behaviour patterns.
         </p>
       </div>
 
       {/* Tab switcher */}
       <div style={{ display: 'flex', gap: 4, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 4, width: 'fit-content', marginBottom: 24 }}>
-        {(['pending', 'flagged'] as const).map(t => (
-          <button key={t} onClick={() => { setTab(t); setSelected(null); }}
+        {(['pending', 'queries', 'flagged'] as const).map(t => (
+          <button key={t} onClick={() => { setTab(t); setSelected(null); setSelectedQuery(null); }}
             style={{ padding: '7px 20px', borderRadius: 9, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13,
               background: tab === t ? C.mid : 'transparent',
               color: tab === t ? '#fff' : C.muted }}>
-            {t === 'pending' ? 'Pending Approval' : 'Flagged Students'}
+            {t === 'pending' ? 'Pending Approval' : t === 'queries' ? 'Teacher Queries' : 'Flagged Students'}
           </button>
         ))}
       </div>
@@ -398,11 +447,11 @@ export default function PrincipalDisciplinePage() {
                     <p style={{ fontSize: 14, fontWeight: 700, color: C.dark, textDecoration: 'underline', textTransform: 'uppercase', margin: 0 }}>{selected.subject}</p>
                   </div>
 
-                  {/* Body */}
+                  {/* Body — sanitized rich-text HTML, same editor used to write it */}
                   <div>
                     <p style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Letter Body</p>
                     <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '16px 18px' }}>
-                      <p style={{ fontSize: 13, color: C.dark, lineHeight: 1.8, whiteSpace: 'pre-wrap', margin: 0 }}>{selected.body}</p>
+                      <div style={{ fontSize: 13, color: C.dark, lineHeight: 1.8, margin: 0 }} dangerouslySetInnerHTML={{ __html: selected.body ?? '' }} />
                     </div>
                   </div>
 
@@ -505,6 +554,179 @@ export default function PrincipalDisciplinePage() {
             </div>
           )}
         </>
+      )}
+
+      {/* ── Teacher Queries Tab ── */}
+      {tab === 'queries' && (
+        <div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
+            {[
+              { label: 'Total', value: queryTotal },
+              { label: 'Open', value: queryOpen, color: C.warning },
+              { label: 'Overdue', value: queryOverdue, color: C.danger },
+              { label: 'Resolved', value: queryResolved, color: C.success },
+            ].map(s => (
+              <div key={s.label} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 16px', minWidth: 90 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 2px' }}>{s.label}</p>
+                <p style={{ fontSize: 20, fontWeight: 800, color: s.color ?? C.dark, margin: 0 }}>{s.value}</p>
+              </div>
+            ))}
+            <div style={{ flex: 1 }} />
+            <select value={queryStatusFilter} onChange={e => setQueryStatusFilter(e.target.value)}
+              style={{ border: `1px solid ${C.border}`, borderRadius: 9, padding: '8px 12px', fontSize: 12, background: '#fff', color: C.dark, outline: 'none' }}>
+              <option value="">All statuses</option>
+              {['issued','acknowledged','responded','resolved','escalated','voided'].map(s => (
+                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+              ))}
+            </select>
+          </div>
+
+          {queriesLoading ? (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {[1, 2, 3].map(i => (
+                <div key={i} style={{ height: 72, borderRadius: 12, background: C.card, border: `1px solid ${C.border}`, animation: 'pulse 1.5s infinite' }} />
+              ))}
+            </div>
+          ) : filteredQueries.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 24px', background: C.card, borderRadius: 16, border: `1px solid ${C.border}` }}>
+              <p style={{ fontWeight: 700, color: C.dark, marginBottom: 4 }}>No teacher queries</p>
+              <p style={{ fontSize: 13, color: C.muted }}>Queries issued to teachers by the admin will appear here.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {filteredQueries.map(q => {
+                const { label, color, bg } = queryStatusBadge(q.status, q.response_deadline);
+                return (
+                  <button key={q.id} onClick={() => setSelectedQuery(q)}
+                    style={{
+                      textAlign: 'left', width: '100%', background: selectedQuery?.id === q.id ? '#EDE9FE' : C.card,
+                      border: `1px solid ${selectedQuery?.id === q.id ? C.purple : C.border}`,
+                      borderRadius: 12, padding: '14px 18px', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                    }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: C.mid, background: '#E8F4EE', padding: '2px 8px', borderRadius: 6 }}>
+                          {QUERY_CAT_LABELS[q.category] ?? q.category}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color, background: bg, padding: '2px 8px', borderRadius: 6 }}>{label}</span>
+                      </div>
+                      <p style={{ fontWeight: 700, fontSize: 14, color: C.dark, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {q.teacher_name}{q.department ? ` · ${q.department}` : ''}
+                      </p>
+                      <p style={{ fontSize: 12, color: C.muted, margin: '2px 0 0' }}>
+                        {q.subject} · {fmt(q.issued_date)}
+                      </p>
+                    </div>
+                    <svg viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" style={{ width: 16, height: 16, flexShrink: 0 }}>
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Detail modal — read-only, letter-styled same as the teacher's own view */}
+          {selectedQuery && (
+            <div
+              className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+              style={{ background: 'rgba(11,61,46,0.5)' }}
+              onClick={e => { if (e.target === e.currentTarget) setSelectedQuery(null); }}
+            >
+              <div style={{
+                background: '#fff', borderRadius: 20, width: '100%', maxWidth: 680,
+                maxHeight: '92vh', overflow: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,0.25)',
+              }}>
+                <div style={{ padding: '22px 24px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    {(() => { const { label, color, bg } = queryStatusBadge(selectedQuery.status, selectedQuery.response_deadline);
+                      return <span style={{ fontSize: 11, fontWeight: 800, background: bg, color, borderRadius: 6, padding: '2px 8px' }}>{label}</span>; })()}
+                    <p style={{ fontWeight: 800, fontSize: 16, color: C.dark, margin: '6px 0 2px' }}>{selectedQuery.teacher_name}</p>
+                    <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>{selectedQuery.department ?? ''}</p>
+                  </div>
+                  <button onClick={() => setSelectedQuery(null)} style={{ width: 32, height: 32, borderRadius: 9, border: `1px solid ${C.border}`, background: C.bg, color: C.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>✕</button>
+                </div>
+
+                <div style={{ padding: '20px 24px' }}>
+                  {/* Letter card — matches the format the teacher sees and the admin's print/PDF view */}
+                  <div style={{
+                    background: '#fff', border: `1px solid ${C.border}`, borderRadius: 12,
+                    padding: '26px 28px', marginBottom: 14, boxShadow: '0 1px 3px rgba(44,34,24,0.06)',
+                    fontFamily: 'Georgia, "Times New Roman", serif',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.mid2, marginBottom: 20 }}>
+                      <span><strong>Ref:</strong> {selectedQuery.ref_number ?? '—'}</span>
+                      <span><strong>Date:</strong> {fmt(selectedQuery.issued_date)}</span>
+                    </div>
+                    <div style={{ fontSize: 13, color: C.dark, lineHeight: 1.6, marginBottom: 20 }}>
+                      <div>To:</div>
+                      <div style={{ fontWeight: 700 }}>{selectedQuery.teacher_name}</div>
+                      {selectedQuery.department && <div style={{ color: C.muted }}>{selectedQuery.department}</div>}
+                    </div>
+                    <p style={{ fontSize: 14, fontWeight: 700, textDecoration: 'underline', textTransform: 'uppercase', textAlign: 'center', color: C.dark, margin: '0 0 20px' }}>
+                      {selectedQuery.subject}
+                    </p>
+                    <p style={{ fontSize: 13, color: C.dark, margin: '0 0 14px' }}>Dear {firstWord(selectedQuery.teacher_name)},</p>
+                    <div style={{ fontSize: 13, color: C.dark, lineHeight: 1.8, textAlign: 'justify' }}
+                      dangerouslySetInnerHTML={{ __html: selectedQuery.body ?? '' }} />
+                    <div style={{ marginTop: 28 }}>
+                      <p style={{ fontSize: 13, color: C.dark, margin: 0 }}>Yours faithfully,</p>
+                      {selectedQuery.issued_by_signature_url ? (
+                        <img src={selectedQuery.issued_by_signature_url} alt="Signature" style={{ display: 'block', maxHeight: 60, maxWidth: 160, marginTop: 8 }} />
+                      ) : <div style={{ height: 36 }} />}
+                      <div style={{ borderTop: `1px solid ${C.dark}`, width: 200, marginTop: 4, paddingTop: 6 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: C.dark }}>{selectedQuery.issued_by_name}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedQuery.pdf_url && (
+                    <a href={selectedQuery.pdf_url} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9, border: `1px solid ${C.mid}`, background: '#E8F4EE', color: C.mid, fontWeight: 700, fontSize: 12, textDecoration: 'none', marginBottom: 14 }}>
+                      Download / Print PDF
+                    </a>
+                  )}
+
+                  {selectedQuery.teacher_response_text && (
+                    <div style={{ background: '#E8F4EE', border: '1px solid #B7DFC9', borderRadius: 12, padding: 14, marginBottom: 14 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: C.mid, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Teacher&apos;s Response</p>
+                      <p style={{ fontSize: 13, color: C.dark, lineHeight: 1.65, whiteSpace: 'pre-wrap', margin: 0 }}>{selectedQuery.teacher_response_text}</p>
+                      {selectedQuery.teacher_response_file_url && (
+                        <a href={selectedQuery.teacher_response_file_url} target="_blank" rel="noreferrer"
+                          style={{ display: 'inline-block', marginTop: 8, fontSize: 12, color: C.mid, fontWeight: 600 }}>
+                          {selectedQuery.teacher_response_file_name ?? 'Attachment'}
+                        </a>
+                      )}
+                      {selectedQuery.response_submitted_at && (
+                        <p style={{ fontSize: 11, color: C.muted, marginTop: 6 }}>Submitted: {fmt(selectedQuery.response_submitted_at)}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedQuery.resolution_notes && (
+                    <div style={{ background: selectedQuery.status === 'escalated' ? C.dangerBg : '#E8F4EE', border: `1px solid ${selectedQuery.status === 'escalated' ? '#FECACA' : '#B7DFC9'}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: selectedQuery.status === 'escalated' ? C.danger : C.mid, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        {selectedQuery.status === 'escalated' ? 'Escalation Notes' : 'Resolution Notes'}
+                      </p>
+                      <p style={{ fontSize: 13, color: C.dark, margin: 0 }}>{selectedQuery.resolution_notes}</p>
+                      {selectedQuery.resolved_by_name && <p style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>By {selectedQuery.resolved_by_name} · {fmt(selectedQuery.resolved_at)}</p>}
+                    </div>
+                  )}
+
+                  {selectedQuery.status === 'voided' && (
+                    <div style={{ background: '#EDE8DF', border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: C.mid2, margin: 0 }}>
+                        Voided by {selectedQuery.voided_by_name ?? 'an admin'}{selectedQuery.voided_at ? ` on ${fmt(selectedQuery.voided_at)}` : ''}
+                        {selectedQuery.void_reason ? <> — &quot;{selectedQuery.void_reason}&quot;</> : ''}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Flagged Tab ── */}
