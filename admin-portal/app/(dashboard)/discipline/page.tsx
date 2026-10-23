@@ -696,6 +696,10 @@ interface MissingResultsCombo {
   exam_students_scored: number; exam_complete: boolean;
   mode_breakdown: MissingResultsModeBreakdown[];
   submission_status: string | null; status: string;
+  // Only meaningful when submission_status === 'rejected'.
+  submission_rejected_at: string | null;
+  submission_rejected_reason: string | null;
+  submission_rejected_by_name: string | null;
 }
 interface MissingResultsTeacher { teacher_id: string; teacher_name: string; department: string | null; email: string | null; teacher_code: string; combos: MissingResultsCombo[]; }
 
@@ -731,7 +735,19 @@ function buildMissingResultsAutoFill(t: MissingResultsTeacher, ayId: string, ayN
     return c.submission_status === 'rejected' ? `${base} This submission was returned for correction and has not been resubmitted.` : base;
   });
 
-  const hasRejected = t.combos.some(c => c.submission_status === 'rejected');
+  const rejectedCombos = t.combos.filter(c => c.submission_status === 'rejected');
+
+  // One line per rejected-and-not-resubmitted combo, naming who returned it,
+  // when, and why — so the AI can cite the actual reason instead of just
+  // flagging it as outstanding.
+  const priorContextLines = rejectedCombos.map(c => {
+    const who = c.submission_rejected_by_name ? ` by ${c.submission_rejected_by_name}` : '';
+    const when = c.submission_rejected_at ? ` on ${fmt(c.submission_rejected_at)}` : '';
+    const why = c.submission_rejected_reason?.trim()
+      ? ` Reason given: "${c.submission_rejected_reason.trim()}"`
+      : ' No reason was recorded for the rejection.';
+    return `${c.subject} (${c.class_name}) was returned for correction${who}${when} and has not been resubmitted.${why}`;
+  });
 
   return {
     teacher: { id: t.teacher_id, name: t.teacher_name, department: t.department ?? undefined, status: 'Active' },
@@ -742,7 +758,7 @@ function buildMissingResultsAutoFill(t: MissingResultsTeacher, ayId: string, ayN
     intake: {
       incident: `As of today, results have not been fully entered into CAS for the following:\n\n${incidentLines.join('\n')}`,
       date_period: `${ayName}, Semester ${semester}`,
-      prior_context: hasRejected ? 'One of these submissions was already returned for correction by the reviewing authority and has not been resubmitted.' : '',
+      prior_context: priorContextLines.join('\n'),
       expected_response: `Written confirmation of when all outstanding results will be entered, by ${deadlineLabel}.`,
     },
   };
@@ -872,6 +888,12 @@ function MissingResultsModal({ academicYears, handledTeacherIds, onClose, onDraf
                               <span>{c.subject} · {c.class_name}</span>
                               <span style={{ color: C.muted, fontWeight: 600 }}>{c.total_students} students{c.submission_status === 'rejected' ? ' · Rejected, not resubmitted' : ''}</span>
                             </div>
+                            {c.submission_status === 'rejected' && (
+                              <div style={{ padding: '6px 10px', background: C.dangerBg, fontSize: 11, color: C.danger, borderBottom: `1px solid ${C.border}` }}>
+                                Returned{c.submission_rejected_by_name ? ` by ${c.submission_rejected_by_name}` : ''}{c.submission_rejected_at ? ` on ${fmt(c.submission_rejected_at)}` : ''}
+                                {c.submission_rejected_reason ? <> — &quot;{c.submission_rejected_reason}&quot;</> : ' — no reason recorded'}
+                              </div>
+                            )}
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                               <tbody>
                                 {c.mode_breakdown.map(m => {

@@ -181,6 +181,9 @@ router.get('/queries/missing-results', adminOnly, async (req, res, next) => {
         exam_students_scored: r.exam_students_scored, exam_complete: r.exam_complete,
         mode_breakdown: r.mode_breakdown,
         submission_status: r.submission_status,
+        submission_rejected_at: r.submission_rejected_at,
+        submission_rejected_reason: r.submission_rejected_reason,
+        submission_rejected_by_name: r.submission_rejected_by_name,
         status: r.status,
       });
     }

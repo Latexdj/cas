@@ -85,15 +85,22 @@ async function computeAssessmentMonitorRows(pool, schoolId, academicYearId, seme
         te.department,
         e.subject,
         e.class_name,
-        (SELECT rs.status FROM result_submissions rs
-         WHERE rs.school_id=$1 AND rs.teacher_id=e.teacher_id
-           AND rs.academic_year_id=$2 AND rs.semester=$3
-           AND LOWER(rs.subject)=e.subject_key
-           AND LOWER(rs.class_name)=LOWER(e.class_name)
-         LIMIT 1
-        ) AS submission_status
+        rs.status              AS submission_status,
+        rs.rejected_at::text   AS submission_rejected_at,
+        rs.rejected_reason     AS submission_rejected_reason,
+        rejector.name          AS submission_rejected_by_name
       FROM expanded e
       JOIN teachers te ON te.id=e.teacher_id AND te.school_id=$1
+      LEFT JOIN LATERAL (
+        SELECT rs2.status, rs2.rejected_at, rs2.rejected_reason, rs2.rejected_by
+        FROM result_submissions rs2
+        WHERE rs2.school_id=$1 AND rs2.teacher_id=e.teacher_id
+          AND rs2.academic_year_id=$2 AND rs2.semester=$3
+          AND LOWER(rs2.subject)=e.subject_key
+          AND LOWER(rs2.class_name)=LOWER(e.class_name)
+        LIMIT 1
+      ) rs ON TRUE
+      LEFT JOIN teachers rejector ON rejector.id = rs.rejected_by
       WHERE TRUE ${extraWhere}
       ORDER BY te.name, e.subject, e.class_name
     `, params);
@@ -221,6 +228,13 @@ async function computeAssessmentMonitorRows(pool, schoolId, academicYearId, seme
         exam_complete,
         completion_pct,
         submission_status:     sub,
+        // Only meaningful when sub === 'rejected' — who sent it back, when,
+        // and why, so a query drafted off a rejected-and-never-resubmitted
+        // combo can cite the actual reason instead of just flagging it as
+        // outstanding.
+        submission_rejected_at:        r.submission_rejected_at ?? null,
+        submission_rejected_reason:    r.submission_rejected_reason ?? null,
+        submission_rejected_by_name:   r.submission_rejected_by_name ?? null,
         status,
       };
     });
