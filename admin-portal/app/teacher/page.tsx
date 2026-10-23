@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getTeacher, getTeacherColors } from '@/lib/teacher-auth';
 import { teacherApi } from '@/lib/teacher-api';
 import { UnreadNotificationsBanner } from '@/components/UnreadNotificationsBanner';
+import { OutstandingQueriesBanner } from '@/components/OutstandingQueriesBanner';
 
 interface TimetableSlot {
   id: string;
@@ -181,6 +182,7 @@ export default function TeacherDashboardPage() {
       )}
 
       <UnreadNotificationsBanner apiClient={teacherApi} className="mb-4" />
+      <OutstandingQueriesBanner apiClient={teacherApi} className="mb-4" />
 
       {/* School status banner */}
       {dayStatus && dayStatus.status !== 'normal' && (() => {

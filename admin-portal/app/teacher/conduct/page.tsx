@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState, useRef } from 'react';
+import { Suspense, useEffect, useState, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { teacherApi } from '@/lib/teacher-api';
 
 interface TeacherQuery {
@@ -51,7 +52,12 @@ function StatChip({ label, value, color }: { label: string; value: number; color
   );
 }
 
-export default function TeacherConductPage() {
+function ConductContent() {
+  const searchParams = useSearchParams();
+  // Deep link from the dashboard's outstanding-queries banner — opens
+  // straight to the specific query that needs action instead of just the
+  // general list.
+  const openId = searchParams.get('open');
   const [queries, setQueries] = useState<TeacherQuery[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -68,6 +74,13 @@ export default function TeacherConductPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!openId || !queries.some(q => q.id === openId)) return;
+    setExpandedId(openId);
+    const el = document.getElementById(`query-${openId}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [openId, queries]);
 
   const total = queries.length;
   const awaitingResponse = queries.filter(q => ['issued','acknowledged'].includes(q.status)).length;
@@ -158,7 +171,7 @@ export default function TeacherConductPage() {
             const isClosed = ['resolved','escalated'].includes(q.status);
 
             return (
-              <div key={q.id} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
+              <div key={q.id} id={`query-${q.id}`} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: 'hidden' }}>
                 {/* Card header */}
                 <div onClick={() => setExpandedId(isExpanded ? null : q.id)}
                   style={{ padding: '14px 18px', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -285,5 +298,17 @@ export default function TeacherConductPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function TeacherConductPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bg }}>
+        <div style={{ width: 32, height: 32, borderRadius: '50%', border: `3px solid ${C.mid}`, borderBottomColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+      </div>
+    }>
+      <ConductContent />
+    </Suspense>
   );
 }
