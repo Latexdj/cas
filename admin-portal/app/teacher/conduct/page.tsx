@@ -11,6 +11,7 @@ interface TeacherQuery {
   resolved_by_name?: string; resolved_at?: string; created_at: string; academic_year_name?: string;
   ref_number?: string | null; issued_by_signature_url?: string | null;
   teacher_name?: string; department?: string | null;
+  pdf_url?: string | null;
 }
 
 const C = {
@@ -241,6 +242,17 @@ function ConductContent() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Download — only once the admin has generated the PDF for this query */}
+                    {q.pdf_url && (
+                      <a href={q.pdf_url} target="_blank" rel="noopener noreferrer"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9, border: `1px solid ${C.mid}`, background: '#E8F4EE', color: C.mid, fontWeight: 700, fontSize: 12, textDecoration: 'none', marginBottom: 14 }}>
+                        <svg viewBox="0 0 16 16" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2}>
+                          <path d="M8 1v8M5 6l3 3 3-3M2 12v2h12v-2" />
+                        </svg>
+                        Download / Print PDF
+                      </a>
+                    )}
 
                     {/* Response submitted */}
                     {q.teacher_response_text && (
