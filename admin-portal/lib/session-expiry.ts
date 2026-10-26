@@ -59,3 +59,30 @@ export function getTokenExpiryMs(token: string): number | null {
     return null;
   }
 }
+
+// `exp` is an absolute timestamp set by the SERVER's clock; comparing it
+// against `Date.now()` silently assumes the device's own clock agrees with
+// the server's. On a device whose clock is wrong (confirmed real-world
+// cause: a laptop with a several-hour-fast system clock saw every 8h
+// session appear to expire in ~10 minutes, every time, since the "remaining
+// time" was computed as 8h minus the clock's own skew) that assumption
+// breaks completely, forcing a premature logout with no server disagreement
+// at all — the server would have accepted the token the whole time.
+//
+// Every axios response carries a standard `Date` header stamped by the
+// server, so each api client's response interceptor calls recordServerTime()
+// on every successful response to keep this offset fresh; adjustedNow() is
+// then a drop-in replacement for Date.now() wherever "now" needs to mean
+// "the server's now," not whatever the device's own clock says.
+let clockOffsetMs = 0;
+
+export function recordServerTime(dateHeader: unknown) {
+  if (typeof dateHeader !== 'string') return;
+  const serverMs = Date.parse(dateHeader);
+  if (Number.isNaN(serverMs)) return;
+  clockOffsetMs = serverMs - Date.now();
+}
+
+export function adjustedNow(): number {
+  return Date.now() + clockOffsetMs;
+}

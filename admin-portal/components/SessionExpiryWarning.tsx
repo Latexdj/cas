@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AxiosInstance } from 'axios';
-import { getTokenExpiryMs } from '@/lib/session-expiry';
+import { getTokenExpiryMs, adjustedNow } from '@/lib/session-expiry';
 
 const WARN_BEFORE_MS = 5 * 60 * 1000; // show the countdown 5 minutes before expiry
 const TICK_MS = 1000;
@@ -43,7 +43,7 @@ export function SessionExpiryWarning({
     if (!token) return;
     const expiryMs = getTokenExpiryMs(token);
     if (expiryMs == null) return;
-    const left = expiryMs - Date.now();
+    const left = expiryMs - adjustedNow();
     if (left <= 0) {
       if (!expiredRef.current) {
         expiredRef.current = true;

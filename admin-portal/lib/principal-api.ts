@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { isSilentRequest, markSessionExpired } from './session-expiry';
+import { isSilentRequest, markSessionExpired, recordServerTime } from './session-expiry';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -14,8 +14,9 @@ principalApi.interceptors.request.use((config) => {
 });
 
 principalApi.interceptors.response.use(
-  (res) => res,
+  (res) => { recordServerTime(res.headers?.date); return res; },
   (err) => {
+    recordServerTime(err.response?.headers?.date);
     if (err.response?.status === 401 && typeof window !== 'undefined' && !isSilentRequest(err.config?.headers)) {
       localStorage.removeItem('cas_p_token');
       localStorage.removeItem('cas_p_user');
