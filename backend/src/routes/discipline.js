@@ -9,6 +9,7 @@ const { queryFlaggedStudents, queryFlaggedTeachers, queryThresholds } = require(
 const { returnLetterForCorrection, resubmitLetter, getReturnHistory } = require('../services/letterApproval.service');
 const { sanitizeRichText } = require('../utils/richTextSanitizer');
 const { computeAssessmentMonitorRows } = require('./assessment-monitoring');
+const { computeAttendanceShortfallOccurrences } = require('../services/attendanceShortfall.service');
 
 router.use(authenticate, requireActiveSubscription, checkModuleAccess('discipline'));
 
@@ -189,6 +190,54 @@ router.get('/queries/missing-results', adminOnly, async (req, res, next) => {
     }
 
     res.json([...byTeacher.values()].sort((a, b) => b.combos.length - a.combos.length));
+  } catch (err) { next(err); }
+});
+
+const ATTENDANCE_SOURCES = ['classroom', 'plc', 'morning_briefing', 'staff_meeting', 'pta', 'other'];
+
+// GET /api/discipline/queries/missing-attendance — teachers with unexcused
+// attendance shortfalls for a given source, for the same "draft a query from
+// this" flow as /queries/missing-results. semester is accepted for UI
+// symmetry with that endpoint but has no effect — none of the three
+// absence tables (absences, plc_absences, meeting_absences) carry a
+// semester column, only academic_year_id, matching the same limitation
+// already present in principal.js's /plc-summary and /meetings-summary.
+router.get('/queries/missing-attendance', adminOnly, async (req, res, next) => {
+  try {
+    const { source, academic_year_id } = req.query;
+    if (!ATTENDANCE_SOURCES.includes(source)) {
+      return res.status(400).json({ error: `source must be one of: ${ATTENDANCE_SOURCES.join(', ')}` });
+    }
+    if (!academic_year_id) {
+      return res.status(400).json({ error: 'academic_year_id is required' });
+    }
+
+    const occurrences = await computeAttendanceShortfallOccurrences(pool, req.schoolId, source, academic_year_id);
+    if (!occurrences.length) return res.json([]);
+
+    const { rows: teacherRows } = await pool.query(
+      `SELECT id, name, department, email, teacher_code FROM teachers
+       WHERE id = ANY($1::uuid[]) AND school_id = $2`,
+      [[...new Set(occurrences.map(o => o.teacher_id))], req.schoolId]
+    );
+    const teacherById = Object.fromEntries(teacherRows.map(t => [t.id, t]));
+
+    const byTeacher = new Map();
+    for (const o of occurrences) {
+      const t = teacherById[o.teacher_id];
+      if (!t) continue; // teacher deleted/inactive since — skip rather than show a blank row
+      if (!byTeacher.has(o.teacher_id)) {
+        byTeacher.set(o.teacher_id, {
+          teacher_id: o.teacher_id, teacher_name: t.name, department: t.department,
+          email: t.email, teacher_code: t.teacher_code, occurrences: [],
+        });
+      }
+      byTeacher.get(o.teacher_id).occurrences.push({
+        date: o.date, occasion_title: o.occasion_title, reason: o.reason, status: o.status,
+      });
+    }
+
+    res.json([...byTeacher.values()].sort((a, b) => b.occurrences.length - a.occurrences.length));
   } catch (err) { next(err); }
 });
 

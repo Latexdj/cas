@@ -938,6 +938,195 @@ function MissingResultsModal({ academicYears, handledTeacherIds, onClose, onDraf
   );
 }
 
+// ─── Missing Attendance Modal ───────────────────────────────────────────────
+// Same "find the shortfall, draft a query" flow as Missing Results above,
+// for the six sources teacher attendance is tracked against. None of the
+// underlying absence tables carry a semester column (only academic_year_id)
+// — same limitation already present in the principal portal's own
+// attendance summaries — so results cover the full academic year.
+
+interface AttendanceOccurrence { date: string; occasion_title: string; reason: string | null; status: string; }
+interface AttendanceShortfallTeacher {
+  teacher_id: string; teacher_name: string; department: string | null;
+  email: string | null; teacher_code: string; occurrences: AttendanceOccurrence[];
+}
+
+const ATTENDANCE_SOURCES = [
+  { value: 'classroom',         label: 'Classroom Attendance' },
+  { value: 'plc',                label: 'PLC Attendance' },
+  { value: 'morning_briefing',   label: 'Morning Briefing' },
+  { value: 'staff_meeting',      label: 'Staff Meeting' },
+  { value: 'pta',                label: 'PTA' },
+  { value: 'other',              label: 'Other Meetings' },
+];
+
+function buildMissingAttendanceAutoFill(t: AttendanceShortfallTeacher, sourceLabel: string, ayId: string, ayName: string): QueryAutoFill {
+  const deadline = new Date();
+  deadline.setDate(deadline.getDate() + 5);
+  const deadlineStr = deadline.toISOString().slice(0, 10);
+  const deadlineLabel = deadline.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const subject = `Unexplained ${sourceLabel} Absences — ${t.occurrences.length} Occasion${t.occurrences.length !== 1 ? 's' : ''}`;
+
+  const incidentLines = t.occurrences.map(o =>
+    `${fmt(o.date)}${o.occasion_title ? ` — ${o.occasion_title}` : ''}: ${o.reason ? `reason on file: "${o.reason}"` : 'no reason recorded'}`
+  );
+  const noReasonCount = t.occurrences.filter(o => !o.reason).length;
+
+  return {
+    teacher: { id: t.teacher_id, name: t.teacher_name, department: t.department ?? undefined, status: 'Active' },
+    category: 'absenteeism',
+    subject,
+    academicYearId: ayId,
+    deadline: deadlineStr,
+    intake: {
+      incident: `As of today, CAS records show the following unexplained ${sourceLabel.toLowerCase()}:\n\n${incidentLines.join('\n')}`,
+      date_period: ayName,
+      prior_context: noReasonCount > 0 ? `${noReasonCount} of ${t.occurrences.length} absence${t.occurrences.length !== 1 ? 's' : ''} have no reason recorded.` : '',
+      expected_response: `Written explanation for the above absences, by ${deadlineLabel}.`,
+    },
+  };
+}
+
+function MissingAttendanceModal({ academicYears, handledTeacherIds, onClose, onDraftQuery }: {
+  academicYears: AcademicYear[]; handledTeacherIds: Set<string>;
+  onClose: () => void; onDraftQuery: (autoFill: QueryAutoFill) => void;
+}) {
+  const currentYear = academicYears.find(ay => ay.is_current);
+  const [ayId, setAyId] = useState(currentYear?.id ?? academicYears[0]?.id ?? '');
+  const [source, setSource] = useState('classroom');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [candidates, setCandidates] = useState<AttendanceShortfallTeacher[]>([]);
+  const [checked, setChecked] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const ayName = academicYears.find(ay => ay.id === ayId)?.name ?? '';
+  const sourceLabel = ATTENDANCE_SOURCES.find(s => s.value === source)?.label ?? source;
+
+  async function check() {
+    if (!ayId) { setError('Select an academic year'); return; }
+    setLoading(true); setError(''); setChecked(false);
+    try {
+      const { data } = await api.get<AttendanceShortfallTeacher[]>('/api/discipline/queries/missing-attendance', {
+        params: { academic_year_id: ayId, source },
+      });
+      setCandidates(data);
+      setChecked(true);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } } };
+      setError(err.response?.data?.error ?? 'Failed to check for missing attendance');
+    } finally { setLoading(false); }
+  }
+
+  function toggleExpanded(teacherId: string) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(teacherId)) next.delete(teacherId); else next.add(teacherId);
+      return next;
+    });
+  }
+
+  const totalOccurrences = candidates.reduce((sum, t) => sum + t.occurrences.length, 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4" style={{ background: 'rgba(11,61,46,0.45)' }}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 680, maxHeight: '92vh', overflow: 'auto', padding: 28, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <p style={{ fontWeight: 800, fontSize: 17, color: C.dark }}>Missing Attendance — Draft Queries</p>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, color: C.muted, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
+        </div>
+        <p style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>
+          Checks unexcused absences for the source and year you pick — classroom periods, PLC, Morning Briefing, Staff Meeting, PTA, or other meetings. Drafting a query opens the same AI-assisted compose flow as &quot;Issue Query&quot; — review, edit, and submit each one yourself; nothing is sent automatically. These records aren&apos;t tracked per-semester, so results cover the full academic year.
+        </p>
+
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 18, flexWrap: 'wrap' }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 5 }}>Academic Year</label>
+            <select value={ayId} onChange={e => { setAyId(e.target.value); setChecked(false); }}
+              style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none', minWidth: 160 }}>
+              {academicYears.map(ay => <option key={ay.id} value={ay.id}>{ay.name}{ay.is_current ? ' (Current)' : ''}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 700, color: C.mid2, display: 'block', marginBottom: 5 }}>Source</label>
+            <select value={source} onChange={e => { setSource(e.target.value); setChecked(false); }}
+              style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, background: '#fff', color: C.dark, outline: 'none' }}>
+              {ATTENDANCE_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+          <button onClick={check} disabled={loading}
+            style={{ padding: '9px 18px', borderRadius: 10, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 13, cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+            {loading ? 'Checking…' : 'Check'}
+          </button>
+        </div>
+
+        {error && <p style={{ fontSize: 12, color: C.danger, background: C.dangerBg, padding: '8px 12px', borderRadius: 8, marginBottom: 14 }}>{error}</p>}
+
+        {checked && candidates.length === 0 && !error && (
+          <p style={{ fontSize: 13, color: C.mid, background: '#E8F4EE', padding: '12px 14px', borderRadius: 10 }}>
+            No unexcused {sourceLabel.toLowerCase()} absences found for {ayName}.
+          </p>
+        )}
+
+        {checked && candidates.length > 0 && (
+          <>
+            <p style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>
+              {candidates.length} teacher{candidates.length !== 1 ? 's' : ''}, {totalOccurrences} occasion{totalOccurrences !== 1 ? 's' : ''} unexplained.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {candidates.map(t => {
+                const handled = handledTeacherIds.has(t.teacher_id);
+                const isExpanded = expanded.has(t.teacher_id);
+                return (
+                  <div key={t.teacher_id} style={{ border: `1px solid ${handled ? '#B8D9C8' : C.border}`, borderRadius: 10, padding: '12px 14px', background: handled ? '#F0FAF4' : '#fff' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: C.dark, margin: 0 }}>
+                          {t.teacher_name}{handled && <span style={{ color: C.success, fontWeight: 700, marginLeft: 8 }}>✓ Drafted</span>}
+                        </p>
+                        <p style={{ fontSize: 11, color: C.muted, margin: '2px 0 0' }}>
+                          {t.department || '—'} · {t.occurrences.length} occasion{t.occurrences.length !== 1 ? 's' : ''} unexplained
+                        </p>
+                        <button onClick={() => toggleExpanded(t.teacher_id)}
+                          style={{ marginTop: 6, background: 'none', border: 'none', color: C.mid, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <svg viewBox="0 0 16 16" width={10} height={10} fill="none" stroke="currentColor" strokeWidth={2.5}
+                            style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
+                            <path d="M6 3l5 5-5 5" />
+                          </svg>
+                          {isExpanded ? 'Hide details' : 'Show details'}
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => onDraftQuery(buildMissingAttendanceAutoFill(t, sourceLabel, ayId, ayName))}
+                        style={{ flexShrink: 0, padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.mid}`, background: handled ? '#fff' : '#E8F4EE', color: C.mid, fontWeight: 700, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        {handled ? 'Draft again' : 'Draft query'}
+                      </button>
+                    </div>
+
+                    {isExpanded && (
+                      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {t.occurrences.map((o, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, border: `1px solid ${C.border}`, borderRadius: 8, padding: '6px 10px', fontSize: 11 }}>
+                            <span style={{ color: C.dark, fontWeight: 600 }}>{fmt(o.date)}{o.occasion_title ? ` · ${o.occasion_title}` : ''}</span>
+                            <span style={{ color: o.reason ? C.muted : C.danger, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              {o.reason ?? 'No reason recorded'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Issue Letter Modal ───────────────────────────────────────────────────────
 
 const APPROVAL_REQUIRED_TYPES = new Set(['suspension', 'dismissal', 'final_warning']);
@@ -2139,6 +2328,7 @@ export default function DisciplinePage() {
   const [qStatusFilter, setQStatusFilter] = useState('');
   const [showIssueQuery, setShowIssueQuery] = useState(false);
   const [showMissingResults, setShowMissingResults] = useState(false);
+  const [showMissingAttendance, setShowMissingAttendance] = useState(false);
   const [queryAutoFill, setQueryAutoFill] = useState<QueryAutoFill | null>(null);
   const [editingQuery, setEditingQuery] = useState<TeacherQuery | null>(null);
   const [handledTeacherIds, setHandledTeacherIds] = useState<Set<string>>(new Set());
@@ -2289,6 +2479,11 @@ export default function DisciplinePage() {
               style={{ padding: '8px 18px', borderRadius: 9, border: `1px solid ${C.mid}`, background: '#fff', color: C.mid, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
               <svg viewBox="0 0 16 16" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2}><path d="M8 1C4.13 1 1 3.7 1 7c0 1.4.54 2.68 1.44 3.7L1 15l4.5-1.36A7.1 7.1 0 008 14c3.87 0 7-2.7 7-6s-3.13-6-7-6z"/></svg>
               Missing Results
+            </button>
+            <button onClick={() => setShowMissingAttendance(true)}
+              style={{ padding: '8px 18px', borderRadius: 9, border: `1px solid ${C.mid}`, background: '#fff', color: C.mid, fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <svg viewBox="0 0 16 16" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2}><path d="M8 1C4.13 1 1 3.7 1 7c0 1.4.54 2.68 1.44 3.7L1 15l4.5-1.36A7.1 7.1 0 008 14c3.87 0 7-2.7 7-6s-3.13-6-7-6z"/></svg>
+              Missing Attendance
             </button>
             <button onClick={() => setShowIssueQuery(true)}
               style={{ padding: '8px 18px', borderRadius: 9, border: 'none', background: C.mid, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2477,6 +2672,15 @@ export default function DisciplinePage() {
           academicYears={academicYears}
           handledTeacherIds={handledTeacherIds}
           onClose={() => setShowMissingResults(false)}
+          onDraftQuery={autoFill => setQueryAutoFill(autoFill)}
+        />
+      )}
+
+      {showMissingAttendance && !queryAutoFill && (
+        <MissingAttendanceModal
+          academicYears={academicYears}
+          handledTeacherIds={handledTeacherIds}
+          onClose={() => setShowMissingAttendance(false)}
           onDraftQuery={autoFill => setQueryAutoFill(autoFill)}
         />
       )}
