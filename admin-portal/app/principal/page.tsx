@@ -4,6 +4,7 @@ import { useTheme } from 'next-themes';
 import Link from 'next/link';
 import { principalApi } from '@/lib/principal-api';
 import { getPrincipal } from '@/lib/principal-auth';
+import type { AcademicYear } from '@/types/api';
 
 interface Snapshot {
   teacherAttendanceRate: number | null;
@@ -59,6 +60,7 @@ export default function PrincipalDashboard() {
   const [finance, setFinance] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [pipelineCounts, setPipelineCounts] = useState<Record<string, number>>({});
+  const [pipelinePeriod, setPipelinePeriod] = useState<{ label: string; isPrevious: boolean } | null>(null);
   const user                  = getPrincipal();
 
   useEffect(() => { setMounted(true); }, []);
@@ -75,15 +77,44 @@ export default function PrincipalDashboard() {
   }, []);
 
   useEffect(() => {
-    principalApi.get<PipelineItem[]>('/api/result-submissions/final-queue')
-      .then(r => {
-        const counts: Record<string, number> = {};
-        for (const item of r.data) {
-          counts[item.status] = (counts[item.status] ?? 0) + 1;
-        }
-        setPipelineCounts(counts);
-      })
-      .catch(() => {});
+    function tally(items: PipelineItem[]) {
+      const counts: Record<string, number> = {};
+      for (const item of items) counts[item.status] = (counts[item.status] ?? 0) + 1;
+      return counts;
+    }
+    const fetchQueue = (academicYearId: string, semester: number) =>
+      principalApi.get<PipelineItem[]>('/api/result-submissions/final-queue', {
+        params: { academic_year_id: academicYearId, semester },
+      }).then(r => r.data);
+
+    principalApi.get<AcademicYear[]>('/api/academic-years').then(async ({ data: years }) => {
+      const current = years.find(y => y.is_current);
+      if (!current) return;
+      const currentSemester = current.current_semester ?? 1;
+
+      const currentItems = await fetchQueue(current.id, currentSemester);
+      if (currentItems.length > 0) {
+        setPipelineCounts(tally(currentItems));
+        setPipelinePeriod(null);
+        return;
+      }
+
+      // Current semester has nothing in the pipeline yet — fall back to the
+      // most recently completed semester so the widget isn't just empty.
+      const previous = currentSemester === 2
+        ? { id: current.id, semester: 1, label: `Semester 1, ${current.name}` }
+        : (() => {
+            const prevYear = years.filter(y => y.id !== current.id).sort((a, b) => b.name.localeCompare(a.name))[0];
+            return prevYear ? { id: prevYear.id, semester: 2, label: `Semester 2, ${prevYear.name}` } : null;
+          })();
+      if (!previous) return;
+
+      const previousItems = await fetchQueue(previous.id, previous.semester);
+      if (previousItems.length > 0) {
+        setPipelineCounts(tally(previousItems));
+        setPipelinePeriod({ label: previous.label, isPrevious: true });
+      }
+    }).catch(() => {});
   }, []);
 
   const dark = mounted && theme === 'dark';
@@ -166,7 +197,14 @@ export default function PrincipalDashboard() {
 
           {/* Academic Results Pipeline */}
           <div style={{ marginTop: 24, marginBottom: 32 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208', marginBottom: 12 }}>Academic Results Pipeline</h3>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208' }}>Academic Results Pipeline</h3>
+              {pipelinePeriod?.isPrevious && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: dark ? '#94A3B8' : '#94A3B8' }}>
+                  — showing {pipelinePeriod.label} (no activity yet this semester)
+                </span>
+              )}
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
               {[
                 { label: 'Awaiting HOD Review', value: pipelineCounts['submitted'] ?? '—', color: '#1E40AF', bg: dark ? '#0A1628' : '#DBEAFE' },

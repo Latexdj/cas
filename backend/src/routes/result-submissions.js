@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
-const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { authenticate, adminOnly, adminOrManagement, requireActiveSubscription } = require('../middleware/auth');
 const { logAudit } = require('../services/audit.service');
 const { createNotification, sendTeacherEmail } = require('../services/notification.service');
 const { getClassRoster, mapWithLimit } = require('../services/classHistory.service');
@@ -525,7 +525,9 @@ router.get('/non-submitters', adminOnly, async (req, res, next) => {
 });
 
 // ── GET /final-queue — admin sees hod_approved entries awaiting final approval ──
-router.get('/final-queue', adminOnly, async (req, res, next) => {
+// Also readable by the principal/vice-principal management portal, which
+// surfaces the same counts as a dashboard "pipeline" summary.
+router.get('/final-queue', adminOrManagement, async (req, res, next) => {
   try {
     const { academic_year_id, semester } = req.query;
     let filter = '';
