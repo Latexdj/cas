@@ -4,6 +4,7 @@ const XLSX   = require('xlsx');
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { fetchBreaks, effectivePeriods } = require('../utils/breaks');
+const { getClassRoster } = require('../services/classHistory.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -420,7 +421,7 @@ router.get('/class-subjects', async (req, res, next) => {
   try {
     const { class_name } = req.query;
     let q = `
-      SELECT cs.id, cs.class_name, cs.subject_id, cs.periods_per_week,
+      SELECT cs.id, cs.class_name, cs.subject_id, cs.periods_per_week, cs.is_elective,
              s.name AS subject_name, s.code AS subject_code
       FROM class_subjects cs
       JOIN subjects s ON s.id = cs.subject_id
@@ -435,7 +436,7 @@ router.get('/class-subjects', async (req, res, next) => {
 
 router.post('/class-subjects', adminOnly, async (req, res, next) => {
   try {
-    const { class_name, subject_id, periods_per_week = 1 } = req.body;
+    const { class_name, subject_id, periods_per_week = 1, is_elective = false } = req.body;
     if (!class_name || !subject_id) {
       return res.status(400).json({ error: 'class_name and subject_id are required' });
     }
@@ -446,13 +447,32 @@ router.post('/class-subjects', adminOnly, async (req, res, next) => {
     if (!sub.length) return res.status(404).json({ error: 'Subject not found' });
 
     const { rows } = await pool.query(
-      `INSERT INTO class_subjects (school_id, class_name, subject_id, periods_per_week)
-       VALUES ($1,$2,$3,$4)
-       ON CONFLICT (school_id, class_name, subject_id) DO UPDATE SET periods_per_week = $4
-       RETURNING id, class_name, subject_id, periods_per_week`,
-      [req.schoolId, class_name.trim(), subject_id, periods_per_week]
+      `INSERT INTO class_subjects (school_id, class_name, subject_id, periods_per_week, is_elective)
+       VALUES ($1,$2,$3,$4,$5)
+       ON CONFLICT (school_id, class_name, subject_id) DO UPDATE SET periods_per_week = $4, is_elective = $5
+       RETURNING id, class_name, subject_id, periods_per_week, is_elective`,
+      [req.schoolId, class_name.trim(), subject_id, periods_per_week, !!is_elective]
     );
     res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/timetable/class-subjects/:id — toggle is_elective / periods_per_week
+// without needing to re-send subject_id.
+router.patch('/class-subjects/:id', adminOnly, async (req, res, next) => {
+  try {
+    const { is_elective, periods_per_week } = req.body;
+    const sets = [], params = [req.params.id, req.schoolId];
+    if (is_elective !== undefined) { params.push(!!is_elective); sets.push(`is_elective = $${params.length}`); }
+    if (periods_per_week !== undefined) { params.push(periods_per_week); sets.push(`periods_per_week = $${params.length}`); }
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to update' });
+    const { rows } = await pool.query(
+      `UPDATE class_subjects SET ${sets.join(', ')} WHERE id = $1 AND school_id = $2
+       RETURNING id, class_name, subject_id, periods_per_week, is_elective`,
+      params
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Allocation not found' });
+    res.json(rows[0]);
   } catch (err) { next(err); }
 });
 
@@ -465,6 +485,93 @@ router.delete('/class-subjects/:id', adminOnly, async (req, res, next) => {
     if (!rowCount) return res.status(404).json({ error: 'Allocation not found' });
     res.json({ message: 'Removed' });
   } catch (err) { next(err); }
+});
+
+// GET /api/timetable/class-subjects/:id/enrollments — this allocation's
+// current roster, each annotated with whether they're currently enrolled
+// (student_electives) in this elective. Used by the admin elective-management
+// modal; works regardless of whether is_elective is currently true, so an
+// admin can review/pre-populate before flipping the toggle on.
+router.get('/class-subjects/:id/enrollments', adminOnly, async (req, res, next) => {
+  try {
+    const { rows: csRows } = await pool.query(
+      `SELECT cs.class_name, cs.subject_id, cs.is_elective
+       FROM class_subjects cs WHERE cs.id = $1 AND cs.school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!csRows.length) return res.status(404).json({ error: 'Allocation not found' });
+    const cs = csRows[0];
+
+    const { rows: yr } = await pool.query(
+      `SELECT id, current_semester FROM academic_years WHERE school_id=$1 AND is_current=true ORDER BY name DESC LIMIT 1`,
+      [req.schoolId]
+    );
+    if (!yr.length) return res.status(400).json({ error: 'No current academic year configured' });
+
+    const roster = await getClassRoster(req.schoolId, cs.class_name, yr[0].id, yr[0].current_semester);
+    const { rows: students } = await pool.query(
+      `SELECT id, student_code, name FROM students WHERE id = ANY($1::uuid[]) ORDER BY name`,
+      [roster]
+    );
+    const { rows: enrolledRows } = await pool.query(
+      `SELECT student_id FROM student_electives WHERE subject_id = $1`,
+      [cs.subject_id]
+    );
+    const enrolledIds = new Set(enrolledRows.map(r => r.student_id));
+    res.json({
+      is_elective: cs.is_elective,
+      students: students.map(s => ({ ...s, enrolled: enrolledIds.has(s.id) })),
+    });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/timetable/class-subjects/:id/enrollments  { student_ids: string[] }
+// Replace semantics: deletes all existing student_electives rows for this
+// subject scoped to this allocation's current roster, then bulk-inserts the
+// given list — same DELETE-then-loop-INSERT transaction shape already used
+// in admin-module-access.js for module-grant replacement.
+router.put('/class-subjects/:id/enrollments', adminOnly, async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const { student_ids } = req.body;
+    if (!Array.isArray(student_ids)) return res.status(400).json({ error: 'student_ids must be an array' });
+
+    const { rows: csRows } = await pool.query(
+      `SELECT class_name, subject_id FROM class_subjects WHERE id = $1 AND school_id = $2`,
+      [req.params.id, req.schoolId]
+    );
+    if (!csRows.length) return res.status(404).json({ error: 'Allocation not found' });
+    const cs = csRows[0];
+
+    const { rows: yr } = await pool.query(
+      `SELECT id, current_semester FROM academic_years WHERE school_id=$1 AND is_current=true ORDER BY name DESC LIMIT 1`,
+      [req.schoolId]
+    );
+    const roster = yr.length
+      ? new Set(await getClassRoster(req.schoolId, cs.class_name, yr[0].id, yr[0].current_semester))
+      : new Set();
+    const validIds = student_ids.filter(id => roster.has(id));
+
+    await client.query('BEGIN');
+    await client.query(
+      `DELETE FROM student_electives WHERE subject_id = $1 AND student_id = ANY($2::uuid[])`,
+      [cs.subject_id, [...roster]]
+    );
+    for (const studentId of validIds) {
+      await client.query(
+        `INSERT INTO student_electives (school_id, student_id, subject_id) VALUES ($1,$2,$3)
+         ON CONFLICT (student_id, subject_id) DO NOTHING`,
+        [req.schoolId, studentId, cs.subject_id]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ enrolled: validIds.length });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
 });
 
 // Seed allocations from existing timetable (idempotent).

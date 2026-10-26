@@ -97,7 +97,7 @@ export default function SubmitScreen() {
           'Incomplete Attendance',
           `Your teacher attendance for ${pending.subject} was saved but student attendance was not completed — possibly because of a phone call.\n\nContinue marking students now?`,
           [
-            { text: 'Continue', onPress: () => loadStudentsForClass(pending.classNames, pending.attendanceId, pending.endTime) },
+            { text: 'Continue', onPress: () => loadStudentsForClass(pending.classNames, pending.attendanceId, pending.endTime, pending.subject) },
             { text: 'Later', style: 'cancel' },
           ]
         );
@@ -328,7 +328,7 @@ export default function SubmitScreen() {
       } catch { /* non-critical */ }
 
       // Transition to step 2 — load students for this class
-      await loadStudentsForClass(selectedSlot.class_names, newAttendanceId, selectedSlot.end_time);
+      await loadStudentsForClass(selectedSlot.class_names, newAttendanceId, selectedSlot.end_time, selectedSlot.subject);
     } catch (err: any) {
       const data = err?.response?.data;
       Alert.alert('Error', data?.error ?? 'Submission failed.');
@@ -338,20 +338,20 @@ export default function SubmitScreen() {
     }
   }
 
-  async function loadStudentsForClass(classNames: string, attId: string | null, _endTime: string) {
+  async function loadStudentsForClass(classNames: string, attId: string | null, _endTime: string, subject: string) {
     const queue = classNames.split(',').map(c => c.trim()).filter(Boolean);
     setClassQueue(queue);
     setClassQueueIndex(0);
     setAttendanceId(attId);
-    await loadClassAtIndex(queue, 0, attId);
+    await loadClassAtIndex(queue, 0, attId, subject);
   }
 
-  async function loadClassAtIndex(queue: string[], index: number, attId: string | null) {
+  async function loadClassAtIndex(queue: string[], index: number, attId: string | null, subject: string) {
     setLoadingStudents(true);
     try {
       const className = queue[index];
       const [studRes, exeatRes] = await Promise.allSettled([
-        api.get<Student[]>(`/api/students?class_name=${encodeURIComponent(className)}&status=Active`),
+        api.get<Student[]>(`/api/students?class_name=${encodeURIComponent(className)}&status=Active&subject=${encodeURIComponent(subject)}`),
         api.get<string[]>('/api/exeat/on-exeat-ids'),
       ]);
       const exeatSet = new Set<string>(exeatRes.status === 'fulfilled' ? exeatRes.value.data : []);
@@ -365,7 +365,7 @@ export default function SubmitScreen() {
             `No active students registered for ${className}. Moving to ${queue[nextIndex]}.`,
             [{ text: 'Continue', onPress: async () => {
               setClassQueueIndex(nextIndex);
-              await loadClassAtIndex(queue, nextIndex, attId);
+              await loadClassAtIndex(queue, nextIndex, attId, subject);
             }}]
           );
         } else {
@@ -427,7 +427,7 @@ export default function SubmitScreen() {
           `✅ ${currentClass} Done`,
           `${present} present · ${absent} absent.\n\nNext: ${classQueue[nextIndex]}`,
           [{ text: `Mark ${classQueue[nextIndex]}`, onPress: async () => {
-            await loadClassAtIndex(classQueue, nextIndex, attendanceId);
+            await loadClassAtIndex(classQueue, nextIndex, attendanceId, selectedSlot.subject);
           }}]
         );
       } else {

@@ -1027,6 +1027,68 @@ function AssessmentModesTab() {
 interface ClassSubjectRow {
   id: string; class_name: string; subject_id: string;
   subject_name: string; subject_code: string | null; periods_per_week: number;
+  is_elective: boolean;
+}
+
+interface ElectiveStudent {
+  id: string; student_code: string; name: string; enrolled: boolean;
+}
+
+function ElectiveEnrollmentModal({ allocation, onClose }: { allocation: ClassSubjectRow; onClose: () => void }) {
+  const [students, setStudents] = useState<ElectiveStudent[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+
+  useEffect(() => {
+    api.get<{ is_elective: boolean; students: ElectiveStudent[] }>(`/api/timetable/class-subjects/${allocation.id}/enrollments`)
+      .then(({ data }) => setStudents(data.students))
+      .finally(() => setLoading(false));
+  }, [allocation.id]);
+
+  function toggle(id: string) {
+    setStudents(prev => prev.map(s => s.id === id ? { ...s, enrolled: !s.enrolled } : s));
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.put(`/api/timetable/class-subjects/${allocation.id}/enrollments`, {
+        student_ids: students.filter(s => s.enrolled).map(s => s.id),
+      });
+      onClose();
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`${allocation.subject_name} — enrolled students`} maxWidth="max-w-md">
+      {loading ? (
+        <div className="text-center py-4 text-sm text-slate-400">Loading…</div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-xs text-slate-400">
+            Check every student in {allocation.class_name} taking this elective. Only checked students will see this subject when a teacher marks attendance, enters CA/exam scores, or compiles results.
+          </p>
+          {students.length === 0 ? (
+            <div className="text-center py-4 text-sm text-slate-400">No active students in {allocation.class_name}.</div>
+          ) : (
+            <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+              {students.map(s => (
+                <label key={s.id} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer select-none">
+                  <input type="checkbox" checked={s.enrolled} className="rounded border-slate-300" onChange={() => toggle(s.id)} />
+                  <span className="text-sm flex-1 text-slate-800">{s.name}</span>
+                  <span className="text-xs font-mono text-slate-400">{s.student_code}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button loading={saving} onClick={save}>Save</Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
 }
 interface CoverageRow {
   class_subject_id: string; class_name: string; subject: string;
@@ -1062,6 +1124,8 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
   const [addPeriods,    setAddPeriods]    = useState('1');
   const [adding,        setAdding]        = useState(false);
   const [seedMsg,       setSeedMsg]       = useState<string | null>(null);
+  const [enrollFor,     setEnrollFor]     = useState<ClassSubjectRow | null>(null);
+  const [togglingId,    setTogglingId]    = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -1124,6 +1188,14 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
     await loadClass(selectedClass);
   }
 
+  async function toggleElective(a: ClassSubjectRow) {
+    setTogglingId(a.id);
+    try {
+      await api.patch(`/api/timetable/class-subjects/${a.id}`, { is_elective: !a.is_elective });
+      await loadClass(selectedClass);
+    } finally { setTogglingId(null); }
+  }
+
   const covMap     = new Map(coverage.map(c => [c.subject.toLowerCase(), c]));
   const allocIds   = new Set(allocations.map(a => a.subject_id));
   const unalloc    = subjects.filter(s => !allocIds.has(s.id));
@@ -1166,7 +1238,7 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  {['Subject', 'Periods/Week', 'Scheduled', 'Duration/Week', 'Status', ''].map(h => (
+                  {['Subject', 'Periods/Week', 'Scheduled', 'Duration/Week', 'Status', 'Elective', ''].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">{h}</th>
                   ))}
                 </tr>
@@ -1205,13 +1277,23 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
                         ) : <span className="text-xs text-slate-400">No timetable data</span>}
                       </td>
                       <td className="px-4 py-3">
+                        <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                          <input type="checkbox" checked={a.is_elective} disabled={togglingId === a.id}
+                            onChange={() => toggleElective(a)} className="rounded border-slate-300" />
+                        </label>
+                        {a.is_elective && (
+                          <button className="block mt-1 text-xs underline text-[#145C44] font-medium"
+                            onClick={() => setEnrollFor(a)}>Manage students</button>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
                         <Button variant="danger" size="sm" onClick={() => remove(a.id)}>Remove</Button>
                       </td>
                     </tr>
                   );
                 })}
                 {allocations.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
+                  <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
                     No subjects allocated to {selectedClass || 'this class'} yet.{' '}
                     <button className="underline text-[#145C44] font-medium" onClick={seed}>Auto-seed from timetable</button>
                   </td></tr>
@@ -1236,6 +1318,10 @@ function AllocationsTab({ onGapChange }: { onGapChange: (n: number) => void }) {
             </div>
           )}
         </>
+      )}
+
+      {enrollFor && (
+        <ElectiveEnrollmentModal allocation={enrollFor} onClose={() => setEnrollFor(null)} />
       )}
     </div>
   );

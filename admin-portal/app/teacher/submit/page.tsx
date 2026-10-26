@@ -334,7 +334,7 @@ export default function SubmitPage() {
     const queue = pending.classNames.split(',').map(c => c.trim()).filter(Boolean);
     setClassQueue(queue);
     setClassQueueIdx(0);
-    await loadClassAtIndex(queue, 0, pending.attendanceId);
+    await loadClassAtIndex(queue, 0, pending.attendanceId, pending.subject);
     setStep(2);
   }
 
@@ -466,7 +466,7 @@ export default function SubmitPage() {
       const queue = slot.class_names.split(',').map(c => c.trim()).filter(Boolean);
       setClassQueue(queue);
       setClassQueueIdx(0);
-      await loadClassAtIndex(queue, 0, newId);
+      await loadClassAtIndex(queue, 0, newId, slot.subject);
       setStep(2);
     } catch (err: unknown) {
       const data = (err as { response?: { data?: { error?: string; locationFailure?: boolean } } })?.response?.data;
@@ -475,12 +475,12 @@ export default function SubmitPage() {
     } finally { setSubmitting(false); }
   }
 
-  async function loadClassAtIndex(queue: string[], index: number, attId: string) {
+  async function loadClassAtIndex(queue: string[], index: number, attId: string, subject: string) {
     setStudLoading(true);
     try {
       const className = queue[index];
       const [sr, er] = await Promise.allSettled([
-        teacherApi.get<Student[]>(`/api/students?class_name=${encodeURIComponent(className)}&status=Active`),
+        teacherApi.get<Student[]>(`/api/students?class_name=${encodeURIComponent(className)}&status=Active&subject=${encodeURIComponent(subject)}`),
         teacherApi.get<string[]>('/api/exeat/on-exeat-ids'),
       ]);
       setStudents(sr.status === 'fulfilled' ? sr.value.data ?? [] : []);
@@ -511,7 +511,7 @@ export default function SubmitPage() {
       const nextIdx = classQueueIdx + 1;
       if (nextIdx < classQueue.length) {
         setClassQueueIdx(nextIdx);
-        await loadClassAtIndex(classQueue, nextIdx, attendanceId);
+        await loadClassAtIndex(classQueue, nextIdx, attendanceId, slot.subject);
       } else {
         try { localStorage.removeItem('pending_student_att'); } catch { /* ignore */ }
         router.push('/teacher');

@@ -3,6 +3,7 @@ const pool    = require('../config/db');
 const ExcelJS = require('exceljs');
 const { authenticate, requireActiveSubscription, adminOnly } = require('../middleware/auth');
 const { getClassRoster } = require('../services/classHistory.service');
+const { getElectiveEnrollmentFilter } = require('../services/electives.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -145,7 +146,15 @@ async function assembleResults(schoolId, academic_year_id, semester, class_name)
   const subjectResults = {};
   for (const subject of allSubjects) {
     subjectResults[subject] = [];
+    // null => subject isn't flagged elective for this class, every student
+    // gets a row exactly as before. A Set => only enrolled students get a
+    // row for THIS subject; everyone else simply has no entry in
+    // subjectResults[subject], so they're correctly absent from this one
+    // subject's ranking/rows while retaining rows for their other subjects
+    // (each built in its own independent pass over `students`).
+    const enrolled = await getElectiveEnrollmentFilter(schoolId, class_name, subject);
     for (const st of students) {
+      if (enrolled && !enrolled.has(st.id)) continue;
       const hasLiveCA   = !!(caData[st.id]?.[subject]);
       const hasLiveExam = !!(examData[st.id]?.[subject]);
       const hasImport   = !!(importedData[st.id]?.[subject]);

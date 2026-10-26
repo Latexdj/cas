@@ -35,7 +35,7 @@ router.get('/template', async (req, res, next) => {
     let teacherFilter = '';
     if (!isAdmin) { params.push(req.user.id); teacherFilter = `AND e.teacher_id = $${params.length}`; }
 
-    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester));
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester), { subject });
     params.push(roster);
     const rosterParam = `$${params.length}`;
     const { rows: students } = await pool.query(
@@ -128,7 +128,7 @@ router.post('/upload-scores', upload.single('file'), async (req, res, next) => {
       return res.status(409).json({ error: `Scores are locked — submission status is "${subStatus}".` });
     }
 
-    const validIds = new Set(await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester)));
+    const validIds = new Set(await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester), { subject }));
 
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(req.file.buffer);
@@ -213,7 +213,7 @@ router.get('/', async (req, res, next) => {
     let teacherFilter = '';
     if (!isAdmin) { params.push(req.user.id); teacherFilter = `AND e.teacher_id = $${params.length}`; }
 
-    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester));
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester), { subject });
     params.push(roster);
     const rosterParam = `$${params.length}`;
     const { rows } = await pool.query(

@@ -2404,6 +2404,31 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE remedial_lessons ADD COLUMN IF NOT EXISTS pending_reason TEXT`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] pending-verification columns:', e.message); }
 
+    // ── Elective-subject roster filtering ─────────────────────────────────────
+    // For the overwhelming majority of class_subjects rows (core subjects),
+    // nothing changes — is_elective defaults to false, which keeps today's
+    // "whole class" roster behavior everywhere. student_electives is keyed by
+    // subject_id directly (not class_subjects.id) because class_subjects
+    // itself is not academic-year scoped here, and a student's elective pick
+    // should survive their class_name changing (promotion) — "is this
+    // elective for my CURRENT class" is re-derived at read time via a join
+    // against class_subjects (see services/electives.service.js).
+    try {
+      await pool.query(`ALTER TABLE class_subjects ADD COLUMN IF NOT EXISTS is_elective BOOLEAN NOT NULL DEFAULT false`);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS student_electives (
+          id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          school_id   UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+          student_id  UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+          subject_id  UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+          created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+          UNIQUE (student_id, subject_id)
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_electives_school ON student_electives(school_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_student_electives_subject ON student_electives(subject_id)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] class_subjects.is_elective + student_electives:', e.message); }
+
     // Academic year date range
     try {
     await pool.query(`ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS start_date DATE`);

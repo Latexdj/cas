@@ -6,6 +6,7 @@ const { uploadPhoto } = require('../services/storage.service');
 const { sendRemedialScheduledNotification } = require('../services/email.service');
 const { createNotification, sendTeacherEmail } = require('../services/notification.service');
 const { getExcusedStudentIds } = require('./clinic');
+const { getElectiveEnrollmentFilter } = require('../services/electives.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -245,9 +246,21 @@ router.get('/:id/register', async (req, res, next) => {
       recRows.forEach(r => recordMap.set(r.student_id, r.status));
     }
 
+    // rl.class_name can be comma-separated (one remedial lesson can span
+    // several classes) — resolve the elective filter per distinct class_name
+    // actually present among the fetched students, not the raw comma-list.
+    const distinctClasses = [...new Set(students.map(s => s.class_name))];
+    const filterByClass = new Map(await Promise.all(
+      distinctClasses.map(async cls => [cls.toLowerCase(), await getElectiveEnrollmentFilter(req.schoolId, cls, rl.subject)])
+    ));
+    const filteredStudents = students.filter(s => {
+      const enrolled = filterByClass.get(s.class_name.toLowerCase());
+      return !enrolled || enrolled.has(s.id); // null => not elective, keep everyone
+    });
+
     res.json({
       sessionId,
-      students: students.map(s => ({ ...s, status: recordMap.get(s.id) || null })),
+      students: filteredStudents.map(s => ({ ...s, status: recordMap.get(s.id) || null })),
     });
   } catch (err) { next(err); }
 });

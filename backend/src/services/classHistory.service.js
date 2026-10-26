@@ -1,5 +1,6 @@
 'use strict';
 const pool = require('../config/db');
+const { getElectiveEnrollmentFilter } = require('./electives.service');
 
 // Records one class_name transition. Called from every write path that can
 // change students.class_name (promotion, manual edit, bulk import) — see
@@ -308,7 +309,7 @@ function resolveClassFromHistory(historyRows, currentClassName, targetPeriod, cr
 // endpoints in results.js despite the import itself having succeeded.
 async function getClassRoster(schoolId, className, academicYearId, semester, options = {}) {
   const targetSemester = parseInt(semester);
-  const { includeInactive = false } = options;
+  const { includeInactive = false, subject = null } = options;
 
   // Candidate pool: everyone currently in this class, plus anyone whose
   // class_history ever mentions this class (as either endpoint of a
@@ -396,6 +397,10 @@ async function getClassRoster(schoolId, className, academicYearId, semester, opt
     }
   }
 
+  if (subject) {
+    const enrolled = await getElectiveEnrollmentFilter(schoolId, className, subject);
+    if (enrolled) return roster.filter(id => enrolled.has(id));
+  }
   return roster;
 }
 

@@ -6,36 +6,39 @@ const { createNotification, sendTeacherEmail } = require('../services/notificati
 const { getClassRoster, mapWithLimit } = require('../services/classHistory.service');
 
 // Resolves student_count/class_size per distinct (class_name, academic_year_id,
-// semester) combo in a result set via getClassRoster(), since a response can
-// span many different batches/periods rather than just one. Mutates nothing;
-// returns rows with the given key set to the resolved roster size.
-async function attachRosterCounts(schoolId, rows, { classNameKey = 'class_name', yearKey = 'academic_year_id', semesterKey = 'semester', outKey = 'student_count' } = {}) {
-  const comboKey = r => `${r[classNameKey].toLowerCase()}|${r[yearKey]}|${r[semesterKey]}`;
+// semester[, subject]) combo in a result set via getClassRoster(), since a
+// response can span many different batches/periods rather than just one.
+// Pass subjectKey when every row carries its own subject (e.g. result_submissions
+// rows) so an elective subject's count reflects only its enrolled students
+// rather than the whole class. Mutates nothing; returns rows with the given
+// key set to the resolved roster size.
+async function attachRosterCounts(schoolId, rows, { classNameKey = 'class_name', yearKey = 'academic_year_id', semesterKey = 'semester', outKey = 'student_count', subjectKey = null } = {}) {
+  const comboKey = r => `${r[classNameKey].toLowerCase()}|${r[yearKey]}|${r[semesterKey]}|${subjectKey ? r[subjectKey] : ''}`;
   const distinctCombos = [...new Map(rows.map(r => [comboKey(r), r])).values()];
   const entries = await mapWithLimit(distinctCombos, 3, async r =>
-    [comboKey(r), (await getClassRoster(schoolId, r[classNameKey], r[yearKey], r[semesterKey])).length]
+    [comboKey(r), (await getClassRoster(schoolId, r[classNameKey], r[yearKey], r[semesterKey], subjectKey ? { subject: r[subjectKey] } : {})).length]
   );
   const sizeMap = Object.fromEntries(entries);
   return rows.map(r => ({ ...r, [outKey]: sizeMap[comboKey(r)] ?? 0 }));
 }
 
 // Resolves scored_count (exam ∪ CA scores, distinct students) per row,
-// bounded to that row's own (class, year, semester) roster — otherwise a
-// currently-inactive student's real historical score can push the count
-// above the roster size, the same asymmetry fixed in assessment-monitoring.js
-// and reports.js. Rosters are cached per (class, year, semester) since
-// several subjects in the same class/period share one.
+// bounded to that row's own (class, year, semester, subject) roster —
+// otherwise a currently-inactive student's real historical score can push
+// the count above the roster size, the same asymmetry fixed in
+// assessment-monitoring.js and reports.js. Rosters are cached per subject
+// combo (not just per class) since an elective subject's roster can now
+// differ from its classmates' rosters for a different subject.
 async function attachScoredCounts(schoolId, rows) {
   const classComboKey = r => `${r.class_name.toLowerCase()}|${r.academic_year_id}|${r.semester}`;
   const subjectComboKey = r => `${r.subject}|${classComboKey(r)}`;
 
-  const distinctClassCombos = [...new Map(rows.map(r => [classComboKey(r), r])).values()];
-  const rosterEntries = await mapWithLimit(distinctClassCombos, 3, async r =>
-    [classComboKey(r), new Set(await getClassRoster(schoolId, r.class_name, r.academic_year_id, r.semester))]
+  const distinctSubjectCombos = [...new Map(rows.map(r => [subjectComboKey(r), r])).values()];
+  const rosterEntries = await mapWithLimit(distinctSubjectCombos, 3, async r =>
+    [subjectComboKey(r), new Set(await getClassRoster(schoolId, r.class_name, r.academic_year_id, r.semester, { subject: r.subject }))]
   );
   const rosterMap = new Map(rosterEntries);
 
-  const distinctSubjectCombos = [...new Map(rows.map(r => [subjectComboKey(r), r])).values()];
   const scoredEntries = await mapWithLimit(distinctSubjectCombos, 3, async r => {
     const { rows: scored } = await pool.query(
       `SELECT es.student_id FROM exam_scores es
@@ -47,7 +50,7 @@ async function attachScoredCounts(schoolId, rows) {
          AND asc2.score IS NOT NULL`,
       [schoolId, r.academic_year_id, r.semester, r.subject, r.class_name]
     );
-    const roster = rosterMap.get(classComboKey(r)) || new Set();
+    const roster = rosterMap.get(subjectComboKey(r)) || new Set();
     return [subjectComboKey(r), scored.filter(s => roster.has(s.student_id)).length];
   });
   const scoredMap = Object.fromEntries(scoredEntries);
@@ -300,7 +303,7 @@ router.get('/hod-queue', async (req, res, next) => {
       params
     );
     const withScored = await attachScoredCounts(req.schoolId, rows);
-    res.json(await attachRosterCounts(req.schoolId, withScored));
+    res.json(await attachRosterCounts(req.schoolId, withScored, { subjectKey: 'subject' }));
   } catch (err) { next(err); }
 });
 
@@ -556,7 +559,7 @@ router.get('/final-queue', adminOnly, async (req, res, next) => {
     // subject's assigned department head — so the admin isn't staring at a
     // blank "HOD" column with no way to tell who's supposed to act.
     const withHod = rows.map(r => ({ ...r, hod_name: r.hod_name ?? r.assigned_hod_name }));
-    res.json(await attachRosterCounts(req.schoolId, withHod));
+    res.json(await attachRosterCounts(req.schoolId, withHod, { subjectKey: 'subject' }));
   } catch (err) { next(err); }
 });
 
@@ -578,7 +581,7 @@ router.get('/submission-readiness', adminOnly, async (req, res, next) => {
     const sem = parseInt(semester);
     const p   = [req.schoolId, academic_year_id, sem, subject, class_name];
 
-    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, sem);
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, sem, { subject });
 
     const [examRes, missingModesRes, incompleteRes] = await Promise.all([
       // roster students with an exam score for this subject, resolved as of
@@ -658,7 +661,7 @@ router.get('/readiness-check', async (req, res, next) => {
     }
     const sem = parseInt(semester);
     const p   = [req.schoolId, academic_year_id, sem, subject, class_name];
-    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, sem);
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, sem, { subject });
     const totalStudents = roster.length;
 
     const [examRes, missingRes, scoredExamRes, scoredCaRes, incompleteRes] = await Promise.all([
@@ -760,7 +763,7 @@ router.post('/submit', async (req, res, next) => {
 
     // Roster resolved as of this submission's own period, not current
     // class_name/status (used in every check below).
-    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, sem);
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, sem, { subject });
     const totalStudents = roster.length;
 
     // Check A: ALL roster students must have exam scores entered

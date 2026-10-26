@@ -107,7 +107,7 @@ router.get('/', async (req, res, next) => {
 
     // All rows here share this one (class_name, academic_year_id, semester),
     // so a single period-resolved roster count covers all of them.
-    const totalStudents = (await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester))).length;
+    const totalStudents = (await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester), { subject })).length;
 
     const { rows } = await pool.query(
       `SELECT a.id, a.mode_id, m.name AS mode_name, m.ca_contribution,
@@ -238,7 +238,7 @@ router.post('/subject-remarks', async (req, res, next) => {
       if (!assigned) return res.status(403).json({ error: 'You are not assigned to teach this subject to this class' });
     }
 
-    const validStudentIds = new Set(await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester)));
+    const validStudentIds = new Set(await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester), { subject }));
     const safeRemarks = remarks.filter(r => r.student_id && validStudentIds.has(r.student_id));
     if (!safeRemarks.length) return res.json({ message: 'No remarks to save.' });
 
@@ -289,7 +289,7 @@ router.get('/class-template', async (req, res, next) => {
       return res.status(404).json({ error: 'No assessments found for this subject/class/semester' });
     }
 
-    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester));
+    const roster = await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester), { subject });
     const { rows: students } = await pool.query(
       `SELECT s.id AS student_id, s.student_code, s.name FROM students s
        WHERE s.school_id = $1 AND s.id = ANY($2::uuid[])
@@ -407,7 +407,7 @@ router.post('/class-upload-scores', upload.single('file'), async (req, res, next
       return res.status(409).json({ error: `Scores are locked — submission status is "${subStatus}".` });
     }
 
-    const validIds = new Set(await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester)));
+    const validIds = new Set(await getClassRoster(req.schoolId, class_name, academic_year_id, parseInt(semester), { subject }));
 
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(req.file.buffer);
@@ -705,7 +705,7 @@ router.get('/:id/scores', async (req, res, next) => {
     // Roster as of this assessment's own period, not current class_name —
     // otherwise editing an old assessment shows the wrong/empty roster once
     // students have since been promoted.
-    const roster = await getClassRoster(req.schoolId, assessment.class_name, assessment.academic_year_id, assessment.semester);
+    const roster = await getClassRoster(req.schoolId, assessment.class_name, assessment.academic_year_id, assessment.semester, { subject: assessment.subject });
     const { rows } = await pool.query(
       `SELECT s.id AS student_id, s.student_code, s.name,
               sc.id AS score_id, sc.score, sc.absent
@@ -792,7 +792,7 @@ router.get('/:id/score-template', async (req, res, next) => {
       return res.status(403).json({ error: 'You are not the owner of this assessment' });
     }
 
-    const roster = await getClassRoster(req.schoolId, assessment.class_name, assessment.academic_year_id, assessment.semester);
+    const roster = await getClassRoster(req.schoolId, assessment.class_name, assessment.academic_year_id, assessment.semester, { subject: assessment.subject });
     const { rows: students } = await pool.query(
       `SELECT s.id AS student_id, s.student_code, s.name,
               sc.score, sc.absent
@@ -900,7 +900,7 @@ router.post('/:id/upload-scores', upload.single('file'), async (req, res, next) 
     // Valid student IDs for this class, resolved as of this assessment's own
     // period rather than current class_name — otherwise uploading scores for
     // an old semester rejects every promoted student with "not found in class".
-    const validIds = new Set(await getClassRoster(req.schoolId, assessment.class_name, assessment.academic_year_id, assessment.semester));
+    const validIds = new Set(await getClassRoster(req.schoolId, assessment.class_name, assessment.academic_year_id, assessment.semester, { subject: assessment.subject }));
 
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(req.file.buffer);

@@ -8,6 +8,7 @@ const { uploadFile } = require('../services/storage.service');
 const { promoteClass } = require('../services/promotion.service');
 const { recordClassChange } = require('../services/classHistory.service');
 const { getCurrentYearSem } = require('../utils/school-context');
+const { getElectiveEnrollmentFilter } = require('../services/electives.service');
 const { minAgeError } = require('../utils/dateValidation');
 
 const STUDENT_MIN_AGE_YEARS = 10; // SHS — prevents entering today's date (or similar) as a birthday
@@ -601,7 +602,7 @@ router.get('/classes', async (req, res, next) => {
 /** GET /api/students */
 router.get('/', async (req, res, next) => {
   try {
-    const { class_name, status, program_id } = req.query;
+    const { class_name, status, program_id, subject } = req.query;
     const conds  = ['s.school_id = $1'];
     const params = [req.schoolId];
 
@@ -624,6 +625,12 @@ router.get('/', async (req, res, next) => {
        ORDER BY s.class_name, s.name`,
       params
     );
+
+    if (subject && class_name) {
+      const enrolled = await getElectiveEnrollmentFilter(req.schoolId, class_name, subject);
+      if (enrolled) return res.json(rows.filter(r => enrolled.has(r.id)));
+    }
+
     res.json(rows);
   } catch (err) { next(err); }
 });
