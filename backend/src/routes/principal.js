@@ -51,7 +51,7 @@ router.get('/snapshot', async (req, res, next) => {
               AND tt.day_of_week = $2
               AND tt.academic_year_id = $4
               AND tt.semester = $5
-            LEFT JOIN attendance a ON a.teacher_id = t.id AND a.school_id = $1 AND a.date = $3
+            LEFT JOIN attendance a ON a.teacher_id = t.id AND a.school_id = $1 AND a.date = $3 AND a.verification_status != 'rejected'
             WHERE t.school_id = $1 AND t.status = 'Active'
           `, [sid, dow, date, academicYearId, semester]),
 
@@ -127,7 +127,7 @@ router.get('/occupancy', async (req, res, next) => {
 
       pool.query(`
         SELECT teacher_id, subject, class_names, submitted_at
-        FROM attendance WHERE school_id = $1 AND date = $2
+        FROM attendance WHERE school_id = $1 AND date = $2 AND verification_status != 'rejected'
       `, [sid, date]),
 
       pool.query(`
@@ -244,6 +244,7 @@ router.get('/teacher-attendance', async (req, res, next) => {
         SELECT teacher_id, COALESCE(SUM(periods), 0) AS present_periods
         FROM attendance
         WHERE school_id = $1
+          AND verification_status = 'verified'
           AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
           AND ($3::int  IS NULL OR semester = $3::int)
         GROUP BY teacher_id
@@ -295,6 +296,7 @@ router.get('/plc-summary', async (req, res, next) => {
         SELECT teacher_id, COUNT(*) AS cnt
         FROM plc_attendance
         WHERE school_id = $1
+          AND verification_status = 'verified'
           AND ($2::uuid IS NULL OR academic_year_id = $2::uuid OR academic_year_id IS NULL)
           AND ($3::int  IS NULL OR semester = $3::int         OR semester          IS NULL)
         GROUP BY teacher_id
@@ -306,6 +308,7 @@ router.get('/plc-summary', async (req, res, next) => {
         JOIN meetings m ON m.id = ma.meeting_id
         WHERE ma.school_id = $1
           AND m.meeting_type = 'PLC'
+          AND ma.verification_status = 'verified'
           AND ($2::uuid IS NULL OR ma.academic_year_id = $2::uuid OR ma.academic_year_id IS NULL)
           AND ($3::int  IS NULL OR ma.semester = $3::int         OR ma.semester          IS NULL)
         GROUP BY ma.teacher_id
@@ -378,6 +381,7 @@ router.get('/meetings-summary', async (req, res, next) => {
         FROM meeting_attendance ma
         JOIN meetings m ON m.id = ma.meeting_id
         WHERE ma.school_id = $1
+          AND ma.verification_status = 'verified'
           AND ($4::text IS NULL OR m.meeting_type = $4::text)
           AND ($2::uuid IS NULL OR ma.academic_year_id = $2::uuid OR ma.academic_year_id IS NULL)
           AND ($3::int  IS NULL OR ma.semester = $3::int         OR ma.semester          IS NULL)

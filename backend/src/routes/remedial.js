@@ -27,7 +27,7 @@ router.get('/', adminOnly, async (req, res, next) => {
               rl.remedial_time, rl.remedial_end_time,
               rl.duration_periods, rl.topic,
               rl.location_id, rl.location_name, rl.notes, rl.status,
-              rl.photo_url, rl.gps_coordinates,
+              rl.photo_url, rl.gps_coordinates, rl.pending_reason,
               rl.verified_by, rl.verified_at, rl.created_at, rl.updated_at,
               te.name AS teacher_name,
               EXISTS (
@@ -335,8 +335,9 @@ router.post('/:id/register', async (req, res, next) => {
 // POST /api/remedial/:id/submit â€” submit attendance for a remedial lesson
 router.post('/:id/submit', async (req, res, next) => {
   try {
-    const { gpsCoordinates, imageBase64, topic, durationPeriods } = req.body;
+    const { gpsCoordinates, imageBase64, topic, durationPeriods, submitPending, pendingReason } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'imageBase64 is required' });
+    const wantsPending = submitPending === true && String(pendingReason || '').trim().length > 0;
 
     const { rows: rlRows } = await pool.query(
       `SELECT rl.*, te.name AS teacher_name
@@ -372,9 +373,14 @@ router.post('/:id/submit', async (req, res, next) => {
         if (!isNaN(lat) && !isNaN(lng)) {
           const result = verifyLocation(locRows[0], lat, lng);
           if (!result.valid) {
-            return res.status(400).json({ error: `Location verification failed: ${result.message}` });
+            if (wantsPending) {
+              locationMsg = result.message;
+            } else {
+              return res.status(400).json({ error: `Location verification failed: ${result.message}`, locationFailure: true });
+            }
+          } else {
+            locationMsg = result.message;
           }
-          locationMsg = result.message;
         }
       }
     }
@@ -389,9 +395,11 @@ router.post('/:id/submit', async (req, res, next) => {
            gps_coordinates = $2,
            topic = COALESCE($3, topic),
            duration_periods = COALESCE($4, duration_periods),
+           pending_reason = $5,
            updated_at = now()
-       WHERE id = $5 AND school_id = $6 RETURNING *`,
-      [photoUrl, gpsCoordinates || null, topic || null, durationPeriods || null, req.params.id, req.schoolId]
+       WHERE id = $6 AND school_id = $7 RETURNING *`,
+      [photoUrl, gpsCoordinates || null, topic || null, durationPeriods || null,
+       wantsPending ? pendingReason.trim() : null, req.params.id, req.schoolId]
     );
 
     if (rl.absence_id) {

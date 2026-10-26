@@ -4,7 +4,10 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 const { verifyLocation, getWeekNumber } = require('../services/geo.service');
 const { uploadPhoto }   = require('../services/storage.service');
 const { logAudit }      = require('../services/audit.service');
-const { notifyTeacherAttendanceRevoked, notifyTeacherAttendanceDeleted } = require('../services/notification.service');
+const {
+  notifyTeacherAttendanceRevoked, notifyTeacherAttendanceDeleted,
+  notifyPendingAttendanceSubmitted, notifyPendingAttendanceApproved, notifyPendingAttendanceRejected,
+} = require('../services/notification.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -30,9 +33,14 @@ router.post('/submit', async (req, res, next) => {
       teacherId, subject, classNames, periods, topic,
       gpsCoordinates, imageBase64, locationName,
       academicYearId, semester, photoSizeKb,
+      submitPending, pendingReason,
     } = req.body;
 
-    const missing = ['teacherId','subject','classNames','periods','imageBase64','topic','gpsCoordinates','locationName'].filter(f => !req.body[f]);
+    const wantsPending = submitPending === true && String(pendingReason || '').trim().length > 0;
+
+    const requiredFields = ['teacherId','subject','classNames','periods','imageBase64','topic','locationName'];
+    if (!wantsPending) requiredFields.push('gpsCoordinates');
+    const missing = requiredFields.filter(f => !req.body[f]);
     if (missing.length) return res.status(400).json({ error: `Missing required fields: ${missing.join(', ')}` });
 
     if (req.user.role === 'teacher' && req.user.id !== teacherId) {
@@ -74,8 +82,10 @@ router.post('/submit', async (req, res, next) => {
       }
     }
 
-    // GPS / location verification â€” both required
+    // GPS / location verification â€” both required, unless the teacher is
+    // explicitly opting into the "submit pending admin review" fallback
     let locationId = null, locationVerified = false, locationMsg = 'Location not verified';
+    let verificationStatus = 'verified';
     const { rows: locRows } = await pool.query(
       `SELECT * FROM locations WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
       [req.schoolId, locationName]
@@ -85,19 +95,36 @@ router.post('/submit', async (req, res, next) => {
     }
     locationId = locRows[0].id;
     if (locRows[0].has_coordinates) {
-      const [lat, lng] = gpsCoordinates.split(',').map(Number);
+      const coords = gpsCoordinates ? gpsCoordinates.split(',').map(Number) : [NaN, NaN];
+      const [lat, lng] = coords;
       if (isNaN(lat) || isNaN(lng)) {
-        return res.status(400).json({ error: 'Invalid GPS coordinates. Please refresh your location and try again.' });
+        if (wantsPending) {
+          verificationStatus = 'pending';
+          locationMsg = 'Invalid GPS coordinates';
+        } else {
+          return res.status(400).json({ error: 'Invalid GPS coordinates. Please refresh your location and try again.', locationFailure: true });
+        }
+      } else {
+        const result = verifyLocation(locRows[0], lat, lng);
+        if (!result.valid) {
+          if (wantsPending) {
+            verificationStatus = 'pending';
+            locationMsg = result.message;
+          } else {
+            return res.status(400).json({ error: `You do not appear to be in ${locationName}. ${result.message}`, locationFailure: true });
+          }
+        } else {
+          locationVerified = result.verified;
+          locationMsg      = result.message;
+        }
       }
-      const result = verifyLocation(locRows[0], lat, lng);
-      if (!result.valid) {
-        return res.status(400).json({ error: `You do not appear to be in ${locationName}. ${result.message}` });
-      }
-      locationVerified = result.verified;
-      locationMsg      = result.message;
+    } else if (wantsPending) {
+      verificationStatus = 'pending';
+      locationMsg = 'GPS coordinates not configured for this location';
     } else {
       return res.status(400).json({
         error: `GPS coordinates have not been configured for "${locationName}". Ask your administrator to add GPS coordinates for this location before attendance can be submitted.`,
+        locationFailure: true,
       });
     }
 
@@ -143,19 +170,36 @@ router.post('/submit', async (req, res, next) => {
            (school_id, date, academic_year_id, semester, teacher_id,
             subject, class_names, periods, topic, gps_coordinates,
             photo_url, week_number, location_id, location_name,
-            location_verified, location_verification_message, photo_size_kb)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+            location_verified, location_verification_message, photo_size_kb,
+            verification_status, pending_reason)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
          RETURNING *`,
         [
           req.schoolId, today, yearId, sem, teacherId,
           subject, classNames, periods, topic||null, gpsCoordinates||null,
           photoUrl, weekNumber, locationId, locationName||null,
           locationVerified, locationMsg, photoSizeKb||null,
+          verificationStatus, verificationStatus === 'pending' ? pendingReason.trim() : null,
         ]
       );
 
       await client.query('COMMIT');
-      res.status(201).json({ message: 'Attendance recorded', record: rows[0], locationMessage: locationMsg });
+
+      if (verificationStatus === 'pending') {
+        const { rows: tRows2 } = await pool.query(`SELECT name, email FROM teachers WHERE id = $1`, [teacherId]);
+        const teacher = { id: teacherId, name: tRows2[0]?.name || teacherId, email: tRows2[0]?.email };
+        notifyPendingAttendanceSubmitted(
+          req.schoolId, teacher, 'classroom attendance',
+          `${subject} — ${classNames} on ${today}`, pendingReason.trim()
+        ).catch(() => {});
+      }
+
+      res.status(201).json({
+        message: verificationStatus === 'pending'
+          ? 'Attendance submitted — pending admin review because location could not be verified'
+          : 'Attendance recorded',
+        record: rows[0], locationMessage: locationMsg,
+      });
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -170,7 +214,7 @@ router.get('/', adminOnly, async (req, res, next) => {
   try {
     const limit  = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = parseInt(req.query.offset) || 0;
-    const { date, teacherId, subject, from, to } = req.query;
+    const { date, teacherId, subject, from, to, verification_status } = req.query;
 
     const conds  = [`a.school_id = $1`];
     const params = [req.schoolId];
@@ -179,11 +223,13 @@ router.get('/', adminOnly, async (req, res, next) => {
     if (to)        { params.push(to);            conds.push(`a.date <= $${params.length}`); }
     if (teacherId) { params.push(teacherId);      conds.push(`a.teacher_id = $${params.length}`); }
     if (subject)   { params.push(`%${subject}%`); conds.push(`a.subject ILIKE $${params.length}`); }
+    if (verification_status) { params.push(verification_status); conds.push(`a.verification_status = $${params.length}`); }
 
     const { rows } = await pool.query(
       `SELECT a.id, a.date::text, a.submitted_at, a.semester, a.subject, a.class_names,
               a.periods, a.topic, a.photo_url, a.week_number,
               a.location_name, a.location_verified, a.gps_coordinates, a.photo_size_kb,
+              a.verification_status, a.pending_reason, a.reviewed_by_name, a.reviewed_at, a.review_note,
               te.id AS teacher_id, te.name AS teacher_name,
               ay.name AS academic_year
        FROM attendance a
@@ -234,6 +280,7 @@ router.get('/history', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT a.id, a.date::text, a.submitted_at, a.subject, a.class_names,
               a.periods, a.topic, a.location_name, a.location_verified,
+              a.verification_status, a.pending_reason, a.reviewed_at, a.review_note,
               te.name AS teacher_name, ay.name AS academic_year
        FROM attendance a
        JOIN teachers te ON te.id = a.teacher_id
@@ -271,6 +318,7 @@ router.get('/my-summary', async (req, res, next) => {
         FROM attendance
         WHERE teacher_id = $4
           AND school_id  = $1
+          AND verification_status = 'verified'
           AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
           AND ($3::int  IS NULL OR semester = $3::int)
       ),
@@ -349,12 +397,12 @@ router.post('/:id/revoke', adminOnly, async (req, res, next) => {
       await pool.query(
         `INSERT INTO absences
            (school_id, date, detected_at, teacher_id, subject, class_name,
-            status, is_auto_generated, reason)
-         VALUES ($1,$2,$3::time,$4,$5,$6,'Absent',false,$7)
+            status, is_auto_generated, reason, academic_year_id)
+         VALUES ($1,$2,$3::time,$4,$5,$6,'Absent',false,$7,$8)
          ON CONFLICT (date, teacher_id, subject, class_name)
            WHERE is_auto_generated = true
          DO UPDATE SET reason = EXCLUDED.reason, is_auto_generated = false, updated_at = now()`,
-        [req.schoolId, record.date, now, record.teacher_id, record.subject, className, reason]
+        [req.schoolId, record.date, now, record.teacher_id, record.subject, className, reason, record.academic_year_id]
       );
     }
 
@@ -366,6 +414,78 @@ router.post('/:id/revoke', adminOnly, async (req, res, next) => {
     await notifyTeacherAttendanceRevoked(req.schoolId, teacher, record, reason);
 
     res.json({ message: 'Attendance revoked and teacher marked absent', classes: classes.length });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/attendance/:id/approve-pending â€” admin approves a GPS-pending submission; teacher now counts as present
+router.patch('/:id/approve-pending', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE attendance SET verification_status = 'verified', reviewed_by_name = $1, reviewed_at = now()
+       WHERE id = $2 AND school_id = $3 AND verification_status = 'pending' RETURNING *`,
+      [req.user.name, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No pending record found' });
+    const record = rows[0];
+
+    const { rows: tRows } = await pool.query(`SELECT name, email FROM teachers WHERE id = $1`, [record.teacher_id]);
+    const teacher = { id: record.teacher_id, name: tRows[0]?.name || record.teacher_id, email: tRows[0]?.email };
+
+    await logAudit(req.schoolId, 'ATTENDANCE_PENDING_APPROVED', req.user.id, req.user.name, 'attendance', record.id, {
+      teacher_name: teacher.name, subject: record.subject, class_names: record.class_names, date: record.date,
+    });
+    await notifyPendingAttendanceApproved(req.schoolId, teacher, 'classroom attendance', `${record.subject} — ${record.class_names} on ${record.date}`);
+
+    res.json({ message: 'Submission approved â€” teacher now counted present', record });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/attendance/:id/reject-pending â€” admin rejects a GPS-pending submission: keeps the
+// record for audit, deletes the dependent student-register rows, and restores the absence
+router.patch('/:id/reject-pending', adminOnly, async (req, res, next) => {
+  try {
+    const reason = req.body.reason?.trim();
+    if (!reason) return res.status(400).json({ error: 'A reason is required to reject this submission' });
+
+    const { rows } = await pool.query(
+      `UPDATE attendance SET verification_status = 'rejected', reviewed_by_name = $1, reviewed_at = now(), review_note = $2
+       WHERE id = $3 AND school_id = $4 AND verification_status = 'pending' RETURNING *`,
+      [req.user.name, reason, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No pending record found' });
+    const record = rows[0];
+
+    await pool.query(
+      `DELETE FROM student_attendance_records
+       WHERE session_id IN (SELECT id FROM student_attendance_sessions WHERE attendance_id = $1)`,
+      [record.id]
+    );
+    await pool.query(`DELETE FROM student_attendance_sessions WHERE attendance_id = $1`, [record.id]);
+
+    const now     = new Date().toTimeString().slice(0, 5);
+    const classes = record.class_names.split(',').map(c => c.trim()).filter(Boolean);
+    for (const className of classes) {
+      await pool.query(
+        `INSERT INTO absences
+           (school_id, date, detected_at, teacher_id, subject, class_name,
+            status, is_auto_generated, reason, academic_year_id)
+         VALUES ($1,$2,$3::time,$4,$5,$6,'Absent',false,$7,$8)
+         ON CONFLICT (date, teacher_id, subject, class_name)
+           WHERE is_auto_generated = true
+         DO UPDATE SET reason = EXCLUDED.reason, is_auto_generated = false, updated_at = now()`,
+        [req.schoolId, record.date, now, record.teacher_id, record.subject, className, `Pending submission rejected: ${reason}`, record.academic_year_id]
+      );
+    }
+
+    const { rows: tRows } = await pool.query(`SELECT name, email FROM teachers WHERE id = $1`, [record.teacher_id]);
+    const teacher = { id: record.teacher_id, name: tRows[0]?.name || record.teacher_id, email: tRows[0]?.email };
+
+    await logAudit(req.schoolId, 'ATTENDANCE_PENDING_REJECTED', req.user.id, req.user.name, 'attendance', record.id, {
+      teacher_name: teacher.name, subject: record.subject, class_names: record.class_names, date: record.date, reason,
+    });
+    await notifyPendingAttendanceRejected(req.schoolId, teacher, 'classroom attendance', `${record.subject} — ${record.class_names} on ${record.date}`, reason);
+
+    res.json({ message: 'Submission rejected â€” student register deleted and teacher marked absent', classes: classes.length });
   } catch (err) { next(err); }
 });
 

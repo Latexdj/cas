@@ -212,7 +212,7 @@ router.get('/stats', async (req, res, next) => {
     const { rows } = await pool.query(`
       SELECT
         (SELECT COUNT(*) FROM attendance
-          WHERE school_id = $2 AND date = $1)::int          AS today_attendance,
+          WHERE school_id = $2 AND date = $1 AND verification_status = 'verified')::int AS today_attendance,
         (SELECT COUNT(*) FROM absences
           WHERE school_id = $2 AND date = $1
             AND status != 'Excused')::int                   AS today_absences,
@@ -225,7 +225,8 @@ router.get('/stats', async (req, res, next) => {
           ORDER BY created_at DESC LIMIT 1)                 AS student_limit,
         (SELECT COUNT(*) FROM attendance
           WHERE school_id = $2
-            AND date >= DATE_TRUNC('week', CURRENT_DATE))::int AS week_attendance,
+            AND date >= DATE_TRUNC('week', CURRENT_DATE)
+            AND verification_status = 'verified')::int AS week_attendance,
         (SELECT COUNT(*) FROM absences
           WHERE school_id = $2
             AND status IN ('Absent','Remedial Scheduled'))::int AS outstanding_absences,
@@ -293,6 +294,7 @@ router.get('/classroom-status', async (req, res, next) => {
           AND a.date       = CURRENT_DATE
           AND LOWER(a.subject) = LOWER(tt.subject)
           AND LOWER(REPLACE(a.class_names, ' ', '')) = LOWER(REPLACE(tt.class_names, ' ', ''))
+          AND a.verification_status != 'rejected'
         LEFT JOIN excused_today et ON et.teacher_id = tt.teacher_id
         WHERE tt.school_id        = $1
           AND tt.academic_year_id = $4
@@ -429,7 +431,7 @@ router.get('/reports/weekly-summary', async (req, res, next) => {
         SUM(a.periods)::int AS total_periods
       FROM attendance a
       JOIN teachers te ON te.id = a.teacher_id
-      WHERE a.school_id = $1
+      WHERE a.school_id = $1 AND a.verification_status = 'verified'
       GROUP BY te.name, a.week_number
       ORDER BY a.week_number DESC, te.name
     `, [req.schoolId]);
@@ -773,6 +775,7 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
         SELECT teacher_id, COALESCE(SUM(periods), 0) AS present_periods
         FROM attendance
         WHERE school_id = $1
+          AND verification_status = 'verified'
           AND ($2::uuid IS NULL OR academic_year_id = $2::uuid)
           AND ($3::int  IS NULL OR semester = $3::int)
         GROUP BY teacher_id

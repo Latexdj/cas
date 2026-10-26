@@ -84,6 +84,9 @@ export default function InvigilationPage() {
   const [checkInNotes,  setCheckInNotes]  = useState('');
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
   const [checkInError,  setCheckInError]  = useState('');
+  const [locationFailure, setLocationFailure] = useState(false);
+  const [pendingReason,   setPendingReason]   = useState('');
+  const [pendingReasonErr, setPendingReasonErr] = useState('');
   const photoRef = useRef<HTMLInputElement>(null);
 
   // Register state
@@ -129,6 +132,7 @@ export default function InvigilationPage() {
     setCheckingIn(dutyId);
     setPhotoDataUrl(null); setPhotoSizeKb(null);
     setCheckInNotes(''); setCheckInError('');
+    setLocationFailure(false); setPendingReason(''); setPendingReasonErr('');
     grabGps();
   }
 
@@ -142,22 +146,27 @@ export default function InvigilationPage() {
     e.target.value = '';
   }
 
-  async function submitCheckIn() {
-    if (!gps)         { setCheckInError('GPS location is required.'); return; }
+  async function submitCheckIn(asPending = false) {
+    if (!gps && !asPending) { setCheckInError('GPS location is required.'); return; }
     if (!photoDataUrl){ setCheckInError('A selfie photo is required.'); return; }
-    setCheckInSubmitting(true); setCheckInError('');
+    if (asPending && !pendingReason.trim()) { setPendingReasonErr('Please explain why you believe your location is correct.'); return; }
+    setCheckInSubmitting(true); setCheckInError(''); setPendingReasonErr('');
+    if (!asPending) setLocationFailure(false);
     try {
       await teacherApi.post(`/api/exams/sessions/${checkingIn}/check-in`, {
         gpsCoordinates: gps,
         imageBase64: photoDataUrl,
         photoSizeKb,
         notes: checkInNotes || undefined,
+        ...(asPending ? { submitPending: true, pendingReason: pendingReason.trim() } : {}),
       });
       setCheckingIn(null);
+      setLocationFailure(false); setPendingReason('');
       await loadDuties();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setCheckInError(msg ?? 'Check-in failed. Please try again.');
+      const data = (err as { response?: { data?: { error?: string; locationFailure?: boolean } } })?.response?.data;
+      setCheckInError(data?.error ?? 'Check-in failed. Please try again.');
+      setLocationFailure(!!data?.locationFailure);
     } finally { setCheckInSubmitting(false); }
   }
 
@@ -378,7 +387,29 @@ export default function InvigilationPage() {
             <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3 text-sm text-[#B83232]">{checkInError}</div>
           )}
 
-          <button onClick={submitCheckIn} disabled={checkInSubmitting || !gps || !photoDataUrl}
+          {locationFailure && (
+            <div className="bg-slate-50 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-600 rounded-xl px-4 py-3 space-y-2">
+              <p className="text-sm font-semibold text-slate-800 dark:text-white">Still at the venue?</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                You can submit anyway — it will be sent for admin review instead of counting as present right away.
+              </p>
+              <textarea
+                value={pendingReason}
+                onChange={e => { setPendingReason(e.target.value); setPendingReasonErr(''); }}
+                placeholder="Briefly explain why your location should be accepted…"
+                rows={2}
+                className="w-full text-sm rounded-lg border border-slate-200 dark:border-slate-600 px-3 py-2 bg-white dark:bg-slate-700 text-slate-900 dark:text-white resize-none"
+              />
+              {pendingReasonErr && <p className="text-xs text-[#B83232]">{pendingReasonErr}</p>}
+              <button onClick={() => submitCheckIn(true)} disabled={checkInSubmitting || !photoDataUrl}
+                className="w-full py-2.5 rounded-lg text-sm font-semibold border disabled:opacity-40"
+                style={{ borderColor: primary, color: primary }}>
+                {checkInSubmitting ? 'Submitting…' : 'Submit for Admin Review'}
+              </button>
+            </div>
+          )}
+
+          <button onClick={() => submitCheckIn()} disabled={checkInSubmitting || !gps || !photoDataUrl}
             className="w-full py-3.5 rounded-xl text-sm font-bold text-white disabled:opacity-50 transition-opacity"
             style={{ backgroundColor: primary }}>
             {checkInSubmitting ? 'Submitting…' : 'Submit Check-In'}

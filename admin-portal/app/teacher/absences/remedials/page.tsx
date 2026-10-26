@@ -296,6 +296,9 @@ function SubmitProofModal({
   const [submitting,  setSubmitting]  = useState(false);
   const [error,       setError]       = useState('');
   const [facingMode,  setFacingMode]  = useState<'environment' | 'user'>('environment');
+  const [locationFailure, setLocationFailure] = useState(false);
+  const [pendingReason,   setPendingReason]   = useState('');
+  const [pendingReasonErr, setPendingReasonErr] = useState('');
 
   async function startCamera(facing: 'environment' | 'user') {
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -349,19 +352,23 @@ function SubmitProofModal({
     })();
   }
 
-  async function submit() {
+  async function submit(asPending = false) {
     if (!imageBase64) { setError('Please capture a photo first.'); return; }
-    setSubmitting(true); setError('');
+    if (asPending && !pendingReason.trim()) { setPendingReasonErr('Please explain why you believe your location is correct.'); return; }
+    setSubmitting(true); setError(''); setPendingReasonErr('');
+    if (!asPending) setLocationFailure(false);
     try {
       await teacherApi.post(`/api/remedial/${remedial.id}/submit`, {
         imageBase64,
         gpsCoordinates: gps || undefined,
         topic: topic.trim() || undefined,
+        ...(asPending ? { submitPending: true, pendingReason: pendingReason.trim() } : {}),
       });
       onSuccess();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg ?? 'Failed to submit proof. Please try again.');
+      const data = (err as { response?: { data?: { error?: string; locationFailure?: boolean } } })?.response?.data;
+      setError(data?.error ?? 'Failed to submit proof. Please try again.');
+      setLocationFailure(!!data?.locationFailure);
     } finally { setSubmitting(false); }
   }
 
@@ -434,12 +441,38 @@ function SubmitProofModal({
 
             {error && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3">{error}</p>}
 
+            {locationFailure && (
+              <div className="rounded-xl border border-[#E2D9CC] bg-[#F5F0E8] px-4 py-3 space-y-2">
+                <p className="text-sm font-semibold text-[#2C2218]">Still at the venue?</p>
+                <p className="text-xs text-[#8C7E6E]">
+                  You can submit anyway — it will be sent for admin review instead of counting as made up right away.
+                </p>
+                <textarea
+                  value={pendingReason}
+                  onChange={e => { setPendingReason(e.target.value); setPendingReasonErr(''); }}
+                  placeholder="Briefly explain why your location should be accepted…"
+                  rows={2}
+                  className="w-full rounded-lg px-3 py-2 text-sm bg-white text-[#2C2218]"
+                  style={{ border: `1px solid ${pendingReasonErr ? '#FCA5A5' : '#E2D9CC'}` }}
+                />
+                {pendingReasonErr && <p className="text-xs text-[#B83232]">{pendingReasonErr}</p>}
+                <button
+                  onClick={() => submit(true)}
+                  disabled={submitting}
+                  className="w-full py-2.5 rounded-lg text-sm font-semibold border disabled:opacity-40"
+                  style={{ borderColor: primary, color: primary }}
+                >
+                  {submitting ? 'Submitting…' : 'Submit for Admin Review'}
+                </button>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-1">
               <button onClick={retake} className="flex-1 py-3 rounded-xl border border-[#E2D9CC] text-sm font-semibold text-[#8C7E6E]">
                 Retake
               </button>
               <button
-                onClick={submit}
+                onClick={() => submit()}
                 disabled={submitting}
                 className="flex-1 py-3 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
                 style={{ background: primary }}

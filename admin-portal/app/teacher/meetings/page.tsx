@@ -107,6 +107,9 @@ export default function TeacherMeetingsPage() {
   const [qrError,      setQrError]      = useState('');
   const [submitting,   setSubmitting]   = useState(false);
   const [submitError,  setSubmitError]  = useState('');
+  const [locationFailure, setLocationFailure] = useState(false);
+  const [pendingReason,   setPendingReason]   = useState('');
+  const [pendingReasonErr, setPendingReasonErr] = useState('');
 
   // QR refs (shared between tabs)
   const videoRef     = useRef<HTMLVideoElement>(null);
@@ -191,6 +194,9 @@ export default function TeacherMeetingsPage() {
     setQrLocation('');
     setQrError('');
     setSubmitError('');
+    setLocationFailure(false);
+    setPendingReason('');
+    setPendingReasonErr('');
     grabGps();
   }
 
@@ -285,14 +291,16 @@ export default function TeacherMeetingsPage() {
 
   // ── Submit handlers ────────────────────────────────────────────────────────
 
-  async function handleMeetingSubmit() {
+  async function handleMeetingSubmit(asPending = false) {
     if (!activeMeetingId) return;
     if (gpsAcquiring)  { setSubmitError('GPS is still acquiring. Please wait.'); return; }
-    if (!gps)          { setSubmitError(gpsError || 'GPS coordinates required. Click Refresh.'); return; }
+    if (!gps && !asPending) { setSubmitError(gpsError || 'GPS coordinates required. Click Refresh.'); return; }
     if (!photoDataUrl) { setSubmitError('Please take a photo at the meeting venue.'); return; }
     if (!qrVerified)   { setSubmitError('Please scan the venue QR code to verify your presence.'); return; }
+    if (asPending && !pendingReason.trim()) { setPendingReasonErr('Please explain why you believe your location is correct.'); return; }
 
-    setSubmitting(true); setSubmitError('');
+    setSubmitting(true); setSubmitError(''); setPendingReasonErr('');
+    if (!asPending) setLocationFailure(false);
     try {
       await teacherApi.post('/api/meetings/submit', {
         meetingId:      activeMeetingId,
@@ -300,25 +308,30 @@ export default function TeacherMeetingsPage() {
         gpsCoordinates: gps,
         imageBase64:    photoDataUrl,
         photoSizeKb:    photoSizeKb ?? undefined,
+        ...(asPending ? { submitPending: true, pendingReason: pendingReason.trim() } : {}),
       });
       closeForm();
+      setLocationFailure(false); setPendingReason('');
       await loadMeetings();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setSubmitError(msg ?? 'Submission failed. Please try again.');
+      const data = (err as { response?: { data?: { error?: string; locationFailure?: boolean } } })?.response?.data;
+      setSubmitError(data?.error ?? 'Submission failed. Please try again.');
+      setLocationFailure(!!data?.locationFailure);
     } finally { setSubmitting(false); }
   }
 
-  async function handlePlcSubmit(e: React.FormEvent) {
+  async function handlePlcSubmit(e: React.FormEvent, asPending = false) {
     e.preventDefault();
     const errs: Record<string, string> = {};
     if (!qrVerified)   errs.qr    = 'Please scan the PLC venue QR code.';
-    if (!gps)          errs.gps   = gpsError || 'GPS is required. Click Refresh.';
+    if (!gps && !asPending) errs.gps = gpsError || 'GPS is required. Click Refresh.';
     if (!photoDataUrl) errs.photo = 'Please take a photo at the PLC venue.';
+    if (asPending && !pendingReason.trim()) { setPendingReasonErr('Please explain why you believe your location is correct.'); return; }
     setPlcErrors(errs);
     if (Object.keys(errs).length) return;
 
-    setSubmitting(true); setSubmitError('');
+    setSubmitting(true); setSubmitError(''); setPendingReasonErr('');
+    if (!asPending) setLocationFailure(false);
     try {
       await teacherApi.post('/api/plc/submit', {
         sessionId:      plcData!.session.id,
@@ -326,15 +339,18 @@ export default function TeacherMeetingsPage() {
         gpsCoordinates: gps,
         imageBase64:    photoDataUrl,
         photoSizeKb:    photoSizeKb ?? undefined,
+        ...(asPending ? { submitPending: true, pendingReason: pendingReason.trim() } : {}),
       });
       setAgenda('');
       setPhotoDataUrl(null); setPhotoSizeKb(null);
       setQrVerified(false); setQrLocation('');
       setPlcErrors({});
+      setLocationFailure(false); setPendingReason('');
       await loadPlc();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setSubmitError(msg ?? 'Submission failed. Please try again.');
+      const data = (err as { response?: { data?: { error?: string; locationFailure?: boolean } } })?.response?.data;
+      setSubmitError(data?.error ?? 'Submission failed. Please try again.');
+      setLocationFailure(!!data?.locationFailure);
     } finally { setSubmitting(false); }
   }
 
@@ -569,8 +585,33 @@ export default function TeacherMeetingsPage() {
                   {submitError && (
                     <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-3 py-2.5">{submitError}</p>
                   )}
+                  {locationFailure && (
+                    <div className="rounded-xl border border-[#E2D9CC] bg-[#F5F0E8] px-4 py-3 space-y-2">
+                      <p className="text-sm font-semibold text-[#2C2218]">Still at the venue?</p>
+                      <p className="text-xs text-[#8C7E6E]">
+                        You can submit anyway — it will be sent for admin review instead of counting as present right away.
+                      </p>
+                      <textarea
+                        value={pendingReason}
+                        onChange={e => { setPendingReason(e.target.value); setPendingReasonErr(''); }}
+                        placeholder="Briefly explain why your location should be accepted…"
+                        rows={2}
+                        className="w-full rounded-lg px-3 py-2 text-sm bg-white text-[#2C2218]"
+                        style={{ border: `1px solid ${pendingReasonErr ? '#FCA5A5' : '#E2D9CC'}` }}
+                      />
+                      {pendingReasonErr && <p className="text-xs text-[#B83232]">{pendingReasonErr}</p>}
+                      <button
+                        onClick={() => handleMeetingSubmit(true)}
+                        disabled={submitting}
+                        className="w-full py-2.5 rounded-lg text-sm font-semibold border disabled:opacity-40"
+                        style={{ borderColor: primary, color: primary }}
+                      >
+                        {submitting ? 'Submitting…' : 'Submit for Admin Review'}
+                      </button>
+                    </div>
+                  )}
                   <button
-                    onClick={handleMeetingSubmit}
+                    onClick={() => handleMeetingSubmit()}
                     disabled={submitting}
                     className="w-full py-3.5 rounded-xl text-sm font-bold text-white disabled:opacity-60"
                     style={{ background: primary }}
@@ -671,6 +712,32 @@ export default function TeacherMeetingsPage() {
 
               {submitError && (
                 <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3">{submitError}</p>
+              )}
+              {locationFailure && (
+                <div className="rounded-xl border border-[#E2D9CC] bg-[#F5F0E8] px-4 py-3 space-y-2">
+                  <p className="text-sm font-semibold text-[#2C2218]">Still at the venue?</p>
+                  <p className="text-xs text-[#8C7E6E]">
+                    You can submit anyway — it will be sent for admin review instead of counting as present right away.
+                  </p>
+                  <textarea
+                    value={pendingReason}
+                    onChange={e => { setPendingReason(e.target.value); setPendingReasonErr(''); }}
+                    placeholder="Briefly explain why your location should be accepted…"
+                    rows={2}
+                    className="w-full rounded-lg px-3 py-2 text-sm bg-white text-[#2C2218]"
+                    style={{ border: `1px solid ${pendingReasonErr ? '#FCA5A5' : '#E2D9CC'}` }}
+                  />
+                  {pendingReasonErr && <p className="text-xs text-[#B83232]">{pendingReasonErr}</p>}
+                  <button
+                    type="button"
+                    onClick={e => handlePlcSubmit(e, true)}
+                    disabled={submitting}
+                    className="w-full py-2.5 rounded-lg text-sm font-semibold border disabled:opacity-40"
+                    style={{ borderColor: primary, color: primary }}
+                  >
+                    {submitting ? 'Submitting…' : 'Submit for Admin Review'}
+                  </button>
+                </div>
               )}
 
               <button

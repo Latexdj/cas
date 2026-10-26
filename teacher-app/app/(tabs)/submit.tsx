@@ -48,6 +48,8 @@ export default function SubmitScreen() {
   const [photoSizeKb,  setPhotoSizeKb]  = useState<number | null>(null);
   const [submitting,   setSubmitting]   = useState(false);
   const [showLocPicker,setShowLocPicker]= useState(false);
+  const [locationFailure, setLocationFailure] = useState(false);
+  const [pendingReason,   setPendingReason]   = useState('');
 
   // ── Step 2: student attendance ────────────────────────────────
   const [attendanceId,    setAttendanceId]    = useState<string | null>(null);
@@ -276,16 +278,18 @@ export default function SubmitScreen() {
   }
 
   // ── Step 1 submit ────────────────────────────────────────────
-  async function handleSubmitTeacher() {
+  async function handleSubmitTeacher(asPending = false) {
     if (!selectedSlot) { Alert.alert('No slot selected', 'Please select a timetable slot first.'); return; }
     if (!topic.trim()) { Alert.alert('Topic required', 'Please enter the lesson topic.'); return; }
     if (!locationName) { Alert.alert('Location required', 'Please select your classroom location.'); return; }
     if (gpsAcquiring)  { Alert.alert('GPS acquiring', 'GPS is still being determined. Please wait.'); return; }
-    if (!gps)          { Alert.alert('GPS required', gpsError || 'GPS coordinates are required. Tap Refresh.'); return; }
+    if (!gps && !asPending) { Alert.alert('GPS required', gpsError || 'GPS coordinates are required. Tap Refresh.'); return; }
     if (!photoBase64)  { Alert.alert('Photo required', 'Please take a classroom photo before submitting.'); return; }
     if (!IS_WEB && !qrVerified) { Alert.alert('QR Required', 'Please scan the classroom QR code to verify your presence.'); return; }
+    if (asPending && !pendingReason.trim()) { Alert.alert('Reason required', 'Please explain why you believe your location is correct.'); return; }
 
     setSubmitting(true);
+    if (!asPending) setLocationFailure(false);
     try {
       const netState = await NetInfo.fetch();
       const payload = {
@@ -298,6 +302,7 @@ export default function SubmitScreen() {
         locationName,
         imageBase64:    photoBase64,
         photoSizeKb:    photoSizeKb ?? undefined,
+        ...(asPending ? { submitPending: true, pendingReason: pendingReason.trim() } : {}),
       };
 
       if (!netState.isConnected) {
@@ -309,6 +314,7 @@ export default function SubmitScreen() {
 
       const res = await api.post<{ record: { id: string } }>('/api/attendance/submit', payload, { timeout: 60000 });
       const newAttendanceId = res.data.record?.id || null;
+      setLocationFailure(false);
 
       // Persist checkpoint so Step 2 can be resumed if a phone call interrupts the flow
       try {
@@ -324,7 +330,9 @@ export default function SubmitScreen() {
       // Transition to step 2 — load students for this class
       await loadStudentsForClass(selectedSlot.class_names, newAttendanceId, selectedSlot.end_time);
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.error ?? 'Submission failed.');
+      const data = err?.response?.data;
+      Alert.alert('Error', data?.error ?? 'Submission failed.');
+      if (data?.locationFailure) setLocationFailure(true);
     } finally {
       setSubmitting(false);
     }
@@ -813,7 +821,30 @@ export default function SubmitScreen() {
             </TouchableOpacity>
           )}
 
-          <Button label="Next: Student Attendance →" onPress={handleSubmitTeacher} loading={submitting || loadingStudents} style={styles.submitBtn} />
+          {locationFailure && (
+            <View style={styles.pendingReviewCard}>
+              <Text style={styles.pendingReviewTitle}>Still at the venue?</Text>
+              <Text style={styles.pendingReviewBody}>
+                You can submit anyway — it will be sent for admin review instead of counting as present right away.
+              </Text>
+              <Input
+                placeholder="Briefly explain why your location should be accepted…"
+                value={pendingReason}
+                onChangeText={setPendingReason}
+                multiline
+                numberOfLines={2}
+                style={{ marginBottom: 8 }}
+              />
+              <Button
+                label="Submit for Admin Review"
+                variant="secondary"
+                onPress={() => handleSubmitTeacher(true)}
+                loading={submitting || loadingStudents}
+              />
+            </View>
+          )}
+
+          <Button label="Next: Student Attendance →" onPress={() => handleSubmitTeacher()} loading={submitting || loadingStudents} style={styles.submitBtn} />
         </>
       )}
 
@@ -904,6 +935,9 @@ const styles = StyleSheet.create({
   cameraIcon:            { fontSize: 40 },
   cameraPlaceholderText: { fontSize: 15, color: '#8C7E6E', marginTop: 8 },
   submitBtn:             { marginTop: 8 },
+  pendingReviewCard:     { backgroundColor: '#F5F0E8', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 12, padding: 14, marginTop: 8 },
+  pendingReviewTitle:    { fontSize: 14, fontWeight: '700', color: '#2C2218', marginBottom: 4 },
+  pendingReviewBody:     { fontSize: 12, color: '#8C7E6E', marginBottom: 10 },
   // Camera
   cameraContainer:       { flex: 1, backgroundColor: '#000' },
   camera:                { flex: 1 },

@@ -5,6 +5,9 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 const { verifyLocation } = require('../services/geo.service');
 const { uploadPhoto, uploadDocument } = require('../services/storage.service');
 const { logAudit }       = require('../services/audit.service');
+const {
+  notifyPendingAttendanceSubmitted, notifyPendingAttendanceApproved, notifyPendingAttendanceRejected,
+} = require('../services/notification.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -315,6 +318,7 @@ router.get('/summary', adminOnly, async (req, res, next) => {
         SELECT teacher_id, COUNT(*) AS present_count
         FROM meeting_attendance
         WHERE school_id = $1
+          AND verification_status = 'verified'
           AND ($2::uuid IS NULL OR academic_year_id = $2::uuid OR academic_year_id IS NULL)
           AND ($3::int  IS NULL OR semester = $3::int         OR semester          IS NULL)
         GROUP BY teacher_id
@@ -383,7 +387,8 @@ router.get('/report', adminOnly, async (req, res, next) => {
        SELECT e.date::text, e.meeting_title, e.meeting_type, e.teacher_name,
               COALESCE(e.gender, 'Not Specified') AS gender,
               CASE
-                WHEN a.teacher_id IS NOT NULL THEN 'Present'
+                WHEN a.teacher_id IS NOT NULL AND a.verification_status = 'verified' THEN 'Present'
+                WHEN a.teacher_id IS NOT NULL AND a.verification_status = 'pending'  THEN 'Pending Review'
                 WHEN ex.teacher_id IS NOT NULL THEN 'Excused'
                 ELSE 'Absent'
               END AS status
@@ -402,16 +407,18 @@ router.get('/report', adminOnly, async (req, res, next) => {
 // GET /api/meetings/attendance â€” admin list attendance records
 router.get('/attendance', adminOnly, async (req, res, next) => {
   try {
-    const { from, to, type } = req.query;
+    const { from, to, type, verification_status } = req.query;
     const conds  = ['ma.school_id = $1'];
     const params = [req.schoolId];
     if (from) { params.push(from); conds.push(`ma.date >= $${params.length}`); }
     if (to)   { params.push(to);   conds.push(`ma.date <= $${params.length}`); }
     if (type) { params.push(type); conds.push(`m.meeting_type = $${params.length}`); }
+    if (verification_status) { params.push(verification_status); conds.push(`ma.verification_status = $${params.length}`); }
 
     const { rows } = await pool.query(
       `SELECT ma.id, ma.date, ma.submitted_at, ma.notes, ma.location_name,
               ma.location_verified, ma.gps_coordinates, ma.photo_url,
+              ma.verification_status, ma.pending_reason, ma.reviewed_by_name, ma.reviewed_at, ma.review_note,
               t.name AS teacher_name,
               m.title AS meeting_title, m.meeting_type
        FROM meeting_attendance ma
@@ -695,6 +702,78 @@ router.delete('/attendance/:id', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// PATCH /api/meetings/attendance/:id/approve-pending â€” admin approves a GPS-pending meeting submission
+router.patch('/attendance/:id/approve-pending', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE meeting_attendance SET verification_status = 'verified', reviewed_by_name = $1, reviewed_at = now()
+       WHERE id = $2 AND school_id = $3 AND verification_status = 'pending' RETURNING *`,
+      [req.user.name, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No pending record found' });
+    const record = rows[0];
+
+    const { rows: ctx } = await pool.query(
+      `SELECT te.name AS teacher_name, te.email AS teacher_email, m.title AS meeting_title, m.meeting_type
+       FROM meeting_attendance ma
+       JOIN teachers te ON te.id = ma.teacher_id
+       JOIN meetings m ON m.id = ma.meeting_id
+       WHERE ma.id = $1`,
+      [record.id]
+    );
+    const teacher = { id: record.teacher_id, name: ctx[0]?.teacher_name || record.teacher_id, email: ctx[0]?.teacher_email };
+
+    await logAudit(req.schoolId, 'MEETING_ATTENDANCE_PENDING_APPROVED', req.user.id, req.user.name, 'meeting_attendance', record.id, {
+      teacher_name: teacher.name, date: record.date,
+    });
+    await notifyPendingAttendanceApproved(req.schoolId, teacher, `${ctx[0]?.meeting_type} meeting`, `${ctx[0]?.meeting_title} on ${record.date}`);
+
+    res.json({ message: 'Submission approved â€” teacher now counted present', record });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/meetings/attendance/:id/reject-pending â€” admin rejects a GPS-pending meeting
+// submission: keeps the record for audit and restores the meeting absence
+router.patch('/attendance/:id/reject-pending', adminOnly, async (req, res, next) => {
+  try {
+    const reason = req.body.reason?.trim();
+    if (!reason) return res.status(400).json({ error: 'A reason is required to reject this submission' });
+
+    const { rows } = await pool.query(
+      `UPDATE meeting_attendance SET verification_status = 'rejected', reviewed_by_name = $1, reviewed_at = now(), review_note = $2
+       WHERE id = $3 AND school_id = $4 AND verification_status = 'pending' RETURNING *`,
+      [req.user.name, reason, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No pending record found' });
+    const record = rows[0];
+
+    const { rows: ctx } = await pool.query(
+      `SELECT te.name AS teacher_name, te.email AS teacher_email, m.title AS meeting_title, m.meeting_type
+       FROM meeting_attendance ma
+       JOIN teachers te ON te.id = ma.teacher_id
+       JOIN meetings m ON m.id = ma.meeting_id
+       WHERE ma.id = $1`,
+      [record.id]
+    );
+
+    await pool.query(
+      `INSERT INTO meeting_absences (school_id, meeting_id, teacher_id, date, status, reason, detected_at, academic_year_id)
+       VALUES ($1,$2,$3,$4,'Absent',$5,now()::time,$6)
+       ON CONFLICT (meeting_id, teacher_id, date) DO UPDATE SET status = 'Absent', reason = EXCLUDED.reason`,
+      [req.schoolId, record.meeting_id, record.teacher_id, record.date, `Pending submission rejected: ${reason}`, record.academic_year_id]
+    );
+
+    const teacher = { id: record.teacher_id, name: ctx[0]?.teacher_name || record.teacher_id, email: ctx[0]?.teacher_email };
+
+    await logAudit(req.schoolId, 'MEETING_ATTENDANCE_PENDING_REJECTED', req.user.id, req.user.name, 'meeting_attendance', record.id, {
+      teacher_name: teacher.name, date: record.date, reason,
+    });
+    await notifyPendingAttendanceRejected(req.schoolId, teacher, `${ctx[0]?.meeting_type} meeting`, `${ctx[0]?.meeting_title} on ${record.date}`, reason);
+
+    res.json({ message: 'Submission rejected â€” teacher marked absent' });
+  } catch (err) { next(err); }
+});
+
 // â”€â”€ Teacher: meeting attendance summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // GET /api/meetings/my-summary â€” per-type attendance summary for current semester
@@ -726,6 +805,7 @@ router.get('/my-summary', async (req, res, next) => {
          JOIN meetings m ON m.id = ma.meeting_id
          WHERE ma.school_id = $1
            AND ma.teacher_id = $2
+           AND ma.verification_status = 'verified'
            AND ($3::uuid IS NULL OR ma.academic_year_id = $3::uuid)
            AND ($4::int  IS NULL OR ma.semester         = $4::int)
          GROUP BY m.meeting_type
@@ -854,10 +934,11 @@ router.post('/verify-qr', async (req, res, next) => {
 // POST /api/meetings/submit â€” teacher submits meeting attendance
 router.post('/submit', async (req, res, next) => {
   try {
-    const { meetingId, notes, gpsCoordinates, imageBase64, photoSizeKb } = req.body;
+    const { meetingId, notes, gpsCoordinates, imageBase64, photoSizeKb, submitPending, pendingReason } = req.body;
     const teacherId = req.user.id;
+    const wantsPending = submitPending === true && String(pendingReason || '').trim().length > 0;
 
-    if (!meetingId || !gpsCoordinates || !imageBase64) {
+    if (!meetingId || (!gpsCoordinates && !wantsPending) || !imageBase64) {
       return res.status(400).json({ error: 'meetingId, gpsCoordinates, and imageBase64 are required' });
     }
 
@@ -887,19 +968,34 @@ router.post('/submit', async (req, res, next) => {
     // GPS verification
     let locationVerified = false;
     let locationMsg      = 'Location not verified';
+    let verificationStatus = 'verified';
     if (meeting.has_coordinates) {
-      const [lat, lng] = gpsCoordinates.split(',').map(Number);
+      const coords = gpsCoordinates ? gpsCoordinates.split(',').map(Number) : [NaN, NaN];
+      const [lat, lng] = coords;
       if (isNaN(lat) || isNaN(lng)) {
-        return res.status(400).json({ error: 'Invalid GPS coordinates.' });
+        if (wantsPending) {
+          verificationStatus = 'pending';
+          locationMsg = 'Invalid GPS coordinates';
+        } else {
+          return res.status(400).json({ error: 'Invalid GPS coordinates.', locationFailure: true });
+        }
+      } else {
+        const result = verifyLocation(meeting, lat, lng);
+        if (!result.valid) {
+          if (wantsPending) {
+            verificationStatus = 'pending';
+            locationMsg = result.message;
+          } else {
+            return res.status(400).json({
+              error: `You do not appear to be at the meeting venue. ${result.message}`,
+              locationFailure: true,
+            });
+          }
+        } else {
+          locationVerified = result.verified;
+          locationMsg      = result.message;
+        }
       }
-      const result = verifyLocation(meeting, lat, lng);
-      if (!result.valid) {
-        return res.status(400).json({
-          error: `You do not appear to be at the meeting venue. ${result.message}`,
-        });
-      }
-      locationVerified = result.verified;
-      locationMsg      = result.message;
     }
 
     // Academic year / semester
@@ -920,13 +1016,15 @@ router.post('/submit', async (req, res, next) => {
     const { rows: inserted } = await pool.query(
       `INSERT INTO meeting_attendance
          (school_id, meeting_id, teacher_id, date, academic_year_id, semester,
-          notes, gps_coordinates, photo_url, photo_size_kb, location_name, location_verified)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          notes, gps_coordinates, photo_url, photo_size_kb, location_name, location_verified,
+          verification_status, pending_reason)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING *`,
       [
         req.schoolId, meetingId, teacherId, today, yearId, sem,
-        notes?.trim() || null, gpsCoordinates, photoUrl, photoSizeKb || null,
+        notes?.trim() || null, gpsCoordinates || null, photoUrl, photoSizeKb || null,
         meeting.location_name, locationVerified,
+        verificationStatus, verificationStatus === 'pending' ? pendingReason.trim() : null,
       ]
     );
 
@@ -942,8 +1040,18 @@ router.post('/submit', async (req, res, next) => {
       { meeting_title: meeting.title, meeting_type: meeting.meeting_type, date: today, location: meeting.location_name }
     );
 
+    if (verificationStatus === 'pending') {
+      const { rows: tRows2 } = await pool.query('SELECT email FROM teachers WHERE id = $1', [teacherId]);
+      notifyPendingAttendanceSubmitted(
+        req.schoolId, { id: teacherId, name: tName, email: tRows2[0]?.email }, `${meeting.meeting_type} meeting`,
+        `${meeting.title} on ${today}`, pendingReason.trim()
+      ).catch(() => {});
+    }
+
     res.status(201).json({
-      message: 'Meeting attendance recorded',
+      message: verificationStatus === 'pending'
+        ? 'Meeting attendance submitted â€” pending admin review because location could not be verified'
+        : 'Meeting attendance recorded',
       record: inserted[0],
       locationMessage: locationMsg,
     });
@@ -995,6 +1103,7 @@ router.get('/my-history', async (req, res, next) => {
       `SELECT
          ma.id, ma.date, ma.submitted_at, ma.notes, ma.location_name,
          ma.location_verified, ma.photo_url, ma.academic_year_id, ma.semester,
+         ma.verification_status, ma.pending_reason, ma.reviewed_at, ma.review_note,
          m.title AS meeting_title,
          m.meeting_type,
          m.start_time::text,

@@ -219,6 +219,11 @@ export interface AttendanceRecord {
   teacher_id: string;
   teacher_name: string;
   academic_year: string;
+  verification_status?: 'verified' | 'pending' | 'rejected';
+  pending_reason?: string | null;
+  reviewed_by_name?: string | null;
+  reviewed_at?: string | null;
+  review_note?: string | null;
 }
 
 export interface AbsenceRecord {
@@ -255,6 +260,7 @@ export interface RemedialLesson {
   verified_by: string | null;
   verified_at: string | null;
   notes: string | null;
+  pending_reason: string | null;
   has_register: boolean;
   created_at: string;
   absence_id: string | null;

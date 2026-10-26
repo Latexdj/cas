@@ -95,6 +95,7 @@ async function computeStaffAttendanceFacts(schoolId, academicYearId, semester) {
        SELECT COALESCE(SUM(periods), 0) AS present_periods
        FROM attendance
        WHERE school_id = $1 AND academic_year_id = $2 AND ($3::int IS NULL OR semester = $3::int)
+         AND verification_status = 'verified'
      ),
      abs AS (
        SELECT

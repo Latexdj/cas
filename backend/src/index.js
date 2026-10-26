@@ -2376,6 +2376,34 @@ async function runMigrations() {
     `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] invigilation_check_ins/exam_student_attendance:', e.message); }
 
+    // ── GPS-verification "submit pending review" fallback ────────────────────
+    // Lets a teacher submit classroom/PLC/meeting/invigilation attendance when
+    // location verification fails, flagged pending instead of counted present,
+    // for an admin to approve (counts fully) or reject (student register rows
+    // deleted, absence restored — see routes/{attendance,plc,meetings,exams}.js).
+    try {
+      for (const table of ['attendance', 'plc_attendance', 'meeting_attendance', 'invigilation_check_ins']) {
+        await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS verification_status TEXT NOT NULL DEFAULT 'verified'`);
+        await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS pending_reason TEXT`);
+        await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS reviewed_by_name TEXT`);
+        await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ`);
+        await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS review_note TEXT`);
+        await pool.query(`
+          DO $$ BEGIN
+            ALTER TABLE ${table} DROP CONSTRAINT IF EXISTS ${table}_verification_status_check;
+            ALTER TABLE ${table}
+              ADD CONSTRAINT ${table}_verification_status_check
+              CHECK (verification_status IN ('verified','pending','rejected'));
+          EXCEPTION WHEN OTHERS THEN NULL; END $$
+        `);
+      }
+      // Remedial lessons already have a full pending-review lifecycle
+      // (status: Scheduled/Completed/Verified/Cancelled/Rejected) — only the
+      // teacher's own stated reason needs a home, kept separate from the
+      // admin's `notes` field so /reject doesn't clobber it before review.
+      await pool.query(`ALTER TABLE remedial_lessons ADD COLUMN IF NOT EXISTS pending_reason TEXT`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] pending-verification columns:', e.message); }
+
     // Academic year date range
     try {
     await pool.query(`ALTER TABLE academic_years ADD COLUMN IF NOT EXISTS start_date DATE`);

@@ -6,6 +6,9 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 const { verifyLocation } = require('../services/geo.service');
 const { uploadPhoto }    = require('../services/storage.service');
 const { logAudit }       = require('../services/audit.service');
+const {
+  notifyPendingAttendanceSubmitted, notifyPendingAttendanceApproved, notifyPendingAttendanceRejected,
+} = require('../services/notification.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -192,10 +195,11 @@ router.post('/verify-qr', async (req, res, next) => {
 // POST /api/plc/submit
 router.post('/submit', async (req, res, next) => {
   try {
-    const { sessionId, agenda, gpsCoordinates, imageBase64, photoSizeKb } = req.body;
+    const { sessionId, agenda, gpsCoordinates, imageBase64, photoSizeKb, submitPending, pendingReason } = req.body;
     const teacherId = req.user.id;
+    const wantsPending = submitPending === true && String(pendingReason || '').trim().length > 0;
 
-    if (!sessionId || !imageBase64 || !gpsCoordinates) {
+    if (!sessionId || !imageBase64 || (!gpsCoordinates && !wantsPending)) {
       return res.status(400).json({ error: 'sessionId, gpsCoordinates, and imageBase64 are required' });
     }
 
@@ -223,19 +227,34 @@ router.post('/submit', async (req, res, next) => {
     // GPS verification
     let locationVerified = false;
     let locationMsg = 'Location not verified';
+    let verificationStatus = 'verified';
     if (session.has_coordinates) {
-      const [lat, lng] = gpsCoordinates.split(',').map(Number);
+      const coords = gpsCoordinates ? gpsCoordinates.split(',').map(Number) : [NaN, NaN];
+      const [lat, lng] = coords;
       if (isNaN(lat) || isNaN(lng)) {
-        return res.status(400).json({ error: 'Invalid GPS coordinates.' });
+        if (wantsPending) {
+          verificationStatus = 'pending';
+          locationMsg = 'Invalid GPS coordinates';
+        } else {
+          return res.status(400).json({ error: 'Invalid GPS coordinates.', locationFailure: true });
+        }
+      } else {
+        const result = verifyLocation(session, lat, lng);
+        if (!result.valid) {
+          if (wantsPending) {
+            verificationStatus = 'pending';
+            locationMsg = result.message;
+          } else {
+            return res.status(400).json({
+              error: `You do not appear to be at the PLC venue. ${result.message}`,
+              locationFailure: true,
+            });
+          }
+        } else {
+          locationVerified = result.verified;
+          locationMsg      = result.message;
+        }
       }
-      const result = verifyLocation(session, lat, lng);
-      if (!result.valid) {
-        return res.status(400).json({
-          error: `You do not appear to be at the PLC venue. ${result.message}`,
-        });
-      }
-      locationVerified = result.verified;
-      locationMsg      = result.message;
     }
 
     // Academic year
@@ -255,13 +274,15 @@ router.post('/submit', async (req, res, next) => {
     const { rows: inserted } = await pool.query(
       `INSERT INTO plc_attendance
          (school_id, session_id, teacher_id, date, academic_year_id, semester,
-          agenda, gps_coordinates, photo_url, photo_size_kb, location_name, location_verified)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          agenda, gps_coordinates, photo_url, photo_size_kb, location_name, location_verified,
+          verification_status, pending_reason)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING *`,
       [
         req.schoolId, sessionId, teacherId, today, yearId, sem,
-        agenda?.trim() || null, gpsCoordinates, photoUrl, photoSizeKb || null,
+        agenda?.trim() || null, gpsCoordinates || null, photoUrl, photoSizeKb || null,
         session.location_name, locationVerified,
+        verificationStatus, verificationStatus === 'pending' ? pendingReason.trim() : null,
       ]
     );
 
@@ -275,8 +296,18 @@ router.post('/submit', async (req, res, next) => {
       session_title: session.title, date: today, location: session.location_name,
     });
 
+    if (verificationStatus === 'pending') {
+      const { rows: tRows2 } = await pool.query('SELECT email FROM teachers WHERE id = $1', [teacherId]);
+      notifyPendingAttendanceSubmitted(
+        req.schoolId, { id: teacherId, name: tName, email: tRows2[0]?.email }, 'PLC attendance',
+        `${session.title} on ${today}`, pendingReason.trim()
+      ).catch(() => {});
+    }
+
     res.status(201).json({
-      message: 'PLC attendance recorded',
+      message: verificationStatus === 'pending'
+        ? 'PLC attendance submitted â€” pending admin review because location could not be verified'
+        : 'PLC attendance recorded',
       record: inserted[0],
       locationMessage: locationMsg,
     });
@@ -298,6 +329,7 @@ router.get('/my-history', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT pa.id, pa.date, pa.submitted_at, pa.agenda, pa.location_name,
               pa.location_verified, pa.photo_url,
+              pa.verification_status, pa.pending_reason, pa.reviewed_at, pa.review_note,
               ps.title AS session_title, ps.start_time::text, ps.end_time::text
        FROM plc_attendance pa
        JOIN plc_sessions ps ON ps.id = pa.session_id
@@ -335,7 +367,7 @@ router.get('/attendance', adminOnly, async (req, res, next) => {
   try {
     const limit  = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = parseInt(req.query.offset) || 0;
-    const { date, teacherId, sessionId, from, to } = req.query;
+    const { date, teacherId, sessionId, from, to, verification_status } = req.query;
 
     const conds  = ['pa.school_id = $1'];
     const params = [req.schoolId];
@@ -344,10 +376,12 @@ router.get('/attendance', adminOnly, async (req, res, next) => {
     if (to)        { params.push(to);        conds.push(`pa.date <= $${params.length}`); }
     if (teacherId) { params.push(teacherId); conds.push(`pa.teacher_id = $${params.length}`); }
     if (sessionId) { params.push(sessionId); conds.push(`pa.session_id = $${params.length}`); }
+    if (verification_status) { params.push(verification_status); conds.push(`pa.verification_status = $${params.length}`); }
 
     const { rows } = await pool.query(
       `SELECT pa.id, pa.date, pa.submitted_at, pa.agenda, pa.photo_url,
               pa.location_name, pa.location_verified, pa.gps_coordinates, pa.photo_size_kb,
+              pa.verification_status, pa.pending_reason, pa.reviewed_by_name, pa.reviewed_at, pa.review_note,
               te.id AS teacher_id, te.name AS teacher_name,
               ps.title AS session_title
        FROM plc_attendance pa
@@ -381,6 +415,78 @@ router.delete('/attendance/:id', adminOnly, async (req, res, next) => {
     });
 
     res.json({ message: 'PLC attendance record deleted' });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/plc/attendance/:id/approve-pending â€” admin approves a GPS-pending PLC submission
+router.patch('/attendance/:id/approve-pending', adminOnly, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE plc_attendance SET verification_status = 'verified', reviewed_by_name = $1, reviewed_at = now()
+       WHERE id = $2 AND school_id = $3 AND verification_status = 'pending' RETURNING *`,
+      [req.user.name, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No pending record found' });
+    const record = rows[0];
+
+    const { rows: ctx } = await pool.query(
+      `SELECT te.name AS teacher_name, te.email AS teacher_email, ps.title AS session_title
+       FROM plc_attendance pa
+       JOIN teachers te ON te.id = pa.teacher_id
+       JOIN plc_sessions ps ON ps.id = pa.session_id
+       WHERE pa.id = $1`,
+      [record.id]
+    );
+    const teacher = { id: record.teacher_id, name: ctx[0]?.teacher_name || record.teacher_id, email: ctx[0]?.teacher_email };
+
+    await logAudit(req.schoolId, 'PLC_ATTENDANCE_PENDING_APPROVED', req.user.id, req.user.name, 'plc_attendance', record.id, {
+      teacher_name: teacher.name, date: record.date,
+    });
+    await notifyPendingAttendanceApproved(req.schoolId, teacher, 'PLC attendance', `${ctx[0]?.session_title} on ${record.date}`);
+
+    res.json({ message: 'Submission approved â€” teacher now counted present', record });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/plc/attendance/:id/reject-pending â€” admin rejects a GPS-pending PLC submission:
+// keeps the record for audit and restores the PLC absence
+router.patch('/attendance/:id/reject-pending', adminOnly, async (req, res, next) => {
+  try {
+    const reason = req.body.reason?.trim();
+    if (!reason) return res.status(400).json({ error: 'A reason is required to reject this submission' });
+
+    const { rows } = await pool.query(
+      `UPDATE plc_attendance SET verification_status = 'rejected', reviewed_by_name = $1, reviewed_at = now(), review_note = $2
+       WHERE id = $3 AND school_id = $4 AND verification_status = 'pending' RETURNING *`,
+      [req.user.name, reason, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No pending record found' });
+    const record = rows[0];
+
+    const { rows: ctx } = await pool.query(
+      `SELECT te.name AS teacher_name, te.email AS teacher_email, ps.title AS session_title
+       FROM plc_attendance pa
+       JOIN teachers te ON te.id = pa.teacher_id
+       JOIN plc_sessions ps ON ps.id = pa.session_id
+       WHERE pa.id = $1`,
+      [record.id]
+    );
+
+    await pool.query(
+      `INSERT INTO plc_absences (school_id, session_id, teacher_id, date, status, reason, detected_at, academic_year_id)
+       VALUES ($1,$2,$3,$4,'Absent',$5,now()::time,$6)
+       ON CONFLICT (session_id, teacher_id, date) DO UPDATE SET status = 'Absent', reason = EXCLUDED.reason`,
+      [req.schoolId, record.session_id, record.teacher_id, record.date, `Pending submission rejected: ${reason}`, record.academic_year_id]
+    );
+
+    const teacher = { id: record.teacher_id, name: ctx[0]?.teacher_name || record.teacher_id, email: ctx[0]?.teacher_email };
+
+    await logAudit(req.schoolId, 'PLC_ATTENDANCE_PENDING_REJECTED', req.user.id, req.user.name, 'plc_attendance', record.id, {
+      teacher_name: teacher.name, date: record.date, reason,
+    });
+    await notifyPendingAttendanceRejected(req.schoolId, teacher, 'PLC attendance', `${ctx[0]?.session_title} on ${record.date}`, reason);
+
+    res.json({ message: 'Submission rejected â€” teacher marked absent' });
   } catch (err) { next(err); }
 });
 
@@ -451,6 +557,7 @@ router.get('/summary', adminOnly, async (req, res, next) => {
         SELECT teacher_id, COUNT(*) AS cnt
         FROM plc_attendance
         WHERE school_id = $1
+          AND verification_status = 'verified'
           AND ($2::uuid IS NULL OR academic_year_id = $2::uuid OR academic_year_id IS NULL)
           AND ($3::int  IS NULL OR semester = $3::int         OR semester          IS NULL)
         GROUP BY teacher_id
@@ -461,6 +568,7 @@ router.get('/summary', adminOnly, async (req, res, next) => {
         JOIN meetings m ON m.id = ma.meeting_id
         WHERE ma.school_id = $1
           AND m.meeting_type = 'PLC'
+          AND ma.verification_status = 'verified'
           AND ($2::uuid IS NULL OR ma.academic_year_id = $2::uuid OR ma.academic_year_id IS NULL)
           AND ($3::int  IS NULL OR ma.semester = $3::int         OR ma.semester          IS NULL)
         GROUP BY ma.teacher_id

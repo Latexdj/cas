@@ -39,6 +39,10 @@ interface PlcAttendanceRecord {
   teacher_id: string;
   teacher_name: string;
   session_title: string;
+  verification_status?: 'verified' | 'pending' | 'rejected';
+  pending_reason?: string | null;
+  reviewed_by_name?: string | null;
+  review_note?: string | null;
 }
 
 interface PlcAbsence {
@@ -208,6 +212,55 @@ function PhotoModal({ record, onClose }: { record: PlcAttendanceRecord; onClose:
   );
 }
 
+function RejectModal({
+  record, reason, setReason, error, rejecting, onConfirm, onClose,
+}: {
+  record: PlcAttendanceRecord; reason: string; setReason: (v: string) => void;
+  error: string; rejecting: boolean; onConfirm: () => void; onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        <h3 className="text-base font-semibold text-slate-800">Reject Pending Submission</h3>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-900">
+          <p className="font-semibold mb-1">This action will:</p>
+          <ul className="list-disc list-inside space-y-0.5 text-xs">
+            <li>Keep this record for audit, marked as rejected</li>
+            <li>Mark the teacher absent for this PLC session</li>
+            <li>Send the teacher an email notification with your reason</li>
+          </ul>
+        </div>
+        <div className="bg-slate-50 rounded-xl p-3 text-sm">
+          <p><span className="font-semibold text-slate-700">Teacher:</span> <span className="text-slate-600">{record.teacher_name}</span></p>
+          <p><span className="font-semibold text-slate-700">Session:</span> <span className="text-slate-600">{record.session_title}</span></p>
+          <p><span className="font-semibold text-slate-700">Date:</span> <span className="text-slate-600">{fmtDate(record.date)}</span></p>
+          {record.pending_reason && (
+            <p className="mt-1"><span className="font-semibold text-slate-700">Teacher's reason:</span> <span className="text-slate-600">{record.pending_reason}</span></p>
+          )}
+        </div>
+        <div>
+          <label className="text-xs font-semibold font-medium text-slate-500">Reason for rejection *</label>
+          <textarea
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            rows={3}
+            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm text-slate-900"
+            style={{ borderColor: error ? '#FCA5A5' : '#E2E8F0' }}
+            placeholder="e.g. Photo does not show the stated venue…"
+          />
+          {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+        </div>
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</button>
+          <button onClick={onConfirm} disabled={rejecting} className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">
+            {rejecting ? 'Rejecting…' : 'Reject & Mark Absent'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PlcPage() {
   const [tab,           setTab]          = useState<Tab>('sessions');
   const [sessions,      setSessions]     = useState<PlcSession[]>([]);
@@ -221,6 +274,7 @@ export default function PlcPage() {
   const [dateFrom,    setDateFrom]    = useState('');
   const [dateTo,      setDateTo]      = useState('');
   const [teacherId,   setTeacherId]   = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending'>('all');
 
   // Modals
   const [editSession,  setEditSession]  = useState<Partial<PlcSession> | null | false>(false);
@@ -228,6 +282,11 @@ export default function PlcPage() {
   const [qrSession,    setQrSession]    = useState<PlcSession | null>(null);
   const [qrDataUrl,    setQrDataUrl]    = useState<string | null>(null);
   const [qrLoading,    setQrLoading]    = useState(false);
+  const [rejectRecord, setRejectRecord] = useState<PlcAttendanceRecord | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejecting,    setRejecting]    = useState(false);
+  const [rejectError,  setRejectError]  = useState('');
+  const [approvingId,  setApprovingId]  = useState<string | null>(null);
 
   const loadSessions = useCallback(async () => {
     const [s, l] = await Promise.allSettled([
@@ -244,6 +303,7 @@ export default function PlcPage() {
       if (dateFrom)  params.from      = dateFrom;
       if (dateTo)    params.to        = dateTo;
       if (teacherId) params.teacherId = teacherId;
+      if (statusFilter === 'pending') params.verification_status = 'pending';
       const [a, t] = await Promise.all([
         api.get<PlcAttendanceRecord[]>('/api/plc/attendance', { params }),
         teachers.length ? Promise.resolve({ data: teachers }) : api.get<Teacher[]>('/api/teachers'),
@@ -251,7 +311,7 @@ export default function PlcPage() {
       setAttendance(a.data);
       setTeachers(t.data);
     } catch {}
-  }, [dateFrom, dateTo, teacherId, teachers]);
+  }, [dateFrom, dateTo, teacherId, statusFilter, teachers]);
 
   const loadAbsences = useCallback(async () => {
     try {
@@ -289,6 +349,27 @@ export default function PlcPage() {
     if (!confirm('Remove this PLC attendance record?')) return;
     try { await api.delete(`/api/plc/attendance/${id}`); await loadAttendance(); }
     catch { alert('Failed to delete record.'); }
+  }
+
+  async function approvePending(id: string) {
+    setApprovingId(id);
+    try { await api.patch(`/api/plc/attendance/${id}/approve-pending`); await loadAttendance(); }
+    catch { alert('Failed to approve submission.'); }
+    finally { setApprovingId(null); }
+  }
+
+  async function confirmRejectPending() {
+    if (!rejectRecord) return;
+    if (!rejectReason.trim()) { setRejectError('Please enter a reason for rejecting this submission.'); return; }
+    setRejecting(true); setRejectError('');
+    try {
+      await api.patch(`/api/plc/attendance/${rejectRecord.id}/reject-pending`, { reason: rejectReason.trim() });
+      setRejectRecord(null); setRejectReason('');
+      await loadAttendance();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setRejectError(msg ?? 'Failed to reject submission.');
+    } finally { setRejecting(false); }
   }
 
   async function clearAbsence(id: string) {
@@ -382,8 +463,17 @@ export default function PlcPage() {
               {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
+          {tab === 'attendance' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">Status</label>
+              <select className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44]" value={statusFilter} onChange={e => setStatusFilter(e.target.value as 'all' | 'pending')}>
+                <option value="all">All</option>
+                <option value="pending">Pending Review</option>
+              </select>
+            </div>
+          )}
           <button type="submit" className="px-5 py-2 rounded-xl text-sm font-semibold text-white" style={{ backgroundColor: '#145C44' }}>Search</button>
-          <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setTeacherId(''); }} className="px-5 py-2 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">Reset</button>
+          <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setTeacherId(''); setStatusFilter('all'); }} className="px-5 py-2 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">Reset</button>
         </form>
       )}
 
@@ -471,6 +561,7 @@ export default function PlcPage() {
                       <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Venue</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">GPS</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Agenda</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Status</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Photo</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400"></th>
                     </tr>
@@ -492,12 +583,28 @@ export default function PlcPage() {
                         </td>
                         <td className="px-4 py-3 text-slate-600 max-w-[160px] truncate">{r.agenda || <span className="text-slate-300">—</span>}</td>
                         <td className="px-4 py-3">
+                          {r.verification_status === 'pending' ? (
+                            <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700" title={r.pending_reason ?? ''}>Pending Review</span>
+                          ) : r.verification_status === 'rejected' ? (
+                            <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-700" title={r.review_note ?? ''}>Rejected</span>
+                          ) : (
+                            <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700">Verified</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
                           {r.photo_url
                             ? <button onClick={() => setPhotoRecord(r)} className="text-xs font-semibold text-[#145C44] hover:text-[#1E3A8A]">View</button>
                             : <span className="text-slate-300">—</span>}
                         </td>
                         <td className="px-4 py-3">
-                          <button onClick={() => deleteAttendance(r.id)} className="text-xs font-semibold text-red-500 hover:text-red-700">Delete</button>
+                          {r.verification_status === 'pending' ? (
+                            <div className="flex gap-2">
+                              <button disabled={approvingId === r.id} onClick={() => approvePending(r.id)} className="text-xs font-semibold text-[#145C44] hover:text-[#1E3A8A] disabled:opacity-40">Approve</button>
+                              <button onClick={() => { setRejectRecord(r); setRejectReason(''); setRejectError(''); }} className="text-xs font-semibold text-red-500 hover:text-red-700">Reject</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => deleteAttendance(r.id)} className="text-xs font-semibold text-red-500 hover:text-red-700">Delete</button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -572,6 +679,18 @@ export default function PlcPage() {
 
       {/* Photo modal */}
       {photoRecord && <PhotoModal record={photoRecord} onClose={() => setPhotoRecord(null)} />}
+
+      {rejectRecord && (
+        <RejectModal
+          record={rejectRecord}
+          reason={rejectReason}
+          setReason={v => { setRejectReason(v); setRejectError(''); }}
+          error={rejectError}
+          rejecting={rejecting}
+          onConfirm={confirmRejectPending}
+          onClose={() => setRejectRecord(null)}
+        />
+      )}
 
       {/* QR modal */}
       {qrSession && (

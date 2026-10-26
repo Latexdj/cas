@@ -134,6 +134,50 @@ async function notifyTeacherProfileRequestRejected(schoolId, teacher, request, n
   ]);
 }
 
+async function notifyPendingAttendanceSubmitted(schoolId, teacher, kind, description, reason) {
+  const title   = 'Submission Pending Review';
+  const message = `Your ${kind} submission (${description}) could not be location-verified, so it has been sent for admin review instead of being rejected. Reason given: ${reason}. You will be notified once it's reviewed.`;
+
+  await Promise.all([
+    createNotification(schoolId, teacher.id, title, message),
+    sendTeacherEmail(
+      teacher.email,
+      `Submission Pending Review — ${description}`,
+      `Dear ${teacher.name},\n\nYour ${kind} submission (${description}) could not be location-verified, so instead of being rejected it has been sent to the school administrator for review.\n\nReason given: ${reason}\n\nYou will not be marked present until this is approved. We'll notify you once a decision is made.\n\n— CAS Attendance`
+    ),
+  ]);
+}
+
+async function notifyPendingAttendanceApproved(schoolId, teacher, kind, description) {
+  const title   = 'Submission Approved';
+  const message = `Your ${kind} submission (${description}) has been reviewed and approved. You are now marked present.`;
+
+  await Promise.all([
+    createNotification(schoolId, teacher.id, title, message),
+    sendTeacherEmail(
+      teacher.email,
+      `Submission Approved — ${description}`,
+      `Dear ${teacher.name},\n\nYour ${kind} submission (${description}), which was pending admin review, has been approved.\n\nYou are now marked present for this.\n\n— CAS Attendance`
+    ),
+  ]);
+}
+
+async function notifyPendingAttendanceRejected(schoolId, teacher, kind, description, reviewNote) {
+  const title   = 'Submission Rejected';
+  const message = reviewNote
+    ? `Your ${kind} submission (${description}) was reviewed and rejected. Reason: ${reviewNote}. You have been marked absent for this.`
+    : `Your ${kind} submission (${description}) was reviewed and rejected. You have been marked absent for this.`;
+
+  await Promise.all([
+    createNotification(schoolId, teacher.id, title, message),
+    sendTeacherEmail(
+      teacher.email,
+      `Submission Rejected — ${description}`,
+      `Dear ${teacher.name},\n\nYour ${kind} submission (${description}), which was pending admin review, has been rejected.\n\nReview note: ${reviewNote || 'No additional note supplied.'}\n\nYou have been marked absent for this. If you believe this is an error, please contact your school administrator.\n\n— CAS Attendance`
+    ),
+  ]);
+}
+
 module.exports = {
   createNotification,
   sendTeacherEmail,
@@ -143,4 +187,7 @@ module.exports = {
   notifyTeacherProfileRequestSubmitted,
   notifyTeacherProfileRequestApproved,
   notifyTeacherProfileRequestRejected,
+  notifyPendingAttendanceSubmitted,
+  notifyPendingAttendanceApproved,
+  notifyPendingAttendanceRejected,
 };

@@ -6,6 +6,8 @@ import { teacherApi } from '@/lib/teacher-api';
 import { useSessionFilter } from '@/hooks/useSessionFilter';
 
 /* ─── Types ─── */
+type VerificationStatus = 'verified' | 'pending' | 'rejected';
+
 interface AttendanceRecord {
   id: string;
   date: string;
@@ -14,6 +16,9 @@ interface AttendanceRecord {
   topic?: string;
   location_name?: string;
   periods?: number;
+  verification_status?: VerificationStatus;
+  pending_reason?: string | null;
+  review_note?: string | null;
 }
 
 interface MeetingRecord {
@@ -27,6 +32,17 @@ interface MeetingRecord {
   location_name?: string;
   location_verified: boolean;
   submitted_at: string;
+  verification_status?: VerificationStatus;
+  pending_reason?: string | null;
+  review_note?: string | null;
+}
+
+function StatusBadge({ status }: { status?: VerificationStatus }) {
+  if (!status || status === 'verified') return null;
+  if (status === 'pending') {
+    return <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ background: '#FFFBEB', color: '#B45309' }}>Pending Review</span>;
+  }
+  return <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ background: '#FEF2F2', color: '#B83232' }}>Rejected</span>;
 }
 
 interface AcademicYear {
@@ -264,6 +280,12 @@ export default function HistoryPage() {
                         <p className="text-xs text-[#8C7E6E] mt-0.5">{formatDate(rec.date)}</p>
                         {rec.topic && <p className="text-xs text-[#8C7E6E] mt-1 truncate"><span className="font-medium">Topic:</span> {rec.topic}</p>}
                         {rec.location_name && <p className="text-xs text-[#8C7E6E] truncate"><span className="font-medium">Location:</span> {rec.location_name}</p>}
+                        {rec.verification_status && rec.verification_status !== 'verified' && (
+                          <div className="mt-1.5"><StatusBadge status={rec.verification_status} /></div>
+                        )}
+                        {rec.verification_status === 'rejected' && rec.review_note && (
+                          <p className="text-xs text-[#B83232] mt-1"><span className="font-medium">Reason:</span> {rec.review_note}</p>
+                        )}
                       </div>
                       {rec.periods && (
                         <div className="shrink-0 text-center">
@@ -366,10 +388,14 @@ export default function HistoryPage() {
                             <span className="font-medium">Notes:</span> {rec.notes}
                           </p>
                         )}
+                        {rec.verification_status === 'rejected' && rec.review_note && (
+                          <p className="text-xs text-[#B83232] mt-1"><span className="font-medium">Reason:</span> {rec.review_note}</p>
+                        )}
                       </div>
-                      <div className="shrink-0">
+                      <div className="shrink-0 flex flex-col items-end gap-1.5">
                         <span className="text-xs font-bold px-2 py-1 rounded-full"
                           style={{ background: '#E4F4EB', color: '#1A4D2E' }}>{rec.meeting_type}</span>
+                        <StatusBadge status={rec.verification_status} />
                       </div>
                     </div>
                   </div>

@@ -140,6 +140,9 @@ export default function SubmitPage() {
   const [errors,      setErrors]      = useState<Record<string,string>>({});
   const [submitting,  setSubmitting]  = useState(false);
   const [apiError,    setApiError]    = useState('');
+  const [locationFailure, setLocationFailure] = useState(false);
+  const [pendingReason,   setPendingReason]   = useState('');
+  const [pendingReasonErr, setPendingReasonErr] = useState('');
   const fileRef   = useRef<HTMLInputElement>(null);
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -414,21 +417,23 @@ export default function SubmitPage() {
     }
   }
 
-  async function handleStep1(e: React.FormEvent) {
+  async function handleStep1(e: React.SyntheticEvent, asPending = false) {
     e.preventDefault();
     const errs: Record<string,string> = {};
     if (!selectedId)    errs.slot  = 'Please select a lesson slot.';
     if (!qrVerified)    errs.qr    = 'Please scan the classroom QR code.';
     if (!topic.trim())  errs.topic = 'Topic is required.';
     if (!locName)       errs.loc   = 'Please select a location.';
-    if (!gps)           errs.gps   = gpsError || 'GPS is required. Tap Refresh.';
+    if (!gps && !asPending) errs.gps = gpsError || 'GPS is required. Tap Refresh.';
     if (!photoB64)      errs.photo = 'Please take a photo.';
+    if (asPending && !pendingReason.trim()) { setPendingReasonErr('Please explain why you believe your location is correct.'); return; }
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
     const slot = slots.find(s => s.id === selectedId)!;
     const teacher = getTeacher()!;
-    setSubmitting(true); setApiError('');
+    setSubmitting(true); setApiError(''); setPendingReasonErr('');
+    if (!asPending) setLocationFailure(false);
     try {
       const res = await teacherApi.post('/api/attendance/submit', {
         teacherId:      teacher.id,
@@ -440,9 +445,11 @@ export default function SubmitPage() {
         locationName:   locName,
         imageBase64:    photoB64,
         photoSizeKb:    photoKb,
+        ...(asPending ? { submitPending: true, pendingReason: pendingReason.trim() } : {}),
       });
       const newId = res.data?.record?.id ?? res.data?.id ?? '';
       setAttendanceId(newId);
+      setLocationFailure(false);
 
       // Persist checkpoint so Step 2 can be resumed if the page is closed or the browser loses focus
       try {
@@ -462,8 +469,9 @@ export default function SubmitPage() {
       await loadClassAtIndex(queue, 0, newId);
       setStep(2);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setApiError(msg ?? 'Submission failed. Please try again.');
+      const data = (err as { response?: { data?: { error?: string; locationFailure?: boolean } } })?.response?.data;
+      setApiError(data?.error ?? 'Submission failed. Please try again.');
+      setLocationFailure(!!data?.locationFailure);
     } finally { setSubmitting(false); }
   }
 
@@ -753,6 +761,32 @@ export default function SubmitPage() {
           </div>
 
           {apiError && <p className="text-sm text-[#B83232] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-4 py-3">{apiError}</p>}
+          {locationFailure && (
+            <div className="rounded-xl border px-4 py-3 space-y-2" style={{ borderColor: dk.border, background: dk.cardBgAlt }}>
+              <p className="text-sm font-semibold" style={{ color: dk.text }}>Still at the venue?</p>
+              <p className="text-xs" style={{ color: dk.muted }}>
+                You can submit anyway — it will be sent for admin review instead of counting as present right away.
+              </p>
+              <textarea
+                value={pendingReason}
+                onChange={e => { setPendingReason(e.target.value); setPendingReasonErr(''); }}
+                placeholder="Briefly explain why your location should be accepted…"
+                rows={2}
+                className="w-full rounded-lg px-3 py-2 text-sm"
+                style={{ background: dk.inputBg, color: dk.inputText, border: `1px solid ${pendingReasonErr ? '#FCA5A5' : dk.border}` }}
+              />
+              {pendingReasonErr && <p className="text-xs text-[#B83232]">{pendingReasonErr}</p>}
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={e => handleStep1(e, true)}
+                className="w-full py-2.5 rounded-lg text-sm font-semibold border disabled:opacity-40"
+                style={{ borderColor: primary, color: primary }}
+              >
+                {submitting ? 'Submitting…' : 'Submit for Admin Review'}
+              </button>
+            </div>
+          )}
           <button type="submit" disabled={submitting}
             className="w-full py-3.5 rounded-xl text-sm font-bold text-white disabled:opacity-40"
             style={{ background: primary }}>

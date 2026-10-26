@@ -578,6 +578,15 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
               </div>
             )}
 
+            {notesModal.pending_reason && (
+              <div className="rounded-xl p-3 text-sm" style={{ backgroundColor: '#FFFBEB', border: '1px solid #FDE68A' }}>
+                <p className="text-xs font-semibold font-medium mb-1" style={{ color: '#B45309' }}>
+                  Submitted despite failed GPS verification — teacher's reason:
+                </p>
+                <p style={{ color: '#92400E' }}>{notesModal.pending_reason}</p>
+              </div>
+            )}
+
             {/* Details grid */}
             <div className="grid grid-cols-2 gap-2 text-sm">
               {[

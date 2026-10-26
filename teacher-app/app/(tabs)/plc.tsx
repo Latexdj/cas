@@ -49,6 +49,8 @@ export default function PlcScreen() {
   const [photoBase64,  setPhotoBase64]  = useState<string | null>(null);
   const [photoSizeKb,  setPhotoSizeKb]  = useState<number | null>(null);
   const [submitting,   setSubmitting]   = useState(false);
+  const [locationFailure, setLocationFailure] = useState(false);
+  const [pendingReason,   setPendingReason]   = useState('');
 
   // Camera
   const [showCamera,  setShowCamera]  = useState(false);
@@ -221,17 +223,21 @@ export default function PlcScreen() {
     setQrVerified(false);
     setQrLocation('');
     setQrError('');
+    setLocationFailure(false);
+    setPendingReason('');
   }
 
   // ── Submit ────────────────────────────────────────────────────
-  async function handleSubmit() {
+  async function handleSubmit(asPending = false) {
     if (!todayData?.session) return;
     if (gpsAcquiring)  { Alert.alert('GPS acquiring', 'GPS is still being determined. Please wait.'); return; }
-    if (!gps)          { Alert.alert('GPS required', gpsError || 'GPS coordinates are required. Tap Refresh.'); return; }
+    if (!gps && !asPending) { Alert.alert('GPS required', gpsError || 'GPS coordinates are required. Tap Refresh.'); return; }
     if (!photoBase64)  { Alert.alert('Photo required', 'Please take a photo at the PLC venue.'); return; }
     if (!IS_WEB && !qrVerified) { Alert.alert('QR Required', 'Please scan the PLC venue QR code to verify your presence.'); return; }
+    if (asPending && !pendingReason.trim()) { Alert.alert('Reason required', 'Please explain why you believe your location is correct.'); return; }
 
     setSubmitting(true);
+    if (!asPending) setLocationFailure(false);
     try {
       const netState = await NetInfo.fetch();
       if (!netState.isConnected) {
@@ -244,12 +250,19 @@ export default function PlcScreen() {
         gpsCoordinates: gps,
         imageBase64:    photoBase64,
         photoSizeKb:    photoSizeKb ?? undefined,
+        ...(asPending ? { submitPending: true, pendingReason: pendingReason.trim() } : {}),
       }, { timeout: 60000 });
-      Alert.alert('PLC Attendance Recorded', 'Your attendance for today\'s PLC session has been submitted.');
+      Alert.alert(
+        asPending ? 'Submitted for Review' : 'PLC Attendance Recorded',
+        asPending ? "Your attendance for today's PLC session has been sent for admin review." : "Your attendance for today's PLC session has been submitted."
+      );
+      setLocationFailure(false);
       resetForm();
       await loadToday();
     } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.error ?? 'Submission failed.');
+      const data = err?.response?.data;
+      Alert.alert('Error', data?.error ?? 'Submission failed.');
+      if (data?.locationFailure) setLocationFailure(true);
     } finally {
       setSubmitting(false);
     }
@@ -452,10 +465,33 @@ export default function PlcScreen() {
         </>
       )}
 
+      {locationFailure && (
+        <View style={styles.pendingReviewCard}>
+          <Text style={styles.pendingReviewTitle}>Still at the venue?</Text>
+          <Text style={styles.pendingReviewBody}>
+            You can submit anyway — it will be sent for admin review instead of counting as present right away.
+          </Text>
+          <Input
+            placeholder="Briefly explain why your location should be accepted…"
+            value={pendingReason}
+            onChangeText={setPendingReason}
+            multiline
+            numberOfLines={2}
+            style={{ marginBottom: 8 }}
+          />
+          <Button
+            label="Submit for Admin Review"
+            variant="secondary"
+            onPress={() => handleSubmit(true)}
+            disabled={submitting}
+          />
+        </View>
+      )}
+
       {/* Submit */}
       <Button
-        title={submitting ? 'Submitting…' : 'Submit PLC Attendance'}
-        onPress={handleSubmit}
+        label={submitting ? 'Submitting…' : 'Submit PLC Attendance'}
+        onPress={() => handleSubmit()}
         disabled={submitting}
         style={styles.submitBtn}
       />
@@ -500,6 +536,9 @@ const styles = StyleSheet.create({
   cameraIcon:            { fontSize: 40 },
   cameraPlaceholderText: { fontSize: 15, color: '#8C7E6E', marginTop: 8 },
   submitBtn:             { marginTop: 8 },
+  pendingReviewCard:     { backgroundColor: '#F5F0E8', borderWidth: 1, borderColor: '#E2D9CC', borderRadius: 12, padding: 14, marginTop: 8 },
+  pendingReviewTitle:    { fontSize: 14, fontWeight: '700', color: '#2C2218', marginBottom: 4 },
+  pendingReviewBody:     { fontSize: 12, color: '#8C7E6E', marginBottom: 10 },
   // Camera
   cameraContainer:       { flex: 1, backgroundColor: '#000' },
   camera:                { flex: 1 },

@@ -4,6 +4,9 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 const { verifyLocation } = require('../services/geo.service');
 const { uploadPhoto }    = require('../services/storage.service');
 const { logAudit }       = require('../services/audit.service');
+const {
+  notifyPendingAttendanceSubmitted, notifyPendingAttendanceApproved, notifyPendingAttendanceRejected,
+} = require('../services/notification.service');
 
 // â”€â”€ Self-healing table setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Runs once at module load. If the migration missed these tables this creates
@@ -601,10 +604,11 @@ router.get('/sessions/duties/mine', async (req, res, next) => {
 router.post('/sessions/:id/check-in', async (req, res, next) => {
   if (setupGuard(res)) return;
   try {
-    const { gpsCoordinates, imageBase64, photoSizeKb, notes } = req.body;
+    const { gpsCoordinates, imageBase64, photoSizeKb, notes, submitPending, pendingReason } = req.body;
     const teacherId = req.user.id;
+    const wantsPending = submitPending === true && String(pendingReason || '').trim().length > 0;
 
-    if (!gpsCoordinates || !imageBase64) {
+    if ((!gpsCoordinates && !wantsPending) || !imageBase64) {
       return res.status(400).json({ error: 'gpsCoordinates and imageBase64 are required' });
     }
 
@@ -649,28 +653,55 @@ router.post('/sessions/:id/check-in', async (req, res, next) => {
       `SELECT * FROM locations WHERE school_id = $1 AND LOWER(name) = LOWER($2) LIMIT 1`,
       [req.schoolId, session.hall_name]
     );
+    let locationVerified = false, locationMsg = 'Location not verified', verificationStatus = 'verified';
     if (!locRows.length) {
-      return res.status(400).json({
-        error: `Exam hall "${session.hall_name}" is not registered as a location. Ask your administrator to add it to the Locations list before check-in is available.`,
-      });
+      if (wantsPending) {
+        verificationStatus = 'pending';
+        locationMsg = 'Exam hall not registered as a location';
+      } else {
+        return res.status(400).json({
+          error: `Exam hall "${session.hall_name}" is not registered as a location. Ask your administrator to add it to the Locations list before check-in is available.`,
+          locationFailure: true,
+        });
+      }
+    } else if (!locRows[0].has_coordinates) {
+      if (wantsPending) {
+        verificationStatus = 'pending';
+        locationMsg = 'GPS coordinates not configured for this hall';
+      } else {
+        return res.status(400).json({
+          error: `GPS coordinates have not been configured for "${session.hall_name}". Ask your administrator to set the coordinates for this hall.`,
+          locationFailure: true,
+        });
+      }
+    } else {
+      const coords = gpsCoordinates ? gpsCoordinates.split(',').map(Number) : [NaN, NaN];
+      const [lat, lng] = coords;
+      if (isNaN(lat) || isNaN(lng)) {
+        if (wantsPending) {
+          verificationStatus = 'pending';
+          locationMsg = 'Invalid GPS coordinates';
+        } else {
+          return res.status(400).json({ error: 'Invalid GPS coordinates. Please refresh your location and try again.', locationFailure: true });
+        }
+      } else {
+        const result = verifyLocation(locRows[0], lat, lng);
+        if (!result.valid) {
+          if (wantsPending) {
+            verificationStatus = 'pending';
+            locationMsg = result.message;
+          } else {
+            return res.status(400).json({
+              error: `You do not appear to be in ${session.hall_name}. ${result.message}`,
+              locationFailure: true,
+            });
+          }
+        } else {
+          locationVerified = result.verified;
+          locationMsg      = result.message;
+        }
+      }
     }
-    if (!locRows[0].has_coordinates) {
-      return res.status(400).json({
-        error: `GPS coordinates have not been configured for "${session.hall_name}". Ask your administrator to set the coordinates for this hall.`,
-      });
-    }
-    const [lat, lng] = gpsCoordinates.split(',').map(Number);
-    if (isNaN(lat) || isNaN(lng)) {
-      return res.status(400).json({ error: 'Invalid GPS coordinates. Please refresh your location and try again.' });
-    }
-    const result = verifyLocation(locRows[0], lat, lng);
-    if (!result.valid) {
-      return res.status(400).json({
-        error: `You do not appear to be in ${session.hall_name}. ${result.message}`,
-      });
-    }
-    const locationVerified = result.verified;
-    const locationMsg      = result.message;
 
     // Academic year
     const { rows: ayRows } = await pool.query(
@@ -691,11 +722,12 @@ router.post('/sessions/:id/check-in', async (req, res, next) => {
       `INSERT INTO invigilation_check_ins
          (school_id, exam_session_id, teacher_id, date, gps_coordinates, photo_url,
           photo_size_kb, location_verified, location_verification_message, notes,
-          academic_year_id, semester)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          academic_year_id, semester, verification_status, pending_reason)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING *`,
-      [req.schoolId, req.params.id, teacherId, today, gpsCoordinates, photoUrl,
-       photoSizeKb || null, locationVerified, locationMsg, notes?.trim() || null, yearId, sem]
+      [req.schoolId, req.params.id, teacherId, today, gpsCoordinates || null, photoUrl,
+       photoSizeKb || null, locationVerified, locationMsg, notes?.trim() || null, yearId, sem,
+       verificationStatus, verificationStatus === 'pending' ? pendingReason.trim() : null]
     );
 
     await logAudit(
@@ -704,8 +736,18 @@ router.post('/sessions/:id/check-in', async (req, res, next) => {
       { session_id: req.params.id, subject: session.subject, hall: session.hall_name, date: today }
     );
 
+    if (verificationStatus === 'pending') {
+      const { rows: tRows2 } = await pool.query('SELECT email FROM teachers WHERE id = $1', [teacherId]);
+      notifyPendingAttendanceSubmitted(
+        req.schoolId, { id: teacherId, name: tName, email: tRows2[0]?.email }, 'exam invigilation check-in',
+        `${session.subject} at ${session.hall_name} on ${today}`, pendingReason.trim()
+      ).catch(() => {});
+    }
+
     res.status(201).json({
-      message: 'Checked in successfully',
+      message: verificationStatus === 'pending'
+        ? 'Checked in â€” pending admin review because location could not be verified'
+        : 'Checked in successfully',
       record: inserted[0],
       locationMessage: locationMsg,
     });
@@ -721,6 +763,7 @@ router.get('/sessions/:id/check-ins', adminOnly, async (req, res, next) => {
               ci.photo_url, ci.photo_size_kb, ci.location_verified,
               ci.location_verification_message, ci.notes,
               ci.is_manual, ci.manually_entered_by,
+              ci.verification_status, ci.pending_reason, ci.reviewed_by_name, ci.reviewed_at, ci.review_note,
               t.name AS teacher_name, t.id AS teacher_id
        FROM invigilation_check_ins ci
        JOIN teachers t ON t.id = ci.teacher_id
@@ -729,6 +772,73 @@ router.get('/sessions/:id/check-ins', adminOnly, async (req, res, next) => {
       [req.params.id, req.schoolId]
     );
     res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// PATCH /sessions/:id/check-ins/:checkInId/approve-pending â€” admin approves a GPS-pending invigilation check-in
+router.patch('/sessions/:id/check-ins/:checkInId/approve-pending', adminOnly, async (req, res, next) => {
+  if (setupGuard(res)) return;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE invigilation_check_ins SET verification_status = 'verified', reviewed_by_name = $1, reviewed_at = now()
+       WHERE id = $2 AND exam_session_id = $3 AND school_id = $4 AND verification_status = 'pending' RETURNING *`,
+      [req.user.name, req.params.checkInId, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No pending record found' });
+    const record = rows[0];
+
+    const { rows: ctx } = await pool.query(
+      `SELECT te.name AS teacher_name, te.email AS teacher_email, es.subject, es.hall_name
+       FROM invigilation_check_ins ci
+       JOIN teachers te ON te.id = ci.teacher_id
+       JOIN exam_sessions es ON es.id = ci.exam_session_id
+       WHERE ci.id = $1`,
+      [record.id]
+    );
+    const teacher = { id: record.teacher_id, name: ctx[0]?.teacher_name || record.teacher_id, email: ctx[0]?.teacher_email };
+
+    await logAudit(req.schoolId, 'INVIGILATION_PENDING_APPROVED', req.user.id, req.user.name, 'invigilation_check_ins', record.id, {
+      teacher_name: teacher.name, date: record.date,
+    });
+    await notifyPendingAttendanceApproved(req.schoolId, teacher, 'exam invigilation check-in', `${ctx[0]?.subject} at ${ctx[0]?.hall_name} on ${record.date}`);
+
+    res.json({ message: 'Submission approved â€” teacher now counted present', record });
+  } catch (err) { next(err); }
+});
+
+// PATCH /sessions/:id/check-ins/:checkInId/reject-pending â€” admin rejects a GPS-pending
+// invigilation check-in: kept for audit, status only (no absence-equivalent table exists
+// for missed invigilation duty, so a rejected invigilator's duty is not auto-reassigned)
+router.patch('/sessions/:id/check-ins/:checkInId/reject-pending', adminOnly, async (req, res, next) => {
+  if (setupGuard(res)) return;
+  try {
+    const reason = req.body.reason?.trim();
+    if (!reason) return res.status(400).json({ error: 'A reason is required to reject this submission' });
+
+    const { rows } = await pool.query(
+      `UPDATE invigilation_check_ins SET verification_status = 'rejected', reviewed_by_name = $1, reviewed_at = now(), review_note = $2
+       WHERE id = $3 AND exam_session_id = $4 AND school_id = $5 AND verification_status = 'pending' RETURNING *`,
+      [req.user.name, reason, req.params.checkInId, req.params.id, req.schoolId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No pending record found' });
+    const record = rows[0];
+
+    const { rows: ctx } = await pool.query(
+      `SELECT te.name AS teacher_name, te.email AS teacher_email, es.subject, es.hall_name
+       FROM invigilation_check_ins ci
+       JOIN teachers te ON te.id = ci.teacher_id
+       JOIN exam_sessions es ON es.id = ci.exam_session_id
+       WHERE ci.id = $1`,
+      [record.id]
+    );
+    const teacher = { id: record.teacher_id, name: ctx[0]?.teacher_name || record.teacher_id, email: ctx[0]?.teacher_email };
+
+    await logAudit(req.schoolId, 'INVIGILATION_PENDING_REJECTED', req.user.id, req.user.name, 'invigilation_check_ins', record.id, {
+      teacher_name: teacher.name, date: record.date, reason,
+    });
+    await notifyPendingAttendanceRejected(req.schoolId, teacher, 'exam invigilation check-in', `${ctx[0]?.subject} at ${ctx[0]?.hall_name} on ${record.date}`, reason);
+
+    res.json({ message: 'Submission rejected â€” the teacher must check in again to be marked present' });
   } catch (err) { next(err); }
 });
 
@@ -831,7 +941,9 @@ router.get('/report', adminOnly, async (req, res, next) => {
         t.id                                      AS teacher_id,
         t.name                                    AS teacher_name,
         d.role,
-        (ci.id IS NOT NULL)                       AS checked_in,
+        (ci.id IS NOT NULL AND ci.verification_status != 'rejected') AS checked_in,
+        ci.verification_status,
+        ci.pending_reason,
         ci.submitted_at                           AS checked_in_at,
         COALESCE(ci.is_manual, false)             AS is_manual,
         COALESCE(ci.location_verified, false)     AS location_verified,
@@ -924,7 +1036,7 @@ router.post('/sessions/:id/register', async (req, res, next) => {
 
       const { rowCount: checkedIn } = await pool.query(
         `SELECT 1 FROM invigilation_check_ins
-         WHERE exam_session_id = $1 AND teacher_id = $2 AND date = $3`,
+         WHERE exam_session_id = $1 AND teacher_id = $2 AND date = $3 AND verification_status != 'rejected'`,
         [req.params.id, teacherId, sessionDate]
       );
       if (!checkedIn) {

@@ -27,6 +27,8 @@ interface ReportRow {
   checked_in_at: string | null;
   is_manual: boolean;
   location_verified: boolean;
+  verification_status?: 'verified' | 'pending' | 'rejected';
+  pending_reason?: string | null;
   students_present: number;
   students_absent: number;
   register_count: number;
@@ -40,6 +42,9 @@ interface CheckInRecord {
   is_manual: boolean;
   location_verified: boolean;
   notes: string | null;
+  verification_status?: 'verified' | 'pending' | 'rejected';
+  pending_reason?: string | null;
+  review_note?: string | null;
 }
 
 interface ExamSession {
@@ -1043,6 +1048,11 @@ function CheckInPanel({
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [notesMap,  setNotesMap]  = useState<Record<string, string>>({});
   const [error,     setError]     = useState('');
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<CheckInRecord | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejecting,    setRejecting]    = useState(false);
+  const [rejectError,  setRejectError]  = useState('');
 
   const loadCheckIns = useCallback(async () => {
     try {
@@ -1075,6 +1085,31 @@ function CheckInPanel({
   const fmtTime12 = (iso: string) =>
     new Date(iso).toLocaleTimeString('default', { hour: '2-digit', minute: '2-digit' });
 
+  async function approvePending(checkInId: string) {
+    setApprovingId(checkInId);
+    try {
+      await api.patch(`/api/exams/sessions/${session.id}/check-ins/${checkInId}/approve-pending`);
+      await loadCheckIns();
+      onSuccess();
+    } catch (e: any) {
+      setError(e?.response?.data?.error ?? 'Failed to approve submission.');
+    } finally { setApprovingId(null); }
+  }
+
+  async function confirmReject() {
+    if (!rejectTarget) return;
+    if (!rejectReason.trim()) { setRejectError('Please enter a reason for rejecting this submission.'); return; }
+    setRejecting(true); setRejectError('');
+    try {
+      await api.patch(`/api/exams/sessions/${session.id}/check-ins/${rejectTarget.id}/reject-pending`, { reason: rejectReason.trim() });
+      setRejectTarget(null); setRejectReason('');
+      await loadCheckIns();
+      onSuccess();
+    } catch (e: any) {
+      setRejectError(e?.response?.data?.error ?? 'Failed to reject submission.');
+    } finally { setRejecting(false); }
+  }
+
   return (
     <div className="mt-2 rounded-xl border border-[#B8D9C8] dark:border-green-800 bg-white dark:bg-slate-800 p-4 space-y-3">
       <div className="flex items-center justify-between">
@@ -1093,27 +1128,63 @@ function CheckInPanel({
           {/* Already checked in */}
           {checked.map(d => {
             const rec = checkIns.find(c => c.teacher_id === d.teacher_id)!;
+            const isPending = rec.verification_status === 'pending';
             return (
-              <div key={d.id} className="flex items-center gap-3 py-1.5">
-                <span className="w-5 h-5 rounded-full bg-[#D1EAD9] dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-3 h-3 text-[#145C44] dark:text-[#2ab289]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </span>
-                <div className="flex-1 min-w-0">
-                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{d.teacher_name}</span>
-                  <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${
-                    d.role === 'chief'
-                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                      : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
-                  }`}>{d.role}</span>
-                </div>
-                <span className="text-xs text-slate-400 whitespace-nowrap">
-                  {rec.is_manual ? '(manual) ' : ''}{fmtTime12(rec.submitted_at)}
-                  {rec.location_verified && (
-                    <span className="ml-1 text-[#145C44] dark:text-[#2ab289]">· GPS ✓</span>
+              <div key={d.id} className="py-1.5">
+                <div className="flex items-center gap-3">
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    isPending ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-[#D1EAD9] dark:bg-green-900/40'
+                  }`}>
+                    {isPending ? (
+                      <svg className="w-3 h-3 text-amber-700 dark:text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" /></svg>
+                    ) : (
+                      <svg className="w-3 h-3 text-[#145C44] dark:text-[#2ab289]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{d.teacher_name}</span>
+                    <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${
+                      d.role === 'chief'
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                        : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                    }`}>{d.role}</span>
+                    {isPending && (
+                      <span className="ml-2 text-xs px-1.5 py-0.5 rounded font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Pending Review</span>
+                    )}
+                  </div>
+                  {!isPending && (
+                    <span className="text-xs text-slate-400 whitespace-nowrap">
+                      {rec.is_manual ? '(manual) ' : ''}{fmtTime12(rec.submitted_at)}
+                      {rec.location_verified && (
+                        <span className="ml-1 text-[#145C44] dark:text-[#2ab269]">· GPS ✓</span>
+                      )}
+                    </span>
                   )}
-                </span>
+                </div>
+                {isPending && (
+                  <div className="ml-8 mt-1 space-y-1.5">
+                    {rec.pending_reason && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Teacher's reason: {rec.pending_reason}</p>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        disabled={approvingId === rec.id}
+                        onClick={() => approvePending(rec.id)}
+                        className="text-xs font-semibold text-[#145C44] dark:text-[#2ab289] hover:underline disabled:opacity-40"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => { setRejectTarget(rec); setRejectReason(''); setRejectError(''); }}
+                        className="text-xs font-semibold text-red-500 hover:text-red-700"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -1158,6 +1229,38 @@ function CheckInPanel({
           {error && (
             <p className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>
           )}
+        </div>
+      )}
+
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/65 p-4" onClick={() => setRejectTarget(null)}>
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-slate-800 dark:text-white">Reject Pending Check-In</h3>
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-sm text-red-900 dark:text-red-300">
+              <p className="font-semibold mb-1">This will mark the submission rejected and notify the teacher. They will need to check in again.</p>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              <span className="font-semibold text-slate-700 dark:text-slate-200">Teacher:</span> {rejectTarget.teacher_name}
+            </p>
+            <div>
+              <label className="text-xs font-semibold font-medium text-slate-500 dark:text-slate-400">Reason for rejection *</label>
+              <textarea
+                value={rejectReason}
+                onChange={e => { setRejectReason(e.target.value); setRejectError(''); }}
+                rows={3}
+                className="mt-1 w-full rounded-lg border px-3 py-2 text-sm bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                style={{ borderColor: rejectError ? '#FCA5A5' : undefined }}
+                placeholder="e.g. Photo does not show the stated hall…"
+              />
+              {rejectError && <p className="text-xs text-red-600 mt-1">{rejectError}</p>}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setRejectTarget(null)} className="px-4 py-2 rounded-lg text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">Cancel</button>
+              <button onClick={confirmReject} disabled={rejecting} className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">
+                {rejecting ? 'Rejecting…' : 'Reject'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
