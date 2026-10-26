@@ -18,6 +18,23 @@ async function getFormClass(schoolId, teacherId, academicYearId) {
   return rows[0] || null;
 }
 
+// A class's remarks lock once every subject result_submissions row for that
+// class/year/semester has reached 'published' — mirrors the CA/exam-score
+// lock in assessments.js, but remarks are per-student (not per-subject), so
+// the natural threshold is "every subject the class is being graded on this
+// period is done", not any single subject.
+async function areAllSubjectsPublished(schoolId, className, academicYearId, semester) {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE status != 'published')::int AS not_published
+     FROM result_submissions
+     WHERE school_id = $1 AND class_name = $2 AND academic_year_id = $3 AND semester = $4`,
+    [schoolId, className, academicYearId, parseInt(semester)]
+  );
+  const { total, not_published } = rows[0];
+  return total > 0 && not_published === 0;
+}
+
 // â”€â”€ Teacher-facing endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // GET /api/form-teacher/assignment?academic_year_id=
@@ -188,7 +205,8 @@ router.get('/remarks', async (req, res, next) => {
          AND LOWER(s.class_name) = LOWER($4)`,
       [req.schoolId, academic_year_id, parseInt(semester), assignment.class_name]
     );
-    res.json(rows);
+    const locked = await areAllSubjectsPublished(req.schoolId, assignment.class_name, academic_year_id, semester);
+    res.json({ remarks: rows, locked });
   } catch (err) { next(err); }
 });
 
@@ -203,6 +221,14 @@ router.post('/remarks', async (req, res, next) => {
 
     const assignment = await getFormClass(req.schoolId, req.user.id, academic_year_id);
     if (!assignment) return res.status(403).json({ error: 'No form class assignment' });
+
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'superadmin';
+    if (!isAdmin) {
+      const locked = await areAllSubjectsPublished(req.schoolId, assignment.class_name, academic_year_id, semester);
+      if (locked) {
+        return res.status(409).json({ error: 'Results for this class have been published — remarks are now locked. Contact your administrator for changes.' });
+      }
+    }
 
     for (const r of remarks) {
       await pool.query(

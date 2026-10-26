@@ -306,6 +306,8 @@ export default function FormClassPage() {
   const [loadingTab,      setLoadingTab]      = useState(false);
   const [saving,          setSaving]          = useState(false);
   const [savedMsg,        setSavedMsg]        = useState(false);
+  const [saveError,       setSaveError]       = useState('');
+  const [remarksLocked,   setRemarksLocked]   = useState(false);
   const [drawerStudent,   setDrawerStudent]   = useState<FormTeacherStudent | null>(null);
   const [onExeatIds,      setOnExeatIds]      = useState<Set<string>>(new Set());
 
@@ -366,8 +368,9 @@ export default function FormClassPage() {
         teacherApi.get(`/api/results?academic_year_id=${yearId}&semester=${semester}&class_name=${encodeURIComponent(assignment.class_name)}`),
       ]).then(([remarksRes, resultsRes]) => {
         const m: Record<string, ReportRemark> = {};
-        for (const rem of remarksRes.data) m[rem.student_id] = rem;
+        for (const rem of remarksRes.data.remarks) m[rem.student_id] = rem;
         setRemarksMap(m);
+        setRemarksLocked(!!remarksRes.data.locked);
         setDraft(prev => {
           const next = { ...prev };
           for (const s of students) next[s.id] = m[s.id] ?? { student_id: s.id, attitude: null, conduct: null, general_remarks: null };
@@ -433,6 +436,7 @@ export default function FormClassPage() {
 
   async function saveRemarks() {
     setSaving(true);
+    setSaveError('');
     try {
       await teacherApi.post('/api/form-teacher/remarks', {
         academic_year_id: yearId,
@@ -445,7 +449,11 @@ export default function FormClassPage() {
       setRemarksMap({ ...draft });
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2500);
-    } catch { /* silent */ }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        ?? 'Could not save remarks. Please try again.';
+      setSaveError(msg);
+    }
     setSaving(false);
   }
 
@@ -617,6 +625,16 @@ export default function FormClassPage() {
                   ) : 'Save All'}
                 </button>
               </div>
+              {remarksLocked && (
+                <div className="px-4 py-2 bg-amber-50 border-b border-amber-100 text-xs text-amber-700">
+                  All results for this class have been published — remarks are now locked. Contact your administrator if a change is needed.
+                </div>
+              )}
+              {saveError && (
+                <div className="px-4 py-2 bg-red-50 border-b border-red-100 text-xs text-[#B83232]">
+                  {saveError}
+                </div>
+              )}
 
               {loadingTab ? (
                 <div className="flex justify-center py-10">
