@@ -524,6 +524,32 @@ router.get('/non-submitters', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /final-queue/counts — status tally only, for dashboard widgets ──
+// /final-queue enriches every row with a roster count (attachRosterCounts),
+// which for a period with many subject/class combos can take 20-30s+ — far
+// too slow for a summary widget that only wants counts by status. One GROUP
+// BY query instead.
+router.get('/final-queue/counts', adminOrManagement, async (req, res, next) => {
+  try {
+    const { academic_year_id, semester } = req.query;
+    let filter = '';
+    const params = [req.schoolId];
+    if (academic_year_id) { params.push(academic_year_id); filter += ` AND academic_year_id = $${params.length}`; }
+    if (semester) { params.push(parseInt(semester)); filter += ` AND semester = $${params.length}`; }
+
+    const { rows } = await pool.query(
+      `SELECT status, COUNT(*)::int AS n
+       FROM result_submissions
+       WHERE school_id = $1 AND status IN ('submitted','hod_approved','final_approved','published') ${filter}
+       GROUP BY status`,
+      params
+    );
+    const counts = {};
+    for (const r of rows) counts[r.status] = r.n;
+    res.json(counts);
+  } catch (err) { next(err); }
+});
+
 // ── GET /final-queue — admin sees hod_approved entries awaiting final approval ──
 // Also readable by the principal/vice-principal management portal, which
 // surfaces the same counts as a dashboard "pipeline" summary.

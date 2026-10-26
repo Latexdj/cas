@@ -24,10 +24,6 @@ interface FinanceSummary {
   net_position: number;
 }
 
-interface PipelineItem {
-  status: string;
-}
-
 interface StatCardProps {
   label: string; value: string | number; sub?: string;
   color: string; href?: string; dark: boolean;
@@ -77,13 +73,9 @@ export default function PrincipalDashboard() {
   }, []);
 
   useEffect(() => {
-    function tally(items: PipelineItem[]) {
-      const counts: Record<string, number> = {};
-      for (const item of items) counts[item.status] = (counts[item.status] ?? 0) + 1;
-      return counts;
-    }
-    const fetchQueue = (academicYearId: string, semester: number) =>
-      principalApi.get<PipelineItem[]>('/api/result-submissions/final-queue', {
+    const total = (counts: Record<string, number>) => Object.values(counts).reduce((a, b) => a + b, 0);
+    const fetchCounts = (academicYearId: string, semester: number) =>
+      principalApi.get<Record<string, number>>('/api/result-submissions/final-queue/counts', {
         params: { academic_year_id: academicYearId, semester },
       }).then(r => r.data);
 
@@ -92,9 +84,9 @@ export default function PrincipalDashboard() {
       if (!current) return;
       const currentSemester = current.current_semester ?? 1;
 
-      const currentItems = await fetchQueue(current.id, currentSemester);
-      if (currentItems.length > 0) {
-        setPipelineCounts(tally(currentItems));
+      const currentCounts = await fetchCounts(current.id, currentSemester);
+      if (total(currentCounts) > 0) {
+        setPipelineCounts(currentCounts);
         setPipelinePeriod(null);
         return;
       }
@@ -109,9 +101,9 @@ export default function PrincipalDashboard() {
           })();
       if (!previous) return;
 
-      const previousItems = await fetchQueue(previous.id, previous.semester);
-      if (previousItems.length > 0) {
-        setPipelineCounts(tally(previousItems));
+      const previousCounts = await fetchCounts(previous.id, previous.semester);
+      if (total(previousCounts) > 0) {
+        setPipelineCounts(previousCounts);
         setPipelinePeriod({ label: previous.label, isPrevious: true });
       }
     }).catch(() => {});
