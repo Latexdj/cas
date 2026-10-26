@@ -22,6 +22,7 @@ function AssignModal({ className, yearId, teachers, existing, onSave, onDelete, 
   const [search,    setSearch]    = useState('');
   const [saving,    setSaving]    = useState(false);
   const [deleting,  setDeleting]  = useState(false);
+  const [error,     setError]     = useState('');
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -32,23 +33,29 @@ function AssignModal({ className, yearId, teachers, existing, onSave, onDelete, 
 
   async function handleSave() {
     if (!teacherId) return;
-    setSaving(true);
+    setSaving(true); setError('');
     try {
       const { data } = await api.post('/api/form-teacher/admin/assignments', {
         teacher_id: teacherId, class_name: className, academic_year_id: yearId,
       });
       onSave(data);
-    } catch { /* toast would go here */ }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Failed to save — please try again.');
+    }
     setSaving(false);
   }
 
   async function handleDelete() {
     if (!existing) return;
-    setDeleting(true);
+    setDeleting(true); setError('');
     try {
       await api.delete(`/api/form-teacher/admin/assignments/${existing.id}`);
       onDelete();
-    } catch { /* ignore */ }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(msg ?? 'Failed to remove — please try again.');
+    }
     setDeleting(false);
   }
 
@@ -103,6 +110,9 @@ function AssignModal({ className, yearId, teachers, existing, onSave, onDelete, 
               {!filtered.length && <p className="text-center text-slate-400 text-sm py-4">No teachers found</p>}
             </div>
           </div>
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+          )}
         </div>
         <div className="px-6 pb-6 flex items-center gap-3">
           {existing && (

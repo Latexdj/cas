@@ -323,7 +323,10 @@ router.delete('/admin/assignments/:id', adminOnly, async (req, res, next) => {
 // Low + medium + high flags all visible (form master needs the full picture for their class).
 router.get('/flagged-students', async (req, res, next) => {
   try {
-    if (req.user.role !== 'teacher') return res.status(403).json({ error: 'Teacher access only' });
+    // An admin account can itself hold a form-teacher assignment (the
+    // assignment UI lets an admin pick themselves), so this must accept
+    // either role — not just 'teacher'.
+    if (req.user.role !== 'teacher' && req.user.role !== 'admin') return res.status(403).json({ error: 'Teacher access only' });
 
     const { rows: ayRows } = await pool.query(
       `SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
@@ -345,7 +348,9 @@ router.get('/flagged-students', async (req, res, next) => {
 // Scoped: only students in the teacher's current-year form class. Excludes pending_approval letters.
 router.get('/student-letters/:student_id', checkModuleAccess('discipline'), async (req, res, next) => {
   try {
-    if (req.user.role !== 'teacher') return res.status(403).json({ error: 'Teacher access only' });
+    // Same reasoning as /flagged-students above — an admin can itself be
+    // the assigned form teacher for a class.
+    if (req.user.role !== 'teacher' && req.user.role !== 'admin') return res.status(403).json({ error: 'Teacher access only' });
 
     const { rows: ayRows } = await pool.query(
       `SELECT id FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
