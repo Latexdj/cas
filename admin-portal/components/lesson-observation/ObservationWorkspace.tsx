@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { AxiosInstance } from 'axios';
 import Link from 'next/link';
-import type { LessonObservationListItem, ObservableTeacher, ObservationAnalytics } from '@/types/api';
+import type { LessonObservationListItem, ObservableTeacher, ObservationAnalytics, AcademicYear, TeacherLessonOption } from '@/types/api';
 
 const STATUS_STYLES: Record<string, string> = {
   Scheduled:    'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
@@ -28,27 +28,46 @@ export default function ObservationWorkspace({ apiClient, basePath }: { apiClien
   const [tab, setTab] = useState<'list' | 'analytics'>('list');
   const [observations, setObservations] = useState<LessonObservationListItem[]>([]);
   const [teachers, setTeachers] = useState<ObservableTeacher[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [analytics, setAnalytics] = useState<ObservationAnalytics | null>(null);
+  const [analyticsYear, setAnalyticsYear] = useState('');
+  const [analyticsSemester, setAnalyticsSemester] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const [lessonOptions, setLessonOptions] = useState<TeacherLessonOption[]>([]);
+  const [loadingLessons, setLoadingLessons] = useState(false);
 
   const [form, setForm] = useState({
     observed_teacher_id: '', observation_type: 'drop_in' as 'drop_in' | 'scheduled',
-    subject: '', class_names: '', scheduled_date: '', scheduled_time: '',
+    subject: '', class_names: '', timetable_id: '',
+    academic_year_id: '', semester: '',
+    scheduled_date: '', scheduled_time: '',
     entry_mode: 'live' as 'live' | 'paper_entered_later', observed_date: '',
   });
+
+  const recentYears = academicYears.slice(0, 3);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const [obsRes, teacherRes] = await Promise.all([
+      const [obsRes, teacherRes, yearsRes] = await Promise.all([
         apiClient.get<LessonObservationListItem[]>('/api/lesson-observation'),
         apiClient.get<ObservableTeacher[]>('/api/lesson-observation/observable-teachers'),
+        apiClient.get<AcademicYear[]>('/api/academic-years'),
       ]);
       setObservations(obsRes.data);
       setTeachers(teacherRes.data);
+      setAcademicYears(yearsRes.data);
+      const current = yearsRes.data.find(y => y.is_current) || yearsRes.data[0];
+      if (current) {
+        setForm(f => ({ ...f, academic_year_id: f.academic_year_id || current.id, semester: f.semester || (current.current_semester ? String(current.current_semester) : '') }));
+        setAnalyticsYear(y => y || current.id);
+        setAnalyticsSemester(s => s || (current.current_semester ? String(current.current_semester) : ''));
+      }
     } catch (e: unknown) {
       setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to load.');
     } finally { setLoading(false); }
@@ -58,8 +77,25 @@ export default function ObservationWorkspace({ apiClient, basePath }: { apiClien
 
   useEffect(() => {
     if (tab !== 'analytics') return;
-    apiClient.get<ObservationAnalytics>('/api/lesson-observation/analytics').then(r => setAnalytics(r.data)).catch(() => {});
-  }, [tab, apiClient]);
+    const params: Record<string, string> = {};
+    if (analyticsYear) params.academic_year_id = analyticsYear;
+    if (analyticsSemester) params.semester = analyticsSemester;
+    apiClient.get<ObservationAnalytics>('/api/lesson-observation/analytics', { params }).then(r => setAnalytics(r.data)).catch(() => {});
+  }, [tab, apiClient, analyticsYear, analyticsSemester]);
+
+  useEffect(() => {
+    if (!adding || !form.observed_teacher_id) return;
+    let cancelled = false;
+    setLoadingLessons(true);
+    const params: Record<string, string> = {};
+    if (form.academic_year_id) params.academic_year_id = form.academic_year_id;
+    if (form.semester) params.semester = form.semester;
+    apiClient.get<TeacherLessonOption[]>(`/api/lesson-observation/teacher-lessons/${form.observed_teacher_id}`, { params })
+      .then(r => { if (!cancelled) setLessonOptions(r.data); })
+      .catch(() => { if (!cancelled) setLessonOptions([]); })
+      .finally(() => { if (!cancelled) setLoadingLessons(false); });
+    return () => { cancelled = true; };
+  }, [adding, apiClient, form.observed_teacher_id, form.academic_year_id, form.semester]);
 
   async function createObservation() {
     if (!form.observed_teacher_id) { setError('Select a teacher to observe.'); return; }
@@ -76,15 +112,29 @@ export default function ObservationWorkspace({ apiClient, basePath }: { apiClien
         observation_type: form.observation_type,
         subject: form.subject || undefined,
         class_names: form.class_names || undefined,
+        timetable_id: form.timetable_id || undefined,
+        academic_year_id: form.academic_year_id || undefined,
+        semester: form.semester ? Number(form.semester) : undefined,
         scheduled_at, observed_at,
         entry_mode: form.entry_mode,
       });
       setAdding(false);
-      setForm({ observed_teacher_id: '', observation_type: 'drop_in', subject: '', class_names: '', scheduled_date: '', scheduled_time: '', entry_mode: 'live', observed_date: '' });
+      setForm(f => ({ ...f, observed_teacher_id: '', observation_type: 'drop_in', subject: '', class_names: '', timetable_id: '', scheduled_date: '', scheduled_time: '', entry_mode: 'live', observed_date: '' }));
       window.location.href = `${basePath}/${data.id}`;
     } catch (e: unknown) {
       setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to create observation.');
     } finally { setSaving(false); }
+  }
+
+  async function deleteObservation(id: string) {
+    if (!confirm('Delete this scheduled observation? This cannot be undone.')) return;
+    setDeletingId(id);
+    try {
+      await apiClient.delete(`/api/lesson-observation/${id}`);
+      setObservations(obs => obs.filter(o => o.id !== id));
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete observation.');
+    } finally { setDeletingId(null); }
   }
 
   async function downloadBlankForm() {
@@ -125,7 +175,7 @@ export default function ObservationWorkspace({ apiClient, basePath }: { apiClien
             <div>
               <label className={labelCls}>Teacher *</label>
               <select className={inputCls} value={form.observed_teacher_id}
-                onChange={e => setForm(f => ({ ...f, observed_teacher_id: e.target.value }))}>
+                onChange={e => setForm(f => ({ ...f, observed_teacher_id: e.target.value, subject: '', class_names: '', timetable_id: '' }))}>
                 <option value="">Select a teacher…</option>
                 {teachers.map(t => <option key={t.id} value={t.id}>{t.name} {t.department ? `(${t.department})` : ''}</option>)}
               </select>
@@ -139,14 +189,40 @@ export default function ObservationWorkspace({ apiClient, basePath }: { apiClien
               </select>
             </div>
             <div>
-              <label className={labelCls}>Subject</label>
-              <input className={inputCls} value={form.subject} placeholder="e.g. Elective Mathematics"
-                onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} />
+              <label className={labelCls}>Academic Year</label>
+              <select className={inputCls} value={form.academic_year_id}
+                onChange={e => setForm(f => ({ ...f, academic_year_id: e.target.value }))}>
+                <option value="">Select year…</option>
+                {recentYears.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (Current)' : ''}</option>)}
+              </select>
             </div>
             <div>
-              <label className={labelCls}>Class</label>
-              <input className={inputCls} value={form.class_names} placeholder="e.g. Form 2A"
-                onChange={e => setForm(f => ({ ...f, class_names: e.target.value }))} />
+              <label className={labelCls}>Semester</label>
+              <select className={inputCls} value={form.semester}
+                onChange={e => setForm(f => ({ ...f, semester: e.target.value }))}>
+                <option value="">Select semester…</option>
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Lesson (Subject &amp; Class)</label>
+              <select className={inputCls} value={form.timetable_id}
+                disabled={!form.observed_teacher_id || loadingLessons}
+                onChange={e => {
+                  const opt = lessonOptions.find(o => o.timetable_id === e.target.value);
+                  setForm(f => ({ ...f, timetable_id: e.target.value, subject: opt?.subject || '', class_names: opt?.class_names || '' }));
+                }}>
+                <option value="">
+                  {!form.observed_teacher_id ? 'Select a teacher first…' : loadingLessons ? 'Loading timetable…' : lessonOptions.length === 0 ? 'No timetable found — leave blank' : 'Select from timetable…'}
+                </option>
+                {lessonOptions.map(o => (
+                  <option key={o.timetable_id} value={o.timetable_id}>{o.subject} — {o.class_names}</option>
+                ))}
+              </select>
+              {!loadingLessons && form.observed_teacher_id && lessonOptions.length === 0 && (
+                <p className="text-xs text-slate-400 mt-1">This teacher has no timetable entries for the selected year/semester — the observation will be created without a subject/class.</p>
+              )}
             </div>
             {form.observation_type === 'scheduled' && (
               <>
@@ -215,7 +291,7 @@ export default function ObservationWorkspace({ apiClient, basePath }: { apiClien
               <table className="min-w-[760px] w-full text-sm">
                 <thead className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700">
                   <tr>
-                    {['Teacher', 'Observer', 'Subject / Class', 'Date', 'Status', 'Open Actions', ''].map(h => (
+                    {['Teacher', 'Observer', 'Subject / Class', 'Year / Semester', 'Date', 'Status', 'Open Actions', ''].map(h => (
                       <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-slate-500">{h}</th>
                     ))}
                   </tr>
@@ -226,15 +302,22 @@ export default function ObservationWorkspace({ apiClient, basePath }: { apiClien
                       <td className="px-4 py-3 font-medium text-slate-900 dark:text-white whitespace-nowrap">{o.observed_teacher_name}</td>
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">{o.observer_name}</td>
                       <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{o.subject || '—'} {o.class_names ? `(${o.class_names})` : ''}</td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-xs">{o.academic_year_name || '—'}{o.semester ? ` · Sem ${o.semester}` : ''}</td>
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap text-xs">{fmtDateTime(o.observed_at || o.scheduled_at)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[o.status]}`}>{o.status}</span>
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400">{o.open_actions > 0 ? `${o.open_actions} open` : '—'}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right whitespace-nowrap space-x-3">
                         <Link href={`${basePath}/${o.id}`} className="text-xs font-semibold" style={{ color: '#145C44' }}>
-                          {o.status === 'Scheduled' ? 'Conduct' : 'View'}
+                          {o.status === 'Scheduled' ? 'Edit' : 'View'}
                         </Link>
+                        {o.status === 'Scheduled' && (
+                          <button onClick={() => deleteObservation(o.id)} disabled={deletingId === o.id}
+                            className="text-xs font-semibold text-red-600 hover:text-red-700 disabled:opacity-50">
+                            {deletingId === o.id ? 'Deleting…' : 'Delete'}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -244,7 +327,26 @@ export default function ObservationWorkspace({ apiClient, basePath }: { apiClien
           </div>
         )
       ) : (
-        <AnalyticsPanel analytics={analytics} />
+        <>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className={labelCls}>Academic Year</label>
+              <select className={inputCls + ' w-48'} value={analyticsYear} onChange={e => setAnalyticsYear(e.target.value)}>
+                <option value="">All years</option>
+                {recentYears.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (Current)' : ''}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Semester</label>
+              <select className={inputCls + ' w-40'} value={analyticsSemester} onChange={e => setAnalyticsSemester(e.target.value)}>
+                <option value="">Both semesters</option>
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+              </select>
+            </div>
+          </div>
+          <AnalyticsPanel analytics={analytics} />
+        </>
       )}
     </div>
   );

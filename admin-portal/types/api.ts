@@ -380,6 +380,12 @@ export interface ObservationPhoto {
   created_at: string;
 }
 
+export interface TeacherLessonOption {
+  timetable_id: string;
+  subject: string;
+  class_names: string;
+}
+
 export interface LessonObservationListItem {
   id: string;
   observation_type: 'scheduled' | 'drop_in';
@@ -387,6 +393,9 @@ export interface LessonObservationListItem {
   status: 'Scheduled' | 'Completed' | 'Acknowledged' | 'Closed';
   subject: string | null;
   class_names: string | null;
+  academic_year_id: string | null;
+  semester: number | null;
+  academic_year_name: string | null;
   scheduled_at: string | null;
   observed_at: string | null;
   teacher_ack_at: string | null;
@@ -407,6 +416,9 @@ export interface LessonObservationDetail {
   timetable_id: string | null;
   subject: string | null;
   class_names: string | null;
+  academic_year_id: string | null;
+  semester: number | null;
+  academic_year_name: string | null;
   scheduled_at: string | null;
   observed_at: string | null;
   glow_notes: string | null;
@@ -432,6 +444,8 @@ export interface ObservationAnalytics {
   coverage: { teacher_id: string; teacher_name: string; department: string | null; observation_count: number; last_observed_at: string | null }[];
   score_trend: { criterion_id: string; criterion_name: string; avg_score: number | null; n: number }[];
   actions: { open: number; done: number; overdue: number };
+  academic_year_id: string | null;
+  semester: number | null;
 }
 
 export interface TeacherExcuse {

@@ -2,7 +2,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { AxiosInstance } from 'axios';
 import Link from 'next/link';
-import type { ObservationCriterion, LessonObservationDetail } from '@/types/api';
+import { useRouter } from 'next/navigation';
+import type { ObservationCriterion, LessonObservationDetail, AcademicYear, TeacherLessonOption } from '@/types/api';
 
 const SCORE_LABELS: Record<number, string> = { 1: '1 — Ineffective', 2: '2 — Developing', 3: '3 — Effective', 4: '4 — Highly Effective' };
 
@@ -14,11 +15,13 @@ const textareaCls = inputCls + ' resize-none';
 export default function ObservationDetail({ apiClient, backHref, observationId }: {
   apiClient: AxiosInstance; backHref: string; observationId: string;
 }) {
+  const router = useRouter();
   const [obs, setObs] = useState<LessonObservationDetail | null>(null);
   const [criteria, setCriteria] = useState<ObservationCriterion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [scores, setScores] = useState<Record<string, { score: number | null; note: string }>>({});
   const [glow, setGlow] = useState('');
@@ -29,6 +32,18 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
   const [newActionDesc, setNewActionDesc] = useState('');
   const [newActionDue, setNewActionDue] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const [editingSetup, setEditingSetup] = useState(false);
+  const [savingSetup, setSavingSetup] = useState(false);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
+  const [lessonOptions, setLessonOptions] = useState<TeacherLessonOption[]>([]);
+  const [loadingLessons, setLoadingLessons] = useState(false);
+  const [setupForm, setSetupForm] = useState({
+    observation_type: 'scheduled' as 'drop_in' | 'scheduled',
+    timetable_id: '', subject: '', class_names: '',
+    academic_year_id: '', semester: '',
+    scheduled_date: '', scheduled_time: '',
+  });
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -52,6 +67,72 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
   }, [apiClient, observationId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    apiClient.get<AcademicYear[]>('/api/academic-years').then(r => setAcademicYears(r.data)).catch(() => {});
+  }, [apiClient]);
+
+  function startEditSetup() {
+    if (!obs) return;
+    const schedDate = obs.scheduled_at ? obs.scheduled_at.slice(0, 10) : '';
+    const schedTime = obs.scheduled_at ? obs.scheduled_at.slice(11, 16) : '';
+    setSetupForm({
+      observation_type: obs.observation_type,
+      timetable_id: obs.timetable_id || '', subject: obs.subject || '', class_names: obs.class_names || '',
+      academic_year_id: obs.academic_year_id || '', semester: obs.semester ? String(obs.semester) : '',
+      scheduled_date: schedDate, scheduled_time: schedTime,
+    });
+    setEditingSetup(true);
+  }
+
+  useEffect(() => {
+    if (!editingSetup || !obs) return;
+    let cancelled = false;
+    setLoadingLessons(true);
+    const params: Record<string, string> = {};
+    if (setupForm.academic_year_id) params.academic_year_id = setupForm.academic_year_id;
+    if (setupForm.semester) params.semester = setupForm.semester;
+    apiClient.get<TeacherLessonOption[]>(`/api/lesson-observation/teacher-lessons/${obs.observed_teacher_id}`, { params })
+      .then(r => { if (!cancelled) setLessonOptions(r.data); })
+      .catch(() => { if (!cancelled) setLessonOptions([]); })
+      .finally(() => { if (!cancelled) setLoadingLessons(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingSetup, obs, apiClient, setupForm.academic_year_id, setupForm.semester]);
+
+  async function saveSetup() {
+    setSavingSetup(true); setError('');
+    try {
+      const scheduled_at = setupForm.observation_type === 'scheduled' && setupForm.scheduled_date
+        ? new Date(`${setupForm.scheduled_date}T${setupForm.scheduled_time || '08:00'}`).toISOString()
+        : null;
+      const { data } = await apiClient.patch<LessonObservationDetail>(`/api/lesson-observation/${observationId}`, {
+        observation_type: setupForm.observation_type,
+        subject: setupForm.subject || null,
+        class_names: setupForm.class_names || null,
+        timetable_id: setupForm.timetable_id || null,
+        academic_year_id: setupForm.academic_year_id || null,
+        semester: setupForm.semester ? Number(setupForm.semester) : null,
+        scheduled_at,
+      });
+      setObs(data);
+      setEditingSetup(false);
+    } catch (e: unknown) {
+      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save setup details.');
+    } finally { setSavingSetup(false); }
+  }
+
+  async function deleteObservation() {
+    if (!confirm('Delete this scheduled observation? This cannot be undone.')) return;
+    setDeleting(true);
+    try {
+      await apiClient.delete(`/api/lesson-observation/${observationId}`);
+      router.push(backHref);
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete observation.');
+      setDeleting(false);
+    }
+  }
 
   async function save(publish: boolean) {
     setSaving(true); setError('');
@@ -145,7 +226,10 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
         <div>
           <Link href={backHref} className="text-xs font-semibold text-slate-400 hover:text-slate-600">&larr; Back</Link>
           <h1 className="text-xl font-bold text-slate-900 dark:text-white mt-1">{obs.observed_teacher_name}</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">{obs.subject || 'Observation'} {obs.class_names ? `· ${obs.class_names}` : ''} · Observer: {obs.observer_name}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {obs.subject || 'Observation'} {obs.class_names ? `· ${obs.class_names}` : ''} · Observer: {obs.observer_name}
+            {obs.academic_year_name ? ` · ${obs.academic_year_name}` : ''}{obs.semester ? ` Sem ${obs.semester}` : ''}
+          </p>
         </div>
         <div className="flex gap-2 items-center">
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">{obs.status}</span>
@@ -154,10 +238,91 @@ export default function ObservationDetail({ apiClient, backHref, observationId }
               Download PDF
             </button>
           )}
+          {editable && (
+            <>
+              <button onClick={() => (editingSetup ? setEditingSetup(false) : startEditSetup())}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300">
+                {editingSetup ? 'Cancel Edit' : 'Edit Details'}
+              </button>
+              <button onClick={deleteObservation} disabled={deleting}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-900/40 dark:hover:bg-red-900/20 disabled:opacity-50">
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       {error && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>}
+
+      {editingSetup && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-5 space-y-4">
+          <h2 className="text-sm font-bold text-slate-800 dark:text-white">Edit Observation Details</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Type</label>
+              <select className={inputCls} value={setupForm.observation_type}
+                onChange={e => setSetupForm(f => ({ ...f, observation_type: e.target.value as 'drop_in' | 'scheduled' }))}>
+                <option value="drop_in">Drop-in</option>
+                <option value="scheduled">Scheduled</option>
+              </select>
+            </div>
+            <div />
+            <div>
+              <label className={labelCls}>Academic Year</label>
+              <select className={inputCls} value={setupForm.academic_year_id}
+                onChange={e => setSetupForm(f => ({ ...f, academic_year_id: e.target.value }))}>
+                <option value="">Select year…</option>
+                {academicYears.slice(0, 3).map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (Current)' : ''}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Semester</label>
+              <select className={inputCls} value={setupForm.semester}
+                onChange={e => setSetupForm(f => ({ ...f, semester: e.target.value }))}>
+                <option value="">Select semester…</option>
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Lesson (Subject &amp; Class)</label>
+              <select className={inputCls} value={setupForm.timetable_id} disabled={loadingLessons}
+                onChange={e => {
+                  const opt = lessonOptions.find(o => o.timetable_id === e.target.value);
+                  setSetupForm(f => ({ ...f, timetable_id: e.target.value, subject: opt?.subject || '', class_names: opt?.class_names || '' }));
+                }}>
+                <option value="">
+                  {loadingLessons ? 'Loading timetable…' : lessonOptions.length === 0 ? 'No timetable found — leave blank' : 'Select from timetable…'}
+                </option>
+                {lessonOptions.map(o => (
+                  <option key={o.timetable_id} value={o.timetable_id}>{o.subject} — {o.class_names}</option>
+                ))}
+              </select>
+            </div>
+            {setupForm.observation_type === 'scheduled' && (
+              <>
+                <div>
+                  <label className={labelCls}>Date</label>
+                  <input type="date" className={inputCls} value={setupForm.scheduled_date}
+                    onChange={e => setSetupForm(f => ({ ...f, scheduled_date: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={labelCls}>Time</label>
+                  <input type="time" className={inputCls} value={setupForm.scheduled_time}
+                    onChange={e => setSetupForm(f => ({ ...f, scheduled_time: e.target.value }))} />
+                </div>
+              </>
+            )}
+          </div>
+          <div className="flex justify-end">
+            <button onClick={saveSetup} disabled={savingSetup}
+              className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ backgroundColor: '#145C44' }}>
+              {savingSetup ? 'Saving…' : 'Save Details'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-5 space-y-4">
         <h2 className="text-sm font-bold text-slate-800 dark:text-white">Rubric Scores</h2>

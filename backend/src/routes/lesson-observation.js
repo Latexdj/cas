@@ -80,12 +80,30 @@ async function getCurrentYearSemester(schoolId) {
   return rows[0] ? { academic_year_id: rows[0].id, semester: rows[0].current_semester } : { academic_year_id: null, semester: null };
 }
 
+// Resolves the year/semester to save on an observation: an explicitly chosen
+// academic_year_id must belong to this school; semester (if given) must be 1 or 2.
+// Falls back to the school's current year/semester when none is chosen.
+async function resolveYearSemester(schoolId, academic_year_id, semester) {
+  if (!academic_year_id) return getCurrentYearSemester(schoolId);
+  const { rows } = await pool.query(
+    `SELECT id FROM academic_years WHERE id = $1 AND school_id = $2`,
+    [academic_year_id, schoolId]
+  );
+  if (!rows.length) return { error: 'academic_year_id does not belong to this school' };
+  if (semester != null && ![1, 2].includes(Number(semester))) {
+    return { error: 'semester must be 1 or 2' };
+  }
+  return { academic_year_id, semester: semester != null ? Number(semester) : null };
+}
+
 const OBS_DETAIL_SELECT = `
   SELECT o.*, ot.name AS observer_name, ot.teacher_code AS observer_code,
-         tt.name AS observed_teacher_name, tt.teacher_code AS observed_teacher_code, tt.email AS observed_teacher_email, tt.phone AS observed_teacher_phone
+         tt.name AS observed_teacher_name, tt.teacher_code AS observed_teacher_code, tt.email AS observed_teacher_email, tt.phone AS observed_teacher_phone,
+         ay.name AS academic_year_name
   FROM lesson_observations o
   JOIN teachers ot ON ot.id = o.observer_id
   JOIN teachers tt ON tt.id = o.observed_teacher_id
+  LEFT JOIN academic_years ay ON ay.id = o.academic_year_id
   WHERE o.id = $1 AND o.school_id = $2
 `;
 
@@ -125,6 +143,34 @@ router.get('/observable-teachers', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Distinct (subject, class) pairs taught by a teacher, for the create/edit form's
+// dropdown — replaces free-text subject/class entry with the teacher's real timetable.
+router.get('/teacher-lessons/:teacherId', async (req, res, next) => {
+  try {
+    const allowed = await canObserve(req.schoolId, req.user, req.params.teacherId) || req.user.id === req.params.teacherId;
+    if (!allowed) return res.status(403).json({ error: 'You are not permitted to view this teacher\'s timetable' });
+
+    let { academic_year_id, semester } = req.query;
+    if (!academic_year_id || !semester) {
+      const current = await getCurrentYearSemester(req.schoolId);
+      academic_year_id = academic_year_id || current.academic_year_id;
+      semester = semester || current.semester;
+    }
+
+    const params = [req.schoolId, req.params.teacherId];
+    let where = 'WHERE school_id = $1 AND teacher_id = $2';
+    if (academic_year_id) { params.push(academic_year_id); where += ` AND academic_year_id = $${params.length}`; }
+    if (semester)         { params.push(parseInt(semester)); where += ` AND semester = $${params.length}`; }
+
+    const { rows } = await pool.query(
+      `SELECT DISTINCT ON (subject, class_names) id AS timetable_id, subject, class_names
+       FROM timetable ${where} ORDER BY subject, class_names`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
 router.get('/blank-form/pdf', async (req, res, next) => {
   try {
     if (!isManagementUser(req.user)) {
@@ -156,21 +202,29 @@ router.get('/analytics', async (req, res, next) => {
     }
     const scopeTeachers = await getObservableTeachers(req.schoolId, req.user);
     const scopeIds = scopeTeachers.map(t => t.id);
-    if (!scopeIds.length) {
-      return res.json({ coverage: [], score_trend: [], actions: { open: 0, done: 0, overdue: 0 } });
+
+    let { academic_year_id, semester } = req.query;
+    if (!academic_year_id) {
+      ({ academic_year_id } = await getCurrentYearSemester(req.schoolId));
     }
-    const { academic_year_id, semester } = await getCurrentYearSemester(req.schoolId);
+    semester = semester ? Number(semester) : null;
+
+    if (!scopeIds.length) {
+      return res.json({ coverage: [], score_trend: [], actions: { open: 0, done: 0, overdue: 0 }, academic_year_id, semester });
+    }
 
     const { rows: coverage } = await pool.query(
       `SELECT t.id AS teacher_id, t.name AS teacher_name, t.department,
-              COUNT(o.id) FILTER (WHERE o.academic_year_id = $2 OR $2 IS NULL)::int AS observation_count,
+              COUNT(o.id) FILTER (
+                WHERE (o.academic_year_id = $2 OR $2 IS NULL) AND (o.semester = $4 OR $4 IS NULL)
+              )::int AS observation_count,
               MAX(o.observed_at) AS last_observed_at
        FROM teachers t
        LEFT JOIN lesson_observations o ON o.observed_teacher_id = t.id AND o.school_id = $1
        WHERE t.id = ANY($3::uuid[])
        GROUP BY t.id, t.name, t.department
        ORDER BY observation_count ASC, t.name`,
-      [req.schoolId, academic_year_id, scopeIds]
+      [req.schoolId, academic_year_id, scopeIds, semester]
     );
 
     const { rows: scoreTrend } = await pool.query(
@@ -180,10 +234,10 @@ router.get('/analytics', async (req, res, next) => {
        JOIN observation_criteria c ON c.id = s.criterion_id
        JOIN lesson_observations o ON o.id = s.observation_id
        WHERE o.school_id = $1 AND o.observed_teacher_id = ANY($2::uuid[]) AND s.score IS NOT NULL
-         AND (o.academic_year_id = $3 OR $3 IS NULL)
+         AND (o.academic_year_id = $3 OR $3 IS NULL) AND (o.semester = $4 OR $4 IS NULL)
        GROUP BY c.id, c.name, c.sort_order
        ORDER BY c.sort_order`,
-      [req.schoolId, scopeIds, academic_year_id]
+      [req.schoolId, scopeIds, academic_year_id, semester]
     );
 
     const { rows: actionCounts } = await pool.query(
@@ -193,11 +247,12 @@ router.get('/analytics', async (req, res, next) => {
          COUNT(*) FILTER (WHERE a.status = 'Open' AND a.due_date < CURRENT_DATE)::int AS overdue
        FROM lesson_observation_actions a
        JOIN lesson_observations o ON o.id = a.observation_id
-       WHERE o.school_id = $1 AND o.observed_teacher_id = ANY($2::uuid[])`,
-      [req.schoolId, scopeIds]
+       WHERE o.school_id = $1 AND o.observed_teacher_id = ANY($2::uuid[])
+         AND (o.academic_year_id = $3 OR $3 IS NULL) AND (o.semester = $4 OR $4 IS NULL)`,
+      [req.schoolId, scopeIds, academic_year_id, semester]
     );
 
-    res.json({ coverage, score_trend: scoreTrend, actions: actionCounts[0] });
+    res.json({ coverage, score_trend: scoreTrend, actions: actionCounts[0], academic_year_id, semester });
   } catch (err) { next(err); }
 });
 
@@ -208,7 +263,7 @@ router.post('/', async (req, res, next) => {
     const {
       observed_teacher_id, observation_type = 'scheduled', timetable_id,
       subject, class_names, scheduled_at, observed_at, entry_mode = 'live',
-      follow_up_of_id,
+      follow_up_of_id, academic_year_id: reqYearId, semester: reqSemester,
     } = req.body;
 
     if (!observed_teacher_id) return res.status(400).json({ error: 'observed_teacher_id is required' });
@@ -224,7 +279,9 @@ router.post('/', async (req, res, next) => {
     );
     if (!teacherRows.length) return res.status(404).json({ error: 'Teacher not found' });
 
-    const { academic_year_id, semester } = await getCurrentYearSemester(req.schoolId);
+    const yearSem = await resolveYearSemester(req.schoolId, reqYearId, reqSemester);
+    if (yearSem.error) return res.status(400).json({ error: yearSem.error });
+    const { academic_year_id, semester } = yearSem;
 
     const { rows } = await pool.query(
       `INSERT INTO lesson_observations
@@ -255,7 +312,7 @@ router.post('/', async (req, res, next) => {
 
 router.get('/', async (req, res, next) => {
   try {
-    const { status, teacher_id } = req.query;
+    const { status, teacher_id, academic_year_id, semester } = req.query;
     const params = [req.schoolId];
     const conditions = ['o.school_id = $1'];
 
@@ -275,15 +332,25 @@ router.get('/', async (req, res, next) => {
       params.push(status);
       conditions.push(`o.status = $${params.length}`);
     }
+    if (academic_year_id) {
+      params.push(academic_year_id);
+      conditions.push(`o.academic_year_id = $${params.length}`);
+    }
+    if (semester) {
+      params.push(parseInt(semester));
+      conditions.push(`o.semester = $${params.length}`);
+    }
 
     const { rows } = await pool.query(
       `SELECT o.id, o.observation_type, o.entry_mode, o.status, o.subject, o.class_names,
+              o.academic_year_id, o.semester, ay.name AS academic_year_name,
               o.scheduled_at, o.observed_at, o.teacher_ack_at, o.created_at,
               ot.name AS observer_name, tt.name AS observed_teacher_name,
               (SELECT COUNT(*)::int FROM lesson_observation_actions a WHERE a.observation_id = o.id AND a.status = 'Open') AS open_actions
        FROM lesson_observations o
        JOIN teachers ot ON ot.id = o.observer_id
        JOIN teachers tt ON tt.id = o.observed_teacher_id
+       LEFT JOIN academic_years ay ON ay.id = o.academic_year_id
        WHERE ${conditions.join(' AND ')}
        ORDER BY COALESCE(o.observed_at, o.scheduled_at, o.created_at) DESC`,
       params
@@ -353,6 +420,40 @@ router.patch('/:id', async (req, res, next) => {
       }
     }
 
+    // Setup fields (who/what/when it's scheduled for) are only safe to change
+    // before the observation cycle has advanced past "Scheduled" — once it's
+    // Completed/Acknowledged/Closed, scores and feedback already reference them.
+    const SETUP_FIELDS = ['subject', 'class_names', 'timetable_id', 'observation_type', 'scheduled_at', 'academic_year_id', 'semester'];
+    const touchingSetup = SETUP_FIELDS.some(k => k in req.body);
+    let setup = {
+      subject: obs.subject, class_names: obs.class_names, timetable_id: obs.timetable_id,
+      observation_type: obs.observation_type, scheduled_at: obs.scheduled_at,
+      academic_year_id: obs.academic_year_id, semester: obs.semester,
+    };
+    if (touchingSetup) {
+      if (obs.status !== 'Scheduled') {
+        return res.status(400).json({ error: 'Setup details can only be edited while the observation is still Scheduled' });
+      }
+      if ('observation_type' in req.body && !['scheduled', 'drop_in'].includes(req.body.observation_type)) {
+        return res.status(400).json({ error: 'observation_type must be scheduled or drop_in' });
+      }
+      if ('academic_year_id' in req.body || 'semester' in req.body) {
+        const yearSem = await resolveYearSemester(
+          req.schoolId,
+          'academic_year_id' in req.body ? req.body.academic_year_id : obs.academic_year_id,
+          'semester' in req.body ? req.body.semester : obs.semester
+        );
+        if (yearSem.error) return res.status(400).json({ error: yearSem.error });
+        setup.academic_year_id = yearSem.academic_year_id;
+        setup.semester = yearSem.semester;
+      }
+      if ('subject' in req.body) setup.subject = req.body.subject || null;
+      if ('class_names' in req.body) setup.class_names = req.body.class_names || null;
+      if ('timetable_id' in req.body) setup.timetable_id = req.body.timetable_id || null;
+      if ('observation_type' in req.body) setup.observation_type = req.body.observation_type;
+      if ('scheduled_at' in req.body) setup.scheduled_at = req.body.scheduled_at || null;
+    }
+
     if (Array.isArray(scores)) {
       for (const s of scores) {
         if (!s.criterion_id) continue;
@@ -385,12 +486,21 @@ router.patch('/:id', async (req, res, next) => {
          status              = $8,
          closed_at          = CASE WHEN $8 = 'Closed' THEN now() ELSE closed_at END,
          closed_by          = CASE WHEN $8 = 'Closed' THEN $9 ELSE closed_by END,
+         subject            = $12,
+         class_names        = $13,
+         timetable_id       = $14,
+         observation_type   = $15,
+         scheduled_at       = $16,
+         academic_year_id   = $17,
+         semester           = $18,
          updated_at         = now()
        WHERE id = $10 AND school_id = $11
        RETURNING *`,
       [glow_notes || null, grow_notes || null, recommended_action || null, evidence_notes || null,
        entry_mode || null, settingObservedAt, avgRows[0]?.avg ?? null, nextStatus, req.user.id,
-       req.params.id, req.schoolId]
+       req.params.id, req.schoolId,
+       setup.subject, setup.class_names, setup.timetable_id, setup.observation_type, setup.scheduled_at,
+       setup.academic_year_id, setup.semester]
     );
 
     if (status === 'Completed' && obs.status !== 'Completed') {
