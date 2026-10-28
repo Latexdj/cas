@@ -367,7 +367,9 @@ function EventsTab({ entries, year, onRefresh, departments, classLevels, classes
     if (!byMonth[m]) byMonth[m] = [];
     byMonth[m].push(e);
   }
-  const monthKeys = Object.keys(byMonth).sort();
+  // Most current first: latest month on top, latest day-of-month on top within it.
+  for (const m of Object.keys(byMonth)) byMonth[m].reverse();
+  const monthKeys = Object.keys(byMonth).sort().reverse();
 
   return (
     <div className="space-y-5">
