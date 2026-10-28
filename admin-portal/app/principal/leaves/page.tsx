@@ -40,7 +40,7 @@ export default function LeavesPage() {
   const [leaves,  setLeaves]  = useState<Leave[]>([]);
   const [loading, setLoading] = useState(true);
   const [actId,   setActId]   = useState<string | null>(null);
-  const [action,  setAction]  = useState<'approve' | 'reject' | null>(null);
+  const [action,  setAction]  = useState<'reject' | 'condition' | null>(null);
   const [reason,  setReason]  = useState('');
   const [saving,  setSaving]  = useState(false);
   const [errMsg,  setErrMsg]  = useState('');
@@ -61,21 +61,33 @@ export default function LeavesPage() {
 
   const dark = mounted && theme === 'dark';
 
-  function openAction(id: string, a: 'approve' | 'reject') {
+  function openAction(id: string, a: 'reject' | 'condition') {
     setActId(id); setAction(a); setReason(''); setErrMsg('');
   }
 
   async function confirm() {
     if (!actId || !action) return;
     if (action === 'reject' && !reason.trim()) return setErrMsg('A reason is required when rejecting.');
+    if (action === 'condition' && !reason.trim()) return setErrMsg('A condition/note is required — use the plain Approve button for an unconditional approval.');
     setSaving(true); setErrMsg('');
     try {
-      await principalApi.patch(`/api/principal/leaves/${actId}/${action}`,
-        action === 'reject' ? { reason: reason.trim() } : { note: reason.trim() || undefined });
+      await principalApi.patch(`/api/principal/leaves/${actId}/${action === 'reject' ? 'reject' : 'approve'}`,
+        action === 'reject' ? { reason: reason.trim() } : { note: reason.trim() });
       setActId(null); setAction(null);
       load();
     } catch (e: unknown) {
       setErrMsg((e as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to update.');
+    } finally { setSaving(false); }
+  }
+
+  async function quickApprove(id: string) {
+    if (!window.confirm('Approve this leave request? The teacher will be notified immediately.')) return;
+    setSaving(true);
+    try {
+      await principalApi.patch(`/api/principal/leaves/${id}/approve`, {});
+      load();
+    } catch (e: unknown) {
+      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error || 'Failed to approve.');
     } finally { setSaving(false); }
   }
 
@@ -207,21 +219,36 @@ export default function LeavesPage() {
                 ) : null}
 
                 {l.status === 'Pending' && (
-                  <div style={{ marginTop: 14, display: 'flex', gap: 10 }}>
+                  <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                     <button
-                      onClick={() => openAction(l.id, 'approve')}
+                      onClick={() => quickApprove(l.id)}
+                      disabled={saving}
                       style={{
                         padding: '7px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                        background: '#145C44', color: '#FFFFFF', border: 'none', cursor: 'pointer',
+                        background: '#145C44', color: '#FFFFFF', border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
+                        opacity: saving ? 0.7 : 1,
                       }}
                     >
                       Approve
                     </button>
                     <button
-                      onClick={() => openAction(l.id, 'reject')}
+                      onClick={() => openAction(l.id, 'condition')}
+                      disabled={saving}
                       style={{
                         padding: '7px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                        background: dark ? '#7F1D1D33' : '#FEE2E2', color: '#DC2626', border: 'none', cursor: 'pointer',
+                        background: dark ? '#1E3A5F33' : '#DBEAFE', color: '#1D4ED8', border: 'none',
+                        cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+                      }}
+                    >
+                      Conditional Approval
+                    </button>
+                    <button
+                      onClick={() => openAction(l.id, 'reject')}
+                      disabled={saving}
+                      style={{
+                        padding: '7px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                        background: dark ? '#7F1D1D33' : '#FEE2E2', color: '#DC2626', border: 'none',
+                        cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
                       }}
                     >
                       Reject
@@ -246,16 +273,16 @@ export default function LeavesPage() {
             boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
           }}>
             <h3 style={{ fontSize: 18, fontWeight: 700, color: dark ? '#F1F5F9' : '#1C1208', marginBottom: 12 }}>
-              {action === 'approve' ? 'Approve Leave Request' : 'Reject Leave Request'}
+              {action === 'condition' ? 'Approve With Condition' : 'Reject Leave Request'}
             </h3>
 
-            {action === 'approve' && (
+            {action === 'condition' && (
               <div style={{ marginBottom: 16 }}>
                 <p style={{ fontSize: 13, color: dark ? '#94A3B8' : '#64748B', marginBottom: 12 }}>
-                  This will approve the teacher's leave request.
+                  The teacher will need to accept or decline this condition before the leave is finalized.
                 </p>
                 <label style={{ fontSize: 12, fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', display: 'block', marginBottom: 6 }}>
-                  CONDITION / NOTE (OPTIONAL)
+                  CONDITION / NOTE (REQUIRED)
                 </label>
                 <textarea
                   value={reason}
@@ -269,7 +296,7 @@ export default function LeavesPage() {
                   placeholder="e.g. approved provided you arrange cover for your lessons…"
                 />
                 <p style={{ fontSize: 11, color: dark ? '#64748B' : '#94A3B8', marginTop: 6 }}>
-                  Shown to the teacher and attached to the approved request. Leave blank for a plain approval.
+                  Shown to the teacher. If they accept, the leave approves automatically; if they decline, it&apos;s rejected outright and you&apos;ll be notified.
                 </p>
               </div>
             )}
@@ -312,12 +339,12 @@ export default function LeavesPage() {
                 disabled={saving}
                 style={{
                   flex: 1, padding: 10, borderRadius: 8, fontSize: 13, fontWeight: 600,
-                  background: action === 'approve' ? '#145C44' : '#DC2626',
+                  background: action === 'condition' ? '#1D4ED8' : '#DC2626',
                   color: '#FFFFFF', border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
                   opacity: saving ? 0.7 : 1,
                 }}
               >
-                {saving ? '…' : action === 'approve' ? 'Confirm Approve' : 'Confirm Reject'}
+                {saving ? '…' : action === 'condition' ? 'Send Condition' : 'Confirm Reject'}
               </button>
             </div>
           </div>
