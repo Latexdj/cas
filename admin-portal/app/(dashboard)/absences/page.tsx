@@ -667,6 +667,9 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
   const [rejectId,     setRejectId]     = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectError,  setRejectError]  = useState('');
+  const [approveId,    setApproveId]    = useState<string | null>(null);
+  const [approveNote,  setApproveNote]  = useState('');
+  const [approveError, setApproveError] = useState('');
 
   const { displayRows: excRows, total: excTotal, page: excPage, setPage: setExcPage,
           pageSize: excPageSize, setPageSize: setExcPageSize,
@@ -686,11 +689,21 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
 
   useEffect(() => { load(); }, [load]);
 
-  async function approve(id: string) {
-    setActing(id);
-    try { await api.patch(`/api/teacher-excuses/${id}/approve`); await load(); }
-    catch { alert('Failed to approve.'); }
-    finally { setActing(null); }
+  function openApprove(id: string) {
+    setApproveId(id); setApproveNote(''); setApproveError('');
+  }
+
+  async function submitApprove() {
+    if (!approveId) return;
+    setActing(approveId);
+    try {
+      await api.patch(`/api/teacher-excuses/${approveId}/approve`, { note: approveNote.trim() || undefined });
+      setApproveId(null);
+      await load();
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setApproveError(e.response?.data?.error ?? 'Failed to approve.');
+    } finally { setActing(null); }
   }
 
   function openReject(id: string) {
@@ -870,6 +883,11 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
                             {ex.rejection_reason}
                           </p>
                         )}
+                        {ex.status === 'Approved' && ex.approval_note && (
+                          <p className="text-xs mt-1 max-w-[180px] truncate" style={{ color: '#D97706' }} title={ex.approval_note}>
+                            Condition: {ex.approval_note}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs" style={{ color: '#94A3B8' }}>{ex.approved_by_name ?? '—'}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
@@ -880,7 +898,7 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
                               <>
                                 <button
                                   disabled={acting === ex.id || docRequired}
-                                  onClick={() => approve(ex.id)}
+                                  onClick={() => openApprove(ex.id)}
                                   title={docRequired ? 'Supporting document required before approval' : ''}
                                   className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                                   style={{ backgroundColor: '#DCFCE7', color: '#145C44' }}>
@@ -911,6 +929,42 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
           </div>
         )}
       </div>
+
+      {/* Approve modal */}
+      {approveId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B3D2E]/45 px-4">
+          <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="font-bold" style={{ color: '#1C1208' }}>Approve Leave Request</p>
+              <button onClick={() => setApproveId(null)}
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm">✕</button>
+            </div>
+            <div>
+              <label className="text-xs font-semibold font-medium block mb-1" style={{ color: '#64748B' }}>
+                Condition / Note (optional)
+              </label>
+              <textarea value={approveNote} rows={3}
+                onChange={e => { setApproveNote(e.target.value); setApproveError(''); }}
+                placeholder="e.g. approved provided you arrange cover for your lessons…"
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-600 resize-none" />
+              <p className="text-xs mt-1.5" style={{ color: '#94A3B8' }}>
+                Shown to the teacher and attached to the approved request. Leave blank for a plain approval.
+              </p>
+            </div>
+            {approveError && <p className="text-sm text-red-600">{approveError}</p>}
+            <div className="flex gap-3">
+              <button onClick={() => setApproveId(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600">
+                Cancel
+              </button>
+              <button onClick={submitApprove} disabled={acting === approveId}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-[#145C44] disabled:opacity-50">
+                {acting === approveId ? 'Approving…' : 'Confirm Approve'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reject modal */}
       {rejectId && (

@@ -54,7 +54,7 @@ router.get('/', async (req, res, next) => {
       `SELECT
          te.id, te.date_from, te.date_to, te.type, te.reason,
          te.status, te.approved_at, te.created_at,
-         te.document_url, te.document_filename, te.rejection_reason,
+         te.document_url, te.document_filename, te.rejection_reason, te.approval_note,
          t.id   AS teacher_id,
          t.name AS teacher_name,
          a.name AS approved_by_name
@@ -141,6 +141,7 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id/approve', adminOnly, async (req, res, next) => {
   try {
     const approver = req.user.id || null;
+    const note = req.body?.note?.trim() || null;
 
     // Fetch the excuse first to check document requirement
     const { rows: check } = await pool.query(
@@ -157,10 +158,10 @@ router.patch('/:id/approve', adminOnly, async (req, res, next) => {
 
     const { rows } = await pool.query(
       `UPDATE teacher_excuses
-       SET status = 'Approved', approved_by = $1, approved_at = now(), updated_at = now()
+       SET status = 'Approved', approved_by = $1, approved_at = now(), updated_at = now(), approval_note = $4
        WHERE id = $2 AND school_id = $3
-       RETURNING id, status, teacher_id, date_from, date_to`,
-      [approver, req.params.id, req.schoolId]
+       RETURNING id, status, approval_note, teacher_id, date_from, date_to`,
+      [approver, req.params.id, req.schoolId, note]
     );
     if (!rows.length) return res.status(404).json({ error: 'Excuse not found' });
 
@@ -177,12 +178,14 @@ router.patch('/:id/approve', adminOnly, async (req, res, next) => {
       const t = tr[0];
       const dateRange = date_from === date_to ? date_from : `${date_from} to ${date_to}`;
       const title = 'Leave Request Approved';
-      const msg = `Your leave request for ${dateRange} has been approved.`;
+      const msg = note
+        ? `Your leave request for ${dateRange} has been approved, subject to the following condition: ${note}`
+        : `Your leave request for ${dateRange} has been approved.`;
       await createNotification(req.schoolId, teacher_id, title, msg);
       if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\n— CAS`);
     } catch (e) { /* non-fatal */ }
 
-    res.json({ id: rows[0].id, status: rows[0].status, absences_excused: updated });
+    res.json({ id: rows[0].id, status: rows[0].status, approval_note: rows[0].approval_note, absences_excused: updated });
   } catch (err) { next(err); }
 });
 

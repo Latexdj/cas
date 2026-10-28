@@ -8,7 +8,7 @@ import { Pagination } from '@/components/ui/Pagination';
 interface Leave {
   id: string;
   reason: string; type: string; date_from: string; date_to: string;
-  status: string; rejection_reason?: string; approved_at?: string; created_at: string;
+  status: string; rejection_reason?: string; approval_note?: string | null; approved_at?: string; created_at: string;
   document_url?: string; document_filename?: string;
   teacher_name: string; teacher_code: string; department: string;
   approved_by_name?: string | null;
@@ -70,7 +70,7 @@ export default function LeavesPage() {
     setSaving(true); setErrMsg('');
     try {
       await principalApi.patch(`/api/principal/leaves/${actId}/${action}`,
-        action === 'reject' ? { reason: reason.trim() } : {});
+        action === 'reject' ? { reason: reason.trim() } : { note: reason.trim() || undefined });
       setActId(null); setAction(null);
       load();
     } catch (e: unknown) {
@@ -151,6 +151,12 @@ export default function LeavesPage() {
                     <>
                       <span style={{ color: '#DC2626' }}>Reject reason</span>
                       <span style={{ color: '#DC2626' }}>{l.rejection_reason}</span>
+                    </>
+                  )}
+                  {l.approval_note && (
+                    <>
+                      <span style={{ color: '#D97706' }}>Condition</span>
+                      <span style={{ color: '#D97706' }}>{l.approval_note}</span>
                     </>
                   )}
                   {l.approved_by_name && (
@@ -239,9 +245,28 @@ export default function LeavesPage() {
             </h3>
 
             {action === 'approve' && (
-              <p style={{ fontSize: 13, color: dark ? '#94A3B8' : '#64748B', marginBottom: 20 }}>
-                This will approve the teacher's leave request.
-              </p>
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ fontSize: 13, color: dark ? '#94A3B8' : '#64748B', marginBottom: 12 }}>
+                  This will approve the teacher's leave request.
+                </p>
+                <label style={{ fontSize: 12, fontWeight: 600, color: dark ? '#94A3B8' : '#64748B', display: 'block', marginBottom: 6 }}>
+                  CONDITION / NOTE (OPTIONAL)
+                </label>
+                <textarea
+                  value={reason}
+                  onChange={e => setReason(e.target.value)}
+                  rows={3}
+                  style={{
+                    width: '100%', boxSizing: 'border-box', border: `1px solid ${dark ? '#334155' : '#E2E8F0'}`,
+                    background: dark ? '#1C1208' : '#F5F0E8', color: dark ? '#F1F5F9' : '#1C1208',
+                    borderRadius: 8, padding: '8px 12px', fontSize: 13, resize: 'vertical',
+                  }}
+                  placeholder="e.g. approved provided you arrange cover for your lessons…"
+                />
+                <p style={{ fontSize: 11, color: dark ? '#64748B' : '#94A3B8', marginTop: 6 }}>
+                  Shown to the teacher and attached to the approved request. Leave blank for a plain approval.
+                </p>
+              </div>
             )}
 
             {action === 'reject' && (

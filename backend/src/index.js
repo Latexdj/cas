@@ -1032,6 +1032,7 @@ async function runMigrations() {
     `);
 
     await pool.query(`ALTER TABLE teacher_excuses ADD COLUMN IF NOT EXISTS rejection_reason TEXT`);
+    await pool.query(`ALTER TABLE teacher_excuses ADD COLUMN IF NOT EXISTS approval_note TEXT`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS management_users (

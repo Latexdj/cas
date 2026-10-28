@@ -158,6 +158,9 @@ export default function LeavesScreen() {
                         {lv.status === 'Approved' ? 'Approved' : 'Reviewed'} by {lv.approved_by_name}
                       </Text>
                     ) : null}
+                    {lv.status === 'Approved' && lv.approval_note ? (
+                      <Text style={[styles.meta, { color: '#C8780A' }]}>Condition: {lv.approval_note}</Text>
+                    ) : null}
                   </View>
                   <View style={[styles.badge, { backgroundColor: s.bg }]}>
                     <Text style={[styles.badgeText, { color: s.color }]}>{lv.status}</Text>

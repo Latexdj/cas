@@ -429,7 +429,7 @@ router.get('/leaves', async (req, res, next) => {
 
     const { rows } = await pool.query(`
       SELECT te.id, te.reason, te.type, te.date_from, te.date_to, te.status,
-             te.rejection_reason, te.approved_at, te.created_at,
+             te.rejection_reason, te.approval_note, te.approved_at, te.created_at,
              te.document_url, te.document_filename,
              t.name AS teacher_name, t.teacher_code, t.department,
              a.name AS approved_by_name
@@ -447,12 +447,13 @@ router.get('/leaves', async (req, res, next) => {
 
 router.patch('/leaves/:id/approve', async (req, res, next) => {
   try {
+    const note = req.body?.note?.trim() || null;
     const { rows } = await pool.query(`
       UPDATE teacher_excuses
-      SET status = 'Approved', approved_by = $3, approved_at = now(), updated_at = now()
+      SET status = 'Approved', approved_by = $3, approved_at = now(), updated_at = now(), approval_note = $4
       WHERE id = $1 AND school_id = $2 AND status = 'Pending'
-      RETURNING id, status, teacher_id, date_from, date_to
-    `, [req.params.id, req.schoolId, req.user.id]);
+      RETURNING id, status, approval_note, teacher_id, date_from, date_to
+    `, [req.params.id, req.schoolId, req.user.id, note]);
     if (!rows.length) return res.status(404).json({ error: 'Request not found or already actioned' });
 
     // Retroactively excuse any absence records in the approved date range
@@ -471,12 +472,14 @@ router.patch('/leaves/:id/approve', async (req, res, next) => {
       const t = tr[0];
       const dateRange = date_from === date_to ? date_from : `${date_from} to ${date_to}`;
       const title = 'Leave Request Approved';
-      const msg = `Your leave request for ${dateRange} has been approved.`;
+      const msg = note
+        ? `Your leave request for ${dateRange} has been approved, subject to the following condition: ${note}`
+        : `Your leave request for ${dateRange} has been approved.`;
       await createNotification(req.schoolId, teacher_id, title, msg);
       if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\nâ€” CAS`);
     } catch (e) { /* non-fatal */ }
 
-    res.json({ id: rows[0].id, status: rows[0].status });
+    res.json({ id: rows[0].id, status: rows[0].status, approval_note: rows[0].approval_note });
   } catch (err) { next(err); }
 });
 

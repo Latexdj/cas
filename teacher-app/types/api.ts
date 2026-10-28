@@ -166,4 +166,6 @@ export interface TeacherExcuse {
   created_at: string;
   document_url: string | null;
   document_filename: string | null;
+  rejection_reason: string | null;
+  approval_note: string | null;
 }
