@@ -3,6 +3,7 @@ const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { uploadDocument } = require('../services/storage.service');
 const { createNotification, sendTeacherEmail } = require('../services/notification.service');
+const { sendSms } = require('../services/sms.service');
 
 router.use(authenticate, requireActiveSubscription);
 
@@ -156,33 +157,40 @@ router.patch('/:id/approve', adminOnly, async (req, res, next) => {
       });
     }
 
+    // A condition means the leave isn't final yet - the teacher must accept
+    // or decline it first. A plain approval (no note) is final immediately.
+    const newStatus = note ? 'Pending Acceptance' : 'Approved';
     const { rows } = await pool.query(
       `UPDATE teacher_excuses
-       SET status = 'Approved', approved_by = $1, approved_at = now(), updated_at = now(), approval_note = $4
-       WHERE id = $2 AND school_id = $3
+       SET status = $5, approved_by = $1, approved_at = now(), updated_at = now(), approval_note = $4
+       WHERE id = $2 AND school_id = $3 AND status = 'Pending'
        RETURNING id, status, approval_note, teacher_id, date_from, date_to`,
-      [approver, req.params.id, req.schoolId, note]
+      [approver, req.params.id, req.schoolId, note, newStatus]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Excuse not found' });
+    if (!rows.length) return res.status(404).json({ error: 'Excuse not found or already actioned' });
 
-    // Retroactively excuse any absences that were recorded before this approval
     const { teacher_id, date_from, date_to } = rows[0];
-    const updated = await excuseExistingAbsences(req.schoolId, teacher_id, date_from, date_to);
-    if (updated > 0) {
-      console.log(`[Excuses] Retroactively excused ${updated} absence record(s) on approval`);
+    let updated = 0;
+    if (newStatus === 'Approved') {
+      // Retroactively excuse any absences that were recorded before this approval
+      updated = await excuseExistingAbsences(req.schoolId, teacher_id, date_from, date_to);
+      if (updated > 0) {
+        console.log(`[Excuses] Retroactively excused ${updated} absence record(s) on approval`);
+      }
     }
 
     // Notify teacher
     try {
-      const { rows: tr } = await pool.query(`SELECT name, email FROM teachers WHERE id=$1`, [teacher_id]);
+      const { rows: tr } = await pool.query(`SELECT name, email, phone FROM teachers WHERE id=$1`, [teacher_id]);
       const t = tr[0];
       const dateRange = date_from === date_to ? date_from : `${date_from} to ${date_to}`;
-      const title = 'Leave Request Approved';
+      const title = note ? 'Leave Request Approved - Condition Needs Your Response' : 'Leave Request Approved';
       const msg = note
-        ? `Your leave request for ${dateRange} has been approved, subject to the following condition: ${note}`
+        ? `Your leave request for ${dateRange} has been approved, subject to the following condition: ${note}. Please open the app to accept or decline this condition.`
         : `Your leave request for ${dateRange} has been approved.`;
       await createNotification(req.schoolId, teacher_id, title, msg);
-      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\n— CAS`);
+      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\n- CAS`);
+      if (t?.phone) await sendSms(t.phone, msg);
     } catch (e) { /* non-fatal */ }
 
     res.json({ id: rows[0].id, status: rows[0].status, approval_note: rows[0].approval_note, absences_excused: updated });
@@ -200,22 +208,93 @@ router.patch('/:id/reject', adminOnly, async (req, res, next) => {
       `UPDATE teacher_excuses
        SET status = 'Rejected', approved_by = $1, approved_at = now(), updated_at = now(),
            rejection_reason = $2
-       WHERE id = $3 AND school_id = $4
+       WHERE id = $3 AND school_id = $4 AND status = 'Pending'
        RETURNING id, status, rejection_reason, teacher_id, date_from, date_to`,
       [approver, reason, req.params.id, req.schoolId]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Excuse not found' });
+    if (!rows.length) return res.status(404).json({ error: 'Excuse not found or already actioned' });
 
     // Notify teacher
     try {
       const { teacher_id, date_from, date_to } = rows[0];
-      const { rows: tr } = await pool.query(`SELECT name, email FROM teachers WHERE id=$1`, [teacher_id]);
+      const { rows: tr } = await pool.query(`SELECT name, email, phone FROM teachers WHERE id=$1`, [teacher_id]);
       const t = tr[0];
       const dateRange = date_from === date_to ? date_from : `${date_from} to ${date_to}`;
       const title = 'Leave Request Rejected';
       const msg = `Your leave request for ${dateRange} has been rejected. Reason: ${reason}`;
       await createNotification(req.schoolId, teacher_id, title, msg);
-      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\nIf you have questions, please contact your administrator.\n\n— CAS`);
+      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\nIf you have questions, please contact your administrator.\n\n- CAS`);
+      if (t?.phone) await sendSms(t.phone, msg);
+    } catch (e) { /* non-fatal */ }
+
+    res.json({ id: rows[0].id, status: rows[0].status, rejection_reason: rows[0].rejection_reason });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/teacher-excuses/:id/accept-condition — teacher accepts the
+// condition management attached when approving their leave (status must be
+// 'Pending Acceptance'). Finalizes the leave as 'Approved'.
+router.patch('/:id/accept-condition', async (req, res, next) => {
+  try {
+    if (req.user.role !== 'teacher') return res.status(403).json({ error: 'Teacher access only' });
+
+    const { rows } = await pool.query(
+      `UPDATE teacher_excuses
+       SET status = 'Approved', updated_at = now()
+       WHERE id = $1 AND school_id = $2 AND teacher_id = $3 AND status = 'Pending Acceptance'
+       RETURNING id, status, approval_note, teacher_id, date_from, date_to`,
+      [req.params.id, req.schoolId, req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Request not found or no condition awaiting your response' });
+
+    const { teacher_id, date_from, date_to } = rows[0];
+    const updated = await excuseExistingAbsences(req.schoolId, teacher_id, date_from, date_to);
+
+    try {
+      const { rows: tr } = await pool.query(`SELECT name, email, phone FROM teachers WHERE id=$1`, [teacher_id]);
+      const t = tr[0];
+      const dateRange = date_from === date_to ? date_from : `${date_from} to ${date_to}`;
+      const title = 'Leave Request Approved';
+      const msg = `You accepted the condition on your leave request for ${dateRange}. It is now fully approved.`;
+      await createNotification(req.schoolId, teacher_id, title, msg);
+      if (t?.email) await sendTeacherEmail(t.email, title, `Dear ${t?.name || 'Teacher'},\n\n${msg}\n\n- CAS`);
+      if (t?.phone) await sendSms(t.phone, msg);
+    } catch (e) { /* non-fatal */ }
+
+    res.json({ id: rows[0].id, status: rows[0].status, absences_excused: updated });
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/teacher-excuses/:id/decline-condition — teacher declines the
+// condition. The leave is rejected outright, and whoever set the condition
+// (the approver) is notified by SMS and email.
+router.patch('/:id/decline-condition', async (req, res, next) => {
+  try {
+    if (req.user.role !== 'teacher') return res.status(403).json({ error: 'Teacher access only' });
+
+    const { rows } = await pool.query(
+      `UPDATE teacher_excuses
+       SET status = 'Rejected', updated_at = now(),
+           rejection_reason = 'Teacher declined the condition: ' || approval_note
+       WHERE id = $1 AND school_id = $2 AND teacher_id = $3 AND status = 'Pending Acceptance'
+       RETURNING id, status, rejection_reason, approval_note, approved_by, teacher_id, date_from, date_to`,
+      [req.params.id, req.schoolId, req.user.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Request not found or no condition awaiting your response' });
+
+    try {
+      const { approved_by, teacher_id, date_from, date_to, approval_note } = rows[0];
+      const dateRange = date_from === date_to ? date_from : `${date_from} to ${date_to}`;
+      if (approved_by) {
+        const { rows: ar } = await pool.query(`SELECT name, email, phone FROM teachers WHERE id=$1`, [approved_by]);
+        const approver = ar[0];
+        const { rows: teacherRows } = await pool.query(`SELECT name FROM teachers WHERE id=$1`, [teacher_id]);
+        const teacherName = teacherRows[0]?.name || 'The teacher';
+        const title = 'Leave Condition Declined - Request Rejected';
+        const msg = `${teacherName} declined the condition you attached to their leave request for ${dateRange} ("${approval_note}"). The leave request has been automatically rejected.`;
+        if (approver?.email) await sendTeacherEmail(approver.email, title, `Dear ${approver?.name || 'Sir/Madam'},\n\n${msg}\n\n- CAS`);
+        if (approver?.phone) await sendSms(approver.phone, msg);
+      }
     } catch (e) { /* non-fatal */ }
 
     res.json({ id: rows[0].id, status: rows[0].status, rejection_reason: rows[0].rejection_reason });

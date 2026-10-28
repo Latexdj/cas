@@ -15,9 +15,10 @@ interface Leave {
 }
 
 const STATUS_STYLES: Record<string, { bg: string; bgD: string; text: string }> = {
-  Pending:  { bg: '#FEF3C7', bgD: '#78350F33', text: '#D97706' },
-  Approved: { bg: '#DCFCE7', bgD: '#14532D33', text: '#145C44' },
-  Rejected: { bg: '#FEE2E2', bgD: '#7F1D1D33', text: '#DC2626' },
+  Pending:            { bg: '#FEF3C7', bgD: '#78350F33', text: '#D97706' },
+  'Pending Acceptance': { bg: '#DBEAFE', bgD: '#1E3A5F33', text: '#1D4ED8' },
+  Approved:           { bg: '#DCFCE7', bgD: '#14532D33', text: '#145C44' },
+  Rejected:           { bg: '#FEE2E2', bgD: '#7F1D1D33', text: '#DC2626' },
 };
 
 function viewerUrl(url: string, filename?: string): string {
@@ -102,6 +103,7 @@ export default function LeavesPage() {
         >
           <option value="">All Status</option>
           <option value="Pending">Pending</option>
+          <option value="Pending Acceptance">Pending Acceptance</option>
           <option value="Approved">Approved</option>
           <option value="Rejected">Rejected</option>
         </select>
@@ -155,8 +157,11 @@ export default function LeavesPage() {
                   )}
                   {l.approval_note && (
                     <>
-                      <span style={{ color: '#D97706' }}>Condition</span>
-                      <span style={{ color: '#D97706' }}>{l.approval_note}</span>
+                      <span style={{ color: l.status === 'Pending Acceptance' ? '#1D4ED8' : '#D97706' }}>Condition</span>
+                      <span style={{ color: l.status === 'Pending Acceptance' ? '#1D4ED8' : '#D97706' }}>
+                        {l.approval_note}
+                        {l.status === 'Pending Acceptance' && ' — awaiting the teacher\'s response'}
+                      </span>
                     </>
                   )}
                   {l.approved_by_name && (

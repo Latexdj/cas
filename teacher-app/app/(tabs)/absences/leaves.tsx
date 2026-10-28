@@ -23,6 +23,7 @@ function fmt(iso: string) {
 function statusStyle(status: string) {
   if (status === 'Approved') return { bg: '#DCFCE7', color: '#2D7A4F' };
   if (status === 'Rejected') return { bg: '#FEE2E2', color: '#B83232' };
+  if (status === 'Pending Acceptance') return { bg: '#DBEAFE', color: '#1D4ED8' };
   return { bg: '#FEF3C7', color: '#92400E' };
 }
 
@@ -58,6 +59,31 @@ export default function LeavesScreen() {
 
   useFocusEffect(useCallback(() => { setLoading(true); load(); }, [load]));
   const onRefresh = () => { setRefreshing(true); load(); };
+
+  const [respondingId, setRespondingId] = useState<string | null>(null);
+
+  async function respondToCondition(id: string, action: 'accept' | 'decline') {
+    const doRespond = async () => {
+      setRespondingId(id);
+      try {
+        await api.patch(`/api/teacher-excuses/${id}/${action}-condition`);
+        await load();
+      } catch (err: any) {
+        Alert.alert('Error', err?.response?.data?.error ?? 'Failed to respond. Please try again.');
+      } finally {
+        setRespondingId(null);
+      }
+    };
+    if (action === 'decline') {
+      Alert.alert(
+        'Decline condition?',
+        'Your leave request will be rejected outright and this cannot be undone.',
+        [{ text: 'Cancel', style: 'cancel' }, { text: 'Decline', style: 'destructive', onPress: doRespond }]
+      );
+    } else {
+      doRespond();
+    }
+  }
 
   async function pickDocument() {
     try {
@@ -166,6 +192,39 @@ export default function LeavesScreen() {
                     <Text style={[styles.badgeText, { color: s.color }]}>{lv.status}</Text>
                   </View>
                 </View>
+                {lv.status === 'Pending Acceptance' ? (
+                  <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#E2D9CC' }}>
+                    <View style={{ backgroundColor: '#EFF6FF', borderRadius: 8, padding: 8 }}>
+                      <Text style={{ fontSize: 12, color: '#1D4ED8' }}>
+                        Your leave was approved subject to a condition:{' '}
+                        <Text style={{ fontWeight: '600' }}>{lv.approval_note}</Text>
+                      </Text>
+                    </View>
+                    <Text style={[styles.meta, { marginTop: 6 }]}>
+                      Accept to finalize your approval, or decline to reject the leave outright.
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                      <TouchableOpacity
+                        onPress={() => respondToCondition(lv.id, 'accept')}
+                        disabled={respondingId === lv.id}
+                        style={{ flex: 1, backgroundColor: '#145C44', borderRadius: 8, paddingVertical: 8, alignItems: 'center', opacity: respondingId === lv.id ? 0.6 : 1 }}
+                      >
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>
+                          {respondingId === lv.id ? '…' : 'Accept'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => respondToCondition(lv.id, 'decline')}
+                        disabled={respondingId === lv.id}
+                        style={{ flex: 1, backgroundColor: '#FEE2E2', borderRadius: 8, paddingVertical: 8, alignItems: 'center', opacity: respondingId === lv.id ? 0.6 : 1 }}
+                      >
+                        <Text style={{ color: '#B83232', fontSize: 12, fontWeight: '600' }}>
+                          {respondingId === lv.id ? '…' : 'Decline'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : null}
               </View>
             );
           })

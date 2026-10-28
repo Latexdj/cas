@@ -1033,6 +1033,11 @@ async function runMigrations() {
 
     await pool.query(`ALTER TABLE teacher_excuses ADD COLUMN IF NOT EXISTS rejection_reason TEXT`);
     await pool.query(`ALTER TABLE teacher_excuses ADD COLUMN IF NOT EXISTS approval_note TEXT`);
+    // 'Pending Acceptance' = management approved with a condition; the leave only
+    // becomes final ('Approved'/'Rejected') once the teacher accepts or declines it.
+    await pool.query(`ALTER TABLE teacher_excuses DROP CONSTRAINT IF EXISTS teacher_excuses_status_check`);
+    await pool.query(`ALTER TABLE teacher_excuses ADD CONSTRAINT teacher_excuses_status_check
+      CHECK (status IN ('Pending','Pending Acceptance','Approved','Rejected'))`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS management_users (

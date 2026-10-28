@@ -649,9 +649,10 @@ function RemedialsTab({ teachers }: { teachers: Teacher[] }) {
 
 // ── Excuses tab ────────────────────────────────────────────────
 const EXCUSE_STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  Pending:  { bg: '#FFFBEB', color: '#D97706' },
-  Approved: { bg: '#DCFCE7', color: '#145C44' },
-  Rejected: { bg: '#FEF2F2', color: '#DC2626' },
+  Pending:              { bg: '#FFFBEB', color: '#D97706' },
+  'Pending Acceptance': { bg: '#EFF6FF', color: '#1D4ED8' },
+  Approved:             { bg: '#DCFCE7', color: '#145C44' },
+  Rejected:             { bg: '#FEF2F2', color: '#DC2626' },
 };
 
 function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
@@ -768,6 +769,7 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
           <select className={selectCls} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
             <option value="">All Statuses</option>
             <option value="Pending">Pending</option>
+            <option value="Pending Acceptance">Pending Acceptance</option>
             <option value="Approved">Approved</option>
             <option value="Rejected">Rejected</option>
           </select>
@@ -886,6 +888,11 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
                         {ex.status === 'Approved' && ex.approval_note && (
                           <p className="text-xs mt-1 max-w-[180px] truncate" style={{ color: '#D97706' }} title={ex.approval_note}>
                             Condition: {ex.approval_note}
+                          </p>
+                        )}
+                        {ex.status === 'Pending Acceptance' && ex.approval_note && (
+                          <p className="text-xs mt-1 max-w-[180px] truncate" style={{ color: '#1D4ED8' }} title={ex.approval_note}>
+                            Condition (awaiting teacher): {ex.approval_note}
                           </p>
                         )}
                       </td>

@@ -13,7 +13,7 @@ interface TeacherExcuse {
   date_to: string;
   type: string;
   reason: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
+  status: 'Pending' | 'Pending Acceptance' | 'Approved' | 'Rejected';
   approved_by_name: string | null;
   document_url: string | null;
   document_filename: string | null;
@@ -31,6 +31,7 @@ function fmt(iso: string) {
 function statusStyle(status: string) {
   if (status === 'Approved') return { bg: '#E8F4EE', color: '#145C44' };
   if (status === 'Rejected') return { bg: '#FEF2F2', color: '#B83232' };
+  if (status === 'Pending Acceptance') return { bg: '#EFF6FF', color: '#1D4ED8' };
   return { bg: '#FEF3C7', color: '#92400E' };
 }
 
@@ -67,6 +68,24 @@ function LeavesContent() {
     setPrimary(colors.primary);
     loadData();
   }, [loadData]);
+
+  const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [respondError, setRespondError] = useState<Record<string, string>>({});
+
+  async function respondToCondition(id: string, action: 'accept' | 'decline') {
+    if (action === 'decline' && !confirm('Decline this condition? Your leave request will be rejected outright and cannot be undone.')) return;
+    setRespondingId(id);
+    setRespondError(prev => ({ ...prev, [id]: '' }));
+    try {
+      await teacherApi.patch(`/api/teacher-excuses/${id}/${action}-condition`);
+      await loadData();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to respond. Please try again.';
+      setRespondError(prev => ({ ...prev, [id]: msg }));
+    } finally {
+      setRespondingId(null);
+    }
+  }
 
   async function handleLeaveSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -270,6 +289,32 @@ function LeavesContent() {
                     {lv.status}
                   </span>
                 </div>
+                {lv.status === 'Pending Acceptance' && (
+                  <div className="mt-3 pt-3 border-t border-[#E2D9CC]">
+                    <p className="text-xs text-[#1D4ED8] bg-[#EFF6FF] rounded-lg px-3 py-2">
+                      Your leave was approved subject to a condition: <span className="font-semibold">{lv.approval_note}</span>
+                    </p>
+                    <p className="text-xs text-[#8C7E6E] mt-2">Accept this condition to finalize your approval, or decline to reject the leave request outright.</p>
+                    {respondError[lv.id] && (
+                      <p className="text-xs text-[#B83232] mt-1">{respondError[lv.id]}</p>
+                    )}
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => respondToCondition(lv.id, 'accept')}
+                        disabled={respondingId === lv.id}
+                        className="flex-1 py-2 rounded-lg text-xs font-semibold text-white disabled:opacity-60"
+                        style={{ background: '#145C44' }}>
+                        {respondingId === lv.id ? '…' : 'Accept'}
+                      </button>
+                      <button
+                        onClick={() => respondToCondition(lv.id, 'decline')}
+                        disabled={respondingId === lv.id}
+                        className="flex-1 py-2 rounded-lg text-xs font-semibold text-[#B83232] bg-[#FEF2F2] disabled:opacity-60">
+                        {respondingId === lv.id ? '…' : 'Decline'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}

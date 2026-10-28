@@ -342,7 +342,7 @@ export interface TeacherExcuse {
   date_to: string;
   type: 'Official Duty' | 'Permission' | 'Sick Leave' | 'Other';
   reason: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
+  status: 'Pending' | 'Pending Acceptance' | 'Approved' | 'Rejected';
   approved_by_name: string | null;
   approved_at: string | null;
   created_at: string;
