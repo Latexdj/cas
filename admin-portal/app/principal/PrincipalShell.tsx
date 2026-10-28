@@ -72,6 +72,12 @@ const sections: Section[] = [
         label: 'Teacher Attendance',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />,
       },
+      {
+        href: '/principal/lesson-observation',
+        label: 'Lesson Observation',
+        module: 'lesson_observation',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />,
+      },
     ],
   },
   {

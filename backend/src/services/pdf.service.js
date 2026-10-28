@@ -1450,6 +1450,186 @@ async function generateBoardReportPDFBuffer(reportText, facts, school) {
   }
 }
 
+const SCORE_LABELS = { 1: '1 — Ineffective', 2: '2 — Developing', 3: '3 — Effective', 4: '4 — Highly Effective' };
+
+function buildObservationReportHTML(observation, scores, actions, photos, school) {
+  const generatedOn = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const observedOn = observation.observed_at
+    ? new Date(observation.observed_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—';
+
+  const scoreRows = scores.map(s => `
+    <tr>
+      <td>${esc(s.criterion_name)}</td>
+      <td style="text-align:center;white-space:nowrap;">${s.score ? esc(SCORE_LABELS[s.score]) : 'Not Observed'}</td>
+      <td>${esc(s.note || '')}</td>
+    </tr>`).join('');
+
+  const actionRows = actions.length ? `
+    <div class="section">
+      <h3>Follow-Up Action Items</h3>
+      <table class="figures">
+        <tr><td class="figures-title">Description</td><td class="figures-title">Due</td><td class="figures-title">Status</td></tr>
+        ${actions.map(a => `<tr><td>${esc(a.description)}</td><td>${a.due_date ? esc(a.due_date) : '—'}</td><td>${esc(a.status)}</td></tr>`).join('')}
+      </table>
+    </div>` : '';
+
+  const photoBlock = photos.length ? `
+    <div class="section">
+      <h3>Evidence Photos</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        ${photos.map(p => `<img src="${esc(p.photo_url)}" style="width:150px;height:112px;object-fit:cover;border:1px solid #DDD6C8;border-radius:4px;" />`).join('')}
+      </div>
+    </div>` : '';
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light"><style>
+    * { box-sizing: border-box; }
+    html, body { background: #FFFFFF; }
+    body { font-family: Georgia, 'Times New Roman', serif; font-size: 11pt; color: #2A2620; line-height: 1.6; margin: 0; }
+    .meta-bar { display: flex; justify-content: space-between; font-size: 8pt; color: #7A7266; margin-bottom: 18px; font-family: Arial, Helvetica, sans-serif; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: 9.5pt; font-family: Arial, Helvetica, sans-serif; margin-bottom: 18px; }
+    .meta-grid span.lbl { color: #7A7266; }
+    .section { margin-bottom: 20px; page-break-inside: avoid; }
+    .section h3 { font-size: 11.5pt; letter-spacing: 0.03em; color: #0B3D2E; border-bottom: 1.5px solid #0B3D2E; padding-bottom: 4px; margin: 0 0 10px; font-family: Arial, Helvetica, sans-serif; }
+    .section p { margin: 0 0 8px; }
+    table.scores, table.figures { width: 100%; border-collapse: collapse; margin-top: 6px; font-family: Arial, Helvetica, sans-serif; font-size: 8.5pt; }
+    table.scores td, table.figures td { border: 1px solid #DDD6C8; padding: 5px 8px; vertical-align: top; }
+    table.figures .figures-title { background: #F4EFE3; font-weight: bold; color: #0B3D2E; }
+  </style></head><body>
+    ${renderLetterhead(school)}
+    <div class="meta-bar">
+      <span>Lesson Observation Report</span>
+      <span>Generated ${generatedOn}</span>
+    </div>
+    <div class="meta-grid">
+      <div><span class="lbl">Teacher:</span> ${esc(observation.observed_teacher_name)}</div>
+      <div><span class="lbl">Observer:</span> ${esc(observation.observer_name)}</div>
+      <div><span class="lbl">Subject / Class:</span> ${esc(observation.subject || '—')} ${observation.class_names ? `(${esc(observation.class_names)})` : ''}</div>
+      <div><span class="lbl">Observed on:</span> ${esc(observedOn)}</div>
+      <div><span class="lbl">Type:</span> ${observation.observation_type === 'drop_in' ? 'Drop-in' : 'Scheduled'}</div>
+      <div><span class="lbl">Entry mode:</span> ${observation.entry_mode === 'paper_entered_later' ? 'Entered from paper form' : 'Live'}</div>
+    </div>
+    <div class="section">
+      <h3>Rubric Scores</h3>
+      <table class="scores">
+        <tr><td style="font-weight:bold;">Criterion</td><td style="font-weight:bold;text-align:center;">Rating</td><td style="font-weight:bold;">Note</td></tr>
+        ${scoreRows}
+      </table>
+    </div>
+    <div class="section">
+      <h3>What Went Well</h3>
+      <p>${esc(observation.glow_notes || '—').replace(/\n/g, '<br/>')}</p>
+    </div>
+    <div class="section">
+      <h3>What to Work On</h3>
+      <p>${esc(observation.grow_notes || '—').replace(/\n/g, '<br/>')}</p>
+    </div>
+    <div class="section">
+      <h3>Recommended Action</h3>
+      <p>${esc(observation.recommended_action || '—').replace(/\n/g, '<br/>')}</p>
+    </div>
+    ${actionRows}
+    ${photoBlock}
+  </body></html>`;
+}
+
+async function generateObservationReportPDFBuffer(observation, scores, actions, photos, school) {
+  const html = buildObservationReportHTML(observation, scores, actions, photos, school);
+  const executablePath = await resolveChromePath();
+  const browser = await puppeteer.launch({
+    args:            chromeLaunchArgs(),
+    defaultViewport: chromium.defaultViewport,
+    executablePath,
+    headless:        true,
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
+    return Buffer.from(await page.pdf({
+      format: 'A4', landscape: false, printBackground: true,
+      margin: { top: '18mm', right: '18mm', bottom: '16mm', left: '18mm' },
+      displayHeaderFooter: true,
+      headerTemplate: '<div></div>',
+      footerTemplate: `<div style="width:100%;font-size:7pt;color:#7A7266;display:flex;justify-content:space-between;padding:0 18mm;font-family:Arial,Helvetica,sans-serif;">
+        <span>CAS Services</span><span class="pageNumber"></span>/<span class="totalPages"></span></div>`,
+    }));
+  } finally {
+    await browser.close();
+  }
+}
+
+// Blank, printable form for offline/paper observation (§3c of the design doc) —
+// no connectivity needed; the observer transcribes it back into the app later.
+function buildBlankObservationFormHTML(criteria, school) {
+  const generatedOn = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const criteriaRows = criteria.map(c => `
+    <tr>
+      <td>${esc(c.name)}</td>
+      <td style="width:70px;"></td>
+      <td></td>
+    </tr>`).join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light"><style>
+    * { box-sizing: border-box; }
+    html, body { background: #FFFFFF; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #2A2620; line-height: 1.5; margin: 0; }
+    .meta-bar { font-size: 8pt; color: #7A7266; margin-bottom: 18px; }
+    .field-row { display: flex; gap: 24px; margin-bottom: 10px; }
+    .field { flex: 1; border-bottom: 1px solid #000; padding-bottom: 2px; }
+    .field .lbl { font-size: 8pt; color: #7A7266; display: block; }
+    .section { margin-bottom: 18px; page-break-inside: avoid; }
+    .section h3 { font-size: 11pt; letter-spacing: 0.03em; color: #0B3D2E; border-bottom: 1.5px solid #0B3D2E; padding-bottom: 4px; margin: 0 0 10px; }
+    table.scores { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 9pt; }
+    table.scores td, table.scores th { border: 1px solid #000; padding: 8px; vertical-align: top; }
+    table.scores th { background: #F4EFE3; text-align: left; }
+    .scale { font-size: 8.5pt; color: #4A3F32; margin-bottom: 10px; }
+    .lines { border-bottom: 1px solid #999; height: 20px; }
+  </style></head><body>
+    ${renderLetterhead(school)}
+    <div class="meta-bar">Lesson Observation Form (Blank) — Generated ${generatedOn}. Fill by hand; transcribe into the app once online.</div>
+    <div class="field-row">
+      <div class="field"><span class="lbl">Teacher</span>&nbsp;</div>
+      <div class="field"><span class="lbl">Observer</span>&nbsp;</div>
+    </div>
+    <div class="field-row">
+      <div class="field"><span class="lbl">Subject / Class</span>&nbsp;</div>
+      <div class="field"><span class="lbl">Date / Time</span>&nbsp;</div>
+    </div>
+    <div class="section">
+      <h3>Rubric Scores</h3>
+      <p class="scale">Scale: 4 = Highly Effective · 3 = Effective · 2 = Developing · 1 = Ineffective · N/A = Not Observed</p>
+      <table class="scores">
+        <tr><th>Criterion</th><th>Score</th><th>Notes</th></tr>
+        ${criteriaRows}
+      </table>
+    </div>
+    <div class="section"><h3>What Went Well</h3><div class="lines"></div><div class="lines"></div></div>
+    <div class="section"><h3>What to Work On</h3><div class="lines"></div><div class="lines"></div></div>
+    <div class="section"><h3>Recommended Action</h3><div class="lines"></div><div class="lines"></div></div>
+  </body></html>`;
+}
+
+async function generateBlankObservationFormPDFBuffer(criteria, school) {
+  const html = buildBlankObservationFormHTML(criteria, school);
+  const executablePath = await resolveChromePath();
+  const browser = await puppeteer.launch({
+    args:            chromeLaunchArgs(),
+    defaultViewport: chromium.defaultViewport,
+    executablePath,
+    headless:        true,
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
+    return Buffer.from(await page.pdf({
+      format: 'A4', landscape: false, printBackground: true,
+      margin: { top: '18mm', right: '18mm', bottom: '16mm', left: '18mm' },
+    }));
+  } finally {
+    await browser.close();
+  }
+}
+
 module.exports = {
   generateAndUploadPDF, buildLetterHTML,
   buildAdmissionLetterHTML, generateAdmissionLetterPDF,
@@ -1459,4 +1639,6 @@ module.exports = {
   generateCardPng,
   buildExamAnalysisReportHTML, generateExamAnalysisReportPDFBuffer, generateChartPngBuffer,
   buildBoardReportHTML, generateBoardReportPDFBuffer,
+  buildObservationReportHTML, generateObservationReportPDFBuffer,
+  buildBlankObservationFormHTML, generateBlankObservationFormPDFBuffer,
 };

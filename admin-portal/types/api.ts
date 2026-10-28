@@ -340,6 +340,100 @@ export interface SchoolCalendarEntry {
   created_at: string;
 }
 
+export interface ObservationCriterion {
+  id: string;
+  name: string;
+  nts_domain: string | null;
+  sort_order: number;
+}
+
+export interface ObservableTeacher {
+  id: string;
+  name: string;
+  teacher_code: string;
+  department: string | null;
+}
+
+export interface ObservationScore {
+  id: string;
+  criterion_id: string;
+  criterion_name: string;
+  nts_domain: string | null;
+  score: number | null;
+  note: string | null;
+}
+
+export interface ObservationAction {
+  id: string;
+  description: string;
+  due_date: string | null;
+  status: 'Open' | 'Done';
+  created_by: string | null;
+  closed_at: string | null;
+  created_at: string;
+}
+
+export interface ObservationPhoto {
+  id: string;
+  photo_url: string;
+  caption: string | null;
+  created_at: string;
+}
+
+export interface LessonObservationListItem {
+  id: string;
+  observation_type: 'scheduled' | 'drop_in';
+  entry_mode: 'live' | 'paper_entered_later';
+  status: 'Scheduled' | 'Completed' | 'Acknowledged' | 'Closed';
+  subject: string | null;
+  class_names: string | null;
+  scheduled_at: string | null;
+  observed_at: string | null;
+  teacher_ack_at: string | null;
+  created_at: string;
+  observer_name: string;
+  observed_teacher_name: string;
+  open_actions: number;
+}
+
+export interface LessonObservationDetail {
+  id: string;
+  school_id: string;
+  observer_id: string;
+  observed_teacher_id: string;
+  observation_type: 'scheduled' | 'drop_in';
+  entry_mode: 'live' | 'paper_entered_later';
+  status: 'Scheduled' | 'Completed' | 'Acknowledged' | 'Closed';
+  timetable_id: string | null;
+  subject: string | null;
+  class_names: string | null;
+  scheduled_at: string | null;
+  observed_at: string | null;
+  glow_notes: string | null;
+  grow_notes: string | null;
+  recommended_action: string | null;
+  evidence_notes?: string | null;
+  overall_rating?: number | null;
+  teacher_ack_at: string | null;
+  teacher_comment: string | null;
+  follow_up_of_id: string | null;
+  closed_at: string | null;
+  closed_by: string | null;
+  created_at: string;
+  observer_name: string;
+  observed_teacher_name: string;
+  observed_teacher_email?: string;
+  scores?: ObservationScore[];
+  actions: ObservationAction[];
+  photos: ObservationPhoto[];
+}
+
+export interface ObservationAnalytics {
+  coverage: { teacher_id: string; teacher_name: string; department: string | null; observation_count: number; last_observed_at: string | null }[];
+  score_trend: { criterion_id: string; criterion_name: string; avg_score: number | null; n: number }[];
+  actions: { open: number; done: number; overdue: number };
+}
+
 export interface TeacherExcuse {
   id: string;
   teacher_id: string;

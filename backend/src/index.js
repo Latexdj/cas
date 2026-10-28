@@ -78,6 +78,7 @@ const noticesRoutes           = require('./routes/notices');
 const disciplineRoutes        = require('./routes/discipline');
 const letterChatRoutes        = require('./routes/letter-chat');
 const boardReportRoutes       = require('./routes/board-report');
+const lessonObservationRoutes = require('./routes/lesson-observation');
 const helpChatRoutes          = require('./routes/help-chat');
 const policyDocumentsRoutes   = require('./routes/policy-documents');
 const resumptionRoutes        = require('./routes/resumption');
@@ -87,6 +88,7 @@ const { startAbsenceCheckJob }          = require('./jobs/absenceCheck');
 const { startSubscriptionExpiryJob }    = require('./jobs/subscriptionExpiry');
 const { startLibraryNotificationJob }   = require('./jobs/libraryNotifications');
 const { startIdCardScanPurgeJob }       = require('./jobs/idCardScanPurge');
+const { startObservationActionReminderJob } = require('./jobs/observationActionReminders');
 
 const app = express();
 
@@ -201,6 +203,7 @@ app.use('/api/memos',                 require('./routes/memos'));
 app.use('/api/admin-module-access',   require('./routes/admin-module-access'));
 app.use('/api/letter-chat',           letterChatRoutes);
 app.use('/api/board-report',          boardReportRoutes);
+app.use('/api/lesson-observation',    lessonObservationRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
 app.use('/api/resumption',            resumptionRoutes);
 app.use('/api/roll-call',             rollCallRoutes);
@@ -3605,6 +3608,109 @@ async function runMigrations() {
       `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] timetable unique slot constraint:', e.message); }
 
+    // ── Lesson Observation & Monitoring module ─────────────────────────────────
+    try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS observation_criteria (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id   UUID REFERENCES schools(id) ON DELETE CASCADE,
+        name        TEXT NOT NULL,
+        nts_domain  TEXT,
+        sort_order  INT NOT NULL DEFAULT 0,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_observation_criteria_global_name
+        ON observation_criteria(name) WHERE school_id IS NULL
+    `);
+    await pool.query(`
+      INSERT INTO observation_criteria (name, nts_domain, sort_order) VALUES
+        ('Lesson Planning & Preparation', 'Professional Practice', 1),
+        ('Classroom & Learning Environment Management', 'Professional Practice', 2),
+        ('Pedagogy & Delivery', 'Professional Practice', 3),
+        ('Knowledge of Learners & Differentiation', 'Professional Knowledge', 4),
+        ('Assessment for Learning', 'Professional Practice', 5),
+        ('Professional Conduct & Attitude', 'Professional Values and Attitudes', 6),
+        ('Use of 21st-Century Skills', 'Professional Practice', 7),
+        ('Social-Emotional Learning (SEL)', 'Professional Practice', 8),
+        ('GESI (Gender Equality & Social Inclusion)', 'Professional Values and Attitudes', 9)
+      ON CONFLICT (name) WHERE school_id IS NULL DO NOTHING
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lesson_observations (
+        id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id           UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        observer_id         UUID NOT NULL REFERENCES teachers(id),
+        observed_teacher_id UUID NOT NULL REFERENCES teachers(id),
+        observation_type    TEXT NOT NULL DEFAULT 'scheduled' CHECK (observation_type IN ('scheduled','drop_in')),
+        entry_mode          TEXT NOT NULL DEFAULT 'live' CHECK (entry_mode IN ('live','paper_entered_later')),
+        status              TEXT NOT NULL DEFAULT 'Scheduled'
+                              CHECK (status IN ('Scheduled','Completed','Acknowledged','Closed')),
+        timetable_id        UUID REFERENCES timetable(id) ON DELETE SET NULL,
+        subject             TEXT,
+        class_names         TEXT,
+        academic_year_id    UUID REFERENCES academic_years(id),
+        semester            INT CHECK (semester IN (1,2)),
+        scheduled_at        TIMESTAMPTZ,
+        observed_at         TIMESTAMPTZ,
+        glow_notes          TEXT,
+        grow_notes          TEXT,
+        recommended_action  TEXT,
+        evidence_notes      TEXT,
+        overall_rating      NUMERIC(3,2),
+        teacher_ack_at      TIMESTAMPTZ,
+        teacher_comment     TEXT,
+        follow_up_of_id     UUID REFERENCES lesson_observations(id) ON DELETE SET NULL,
+        closed_at           TIMESTAMPTZ,
+        closed_by           UUID REFERENCES teachers(id),
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lesson_obs_school   ON lesson_observations(school_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lesson_obs_teacher  ON lesson_observations(observed_teacher_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lesson_obs_observer ON lesson_observations(observer_id)`);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lesson_observation_scores (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        observation_id  UUID NOT NULL REFERENCES lesson_observations(id) ON DELETE CASCADE,
+        criterion_id    UUID NOT NULL REFERENCES observation_criteria(id),
+        score           SMALLINT CHECK (score BETWEEN 1 AND 4),
+        note            TEXT,
+        UNIQUE (observation_id, criterion_id)
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lesson_observation_actions (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        observation_id  UUID NOT NULL REFERENCES lesson_observations(id) ON DELETE CASCADE,
+        description     TEXT NOT NULL,
+        due_date        DATE,
+        status          TEXT NOT NULL DEFAULT 'Open' CHECK (status IN ('Open','Done')),
+        created_by      UUID REFERENCES teachers(id),
+        closed_at       TIMESTAMPTZ,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_lesson_obs_actions_obs ON lesson_observation_actions(observation_id)`);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS observation_photos (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id       UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        observation_id  UUID NOT NULL REFERENCES lesson_observations(id) ON DELETE CASCADE,
+        photo_url       TEXT NOT NULL,
+        caption         TEXT,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_observation_photos_obs ON observation_photos(observation_id)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] lesson observation module:', e.message); }
+
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);
     } else {
@@ -3625,4 +3731,5 @@ app.listen(PORT, async () => {
   startSubscriptionExpiryJob();
   startLibraryNotificationJob();
   startIdCardScanPurgeJob();
+  startObservationActionReminderJob();
 });

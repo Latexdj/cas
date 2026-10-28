@@ -152,6 +152,52 @@ export interface StudentResult {
   exam_percentage: number;
 }
 
+export interface LessonObservationAction {
+  id: string;
+  description: string;
+  due_date: string | null;
+  status: 'Open' | 'Done';
+}
+
+export interface LessonObservationPhoto {
+  id: string;
+  photo_url: string;
+  caption: string | null;
+}
+
+export interface LessonObservation {
+  id: string;
+  observation_type: 'scheduled' | 'drop_in';
+  entry_mode: 'live' | 'paper_entered_later';
+  status: 'Scheduled' | 'Completed' | 'Acknowledged' | 'Closed';
+  subject: string | null;
+  class_names: string | null;
+  scheduled_at: string | null;
+  observed_at: string | null;
+  teacher_ack_at: string | null;
+  created_at: string;
+  observer_name: string;
+  observed_teacher_name: string;
+  open_actions: number;
+}
+
+export interface LessonObservationDetail {
+  id: string;
+  status: 'Scheduled' | 'Completed' | 'Acknowledged' | 'Closed';
+  subject: string | null;
+  class_names: string | null;
+  scheduled_at: string | null;
+  observed_at: string | null;
+  glow_notes: string | null;
+  grow_notes: string | null;
+  recommended_action: string | null;
+  teacher_ack_at: string | null;
+  teacher_comment: string | null;
+  observer_name: string;
+  actions: LessonObservationAction[];
+  photos: LessonObservationPhoto[];
+}
+
 export interface TeacherExcuse {
   id: string;
   teacher_id: string;

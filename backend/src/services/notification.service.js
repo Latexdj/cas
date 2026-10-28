@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { sendSms } = require('./sms.service');
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const EMAIL_FROM    = process.env.SMTP_FROM || 'staugustineshts@gmail.com';
@@ -178,6 +179,40 @@ async function notifyPendingAttendanceRejected(schoolId, teacher, kind, descript
   ]);
 }
 
+async function notifyTeacherObservationScheduled(schoolId, teacher, observation) {
+  const when = observation.scheduled_at
+    ? new Date(observation.scheduled_at).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : 'soon';
+  const lessonDesc = observation.subject ? `your ${observation.subject}${observation.class_names ? ` (${observation.class_names})` : ''} lesson` : 'your lesson';
+  const title   = 'Lesson Observation Scheduled';
+  const message = `${observation.observer_name || 'Your HOD/management'} will observe ${lessonDesc} on ${when}.`;
+
+  await Promise.all([
+    createNotification(schoolId, teacher.id, title, message),
+    sendTeacherEmail(
+      teacher.email,
+      title,
+      `Dear ${teacher.name},\n\n${observation.observer_name || 'A member of management'} has scheduled a lesson observation for ${lessonDesc} on ${when}.\n\nThis is a routine part of our teaching quality process — no preparation beyond your normal lesson plan is needed.\n\n— CAS`
+    ),
+    teacher.phone ? sendSms(teacher.phone, message) : Promise.resolve(),
+  ]);
+}
+
+async function notifyTeacherObservationFeedbackReady(schoolId, teacher, observation) {
+  const title   = 'Lesson Observation Feedback Ready';
+  const message = `Feedback from your ${observation.subject || 'recent'} lesson observation is ready. Open it to see what went well and what to work on.`;
+
+  await Promise.all([
+    createNotification(schoolId, teacher.id, title, message),
+    sendTeacherEmail(
+      teacher.email,
+      title,
+      `Dear ${teacher.name},\n\nFeedback from your recent lesson observation${observation.subject ? ` (${observation.subject})` : ''} is now ready to view.\n\nPlease log in to review what went well and what to work on, and acknowledge once you've read it.\n\n— CAS`
+    ),
+    teacher.phone ? sendSms(teacher.phone, message) : Promise.resolve(),
+  ]);
+}
+
 module.exports = {
   createNotification,
   sendTeacherEmail,
@@ -190,4 +225,6 @@ module.exports = {
   notifyPendingAttendanceSubmitted,
   notifyPendingAttendanceApproved,
   notifyPendingAttendanceRejected,
+  notifyTeacherObservationScheduled,
+  notifyTeacherObservationFeedbackReady,
 };

@@ -44,6 +44,12 @@ const MENU_SECTIONS: { label: string; items: MenuItem[] }[] = [
         icon:     'document-text-outline',
         route:    '/absences/leaves',
       },
+      {
+        title:    'My Observations',
+        subtitle: 'Feedback from lesson observations',
+        icon:     'eye-outline',
+        route:    '/observations',
+      },
     ],
   },
   {
