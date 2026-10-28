@@ -3096,6 +3096,22 @@ async function runMigrations() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_classes_level ON classes(level_id)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] class_levels:', e.message); }
 
+    // ── School calendar event scoping (restrict a holiday/event to one department,
+    // one year-batch/class-level, or a hand-picked list of classes, instead of
+    // always exempting the whole school from absence-marking) ─────────────────
+    try {
+    await pool.query(`ALTER TABLE school_calendar ADD COLUMN IF NOT EXISTS scope_type TEXT NOT NULL DEFAULT 'school'`);
+    await pool.query(`ALTER TABLE school_calendar ADD COLUMN IF NOT EXISTS scope_department_id UUID REFERENCES departments(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE school_calendar ADD COLUMN IF NOT EXISTS scope_class_level_id UUID REFERENCES class_levels(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE school_calendar ADD COLUMN IF NOT EXISTS scope_class_names TEXT[]`);
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE school_calendar ADD CONSTRAINT school_calendar_scope_type_check
+          CHECK (scope_type IN ('school','department','class_level','classes'));
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$
+    `);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] school_calendar event scoping:', e.message); }
+
     // ── Year-scoped index_number on admission_applications ────────────────────
     // Mirrors the admission_placement widening: a repeat CSSPS index number
     // showing up in a later admission_year is legitimate (e.g. a BECE repeat),

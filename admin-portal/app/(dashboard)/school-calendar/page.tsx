@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { fmtDateDefault, parseApiDate } from '@/lib/dates';
-import type { SchoolCalendarEntry } from '@/types/api';
+import type { SchoolCalendarEntry, ClassItem, ClassLevel } from '@/types/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -14,6 +14,13 @@ interface Period {
   end_date: string;
   created_at: string;
 }
+
+interface Department { id: string; name: string; }
+
+type ScopeType = 'school' | 'department' | 'class_level' | 'classes';
+const SCOPE_LABELS: Record<ScopeType, string> = {
+  school: 'Whole School', department: 'One Department', class_level: 'One Year Batch', classes: 'Selected Classes',
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -65,6 +72,10 @@ export default function SchoolCalendarPage() {
   const [examPeriods, setExamPeriods] = useState<Period[]>([]);
   const [loading,    setLoading]    = useState(true);
 
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [classLevels,  setClassLevels] = useState<ClassLevel[]>([]);
+  const [classes,      setClasses]     = useState<ClassItem[]>([]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -80,6 +91,13 @@ export default function SchoolCalendarPage() {
   }, [year]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Scope reference data doesn't depend on `year` — load once.
+  useEffect(() => {
+    api.get<Department[]>('/api/departments').then(r => setDepartments(r.data)).catch(() => {});
+    api.get<ClassLevel[]>('/api/class-levels').then(r => setClassLevels(r.data)).catch(() => {});
+    api.get<ClassItem[]>('/api/classes').then(r => setClasses(r.data)).catch(() => {});
+  }, []);
 
   // ── Tab button helper ──────────────────────────────────────────────────────
 
@@ -130,7 +148,8 @@ export default function SchoolCalendarPage() {
         </div>
       ) : (
         <>
-          {tab === 'events'   && <EventsTab   entries={entries}     year={year} onRefresh={load} />}
+          {tab === 'events'   && <EventsTab   entries={entries}     year={year} onRefresh={load}
+            departments={departments} classLevels={classLevels} classes={classes} />}
           {tab === 'vacation' && <PeriodTab   periods={vacations}   kind="vacation" year={year} onRefresh={load} />}
           {tab === 'exam'     && <PeriodTab   periods={examPeriods} kind="exam"     year={year} onRefresh={load} />}
         </>
@@ -141,10 +160,19 @@ export default function SchoolCalendarPage() {
 
 // ── Events tab ────────────────────────────────────────────────────────────────
 
-type EntryForm = { date: string; name: string; type: typeof TYPES[number]; notes: string; start_time: string; end_time: string };
-const ENTRY_EMPTY: EntryForm = { date: '', name: '', type: 'Holiday', notes: '', start_time: '', end_time: '' };
+type EntryForm = {
+  date: string; name: string; type: typeof TYPES[number]; notes: string; start_time: string; end_time: string;
+  scope_type: ScopeType; scope_department_id: string; scope_class_level_id: string; scope_class_names: string[];
+};
+const ENTRY_EMPTY: EntryForm = {
+  date: '', name: '', type: 'Holiday', notes: '', start_time: '', end_time: '',
+  scope_type: 'school', scope_department_id: '', scope_class_level_id: '', scope_class_names: [],
+};
 
-function EntryFormFields({ form, onChange }: { form: EntryForm; onChange: (f: EntryForm) => void }) {
+function EntryFormFields({ form, onChange, departments, classLevels, classes }: {
+  form: EntryForm; onChange: (f: EntryForm) => void;
+  departments: Department[]; classLevels: ClassLevel[]; classes: ClassItem[];
+}) {
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -190,11 +218,80 @@ function EntryFormFields({ form, onChange }: { form: EntryForm; onChange: (f: En
           </p>
         </div>
       </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        <div>
+          <label className={labelCls}>Applies To</label>
+          <select className={inputCls} value={form.scope_type}
+            onChange={e => onChange({
+              ...form, scope_type: e.target.value as ScopeType,
+              scope_department_id: '', scope_class_level_id: '', scope_class_names: [],
+            })}>
+            {(Object.keys(SCOPE_LABELS) as ScopeType[]).map(s => <option key={s} value={s}>{SCOPE_LABELS[s]}</option>)}
+          </select>
+          <p className="text-xs text-slate-400 mt-1">
+            {form.scope_type === 'school'
+              ? 'Exempts every teacher/class on this day (or time window) from absence-marking.'
+              : 'Only teachers/classes in the selection below are exempted — everyone else is checked as normal.'}
+          </p>
+        </div>
+        {form.scope_type === 'department' && (
+          <div>
+            <label className={labelCls}>Department *</label>
+            <select className={inputCls} value={form.scope_department_id}
+              onChange={e => onChange({ ...form, scope_department_id: e.target.value })}>
+              <option value="">Select a department…</option>
+              {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </div>
+        )}
+        {form.scope_type === 'class_level' && (
+          <div>
+            <label className={labelCls}>Year Batch *</label>
+            <select className={inputCls} value={form.scope_class_level_id}
+              onChange={e => onChange({ ...form, scope_class_level_id: e.target.value })}>
+              <option value="">Select a year batch…</option>
+              {classLevels.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </div>
+        )}
+        {form.scope_type === 'classes' && (
+          <div>
+            <label className={labelCls}>Classes * ({form.scope_class_names.length} selected)</label>
+            <div className="max-h-36 overflow-y-auto border rounded-lg divide-y border-slate-200 dark:border-slate-600 dark:divide-slate-700">
+              {classes.map(c => {
+                const checked = form.scope_class_names.includes(c.name);
+                return (
+                  <label key={c.id} className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/40 text-slate-700 dark:text-slate-200">
+                    <input type="checkbox" checked={checked}
+                      onChange={() => onChange({
+                        ...form,
+                        scope_class_names: checked
+                          ? form.scope_class_names.filter(n => n !== c.name)
+                          : [...form.scope_class_names, c.name],
+                      })} />
+                    {c.name}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     </>
   );
 }
 
-function EventsTab({ entries, year, onRefresh }: { entries: SchoolCalendarEntry[]; year: number; onRefresh: () => void }) {
+function scopeInvalid(f: EntryForm): string | null {
+  if (f.scope_type === 'department'  && !f.scope_department_id)        return 'Select a department.';
+  if (f.scope_type === 'class_level' && !f.scope_class_level_id)       return 'Select a year batch.';
+  if (f.scope_type === 'classes'     && f.scope_class_names.length === 0) return 'Select at least one class.';
+  return null;
+}
+
+function EventsTab({ entries, year, onRefresh, departments, classLevels, classes }: {
+  entries: SchoolCalendarEntry[]; year: number; onRefresh: () => void;
+  departments: Department[]; classLevels: ClassLevel[]; classes: ClassItem[];
+}) {
   const [adding,    setAdding]    = useState(false);
   const [form,      setForm]      = useState<EntryForm>(ENTRY_EMPTY);
   const [saving,    setSaving]    = useState(false);
@@ -206,6 +303,8 @@ function EventsTab({ entries, year, onRefresh }: { entries: SchoolCalendarEntry[
 
   async function save() {
     if (!form.date || !form.name.trim()) { setError('Date and name are required.'); return; }
+    const scopeErr = scopeInvalid(form);
+    if (scopeErr) { setError(scopeErr); return; }
     setSaving(true); setError('');
     try {
       await api.post('/api/school-calendar', { ...form, start_time: form.start_time || undefined, end_time: form.end_time || undefined });
@@ -221,6 +320,10 @@ function EventsTab({ entries, year, onRefresh }: { entries: SchoolCalendarEntry[
     setEditForm({
       date: e.date, name: e.name, type: e.type as typeof TYPES[number],
       notes: e.notes ?? '', start_time: e.start_time?.slice(0, 5) ?? '', end_time: e.end_time?.slice(0, 5) ?? '',
+      scope_type: e.scope_type ?? 'school',
+      scope_department_id: e.scope_department_id ?? '',
+      scope_class_level_id: e.scope_class_level_id ?? '',
+      scope_class_names: e.scope_class_names ?? [],
     });
     setEditError('');
   }
@@ -228,6 +331,8 @@ function EventsTab({ entries, year, onRefresh }: { entries: SchoolCalendarEntry[
   async function saveEdit() {
     if (!editingId) return;
     if (!editForm.date || !editForm.name.trim()) { setEditError('Date and name are required.'); return; }
+    const scopeErr = scopeInvalid(editForm);
+    if (scopeErr) { setEditError(scopeErr); return; }
     setEditSaving(true); setEditError('');
     try {
       await api.put(`/api/school-calendar/${editingId}`, {
@@ -277,7 +382,7 @@ function EventsTab({ entries, year, onRefresh }: { entries: SchoolCalendarEntry[
       {adding && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-5 space-y-4">
           <h2 className="text-sm font-bold text-slate-800 dark:text-white">New Calendar Entry</h2>
-          <EntryFormFields form={form} onChange={setForm} />
+          <EntryFormFields form={form} onChange={setForm} departments={departments} classLevels={classLevels} classes={classes} />
           {error && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>}
           <div className="flex justify-end">
             <button onClick={save} disabled={saving}
@@ -314,6 +419,15 @@ function EventsTab({ entries, year, onRefresh }: { entries: SchoolCalendarEntry[
                             <td className="px-4 py-3 text-xs text-slate-500">
                               {e.start_time && e.end_time ? `${e.start_time.slice(0,5)}–${e.end_time.slice(0,5)}` : <span className="text-slate-300 dark:text-slate-600">Whole day</span>}
                             </td>
+                            <td className="px-4 py-3 text-xs">
+                              {e.scope_type && e.scope_type !== 'school' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                  {e.scope_type === 'department' && (e.scope_department_name ?? 'Department')}
+                                  {e.scope_type === 'class_level' && (e.scope_class_level_name ?? 'Year Batch')}
+                                  {e.scope_type === 'classes' && `${e.scope_class_names?.length ?? 0} class${(e.scope_class_names?.length ?? 0) !== 1 ? 'es' : ''}`}
+                                </span>
+                              ) : <span className="text-slate-300 dark:text-slate-600">Whole school</span>}
+                            </td>
                             <td className="px-4 py-3 text-xs text-slate-400">{e.notes ?? ''}</td>
                             <td className="px-4 py-3 text-right">
                               <div className="flex items-center justify-end gap-3">
@@ -332,9 +446,9 @@ function EventsTab({ entries, year, onRefresh }: { entries: SchoolCalendarEntry[
                           </tr>
                           {editingId === e.id && (
                             <tr key={`${e.id}-edit`}>
-                              <td colSpan={6} className="px-5 py-4 bg-amber-50 dark:bg-amber-900/10 border-t border-amber-100 dark:border-amber-900/30">
+                              <td colSpan={7} className="px-5 py-4 bg-amber-50 dark:bg-amber-900/10 border-t border-amber-100 dark:border-amber-900/30">
                                 <div className="space-y-3">
-                                  <EntryFormFields form={editForm} onChange={setEditForm} />
+                                  <EntryFormFields form={editForm} onChange={setEditForm} departments={departments} classLevels={classLevels} classes={classes} />
                                   {editError && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{editError}</p>}
                                   <div className="flex justify-end gap-2">
                                     <button onClick={() => setEditingId(null)}

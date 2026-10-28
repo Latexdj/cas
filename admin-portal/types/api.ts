@@ -331,6 +331,12 @@ export interface SchoolCalendarEntry {
   notes: string | null;
   start_time: string | null;
   end_time: string | null;
+  scope_type: 'school' | 'department' | 'class_level' | 'classes';
+  scope_department_id: string | null;
+  scope_class_level_id: string | null;
+  scope_class_names: string[] | null;
+  scope_department_name?: string | null;
+  scope_class_level_name?: string | null;
   created_at: string;
 }
 

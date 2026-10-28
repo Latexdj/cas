@@ -1,6 +1,27 @@
 const router = require('express').Router();
 const pool   = require('../config/db');
 const { authenticate, adminOnly, requireActiveSubscription } = require('../middleware/auth');
+const { buildScopeFilterSql } = require('../services/eventScope.service');
+
+const VALID_SCOPE_TYPES = ['school', 'department', 'class_level', 'classes'];
+
+// Validates & normalizes the scope fields from a create/update body. Throws a
+// string error message on invalid input — callers turn that into a 400.
+function parseScope(body) {
+  const scope_type = body.scope_type || 'school';
+  if (!VALID_SCOPE_TYPES.includes(scope_type)) {
+    throw new Error(`scope_type must be one of: ${VALID_SCOPE_TYPES.join(', ')}`);
+  }
+  const scope_department_id  = scope_type === 'department'  ? (body.scope_department_id || null)  : null;
+  const scope_class_level_id = scope_type === 'class_level' ? (body.scope_class_level_id || null)  : null;
+  const scope_class_names    = scope_type === 'classes'
+    ? (Array.isArray(body.scope_class_names) ? body.scope_class_names.filter(Boolean) : null)
+    : null;
+  if (scope_type === 'department' && !scope_department_id) throw new Error('scope_department_id is required when scope_type is department');
+  if (scope_type === 'class_level' && !scope_class_level_id) throw new Error('scope_class_level_id is required when scope_type is class_level');
+  if (scope_type === 'classes' && (!scope_class_names || !scope_class_names.length)) throw new Error('scope_class_names is required when scope_type is classes');
+  return { scope_type, scope_department_id, scope_class_level_id, scope_class_names };
+}
 
 // Self-heal: ensure vacation/exam periods table and kind column exist
 (async () => {
@@ -34,33 +55,38 @@ router.use(authenticate, requireActiveSubscription);
 // GET /api/school-calendar?year=2026&month=5  — all authenticated users (teachers read-only)
 router.get('/', async (req, res, next) => {
   try {
-    const conditions = ['school_id = $1'];
+    const conditions = ['sc.school_id = $1'];
     const params     = [req.schoolId];
 
     if (req.query.year) {
       params.push(req.query.year);
-      conditions.push(`EXTRACT(YEAR FROM date) = $${params.length}`);
+      conditions.push(`EXTRACT(YEAR FROM sc.date) = $${params.length}`);
     }
     if (req.query.month) {
       params.push(req.query.month);
-      conditions.push(`EXTRACT(MONTH FROM date) = $${params.length}`);
+      conditions.push(`EXTRACT(MONTH FROM sc.date) = $${params.length}`);
     }
     if (req.query.from) {
       params.push(req.query.from);
-      conditions.push(`date >= $${params.length}`);
+      conditions.push(`sc.date >= $${params.length}`);
     }
     if (req.query.to) {
       params.push(req.query.to);
-      conditions.push(`date <= $${params.length}`);
+      conditions.push(`sc.date <= $${params.length}`);
     }
 
     const { rows } = await pool.query(
-      `SELECT id, date::text, name, type, notes,
-              start_time::text AS start_time, end_time::text AS end_time,
-              created_at
-       FROM school_calendar
+      `SELECT sc.id, sc.date::text, sc.name, sc.type, sc.notes,
+              sc.start_time::text AS start_time, sc.end_time::text AS end_time,
+              sc.scope_type, sc.scope_department_id, sc.scope_class_level_id, sc.scope_class_names,
+              d.name  AS scope_department_name,
+              cl.name AS scope_class_level_name,
+              sc.created_at
+       FROM school_calendar sc
+       LEFT JOIN departments  d  ON d.id  = sc.scope_department_id
+       LEFT JOIN class_levels cl ON cl.id = sc.scope_class_level_id
        WHERE ${conditions.join(' AND ')}
-       ORDER BY date ASC`,
+       ORDER BY sc.date ASC`,
       params
     );
     res.json(rows);
@@ -111,32 +137,51 @@ router.post('/', adminOnly, async (req, res, next) => {
     if (start_time && end_time && start_time >= end_time) {
       return res.status(400).json({ error: 'end_time must be after start_time' });
     }
+    let scope;
+    try { scope = parseScope(req.body); } catch (e) { return res.status(400).json({ error: e.message }); }
+    if (scope.scope_department_id) {
+      const { rows: d } = await pool.query(`SELECT 1 FROM departments WHERE id = $1 AND school_id = $2`, [scope.scope_department_id, req.schoolId]);
+      if (!d.length) return res.status(400).json({ error: 'Department not found' });
+    }
+    if (scope.scope_class_level_id) {
+      const { rows: l } = await pool.query(`SELECT 1 FROM class_levels WHERE id = $1 AND school_id = $2`, [scope.scope_class_level_id, req.schoolId]);
+      if (!l.length) return res.status(400).json({ error: 'Class level not found' });
+    }
 
     const { rows } = await pool.query(
-      `INSERT INTO school_calendar (school_id, date, name, type, notes, start_time, end_time)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `INSERT INTO school_calendar
+         (school_id, date, name, type, notes, start_time, end_time,
+          scope_type, scope_department_id, scope_class_level_id, scope_class_names)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        ON CONFLICT (school_id, date, name) DO UPDATE
          SET type = EXCLUDED.type, notes = EXCLUDED.notes,
-             start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time
+             start_time = EXCLUDED.start_time, end_time = EXCLUDED.end_time,
+             scope_type = EXCLUDED.scope_type, scope_department_id = EXCLUDED.scope_department_id,
+             scope_class_level_id = EXCLUDED.scope_class_level_id, scope_class_names = EXCLUDED.scope_class_names
        RETURNING id, date::text AS date, name, type, notes,
-                 start_time::text AS start_time, end_time::text AS end_time, created_at`,
-      [req.schoolId, date, name.trim(), type, notes || null, start_time || null, end_time || null]
+                 start_time::text AS start_time, end_time::text AS end_time,
+                 scope_type, scope_department_id, scope_class_level_id, scope_class_names, created_at`,
+      [req.schoolId, date, name.trim(), type, notes || null, start_time || null, end_time || null,
+       scope.scope_type, scope.scope_department_id, scope.scope_class_level_id, scope.scope_class_names]
     );
 
-    // Retroactively clear auto-generated absences already recorded for this event.
-    // For whole-day events: excuse all absences on that date.
-    // For partial-day events: excuse only absences whose timetable slot overlaps the event window.
+    // Retroactively clear auto-generated absences already recorded for this event,
+    // narrowed to the event's scope (department / year-batch / selected classes).
+    // For whole-day events: excuse all matching absences on that date.
+    // For partial-day events: excuse only matching absences whose timetable slot overlaps the event window.
     let rowCount = 0;
     if (!start_time || !end_time) {
-      // Whole day
+      const params = [req.schoolId, date];
+      const scopeSql = buildScopeFilterSql(scope, 'absences', params);
       ({ rowCount } = await pool.query(
         `UPDATE absences SET status = 'Excused', updated_at = now()
          WHERE school_id = $1 AND date = $2
-           AND is_auto_generated = true AND status = 'Absent'`,
-        [req.schoolId, date]
+           AND is_auto_generated = true AND status = 'Absent'${scopeSql}`,
+        params
       ));
     } else {
-      // Partial day — only excuse absences for lessons that overlap with the event window
+      const params = [req.schoolId, date, start_time, end_time];
+      const scopeSql = buildScopeFilterSql(scope, 'a', params);
       ({ rowCount } = await pool.query(
         `UPDATE absences a SET status = 'Excused', updated_at = now()
          WHERE a.school_id = $1 AND a.date = $2
@@ -147,8 +192,8 @@ router.post('/', adminOnly, async (req, res, next) => {
                AND tt.teacher_id = a.teacher_id
                AND tt.start_time < $4::time
                AND tt.end_time   > $3::time
-           )`,
-        [req.schoolId, date, start_time, end_time]
+           )${scopeSql}`,
+        params
       ));
     }
     if (rowCount > 0) {
@@ -163,22 +208,27 @@ router.post('/', adminOnly, async (req, res, next) => {
 router.post('/:id/reapply', adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      `SELECT date::text AS date, name, type, start_time::text AS start_time, end_time::text AS end_time
+      `SELECT date::text AS date, name, type, start_time::text AS start_time, end_time::text AS end_time,
+              scope_type, scope_department_id, scope_class_level_id, scope_class_names
        FROM school_calendar WHERE id = $1 AND school_id = $2`,
       [req.params.id, req.schoolId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Entry not found' });
-    const { date, name, type, start_time, end_time } = rows[0];
+    const { date, name, type, start_time, end_time, ...scope } = rows[0];
 
     let rowCount = 0;
     if (!start_time || !end_time) {
+      const params = [req.schoolId, date];
+      const scopeSql = buildScopeFilterSql(scope, 'absences', params);
       ({ rowCount } = await pool.query(
         `UPDATE absences SET status = 'Excused', updated_at = now()
          WHERE school_id = $1 AND date = $2
-           AND is_auto_generated = true AND status = 'Absent'`,
-        [req.schoolId, date]
+           AND is_auto_generated = true AND status = 'Absent'${scopeSql}`,
+        params
       ));
     } else {
+      const params = [req.schoolId, date, start_time, end_time];
+      const scopeSql = buildScopeFilterSql(scope, 'a', params);
       ({ rowCount } = await pool.query(
         `UPDATE absences a SET status = 'Excused', updated_at = now()
          WHERE a.school_id = $1 AND a.date = $2
@@ -189,8 +239,8 @@ router.post('/:id/reapply', adminOnly, async (req, res, next) => {
                AND tt.teacher_id = a.teacher_id
                AND tt.start_time < $4::time
                AND tt.end_time   > $3::time
-           )`,
-        [req.schoolId, date, start_time, end_time]
+           )${scopeSql}`,
+        params
       ));
     }
 
@@ -307,6 +357,16 @@ router.put('/:id', adminOnly, async (req, res, next) => {
     if (start_time && end_time && start_time >= end_time) {
       return res.status(400).json({ error: 'end_time must be after start_time' });
     }
+    let scope;
+    try { scope = parseScope(req.body); } catch (e) { return res.status(400).json({ error: e.message }); }
+    if (scope.scope_department_id) {
+      const { rows: d } = await pool.query(`SELECT 1 FROM departments WHERE id = $1 AND school_id = $2`, [scope.scope_department_id, req.schoolId]);
+      if (!d.length) return res.status(400).json({ error: 'Department not found' });
+    }
+    if (scope.scope_class_level_id) {
+      const { rows: l } = await pool.query(`SELECT 1 FROM class_levels WHERE id = $1 AND school_id = $2`, [scope.scope_class_level_id, req.schoolId]);
+      if (!l.length) return res.status(400).json({ error: 'Class level not found' });
+    }
     const { rows } = await pool.query(
       `UPDATE school_calendar
        SET date       = COALESCE($1, date),
@@ -314,13 +374,19 @@ router.put('/:id', adminOnly, async (req, res, next) => {
            type       = COALESCE($3, type),
            notes      = $4,
            start_time = $5,
-           end_time   = $6
+           end_time   = $6,
+           scope_type = $9,
+           scope_department_id = $10,
+           scope_class_level_id = $11,
+           scope_class_names = $12
        WHERE id = $7 AND school_id = $8
        RETURNING id, date::text AS date, name, type, notes,
-                 start_time::text AS start_time, end_time::text AS end_time, created_at`,
+                 start_time::text AS start_time, end_time::text AS end_time,
+                 scope_type, scope_department_id, scope_class_level_id, scope_class_names, created_at`,
       [date || null, name?.trim() || null, type || null,
        notes ?? null, start_time || null, end_time || null,
-       req.params.id, req.schoolId]
+       req.params.id, req.schoolId,
+       scope.scope_type, scope.scope_department_id, scope.scope_class_level_id, scope.scope_class_names]
     );
     if (!rows.length) return res.status(404).json({ error: 'Entry not found' });
     res.json(rows[0]);

@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const pool = require('../config/db');
 const { randomUUID } = require('crypto');
 const { sendAbsenceNotification, sendDailyAbsenceReport } = require('../services/email.service');
+const { getScopeContext, eventCoversTeacher, eventCoversLesson } = require('../services/eventScope.service');
 
 // Africa/Accra = UTC+0 (no DST), so new Date() == Accra time.
 // Returns 1=Monday … 7=Sunday to match timetable.day_of_week.
@@ -79,23 +80,39 @@ async function runAbsenceCheck(schoolId) {
   );
   const periodMins = schoolSettingRows[0]?.period_duration_minutes ?? 60;
 
-  // Skip entirely if today is a whole-day school event; skip individual lessons for partial-day events
+  // Skip entirely if today is a whole-school, whole-day event; a scoped event
+  // (department/year-batch/classes) or a partial-day event is checked per
+  // lesson/class below instead of blanket-skipping the whole school.
   const { rows: calRows } = await pool.query(
-    `SELECT name, type, start_time::text AS start_time, end_time::text AS end_time
+    `SELECT name, type, start_time::text AS start_time, end_time::text AS end_time,
+            scope_type, scope_department_id, scope_class_level_id, scope_class_names
      FROM school_calendar WHERE school_id = $1 AND date = $2`,
     [schoolId, today]
   );
-  const wholeDayEvent = calRows.find(e => !e.start_time && !e.end_time);
-  if (wholeDayEvent) {
-    console.log(`[AbsenceCheck] Skipping — ${wholeDayEvent.type}: "${wholeDayEvent.name}"`);
-    return { date: today, schoolId, newAbsences: 0, skipped: wholeDayEvent.name };
+  const wholeSchoolWholeDay = calRows.find(e => !e.start_time && !e.end_time && (!e.scope_type || e.scope_type === 'school'));
+  if (wholeSchoolWholeDay) {
+    console.log(`[AbsenceCheck] Skipping — ${wholeSchoolWholeDay.type}: "${wholeSchoolWholeDay.name}"`);
+    return { date: today, schoolId, newAbsences: 0, skipped: wholeSchoolWholeDay.name };
   }
   const vacation = await getVacationPeriod(schoolId, today);
   if (vacation) {
     console.log(`[AbsenceCheck] Skipping — vacation period: "${vacation.name}"`);
     return { date: today, schoolId, newAbsences: 0, skipped: `Vacation: ${vacation.name}` };
   }
-  const partialEvents = calRows.filter(e => e.start_time && e.end_time);
+  const scopeCtx = calRows.some(e => e.scope_type && e.scope_type !== 'school')
+    ? await getScopeContext(schoolId) : null;
+  // An event exempts a given lesson/class if (a) it has no time window, or the
+  // lesson overlaps its window, AND (b) its scope covers that teacher/class.
+  function isLessonExempt(lesson, className) {
+    return calRows.some(ev => {
+      if (ev.start_time && ev.end_time) {
+        const lStart = timeToMinutes(lesson.start_time);
+        const lEnd   = timeToMinutes(lesson.end_time);
+        if (!(lStart < timeToMinutes(ev.end_time) && lEnd > timeToMinutes(ev.start_time))) return false;
+      }
+      return eventCoversLesson(ev, lesson.teacher_id, className, scopeCtx);
+    });
+  }
 
   // Fetch approved teacher excuses covering today
   const { rows: excuseRows } = await pool.query(
@@ -140,23 +157,16 @@ async function runAbsenceCheck(schoolId) {
       continue;
     }
 
-    // Skip lessons covered by a partial-day event
-    if (partialEvents.length > 0) {
-      const lStart = timeToMinutes(lesson.start_time);
-      const lEnd   = timeToMinutes(lesson.end_time);
-      const covered = partialEvents.some(ev =>
-        lStart < timeToMinutes(ev.end_time) && lEnd > timeToMinutes(ev.start_time)
-      );
-      if (covered) continue;
-    }
-
     const individualClasses = lesson.class_names
       .split(',')
       .map(c => c.trim())
       .filter(Boolean);
 
-    // Only process classes where attendance was not submitted
-    const absentClasses = individualClasses.filter(cn => !hasAttendance(lesson.teacher_id, lesson.subject, cn));
+    // Only process classes where attendance was not submitted and that aren't
+    // covered by a (possibly scoped) event
+    const absentClasses = individualClasses.filter(cn =>
+      !hasAttendance(lesson.teacher_id, lesson.subject, cn) && !isLessonExempt(lesson, cn)
+    );
     if (absentClasses.length === 0) continue;
 
     const lessonMins  = timeToMinutes(lesson.end_time) - timeToMinutes(lesson.start_time);
@@ -235,14 +245,26 @@ async function runPerLessonCheck(schoolId) {
   const periodMins = schoolSettingRows[0]?.period_duration_minutes ?? 60;
 
   const { rows: calRows } = await pool.query(
-    `SELECT name, start_time::text AS start_time, end_time::text AS end_time
+    `SELECT name, start_time::text AS start_time, end_time::text AS end_time,
+            scope_type, scope_department_id, scope_class_level_id, scope_class_names
      FROM school_calendar WHERE school_id = $1 AND date = $2`,
     [schoolId, today]
   );
-  const wholeDayEv = calRows.find(e => !e.start_time && !e.end_time);
-  if (wholeDayEv) return;
+  const wholeSchoolWholeDay = calRows.find(e => !e.start_time && !e.end_time && (!e.scope_type || e.scope_type === 'school'));
+  if (wholeSchoolWholeDay) return;
   if (await getVacationPeriod(schoolId, today)) return;
-  const partialEvs = calRows.filter(e => e.start_time && e.end_time);
+  const scopeCtx = calRows.some(e => e.scope_type && e.scope_type !== 'school')
+    ? await getScopeContext(schoolId) : null;
+  function isLessonExempt(lesson, className) {
+    return calRows.some(ev => {
+      if (ev.start_time && ev.end_time) {
+        const lStart = timeToMinutes(lesson.start_time);
+        const lEnd   = timeToMinutes(lesson.end_time);
+        if (!(lStart < timeToMinutes(ev.end_time) && lEnd > timeToMinutes(ev.start_time))) return false;
+      }
+      return eventCoversLesson(ev, lesson.teacher_id, className, scopeCtx);
+    });
+  }
 
   const { rows: excuseRows } = await pool.query(
     `SELECT DISTINCT teacher_id FROM teacher_excuses
@@ -269,18 +291,10 @@ async function runPerLessonCheck(schoolId) {
     if (excusedIds.has(lesson.teacher_id)) continue;
     if (timeToMinutes(lesson.end_time) + 30 > nowMins) continue;
 
-    // Skip lessons covered by a partial-day event
-    if (partialEvs.length > 0) {
-      const lStart = timeToMinutes(lesson.start_time);
-      const lEnd   = timeToMinutes(lesson.end_time);
-      const covered = partialEvs.some(ev =>
-        lStart < timeToMinutes(ev.end_time) && lEnd > timeToMinutes(ev.start_time)
-      );
-      if (covered) continue;
-    }
-
     const individualClasses = lesson.class_names.split(',').map(c => c.trim()).filter(Boolean);
-    const absentClasses = individualClasses.filter(cn => !hasAttendance(lesson.teacher_id, lesson.subject, cn));
+    const absentClasses = individualClasses.filter(cn =>
+      !hasAttendance(lesson.teacher_id, lesson.subject, cn) && !isLessonExempt(lesson, cn)
+    );
     if (absentClasses.length === 0) continue;
 
     const lessonMins  = timeToMinutes(lesson.end_time) - timeToMinutes(lesson.start_time);
@@ -322,13 +336,18 @@ async function runPlcAbsenceCheck(schoolId) {
   );
   const academicYearId = yearRows[0]?.id ?? null;
 
-  // Skip on school holidays or vacation periods
+  // Skip on school holidays or vacation periods. A department-scoped whole-day
+  // event exempts only that department's teachers; year-batch/class scopes
+  // don't apply here since a PLC session isn't tied to a class.
   const { rows: calRows } = await pool.query(
-    'SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 AND start_time IS NULL AND end_time IS NULL LIMIT 1',
+    `SELECT name, scope_type, scope_department_id
+     FROM school_calendar WHERE school_id = $1 AND date = $2 AND start_time IS NULL AND end_time IS NULL`,
     [schoolId, today]
   );
-  if (calRows.length) return;
+  if (calRows.some(e => !e.scope_type || e.scope_type === 'school')) return;
   if (await getVacationPeriod(schoolId, today)) return;
+  const scopedDeptEvents = calRows.filter(e => e.scope_type === 'department');
+  const scopeCtx = scopedDeptEvents.length ? await getScopeContext(schoolId) : null;
 
   // Get today's active PLC session (if any)
   const { rows: sessions } = await pool.query(
@@ -365,6 +384,7 @@ async function runPlcAbsenceCheck(schoolId) {
 
     for (const teacher of teachers) {
       if (excusedIds.has(teacher.id) || submittedIds.has(teacher.id)) continue;
+      if (scopedDeptEvents.some(ev => eventCoversTeacher(ev, teacher.id, scopeCtx))) continue;
       try {
         await pool.query(
           `INSERT INTO plc_absences
@@ -394,11 +414,14 @@ async function runMeetingAbsenceCheck(schoolId) {
   const academicYearId = yearRows[0]?.id ?? null;
 
   const { rows: calRows } = await pool.query(
-    'SELECT name FROM school_calendar WHERE school_id = $1 AND date = $2 AND start_time IS NULL AND end_time IS NULL LIMIT 1',
+    `SELECT name, scope_type, scope_department_id
+     FROM school_calendar WHERE school_id = $1 AND date = $2 AND start_time IS NULL AND end_time IS NULL`,
     [schoolId, today]
   );
-  if (calRows.length) return;
+  if (calRows.some(e => !e.scope_type || e.scope_type === 'school')) return;
   if (await getVacationPeriod(schoolId, today)) return;
+  const scopedDeptEvents = calRows.filter(e => e.scope_type === 'department');
+  const scopeCtx = scopedDeptEvents.length ? await getScopeContext(schoolId) : null;
 
   const { rows: meetings } = await pool.query(
     `SELECT id, title FROM meetings
@@ -429,6 +452,7 @@ async function runMeetingAbsenceCheck(schoolId) {
 
     for (const teacher of teachers) {
       if (excusedIds.has(teacher.id) || submittedIds.has(teacher.id)) continue;
+      if (scopedDeptEvents.some(ev => eventCoversTeacher(ev, teacher.id, scopeCtx))) continue;
       try {
         await pool.query(
           `INSERT INTO meeting_absences
@@ -504,12 +528,16 @@ async function runPrimaryAbsenceCheck(schoolId) {
 
   // Skip if today is a school calendar holiday or vacation period
   const { rows: calRows } = await pool.query(
-    `SELECT name FROM school_calendar WHERE school_id=$1 AND date=$2 AND start_time IS NULL AND end_time IS NULL`,
+    `SELECT name, scope_type, scope_department_id
+     FROM school_calendar WHERE school_id=$1 AND date=$2 AND start_time IS NULL AND end_time IS NULL`,
     [schoolId, today]
   );
-  if (calRows.length) return { date: today, schoolId, newAbsences: 0, skipped: calRows[0].name };
+  const wholeSchoolEv = calRows.find(e => !e.scope_type || e.scope_type === 'school');
+  if (wholeSchoolEv) return { date: today, schoolId, newAbsences: 0, skipped: wholeSchoolEv.name };
   const vacation = await getVacationPeriod(schoolId, today);
   if (vacation) return { date: today, schoolId, newAbsences: 0, skipped: `Vacation: ${vacation.name}` };
+  const scopedDeptEvents = calRows.filter(e => e.scope_type === 'department');
+  const scopeCtx = scopedDeptEvents.length ? await getScopeContext(schoolId) : null;
 
   // Check approved excuses
   const { rows: excuseRows } = await pool.query(
@@ -527,6 +555,7 @@ async function runPrimaryAbsenceCheck(schoolId) {
   let newAbsences = 0;
   for (const t of teachers) {
     if (excusedIds.has(t.id)) continue;
+    if (scopedDeptEvents.some(ev => eventCoversTeacher(ev, t.id, scopeCtx))) continue;
     const { rows: [existing] } = await pool.query(
       `SELECT id, clock_in_time FROM primary_teacher_self_attendance
        WHERE school_id=$1 AND teacher_id=$2 AND date=$3`,
