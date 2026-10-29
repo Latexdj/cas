@@ -65,6 +65,36 @@ async function replaceInvitees(client, meetingId, teacherIds) {
   );
 }
 
+// Resolves which academic year/semester a meeting's `date` falls in — tries
+// the semesters table's date range first (most precise), then the academic
+// year's own range, then falls back to whatever's marked current. Never
+// user-facing: a meeting is always tagged from its own date, not today's date.
+async function resolveYearSemesterForDate(schoolId, date) {
+  const { rows: semRows } = await pool.query(
+    `SELECT s.academic_year_id, s.number AS semester
+     FROM semesters s JOIN academic_years ay ON ay.id = s.academic_year_id
+     WHERE ay.school_id = $1 AND s.start_date <= $2 AND s.end_date >= $2
+     LIMIT 1`,
+    [schoolId, date]
+  );
+  if (semRows.length) return { academic_year_id: semRows[0].academic_year_id, semester: semRows[0].semester };
+
+  const { rows: ayRows } = await pool.query(
+    `SELECT id, current_semester FROM academic_years
+     WHERE school_id = $1 AND start_date <= $2 AND end_date >= $2 LIMIT 1`,
+    [schoolId, date]
+  );
+  if (ayRows.length) return { academic_year_id: ayRows[0].id, semester: ayRows[0].current_semester };
+
+  const { rows: curRows } = await pool.query(
+    `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
+    [schoolId]
+  );
+  return curRows[0]
+    ? { academic_year_id: curRows[0].id, semester: curRows[0].current_semester }
+    : { academic_year_id: null, semester: null };
+}
+
 // â”€â”€ QR helpers (same secret mechanism as classroom-qr / plc) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async function getSchoolSecret(schoolId) {
@@ -129,16 +159,18 @@ function generateRepeatDates(startDate, endDate, repeat) {
 
 // â”€â”€ Admin: meetings CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// GET /api/meetings â€” list meetings with optional ?type=&from=&to= filters
+// GET /api/meetings â€” list meetings with optional ?type=&from=&to=&academic_year_id=&semester= filters
 router.get('/', adminOnly, async (req, res, next) => {
   try {
-    const { type, from, to } = req.query;
+    const { type, from, to, academic_year_id, semester } = req.query;
     const conds  = ['m.school_id = $1'];
     const params = [req.schoolId];
 
     if (type) { params.push(type); conds.push(`m.meeting_type = $${params.length}`); }
     if (from) { params.push(from); conds.push(`m.date >= $${params.length}`); }
     if (to)   { params.push(to);   conds.push(`m.date <= $${params.length}`); }
+    if (academic_year_id) { params.push(academic_year_id); conds.push(`m.academic_year_id = $${params.length}`); }
+    if (semester)         { params.push(parseInt(semester)); conds.push(`m.semester = $${params.length}`); }
 
     const { rows } = await pool.query(
       `SELECT m.id, m.title, m.meeting_type, m.date::text AS date,
@@ -147,11 +179,13 @@ router.get('/', adminOnly, async (req, res, next) => {
               m.audience_type, m.audience_department_id, m.other_attendees,
               d.name AS audience_department_name,
               (SELECT COUNT(*)::int FROM meeting_invitees mi WHERE mi.meeting_id = m.id) AS invitee_count,
+              m.academic_year_id, m.semester, ay.name AS academic_year_name,
               m.created_at, m.updated_at,
               l.name AS location_name, l.has_coordinates
        FROM meetings m
        LEFT JOIN locations l ON l.id = m.location_id
        LEFT JOIN departments d ON d.id = m.audience_department_id
+       LEFT JOIN academic_years ay ON ay.id = m.academic_year_id
        WHERE ${conds.join(' AND ')}
        ORDER BY m.date DESC, m.start_time`,
       params
@@ -218,14 +252,16 @@ router.post('/', adminOnly, async (req, res, next) => {
 
       const inserted = [];
       for (const d of dates) {
+        const yearSem = await resolveYearSemesterForDate(req.schoolId, d);
         const { rows } = await client.query(
           `INSERT INTO meetings
              (school_id, title, meeting_type, date, start_time, end_time, location_id,
-              audience_type, audience_department_id, other_attendees)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+              audience_type, audience_department_id, other_attendees, academic_year_id, semester)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
            RETURNING *`,
           [req.schoolId, title, meeting_type, d, start_time, end_time, location_id,
-           audience.audienceType, audience.audienceDepartmentId, other_attendees?.trim() || null]
+           audience.audienceType, audience.audienceDepartmentId, other_attendees?.trim() || null,
+           yearSem.academic_year_id, yearSem.semester]
         );
         inserted.push(rows[0]);
         if (audience.audienceType === 'teachers') {
@@ -331,6 +367,9 @@ router.put('/:id', adminOnly, async (req, res, next) => {
       audience = await resolveAudience(req.schoolId, req.body);
       if (audience.error) return res.status(400).json({ error: audience.error });
     }
+    // Re-tag the academic year/semester whenever the date moves, so the
+    // "meetings this term" count stays accurate after a reschedule.
+    const yearSem = date ? await resolveYearSemesterForDate(req.schoolId, date) : null;
 
     await client.query('BEGIN');
 
@@ -346,6 +385,8 @@ router.put('/:id', adminOnly, async (req, res, next) => {
          other_attendees         = CASE WHEN $10 THEN $11 ELSE other_attendees END,
          audience_type           = CASE WHEN $8 THEN $12 ELSE audience_type END,
          audience_department_id  = CASE WHEN $8 THEN $13 ELSE audience_department_id END,
+         academic_year_id        = CASE WHEN $15 THEN $16 ELSE academic_year_id END,
+         semester                = CASE WHEN $15 THEN $17 ELSE semester END,
          updated_at              = now()
        WHERE id = $9 AND school_id = $14
        RETURNING *`,
@@ -357,6 +398,7 @@ router.put('/:id', adminOnly, async (req, res, next) => {
         'other_attendees' in req.body, other_attendees?.trim() || null,
         audience?.audienceType ?? null, audience?.audienceDepartmentId ?? null,
         req.schoolId,
+        !!yearSem, yearSem?.academic_year_id ?? null, yearSem?.semester ?? null,
       ]
     );
     if (!rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Meeting not found' }); }

@@ -35,12 +35,22 @@ interface Meeting {
   audience_department_name: string | null;
   other_attendees: string | null;
   invitee_count: number;
+  academic_year_id: string | null;
+  semester: number | null;
+  academic_year_name: string | null;
 }
 
 interface Department {
   id: string;
   name: string;
   head_teacher_id: string | null;
+}
+
+interface AcademicYear {
+  id: string;
+  name: string;
+  is_current: boolean;
+  current_semester: number | null;
 }
 
 interface AttendanceRecord {
@@ -1524,12 +1534,19 @@ export default function MeetingsPage() {
   const [reportLoaded, setReportLoaded] = useState(false);
   const [exporting,  setExporting]  = useState<'xlsx' | 'pdf' | null>(null);
   const [locations,  setLocations]  = useState<Location[]>([]);
+  const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
   const [loading,    setLoading]    = useState(true);
 
   // Meetings tab filters
   const [typeFilter, setTypeFilter] = useState<MeetingType | ''>('');
   const [mFrom,      setMFrom]      = useState('');
   const [mTo,        setMTo]        = useState('');
+  const [mYear,      setMYear]      = useState('');
+  const [mSemester,  setMSemester]  = useState('');
+
+  useEffect(() => {
+    api.get<AcademicYear[]>('/api/academic-years').then(r => setAcademicYears(r.data.slice(0, 3))).catch(() => {});
+  }, []);
 
   // Attendance / Absences filters
   const [aFrom,      setAFrom]      = useState('');
@@ -1558,13 +1575,15 @@ export default function MeetingsPage() {
     if (typeFilter) params.type = typeFilter;
     if (mFrom)      params.from = mFrom;
     if (mTo)        params.to   = mTo;
+    if (mYear)      params.academic_year_id = mYear;
+    if (mSemester)  params.semester = mSemester;
     const [m, l] = await Promise.allSettled([
       api.get<Meeting[]>('/api/meetings', { params }),
       locations.length ? Promise.resolve({ data: locations }) : api.get<Location[]>('/api/locations'),
     ]);
     if (m.status === 'fulfilled') setMeetings(m.value.data);
     if (l.status === 'fulfilled') setLocations(l.value.data);
-  }, [typeFilter, mFrom, mTo, locations]);
+  }, [typeFilter, mFrom, mTo, mYear, mSemester, locations]);
 
   const loadAttendance = useCallback(async () => {
     const params: Record<string, string> = {};
@@ -1629,7 +1648,7 @@ export default function MeetingsPage() {
       setLoading(true);
       loadMeetings().finally(() => setLoading(false));
     }
-  }, [typeFilter, mFrom, mTo]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [typeFilter, mFrom, mTo, mYear, mSemester]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function searchAttendanceAbsences(e: React.FormEvent) {
     e.preventDefault();
@@ -1774,6 +1793,46 @@ export default function MeetingsPage() {
                 Clear dates
               </button>
             )}
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">Academic Year</label>
+              <select
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
+                value={mYear} onChange={e => setMYear(e.target.value)}
+              >
+                <option value="">All years</option>
+                {academicYears.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (Current)' : ''}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">Semester</label>
+              <select
+                className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#145C44]"
+                value={mSemester} onChange={e => setMSemester(e.target.value)}
+              >
+                <option value="">Both semesters</option>
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Meetings-organised summary for the current filter selection */}
+          <div className="flex flex-wrap gap-3">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-50 border border-slate-100">
+              <span className="text-lg font-bold text-slate-800">{meetings.length}</span>
+              <span className="text-xs text-slate-500">meeting{meetings.length !== 1 ? 's' : ''} organised{mYear || mSemester || mFrom || mTo || typeFilter ? ' (filtered)' : ''}</span>
+            </div>
+            {MEETING_TYPES.map(t => {
+              const count = meetings.filter(m => m.meeting_type === t).length;
+              if (!count) return null;
+              const s = TYPE_BADGE[t];
+              return (
+                <span key={t} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
+                  style={{ backgroundColor: s.bg, color: s.color }}>
+                  {count} {t}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1861,7 +1920,12 @@ export default function MeetingsPage() {
                     <tbody>
                       {(meetingRows as unknown as Meeting[]).map(m => (
                         <tr key={m.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors last:border-0">
-                          <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{fmtDate(m.date)}</td>
+                          <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
+                            {fmtDate(m.date)}
+                            {m.academic_year_name && (
+                              <p className="text-xs font-normal text-slate-400 mt-0.5">{m.academic_year_name}{m.semester ? ` · Sem ${m.semester}` : ''}</p>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-slate-500">{dayName(m.date)}</td>
                           <td className="px-4 py-3"><TypeBadge type={m.meeting_type} /></td>
                           <td className="px-4 py-3 text-slate-700 font-medium max-w-[200px] truncate">{m.title}</td>

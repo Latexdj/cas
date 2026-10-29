@@ -513,6 +513,29 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_meeting_invitees_meeting ON meeting_invitees(meeting_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_meeting_invitees_teacher ON meeting_invitees(teacher_id)`);
+    // Tag each meeting with the academic year/semester its date falls in, so
+    // "how many meetings this term" is a plain count instead of a date-range
+    // guess. Resolved automatically from `date` on create/update — never a
+    // user-facing field — so it stays correct even for backdated entries.
+    await pool.query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS academic_year_id UUID REFERENCES academic_years(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS semester SMALLINT CHECK (semester IN (1,2))`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_meetings_year_sem ON meetings(school_id, academic_year_id, semester)`);
+    // One-time backfill for meetings created before this column existed —
+    // guarded by "academic_year_id IS NULL" so it never touches a row twice.
+    await pool.query(`
+      UPDATE meetings m SET academic_year_id = s.academic_year_id, semester = s.number
+      FROM semesters s JOIN academic_years ay ON ay.id = s.academic_year_id
+      WHERE m.academic_year_id IS NULL AND ay.school_id = m.school_id
+        AND s.start_date IS NOT NULL AND s.end_date IS NOT NULL
+        AND s.start_date <= m.date AND s.end_date >= m.date
+    `);
+    await pool.query(`
+      UPDATE meetings m SET academic_year_id = ay.id, semester = ay.current_semester
+      FROM academic_years ay
+      WHERE m.academic_year_id IS NULL AND ay.school_id = m.school_id
+        AND ay.start_date IS NOT NULL AND ay.end_date IS NOT NULL
+        AND ay.start_date <= m.date AND ay.end_date >= m.date
+    `);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS meeting_attendance (
         id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
