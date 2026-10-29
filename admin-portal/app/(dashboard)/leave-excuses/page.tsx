@@ -3,7 +3,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTableControls } from '@/hooks/useTableControls';
 import { Pagination, Th } from '@/components/ui/Pagination';
 import { api } from '@/lib/api';
-import type { Teacher, TeacherExcuse } from '@/types/api';
+import type { Teacher, TeacherExcuse, AcademicYear } from '@/types/api';
+
+const EXCUSE_COUNT_WARN_THRESHOLD = 3;
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -37,6 +39,9 @@ export default function LeaveExcusesPage() {
   const [approveNote,  setApproveNote]  = useState('');
   const [approveError, setApproveError] = useState('');
 
+  const [currentYearId, setCurrentYearId] = useState('');
+  const [excuseCounts, setExcuseCounts] = useState<Record<string, number>>({});
+
   const { displayRows: excRows, total: excTotal, page: excPage, setPage: setExcPage,
           pageSize: excPageSize, setPageSize: setExcPageSize,
           sortKey: excSortKey, sortDir: excSortDir, handleSort: handleExcSort } =
@@ -44,7 +49,18 @@ export default function LeaveExcusesPage() {
 
   useEffect(() => {
     api.get<Teacher[]>('/api/teachers').then(r => setTeachers(r.data)).catch(() => {});
+    api.get<AcademicYear[]>('/api/academic-years').then(r => {
+      const current = r.data.find(y => y.is_current) || r.data[0];
+      if (current) setCurrentYearId(current.id);
+    }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!currentYearId) return;
+    api.get<{ teacher_id: string; count: number }[]>('/api/teacher-excuses/counts', { params: { academic_year_id: currentYearId } })
+      .then(r => setExcuseCounts(Object.fromEntries(r.data.map(row => [row.teacher_id, row.count]))))
+      .catch(() => {});
+  }, [currentYearId, excuses]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -178,6 +194,12 @@ export default function LeaveExcusesPage() {
                   <option value="">Select teacher…</option>
                   {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
+                {form.teacherId && (
+                  <p className="text-xs mt-1" style={{ color: (excuseCounts[form.teacherId] || 0) >= EXCUSE_COUNT_WARN_THRESHOLD ? '#D97706' : '#94A3B8' }}>
+                    {(excuseCounts[form.teacherId] || 0) >= EXCUSE_COUNT_WARN_THRESHOLD ? '⚠ ' : ''}
+                    This teacher has had {excuseCounts[form.teacherId] || 0} excuse{(excuseCounts[form.teacherId] || 0) === 1 ? '' : 's'} this academic year.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Type *</label>
@@ -254,7 +276,14 @@ export default function LeaveExcusesPage() {
                     return (
                       <tr key={ex.id} className="hover:bg-slate-50 transition-colors"
                         style={{ borderBottom: i < excRows.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
-                        <td className="px-4 py-3 font-semibold" style={{ color: '#1C1208' }}>{ex.teacher_name}</td>
+                        <td className="px-4 py-3 font-semibold" style={{ color: '#1C1208' }}>
+                          {ex.teacher_name}
+                          {currentYearId && (
+                            <p className="text-xs font-normal mt-0.5" style={{ color: (excuseCounts[ex.teacher_id] || 0) >= EXCUSE_COUNT_WARN_THRESHOLD ? '#D97706' : '#94A3B8' }}>
+                              {excuseCounts[ex.teacher_id] || 0} this year
+                            </p>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-xs" style={{ color: '#475569' }}>{ex.type}</td>
                         <td className="px-4 py-3 font-mono text-xs" style={{ color: '#64748B' }}>{period}</td>
                         <td className="px-4 py-3 max-w-xs truncate" style={{ color: '#475569' }} title={ex.reason}>{ex.reason}</td>

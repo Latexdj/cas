@@ -254,7 +254,7 @@ router.get('/teacher-attendance', async (req, res, next) => {
         SELECT
           ab.teacher_id,
           COUNT(*) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')) AS absent_periods,
-          COUNT(*) FILTER (WHERE ab.status  = 'Excused')                            AS excused_periods,
+          COUNT(*) FILTER (WHERE ab.status = 'Excused' AND ab.excused_via = 'teacher_excuse') AS excused_periods,
           COUNT(*) FILTER (WHERE ab.status IN ('Made Up','Verified'))               AS made_up_periods
         FROM absences ab
         WHERE ab.school_id = $1
@@ -464,7 +464,7 @@ router.patch('/leaves/:id/approve', async (req, res, next) => {
     if (newStatus === 'Approved') {
       // Retroactively excuse any absence records in the approved date range
       await pool.query(
-        `UPDATE absences SET status = 'Excused', updated_at = now()
+        `UPDATE absences SET status = 'Excused', excused_via = 'teacher_excuse', updated_at = now()
          WHERE school_id = $1 AND teacher_id = $2
            AND date BETWEEN $3 AND $4
            AND status = 'Absent' AND is_auto_generated = true`,

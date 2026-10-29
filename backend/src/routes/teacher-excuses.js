@@ -26,7 +26,7 @@ async function excuseExistingAbsences(schoolId, teacherId, dateFrom, dateTo, tim
   if (!timeFrom || !timeTo) {
     const { rowCount } = await pool.query(
       `UPDATE absences
-       SET status = 'Excused', updated_at = now()
+       SET status = 'Excused', excused_via = 'teacher_excuse', updated_at = now()
        WHERE school_id = $1
          AND teacher_id = $2
          AND date BETWEEN $3 AND $4
@@ -55,7 +55,7 @@ async function excuseExistingAbsences(schoolId, teacherId, dateFrom, dateTo, tim
   if (!toExcuse.length) return 0;
 
   const { rowCount } = await pool.query(
-    `UPDATE absences SET status = 'Excused', updated_at = now() WHERE id = ANY($1::uuid[])`,
+    `UPDATE absences SET status = 'Excused', excused_via = 'teacher_excuse', updated_at = now() WHERE id = ANY($1::uuid[])`,
     [toExcuse.map(c => c.id)]
   );
   return rowCount;
@@ -103,6 +103,32 @@ router.get('/', async (req, res, next) => {
        LEFT JOIN teachers a ON a.id = te.approved_by
        WHERE ${conditions.join(' AND ')}
        ORDER BY te.created_at DESC`,
+      params
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// GET /api/teacher-excuses/counts — per-teacher count of personal (Approved)
+// excuses, optionally scoped to an academic year (?academic_year_id=). Lets
+// management see "how many times has this teacher been excused" before
+// granting another — institutional exemptions (school events, vacations)
+// never create a teacher_excuses row, so they never inflate this number.
+router.get('/counts', adminOnly, async (req, res, next) => {
+  try {
+    const { academic_year_id } = req.query;
+    const params = [req.schoolId];
+    let where = `te.school_id = $1 AND te.status = 'Approved'`;
+    if (academic_year_id) {
+      params.push(academic_year_id);
+      where += ` AND te.date_from >= (SELECT start_date FROM academic_years WHERE id = $${params.length})
+                 AND te.date_from <= (SELECT end_date FROM academic_years WHERE id = $${params.length})`;
+    }
+    const { rows } = await pool.query(
+      `SELECT te.teacher_id, COUNT(*)::int AS count
+       FROM teacher_excuses te
+       WHERE ${where}
+       GROUP BY te.teacher_id`,
       params
     );
     res.json(rows);

@@ -26,7 +26,7 @@ async function excuseScopedAbsences(schoolId, date, scope, startTime, endTime) {
 
   if (!startTime || !endTime) {
     const { rowCount } = await pool.query(
-      `UPDATE absences SET status = 'Excused', updated_at = now()
+      `UPDATE absences SET status = 'Excused', excused_via = 'school_event', updated_at = now()
        WHERE school_id = $1 AND date = $2
          AND is_auto_generated = true AND status = 'Absent'${scopeSql}`,
       params
@@ -52,7 +52,7 @@ async function excuseScopedAbsences(schoolId, date, scope, startTime, endTime) {
   if (!toExcuse.length) return 0;
 
   const { rowCount } = await pool.query(
-    `UPDATE absences SET status = 'Excused', updated_at = now() WHERE id = ANY($1::uuid[])`,
+    `UPDATE absences SET status = 'Excused', excused_via = 'school_event', updated_at = now() WHERE id = ANY($1::uuid[])`,
     [toExcuse.map(c => c.id)]
   );
   return rowCount;
@@ -297,7 +297,7 @@ router.post('/vacations', adminOnly, async (req, res, next) => {
     );
     // Retroactively excuse any auto-generated absences within this period
     const { rowCount } = await pool.query(
-      `UPDATE absences SET status = 'Excused', updated_at = now()
+      `UPDATE absences SET status = 'Excused', excused_via = 'vacation', updated_at = now()
        WHERE school_id = $1 AND date BETWEEN $2 AND $3
          AND is_auto_generated = true AND status = 'Absent'`,
       [req.schoolId, start_date, end_date]

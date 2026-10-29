@@ -216,6 +216,81 @@ app.use('/api/verify',              idCardsRoutes);
 
 app.use(errorHandler);
 
+// One-time backfill for 'Excused' absences recorded before the excused_via
+// column existed. Re-derives the source the same way the live write paths do:
+// a vacation period or school_calendar event excuses without ever creating a
+// teacher_excuses row (institutional), while an approved teacher_excuse is a
+// personal exemption — only the latter should count toward a teacher's
+// "times excused" tally. Guarded by "excused_via IS NULL" so reruns are safe.
+async function backfillExcusedVia() {
+  const { rows: candidates } = await pool.query(
+    `SELECT id, school_id, teacher_id, date::text AS date, class_name, scheduled_period
+     FROM absences WHERE status = 'Excused' AND excused_via IS NULL`
+  );
+  if (!candidates.length) return;
+
+  const { getScopeContext, eventCoversLesson } = require('./services/eventScope.service');
+  const PERIOD_RE = /^(\d{2}:\d{2})(?::\d{2})?[–-](\d{2}:\d{2})(?::\d{2})?$/;
+  const toMinutes = (t) => { const [h, m] = t.slice(0, 5).split(':').map(Number); return h * 60 + m; };
+
+  const { rows: vacAll } = await pool.query(
+    `SELECT school_id, start_date::text AS start_date, end_date::text AS end_date FROM school_vacation_periods`
+  );
+  const { rows: excuseAll } = await pool.query(
+    `SELECT school_id, teacher_id, date_from::text AS date_from, date_to::text AS date_to,
+            time_from::text AS time_from, time_to::text AS time_to
+     FROM teacher_excuses WHERE status = 'Approved'`
+  );
+  const { rows: calAll } = await pool.query(
+    `SELECT school_id, date::text AS date, name, start_time::text AS start_time, end_time::text AS end_time,
+            scope_type, scope_department_id, scope_class_level_id, scope_class_names
+     FROM school_calendar`
+  );
+
+  const scopeCtxBySchool = new Map();
+  const teacherExcuseIds = [], schoolEventIds = [], vacationIds = [];
+
+  for (const row of candidates) {
+    if (vacAll.some(v => v.school_id === row.school_id && row.date >= v.start_date && row.date <= v.end_date)) {
+      vacationIds.push(row.id);
+      continue;
+    }
+
+    const myExcuses = excuseAll.filter(ex => ex.school_id === row.school_id && ex.teacher_id === row.teacher_id
+      && row.date >= ex.date_from && row.date <= ex.date_to);
+    const viaExcuse = myExcuses.some(ex => {
+      if (!ex.time_from || !ex.time_to) return true;
+      const m = PERIOD_RE.exec(row.scheduled_period || '');
+      if (!m) return false;
+      const lStart = toMinutes(m[1]), lEnd = toMinutes(m[2]);
+      return lStart < toMinutes(ex.time_to) && lEnd > toMinutes(ex.time_from);
+    });
+    if (viaExcuse) { teacherExcuseIds.push(row.id); continue; }
+
+    const dayEvents = calAll.filter(ev => ev.school_id === row.school_id && ev.date === row.date);
+    if (dayEvents.length) {
+      if (!scopeCtxBySchool.has(row.school_id)) scopeCtxBySchool.set(row.school_id, await getScopeContext(row.school_id));
+      const scopeCtx = scopeCtxBySchool.get(row.school_id);
+      const viaEvent = dayEvents.some(ev => {
+        if (!eventCoversLesson(ev, row.teacher_id, row.class_name || '', scopeCtx)) return false;
+        if (!ev.start_time || !ev.end_time) return true;
+        const m = PERIOD_RE.exec(row.scheduled_period || '');
+        if (!m) return false;
+        const lStart = toMinutes(m[1]), lEnd = toMinutes(m[2]);
+        return lStart < toMinutes(ev.end_time) && lEnd > toMinutes(ev.start_time);
+      });
+      if (viaEvent) { schoolEventIds.push(row.id); continue; }
+    }
+    // Can't determine the source (legacy data predating these features) —
+    // leave excused_via NULL; the summary queries treat NULL as non-personal.
+  }
+
+  if (teacherExcuseIds.length) await pool.query(`UPDATE absences SET excused_via = 'teacher_excuse' WHERE id = ANY($1::uuid[])`, [teacherExcuseIds]);
+  if (schoolEventIds.length)  await pool.query(`UPDATE absences SET excused_via = 'school_event'  WHERE id = ANY($1::uuid[])`, [schoolEventIds]);
+  if (vacationIds.length)     await pool.query(`UPDATE absences SET excused_via = 'vacation'      WHERE id = ANY($1::uuid[])`, [vacationIds]);
+  console.log(`[Migration] excused_via backfill: teacher_excuse=${teacherExcuseIds.length} school_event=${schoolEventIds.length} vacation=${vacationIds.length} unresolved=${candidates.length - teacherExcuseIds.length - schoolEventIds.length - vacationIds.length}`);
+}
+
 async function runMigrations() {
   let _migFailures = 0;
   try {
@@ -636,6 +711,17 @@ async function runMigrations() {
       FROM groups g
       WHERE a.id = ANY(g.ids)
     `);
+    // Distinguishes *why* an absence was excused: a personal teacher_excuse
+    // (went through the Leave & Excuses page) vs an institutional school_event
+    // or vacation period (the lesson was never really assigned that day,
+    // through no action of the teacher's). Only 'teacher_excuse' should ever
+    // count toward "how many times has this teacher been excused" for
+    // management decisions — see teacher-excuses.js / school-calendar.js.
+    await pool.query(`ALTER TABLE absences ADD COLUMN IF NOT EXISTS excused_via TEXT`);
+    await pool.query(`ALTER TABLE absences DROP CONSTRAINT IF EXISTS absences_excused_via_check`);
+    await pool.query(`ALTER TABLE absences ADD CONSTRAINT absences_excused_via_check
+      CHECK (excused_via IN ('teacher_excuse','school_event','vacation'))`);
+    await backfillExcusedVia();
     await pool.query(`
       CREATE TABLE IF NOT EXISTS remedial_lessons (
         id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),

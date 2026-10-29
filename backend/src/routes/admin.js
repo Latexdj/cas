@@ -784,7 +784,7 @@ router.get('/reports/teacher-summary', async (req, res, next) => {
         SELECT
           ab.teacher_id,
           COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status NOT IN ('Excused','Made Up','Verified')), 0) AS absent_periods,
-          COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status = 'Excused'), 0)                             AS excused_periods
+          COALESCE(SUM(COALESCE(ab.periods_lost, 1)) FILTER (WHERE ab.status = 'Excused' AND ab.excused_via = 'teacher_excuse'), 0) AS excused_periods
         FROM absences ab
         WHERE ab.school_id = $1
           AND ($2::uuid IS NULL OR ab.academic_year_id = $2::uuid)
