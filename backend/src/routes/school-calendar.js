@@ -5,6 +5,59 @@ const { buildScopeFilterSql } = require('../services/eventScope.service');
 
 const VALID_SCOPE_TYPES = ['school', 'department', 'class_level', 'classes'];
 
+// Matches the "HH:MM–HH:MM" (or "HH:MM:SS–HH:MM:SS") format absences.scheduled_period
+// is stored in — see absenceCheck.js's `${lesson.start_time}–${lesson.end_time}`.
+const PERIOD_RE = /^(\d{2}:\d{2})(?::\d{2})?[–-](\d{2}:\d{2})(?::\d{2})?$/;
+function timeToMinutes(t) {
+  const [h, m] = t.slice(0, 5).split(':').map(Number);
+  return h * 60 + m;
+}
+
+// Retroactively flips matching 'Absent' auto-generated records to 'Excused' for
+// one calendar event's scope on `date`. For a whole-day event, every scoped
+// absence that day is excused. For a partial-day event, only absences whose
+// OWN lesson period (parsed from scheduled_period) overlaps the event's window
+// are excused — not "this teacher has some overlapping slot somewhere in their
+// weekly timetable," which previously over-excused unrelated lessons on the
+// same day because it never checked the specific absence's own time.
+async function excuseScopedAbsences(schoolId, date, scope, startTime, endTime) {
+  const params = [schoolId, date];
+  const scopeSql = buildScopeFilterSql(scope, 'absences', params);
+
+  if (!startTime || !endTime) {
+    const { rowCount } = await pool.query(
+      `UPDATE absences SET status = 'Excused', updated_at = now()
+       WHERE school_id = $1 AND date = $2
+         AND is_auto_generated = true AND status = 'Absent'${scopeSql}`,
+      params
+    );
+    return rowCount;
+  }
+
+  const { rows: candidates } = await pool.query(
+    `SELECT id, scheduled_period FROM absences
+     WHERE school_id = $1 AND date = $2
+       AND is_auto_generated = true AND status = 'Absent'${scopeSql}`,
+    params
+  );
+  const winFrom = timeToMinutes(startTime);
+  const winTo   = timeToMinutes(endTime);
+  const toExcuse = candidates.filter(c => {
+    const m = PERIOD_RE.exec(c.scheduled_period || '');
+    if (!m) return false; // can't tell the lesson's time — leave it alone, safer default
+    const lStart = timeToMinutes(m[1]);
+    const lEnd   = timeToMinutes(m[2]);
+    return lStart < winTo && lEnd > winFrom;
+  });
+  if (!toExcuse.length) return 0;
+
+  const { rowCount } = await pool.query(
+    `UPDATE absences SET status = 'Excused', updated_at = now() WHERE id = ANY($1::uuid[])`,
+    [toExcuse.map(c => c.id)]
+  );
+  return rowCount;
+}
+
 // Validates & normalizes the scope fields from a create/update body. Throws a
 // string error message on invalid input — callers turn that into a 400.
 function parseScope(body) {
@@ -166,36 +219,10 @@ router.post('/', adminOnly, async (req, res, next) => {
     );
 
     // Retroactively clear auto-generated absences already recorded for this event,
-    // narrowed to the event's scope (department / year-batch / selected classes).
-    // For whole-day events: excuse all matching absences on that date.
-    // For partial-day events: excuse only matching absences whose timetable slot overlaps the event window.
-    let rowCount = 0;
-    if (!start_time || !end_time) {
-      const params = [req.schoolId, date];
-      const scopeSql = buildScopeFilterSql(scope, 'absences', params);
-      ({ rowCount } = await pool.query(
-        `UPDATE absences SET status = 'Excused', updated_at = now()
-         WHERE school_id = $1 AND date = $2
-           AND is_auto_generated = true AND status = 'Absent'${scopeSql}`,
-        params
-      ));
-    } else {
-      const params = [req.schoolId, date, start_time, end_time];
-      const scopeSql = buildScopeFilterSql(scope, 'a', params);
-      ({ rowCount } = await pool.query(
-        `UPDATE absences a SET status = 'Excused', updated_at = now()
-         WHERE a.school_id = $1 AND a.date = $2
-           AND a.is_auto_generated = true AND a.status = 'Absent'
-           AND EXISTS (
-             SELECT 1 FROM timetable tt
-             WHERE tt.school_id  = a.school_id
-               AND tt.teacher_id = a.teacher_id
-               AND tt.start_time < $4::time
-               AND tt.end_time   > $3::time
-           )${scopeSql}`,
-        params
-      ));
-    }
+    // narrowed to the event's scope (department / year-batch / selected classes)
+    // and, for a partial-day event, to absences whose own lesson period overlaps
+    // the event's time window.
+    const rowCount = await excuseScopedAbsences(req.schoolId, date, scope, start_time, end_time);
     if (rowCount > 0) {
       console.log(`[Calendar] Retroactively excused ${rowCount} absence(s) on ${date} for school ${req.schoolId} (${type}: ${name})`);
     }
@@ -216,33 +243,7 @@ router.post('/:id/reapply', adminOnly, async (req, res, next) => {
     if (!rows.length) return res.status(404).json({ error: 'Entry not found' });
     const { date, name, type, start_time, end_time, ...scope } = rows[0];
 
-    let rowCount = 0;
-    if (!start_time || !end_time) {
-      const params = [req.schoolId, date];
-      const scopeSql = buildScopeFilterSql(scope, 'absences', params);
-      ({ rowCount } = await pool.query(
-        `UPDATE absences SET status = 'Excused', updated_at = now()
-         WHERE school_id = $1 AND date = $2
-           AND is_auto_generated = true AND status = 'Absent'${scopeSql}`,
-        params
-      ));
-    } else {
-      const params = [req.schoolId, date, start_time, end_time];
-      const scopeSql = buildScopeFilterSql(scope, 'a', params);
-      ({ rowCount } = await pool.query(
-        `UPDATE absences a SET status = 'Excused', updated_at = now()
-         WHERE a.school_id = $1 AND a.date = $2
-           AND a.is_auto_generated = true AND a.status = 'Absent'
-           AND EXISTS (
-             SELECT 1 FROM timetable tt
-             WHERE tt.school_id  = a.school_id
-               AND tt.teacher_id = a.teacher_id
-               AND tt.start_time < $4::time
-               AND tt.end_time   > $3::time
-           )${scopeSql}`,
-        params
-      ));
-    }
+    const rowCount = await excuseScopedAbsences(req.schoolId, date, scope, start_time, end_time);
 
     console.log(`[Calendar] Reapply: excused ${rowCount} absence(s) on ${date} (${type}: ${name})`);
     res.json({ date, name, absences_excused: rowCount });
