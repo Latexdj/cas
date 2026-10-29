@@ -519,15 +519,24 @@ router.get('/summary', adminOnly, async (req, res, next) => {
 // with a gender breakdown on the admin-portal Meetings "Report" tab.
 router.get('/report', adminOnly, async (req, res, next) => {
   try {
-    const { from, to, type } = req.query;
-    if (!from || !to) return res.status(400).json({ error: 'from and to are required' });
+    const { from, to, type, academic_year_id, semester } = req.query;
+    if (!from && !to && !academic_year_id) {
+      return res.status(400).json({ error: 'Provide a date range (from/to) or an academic year' });
+    }
+
+    const mtgParams = [req.schoolId];
+    const mtgConds  = ['school_id = $1'];
+    if (from) { mtgParams.push(from); mtgConds.push(`date >= $${mtgParams.length}`); }
+    if (to)   { mtgParams.push(to);   mtgConds.push(`date <= $${mtgParams.length}`); }
+    if (type) { mtgParams.push(type); mtgConds.push(`meeting_type = $${mtgParams.length}`); }
+    if (academic_year_id) { mtgParams.push(academic_year_id); mtgConds.push(`academic_year_id = $${mtgParams.length}`); }
+    if (semester)         { mtgParams.push(parseInt(semester)); mtgConds.push(`semester = $${mtgParams.length}`); }
 
     const { rows } = await pool.query(
       `WITH mtgs AS (
          SELECT id, date, meeting_type, title, audience_type, audience_department_id
          FROM meetings
-         WHERE school_id = $1 AND date BETWEEN $2 AND $3
-           AND ($4::text IS NULL OR meeting_type = $4)
+         WHERE ${mtgConds.join(' AND ')}
        ),
        active_teachers AS (
          SELECT id, name, gender FROM teachers WHERE school_id = $1 AND status = 'Active'
@@ -567,7 +576,7 @@ router.get('/report', adminOnly, async (req, res, next) => {
          ON a.meeting_id = e.meeting_id AND a.teacher_id = e.teacher_id AND a.date = e.date
        LEFT JOIN excused ex ON ex.teacher_id = e.teacher_id AND e.date BETWEEN ex.date_from AND ex.date_to
        ORDER BY e.date, e.meeting_title, e.teacher_name`,
-      [req.schoolId, from, to, type || null]
+      mtgParams
     );
 
     res.json(rows);

@@ -1553,6 +1553,10 @@ export default function MeetingsPage() {
   const [aTo,        setATo]        = useState('');
   const [aType,      setAType]      = useState<MeetingType | ''>('');
   const [aStatus,    setAStatus]    = useState<'all' | 'pending'>('all');
+  // Report-tab-only: lets the admin scope the report to an academic year /
+  // semester instead of (or in addition to) typing an exact date range.
+  const [aYear,      setAYear]      = useState('');
+  const [aSemester,  setASemester]  = useState('');
   const [rejectRecord, setRejectRecord] = useState<AttendanceRecord | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejecting,    setRejecting]    = useState(false);
@@ -1625,14 +1629,18 @@ export default function MeetingsPage() {
   }, [aFrom, aTo]);
 
   const loadReport = useCallback(async (): Promise<ReportRow[]> => {
-    if (!aFrom || !aTo) { setReport([]); setReportLoaded(true); return []; }
-    const params: Record<string, string> = { from: aFrom, to: aTo };
+    if (!aFrom && !aTo && !aYear) { setReport([]); setReportLoaded(true); return []; }
+    const params: Record<string, string> = {};
+    if (aFrom) params.from = aFrom;
+    if (aTo)   params.to   = aTo;
     if (aType) params.type = aType;
+    if (aYear) params.academic_year_id = aYear;
+    if (aSemester) params.semester = aSemester;
     const { data } = await api.get<ReportRow[]>('/api/meetings/report', { params });
     setReport(data);
     setReportLoaded(true);
     return data;
-  }, [aFrom, aTo, aType]);
+  }, [aFrom, aTo, aType, aYear, aSemester]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -1660,14 +1668,17 @@ export default function MeetingsPage() {
   const reportDetailHeaders = ['Date', 'Meeting', 'Type', 'Teacher', 'Gender', 'Status'];
 
   async function doExportMeetings(kind: 'xlsx' | 'pdf') {
-    if (!aFrom || !aTo) { alert('Select a From and To date first.'); return; }
+    if (!aFrom && !aTo && !aYear) { alert('Select a From/To date range or an academic year first.'); return; }
     setExporting(kind);
     try {
       const rows = await loadReport();
       const summary = computeGenderSummary(rows);
       const detail: Row[] = rows.map(r => [fmtDate(r.date), r.meeting_title, r.meeting_type, r.teacher_name, r.gender, r.status]);
-      const subtitle = [`${aFrom} – ${aTo}`, aType].filter(Boolean).join(' · ');
-      const filename = `meetings-report-${aFrom}-${aTo}`;
+      const yearLabel = aYear ? academicYears.find(y => y.id === aYear)?.name : '';
+      const period = aFrom && aTo ? `${aFrom} – ${aTo}` : yearLabel ? `${yearLabel}${aSemester ? ` · Semester ${aSemester}` : ''}` : '';
+      const subtitle = [period, aType].filter(Boolean).join(' · ');
+      const filenamePeriod = aFrom && aTo ? `${aFrom}-${aTo}` : yearLabel ? `${yearLabel.replace(/\//g, '-')}${aSemester ? `-sem${aSemester}` : ''}` : 'all';
+      const filename = `meetings-report-${filenamePeriod}`;
       if (kind === 'xlsx') {
         await exportMeetingsExcel(filename, summary, detail, reportDetailHeaders);
       } else {
@@ -1861,6 +1872,35 @@ export default function MeetingsPage() {
               </select>
             </div>
           )}
+          {tab === 'report' && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">Academic Year</label>
+                <select
+                  className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44] bg-white"
+                  value={aYear}
+                  onChange={e => setAYear(e.target.value)}
+                >
+                  <option value="">Use date range</option>
+                  {academicYears.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (Current)' : ''}</option>)}
+                </select>
+              </div>
+              {aYear && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">Semester</label>
+                  <select
+                    className="border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#145C44] bg-white"
+                    value={aSemester}
+                    onChange={e => setASemester(e.target.value)}
+                  >
+                    <option value="">Both semesters</option>
+                    <option value="1">Semester 1</option>
+                    <option value="2">Semester 2</option>
+                  </select>
+                </div>
+              )}
+            </>
+          )}
           {tab === 'attendance' && (
             <div>
               <label className="block text-xs font-semibold text-slate-500 font-medium mb-1">Status</label>
@@ -1879,7 +1919,7 @@ export default function MeetingsPage() {
           </button>
           <button
             type="button"
-            onClick={() => { setAFrom(''); setATo(''); setAType(''); setAStatus('all'); }}
+            onClick={() => { setAFrom(''); setATo(''); setAType(''); setAStatus('all'); setAYear(''); setASemester(''); }}
             className="px-5 py-2 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50"
           >
             Reset
@@ -2157,7 +2197,11 @@ export default function MeetingsPage() {
                   <div>
                     <p className="text-sm font-bold text-slate-700">Gender summary</p>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      {aFrom && aTo ? `${fmtDate(aFrom)} – ${fmtDate(aTo)}` : 'Pick a date range and click Search'}
+                      {aFrom && aTo
+                        ? `${fmtDate(aFrom)} – ${fmtDate(aTo)}`
+                        : aYear
+                          ? `${academicYears.find(y => y.id === aYear)?.name ?? ''}${aSemester ? ` · Semester ${aSemester}` : ''}`
+                          : 'Pick a date range or academic year, then click Search'}
                       {aType ? ` · ${aType}` : ''}
                     </p>
                   </div>
@@ -2167,8 +2211,8 @@ export default function MeetingsPage() {
                   </div>
                 </div>
 
-                {!aFrom || !aTo ? (
-                  <p className="text-sm text-slate-400 py-6 text-center">Select a date range above and click Search to preview the summary.</p>
+                {!aFrom && !aTo && !aYear ? (
+                  <p className="text-sm text-slate-400 py-6 text-center">Select a date range or academic year above and click Search to preview the summary.</p>
                 ) : !reportLoaded ? (
                   <p className="text-sm text-slate-400 py-6 text-center">Click Search to load the report for this range.</p>
                 ) : (
