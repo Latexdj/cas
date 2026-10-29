@@ -5,11 +5,65 @@ const { authenticate, adminOnly, requireActiveSubscription } = require('../middl
 const { verifyLocation } = require('../services/geo.service');
 const { uploadPhoto, uploadDocument } = require('../services/storage.service');
 const { logAudit }       = require('../services/audit.service');
+const { getScopeContext, eventCoversTeacher } = require('../services/eventScope.service');
 const {
   notifyPendingAttendanceSubmitted, notifyPendingAttendanceApproved, notifyPendingAttendanceRejected,
 } = require('../services/notification.service');
 
 router.use(authenticate, requireActiveSubscription);
+
+const AUDIENCE_TYPES = ['school', 'department', 'teachers'];
+
+// Validates the audience fields of a meeting create/update request. Returns
+// { error } on failure, otherwise { audienceType, audienceDepartmentId, teacherIds }.
+async function resolveAudience(schoolId, body) {
+  const audienceType = body.audienceType || 'school';
+  if (!AUDIENCE_TYPES.includes(audienceType)) {
+    return { error: `audienceType must be one of: ${AUDIENCE_TYPES.join(', ')}` };
+  }
+  if (audienceType === 'department') {
+    if (!body.audienceDepartmentId) return { error: 'audienceDepartmentId is required for a department-scoped meeting' };
+    const { rowCount } = await pool.query(
+      `SELECT 1 FROM departments WHERE id = $1 AND school_id = $2`,
+      [body.audienceDepartmentId, schoolId]
+    );
+    if (!rowCount) return { error: 'Department not found' };
+    return { audienceType, audienceDepartmentId: body.audienceDepartmentId, teacherIds: [] };
+  }
+  if (audienceType === 'teachers') {
+    const teacherIds = Array.isArray(body.teacherIds) ? body.teacherIds.filter(Boolean) : [];
+    if (!teacherIds.length) return { error: 'teacherIds must be a non-empty array for a selected-teachers meeting' };
+    const { rows } = await pool.query(
+      `SELECT id FROM teachers WHERE id = ANY($1::uuid[]) AND school_id = $2 AND status = 'Active'`,
+      [teacherIds, schoolId]
+    );
+    if (rows.length !== teacherIds.length) return { error: 'One or more selected teachers were not found' };
+    return { audienceType, audienceDepartmentId: null, teacherIds };
+  }
+  return { audienceType: 'school', audienceDepartmentId: null, teacherIds: [] };
+}
+
+// True if `teacherId` is expected to attend `meeting` (a row with audience_type /
+// audience_department_id columns). `inviteeSets` is a Map<meetingId, Set<teacherId>>,
+// only needed for audience_type='teachers' meetings.
+function meetingCoversTeacher(meeting, teacherId, scopeCtx, inviteeSets) {
+  if (meeting.audience_type === 'teachers') {
+    return !!inviteeSets?.get(meeting.id)?.has(teacherId);
+  }
+  return eventCoversTeacher(
+    { scope_type: meeting.audience_type, scope_department_id: meeting.audience_department_id },
+    teacherId, scopeCtx
+  );
+}
+
+async function replaceInvitees(client, meetingId, teacherIds) {
+  await client.query(`DELETE FROM meeting_invitees WHERE meeting_id = $1`, [meetingId]);
+  if (!teacherIds.length) return;
+  await client.query(
+    `INSERT INTO meeting_invitees (meeting_id, teacher_id) SELECT $1, t.id FROM UNNEST($2::uuid[]) AS t(id)`,
+    [meetingId, teacherIds]
+  );
+}
 
 // â”€â”€ QR helpers (same secret mechanism as classroom-qr / plc) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -90,10 +144,14 @@ router.get('/', adminOnly, async (req, res, next) => {
       `SELECT m.id, m.title, m.meeting_type, m.date::text AS date,
               m.start_time, m.end_time, m.location_id, m.is_active,
               m.minutes_url, m.minutes_filename, m.minutes_uploaded_at,
+              m.audience_type, m.audience_department_id, m.other_attendees,
+              d.name AS audience_department_name,
+              (SELECT COUNT(*)::int FROM meeting_invitees mi WHERE mi.meeting_id = m.id) AS invitee_count,
               m.created_at, m.updated_at,
               l.name AS location_name, l.has_coordinates
        FROM meetings m
        LEFT JOIN locations l ON l.id = m.location_id
+       LEFT JOIN departments d ON d.id = m.audience_department_id
        WHERE ${conds.join(' AND ')}
        ORDER BY m.date DESC, m.start_time`,
       params
@@ -102,12 +160,26 @@ router.get('/', adminOnly, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/meetings/:id/invitees â€” teacher IDs on a 'teachers'-audience meeting
+router.get('/:id/invitees', adminOnly, async (req, res, next) => {
+  try {
+    const { rowCount: exists } = await pool.query(
+      `SELECT 1 FROM meetings WHERE id = $1 AND school_id = $2`, [req.params.id, req.schoolId]
+    );
+    if (!exists) return res.status(404).json({ error: 'Meeting not found' });
+    const { rows } = await pool.query(
+      `SELECT teacher_id FROM meeting_invitees WHERE meeting_id = $1`, [req.params.id]
+    );
+    res.json(rows.map(r => r.teacher_id));
+  } catch (err) { next(err); }
+});
+
 // POST /api/meetings â€” create one or many (with repeat support)
 router.post('/', adminOnly, async (req, res, next) => {
   try {
     const {
       title, meeting_type, date, start_time, end_time, location_id,
-      repeat = 'none', repeat_end_date,
+      repeat = 'none', repeat_end_date, other_attendees,
     } = req.body;
 
     if (!title || !meeting_type || !date || !start_time || !end_time || !location_id) {
@@ -120,6 +192,9 @@ router.post('/', adminOnly, async (req, res, next) => {
     if (!VALID_TYPES.includes(meeting_type)) {
       return res.status(400).json({ error: `meeting_type must be one of: ${VALID_TYPES.join(', ')}` });
     }
+
+    const audience = await resolveAudience(req.schoolId, req.body);
+    if (audience.error) return res.status(400).json({ error: audience.error });
 
     // Build list of dates to insert
     let dates;
@@ -145,12 +220,17 @@ router.post('/', adminOnly, async (req, res, next) => {
       for (const d of dates) {
         const { rows } = await client.query(
           `INSERT INTO meetings
-             (school_id, title, meeting_type, date, start_time, end_time, location_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+             (school_id, title, meeting_type, date, start_time, end_time, location_id,
+              audience_type, audience_department_id, other_attendees)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            RETURNING *`,
-          [req.schoolId, title, meeting_type, d, start_time, end_time, location_id]
+          [req.schoolId, title, meeting_type, d, start_time, end_time, location_id,
+           audience.audienceType, audience.audienceDepartmentId, other_attendees?.trim() || null]
         );
         inserted.push(rows[0]);
+        if (audience.audienceType === 'teachers') {
+          await replaceInvitees(client, rows[0].id, audience.teacherIds);
+        }
       }
 
       await client.query('COMMIT');
@@ -226,8 +306,9 @@ router.delete('/:id/minutes', adminOnly, async (req, res, next) => {
 
 // PUT /api/meetings/:id â€” update meeting
 router.put('/:id', adminOnly, async (req, res, next) => {
+  const client = await pool.connect();
   try {
-    const { title, meeting_type, date, start_time, end_time, location_id, is_active } = req.body;
+    const { title, meeting_type, date, start_time, end_time, location_id, is_active, other_attendees } = req.body;
 
     if (meeting_type) {
       const VALID_TYPES = ['PLC', 'Morning Briefing', 'Staff Meeting', 'PTA', 'Other'];
@@ -236,28 +317,62 @@ router.put('/:id', adminOnly, async (req, res, next) => {
       }
     }
 
-    const { rows } = await pool.query(
+    const { rowCount: exists } = await client.query(
+      `SELECT 1 FROM meetings WHERE id = $1 AND school_id = $2`, [req.params.id, req.schoolId]
+    );
+    if (!exists) return res.status(404).json({ error: 'Meeting not found' });
+
+    // Audience is a cohesive tri-state — if the request touches it at all,
+    // re-resolve and overwrite all three columns rather than COALESCE-merging,
+    // so switching e.g. 'department' -> 'school' actually clears the department.
+    const touchingAudience = 'audienceType' in req.body;
+    let audience = null;
+    if (touchingAudience) {
+      audience = await resolveAudience(req.schoolId, req.body);
+      if (audience.error) return res.status(400).json({ error: audience.error });
+    }
+
+    await client.query('BEGIN');
+
+    const { rows } = await client.query(
       `UPDATE meetings SET
-         title        = COALESCE($1, title),
-         meeting_type = COALESCE($2, meeting_type),
-         date         = COALESCE($3, date),
-         start_time   = COALESCE($4, start_time),
-         end_time     = COALESCE($5, end_time),
-         location_id  = COALESCE($6, location_id),
-         is_active    = COALESCE($7, is_active),
-         updated_at   = now()
-       WHERE id = $8 AND school_id = $9
+         title                   = COALESCE($1, title),
+         meeting_type            = COALESCE($2, meeting_type),
+         date                    = COALESCE($3, date),
+         start_time              = COALESCE($4, start_time),
+         end_time                = COALESCE($5, end_time),
+         location_id             = COALESCE($6, location_id),
+         is_active               = COALESCE($7, is_active),
+         other_attendees         = CASE WHEN $10 THEN $11 ELSE other_attendees END,
+         audience_type           = CASE WHEN $8 THEN $12 ELSE audience_type END,
+         audience_department_id  = CASE WHEN $8 THEN $13 ELSE audience_department_id END,
+         updated_at              = now()
+       WHERE id = $9 AND school_id = $14
        RETURNING *`,
       [
         title ?? null, meeting_type ?? null, date ?? null,
         start_time ?? null, end_time ?? null, location_id ?? null,
         is_active ?? null,
-        req.params.id, req.schoolId,
+        touchingAudience, req.params.id,
+        'other_attendees' in req.body, other_attendees?.trim() || null,
+        audience?.audienceType ?? null, audience?.audienceDepartmentId ?? null,
+        req.schoolId,
       ]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Meeting not found' });
+    if (!rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Meeting not found' }); }
+
+    if (touchingAudience) {
+      await replaceInvitees(client, req.params.id, audience.audienceType === 'teachers' ? audience.teacherIds : []);
+    }
+
+    await client.query('COMMIT');
     res.json(rows[0]);
-  } catch (err) { next(err); }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    next(err);
+  } finally {
+    client.release();
+  }
 });
 
 // DELETE /api/meetings/:id
@@ -367,7 +482,7 @@ router.get('/report', adminOnly, async (req, res, next) => {
 
     const { rows } = await pool.query(
       `WITH mtgs AS (
-         SELECT id AS meeting_id, date, meeting_type, title
+         SELECT id, date, meeting_type, title, audience_type, audience_department_id
          FROM meetings
          WHERE school_id = $1 AND date BETWEEN $2 AND $3
            AND ($4::text IS NULL OR meeting_type = $4)
@@ -376,9 +491,22 @@ router.get('/report', adminOnly, async (req, res, next) => {
          SELECT id, name, gender FROM teachers WHERE school_id = $1 AND status = 'Active'
        ),
        expected AS (
-         SELECT mtgs.meeting_id, mtgs.date, mtgs.meeting_type, mtgs.title AS meeting_title,
-                at.id AS teacher_id, at.name AS teacher_name, at.gender
-         FROM mtgs CROSS JOIN active_teachers at
+         SELECT m.id AS meeting_id, m.date, m.meeting_type, m.title AS meeting_title,
+                t.id AS teacher_id, t.name AS teacher_name, t.gender
+         FROM mtgs m JOIN active_teachers t ON true
+         WHERE m.audience_type = 'school'
+         UNION ALL
+         SELECT m.id, m.date, m.meeting_type, m.title, t.id, t.name, t.gender
+         FROM mtgs m
+         JOIN department_teachers dt ON dt.department_id = m.audience_department_id
+         JOIN active_teachers t ON t.id = dt.teacher_id
+         WHERE m.audience_type = 'department'
+         UNION ALL
+         SELECT m.id, m.date, m.meeting_type, m.title, t.id, t.name, t.gender
+         FROM mtgs m
+         JOIN meeting_invitees mi ON mi.meeting_id = m.id
+         JOIN active_teachers t ON t.id = mi.teacher_id
+         WHERE m.audience_type = 'teachers'
        ),
        excused AS (
          SELECT teacher_id, date_from, date_to FROM teacher_excuses
@@ -632,16 +760,25 @@ router.post('/:id/generate-absences', adminOnly, async (req, res, next) => {
     if (!date) return res.status(400).json({ error: 'date is required' });
 
     const { rows: mtgRows } = await pool.query(
-      'SELECT id, title FROM meetings WHERE id = $1 AND school_id = $2',
+      'SELECT id, title, audience_type, audience_department_id FROM meetings WHERE id = $1 AND school_id = $2',
       [req.params.id, req.schoolId]
     );
     if (!mtgRows.length) return res.status(404).json({ error: 'Meeting not found' });
     const meeting = mtgRows[0];
 
-    const { rows: teachers } = await pool.query(
+    const { rows: allTeachers } = await pool.query(
       "SELECT id FROM teachers WHERE school_id = $1 AND status = 'Active'",
       [req.schoolId]
     );
+    const scopeCtx = meeting.audience_type === 'department' ? await getScopeContext(req.schoolId) : null;
+    let inviteeSets = null;
+    if (meeting.audience_type === 'teachers') {
+      const { rows: inv } = await pool.query(
+        `SELECT teacher_id FROM meeting_invitees WHERE meeting_id = $1`, [req.params.id]
+      );
+      inviteeSets = new Map([[meeting.id, new Set(inv.map(r => r.teacher_id))]]);
+    }
+    const teachers = allTeachers.filter(t => meetingCoversTeacher(meeting, t.id, scopeCtx, inviteeSets));
 
     const { rows: attended } = await pool.query(
       'SELECT teacher_id FROM meeting_attendance WHERE meeting_id = $1 AND date = $2',
@@ -863,6 +1000,16 @@ router.get('/today', async (req, res, next) => {
        WHERE m.school_id = $1
          AND m.date      = $3
          AND m.is_active = true
+         AND (
+           m.audience_type = 'school'
+           OR (m.audience_type = 'department' AND EXISTS (
+                 SELECT 1 FROM department_teachers dt
+                 WHERE dt.teacher_id = $2 AND dt.department_id = m.audience_department_id
+               ))
+           OR (m.audience_type = 'teachers' AND EXISTS (
+                 SELECT 1 FROM meeting_invitees mi WHERE mi.meeting_id = m.id AND mi.teacher_id = $2
+               ))
+         )
        ORDER BY m.start_time`,
       [req.schoolId, req.user.id, today]
     );

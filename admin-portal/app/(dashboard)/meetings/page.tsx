@@ -16,6 +16,8 @@ interface Location {
   has_coordinates: boolean;
 }
 
+type AudienceType = 'school' | 'department' | 'teachers';
+
 interface Meeting {
   id: string;
   title: string;
@@ -28,6 +30,17 @@ interface Meeting {
   minutes_url: string | null;
   minutes_filename: string | null;
   minutes_uploaded_at: string | null;
+  audience_type: AudienceType;
+  audience_department_id: string | null;
+  audience_department_name: string | null;
+  other_attendees: string | null;
+  invitee_count: number;
+}
+
+interface Department {
+  id: string;
+  name: string;
+  head_teacher_id: string | null;
 }
 
 interface AttendanceRecord {
@@ -303,6 +316,42 @@ function MeetingFormModal({ initial, locations, onSave, onClose }: MeetingFormPr
   const [saving,         setSaving]         = useState(false);
   const [error,          setError]          = useState('');
 
+  const [audienceType, setAudienceType] = useState<AudienceType>(initial?.audience_type ?? 'school');
+  const [audienceDepartmentId, setAudienceDepartmentId] = useState(initial?.audience_department_id ?? '');
+  const [otherAttendees, setOtherAttendees] = useState(initial?.other_attendees ?? '');
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<string>>(new Set());
+  const [teacherSearch, setTeacherSearch] = useState('');
+
+  useEffect(() => {
+    api.get<Department[]>('/api/departments').then(r => setDepartments(r.data)).catch(() => {});
+    api.get<Teacher[]>('/api/teachers').then(r => setTeachers(r.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (isEdit && initial?.id && initial.audience_type === 'teachers') {
+      api.get<string[]>(`/api/meetings/${initial.id}/invitees`).then(r => setSelectedTeacherIds(new Set(r.data))).catch(() => {});
+    }
+  }, [isEdit, initial?.id, initial?.audience_type]);
+
+  function selectAllHods() {
+    const hodIds = departments.map(d => d.head_teacher_id).filter((id): id is string => !!id);
+    setSelectedTeacherIds(new Set(hodIds));
+  }
+
+  function toggleTeacher(id: string) {
+    setSelectedTeacherIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  const filteredTeachers = teacherSearch.trim()
+    ? teachers.filter(t => t.name.toLowerCase().includes(teacherSearch.trim().toLowerCase()))
+    : teachers;
+
   const estimate = estimateCount(date, repeatEnd, repeat);
 
   async function submit(e: React.FormEvent) {
@@ -313,11 +362,21 @@ function MeetingFormModal({ initial, locations, onSave, onClose }: MeetingFormPr
     if (!isEdit && repeat !== 'none' && !repeatEnd) {
       setError('Please set a repeat end date.'); return;
     }
+    if (audienceType === 'department' && !audienceDepartmentId) {
+      setError('Select a department for a department-scoped meeting.'); return;
+    }
+    if (audienceType === 'teachers' && selectedTeacherIds.size === 0) {
+      setError('Select at least one teacher for a selected-teachers meeting.'); return;
+    }
     setSaving(true); setError('');
     try {
       const payload: Record<string, unknown> = {
         title: title.trim(), meeting_type: meetingType, date,
         start_time: startTime, end_time: endTime, location_id: locationId,
+        audienceType,
+        audienceDepartmentId: audienceType === 'department' ? audienceDepartmentId : undefined,
+        teacherIds: audienceType === 'teachers' ? Array.from(selectedTeacherIds) : undefined,
+        other_attendees: otherAttendees.trim() || undefined,
       };
       if (!isEdit && repeat !== 'none') {
         payload.repeat          = repeat;
@@ -393,6 +452,79 @@ function MeetingFormModal({ initial, locations, onSave, onClose }: MeetingFormPr
               <option value="">Select location…</option>
               {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
+          </div>
+
+          {/* Audience */}
+          <div className="space-y-3 pt-1">
+            <div className="border-t border-slate-100" />
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Who&apos;s Expected to Attend?</label>
+              <select className={INPUT_CLS} value={audienceType} onChange={e => setAudienceType(e.target.value as AudienceType)}>
+                <option value="school">All Staff</option>
+                <option value="department">A Department</option>
+                <option value="teachers">Selected Teachers (e.g. HODs)</option>
+              </select>
+              <p className="text-xs text-slate-400 mt-1">
+                Only the people picked here are checked for attendance — everyone else is left alone.
+              </p>
+            </div>
+
+            {audienceType === 'department' && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Department</label>
+                <select className={INPUT_CLS} value={audienceDepartmentId} onChange={e => setAudienceDepartmentId(e.target.value)}>
+                  <option value="">Select department…</option>
+                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            {audienceType === 'teachers' && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Teachers <span className="text-slate-400 font-normal">({selectedTeacherIds.size} selected)</span>
+                  </label>
+                  <button type="button" onClick={selectAllHods}
+                    className="text-xs font-semibold text-[#145C44] hover:underline">
+                    Select all HODs
+                  </button>
+                </div>
+                <input
+                  className={INPUT_CLS + ' mb-2'}
+                  placeholder="Search teachers…"
+                  value={teacherSearch}
+                  onChange={e => setTeacherSearch(e.target.value)}
+                />
+                <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
+                  {filteredTeachers.map(t => (
+                    <label key={t.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
+                      <input type="checkbox" checked={selectedTeacherIds.has(t.id)} onChange={() => toggleTeacher(t.id)} />
+                      <span className="text-slate-700">{t.name}</span>
+                      {t.department && <span className="text-xs text-slate-400">— {t.department}</span>}
+                    </label>
+                  ))}
+                  {filteredTeachers.length === 0 && (
+                    <p className="text-sm text-slate-400 px-3 py-4 text-center">No teachers match.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                Other Attendees <span className="text-slate-400 font-normal">(optional, non-staff)</span>
+              </label>
+              <input
+                className={INPUT_CLS}
+                placeholder="e.g. Board Chair Mr. Mensah, PTA rep Mrs. Osei…"
+                value={otherAttendees}
+                onChange={e => setOtherAttendees(e.target.value)}
+              />
+              <p className="text-xs text-slate-400 mt-1">
+                Named for the record only — they are never checked for attendance.
+              </p>
+            </div>
           </div>
 
           {/* Repeat — create only */}
@@ -1115,7 +1247,7 @@ function GenerateAbsencesModal({
               </div>
 
               <div className="rounded-xl px-3 py-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200">
-                This will mark <strong>all active teachers without an attendance record</strong> for this meeting on the selected date as <strong>Absent</strong>. Teachers with approved excuses are skipped. Already-absent teachers are not duplicated.
+                This will mark <strong>everyone in this meeting&apos;s audience without an attendance record</strong> as <strong>Absent</strong> on the selected date. Teachers outside the audience, and those with approved excuses, are skipped. Already-absent teachers are not duplicated.
               </div>
 
               {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
@@ -1721,6 +1853,7 @@ export default function MeetingsPage() {
                         <Th label="Title" sortKey="title" currentKey={mSortKey} currentDir={mSortDir} onSort={mHandleSort} className="px-4 py-3 text-xs font-semibold font-medium text-slate-400" />
                         <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Time</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Venue</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Audience</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Minutes</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold font-medium text-slate-400">Actions</th>
                       </tr>
@@ -1734,6 +1867,16 @@ export default function MeetingsPage() {
                           <td className="px-4 py-3 text-slate-700 font-medium max-w-[200px] truncate">{m.title}</td>
                           <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{fmt(m.start_time)} – {fmt(m.end_time)}</td>
                           <td className="px-4 py-3 text-slate-600">{m.location_name}</td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap"
+                              style={{ backgroundColor: m.audience_type === 'school' ? '#F1F5F9' : '#EFF6FF', color: m.audience_type === 'school' ? '#64748B' : '#1D4ED8' }}
+                              title={m.other_attendees ? `Other attendees: ${m.other_attendees}` : undefined}>
+                              {m.audience_type === 'school' ? 'All Staff'
+                                : m.audience_type === 'department' ? (m.audience_department_name || 'Department')
+                                : `${m.invitee_count} Teacher${m.invitee_count !== 1 ? 's' : ''}`}
+                            </span>
+                            {m.other_attendees && <p className="text-xs text-slate-400 mt-0.5 max-w-[160px] truncate" title={m.other_attendees}>+ {m.other_attendees}</p>}
+                          </td>
                           <td className="px-4 py-3">
                             {m.minutes_url ? (
                               <button

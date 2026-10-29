@@ -447,14 +447,36 @@ async function runMeetingAbsenceCheck(schoolId) {
   if (calRows.some(e => !e.scope_type || e.scope_type === 'school')) return;
   if (await getVacationPeriod(schoolId, today)) return;
   const scopedDeptEvents = calRows.filter(e => e.scope_type === 'department');
-  const scopeCtx = scopedDeptEvents.length ? await getScopeContext(schoolId) : null;
 
   const { rows: meetings } = await pool.query(
-    `SELECT id, title FROM meetings
+    `SELECT id, title, audience_type, audience_department_id FROM meetings
      WHERE school_id = $1 AND date = $2 AND is_active = true`,
     [schoolId, today]
   );
   if (!meetings.length) return;
+
+  const needsScopeCtx = scopedDeptEvents.length || meetings.some(m => m.audience_type === 'department');
+  const scopeCtx = needsScopeCtx ? await getScopeContext(schoolId) : null;
+
+  const teachersOnlyMeetingIds = meetings.filter(m => m.audience_type === 'teachers').map(m => m.id);
+  const inviteeSets = new Map();
+  if (teachersOnlyMeetingIds.length) {
+    const { rows: inv } = await pool.query(
+      `SELECT meeting_id, teacher_id FROM meeting_invitees WHERE meeting_id = ANY($1::uuid[])`,
+      [teachersOnlyMeetingIds]
+    );
+    for (const r of inv) {
+      if (!inviteeSets.has(r.meeting_id)) inviteeSets.set(r.meeting_id, new Set());
+      inviteeSets.get(r.meeting_id).add(r.teacher_id);
+    }
+  }
+  function meetingCoversTeacher(meeting, teacherId) {
+    if (meeting.audience_type === 'teachers') return !!inviteeSets.get(meeting.id)?.has(teacherId);
+    return eventCoversTeacher(
+      { scope_type: meeting.audience_type, scope_department_id: meeting.audience_department_id },
+      teacherId, scopeCtx
+    );
+  }
 
   const { rows: excuseRows } = await pool.query(
     `SELECT DISTINCT teacher_id FROM teacher_excuses
@@ -479,6 +501,7 @@ async function runMeetingAbsenceCheck(schoolId) {
     for (const teacher of teachers) {
       if (excusedIds.has(teacher.id) || submittedIds.has(teacher.id)) continue;
       if (scopedDeptEvents.some(ev => eventCoversTeacher(ev, teacher.id, scopeCtx))) continue;
+      if (!meetingCoversTeacher(meeting, teacher.id)) continue;
       try {
         await pool.query(
           `INSERT INTO meeting_absences

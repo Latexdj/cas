@@ -489,6 +489,30 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS minutes_url TEXT`);
     await pool.query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS minutes_filename TEXT`);
     await pool.query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS minutes_uploaded_at TIMESTAMPTZ`);
+    // Audience scoping — defaults to 'school' (today's whole-staff behaviour) so
+    // every existing meeting keeps working unchanged. 'department' reuses the
+    // same scope convention as school_calendar events; 'teachers' is an explicit
+    // invite list (meeting_invitees) for cross-department groups like an HOD
+    // meeting. other_attendees is a free-text record of non-teacher attendees
+    // (board members, parents, consultants) for minute-keeping only — they are
+    // never checked for attendance/absence.
+    await pool.query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS audience_type TEXT NOT NULL DEFAULT 'school'`);
+    await pool.query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS audience_department_id UUID REFERENCES departments(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS other_attendees TEXT`);
+    await pool.query(`ALTER TABLE meetings DROP CONSTRAINT IF EXISTS meetings_audience_type_check`);
+    await pool.query(`ALTER TABLE meetings ADD CONSTRAINT meetings_audience_type_check
+      CHECK (audience_type IN ('school','department','teachers'))`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS meeting_invitees (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        meeting_id  UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+        teacher_id  UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (meeting_id, teacher_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_meeting_invitees_meeting ON meeting_invitees(meeting_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_meeting_invitees_teacher ON meeting_invitees(teacher_id)`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS meeting_attendance (
         id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
