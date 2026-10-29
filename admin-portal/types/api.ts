@@ -454,6 +454,8 @@ export interface TeacherExcuse {
   teacher_name: string;
   date_from: string;
   date_to: string;
+  time_from: string | null;
+  time_to: string | null;
   type: 'Official Duty' | 'Permission' | 'Sick Leave' | 'Other';
   reason: string;
   status: 'Pending' | 'Pending Acceptance' | 'Approved' | 'Rejected';

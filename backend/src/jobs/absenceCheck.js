@@ -20,6 +20,31 @@ function timeToMinutes(timeStr) {
   return h * 60 + m;
 }
 
+// Groups approved teacher_excuses rows by teacher_id for fast per-lesson lookup.
+function buildExcusesByTeacher(excuseRows) {
+  const map = new Map();
+  for (const r of excuseRows) {
+    const arr = map.get(r.teacher_id) || [];
+    arr.push(r);
+    map.set(r.teacher_id, arr);
+  }
+  return map;
+}
+
+// A teacher's excuse exempts a given lesson if it has no time window (excuses
+// the whole day) OR the lesson's period overlaps the excuse's time window —
+// so a teacher excused 09:00–10:00 for a meeting still owes their 11:00 class.
+function isLessonExcused(teacherId, lesson, excusesByTeacher) {
+  const excuses = excusesByTeacher.get(teacherId);
+  if (!excuses) return false;
+  return excuses.some(ex => {
+    if (!ex.time_from || !ex.time_to) return true;
+    const lStart = timeToMinutes(lesson.start_time);
+    const lEnd   = timeToMinutes(lesson.end_time);
+    return lStart < timeToMinutes(ex.time_to) && lEnd > timeToMinutes(ex.time_from);
+  });
+}
+
 // Bulk-fetch all attendance records for a school+date and return a fast lookup function.
 // Replaces per-class DB queries (N+1) with a single query + in-memory check.
 async function buildAttendanceLookup(schoolId, date) {
@@ -101,9 +126,25 @@ async function runAbsenceCheck(schoolId) {
   }
   const scopeCtx = calRows.some(e => e.scope_type && e.scope_type !== 'school')
     ? await getScopeContext(schoolId) : null;
-  // An event exempts a given lesson/class if (a) it has no time window, or the
-  // lesson overlaps its window, AND (b) its scope covers that teacher/class.
+
+  // Fetch approved teacher excuses covering today (with their optional time window)
+  const { rows: excuseRows } = await pool.query(
+    `SELECT teacher_id, time_from::text AS time_from, time_to::text AS time_to
+     FROM teacher_excuses
+     WHERE school_id = $1 AND status = 'Approved'
+       AND date_from <= $2 AND date_to >= $2`,
+    [schoolId, today]
+  );
+  const excusesByTeacher = buildExcusesByTeacher(excuseRows);
+  if (excusesByTeacher.size) {
+    console.log(`[AbsenceCheck] ${excusesByTeacher.size} teacher(s) excused today`);
+  }
+
+  // A lesson is exempt if (a) a calendar event's scope covers it (and, if the
+  // event has a time window, the lesson overlaps it), OR (b) the teacher has
+  // an approved excuse that covers this lesson's time.
   function isLessonExempt(lesson, className) {
+    if (isLessonExcused(lesson.teacher_id, lesson, excusesByTeacher)) return true;
     return calRows.some(ev => {
       if (ev.start_time && ev.end_time) {
         const lStart = timeToMinutes(lesson.start_time);
@@ -112,18 +153,6 @@ async function runAbsenceCheck(schoolId) {
       }
       return eventCoversLesson(ev, lesson.teacher_id, className, scopeCtx);
     });
-  }
-
-  // Fetch approved teacher excuses covering today
-  const { rows: excuseRows } = await pool.query(
-    `SELECT DISTINCT teacher_id FROM teacher_excuses
-     WHERE school_id = $1 AND status = 'Approved'
-       AND date_from <= $2 AND date_to >= $2`,
-    [schoolId, today]
-  );
-  const excusedTeacherIds = new Set(excuseRows.map(r => r.teacher_id));
-  if (excusedTeacherIds.size) {
-    console.log(`[AbsenceCheck] ${excusedTeacherIds.size} teacher(s) excused today`);
   }
 
   // Fetch all lessons today
@@ -152,11 +181,6 @@ async function runAbsenceCheck(schoolId) {
   const newAbsences = [];
 
   for (const lesson of lessons) {
-    if (excusedTeacherIds.has(lesson.teacher_id)) {
-      console.log(`[AbsenceCheck] Excused: ${lesson.teacher_name}`);
-      continue;
-    }
-
     const individualClasses = lesson.class_names
       .split(',')
       .map(c => c.trim())
@@ -255,7 +279,18 @@ async function runPerLessonCheck(schoolId) {
   if (await getVacationPeriod(schoolId, today)) return;
   const scopeCtx = calRows.some(e => e.scope_type && e.scope_type !== 'school')
     ? await getScopeContext(schoolId) : null;
+
+  const { rows: excuseRows } = await pool.query(
+    `SELECT teacher_id, time_from::text AS time_from, time_to::text AS time_to
+     FROM teacher_excuses
+     WHERE school_id = $1 AND status = 'Approved'
+       AND date_from <= $2 AND date_to >= $2`,
+    [schoolId, today]
+  );
+  const excusesByTeacher = buildExcusesByTeacher(excuseRows);
+
   function isLessonExempt(lesson, className) {
+    if (isLessonExcused(lesson.teacher_id, lesson, excusesByTeacher)) return true;
     return calRows.some(ev => {
       if (ev.start_time && ev.end_time) {
         const lStart = timeToMinutes(lesson.start_time);
@@ -265,14 +300,6 @@ async function runPerLessonCheck(schoolId) {
       return eventCoversLesson(ev, lesson.teacher_id, className, scopeCtx);
     });
   }
-
-  const { rows: excuseRows } = await pool.query(
-    `SELECT DISTINCT teacher_id FROM teacher_excuses
-     WHERE school_id = $1 AND status = 'Approved'
-       AND date_from <= $2 AND date_to >= $2`,
-    [schoolId, today]
-  );
-  const excusedIds = new Set(excuseRows.map(r => r.teacher_id));
 
   const { rows: lessons } = await pool.query(`
     SELECT tt.start_time::text, tt.end_time::text, tt.subject, tt.class_names,
@@ -288,7 +315,6 @@ async function runPerLessonCheck(schoolId) {
   const hasAttendance = await buildAttendanceLookup(schoolId, today);
 
   for (const lesson of lessons) {
-    if (excusedIds.has(lesson.teacher_id)) continue;
     if (timeToMinutes(lesson.end_time) + 30 > nowMins) continue;
 
     const individualClasses = lesson.class_names.split(',').map(c => c.trim()).filter(Boolean);

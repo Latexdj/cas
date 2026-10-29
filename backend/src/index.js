@@ -1041,6 +1041,15 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE teacher_excuses DROP CONSTRAINT IF EXISTS teacher_excuses_status_check`);
     await pool.query(`ALTER TABLE teacher_excuses ADD CONSTRAINT teacher_excuses_status_check
       CHECK (status IN ('Pending','Pending Acceptance','Approved','Rejected'))`);
+    // Optional time-of-day window — NULL on both means "excuse the whole day"
+    // (the long-standing behaviour); set means only lessons overlapping that
+    // window are excused, so e.g. a teacher called to a morning meeting can't
+    // use the same excuse to skip afternoon classes they were never called for.
+    await pool.query(`ALTER TABLE teacher_excuses ADD COLUMN IF NOT EXISTS time_from TIME`);
+    await pool.query(`ALTER TABLE teacher_excuses ADD COLUMN IF NOT EXISTS time_to TIME`);
+    await pool.query(`ALTER TABLE teacher_excuses DROP CONSTRAINT IF EXISTS teacher_excuses_time_check`);
+    await pool.query(`ALTER TABLE teacher_excuses ADD CONSTRAINT teacher_excuses_time_check
+      CHECK ((time_from IS NULL AND time_to IS NULL) OR (time_from IS NOT NULL AND time_to IS NOT NULL AND time_to > time_from))`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS management_users (

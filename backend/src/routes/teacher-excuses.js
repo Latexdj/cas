@@ -7,18 +7,56 @@ const { sendSms } = require('../services/sms.service');
 
 router.use(authenticate, requireActiveSubscription);
 
+function timeToMinutes(t) {
+  if (!t) return null;
+  const [h, m] = t.slice(0, 5).split(':').map(Number);
+  return h * 60 + m;
+}
+
+// Matches the "HH:MM–HH:MM" (or "HH:MM:SS–HH:MM:SS") format absences.scheduled_period
+// is stored in — see absenceCheck.js's `${lesson.start_time}–${lesson.end_time}`.
+const PERIOD_RE = /^(\d{2}:\d{2})(?::\d{2})?[–-](\d{2}:\d{2})(?::\d{2})?$/;
+
 // Marks any auto-generated 'Absent' records in the given date range as 'Excused'.
 // Called whenever an excuse is approved (immediately on admin-create, or on explicit approve).
-async function excuseExistingAbsences(schoolId, teacherId, dateFrom, dateTo) {
-  const { rowCount } = await pool.query(
-    `UPDATE absences
-     SET status = 'Excused', updated_at = now()
-     WHERE school_id = $1
-       AND teacher_id = $2
-       AND date BETWEEN $3 AND $4
-       AND status = 'Absent'
-       AND is_auto_generated = true`,
+// When timeFrom/timeTo are given, only absences whose lesson period overlaps that
+// window are cleared — a teacher called away for part of the day can't ride the
+// same excuse past the end of the meeting into lessons they simply skipped.
+async function excuseExistingAbsences(schoolId, teacherId, dateFrom, dateTo, timeFrom, timeTo) {
+  if (!timeFrom || !timeTo) {
+    const { rowCount } = await pool.query(
+      `UPDATE absences
+       SET status = 'Excused', updated_at = now()
+       WHERE school_id = $1
+         AND teacher_id = $2
+         AND date BETWEEN $3 AND $4
+         AND status = 'Absent'
+         AND is_auto_generated = true`,
+      [schoolId, teacherId, dateFrom, dateTo]
+    );
+    return rowCount;
+  }
+
+  const { rows: candidates } = await pool.query(
+    `SELECT id, scheduled_period FROM absences
+     WHERE school_id = $1 AND teacher_id = $2 AND date BETWEEN $3 AND $4
+       AND status = 'Absent' AND is_auto_generated = true`,
     [schoolId, teacherId, dateFrom, dateTo]
+  );
+  const winFrom = timeToMinutes(timeFrom);
+  const winTo   = timeToMinutes(timeTo);
+  const toExcuse = candidates.filter(c => {
+    const m = PERIOD_RE.exec(c.scheduled_period || '');
+    if (!m) return false; // can't tell the lesson's time — leave it alone, safer default
+    const lStart = timeToMinutes(m[1]);
+    const lEnd   = timeToMinutes(m[2]);
+    return lStart < winTo && lEnd > winFrom;
+  });
+  if (!toExcuse.length) return 0;
+
+  const { rowCount } = await pool.query(
+    `UPDATE absences SET status = 'Excused', updated_at = now() WHERE id = ANY($1::uuid[])`,
+    [toExcuse.map(c => c.id)]
   );
   return rowCount;
 }
@@ -54,6 +92,7 @@ router.get('/', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT
          te.id, te.date_from, te.date_to, te.type, te.reason,
+         te.time_from::text, te.time_to::text,
          te.status, te.approved_at, te.created_at,
          te.document_url, te.document_filename, te.rejection_reason, te.approval_note,
          t.id   AS teacher_id,
@@ -73,7 +112,7 @@ router.get('/', async (req, res, next) => {
 // POST /api/teacher-excuses — admin creates (auto-approved) or teacher requests (Pending)
 router.post('/', async (req, res, next) => {
   try {
-    const { teacherId, dateFrom, dateTo, type, reason, documentBase64, documentFilename } = req.body;
+    const { teacherId, dateFrom, dateTo, type, reason, documentBase64, documentFilename, timeFrom, timeTo } = req.body;
     const valid = ['Official Duty', 'Permission', 'Sick Leave', 'Other'];
 
     if (!teacherId || !dateFrom || !dateTo || !type || !reason) {
@@ -84,6 +123,20 @@ router.post('/', async (req, res, next) => {
     }
     if (new Date(dateTo) < new Date(dateFrom)) {
       return res.status(400).json({ error: 'dateTo must be on or after dateFrom' });
+    }
+    // Leave both blank to excuse the whole day (the default); set both to scope
+    // the excuse to just that time window, e.g. the length of a meeting.
+    if ((timeFrom && !timeTo) || (timeTo && !timeFrom)) {
+      return res.status(400).json({ error: 'timeFrom and timeTo must be provided together' });
+    }
+    const timeRe = /^\d{2}:\d{2}$/;
+    if (timeFrom && timeTo) {
+      if (!timeRe.test(timeFrom) || !timeRe.test(timeTo)) {
+        return res.status(400).json({ error: 'timeFrom and timeTo must be in HH:MM format' });
+      }
+      if (timeTo <= timeFrom) {
+        return res.status(400).json({ error: 'timeTo must be after timeFrom' });
+      }
     }
 
     if (req.user.role === 'teacher' && req.user.id !== teacherId) {
@@ -119,16 +172,16 @@ router.post('/', async (req, res, next) => {
     const { rows } = await pool.query(
       `INSERT INTO teacher_excuses
          (school_id, teacher_id, date_from, date_to, type, reason,
-          document_url, document_filename, status, approved_by, approved_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,${isAdmin ? 'now()' : 'NULL'})
+          document_url, document_filename, status, approved_by, approved_at, time_from, time_to)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,${isAdmin ? 'now()' : 'NULL'},$11,$12)
        RETURNING *`,
       [req.schoolId, teacherId, dateFrom, dateTo, type, reason.trim(),
-       docUrl, docFilename, status, approver]
+       docUrl, docFilename, status, approver, timeFrom || null, timeTo || null]
     );
 
     // Admin-created excuses are immediately approved — retroactively excuses any existing absences
     if (isAdmin) {
-      const updated = await excuseExistingAbsences(req.schoolId, teacherId, dateFrom, dateTo);
+      const updated = await excuseExistingAbsences(req.schoolId, teacherId, dateFrom, dateTo, timeFrom, timeTo);
       if (updated > 0) {
         console.log(`[Excuses] Retroactively excused ${updated} absence record(s) for teacher ${teacherId}`);
       }
@@ -164,16 +217,16 @@ router.patch('/:id/approve', adminOnly, async (req, res, next) => {
       `UPDATE teacher_excuses
        SET status = $5, approved_by = $1, approved_at = now(), updated_at = now(), approval_note = $4
        WHERE id = $2 AND school_id = $3 AND status = 'Pending'
-       RETURNING id, status, approval_note, teacher_id, date_from, date_to`,
+       RETURNING id, status, approval_note, teacher_id, date_from, date_to, time_from::text, time_to::text`,
       [approver, req.params.id, req.schoolId, note, newStatus]
     );
     if (!rows.length) return res.status(404).json({ error: 'Excuse not found or already actioned' });
 
-    const { teacher_id, date_from, date_to } = rows[0];
+    const { teacher_id, date_from, date_to, time_from, time_to } = rows[0];
     let updated = 0;
     if (newStatus === 'Approved') {
       // Retroactively excuse any absences that were recorded before this approval
-      updated = await excuseExistingAbsences(req.schoolId, teacher_id, date_from, date_to);
+      updated = await excuseExistingAbsences(req.schoolId, teacher_id, date_from, date_to, time_from, time_to);
       if (updated > 0) {
         console.log(`[Excuses] Retroactively excused ${updated} absence record(s) on approval`);
       }
@@ -242,13 +295,13 @@ router.patch('/:id/accept-condition', async (req, res, next) => {
       `UPDATE teacher_excuses
        SET status = 'Approved', updated_at = now()
        WHERE id = $1 AND school_id = $2 AND teacher_id = $3 AND status = 'Pending Acceptance'
-       RETURNING id, status, approval_note, teacher_id, date_from, date_to`,
+       RETURNING id, status, approval_note, teacher_id, date_from, date_to, time_from::text, time_to::text`,
       [req.params.id, req.schoolId, req.user.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Request not found or no condition awaiting your response' });
 
-    const { teacher_id, date_from, date_to } = rows[0];
-    const updated = await excuseExistingAbsences(req.schoolId, teacher_id, date_from, date_to);
+    const { teacher_id, date_from, date_to, time_from, time_to } = rows[0];
+    const updated = await excuseExistingAbsences(req.schoolId, teacher_id, date_from, date_to, time_from, time_to);
 
     try {
       const { rows: tr } = await pool.query(`SELECT name, email, phone FROM teachers WHERE id=$1`, [teacher_id]);

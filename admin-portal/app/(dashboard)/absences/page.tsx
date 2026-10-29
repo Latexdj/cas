@@ -662,7 +662,7 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
   const [filterStatus,  setFilterStatus]  = useState('');
   const [acting,     setActing]     = useState<string | null>(null);
   const [addOpen,    setAddOpen]    = useState(false);
-  const [form,       setForm]       = useState({ teacherId: '', dateFrom: '', dateTo: '', type: 'Official Duty', reason: '' });
+  const [form,       setForm]       = useState({ teacherId: '', dateFrom: '', dateTo: '', timeFrom: '', timeTo: '', type: 'Official Duty', reason: '' });
   const [saving,     setSaving]     = useState(false);
   const [formError,  setFormError]  = useState('');
   const [rejectId,     setRejectId]     = useState<string | null>(null);
@@ -735,17 +735,25 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
     if (!form.teacherId || !form.dateFrom || !form.dateTo || !form.reason.trim()) {
       setFormError('All fields are required.'); return;
     }
+    if ((form.timeFrom && !form.timeTo) || (form.timeTo && !form.timeFrom)) {
+      setFormError('Enter both a start and end time, or leave both blank to excuse the whole day.'); return;
+    }
+    if (form.timeFrom && form.timeTo && form.timeTo <= form.timeFrom) {
+      setFormError('End time must be after start time.'); return;
+    }
     setSaving(true); setFormError('');
     try {
       await api.post('/api/teacher-excuses', {
         teacherId: form.teacherId,
         dateFrom:  form.dateFrom,
         dateTo:    form.dateTo,
+        timeFrom:  form.timeFrom || undefined,
+        timeTo:    form.timeTo || undefined,
         type:      form.type,
         reason:    form.reason,
       });
       setAddOpen(false);
-      setForm({ teacherId: '', dateFrom: '', dateTo: '', type: 'Official Duty', reason: '' });
+      setForm({ teacherId: '', dateFrom: '', dateTo: '', timeFrom: '', timeTo: '', type: 'Official Duty', reason: '' });
       await load();
     } catch (err: unknown) {
       const e = err as { response?: { data?: { error?: string } | string }; message?: string };
@@ -810,10 +818,23 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
               <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Date To *</label>
               <input type="date" className={inputCls} value={form.dateTo} onChange={e => setForm(f => ({ ...f, dateTo: e.target.value }))} />
             </div>
-            <div className="sm:col-span-2 lg:col-span-2">
+            <div>
+              <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Time From</label>
+              <input type="time" className={inputCls} value={form.timeFrom} onChange={e => setForm(f => ({ ...f, timeFrom: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Time To</label>
+              <input type="time" className={inputCls} value={form.timeTo} onChange={e => setForm(f => ({ ...f, timeTo: e.target.value }))} />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <p className="text-xs" style={{ color: '#94A3B8' }}>
+                Leave Time From/To blank to excuse the whole day. Set them to excuse only lessons within that window — e.g. a teacher called to a 9:00–10:00 meeting still owes their other lessons that day.
+              </p>
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3">
               <label className="text-xs font-semibold font-medium" style={{ color: '#64748B' }}>Reason *</label>
               <input className={inputCls} value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
-                placeholder="e.g. Regional workshop, medical appointment…" />
+                placeholder="e.g. Regional workshop, medical appointment, called to a meeting…" />
             </div>
           </div>
           {formError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{formError}</p>}
@@ -853,7 +874,8 @@ function ExcusesTab({ teachers }: { teachers: Teacher[] }) {
               <tbody>
                 {(excRows as typeof excuses).map((ex, i) => {
                   const ss = EXCUSE_STATUS_STYLE[ex.status] ?? { bg: '#F1F5F9', color: '#64748B' };
-                  const period = ex.date_from === ex.date_to ? fmtDate(ex.date_from) : `${fmtDate(ex.date_from)} – ${fmtDate(ex.date_to)}`;
+                  const period = (ex.date_from === ex.date_to ? fmtDate(ex.date_from) : `${fmtDate(ex.date_from)} – ${fmtDate(ex.date_to)}`)
+                    + (ex.time_from && ex.time_to ? ` · ${ex.time_from.slice(0, 5)}–${ex.time_to.slice(0, 5)}` : '');
                   return (
                     <tr key={ex.id} className="hover:bg-slate-50 transition-colors"
                       style={{ borderBottom: i < excRows.length - 1 ? '1px solid #F0EBE1' : 'none' }}>
