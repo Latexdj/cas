@@ -6,7 +6,7 @@ const ALL_MODULE_KEYS = [
   'remedial_lessons', 'assessments', 'houses',
   'exeat', 'clearance', 'library', 'classroom_qr', 'fees', 'inventory',
   'admissions', 'lms', 'discipline', 'website', 'exam_results', 'clinic',
-  'board_reports', 'lesson_observation',
+  'board_reports', 'lesson_observation', 'department_budgets',
 ];
 
 // `licensable` marks which modules can ever be toggled off for a school via
@@ -43,6 +43,7 @@ const MODULE_REGISTRY = [
   { key: 'clinic',             label: 'School Clinic',        description: 'Student and staff clinic visit logging and health records',         core: false, licensable: true,  defaultFor: ['SHS'] },
   { key: 'board_reports',      label: 'Board Reports',        description: 'AI-drafted board reports grounded in the school\'s own recorded data', core: false, licensable: true,  defaultFor: [] },
   { key: 'lesson_observation', label: 'Lesson Observation',   description: 'HOD and management classroom observation, rubric scoring, and feedback', core: false, licensable: true,  defaultFor: [] },
+  { key: 'department_budgets', label: 'Department Budgets',   description: 'HODs draft line-item budgets per academic year for management to review and approve', core: false, licensable: true, defaultFor: [] },
 ];
 
 function defaultModulesForType(schoolType, schoolCategory) {

@@ -140,6 +140,17 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    href:    '/teacher/hod/budgets',
+    label:   'Dept Budget',
+    hodOnly: true,
+    module:  'department_budgets',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M9 14l3-3 3 3 4-4M3 6h18M3 6v12a2 2 0 002 2h14a2 2 0 002-2V6" />
+      </svg>
+    ),
+  },
+  {
     href:                   '/teacher/resumption',
     label:                  'Resumption',
     seniorHousemasterOnly:  true,

@@ -79,6 +79,7 @@ const disciplineRoutes        = require('./routes/discipline');
 const letterChatRoutes        = require('./routes/letter-chat');
 const boardReportRoutes       = require('./routes/board-report');
 const lessonObservationRoutes = require('./routes/lesson-observation');
+const departmentBudgetsRoutes = require('./routes/department-budgets');
 const helpChatRoutes          = require('./routes/help-chat');
 const policyDocumentsRoutes   = require('./routes/policy-documents');
 const resumptionRoutes        = require('./routes/resumption');
@@ -204,6 +205,7 @@ app.use('/api/admin-module-access',   require('./routes/admin-module-access'));
 app.use('/api/letter-chat',           letterChatRoutes);
 app.use('/api/board-report',          boardReportRoutes);
 app.use('/api/lesson-observation',    lessonObservationRoutes);
+app.use('/api/department-budgets',    departmentBudgetsRoutes);
 app.use('/api/policy-documents',      policyDocumentsRoutes);
 app.use('/api/resumption',            resumptionRoutes);
 app.use('/api/roll-call',             rollCallRoutes);
@@ -3852,6 +3854,43 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_observation_photos_obs ON observation_photos(observation_id)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] lesson observation module:', e.message); }
+
+    // ── Department Budgets module ───────────────────────────────────────────────
+    try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS department_budgets (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id         UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        department_id     UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+        academic_year_id  UUID NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
+        status            TEXT NOT NULL DEFAULT 'Draft'
+                            CHECK (status IN ('Draft','Submitted','Approved','Changes Requested','Rejected')),
+        submitted_by      UUID REFERENCES teachers(id),
+        submitted_at      TIMESTAMPTZ,
+        reviewed_by       UUID REFERENCES teachers(id),
+        reviewed_at       TIMESTAMPTZ,
+        review_note       TEXT,
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (department_id, academic_year_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_dept_budgets_school ON department_budgets(school_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_dept_budgets_year   ON department_budgets(academic_year_id)`);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS department_budget_items (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        budget_id   UUID NOT NULL REFERENCES department_budgets(id) ON DELETE CASCADE,
+        category    TEXT NOT NULL,
+        description TEXT,
+        amount      NUMERIC(12,2) NOT NULL CHECK (amount >= 0),
+        sort_order  INT NOT NULL DEFAULT 0,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_dept_budget_items_budget ON department_budget_items(budget_id)`);
+    } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] department budgets module:', e.message); }
 
     if (_migFailures > 0) {
       console.error(`[MIGRATION SUMMARY] WARNING: ${_migFailures} step(s) failed — search logs for [MIGRATION FAILED]`);

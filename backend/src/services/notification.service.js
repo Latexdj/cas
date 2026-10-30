@@ -213,6 +213,27 @@ async function notifyTeacherObservationFeedbackReady(schoolId, teacher, observat
   ]);
 }
 
+async function notifyTeacherBudgetReviewed(schoolId, teacher, budget, departmentName) {
+  const outcomeLabel = {
+    Approved: 'Approved',
+    Rejected: 'Rejected',
+    'Changes Requested': 'Changes Requested',
+  }[budget.status] || budget.status;
+  const title   = `Department Budget ${outcomeLabel}`;
+  const verb    = budget.status === 'Approved' ? 'approved' : budget.status === 'Rejected' ? 'rejected' : 'sent back for changes';
+  const message = `Your ${departmentName} department budget for ${budget.academic_year_name || 'this academic year'} has been ${verb}.`
+    + (budget.review_note ? ` Note: ${budget.review_note}` : '');
+
+  await Promise.all([
+    createNotification(schoolId, teacher.id, title, message),
+    sendTeacherEmail(
+      teacher.email,
+      title,
+      `Dear ${teacher.name},\n\n${message}\n\n${budget.status !== 'Approved' ? 'You can edit and resubmit it from the Department Budgets page.' : ''}\n\n— CAS`
+    ),
+  ]);
+}
+
 module.exports = {
   createNotification,
   sendTeacherEmail,
@@ -227,4 +248,5 @@ module.exports = {
   notifyPendingAttendanceRejected,
   notifyTeacherObservationScheduled,
   notifyTeacherObservationFeedbackReady,
+  notifyTeacherBudgetReviewed,
 };

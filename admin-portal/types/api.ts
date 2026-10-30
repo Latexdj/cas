@@ -579,3 +579,41 @@ export interface ClassroomStatus {
   submitted_at: string | null;
   leave_type: string | null;
 }
+
+export interface BudgetDepartment {
+  id: string;
+  name: string;
+}
+
+export interface DepartmentBudgetItem {
+  id: string;
+  category: string;
+  description: string | null;
+  amount: number;
+  sort_order: number;
+}
+
+export interface DepartmentBudget {
+  id: string;
+  school_id: string;
+  department_id: string;
+  department_name: string;
+  academic_year_id: string;
+  academic_year_name: string;
+  status: 'Draft' | 'Submitted' | 'Approved' | 'Changes Requested' | 'Rejected';
+  submitted_by: string | null;
+  submitted_by_name: string | null;
+  submitted_at: string | null;
+  reviewed_by: string | null;
+  reviewed_by_name: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  total_amount: number;
+  item_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DepartmentBudgetDetail extends DepartmentBudget {
+  items: DepartmentBudgetItem[];
+}
