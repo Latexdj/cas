@@ -266,20 +266,52 @@ router.get('/subjects-for-classes', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Population per subject across a set of classes, in ONE query — the
+// "whole exam" calculator can have dozens of subjects x dozens of classes,
+// and resolving each (subject, class) pair with its own round trip (as the
+// single-subject resolver above does) turns into thousands of sequential
+// DB calls that blow past the frontend's request timeout well before the
+// work itself is actually heavy. Same elective rule, just computed
+// server-side in two aggregated branches instead of a nested loop:
+// is_elective=false -> every active student in that class; is_elective=true
+// -> only the student_electives enrollees. A class with no class_subjects
+// row for a subject contributes nothing, same as before.
+async function resolvePopulationsForSubjects(schoolId, classIds, subjectIds) {
+  const { rows } = await pool.query(
+    `SELECT subject_id, SUM(n)::int AS n FROM (
+       SELECT cs.subject_id, COUNT(DISTINCT st.id) AS n
+       FROM class_subjects cs
+       JOIN classes c ON c.school_id = cs.school_id AND LOWER(c.name) = LOWER(cs.class_name)
+       JOIN students st ON st.school_id = cs.school_id AND LOWER(st.class_name) = LOWER(cs.class_name) AND st.status = 'Active'
+       WHERE cs.school_id = $1 AND c.id = ANY($2::uuid[]) AND cs.subject_id = ANY($3::uuid[]) AND cs.is_elective = false
+       GROUP BY cs.subject_id
+       UNION ALL
+       SELECT cs.subject_id, COUNT(DISTINCT st.id) AS n
+       FROM class_subjects cs
+       JOIN classes c ON c.school_id = cs.school_id AND LOWER(c.name) = LOWER(cs.class_name)
+       JOIN students st ON st.school_id = cs.school_id AND LOWER(st.class_name) = LOWER(cs.class_name) AND st.status = 'Active'
+       JOIN student_electives se ON se.student_id = st.id AND se.subject_id = cs.subject_id
+       WHERE cs.school_id = $1 AND c.id = ANY($2::uuid[]) AND cs.subject_id = ANY($3::uuid[]) AND cs.is_elective = true
+       GROUP BY cs.subject_id
+     ) combined
+     GROUP BY subject_id`,
+    [schoolId, classIds, subjectIds]
+  );
+  const populations = {};
+  for (const id of subjectIds) populations[id] = 0;
+  for (const row of rows) populations[row.subject_id] = row.n;
+  return populations;
+}
+
 // POST /population-bulk — population per subject in one round trip, for the
 // "whole exam" calculator (one subject's paper at a time would mean one
-// request per subject). Reuses the same elective-aware resolver as the
-// single-subject basis above, so a compulsory subject (no is_elective row,
-// or is_elective=false) and a split elective behave identically either way.
+// request per subject).
 router.post('/population-bulk', async (req, res, next) => {
   try {
     const { class_ids, subject_ids } = req.body;
     if (!Array.isArray(class_ids) || !class_ids.length) return res.status(400).json({ error: 'class_ids must be a non-empty array' });
     if (!Array.isArray(subject_ids) || !subject_ids.length) return res.status(400).json({ error: 'subject_ids must be a non-empty array' });
-    const populations = {};
-    for (const subjectId of subject_ids) {
-      populations[subjectId] = await resolveStudentsOfferingSubject(req.schoolId, subjectId, class_ids);
-    }
+    const populations = await resolvePopulationsForSubjects(req.schoolId, class_ids, subject_ids);
     res.json({ populations });
   } catch (err) { next(err); }
 });
