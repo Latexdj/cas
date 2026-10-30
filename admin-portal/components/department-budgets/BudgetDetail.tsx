@@ -25,6 +25,32 @@ function fmtDate(d: string | null) {
   return new Date(d).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+// A server-returned error (e.response present) carries the real reason — show
+// it as-is. No response at all (request timed out, or the connection never
+// came back) looks identical to any other failure otherwise, so callers were
+// all showing the same unhelpful generic string regardless of cause.
+function describeApiError(e: unknown, fallback: string): string {
+  const err = e as { response?: { data?: { error?: string } }; code?: string };
+  if (err?.response?.data?.error) return err.response.data.error;
+  if (err?.code === 'ECONNABORTED') return 'The request timed out — the server may be busy. Please try again.';
+  return fallback;
+}
+
+// The shared DB occasionally drops a connection transiently (seen
+// independently of this feature); a brief pause and one retry resolves it
+// almost every time. Safe here because PUT fully replaces the item list —
+// running it twice lands on the same end state either way.
+async function putWithRetry<T>(apiClient: AxiosInstance, url: string, data: unknown): Promise<T> {
+  try {
+    const { data: result } = await apiClient.put<T>(url, data);
+    return result;
+  } catch {
+    await new Promise(resolve => setTimeout(resolve, 1200));
+    const { data: result } = await apiClient.put<T>(url, data);
+    return result;
+  }
+}
+
 const inputCls = 'w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600'
   + ' border-slate-200 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white';
 const labelCls = 'block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1';
@@ -74,7 +100,7 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
       setBudget(data);
       setDraftItems(toDraftItems(data.items));
     } catch (e: unknown) {
-      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to load budget.');
+      setError(describeApiError(e, 'Failed to load budget.'));
     } finally { setLoading(false); }
   }, [apiClient, budgetId]);
 
@@ -102,11 +128,11 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
           quantity: parseFloat(r.quantity) || 0,
           unit_price: r.unitPrice.trim() ? parseFloat(r.unitPrice) : undefined,
         }));
-      const { data } = await apiClient.put<DepartmentBudgetDetail>(`/api/department-budgets/${budgetId}`, { items });
+      const data = await putWithRetry<DepartmentBudgetDetail>(apiClient, `/api/department-budgets/${budgetId}`, { items });
       setBudget(data);
       setDraftItems(toDraftItems(data.items));
     } catch (e: unknown) {
-      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to save.');
+      setError(describeApiError(e, 'Failed to save.'));
     } finally { setSaving(false); }
   }
 
@@ -117,7 +143,7 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
       const { data } = await apiClient.post<DepartmentBudgetDetail>(`/api/department-budgets/${budgetId}/submit`);
       setBudget(data);
     } catch (e: unknown) {
-      setError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to submit.');
+      setError(describeApiError(e, 'Failed to submit.'));
     } finally { setSaving(false); }
   }
 
@@ -128,7 +154,7 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
       await apiClient.delete(`/api/department-budgets/${budgetId}`);
       window.location.href = backHref;
     } catch (e: unknown) {
-      alert((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete.');
+      alert(describeApiError(e, 'Failed to delete.'));
       setDeleting(false);
     }
   }
@@ -187,7 +213,7 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
       setBudget(data);
       setReviewAction(null);
     } catch (e: unknown) {
-      setReviewError((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to submit review.');
+      setReviewError(describeApiError(e, 'Failed to submit review.'));
     } finally { setReviewing(false); }
   }
 
