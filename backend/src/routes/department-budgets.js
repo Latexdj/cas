@@ -246,21 +246,48 @@ router.get('/population', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// The current academic year + semester, as every other "what's actually
+// happening right now" query in this codebase resolves it (e.g. timetable.js's
+// coverage analysis). Semester may legitimately be null for a school that
+// doesn't split terms — callers pass it through as a null-tolerant filter.
+async function getCurrentYearAndSemester(schoolId) {
+  const { rows } = await pool.query(
+    `SELECT id, current_semester FROM academic_years WHERE school_id = $1 AND is_current = true ORDER BY name DESC LIMIT 1`,
+    [schoolId]
+  );
+  return { yearId: rows[0]?.id ?? null, semester: rows[0]?.current_semester ?? null };
+}
+
 // GET /subjects-for-classes?class_ids=a,b,c — every subject actually
-// allocated (via class_subjects) to any of the given classes. Drives the
-// "whole exam" bulk calculator's subject list, so it only ever shows
-// subjects that are really offered there instead of the full school catalog.
+// timetabled for any of the given classes THIS term. Drives the "whole exam"
+// bulk calculator's subject list.
+//
+// Deliberately reads the timetable, not class_subjects (the Curriculum ->
+// Allocations table): class_subjects has no notion of "current term" and
+// just accumulates — a subject allocated for a past semester or program
+// never gets automatically pruned, so it kept showing up here and inflating
+// an exam-paper budget for subjects nobody is actually sitting. The
+// timetable is scoped to a specific academic_year_id + semester, so it
+// reflects what's genuinely being taught right now (mirrors how
+// timetable.js's own coverage report treats class_subjects as "the plan"
+// and the timetable as "the reality").
 router.get('/subjects-for-classes', async (req, res, next) => {
   try {
     const classIds = (req.query.class_ids || '').split(',').map(s => s.trim()).filter(Boolean);
     if (!classIds.length) return res.json([]);
+    const { yearId, semester } = await getCurrentYearAndSemester(req.schoolId);
+    if (!yearId) return res.json([]);
     const { rows } = await pool.query(
-      `SELECT DISTINCT s.id, s.name FROM class_subjects cs
-       JOIN classes c ON c.school_id = cs.school_id AND LOWER(c.name) = LOWER(cs.class_name)
-       JOIN subjects s ON s.id = cs.subject_id
-       WHERE cs.school_id = $1 AND c.id = ANY($2::uuid[])
+      `SELECT DISTINCT s.id, s.name
+       FROM timetable t
+       JOIN LATERAL unnest(string_to_array(t.class_names, ',')) AS cls(class_name) ON TRUE
+       JOIN classes c ON c.school_id = t.school_id AND LOWER(c.name) = LOWER(TRIM(cls.class_name))
+       JOIN subjects s ON LOWER(s.name) = LOWER(TRIM(t.subject)) AND s.school_id = t.school_id
+       WHERE t.school_id = $1 AND c.id = ANY($2::uuid[])
+         AND t.academic_year_id = $3
+         AND ($4::int IS NULL OR t.semester = $4::int)
        ORDER BY s.name`,
-      [req.schoolId, classIds]
+      [req.schoolId, classIds, yearId, semester]
     );
     res.json(rows);
   } catch (err) { next(err); }
@@ -271,31 +298,52 @@ router.get('/subjects-for-classes', async (req, res, next) => {
 // and resolving each (subject, class) pair with its own round trip (as the
 // single-subject resolver above does) turns into thousands of sequential
 // DB calls that blow past the frontend's request timeout well before the
-// work itself is actually heavy. Same elective rule, just computed
-// server-side in two aggregated branches instead of a nested loop:
-// is_elective=false -> every active student in that class; is_elective=true
-// -> only the student_electives enrollees. A class with no class_subjects
-// row for a subject contributes nothing, same as before.
-async function resolvePopulationsForSubjects(schoolId, classIds, subjectIds) {
+// work itself is actually heavy.
+//
+// A (class, subject) pair counts at all only if it's on the CURRENT
+// timetable — matching subjects-for-classes above, so a stale
+// class_subjects allocation can't inflate a headcount for a subject nobody
+// is actually sitting this term. class_subjects is then consulted only to
+// narrow a pair down to its elective enrollees when it explicitly says
+// is_elective = true; no row there (or is_elective = false) means the
+// whole class counts, which also fixes the opposite gap — a subject
+// genuinely on this term's timetable but never allocated in Curriculum ->
+// Allocations no longer gets silently zeroed out.
+async function resolvePopulationsForSubjects(schoolId, classIds, subjectIds, yearId, semester) {
   const { rows } = await pool.query(
-    `SELECT subject_id, SUM(n)::int AS n FROM (
-       SELECT cs.subject_id, COUNT(DISTINCT st.id) AS n
-       FROM class_subjects cs
-       JOIN classes c ON c.school_id = cs.school_id AND LOWER(c.name) = LOWER(cs.class_name)
-       JOIN students st ON st.school_id = cs.school_id AND LOWER(st.class_name) = LOWER(cs.class_name) AND st.status = 'Active'
-       WHERE cs.school_id = $1 AND c.id = ANY($2::uuid[]) AND cs.subject_id = ANY($3::uuid[]) AND cs.is_elective = false
-       GROUP BY cs.subject_id
-       UNION ALL
-       SELECT cs.subject_id, COUNT(DISTINCT st.id) AS n
-       FROM class_subjects cs
-       JOIN classes c ON c.school_id = cs.school_id AND LOWER(c.name) = LOWER(cs.class_name)
-       JOIN students st ON st.school_id = cs.school_id AND LOWER(st.class_name) = LOWER(cs.class_name) AND st.status = 'Active'
-       JOIN student_electives se ON se.student_id = st.id AND se.subject_id = cs.subject_id
-       WHERE cs.school_id = $1 AND c.id = ANY($2::uuid[]) AND cs.subject_id = ANY($3::uuid[]) AND cs.is_elective = true
-       GROUP BY cs.subject_id
-     ) combined
+    `WITH taught AS (
+       SELECT DISTINCT c.id AS class_id, c.name AS class_name, s.id AS subject_id
+       FROM timetable t
+       JOIN LATERAL unnest(string_to_array(t.class_names, ',')) AS cls(class_name) ON TRUE
+       JOIN classes c ON c.school_id = t.school_id AND LOWER(c.name) = LOWER(TRIM(cls.class_name))
+       JOIN subjects s ON LOWER(s.name) = LOWER(TRIM(t.subject)) AND s.school_id = t.school_id
+       WHERE t.school_id = $1 AND c.id = ANY($2::uuid[]) AND s.id = ANY($3::uuid[])
+         AND t.academic_year_id = $4 AND ($5::int IS NULL OR t.semester = $5::int)
+     ),
+     flagged AS (
+       SELECT taught.subject_id, taught.class_name,
+              COALESCE(cs.is_elective, false) AS is_elective
+       FROM taught
+       LEFT JOIN class_subjects cs ON cs.school_id = $1 AND LOWER(cs.class_name) = LOWER(taught.class_name) AND cs.subject_id = taught.subject_id
+     ),
+     core AS (
+       SELECT f.subject_id, COUNT(DISTINCT st.id) AS n
+       FROM flagged f
+       JOIN students st ON st.school_id = $1 AND LOWER(st.class_name) = LOWER(f.class_name) AND st.status = 'Active'
+       WHERE f.is_elective = false
+       GROUP BY f.subject_id
+     ),
+     elective AS (
+       SELECT f.subject_id, COUNT(DISTINCT st.id) AS n
+       FROM flagged f
+       JOIN students st ON st.school_id = $1 AND LOWER(st.class_name) = LOWER(f.class_name) AND st.status = 'Active'
+       JOIN student_electives se ON se.student_id = st.id AND se.subject_id = f.subject_id
+       WHERE f.is_elective = true
+       GROUP BY f.subject_id
+     )
+     SELECT subject_id, SUM(n)::int AS n FROM (SELECT * FROM core UNION ALL SELECT * FROM elective) combined
      GROUP BY subject_id`,
-    [schoolId, classIds, subjectIds]
+    [schoolId, classIds, subjectIds, yearId, semester]
   );
   const populations = {};
   for (const id of subjectIds) populations[id] = 0;
@@ -311,7 +359,9 @@ router.post('/population-bulk', async (req, res, next) => {
     const { class_ids, subject_ids } = req.body;
     if (!Array.isArray(class_ids) || !class_ids.length) return res.status(400).json({ error: 'class_ids must be a non-empty array' });
     if (!Array.isArray(subject_ids) || !subject_ids.length) return res.status(400).json({ error: 'subject_ids must be a non-empty array' });
-    const populations = await resolvePopulationsForSubjects(req.schoolId, class_ids, subject_ids);
+    const { yearId, semester } = await getCurrentYearAndSemester(req.schoolId);
+    if (!yearId) return res.status(400).json({ error: 'No current academic year configured' });
+    const populations = await resolvePopulationsForSubjects(req.schoolId, class_ids, subject_ids, yearId, semester);
     res.json({ populations });
   } catch (err) { next(err); }
 });
