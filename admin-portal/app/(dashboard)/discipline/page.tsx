@@ -11,7 +11,7 @@ import { plainTextToHtml, isHtmlEmpty } from '@/lib/richText';
 
 interface Teacher { id: string; name: string; department?: string; status: string; }
 interface Student { id: string; name: string; student_code: string; class_name: string; }
-interface AcademicYear { id: string; name: string; is_current: boolean; }
+interface AcademicYear { id: string; name: string; is_current: boolean; current_semester?: number | null; }
 
 interface DisciplineFlag {
   type: 'repeat_offense' | 'escalation_trajectory' | 'category_concentration' | 'time_density' | 'stale_serious_case';
@@ -770,7 +770,12 @@ function MissingResultsModal({ academicYears, handledTeacherIds, onClose, onDraf
 }) {
   const currentYear = academicYears.find(ay => ay.is_current);
   const [ayId, setAyId] = useState(currentYear?.id ?? academicYears[0]?.id ?? '');
-  const [semester, setSemester] = useState('2');
+  // Default to the school's actual current semester, not a hardcoded value —
+  // defaulting to Semester 2 made this modal check a period that often
+  // hasn't started yet for a school still in Semester 1, which flagged
+  // every teacher as "not started" and made already-published Semester 1
+  // work look like it was still outstanding.
+  const [semester, setSemester] = useState(String(currentYear?.current_semester ?? 1));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [candidates, setCandidates] = useState<MissingResultsTeacher[]>([]);
