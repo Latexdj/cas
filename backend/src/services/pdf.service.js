@@ -1630,6 +1630,101 @@ async function generateBlankObservationFormPDFBuffer(criteria, school) {
   }
 }
 
+function buildBudgetReportHTML(budget, items, school) {
+  const generatedOn = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const money = n => n == null ? '—' : Number(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const total = items.reduce((sum, i) => sum + (i.amount != null ? Number(i.amount) : 0), 0);
+
+  const itemRows = items.map((i, idx) => `
+    <tr>
+      <td style="text-align:center;">${idx + 1}</td>
+      <td>${esc(i.category)}${i.description ? `<div style="font-size:8pt;color:#7A7266;">${esc(i.description)}</div>` : ''}</td>
+      <td style="text-align:center;">${Number(i.quantity)}</td>
+      <td style="text-align:right;">${money(i.unit_price)}</td>
+      <td style="text-align:right;">${money(i.amount)}</td>
+    </tr>`).join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="color-scheme" content="light"><style>
+    * { box-sizing: border-box; }
+    html, body { background: #FFFFFF; }
+    body { font-family: Georgia, 'Times New Roman', serif; font-size: 11pt; color: #2A2620; line-height: 1.6; margin: 0; }
+    .meta-bar { display: flex; justify-content: space-between; font-size: 8pt; color: #7A7266; margin-bottom: 18px; font-family: Arial, Helvetica, sans-serif; }
+    .title-block { text-align: center; margin-bottom: 18px; font-family: Arial, Helvetica, sans-serif; }
+    .title-block h2 { font-size: 13pt; letter-spacing: 0.03em; color: #0B3D2E; margin: 0 0 4px; }
+    .title-block .sub { font-size: 9.5pt; color: #4A3F32; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: 9.5pt; font-family: Arial, Helvetica, sans-serif; margin-bottom: 18px; }
+    .meta-grid span.lbl { color: #7A7266; }
+    table.budget { width: 100%; border-collapse: collapse; margin-top: 6px; font-family: Arial, Helvetica, sans-serif; font-size: 9pt; }
+    table.budget th, table.budget td { border: 1px solid #DDD6C8; padding: 6px 8px; vertical-align: top; }
+    table.budget th { background: #F4EFE3; color: #0B3D2E; text-align: left; }
+    table.budget tfoot td { font-weight: bold; background: #F4EFE3; }
+    .note { margin-top: 18px; font-size: 9.5pt; font-family: Arial, Helvetica, sans-serif; }
+    .note .lbl { color: #7A7266; }
+  </style></head><body>
+    ${renderLetterhead(school)}
+    <div class="meta-bar">
+      <span>Department Budget</span>
+      <span>Generated ${generatedOn}</span>
+    </div>
+    <div class="title-block">
+      <h2>BUDGET ESTIMATES — ${esc(budget.department_name)}</h2>
+      <div class="sub">${esc(budget.academic_year_name)}</div>
+    </div>
+    <div class="meta-grid">
+      <div><span class="lbl">Status:</span> ${esc(budget.status)}</div>
+      <div><span class="lbl">Submitted by:</span> ${esc(budget.submitted_by_name || '—')}</div>
+      <div><span class="lbl">Reviewed by:</span> ${esc(budget.reviewed_by_name || '—')}</div>
+      <div><span class="lbl">Reviewed on:</span> ${budget.reviewed_at ? esc(new Date(budget.reviewed_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })) : '—'}</div>
+    </div>
+    <table class="budget">
+      <thead>
+        <tr>
+          <th style="width:34px;text-align:center;">NO.</th>
+          <th>ITEM / ACTIVITY DESCRIPTION</th>
+          <th style="width:80px;text-align:center;">QUANTITY</th>
+          <th style="width:110px;text-align:right;">UNIT PRICE (GH₵)</th>
+          <th style="width:120px;text-align:right;">ESTIMATED AMT (GH₵)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemRows}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4" style="text-align:right;">TOTAL</td>
+          <td style="text-align:right;">${money(total)}</td>
+        </tr>
+      </tfoot>
+    </table>
+    ${budget.review_note ? `<div class="note"><span class="lbl">Review note:</span> ${esc(budget.review_note).replace(/\n/g, '<br/>')}</div>` : ''}
+  </body></html>`;
+}
+
+async function generateBudgetReportPDFBuffer(budget, items, school) {
+  const html = buildBudgetReportHTML(budget, items, school);
+  const executablePath = await resolveChromePath();
+  const browser = await puppeteer.launch({
+    args:            chromeLaunchArgs(),
+    defaultViewport: chromium.defaultViewport,
+    executablePath,
+    headless:        true,
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'load', timeout: 30000 });
+    return Buffer.from(await page.pdf({
+      format: 'A4', landscape: false, printBackground: true,
+      margin: { top: '18mm', right: '18mm', bottom: '16mm', left: '18mm' },
+      displayHeaderFooter: true,
+      headerTemplate: '<div></div>',
+      footerTemplate: `<div style="width:100%;font-size:7pt;color:#7A7266;display:flex;justify-content:space-between;padding:0 18mm;font-family:Arial,Helvetica,sans-serif;">
+        <span>CAS Services</span><span class="pageNumber"></span>/<span class="totalPages"></span></div>`,
+    }));
+  } finally {
+    await browser.close();
+  }
+}
+
 module.exports = {
   generateAndUploadPDF, buildLetterHTML,
   buildAdmissionLetterHTML, generateAdmissionLetterPDF,
@@ -1641,4 +1736,5 @@ module.exports = {
   buildBoardReportHTML, generateBoardReportPDFBuffer,
   buildObservationReportHTML, generateObservationReportPDFBuffer,
   buildBlankObservationFormHTML, generateBlankObservationFormPDFBuffer,
+  buildBudgetReportHTML, generateBudgetReportPDFBuffer,
 };

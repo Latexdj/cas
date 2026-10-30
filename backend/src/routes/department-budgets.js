@@ -4,6 +4,7 @@ const pool   = require('../config/db');
 const { authenticate, requireActiveSubscription } = require('../middleware/auth');
 const { checkModuleAccess } = require('../middleware/moduleAccess');
 const { notifyTeacherBudgetReviewed } = require('../services/notification.service');
+const { generateBudgetReportPDFBuffer } = require('../services/pdf.service');
 
 router.use(authenticate, requireActiveSubscription, checkModuleAccess('department_budgets'));
 
@@ -430,6 +431,27 @@ router.get('/:id', async (req, res, next) => {
       [req.params.id]
     );
     res.json({ ...budget, items });
+  } catch (err) { next(err); }
+});
+
+router.get('/:id/pdf', async (req, res, next) => {
+  try {
+    const budget = await loadBudget(req.schoolId, req.params.id);
+    if (!budget) return res.status(404).json({ error: 'Budget not found' });
+    const allowed = await canManageBudget(req.schoolId, req.user, budget);
+    if (!allowed) return res.status(403).json({ error: 'You do not have access to this budget' });
+
+    const { rows: items } = await pool.query(
+      `SELECT id, category, description, quantity, unit_price, amount, sort_order FROM department_budget_items
+       WHERE budget_id = $1 ORDER BY sort_order, created_at`,
+      [req.params.id]
+    );
+    const { rows: [school] } = await pool.query(`SELECT * FROM schools WHERE id = $1`, [req.schoolId]);
+
+    const pdfBuffer = await generateBudgetReportPDFBuffer(budget, items, school);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="budget-${budget.department_name.replace(/[^a-z0-9]+/gi, '-')}.pdf"`);
+    res.send(pdfBuffer);
   } catch (err) { next(err); }
 });
 

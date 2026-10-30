@@ -62,6 +62,8 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
   const [reviewing, setReviewing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [calculatorFor, setCalculatorFor] = useState<string | null>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -129,6 +131,43 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
     }
   }
 
+  async function exportPdf() {
+    if (!budget) return;
+    setExportingPdf(true);
+    try {
+      const response = await apiClient.get(`/api/department-budgets/${budgetId}/pdf`, { responseType: 'blob', timeout: 60000 });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `Budget_${budget.department_name.replace(/[^A-Za-z0-9]+/g, '_')}.pdf`;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch {
+      alert('Could not export PDF. Please try again.');
+    } finally { setExportingPdf(false); }
+  }
+
+  async function exportExcel() {
+    if (!budget) return;
+    setExportingExcel(true);
+    try {
+      const XLSX = await import('xlsx');
+      const headers = ['No.', 'Item / Activity Description', 'Description', 'Quantity', 'Unit Price (GHS)', 'Estimated Amt (GHS)'];
+      const rows = budget.items.map((item, idx) => [
+        idx + 1, item.category, item.description || '', Number(item.quantity),
+        item.unit_price != null ? Number(item.unit_price) : '', item.amount != null ? Number(item.amount) : '',
+      ]);
+      const totalRow = ['', '', '', '', 'TOTAL', budget.total_amount != null ? Number(budget.total_amount) : ''];
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows, totalRow]);
+      ws['!cols'] = [{ wch: 6 }, { wch: 28 }, { wch: 28 }, { wch: 10 }, { wch: 16 }, { wch: 18 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Budget');
+      XLSX.writeFile(wb, `Budget_${budget.department_name.replace(/[^A-Za-z0-9]+/g, '_')}.xlsx`);
+    } catch {
+      alert('Could not export Excel. Please try again.');
+    } finally { setExportingExcel(false); }
+  }
+
   function openReview(action: 'approve' | 'changes' | 'reject') {
     setReviewAction(action); setReviewNote(''); setReviewError('');
   }
@@ -170,6 +209,14 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
         </div>
         <div className="flex gap-2 items-center">
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: ss.bg, color: ss.color }}>{budget.status}</span>
+          <button onClick={exportExcel} disabled={exportingExcel}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 disabled:opacity-50">
+            {exportingExcel ? 'Exporting…' : 'Export Excel'}
+          </button>
+          <button onClick={exportPdf} disabled={exportingPdf}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 disabled:opacity-50">
+            {exportingPdf ? 'Exporting…' : 'Export PDF'}
+          </button>
           {budget.status === 'Draft' && (
             <button onClick={deleteBudget} disabled={deleting}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50">
