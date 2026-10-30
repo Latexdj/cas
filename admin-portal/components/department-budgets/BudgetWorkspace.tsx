@@ -24,7 +24,11 @@ const inputCls = 'w-full rounded-lg border px-3 py-2 text-sm focus:outline-none 
   + ' border-slate-200 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white';
 const labelCls = 'block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1';
 
-export default function BudgetWorkspace({ apiClient, basePath }: { apiClient: AxiosInstance; basePath: string }) {
+const OTHER_OPTION = '__other__';
+
+export default function BudgetWorkspace({ apiClient, basePath, canUseCustomDepartment = false }: {
+  apiClient: AxiosInstance; basePath: string; canUseCustomDepartment?: boolean;
+}) {
   const [budgets, setBudgets] = useState<DepartmentBudget[]>([]);
   const [departments, setDepartments] = useState<BudgetDepartment[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
@@ -36,6 +40,7 @@ export default function BudgetWorkspace({ apiClient, basePath }: { apiClient: Ax
   const [filterYear, setFilterYear] = useState('');
   const [newDeptId, setNewDeptId] = useState('');
   const [newYearId, setNewYearId] = useState('');
+  const [customDeptName, setCustomDeptName] = useState('');
 
   const recentYears = academicYears.slice(0, 3);
 
@@ -67,12 +72,21 @@ export default function BudgetWorkspace({ apiClient, basePath }: { apiClient: Ax
   const existingDeptIdsForYear = new Set(budgets.filter(b => b.academic_year_id === newYearId).map(b => b.department_id));
   const creatableDepartments = departments.filter(d => !existingDeptIdsForYear.has(d.id));
 
+  const usingCustom = newDeptId === OTHER_OPTION;
+
   async function createBudget() {
-    if (!newDeptId || !newYearId) { setError('Select a department and academic year.'); return; }
+    if (!newYearId) { setError('Select an academic year.'); return; }
+    if (usingCustom) {
+      if (!customDeptName.trim()) { setError('Type a name for the office.'); return; }
+    } else if (!newDeptId) {
+      setError('Select a department.'); return;
+    }
     setSaving(true); setError('');
     try {
       const { data } = await apiClient.post<DepartmentBudget>('/api/department-budgets', {
-        department_id: newDeptId, academic_year_id: newYearId,
+        department_id: usingCustom ? undefined : newDeptId,
+        custom_department_name: usingCustom ? customDeptName.trim() : undefined,
+        academic_year_id: newYearId,
       });
       window.location.href = `${basePath}/${data.id}`;
     } catch (e: unknown) {
@@ -92,7 +106,7 @@ export default function BudgetWorkspace({ apiClient, basePath }: { apiClient: Ax
             <option value="">All years</option>
             {recentYears.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (Current)' : ''}</option>)}
           </select>
-          {departments.length > 0 && (
+          {(departments.length > 0 || canUseCustomDepartment) && (
             <button onClick={() => { setCreating(c => !c); setError(''); }}
               className="px-4 py-2 rounded-lg text-sm font-semibold text-white"
               style={{ backgroundColor: creating ? '#64748B' : '#145C44' }}>
@@ -111,6 +125,7 @@ export default function BudgetWorkspace({ apiClient, basePath }: { apiClient: Ax
               <select className={inputCls} value={newDeptId} onChange={e => setNewDeptId(e.target.value)}>
                 <option value="">Select department…</option>
                 {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {canUseCustomDepartment && <option value={OTHER_OPTION}>Other (type manually)…</option>}
               </select>
             </div>
             <div>
@@ -120,8 +135,16 @@ export default function BudgetWorkspace({ apiClient, basePath }: { apiClient: Ax
                 {recentYears.map(y => <option key={y.id} value={y.id}>{y.name}{y.is_current ? ' (Current)' : ''}</option>)}
               </select>
             </div>
+            {usingCustom && (
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Office / Department Name *</label>
+                <input className={inputCls} value={customDeptName} onChange={e => setCustomDeptName(e.target.value)}
+                  placeholder="e.g. Exam Office, Academics" />
+                <p className="text-xs text-slate-400 mt-1">For an office or unit not on the department list. Only management can create and manage these.</p>
+              </div>
+            )}
           </div>
-          {newYearId && creatableDepartments.length === 0 && departments.length > 0 && (
+          {!usingCustom && newYearId && creatableDepartments.length === 0 && departments.length > 0 && (
             <p className="text-xs text-slate-400">Every department you can manage already has a budget for that year.</p>
           )}
           {error && <p className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</p>}

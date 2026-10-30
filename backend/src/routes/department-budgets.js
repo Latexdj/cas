@@ -33,6 +33,14 @@ async function canManageDepartment(schoolId, user, departmentId) {
   return rowCount > 0;
 }
 
+// A "custom" budget (an office with no departments row, e.g. Exam Office,
+// Academics) has no head_teacher_id to check against, so only management can
+// create or manage one. A real department's budget keeps the HOD-or-management rule.
+async function canManageBudget(schoolId, user, budget) {
+  if (budget.department_id) return canManageDepartment(schoolId, user, budget.department_id);
+  return isManagementUser(user);
+}
+
 const EDITABLE_STATUSES = ['Draft', 'Changes Requested', 'Rejected'];
 
 async function getCurrentAcademicYear(schoolId) {
@@ -44,13 +52,14 @@ async function getCurrentAcademicYear(schoolId) {
 }
 
 const BUDGET_SELECT = `
-  SELECT b.*, d.name AS department_name,
+  SELECT b.*, COALESCE(d.name, b.custom_department_name) AS department_name,
+         (b.department_id IS NULL) AS is_custom_department,
          ay.name AS academic_year_name,
          sb.name AS submitted_by_name, rb.name AS reviewed_by_name,
          (SELECT COALESCE(SUM(amount), 0) FROM department_budget_items WHERE budget_id = b.id) AS total_amount,
          (SELECT COUNT(*)::int FROM department_budget_items WHERE budget_id = b.id) AS item_count
   FROM department_budgets b
-  JOIN departments d ON d.id = b.department_id
+  LEFT JOIN departments d ON d.id = b.department_id
   JOIN academic_years ay ON ay.id = b.academic_year_id
   LEFT JOIN teachers sb ON sb.id = b.submitted_by
   LEFT JOIN teachers rb ON rb.id = b.reviewed_by
@@ -240,7 +249,7 @@ router.get('/', async (req, res, next) => {
     }
 
     const { rows } = await pool.query(
-      `${BUDGET_SELECT} WHERE ${conditions.join(' AND ')} ORDER BY ay.name DESC, d.name`,
+      `${BUDGET_SELECT} WHERE ${conditions.join(' AND ')} ORDER BY ay.name DESC, COALESCE(d.name, b.custom_department_name)`,
       params
     );
     res.json(rows);
@@ -251,19 +260,25 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { department_id, academic_year_id, items } = req.body;
-    if (!department_id) return res.status(400).json({ error: 'department_id is required' });
+    const { department_id, custom_department_name, academic_year_id, items } = req.body;
+    const customName = custom_department_name?.trim() || null;
+    if (!department_id && !customName) return res.status(400).json({ error: 'department_id or custom_department_name is required' });
+    if (department_id && customName) return res.status(400).json({ error: 'Provide either department_id or custom_department_name, not both' });
 
-    const allowed = await canManageDepartment(req.schoolId, req.user, department_id);
-    if (!allowed) return res.status(403).json({ error: 'You are not the head of this department' });
+    if (department_id) {
+      const allowed = await canManageDepartment(req.schoolId, req.user, department_id);
+      if (!allowed) return res.status(403).json({ error: 'You are not the head of this department' });
+    } else if (!isManagementUser(req.user)) {
+      return res.status(403).json({ error: 'Only management can create a budget for an office outside the department list' });
+    }
 
     const yearId = academic_year_id || await getCurrentAcademicYear(req.schoolId);
     if (!yearId) return res.status(400).json({ error: 'No academic year available — academic_year_id is required' });
 
     const { rows } = await pool.query(
-      `INSERT INTO department_budgets (school_id, department_id, academic_year_id)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [req.schoolId, department_id, yearId]
+      `INSERT INTO department_budgets (school_id, department_id, custom_department_name, academic_year_id)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [req.schoolId, department_id || null, customName, yearId]
     );
     const budgetId = rows[0].id;
 
@@ -284,7 +299,7 @@ router.post('/', async (req, res, next) => {
     res.status(201).json(budget);
   } catch (err) {
     if (err.code === '23505') {
-      return res.status(409).json({ error: 'This department already has a budget for that academic year' });
+      return res.status(409).json({ error: 'This department or office already has a budget for that academic year' });
     }
     next(err);
   }
@@ -296,7 +311,7 @@ router.get('/:id', async (req, res, next) => {
   try {
     const budget = await loadBudget(req.schoolId, req.params.id);
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    const allowed = await canManageDepartment(req.schoolId, req.user, budget.department_id);
+    const allowed = await canManageBudget(req.schoolId, req.user, budget);
     if (!allowed) return res.status(403).json({ error: 'You do not have access to this budget' });
 
     const { rows: items } = await pool.query(
@@ -315,7 +330,7 @@ router.put('/:id', async (req, res, next) => {
   try {
     const budget = await loadBudget(req.schoolId, req.params.id);
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    const allowed = await canManageDepartment(req.schoolId, req.user, budget.department_id);
+    const allowed = await canManageBudget(req.schoolId, req.user, budget);
     if (!allowed) return res.status(403).json({ error: 'You do not have access to this budget' });
     if (!EDITABLE_STATUSES.includes(budget.status)) {
       return res.status(400).json({ error: `Cannot edit a budget with status "${budget.status}"` });
@@ -358,7 +373,7 @@ router.post('/:id/submit', async (req, res, next) => {
   try {
     const budget = await loadBudget(req.schoolId, req.params.id);
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    const allowed = await canManageDepartment(req.schoolId, req.user, budget.department_id);
+    const allowed = await canManageBudget(req.schoolId, req.user, budget);
     if (!allowed) return res.status(403).json({ error: 'You do not have access to this budget' });
     if (!EDITABLE_STATUSES.includes(budget.status)) {
       return res.status(400).json({ error: `Cannot submit a budget with status "${budget.status}"` });
@@ -428,7 +443,7 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const budget = await loadBudget(req.schoolId, req.params.id);
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    const allowed = await canManageDepartment(req.schoolId, req.user, budget.department_id);
+    const allowed = await canManageBudget(req.schoolId, req.user, budget);
     if (!allowed) return res.status(403).json({ error: 'You do not have access to this budget' });
     if (budget.status !== 'Draft') return res.status(400).json({ error: 'Only a draft budget can be deleted' });
 

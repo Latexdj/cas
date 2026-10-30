@@ -612,8 +612,9 @@ export interface BudgetItemFormula {
 export interface DepartmentBudget {
   id: string;
   school_id: string;
-  department_id: string;
+  department_id: string | null;
   department_name: string;
+  is_custom_department: boolean;
   academic_year_id: string;
   academic_year_name: string;
   status: 'Draft' | 'Submitted' | 'Approved' | 'Changes Requested' | 'Rejected';

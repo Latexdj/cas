@@ -3861,7 +3861,7 @@ async function runMigrations() {
       CREATE TABLE IF NOT EXISTS department_budgets (
         id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         school_id         UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
-        department_id     UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+        department_id     UUID REFERENCES departments(id) ON DELETE CASCADE,
         academic_year_id  UUID NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
         status            TEXT NOT NULL DEFAULT 'Draft'
                             CHECK (status IN ('Draft','Submitted','Approved','Changes Requested','Rejected')),
@@ -3877,6 +3877,25 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_dept_budgets_school ON department_budgets(school_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_dept_budgets_year   ON department_budgets(academic_year_id)`);
+    // "Other" office (Exam Office, Academics, etc.) — a budget not tied to a
+    // real departments row, since those offices have no head_teacher_id to
+    // check permissions against. Management-only to create/manage; exactly
+    // one of department_id / custom_department_name is ever set.
+    await pool.query(`ALTER TABLE department_budgets ALTER COLUMN department_id DROP NOT NULL`);
+    await pool.query(`ALTER TABLE department_budgets ADD COLUMN IF NOT EXISTS custom_department_name TEXT`);
+    await pool.query(`ALTER TABLE department_budgets DROP CONSTRAINT IF EXISTS dept_budgets_one_of_dept_or_custom`);
+    await pool.query(`
+      ALTER TABLE department_budgets ADD CONSTRAINT dept_budgets_one_of_dept_or_custom
+      CHECK (
+        (department_id IS NOT NULL AND custom_department_name IS NULL) OR
+        (department_id IS NULL AND custom_department_name IS NOT NULL)
+      )
+    `);
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_dept_budgets_custom_unique
+      ON department_budgets(school_id, LOWER(custom_department_name), academic_year_id)
+      WHERE custom_department_name IS NOT NULL
+    `);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS department_budget_items (
