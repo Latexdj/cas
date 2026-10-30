@@ -274,6 +274,10 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
               </div>
             ))}
             {draftItems.length === 0 && <p className="text-sm text-slate-400">No items yet — click &quot;+ Add Item&quot;.</p>}
+            <button onClick={addRow} className="w-full py-2 rounded-lg text-xs font-semibold border border-dashed"
+              style={{ borderColor: '#145C44', color: '#145C44' }}>
+              + Add Item
+            </button>
             <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-700">
               <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Total</span>
               <span className="text-sm font-bold text-slate-900 dark:text-white">{fmtMoney(draftTotal)}</span>
