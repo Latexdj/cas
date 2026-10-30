@@ -14,7 +14,10 @@ const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   Rejected:            { bg: '#FEF2F2', color: '#DC2626' },
 };
 
-const EDITABLE_STATUSES = ['Draft', 'Changes Requested', 'Rejected'];
+// Everything short of Approved stays editable — mirrors the backend's rule
+// so a department can keep refining (and re-submitting) its budget right up
+// until management signs off; only Approved locks it.
+const EDITABLE_STATUSES = ['Draft', 'Submitted', 'Changes Requested', 'Rejected'];
 
 function fmtMoney(n: number | null) {
   if (n == null) return '—';
@@ -341,11 +344,11 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
         <div className="flex justify-end gap-3">
           <button onClick={saveItems} disabled={saving}
             className="px-5 py-2 rounded-lg text-sm font-semibold border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 disabled:opacity-60">
-            {saving ? 'Saving…' : 'Save Draft'}
+            {saving ? 'Saving…' : budget.status === 'Draft' ? 'Save Draft' : 'Save Changes'}
           </button>
           <button onClick={submitBudget} disabled={saving || draftItems.filter(r => r.category.trim()).length === 0}
             className="px-5 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-60" style={{ backgroundColor: '#145C44' }}>
-            {saving ? 'Submitting…' : 'Submit for Approval'}
+            {saving ? 'Submitting…' : budget.status === 'Submitted' ? 'Update Submission' : 'Submit for Approval'}
           </button>
         </div>
       )}

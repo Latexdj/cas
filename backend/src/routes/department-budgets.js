@@ -42,7 +42,10 @@ async function canManageBudget(schoolId, user, budget) {
   return isManagementUser(user);
 }
 
-const EDITABLE_STATUSES = ['Draft', 'Changes Requested', 'Rejected'];
+// Everything short of Approved stays editable — a department can keep
+// refining (and re-submitting) its budget right up until management signs
+// off; only Approved locks it.
+const EDITABLE_STATUSES = ['Draft', 'Submitted', 'Changes Requested', 'Rejected'];
 
 async function getCurrentAcademicYear(schoolId) {
   const { rows } = await pool.query(
