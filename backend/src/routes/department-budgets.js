@@ -117,11 +117,55 @@ router.get('/departments-all', async (req, res, next) => {
 const POPULATION_BASES = [
   'all_students', 'class_level', 'all_teachers', 'department',
   'subjects_school', 'subjects_class', 'subjects_class_level',
+  'students_offering_subject',
 ];
 // Bases that need a class_levels row to resolve.
 const CLASS_LEVEL_BASES = ['class_level', 'subjects_class_level'];
 
-async function resolvePopulationCount(schoolId, basis, classLevelId, departmentId, classId) {
+// Students, across a given set of classes, who actually sit a given subject —
+// the real exam-paper-printing population. Per class: no class_subjects row
+// for that subject means the class doesn't take it at all (0 contributed); a
+// row with is_elective=false means the whole class takes it (a core
+// subject); is_elective=true means only the student_electives enrollees in
+// that class count. This mirrors the roster-narrowing rule in
+// electives.service.js, but (unlike that helper) must also tell "not
+// offered at all" apart from "offered to everyone", so it queries
+// class_subjects directly rather than reusing that helper.
+async function resolveStudentsOfferingSubject(schoolId, subjectId, classIds) {
+  if (!subjectId || !Array.isArray(classIds) || !classIds.length) return 0;
+
+  const { rows: classRows } = await pool.query(
+    `SELECT id, name FROM classes WHERE id = ANY($1::uuid[]) AND school_id = $2`,
+    [classIds, schoolId]
+  );
+  let total = 0;
+  for (const cls of classRows) {
+    const { rows: csRows } = await pool.query(
+      `SELECT is_elective FROM class_subjects WHERE school_id = $1 AND LOWER(class_name) = LOWER($2) AND subject_id = $3`,
+      [schoolId, cls.name, subjectId]
+    );
+    if (!csRows.length) continue; // this class doesn't offer the subject at all
+
+    if (!csRows[0].is_elective) {
+      const { rows } = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM students WHERE school_id = $1 AND status = 'Active' AND LOWER(class_name) = LOWER($2)`,
+        [schoolId, cls.name]
+      );
+      total += rows[0].n;
+    } else {
+      const { rows } = await pool.query(
+        `SELECT COUNT(*)::int AS n FROM students s
+         JOIN student_electives se ON se.student_id = s.id AND se.subject_id = $3
+         WHERE s.school_id = $1 AND s.status = 'Active' AND LOWER(s.class_name) = LOWER($2)`,
+        [schoolId, cls.name, subjectId]
+      );
+      total += rows[0].n;
+    }
+  }
+  return total;
+}
+
+async function resolvePopulationCount(schoolId, basis, classLevelId, departmentId, classId, subjectId, classIds) {
   if (basis === 'all_students') {
     const { rows } = await pool.query(`SELECT COUNT(*)::int AS n FROM students WHERE school_id = $1 AND status = 'Active'`, [schoolId]);
     return rows[0].n;
@@ -179,20 +223,37 @@ async function resolvePopulationCount(schoolId, basis, classLevelId, departmentI
     );
     return rows[0].n;
   }
+  if (basis === 'students_offering_subject') {
+    return resolveStudentsOfferingSubject(schoolId, subjectId, classIds);
+  }
   return 0;
 }
 
-// GET /population?basis=&class_level_id=&department_id=&class_id= — live count for a basis
+// GET /population?basis=&class_level_id=&department_id=&class_id=&subject_id=&class_ids= — live count for a basis
 router.get('/population', async (req, res, next) => {
   try {
-    const { basis, class_level_id, department_id, class_id } = req.query;
+    const { basis, class_level_id, department_id, class_id, subject_id, class_ids } = req.query;
     if (!POPULATION_BASES.includes(basis)) {
       return res.status(400).json({ error: `basis must be one of: ${POPULATION_BASES.join(', ')}` });
     }
-    const count = await resolvePopulationCount(req.schoolId, basis, class_level_id, department_id, class_id);
-    res.json({ basis, class_level_id: class_level_id || null, department_id: department_id || null, class_id: class_id || null, count });
+    const classIdList = class_ids ? class_ids.split(',').map(s => s.trim()).filter(Boolean) : [];
+    const count = await resolvePopulationCount(req.schoolId, basis, class_level_id, department_id, class_id, subject_id, classIdList);
+    res.json({
+      basis, class_level_id: class_level_id || null, department_id: department_id || null,
+      class_id: class_id || null, subject_id: subject_id || null, class_ids: classIdList, count,
+    });
   } catch (err) { next(err); }
 });
+
+const FORMULA_SELECT = `
+  SELECT f.*, cl.name AS class_level_name, d.name AS department_name, cls.name AS class_name, sub.name AS subject_name,
+         (SELECT COALESCE(array_agg(c.name ORDER BY c.name), '{}') FROM classes c WHERE c.id = ANY(f.class_ids)) AS class_names
+  FROM budget_item_formulas f
+  LEFT JOIN class_levels cl ON cl.id = f.class_level_id
+  LEFT JOIN departments d ON d.id = f.department_id
+  LEFT JOIN classes cls ON cls.id = f.class_id
+  LEFT JOIN subjects sub ON sub.id = f.subject_id
+`;
 
 // GET /formulas?item_name=... — the saved formula for that item name (or null)
 router.get('/formulas', async (req, res, next) => {
@@ -200,25 +261,12 @@ router.get('/formulas', async (req, res, next) => {
     const { item_name } = req.query;
     if (item_name) {
       const { rows } = await pool.query(
-        `SELECT f.*, cl.name AS class_level_name, d.name AS department_name, cls.name AS class_name
-         FROM budget_item_formulas f
-         LEFT JOIN class_levels cl ON cl.id = f.class_level_id
-         LEFT JOIN departments d ON d.id = f.department_id
-         LEFT JOIN classes cls ON cls.id = f.class_id
-         WHERE f.school_id = $1 AND LOWER(f.item_name) = LOWER($2)`,
+        `${FORMULA_SELECT} WHERE f.school_id = $1 AND LOWER(f.item_name) = LOWER($2)`,
         [req.schoolId, item_name.trim()]
       );
       return res.json(rows[0] ?? null);
     }
-    const { rows } = await pool.query(
-      `SELECT f.*, cl.name AS class_level_name, d.name AS department_name, cls.name AS class_name
-       FROM budget_item_formulas f
-       LEFT JOIN class_levels cl ON cl.id = f.class_level_id
-       LEFT JOIN departments d ON d.id = f.department_id
-       LEFT JOIN classes cls ON cls.id = f.class_id
-       WHERE f.school_id = $1 ORDER BY f.item_name`,
-      [req.schoolId]
-    );
+    const { rows } = await pool.query(`${FORMULA_SELECT} WHERE f.school_id = $1 ORDER BY f.item_name`, [req.schoolId]);
     res.json(rows);
   } catch (err) { next(err); }
 });
@@ -226,33 +274,58 @@ router.get('/formulas', async (req, res, next) => {
 // PUT /formulas — upsert the reusable formula for an item name (by school + lower(item_name))
 router.put('/formulas', async (req, res, next) => {
   try {
-    const { item_name, population_basis, class_level_id, department_id, class_id, ratio, buffer_pct } = req.body;
+    const {
+      item_name, population_basis, class_level_id, department_id, class_id, subject_id, class_ids,
+      ratio, buffer_pct, calc_mode = 'ratio', pages_per_paper, double_sided, sheets_per_unit,
+    } = req.body;
     if (!item_name?.trim()) return res.status(400).json({ error: 'item_name is required' });
     if (!POPULATION_BASES.includes(population_basis)) {
       return res.status(400).json({ error: `population_basis must be one of: ${POPULATION_BASES.join(', ')}` });
     }
+    if (!['ratio', 'print_job'].includes(calc_mode)) return res.status(400).json({ error: `calc_mode must be 'ratio' or 'print_job'` });
     if (CLASS_LEVEL_BASES.includes(population_basis) && !class_level_id) return res.status(400).json({ error: 'class_level_id is required for that basis' });
     if (population_basis === 'department' && !department_id) return res.status(400).json({ error: 'department_id is required for that basis' });
     if (population_basis === 'subjects_class' && !class_id) return res.status(400).json({ error: 'class_id is required for that basis' });
+    if (population_basis === 'students_offering_subject') {
+      if (!subject_id) return res.status(400).json({ error: 'subject_id is required for that basis' });
+      if (!Array.isArray(class_ids) || !class_ids.length) return res.status(400).json({ error: 'class_ids must be a non-empty array for that basis' });
+    }
+    if (calc_mode === 'print_job' && !(Number(pages_per_paper) > 0)) {
+      return res.status(400).json({ error: 'pages_per_paper must be greater than 0 for print_job mode' });
+    }
     if (!(Number(ratio) > 0)) return res.status(400).json({ error: 'ratio must be greater than 0' });
 
     const { rows } = await pool.query(
-      `INSERT INTO budget_item_formulas (school_id, item_name, population_basis, class_level_id, department_id, class_id, ratio, buffer_pct, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      `INSERT INTO budget_item_formulas
+         (school_id, item_name, population_basis, class_level_id, department_id, class_id, subject_id, class_ids,
+          ratio, buffer_pct, calc_mode, pages_per_paper, double_sided, sheets_per_unit, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        ON CONFLICT (school_id, LOWER(item_name)) DO UPDATE SET
          population_basis = EXCLUDED.population_basis,
          class_level_id   = EXCLUDED.class_level_id,
          department_id    = EXCLUDED.department_id,
          class_id          = EXCLUDED.class_id,
+         subject_id        = EXCLUDED.subject_id,
+         class_ids         = EXCLUDED.class_ids,
          ratio             = EXCLUDED.ratio,
          buffer_pct        = EXCLUDED.buffer_pct,
+         calc_mode         = EXCLUDED.calc_mode,
+         pages_per_paper   = EXCLUDED.pages_per_paper,
+         double_sided      = EXCLUDED.double_sided,
+         sheets_per_unit   = EXCLUDED.sheets_per_unit,
          updated_at        = now()
        RETURNING *`,
       [req.schoolId, item_name.trim(), population_basis,
        CLASS_LEVEL_BASES.includes(population_basis) ? class_level_id : null,
        population_basis === 'department' ? department_id : null,
        population_basis === 'subjects_class' ? class_id : null,
-       ratio, buffer_pct || 0, req.user.id]
+       population_basis === 'students_offering_subject' ? subject_id : null,
+       population_basis === 'students_offering_subject' ? class_ids : null,
+       ratio, buffer_pct || 0, calc_mode,
+       calc_mode === 'print_job' ? pages_per_paper : null,
+       double_sided ?? true,
+       calc_mode === 'print_job' ? (sheets_per_unit || null) : null,
+       req.user.id]
     );
     res.json(rows[0]);
   } catch (err) { next(err); }

@@ -597,7 +597,10 @@ export interface DepartmentBudgetItem {
 
 export type PopulationBasis =
   | 'all_students' | 'class_level' | 'all_teachers' | 'department'
-  | 'subjects_school' | 'subjects_class' | 'subjects_class_level';
+  | 'subjects_school' | 'subjects_class' | 'subjects_class_level'
+  | 'students_offering_subject';
+
+export type BudgetCalcMode = 'ratio' | 'print_job';
 
 export interface BudgetItemFormula {
   id: string;
@@ -609,6 +612,14 @@ export interface BudgetItemFormula {
   department_name: string | null;
   class_id: string | null;
   class_name: string | null;
+  subject_id: string | null;
+  subject_name: string | null;
+  class_ids: string[] | null;
+  class_names: string[] | null;
+  calc_mode: BudgetCalcMode;
+  pages_per_paper: number | null;
+  double_sided: boolean;
+  sheets_per_unit: number | null;
   ratio: number;
   buffer_pct: number;
 }

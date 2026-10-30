@@ -3944,8 +3944,24 @@ async function runMigrations() {
     await pool.query(`ALTER TABLE budget_item_formulas DROP CONSTRAINT IF EXISTS budget_item_formulas_population_basis_check`);
     await pool.query(`
       ALTER TABLE budget_item_formulas ADD CONSTRAINT budget_item_formulas_population_basis_check
-      CHECK (population_basis IN ('all_students','class_level','all_teachers','department','subjects_school','subjects_class','subjects_class_level'))
+      CHECK (population_basis IN ('all_students','class_level','all_teachers','department','subjects_school','subjects_class','subjects_class_level','students_offering_subject'))
     `);
+    // "students_offering_subject": the real exam-paper-printing population —
+    // sum of active students, across whichever classes are picked, who
+    // actually sit that subject (elective-aware via class_subjects /
+    // student_electives, same source as the roster-filtering elsewhere).
+    await pool.query(`ALTER TABLE budget_item_formulas ADD COLUMN IF NOT EXISTS subject_id UUID REFERENCES subjects(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE budget_item_formulas ADD COLUMN IF NOT EXISTS class_ids UUID[]`);
+    // "print_job" mode derives the per-student sheet count from the paper's
+    // page count and whether it's photocopied double-sided, instead of the
+    // admin pre-computing a ratio themselves; sheets_per_unit converts the
+    // raw sheet total into the purchasing unit (e.g. 500 sheets = 1 ream).
+    await pool.query(`ALTER TABLE budget_item_formulas ADD COLUMN IF NOT EXISTS calc_mode TEXT NOT NULL DEFAULT 'ratio'`);
+    await pool.query(`ALTER TABLE budget_item_formulas DROP CONSTRAINT IF EXISTS budget_item_formulas_calc_mode_check`);
+    await pool.query(`ALTER TABLE budget_item_formulas ADD CONSTRAINT budget_item_formulas_calc_mode_check CHECK (calc_mode IN ('ratio','print_job'))`);
+    await pool.query(`ALTER TABLE budget_item_formulas ADD COLUMN IF NOT EXISTS pages_per_paper INT CHECK (pages_per_paper IS NULL OR pages_per_paper > 0)`);
+    await pool.query(`ALTER TABLE budget_item_formulas ADD COLUMN IF NOT EXISTS double_sided BOOLEAN NOT NULL DEFAULT true`);
+    await pool.query(`ALTER TABLE budget_item_formulas ADD COLUMN IF NOT EXISTS sheets_per_unit INT CHECK (sheets_per_unit IS NULL OR sheets_per_unit > 0)`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] department budgets module:', e.message); }
 
     if (_migFailures > 0) {
