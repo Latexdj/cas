@@ -33,7 +33,10 @@ type DraftItem = { id: string; category: string; description: string; quantity: 
 function toDraftItems(items: DepartmentBudgetItem[]): DraftItem[] {
   return items.map(i => ({
     id: i.id, category: i.category, description: i.description || '',
-    quantity: String(i.quantity), unitPrice: i.unit_price != null ? String(i.unit_price) : '',
+    // The API returns NUMERIC columns as fixed-scale strings (e.g. "1294.00")
+    // — round-tripping through Number() first strips that to a plain "1294"
+    // instead of showing the raw decimal formatting.
+    quantity: String(Number(i.quantity)), unitPrice: i.unit_price != null ? String(Number(i.unit_price)) : '',
   }));
 }
 
@@ -236,7 +239,7 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
                 <div>
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{item.category}</p>
                   {item.description && <p className="text-xs text-slate-400">{item.description}</p>}
-                  <p className="text-xs text-slate-400">Qty {item.quantity}{item.unit_price != null ? ` × ${fmtMoney(item.unit_price)}` : ''}</p>
+                  <p className="text-xs text-slate-400">Qty {Number(item.quantity)}{item.unit_price != null ? ` × ${fmtMoney(item.unit_price)}` : ''}</p>
                 </div>
                 <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 font-mono whitespace-nowrap">{fmtMoney(item.amount)}</span>
               </div>

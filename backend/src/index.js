@@ -225,6 +225,7 @@ app.use(errorHandler);
 // personal exemption — only the latter should count toward a teacher's
 // "times excused" tally. Guarded by "excused_via IS NULL" so reruns are safe.
 async function backfillExcusedVia() {
+  const pool = require('./config/db');
   const { rows: candidates } = await pool.query(
     `SELECT id, school_id, teacher_id, date::text AS date, class_name, scheduled_period
      FROM absences WHERE status = 'Excused' AND excused_via IS NULL`
