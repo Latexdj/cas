@@ -4,6 +4,7 @@ import type { AxiosInstance } from 'axios';
 import Link from 'next/link';
 import type { DepartmentBudgetDetail, DepartmentBudgetItem } from '@/types/api';
 import PopulationCalculator from './PopulationCalculator';
+import BulkExamCalculator from './BulkExamCalculator';
 
 const STATUS_STYLES: Record<string, { bg: string; color: string }> = {
   Draft:               { bg: '#F1F5F9', color: '#64748B' },
@@ -62,6 +63,7 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
   const [reviewing, setReviewing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [calculatorFor, setCalculatorFor] = useState<string | null>(null);
+  const [bulkCalculatorOpen, setBulkCalculatorOpen] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
 
@@ -242,10 +244,15 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
       )}
 
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm p-5 space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <h2 className="text-sm font-bold text-slate-800 dark:text-white">Line Items</h2>
           {editable && (
-            <button onClick={addRow} className="text-xs font-semibold" style={{ color: '#145C44' }}>+ Add Item</button>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setBulkCalculatorOpen(true)} className="text-xs font-semibold" style={{ color: '#1D4ED8' }}>
+                Calculate Whole Exam
+              </button>
+              <button onClick={addRow} className="text-xs font-semibold" style={{ color: '#145C44' }}>+ Add Item</button>
+            </div>
           )}
         </div>
 
@@ -378,6 +385,17 @@ export default function BudgetDetail({ apiClient, backHref, budgetId, canReview 
           itemName={draftItems.find(r => r.id === calculatorFor)?.category || ''}
           onApply={(qty) => updateRow(calculatorFor, { quantity: String(qty) })}
           onClose={() => setCalculatorFor(null)}
+        />
+      )}
+
+      {bulkCalculatorOpen && (
+        <BulkExamCalculator
+          apiClient={apiClient}
+          onApply={(qty, category) => {
+            setDraftItems(rows => [...rows, { id: `new-${Date.now()}`, category, description: '', quantity: String(qty), unitPrice: '' }]);
+            setBulkCalculatorOpen(false);
+          }}
+          onClose={() => setBulkCalculatorOpen(false)}
         />
       )}
     </div>

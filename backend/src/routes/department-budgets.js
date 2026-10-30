@@ -246,6 +246,44 @@ router.get('/population', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /subjects-for-classes?class_ids=a,b,c — every subject actually
+// allocated (via class_subjects) to any of the given classes. Drives the
+// "whole exam" bulk calculator's subject list, so it only ever shows
+// subjects that are really offered there instead of the full school catalog.
+router.get('/subjects-for-classes', async (req, res, next) => {
+  try {
+    const classIds = (req.query.class_ids || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (!classIds.length) return res.json([]);
+    const { rows } = await pool.query(
+      `SELECT DISTINCT s.id, s.name FROM class_subjects cs
+       JOIN classes c ON c.school_id = cs.school_id AND LOWER(c.name) = LOWER(cs.class_name)
+       JOIN subjects s ON s.id = cs.subject_id
+       WHERE cs.school_id = $1 AND c.id = ANY($2::uuid[])
+       ORDER BY s.name`,
+      [req.schoolId, classIds]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// POST /population-bulk — population per subject in one round trip, for the
+// "whole exam" calculator (one subject's paper at a time would mean one
+// request per subject). Reuses the same elective-aware resolver as the
+// single-subject basis above, so a compulsory subject (no is_elective row,
+// or is_elective=false) and a split elective behave identically either way.
+router.post('/population-bulk', async (req, res, next) => {
+  try {
+    const { class_ids, subject_ids } = req.body;
+    if (!Array.isArray(class_ids) || !class_ids.length) return res.status(400).json({ error: 'class_ids must be a non-empty array' });
+    if (!Array.isArray(subject_ids) || !subject_ids.length) return res.status(400).json({ error: 'subject_ids must be a non-empty array' });
+    const populations = {};
+    for (const subjectId of subject_ids) {
+      populations[subjectId] = await resolveStudentsOfferingSubject(req.schoolId, subjectId, class_ids);
+    }
+    res.json({ populations });
+  } catch (err) { next(err); }
+});
+
 const FORMULA_SELECT = `
   SELECT f.*, cl.name AS class_level_name, d.name AS department_name, cls.name AS class_name, sub.name AS subject_name,
          (SELECT COALESCE(array_agg(c.name ORDER BY c.name), '{}') FROM classes c WHERE c.id = ANY(f.class_ids)) AS class_names
