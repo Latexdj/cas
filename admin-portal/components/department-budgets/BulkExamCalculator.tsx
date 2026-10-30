@@ -125,8 +125,9 @@ export default function BulkExamCalculator({ apiClient, onApply, onClose }: {
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 text-sm">✕</button>
         </div>
         <p className="text-xs text-slate-400">
-          Picks up every subject allocated to the classes you select, adds up the sheets each one needs, and gives
-          you one combined reams total — instead of calculating subject by subject.
+          Picks up every subject currently timetabled for the classes you select — not the full Curriculum catalog,
+          so a subject no longer being taught this term won&apos;t inflate the total — adds up the sheets each one
+          needs, and gives you one combined reams total.
         </p>
 
         <div>
@@ -174,7 +175,7 @@ export default function BulkExamCalculator({ apiClient, onApply, onClose }: {
 
             {subjects.length === 0 && !loadingSubjects && (
               <p className="text-sm text-slate-400 py-2">
-                No subjects are allocated to these classes yet — set them up under Curriculum → Allocations first.
+                No subjects are timetabled for these classes this term — check the current timetable, or set the current academic year/semester.
               </p>
             )}
 
