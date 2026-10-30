@@ -66,8 +66,10 @@ export default function BulkExamCalculator({ apiClient, onApply, onClose }: {
       } else {
         setPopulations({});
       }
-    } catch {
-      setError('Could not load subjects for the selected classes.');
+    } catch (e: unknown) {
+      const serverMsg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setError(serverMsg ?? 'Could not load subjects for the selected classes.');
+      setLoadingPop(false);
     } finally { setLoadingSubjects(false); }
   }, [apiClient, selectedClassIds]);
 
