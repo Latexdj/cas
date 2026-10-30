@@ -3884,12 +3884,40 @@ async function runMigrations() {
         budget_id   UUID NOT NULL REFERENCES department_budgets(id) ON DELETE CASCADE,
         category    TEXT NOT NULL,
         description TEXT,
-        amount      NUMERIC(12,2) NOT NULL CHECK (amount >= 0),
+        amount      NUMERIC(12,2) CHECK (amount >= 0),
         sort_order  INT NOT NULL DEFAULT 0,
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_dept_budget_items_budget ON department_budget_items(budget_id)`);
+    // Matches the real paper worksheet (quantity x unit price = amount, price
+    // often blank until procurement firms up) instead of a flat requested amount.
+    // amount is server-computed from quantity*unit_price and left NULL — shown
+    // as "-" — whenever unit_price isn't known yet.
+    await pool.query(`ALTER TABLE department_budget_items ADD COLUMN IF NOT EXISTS quantity NUMERIC(12,2) NOT NULL DEFAULT 1`);
+    await pool.query(`ALTER TABLE department_budget_items ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2) CHECK (unit_price IS NULL OR unit_price >= 0)`);
+    await pool.query(`ALTER TABLE department_budget_items ALTER COLUMN amount DROP NOT NULL`);
+
+    // Reusable "quantity = population x ratio (+buffer%)" formulas, keyed by
+    // item name (matched case-insensitively against an item's category) so a
+    // ratio entered once (e.g. "Answer Booklets = 1 per student") is
+    // auto-suggested again in every future budget without re-entering it.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS budget_item_formulas (
+        id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id         UUID NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+        item_name         TEXT NOT NULL,
+        population_basis  TEXT NOT NULL CHECK (population_basis IN ('all_students','class_level','all_teachers','department')),
+        class_level_id    UUID REFERENCES class_levels(id) ON DELETE SET NULL,
+        department_id     UUID REFERENCES departments(id) ON DELETE SET NULL,
+        ratio             NUMERIC(10,4) NOT NULL CHECK (ratio > 0),
+        buffer_pct        NUMERIC(5,2) NOT NULL DEFAULT 0 CHECK (buffer_pct >= 0),
+        created_by        UUID REFERENCES teachers(id),
+        created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_formulas_school_name ON budget_item_formulas(school_id, LOWER(item_name))`);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] department budgets module:', e.message); }
 
     if (_migFailures > 0) {

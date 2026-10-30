@@ -589,8 +589,24 @@ export interface DepartmentBudgetItem {
   id: string;
   category: string;
   description: string | null;
-  amount: number;
+  quantity: number;
+  unit_price: number | null;
+  amount: number | null;
   sort_order: number;
+}
+
+export type PopulationBasis = 'all_students' | 'class_level' | 'all_teachers' | 'department';
+
+export interface BudgetItemFormula {
+  id: string;
+  item_name: string;
+  population_basis: PopulationBasis;
+  class_level_id: string | null;
+  class_level_name: string | null;
+  department_id: string | null;
+  department_name: string | null;
+  ratio: number;
+  buffer_pct: number;
 }
 
 export interface DepartmentBudget {

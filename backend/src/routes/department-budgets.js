@@ -61,6 +61,21 @@ async function loadBudget(schoolId, id) {
   return rows[0] ?? null;
 }
 
+// amount is always server-computed from quantity x unit_price, never taken
+// from the client directly — null (shown as "-") until a unit price is known,
+// matching how the paper worksheet this mirrors leaves price blank.
+function computeAmount(quantity, unitPrice) {
+  if (unitPrice == null || unitPrice === '') return null;
+  return Math.round(Number(quantity) * Number(unitPrice) * 100) / 100;
+}
+
+function validateItem(item) {
+  if (!item.category?.trim()) return 'Every item needs a category';
+  if (item.quantity == null || Number(item.quantity) <= 0) return 'Every item needs a quantity greater than 0';
+  if (item.unit_price != null && item.unit_price !== '' && Number(item.unit_price) < 0) return 'Unit price cannot be negative';
+  return null;
+}
+
 // ── Reference data ──────────────────────────────────────────────────────────
 
 // GET /departments-mine — departments this user may draft/edit a budget for
@@ -75,6 +90,125 @@ router.get('/departments-mine', async (req, res, next) => {
     }
     const rows = await getMyDepartments(req.schoolId, req.user.id);
     res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// GET /departments-all — every department's id/name, for the population
+// calculator's "department" basis (read-only, not gated by headship — a
+// count by name reveals nothing sensitive).
+router.get('/departments-all', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`SELECT id, name FROM departments WHERE school_id = $1 ORDER BY name`, [req.schoolId]);
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── Population-based quantity calculator ────────────────────────────────────
+
+const POPULATION_BASES = ['all_students', 'class_level', 'all_teachers', 'department'];
+
+async function resolvePopulationCount(schoolId, basis, classLevelId, departmentId) {
+  if (basis === 'all_students') {
+    const { rows } = await pool.query(`SELECT COUNT(*)::int AS n FROM students WHERE school_id = $1 AND status = 'Active'`, [schoolId]);
+    return rows[0].n;
+  }
+  if (basis === 'class_level') {
+    if (!classLevelId) return 0;
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM students s
+       JOIN classes c ON c.school_id = s.school_id AND LOWER(c.name) = LOWER(s.class_name)
+       WHERE s.school_id = $1 AND s.status = 'Active' AND c.level_id = $2`,
+      [schoolId, classLevelId]
+    );
+    return rows[0].n;
+  }
+  if (basis === 'all_teachers') {
+    const { rows } = await pool.query(`SELECT COUNT(*)::int AS n FROM teachers WHERE school_id = $1 AND status = 'Active'`, [schoolId]);
+    return rows[0].n;
+  }
+  if (basis === 'department') {
+    if (!departmentId) return 0;
+    const { rows } = await pool.query(
+      `SELECT COUNT(DISTINCT t.id)::int AS n FROM teachers t
+       WHERE t.school_id = $1 AND t.status = 'Active' AND (
+         EXISTS (SELECT 1 FROM department_teachers dt WHERE dt.teacher_id = t.id AND dt.department_id = $2)
+         OR EXISTS (SELECT 1 FROM departments d WHERE d.id = $2 AND LOWER(d.name) = LOWER(t.department))
+       )`,
+      [schoolId, departmentId]
+    );
+    return rows[0].n;
+  }
+  return 0;
+}
+
+// GET /population?basis=&class_level_id=&department_id= — live headcount for a basis
+router.get('/population', async (req, res, next) => {
+  try {
+    const { basis, class_level_id, department_id } = req.query;
+    if (!POPULATION_BASES.includes(basis)) {
+      return res.status(400).json({ error: `basis must be one of: ${POPULATION_BASES.join(', ')}` });
+    }
+    const count = await resolvePopulationCount(req.schoolId, basis, class_level_id, department_id);
+    res.json({ basis, class_level_id: class_level_id || null, department_id: department_id || null, count });
+  } catch (err) { next(err); }
+});
+
+// GET /formulas?item_name=... — the saved formula for that item name (or null)
+router.get('/formulas', async (req, res, next) => {
+  try {
+    const { item_name } = req.query;
+    if (item_name) {
+      const { rows } = await pool.query(
+        `SELECT f.*, cl.name AS class_level_name, d.name AS department_name
+         FROM budget_item_formulas f
+         LEFT JOIN class_levels cl ON cl.id = f.class_level_id
+         LEFT JOIN departments d ON d.id = f.department_id
+         WHERE f.school_id = $1 AND LOWER(f.item_name) = LOWER($2)`,
+        [req.schoolId, item_name.trim()]
+      );
+      return res.json(rows[0] ?? null);
+    }
+    const { rows } = await pool.query(
+      `SELECT f.*, cl.name AS class_level_name, d.name AS department_name
+       FROM budget_item_formulas f
+       LEFT JOIN class_levels cl ON cl.id = f.class_level_id
+       LEFT JOIN departments d ON d.id = f.department_id
+       WHERE f.school_id = $1 ORDER BY f.item_name`,
+      [req.schoolId]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// PUT /formulas — upsert the reusable formula for an item name (by school + lower(item_name))
+router.put('/formulas', async (req, res, next) => {
+  try {
+    const { item_name, population_basis, class_level_id, department_id, ratio, buffer_pct } = req.body;
+    if (!item_name?.trim()) return res.status(400).json({ error: 'item_name is required' });
+    if (!POPULATION_BASES.includes(population_basis)) {
+      return res.status(400).json({ error: `population_basis must be one of: ${POPULATION_BASES.join(', ')}` });
+    }
+    if (population_basis === 'class_level' && !class_level_id) return res.status(400).json({ error: 'class_level_id is required for that basis' });
+    if (population_basis === 'department' && !department_id) return res.status(400).json({ error: 'department_id is required for that basis' });
+    if (!(Number(ratio) > 0)) return res.status(400).json({ error: 'ratio must be greater than 0' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO budget_item_formulas (school_id, item_name, population_basis, class_level_id, department_id, ratio, buffer_pct, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       ON CONFLICT (school_id, LOWER(item_name)) DO UPDATE SET
+         population_basis = EXCLUDED.population_basis,
+         class_level_id   = EXCLUDED.class_level_id,
+         department_id    = EXCLUDED.department_id,
+         ratio             = EXCLUDED.ratio,
+         buffer_pct        = EXCLUDED.buffer_pct,
+         updated_at        = now()
+       RETURNING *`,
+      [req.schoolId, item_name.trim(), population_basis,
+       population_basis === 'class_level' ? class_level_id : null,
+       population_basis === 'department' ? department_id : null,
+       ratio, buffer_pct || 0, req.user.id]
+    );
+    res.json(rows[0]);
   } catch (err) { next(err); }
 });
 
@@ -136,11 +270,12 @@ router.post('/', async (req, res, next) => {
     if (Array.isArray(items) && items.length) {
       let i = 0;
       for (const item of items) {
-        if (!item.category || item.amount == null) continue;
+        if (validateItem(item)) continue;
         await pool.query(
-          `INSERT INTO department_budget_items (budget_id, category, description, amount, sort_order)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [budgetId, item.category.trim(), item.description?.trim() || null, item.amount, i++]
+          `INSERT INTO department_budget_items (budget_id, category, description, quantity, unit_price, amount, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [budgetId, item.category.trim(), item.description?.trim() || null, item.quantity,
+           item.unit_price ?? null, computeAmount(item.quantity, item.unit_price), i++]
         );
       }
     }
@@ -165,7 +300,7 @@ router.get('/:id', async (req, res, next) => {
     if (!allowed) return res.status(403).json({ error: 'You do not have access to this budget' });
 
     const { rows: items } = await pool.query(
-      `SELECT id, category, description, amount, sort_order FROM department_budget_items
+      `SELECT id, category, description, quantity, unit_price, amount, sort_order FROM department_budget_items
        WHERE budget_id = $1 ORDER BY sort_order, created_at`,
       [req.params.id]
     );
@@ -189,8 +324,8 @@ router.put('/:id', async (req, res, next) => {
     const { items } = req.body;
     if (!Array.isArray(items)) return res.status(400).json({ error: 'items must be an array' });
     for (const item of items) {
-      if (!item.category?.trim()) return res.status(400).json({ error: 'Every item needs a category' });
-      if (item.amount == null || Number(item.amount) < 0) return res.status(400).json({ error: 'Every item needs a non-negative amount' });
+      const err = validateItem(item);
+      if (err) return res.status(400).json({ error: err });
     }
 
     await client.query('BEGIN');
@@ -198,9 +333,10 @@ router.put('/:id', async (req, res, next) => {
     let i = 0;
     for (const item of items) {
       await client.query(
-        `INSERT INTO department_budget_items (budget_id, category, description, amount, sort_order)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [req.params.id, item.category.trim(), item.description?.trim() || null, item.amount, i++]
+        `INSERT INTO department_budget_items (budget_id, category, description, quantity, unit_price, amount, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [req.params.id, item.category.trim(), item.description?.trim() || null, item.quantity,
+         item.unit_price ?? null, computeAmount(item.quantity, item.unit_price), i++]
       );
     }
     await client.query(`UPDATE department_budgets SET updated_at = now() WHERE id = $1`, [req.params.id]);
