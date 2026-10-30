@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import type { AxiosInstance } from 'axios';
-import type { PopulationBasis, ClassLevel, BudgetDepartment } from '@/types/api';
+import type { PopulationBasis, ClassLevel, BudgetDepartment, ClassItem } from '@/types/api';
 
 const inputCls = 'w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-600'
   + ' border-slate-200 bg-white text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white';
@@ -12,7 +12,12 @@ const BASIS_LABELS: Record<PopulationBasis, string> = {
   class_level: 'Students in a class level',
   all_teachers: 'All active teachers',
   department: 'Teachers in a department',
+  subjects_school: 'Subjects offered school-wide',
+  subjects_class: 'Subjects offered to a class',
+  subjects_class_level: 'Subjects offered to a class level / year batch',
 };
+
+const CLASS_LEVEL_BASES: PopulationBasis[] = ['class_level', 'subjects_class_level'];
 
 export default function PopulationCalculator({ apiClient, itemName, onApply, onClose }: {
   apiClient: AxiosInstance; itemName: string;
@@ -20,9 +25,11 @@ export default function PopulationCalculator({ apiClient, itemName, onApply, onC
 }) {
   const [classLevels, setClassLevels] = useState<ClassLevel[]>([]);
   const [departments, setDepartments] = useState<BudgetDepartment[]>([]);
+  const [classes, setClasses] = useState<ClassItem[]>([]);
   const [basis, setBasis] = useState<PopulationBasis>('all_students');
   const [classLevelId, setClassLevelId] = useState('');
   const [departmentId, setDepartmentId] = useState('');
+  const [classId, setClassId] = useState('');
   const [ratio, setRatio] = useState('1');
   const [bufferPct, setBufferPct] = useState('0');
   const [population, setPopulation] = useState<number | null>(null);
@@ -34,6 +41,7 @@ export default function PopulationCalculator({ apiClient, itemName, onApply, onC
   useEffect(() => {
     apiClient.get<ClassLevel[]>('/api/class-levels').then(r => setClassLevels(r.data)).catch(() => {});
     apiClient.get<BudgetDepartment[]>('/api/department-budgets/departments-all').then(r => setDepartments(r.data)).catch(() => {});
+    apiClient.get<ClassItem[]>('/api/classes').then(r => setClasses(r.data)).catch(() => {});
   }, [apiClient]);
 
   useEffect(() => {
@@ -45,6 +53,7 @@ export default function PopulationCalculator({ apiClient, itemName, onApply, onC
         setBasis(f.population_basis);
         setClassLevelId(f.class_level_id || '');
         setDepartmentId(f.department_id || '');
+        setClassId(f.class_id || '');
         setRatio(String(f.ratio));
         setBufferPct(String(f.buffer_pct));
       }
@@ -53,18 +62,20 @@ export default function PopulationCalculator({ apiClient, itemName, onApply, onC
   }, [apiClient, itemName]);
 
   const loadPopulation = useCallback(async () => {
-    if (basis === 'class_level' && !classLevelId) { setPopulation(null); return; }
+    if (CLASS_LEVEL_BASES.includes(basis) && !classLevelId) { setPopulation(null); return; }
     if (basis === 'department' && !departmentId) { setPopulation(null); return; }
+    if (basis === 'subjects_class' && !classId) { setPopulation(null); return; }
     setLoadingPop(true);
     try {
       const params: Record<string, string> = { basis };
-      if (basis === 'class_level') params.class_level_id = classLevelId;
+      if (CLASS_LEVEL_BASES.includes(basis)) params.class_level_id = classLevelId;
       if (basis === 'department') params.department_id = departmentId;
+      if (basis === 'subjects_class') params.class_id = classId;
       const { data } = await apiClient.get<{ count: number }>('/api/department-budgets/population', { params });
       setPopulation(data.count);
     } catch { setPopulation(null); }
     finally { setLoadingPop(false); }
-  }, [apiClient, basis, classLevelId, departmentId]);
+  }, [apiClient, basis, classLevelId, departmentId, classId]);
 
   useEffect(() => { if (savedFormulaLoaded) loadPopulation(); }, [savedFormulaLoaded, loadPopulation]);
 
@@ -74,8 +85,9 @@ export default function PopulationCalculator({ apiClient, itemName, onApply, onC
 
   async function applyAndSave() {
     if (!itemName.trim()) { setError('Enter a category name for this item before calculating.'); return; }
-    if (basis === 'class_level' && !classLevelId) { setError('Select a class level.'); return; }
+    if (CLASS_LEVEL_BASES.includes(basis) && !classLevelId) { setError('Select a class level.'); return; }
     if (basis === 'department' && !departmentId) { setError('Select a department.'); return; }
+    if (basis === 'subjects_class' && !classId) { setError('Select a class.'); return; }
     if (ratioNum <= 0) { setError('Ratio must be greater than 0.'); return; }
     if (computedQuantity == null) { setError('Could not determine the population count.'); return; }
 
@@ -83,8 +95,9 @@ export default function PopulationCalculator({ apiClient, itemName, onApply, onC
     try {
       await apiClient.put('/api/department-budgets/formulas', {
         item_name: itemName.trim(), population_basis: basis,
-        class_level_id: basis === 'class_level' ? classLevelId : undefined,
+        class_level_id: CLASS_LEVEL_BASES.includes(basis) ? classLevelId : undefined,
         department_id: basis === 'department' ? departmentId : undefined,
+        class_id: basis === 'subjects_class' ? classId : undefined,
         ratio: ratioNum, buffer_pct: bufferNum,
       });
       onApply(computedQuantity);
@@ -110,7 +123,7 @@ export default function PopulationCalculator({ apiClient, itemName, onApply, onC
           </select>
         </div>
 
-        {basis === 'class_level' && (
+        {CLASS_LEVEL_BASES.includes(basis) && (
           <div>
             <label className={labelCls}>Class Level</label>
             <select className={inputCls} value={classLevelId} onChange={e => setClassLevelId(e.target.value)}>
@@ -125,6 +138,15 @@ export default function PopulationCalculator({ apiClient, itemName, onApply, onC
             <select className={inputCls} value={departmentId} onChange={e => setDepartmentId(e.target.value)}>
               <option value="">Select department…</option>
               {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </div>
+        )}
+        {basis === 'subjects_class' && (
+          <div>
+            <label className={labelCls}>Class</label>
+            <select className={inputCls} value={classId} onChange={e => setClassId(e.target.value)}>
+              <option value="">Select class…</option>
+              {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
         )}

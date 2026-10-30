@@ -114,9 +114,14 @@ router.get('/departments-all', async (req, res, next) => {
 
 // ── Population-based quantity calculator ────────────────────────────────────
 
-const POPULATION_BASES = ['all_students', 'class_level', 'all_teachers', 'department'];
+const POPULATION_BASES = [
+  'all_students', 'class_level', 'all_teachers', 'department',
+  'subjects_school', 'subjects_class', 'subjects_class_level',
+];
+// Bases that need a class_levels row to resolve.
+const CLASS_LEVEL_BASES = ['class_level', 'subjects_class_level'];
 
-async function resolvePopulationCount(schoolId, basis, classLevelId, departmentId) {
+async function resolvePopulationCount(schoolId, basis, classLevelId, departmentId, classId) {
   if (basis === 'all_students') {
     const { rows } = await pool.query(`SELECT COUNT(*)::int AS n FROM students WHERE school_id = $1 AND status = 'Active'`, [schoolId]);
     return rows[0].n;
@@ -147,18 +152,45 @@ async function resolvePopulationCount(schoolId, basis, classLevelId, departmentI
     );
     return rows[0].n;
   }
+  // Subject counts come from class_subjects (what's actually allocated to a
+  // class), not the raw subjects catalog — a subject nobody teaches yet
+  // shouldn't inflate an "A4 per subject" style calculation.
+  if (basis === 'subjects_school') {
+    const { rows } = await pool.query(`SELECT COUNT(DISTINCT subject_id)::int AS n FROM class_subjects WHERE school_id = $1`, [schoolId]);
+    return rows[0].n;
+  }
+  if (basis === 'subjects_class') {
+    if (!classId) return 0;
+    const { rows } = await pool.query(
+      `SELECT COUNT(DISTINCT cs.subject_id)::int AS n FROM class_subjects cs
+       JOIN classes c ON c.school_id = cs.school_id AND LOWER(c.name) = LOWER(cs.class_name)
+       WHERE cs.school_id = $1 AND c.id = $2`,
+      [schoolId, classId]
+    );
+    return rows[0].n;
+  }
+  if (basis === 'subjects_class_level') {
+    if (!classLevelId) return 0;
+    const { rows } = await pool.query(
+      `SELECT COUNT(DISTINCT cs.subject_id)::int AS n FROM class_subjects cs
+       JOIN classes c ON c.school_id = cs.school_id AND LOWER(c.name) = LOWER(cs.class_name)
+       WHERE cs.school_id = $1 AND c.level_id = $2`,
+      [schoolId, classLevelId]
+    );
+    return rows[0].n;
+  }
   return 0;
 }
 
-// GET /population?basis=&class_level_id=&department_id= — live headcount for a basis
+// GET /population?basis=&class_level_id=&department_id=&class_id= — live count for a basis
 router.get('/population', async (req, res, next) => {
   try {
-    const { basis, class_level_id, department_id } = req.query;
+    const { basis, class_level_id, department_id, class_id } = req.query;
     if (!POPULATION_BASES.includes(basis)) {
       return res.status(400).json({ error: `basis must be one of: ${POPULATION_BASES.join(', ')}` });
     }
-    const count = await resolvePopulationCount(req.schoolId, basis, class_level_id, department_id);
-    res.json({ basis, class_level_id: class_level_id || null, department_id: department_id || null, count });
+    const count = await resolvePopulationCount(req.schoolId, basis, class_level_id, department_id, class_id);
+    res.json({ basis, class_level_id: class_level_id || null, department_id: department_id || null, class_id: class_id || null, count });
   } catch (err) { next(err); }
 });
 
@@ -168,20 +200,22 @@ router.get('/formulas', async (req, res, next) => {
     const { item_name } = req.query;
     if (item_name) {
       const { rows } = await pool.query(
-        `SELECT f.*, cl.name AS class_level_name, d.name AS department_name
+        `SELECT f.*, cl.name AS class_level_name, d.name AS department_name, cls.name AS class_name
          FROM budget_item_formulas f
          LEFT JOIN class_levels cl ON cl.id = f.class_level_id
          LEFT JOIN departments d ON d.id = f.department_id
+         LEFT JOIN classes cls ON cls.id = f.class_id
          WHERE f.school_id = $1 AND LOWER(f.item_name) = LOWER($2)`,
         [req.schoolId, item_name.trim()]
       );
       return res.json(rows[0] ?? null);
     }
     const { rows } = await pool.query(
-      `SELECT f.*, cl.name AS class_level_name, d.name AS department_name
+      `SELECT f.*, cl.name AS class_level_name, d.name AS department_name, cls.name AS class_name
        FROM budget_item_formulas f
        LEFT JOIN class_levels cl ON cl.id = f.class_level_id
        LEFT JOIN departments d ON d.id = f.department_id
+       LEFT JOIN classes cls ON cls.id = f.class_id
        WHERE f.school_id = $1 ORDER BY f.item_name`,
       [req.schoolId]
     );
@@ -192,29 +226,32 @@ router.get('/formulas', async (req, res, next) => {
 // PUT /formulas — upsert the reusable formula for an item name (by school + lower(item_name))
 router.put('/formulas', async (req, res, next) => {
   try {
-    const { item_name, population_basis, class_level_id, department_id, ratio, buffer_pct } = req.body;
+    const { item_name, population_basis, class_level_id, department_id, class_id, ratio, buffer_pct } = req.body;
     if (!item_name?.trim()) return res.status(400).json({ error: 'item_name is required' });
     if (!POPULATION_BASES.includes(population_basis)) {
       return res.status(400).json({ error: `population_basis must be one of: ${POPULATION_BASES.join(', ')}` });
     }
-    if (population_basis === 'class_level' && !class_level_id) return res.status(400).json({ error: 'class_level_id is required for that basis' });
+    if (CLASS_LEVEL_BASES.includes(population_basis) && !class_level_id) return res.status(400).json({ error: 'class_level_id is required for that basis' });
     if (population_basis === 'department' && !department_id) return res.status(400).json({ error: 'department_id is required for that basis' });
+    if (population_basis === 'subjects_class' && !class_id) return res.status(400).json({ error: 'class_id is required for that basis' });
     if (!(Number(ratio) > 0)) return res.status(400).json({ error: 'ratio must be greater than 0' });
 
     const { rows } = await pool.query(
-      `INSERT INTO budget_item_formulas (school_id, item_name, population_basis, class_level_id, department_id, ratio, buffer_pct, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO budget_item_formulas (school_id, item_name, population_basis, class_level_id, department_id, class_id, ratio, buffer_pct, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (school_id, LOWER(item_name)) DO UPDATE SET
          population_basis = EXCLUDED.population_basis,
          class_level_id   = EXCLUDED.class_level_id,
          department_id    = EXCLUDED.department_id,
+         class_id          = EXCLUDED.class_id,
          ratio             = EXCLUDED.ratio,
          buffer_pct        = EXCLUDED.buffer_pct,
          updated_at        = now()
        RETURNING *`,
       [req.schoolId, item_name.trim(), population_basis,
-       population_basis === 'class_level' ? class_level_id : null,
+       CLASS_LEVEL_BASES.includes(population_basis) ? class_level_id : null,
        population_basis === 'department' ? department_id : null,
+       population_basis === 'subjects_class' ? class_id : null,
        ratio, buffer_pct || 0, req.user.id]
     );
     res.json(rows[0]);

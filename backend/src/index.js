@@ -3937,6 +3937,15 @@ async function runMigrations() {
       )
     `);
     await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_budget_formulas_school_name ON budget_item_formulas(school_id, LOWER(item_name))`);
+    // Subject-count bases — e.g. "A4 sheets = 1 ream per subject offered this
+    // year batch", for exam printing-style line items that scale with how many
+    // subject papers need producing, not headcount.
+    await pool.query(`ALTER TABLE budget_item_formulas ADD COLUMN IF NOT EXISTS class_id UUID REFERENCES classes(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE budget_item_formulas DROP CONSTRAINT IF EXISTS budget_item_formulas_population_basis_check`);
+    await pool.query(`
+      ALTER TABLE budget_item_formulas ADD CONSTRAINT budget_item_formulas_population_basis_check
+      CHECK (population_basis IN ('all_students','class_level','all_teachers','department','subjects_school','subjects_class','subjects_class_level'))
+    `);
     } catch (e) { _migFailures++; console.error('[MIGRATION FAILED] department budgets module:', e.message); }
 
     if (_migFailures > 0) {

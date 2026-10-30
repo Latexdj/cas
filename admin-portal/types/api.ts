@@ -595,7 +595,9 @@ export interface DepartmentBudgetItem {
   sort_order: number;
 }
 
-export type PopulationBasis = 'all_students' | 'class_level' | 'all_teachers' | 'department';
+export type PopulationBasis =
+  | 'all_students' | 'class_level' | 'all_teachers' | 'department'
+  | 'subjects_school' | 'subjects_class' | 'subjects_class_level';
 
 export interface BudgetItemFormula {
   id: string;
@@ -605,6 +607,8 @@ export interface BudgetItemFormula {
   class_level_name: string | null;
   department_id: string | null;
   department_name: string | null;
+  class_id: string | null;
+  class_name: string | null;
   ratio: number;
   buffer_pct: number;
 }
