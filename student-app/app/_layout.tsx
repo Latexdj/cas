@@ -18,7 +18,7 @@ function InitialLayout() {
     const inLogin     = seg === 'login';
     const inChangePwd = seg === 'change-password';
     const inPublic    = ['welcome', 'materials', 'viewer'].includes(seg);
-    const inModal     = ['timetable', 'calendar', 'fees', 'clearance', 'library', 'exeat', 'profile'].includes(seg);
+    const inModal     = ['timetable', 'calendar', 'fees', 'clearance', 'library', 'exeat', 'profile', 'clinic', 'conduct', 'lms'].includes(seg);
 
     if (!user && !inLogin && !inPublic) {
       router.replace('/welcome');
@@ -45,6 +45,11 @@ function InitialLayout() {
         <Stack.Screen name="library"         options={{ headerShown: true, title: 'Library',    headerBackTitle: 'Back' }} />
         <Stack.Screen name="exeat"           options={{ headerShown: true, title: 'Exeat',      headerBackTitle: 'Back' }} />
         <Stack.Screen name="profile"         options={{ headerShown: true, title: 'Profile',    headerBackTitle: 'Back' }} />
+        <Stack.Screen name="clinic"              options={{ headerShown: true, title: 'Clinic',  headerBackTitle: 'Back' }} />
+        <Stack.Screen name="conduct"             options={{ headerShown: true, title: 'Conduct', headerBackTitle: 'Back' }} />
+        <Stack.Screen name="lms/[courseId]"      options={{ headerShown: true, title: 'Course',  headerBackTitle: 'Back' }} />
+        <Stack.Screen name="lms/pasco"           options={{ headerShown: true, title: 'Pasco',    headerBackTitle: 'Back' }} />
+        <Stack.Screen name="lms/quiz/[quizId]"   options={{ headerShown: false }} />
       </Stack>
 
       {isLoading && (

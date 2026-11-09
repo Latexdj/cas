@@ -11,29 +11,24 @@ interface Lesson {
   id: string;
   title: string;
   content_type: 'text' | 'youtube' | 'link' | 'file';
-  body_text?: string;
-  video_url?: string;
-  link_url?: string;
+  body?: string;
+  external_url?: string;
   file_url?: string;
-}
-
-interface AssignmentSubmission {
-  id: string;
-  status: 'submitted' | 'graded';
-  body_text?: string;
-  file_url?: string;
-  submitted_at: string;
-  score?: number;
-  feedback?: string;
 }
 
 interface Assignment {
   id: string;
   title: string;
+  instructions?: string;
   due_date: string;
   max_score: number;
-  description?: string;
-  submission?: AssignmentSubmission;
+  status: 'not_submitted' | 'submitted' | 'graded';
+  submission_id: string | null;
+  submitted_at: string | null;
+  score: number | null;
+  feedback: string | null;
+  submission_body_text?: string | null;
+  submission_file_url?: string | null;
 }
 
 interface Quiz {
@@ -103,12 +98,12 @@ function LessonDetail({ lesson }: { lesson: Lesson }) {
   if (lesson.content_type === 'text') {
     return (
       <div className="mt-3 p-4 bg-[#F5F0E8] rounded-lg text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-        {lesson.body_text || 'No content.'}
+        {lesson.body || 'No content.'}
       </div>
     );
   }
-  if (lesson.content_type === 'youtube' && lesson.video_url) {
-    const vid = extractYouTubeId(lesson.video_url);
+  if (lesson.content_type === 'youtube' && lesson.external_url) {
+    const vid = extractYouTubeId(lesson.external_url);
     return vid ? (
       <div className="mt-3 rounded-lg overflow-hidden">
         <iframe
@@ -125,11 +120,11 @@ function LessonDetail({ lesson }: { lesson: Lesson }) {
       <p className="mt-3 text-sm text-red-500">Invalid YouTube URL.</p>
     );
   }
-  if (lesson.content_type === 'link' && lesson.link_url) {
+  if (lesson.content_type === 'link' && lesson.external_url) {
     return (
       <div className="mt-3">
         <a
-          href={lesson.link_url}
+          href={lesson.external_url}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
@@ -173,35 +168,32 @@ function AssignmentCard({
   courseId: string;
   onRefresh: () => void;
 }) {
-  const sub = assignment.submission;
-  const [expanded, setExpanded] = useState(!sub);
-  const [bodyText, setBodyText] = useState('');
+  const notSubmitted = assignment.status === 'not_submitted';
+  const [expanded, setExpanded] = useState(notSubmitted);
+  const [bodyText, setBodyText] = useState(assignment.submission_body_text ?? '');
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const isOverdue = !sub && new Date(assignment.due_date) < new Date();
+  const isOverdue = notSubmitted && new Date(assignment.due_date) < new Date();
 
   async function handleSubmit() {
     setError('');
     setSubmitting(true);
     try {
-      let file_base64: string | undefined;
-      let file_name: string | undefined;
+      let file_data: string | undefined;
       if (file) {
-        file_base64 = await new Promise<string>((resolve, reject) => {
+        file_data = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
           reader.readAsDataURL(file);
         });
-        file_name = file.name;
       }
       await studentApi.post(`/api/lms/assignments/${assignment.id}/submit`, {
         body_text: bodyText,
-        ...(file_base64 ? { file_base64, file_name } : {}),
+        ...(file_data ? { file_data } : {}),
       });
-      setBodyText('');
       setFile(null);
       setExpanded(false);
       onRefresh();
@@ -225,31 +217,31 @@ function AssignmentCard({
             </p>
           </div>
           <div className="shrink-0">
-            {!sub && (
+            {assignment.status === 'not_submitted' && (
               <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Not Submitted</span>
             )}
-            {sub?.status === 'submitted' && (
+            {assignment.status === 'submitted' && (
               <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Submitted</span>
             )}
-            {sub?.status === 'graded' && (
+            {assignment.status === 'graded' && (
               <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#D1EAD9] text-[#145C44]">
-                Graded: {sub.score}/{assignment.max_score}
+                Graded: {assignment.score}/{assignment.max_score}
               </span>
             )}
           </div>
         </div>
 
-        {sub?.status === 'graded' && (
+        {assignment.status === 'graded' && (
           <div className="mt-3 p-3 bg-[#E8F4EE] rounded-lg border border-[#D1EAD9]">
-            <p className="text-xs font-bold text-[#145C44] mb-1">Score: {sub.score} / {assignment.max_score}</p>
-            {sub.feedback && <p className="text-sm text-slate-600 mt-1">{sub.feedback}</p>}
+            <p className="text-xs font-bold text-[#145C44] mb-1">Score: {assignment.score} / {assignment.max_score}</p>
+            {assignment.feedback && <p className="text-sm text-slate-600 mt-1">{assignment.feedback}</p>}
           </div>
         )}
 
-        {sub?.status === 'submitted' && (
+        {assignment.status === 'submitted' && (
           <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100 flex items-center justify-between gap-2">
             <p className="text-xs text-slate-500">
-              Submitted {new Date(sub.submitted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+              Submitted {assignment.submitted_at ? new Date(assignment.submitted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
             </p>
             <button onClick={() => setExpanded(e => !e)} className="text-xs font-semibold shrink-0" style={{ color: primary }}>
               {expanded ? 'Cancel' : 'Resubmit'}
@@ -258,7 +250,7 @@ function AssignmentCard({
         )}
       </div>
 
-      {(!sub || expanded) && sub?.status !== 'graded' && (
+      {(notSubmitted || expanded) && assignment.status !== 'graded' && (
         <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-3">
           <textarea
             value={bodyText}

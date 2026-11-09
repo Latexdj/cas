@@ -296,13 +296,17 @@ router.get('/courses/:courseId/assignments', async (req, res, next) => {
       if (course[0].status !== 'published') return res.status(403).json({ error: 'Course not available' });
       const { rows } = await pool.query(
         `SELECT a.*,
-           s.id AS submission_id, s.submitted_at, s.score, s.feedback, s.is_late
+           s.id AS submission_id, s.submitted_at, s.score, s.feedback, s.is_late,
+           s.body_text AS submission_body_text, s.file_url AS submission_file_url
          FROM lms_assignments a
          LEFT JOIN lms_submissions s ON s.assignment_id=a.id AND s.student_id=$3
          WHERE a.course_id=$1 AND a.school_id=$2 AND a.is_published=true
          ORDER BY a.due_date NULLS LAST, a.created_at`,
         [req.params.courseId, req.schoolId, req.user.id]);
-      return res.json(rows);
+      return res.json(rows.map(r => ({
+        ...r,
+        status: r.submission_id == null ? 'not_submitted' : (r.score == null ? 'submitted' : 'graded'),
+      })));
     }
 
     const { rows } = await pool.query(
@@ -951,7 +955,23 @@ router.get('/pasco', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT * FROM lms_pasco_questions WHERE ${conds.join(' AND ')} ORDER BY ${order} LIMIT $${params.length}`,
       params);
-    res.json(rows);
+    // Flatten JSONB options into option_a/b/c/d + correct_option, same convention
+    // as GET /quizzes/:id/questions — the raw `options` array has no use on the wire.
+    res.json(rows.map(q => {
+      if (!Array.isArray(q.options)) return q;
+      const [a, b, c, d] = q.options;
+      const correctIdx = q.options.findIndex((o) => o.is_correct === true);
+      const letters = ['a', 'b', 'c', 'd'];
+      return {
+        ...q,
+        option_a: a?.text ?? '',
+        option_b: b?.text ?? '',
+        option_c: c?.text ?? '',
+        option_d: d?.text ?? '',
+        correct_option: correctIdx >= 0 ? letters[correctIdx] : null,
+        options: undefined,
+      };
+    }));
   } catch (err) { next(err); }
 });
 
@@ -1047,7 +1067,10 @@ router.get('/student/assignments', studentOnly, async (req, res, next) => {
        WHERE c.school_id=$2 AND c.class_name=$3 AND c.status='published' AND a.is_published=true ${extra}
        ORDER BY a.due_date NULLS LAST, a.created_at DESC`,
       [req.user.id, req.schoolId, st[0].class_name]);
-    res.json(rows);
+    res.json(rows.map(r => ({
+      ...r,
+      status: r.submission_id == null ? 'not_submitted' : (r.score == null ? 'submitted' : 'graded'),
+    })));
   } catch (err) { next(err); }
 });
 

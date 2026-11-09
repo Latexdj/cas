@@ -29,6 +29,8 @@ export default function MoreScreen() {
     { label: 'Library',   icon: 'library-outline',        iconColor: '#7C3AED', route: '/library',   color: '#EDE9FE' },
     { label: 'Exeat',     icon: 'exit-outline',           iconColor: '#EA580C', route: '/exeat',     color: '#FFF7ED' },
     { label: 'LMS',       icon: 'school-outline',         iconColor: '#0F766E', route: '/lms',       color: '#ECFDF5' },
+    { label: 'Clinic',    icon: 'medkit-outline',         iconColor: '#DC2626', route: '/clinic',    color: '#FEF2F2' },
+    { label: 'Conduct',   icon: 'shield-checkmark-outline', iconColor: '#145C44', route: '/conduct', color: '#F0FDF4' },
     { label: 'Profile',   icon: 'person-circle-outline',  iconColor: '#475569', route: '/profile',   color: '#F1F5F9' },
     { label: 'Sign Out',  icon: 'log-out-outline',        iconColor: '#DC2626', action: logout,      color: '#FEF2F2', danger: true },
   ];

@@ -187,23 +187,161 @@ export interface ExeatData {
 }
 
 export interface LmsCourse {
-  id:             string;
-  title:          string;
-  subject:        string;
-  description:    string | null;
-  teacher_name:   string | null;
-  published_at:   string;
+  id:                 string;
+  subject_name:       string;
+  class_name:         string;
+  description:        string | null;
+  teacher_name:       string | null;
+  academic_year_name?:string | null;
+  semester?:          number | null;
+  status?:            string;
+  created_at?:        string;
+  lesson_count?:      number;
+  assignment_count?:  number;
+  pending_assignments?: number;
+  quiz_count?:        number;
+  announcement_count?:number;
 }
+
+export type LmsAssignmentStatus = 'not_submitted' | 'submitted' | 'graded';
 
 export interface LmsAssignment {
   id:             string;
   course_id:      string;
-  course_title:   string;
+  subject_name:   string;
   title:          string;
   instructions:   string | null;
   due_date:       string | null;
+  allow_late?:    boolean;
+  max_score:      number | null;
+  submission_id:  string | null;
   submitted_at:   string | null;
-  status:         'pending' | 'submitted' | 'graded';
-  grade:          number | null;
-  max_marks:      number | null;
+  score:          number | null;
+  feedback:       string | null;
+  is_late:        boolean | null;
+  status:         LmsAssignmentStatus;
+  body_text:      string | null;
+  file_url:       string | null;
+}
+
+export interface LmsLesson {
+  id:            string;
+  course_id:     string;
+  title:         string;
+  content_type: 'text' | 'youtube' | 'link' | 'file';
+  body:          string | null;
+  external_url:  string | null;
+  file_url:      string | null;
+  sort_order:    number;
+}
+
+export interface LmsQuiz {
+  id:                    string;
+  course_id:             string;
+  title:                 string;
+  instructions:          string | null;
+  time_limit_mins:       number | null;
+  max_attempts:          number | null;
+  show_answers_after:    boolean;
+  randomise_questions?:  boolean;
+  question_count:        number;
+  total_marks:           number;
+  attempt_count:         number;
+  best_score:            number | null;
+}
+
+export interface LmsQuizQuestion {
+  id:             string;
+  question_text:  string;
+  question_type: 'mcq' | 'short';
+  marks:          number;
+  sort_order:     number;
+  option_a?:      string;
+  option_b?:      string;
+  option_c?:      string;
+  option_d?:      string;
+}
+
+export interface LmsQuizAttemptResponse {
+  attempt:   { id: string };
+  questions: LmsQuizQuestion[];
+  quiz:      { id: string; title: string; time_limit_mins: number | null; show_answers_after: boolean };
+}
+
+export interface LmsQuizResultQuestion {
+  id:             string;
+  question_text:  string;
+  your_answer:    string | null;
+  correct_answer?:string | null;
+  explanation?:   string | null;
+  marks_awarded:  number;
+  marks:          number;
+}
+
+export interface LmsQuizResult {
+  score:              number;
+  total_marks:        number;
+  percentage:         number;
+  show_answers_after: boolean;
+  questions:          LmsQuizResultQuestion[];
+}
+
+export interface LmsAnnouncement {
+  id:         string;
+  title:      string;
+  body:       string;
+  is_pinned:  boolean;
+  created_at: string;
+}
+
+export interface PascoQuestion {
+  id:             string;
+  question_text:  string;
+  option_a:       string;
+  option_b:       string;
+  option_c:       string;
+  option_d:       string;
+  correct_option: 'a' | 'b' | 'c' | 'd';
+  explanation?:   string | null;
+  difficulty?:    string | null;
+  year?:          number | null;
+  subject_name?:  string | null;
+}
+
+export interface ClinicVisit {
+  id:                string;
+  complaint:         string;
+  severity:          string;
+  outcome:           string | null;
+  visit_date:        string;
+  diagnosis_notes:   string | null;
+  treatment_given:   string | null;
+  closed_at:         string | null;
+}
+
+export interface ClinicHealthProfile {
+  blood_group:         string | null;
+  genotype:            string | null;
+  known_allergies:     string | null;
+  known_conditions:    string | null;
+  current_medications: string | null;
+}
+
+export interface DisciplinaryLetter {
+  id:               string;
+  letter_type:      string;
+  offense_category: string;
+  offense_other?:   string;
+  subject:          string;
+  body:             string;
+  issued_date:      string;
+  status:          'issued' | 'acknowledged' | 'resolved';
+  acknowledged_at?: string;
+  acknowledged_by?: string;
+  resolution_notes?:string;
+  resolved_at?:     string;
+  issued_by_name:   string;
+  created_at:       string;
+  academic_year_name?: string;
+  semester?:        number;
 }
